@@ -235,7 +235,17 @@ export default function ClientSign() {
                 <ChevronDown className="w-4 h-4 text-zinc-400 group-open:rotate-180 transition-transform flex-shrink-0 ml-2" />
               </summary>
               <div className="px-5 pb-4 text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-zinc-100 dark:border-zinc-800 pt-3">
-                {order.order_description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim()}
+                {(() => {
+                  const raw = order.order_description || '';
+                  // Remove markdown table rows (lines that are mostly pipes and dashes)
+                  const cleaned = raw
+                    .split('\n')
+                    .filter(line => !line.match(/^\s*[|\-]+\s*$/))
+                    .map(line => line.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/`/g, '').replace(/\|/g, ' · ').trim())
+                    .filter(line => line.length > 0)
+                    .join('\n');
+                  return cleaned;
+                })()}
               </div>
             </details>
           ) : (
@@ -245,7 +255,7 @@ export default function ClientSign() {
           )}
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {(order.services || []).map((s, i) => (
-              {s.description && s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim().length > 80 ? (
+              {s.description && s.description.length > 80 ? (
                 <details key={i} className="group">
                   <summary className="flex justify-between items-center px-5 py-3.5 cursor-pointer list-none">
                     <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -255,25 +265,35 @@ export default function ClientSign() {
                     <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
                   </summary>
                   <div className="px-5 pb-3.5 text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-zinc-50 dark:border-zinc-800/50 pt-2 ml-5">
-                    {s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim()}
+                    {(() => {
+                    const raw = s.description || '';
+                    return raw
+                      .split('\n')
+                      .filter(line => !line.match(/^\s*[|\-]+\s*$/))
+                      .map(line => line.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/`/g, '').replace(/\|/g, ' · ').trim())
+                      .filter(line => line.length > 0)
+                      .join('\n');
+                  })()}
                   </div>
                 </details>
               ) : (
                 <div key={i} className="flex justify-between items-start px-5 py-3.5">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{s.name}</div>
-                    {s.description && <div className="text-xs text-zinc-500 mt-0.5">{s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim()}</div>}
+                    {s.description && <div className="text-xs text-zinc-500 mt-0.5">{(() => {
+                    const raw = s.description || '';
+                    return raw
+                      .split('\n')
+                      .filter(line => !line.match(/^\s*[|\-]+\s*$/))
+                      .map(line => line.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/`/g, '').replace(/\|/g, ' · ').trim())
+                      .filter(line => line.length > 0)
+                      .join('\n');
+                  })()}</div>}
                   </div>
                   <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
                 </div>
               )}
             ))}
-          </div>
-          {/* Totals */}
-          <div className="border-t border-zinc-100 dark:border-zinc-800 px-5 py-3 space-y-1.5">
-            <div className="flex justify-between text-xs text-zinc-500"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-            {discAmt > 0 && <div className="flex justify-between text-xs text-red-500"><span>Discount ({order.discount_percent}%)</span><span>− {fmt(discAmt)}</span></div>}
-            {taxAmt > 0 && <div className="flex justify-between text-xs text-zinc-500"><span>VAT ({order.tax_percent}%)</span><span>{fmt(taxAmt)}</span></div>}
           </div>
           <div className="bg-zinc-900 dark:bg-zinc-800 px-5 py-4 flex justify-between items-center">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Due</span>
