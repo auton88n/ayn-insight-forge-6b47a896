@@ -44,14 +44,14 @@ export const BetaFeedbackViewer = () => {
 
       // Fetch profiles for these users
       const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('user_id, contact_person, company_name')
-        .in('user_id', userIds);
+        .from('admin_users_view')
+        .select('id, display_name, email')
+        .in('id', userIds);
 
       // Create a map of user_id to name
       const userNameMap = new Map<string, string>();
       (profilesData || []).forEach(p => {
-        userNameMap.set(p.user_id, p.contact_person || p.company_name || '');
+        userNameMap.set((p as any).id, (p as any).display_name || (p as any).email?.split('@')[0] || '');
       });
 
       // Merge feedback with user names

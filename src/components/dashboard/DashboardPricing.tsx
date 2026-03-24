@@ -48,7 +48,7 @@ const plans = [
 
 export const DashboardPricing = () => {
   const { tier: currentTier, startCheckout, openCustomerPortal, startTopUp, isLoading: isSubLoading } = useSubscription();
-  const { usage } = useUsageTracking();
+  const usageData = useUsageTracking(null);
   const { t } = useLanguage();
 
   const handleUpgrade = async (tierKey: string) => {
@@ -66,14 +66,14 @@ export const DashboardPricing = () => {
 
   if (isSubLoading) {
     return (
-      <DashboardContainer className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-      </DashboardContainer>
+      </div>
     );
   }
 
   return (
-    <DashboardContainer>
+    <div>
       <div className="max-w-6xl mx-auto py-8">
         
         {/* Header Section */}
@@ -244,7 +244,7 @@ export const DashboardPricing = () => {
                   Credits earned from feedback or top-ups. These never expire.
                 </p>
                 <div className="flex items-baseline">
-                  <span className="text-3xl font-bold text-emerald-400">{usage?.bonus_credits || 0}</span>
+                  <span className="text-3xl font-bold text-emerald-400">{(usageData as any)?.bonus_credits || 0}</span>
                   <span className="text-muted-foreground ml-2">available</span>
                 </div>
               </Card>
@@ -253,7 +253,7 @@ export const DashboardPricing = () => {
           </div>
         </div>
       </div>
-    </DashboardContainer>
+    </div>
   );
 };
 

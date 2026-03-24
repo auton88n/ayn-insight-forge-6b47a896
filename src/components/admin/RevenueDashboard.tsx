@@ -1,386 +1,149 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  Users, 
-  Activity,
-  ArrowUpRight,
-  Download
-} from 'lucide-react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-
-export const SUBSCRIPTION_PRICES: Record<string, number> = {
-  free: 0,
-  starter: 20,
-  pro: 49,
-  business: 99,
-  enterprise: 0,
-  unlimited: 0,
-};
-
-interface RevenueMetrics {
-  mrr: number;
-  arr: number;
-  paidUsers: number;
-  churnRisk: number;
-  mrrGrowth: number;
-}
-
-interface PlanDistribution {
-  name: string;
-  users: number;
-  revenue: number;
-  color: string;
-}
+import { DollarSign, TrendingUp, Users, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface UserRevenue {
-  id: string;
-  email: string;
-  plan: string;
-  mrr: number;
-  status: 'active' | 'past_due' | 'canceled' | 'trialing';
-  health: 'good' | 'at_risk' | 'churned';
-  joinDate: string;
+  id: string; display_name: string; email: string; auth_provider: string;
+  subscription_tier: string; subscription_status: string;
+  is_unlimited: boolean; total_messages: number; messages_30d: number;
+  signed_up_at: string; last_active_at: string | null;
+}
+
+const TIER_PRICE: Record<string, number> = { free: 0, starter: 29, pro: 79, business: 199, unlimited: 299, enterprise: 499 };
+
+function timeAgo(d: string | null) {
+  if (!d) return 'Never';
+  const dy = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+  if (dy === 0) return 'Today'; if (dy === 1) return 'Yesterday';
+  if (dy < 30) return `${dy}d ago`; return `${Math.floor(dy/30)}mo ago`;
 }
 
 export const RevenueDashboard = () => {
-  const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
-  const [plans, setPlans] = useState<PlanDistribution[]>([]);
   const [users, setUsers] = useState<UserRevenue[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchRevenueData();
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase.from('admin_users_view').select(
+        'id,display_name,email,auth_provider,subscription_tier,subscription_status,is_unlimited,total_messages,messages_30d,signed_up_at,last_active_at'
+      );
+      setUsers((data || []) as UserRevenue[]);
+    } finally { setLoading(false); }
   }, []);
 
-  const fetchRevenueData = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch actual subscriptions
-      const { data: subsData, error } = await supabase
-        .from('user_subscriptions')
-        .select(`
-          id,
-          user_id,
-          subscription_tier,
-          status,
-          created_at,
-          current_period_end
-        `);
-      
-      if (error) throw error;
-      
-      // Fetch corresponding profiles manually to avoid Foreign Key PostgREST crashes
-      const userIds = subsData?.map((s: any) => s.user_id).filter(Boolean) || [];
-      const profilesMap: Record<string, any> = {};
-      
-      if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('user_id, company_name, contact_person')
-          .in('user_id', userIds);
-          
-        if (profilesData) {
-          profilesData.forEach(p => {
-            profilesMap[p.user_id] = p;
-          });
-        }
-      }
+  useEffect(() => { fetch(); }, [fetch]);
 
-      let totalMrr = 0;
-      let paidCount = 0;
-      let churnRiskCount = 0;
-
-      const planMap: Record<string, { users: number; revenue: number }> = {
-        starter: { users: 0, revenue: 0 },
-        pro: { users: 0, revenue: 0 },
-        business: { users: 0, revenue: 0 },
-      };
-
-      const realUsers: UserRevenue[] = [];
-
-      subsData?.forEach((sub: any) => {
-        const tier = (sub.subscription_tier || 'free').toLowerCase();
-        const price = SUBSCRIPTION_PRICES[tier] || 0;
-        
-        let health: 'good' | 'at_risk' | 'churned' = 'good';
-        
-        // Determine health based on status and period end
-        if (sub.status === 'canceled' || sub.status === 'unpaid') {
-          health = 'churned';
-        } else if (sub.status === 'past_due') {
-          health = 'at_risk';
-          churnRiskCount++;
-        }
-
-        // Only count active/trialing paid tiers towards MRR
-        if (price > 0 && (sub.status === 'active' || sub.status === 'trialing')) {
-          totalMrr += price;
-          paidCount++;
-          
-          if (planMap[tier]) {
-            planMap[tier].users++;
-            planMap[tier].revenue += price;
-          }
-        }
-
-        // Add to user list if they are on a paid plan or have a status worth tracking
-        if (tier !== 'free' || sub.status !== 'active') {
-          const profile = profilesMap[sub.user_id];
-          const displayEmail = profile?.company_name || profile?.contact_person || sub.user_id.substring(0, 8);
-          
-          realUsers.push({
-            id: sub.user_id,
-            email: displayEmail,
-            plan: tier,
-            mrr: price,
-            status: (sub.status as any) || 'active',
-            health,
-            joinDate: sub.created_at || new Date().toISOString()
-          });
-        }
-      });
-
-      setMetrics({
-        mrr: totalMrr,
-        arr: totalMrr * 12,
-        paidUsers: paidCount,
-        churnRisk: churnRiskCount,
-        mrrGrowth: 0 // Cannot compute historically without a snapshots table
-      });
-
-      setPlans([
-        { name: 'Starter', users: planMap.starter.users, revenue: planMap.starter.revenue, color: '#3b82f6' },
-        { name: 'Pro', users: planMap.pro.users, revenue: planMap.pro.revenue, color: '#8b5cf6' },
-        { name: 'Business', users: planMap.business.users, revenue: planMap.business.revenue, color: '#10b981' }
-      ]);
-
-      setUsers(realUsers.sort((a, b) => b.mrr - a.mrr));
-    } catch (err) {
-      console.error("Error fetching revenue data", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
-
-  const getHealthBadge = (health: string) => {
-    switch (health) {
-      case 'good': return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Healthy</Badge>;
-      case 'at_risk': return <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">At Risk</Badge>;
-      case 'churned': return <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">Churned</Badge>;
-      default: return null;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active': return <span className="flex items-center gap-1.5 text-xs text-emerald-500"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active</span>;
-      case 'past_due': return <span className="flex items-center gap-1.5 text-xs text-amber-500"><div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Past Due</span>;
-      case 'canceled': return <span className="flex items-center gap-1.5 text-xs text-red-500"><div className="w-1.5 h-1.5 rounded-full bg-red-500" /> Canceled</span>;
-      case 'trialing': return <span className="flex items-center gap-1.5 text-xs text-blue-500"><div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Trialing</span>;
-      default: return <span className="lowercase text-xs text-muted-foreground">{status}</span>;
-    }
-  };
+  const mrr = users.reduce((s, u) => s + (TIER_PRICE[u.subscription_tier] || 0), 0);
+  const paid = users.filter(u => u.subscription_tier !== 'free' && u.subscription_status === 'active');
+  const churned = users.filter(u => {
+    if (!u.last_active_at) return false;
+    return (Date.now() - new Date(u.last_active_at).getTime()) > 14 * 86400000;
+  });
+  const neverUsed = users.filter(u => u.total_messages === 0);
+  const arr = mrr * 12;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <DollarSign className="w-6 h-6 text-emerald-500" />
-            Revenue Dashboard
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            Monitor MRR, plan distributions, and subscription health.
-          </p>
+          <h2 className="text-white font-semibold text-lg flex items-center gap-2"><DollarSign className="w-5 h-5 text-emerald-400" />Revenue Dashboard</h2>
+          <p className="text-white/30 text-sm">Based on current subscription tiers (Stripe not connected yet)</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2 border-border bg-card/50">
-            <Download className="w-4 h-4" /> Export CSV
-          </Button>
+        <button onClick={fetch} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* No Stripe warning */}
+      <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+        <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+        <p className="text-amber-400/80 text-sm">Stripe is not connected — revenue figures are calculated from tier prices, not actual payments. Connect Stripe to see real revenue.</p>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          { label: 'MRR', value: `$${mrr.toLocaleString()}`, sub: 'monthly recurring', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+          { label: 'ARR', value: `$${arr.toLocaleString()}`, sub: 'annual run rate', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+          { label: 'Paid Users', value: paid.length, sub: `of ${users.length} total`, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
+          { label: 'Churn Risk', value: churned.length, sub: 'inactive 14+ days', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+        ].map(({ label, value, sub, color, bg }) => (
+          <div key={label} className={`border rounded-xl p-5 ${bg}`}>
+            <div className="text-white/40 text-xs mb-2">{label}</div>
+            <div className={`text-3xl font-bold ${color}`}>{value}</div>
+            <div className="text-white/30 text-xs mt-1">{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Plan breakdown */}
+      <div className="bg-white/3 border border-white/8 rounded-xl p-5">
+        <div className="text-white font-medium text-sm mb-4">Plan Distribution</div>
+        <div className="space-y-3">
+          {['unlimited','pro','starter','business','free'].map(tier => {
+            const count = users.filter(u => u.subscription_tier === tier).length;
+            const revenue = count * (TIER_PRICE[tier] || 0);
+            const pct = users.length > 0 ? (count / users.length) * 100 : 0;
+            const colors: Record<string, string> = { unlimited: 'bg-emerald-500', pro: 'bg-purple-500', starter: 'bg-blue-500', business: 'bg-amber-500', free: 'bg-white/20' };
+            return (
+              <div key={tier} className="flex items-center gap-3">
+                <div className="w-20 text-white/50 text-xs capitalize text-right">{tier}</div>
+                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${colors[tier]}`} style={{ width: `${pct}%` }} />
+                </div>
+                <div className="w-6 text-white/60 text-xs text-right">{count}</div>
+                {revenue > 0 && <div className="w-16 text-emerald-400/70 text-xs text-right">${revenue}/mo</div>}
+                {revenue === 0 && <div className="w-16 text-white/20 text-xs text-right">$0</div>}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* KPI Cards */}
-      {metrics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardContent className="p-5">
-              <div className="flex justify-between items-start">
-                <div className="p-2.5 bg-emerald-500/10 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-emerald-500" />
-                </div>
-                <div className="flex items-center gap-1 text-emerald-500 text-sm font-medium bg-emerald-500/10 px-2 py-1 rounded-md">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> {metrics.mrrGrowth}%
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-medium text-muted-foreground">Monthly Recurring Revenue</p>
-                <h3 className="text-3xl font-bold mt-1 text-foreground">{formatCurrency(metrics.mrr)}</h3>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardContent className="p-5">
-              <div className="flex justify-between items-start">
-                <div className="p-2.5 bg-blue-500/10 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-medium text-muted-foreground">Annual Run Rate (ARR)</p>
-                <h3 className="text-3xl font-bold mt-1 text-foreground">{formatCurrency(metrics.arr)}</h3>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardContent className="p-5">
-              <div className="flex justify-between items-start">
-                <div className="p-2.5 bg-purple-500/10 rounded-lg">
-                  <Users className="w-5 h-5 text-purple-500" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-medium text-muted-foreground">Active Paid Users</p>
-                <h3 className="text-3xl font-bold mt-1 text-foreground">{metrics.paidUsers}</h3>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/50 backdrop-blur-sm border-border">
-            <CardContent className="p-5">
-              <div className="flex justify-between items-start">
-                <div className="p-2.5 bg-amber-500/10 rounded-lg">
-                  <Activity className="w-5 h-5 text-amber-500" />
-                </div>
-                <div className="flex items-center gap-1 text-red-500 text-sm font-medium bg-red-500/10 px-2 py-1 rounded-md">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> 2.1%
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-medium text-muted-foreground">Users at Churn Risk</p>
-                <h3 className="text-3xl font-bold mt-1 text-foreground">{metrics.churnRisk}</h3>
-              </div>
-            </CardContent>
-          </Card>
+      {/* User revenue table */}
+      <div className="bg-white/3 border border-white/8 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
+          <span className="text-white font-medium text-sm">Revenue per User</span>
+          <span className="text-white/30 text-xs">{paid.length} paying users</span>
         </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Plan Distribution Chart */}
-        <Card className="col-span-1 bg-card/50 backdrop-blur-sm border-border flex flex-col">
-          <CardHeader>
-            <CardTitle className="text-lg">Plan Distribution</CardTitle>
-            <CardDescription>MRR contribution by tier</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-end">
-            <div className="h-[250px] w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={plans} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        return (
-                          <div className="rounded-lg border border-border bg-background p-3 shadow-xl">
-                            <p className="font-medium text-foreground">{payload[0].payload.name}</p>
-                            <div className="mt-2 space-y-1">
-                              <p className="text-sm text-emerald-500 font-medium">{formatCurrency(payload[0].value as number)} MRR</p>
-                              <p className="text-xs text-muted-foreground">{payload[0].payload.users} Active Users</p>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                    {plans.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            
-            <div className="mt-6 space-y-3">
-              {plans.map(plan => (
-                <div key={plan.name} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: plan.color }} />
-                    <span className="font-medium text-foreground">{plan.name}</span>
-                  </div>
-                  <span className="text-muted-foreground font-mono">{formatCurrency(plan.revenue)}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Right: Per-User Table */}
-        <Card className="col-span-1 lg:col-span-2 bg-card/50 backdrop-blur-sm border-border flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Recent User Revenue</CardTitle>
-              <CardDescription>Per-user billing status and health</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" className="h-8">View All</Button>
-          </CardHeader>
-          <CardContent className="flex-1 p-0">
-            <ScrollArea className="h-[350px]">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
-                  <tr>
-                    <th className="px-6 py-3 font-medium">Customer</th>
-                    <th className="px-6 py-3 font-medium">Plan</th>
-                    <th className="px-6 py-3 font-medium">MRR</th>
-                    <th className="px-6 py-3 font-medium">Status</th>
-                    <th className="px-6 py-3 font-medium text-right">Health</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-foreground">{user.email}</div>
-                        <div className="text-xs text-muted-foreground">Joined {new Date(user.joinDate).toLocaleDateString()}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant="outline" className="bg-background capitalize">{user.plan}</Badge>
-                      </td>
-                      <td className="px-6 py-4 font-mono font-medium text-foreground">
-                        {formatCurrency(user.mrr)}
-                      </td>
-                      <td className="px-6 py-4">
-                        {getStatusBadge(user.status)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {getHealthBadge(user.health)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+        <table className="w-full">
+          <thead className="bg-white/2">
+            <tr>
+              <th className="text-left px-4 py-2 text-white/30 text-xs">User</th>
+              <th className="text-left px-4 py-2 text-white/30 text-xs">Plan</th>
+              <th className="text-left px-4 py-2 text-white/30 text-xs">MRR</th>
+              <th className="text-left px-4 py-2 text-white/30 text-xs">Messages</th>
+              <th className="text-left px-4 py-2 text-white/30 text-xs">Last Active</th>
+              <th className="text-left px-4 py-2 text-white/30 text-xs">Risk</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {loading ? <tr><td colSpan={6} className="px-4 py-8 text-center text-white/30 text-sm">Loading...</td></tr>
+            : users.sort((a,b) => (TIER_PRICE[b.subscription_tier]||0) - (TIER_PRICE[a.subscription_tier]||0)).map(u => {
+              const price = TIER_PRICE[u.subscription_tier] || 0;
+              const inactive = u.last_active_at ? (Date.now() - new Date(u.last_active_at).getTime()) > 14 * 86400000 : true;
+              return (
+                <tr key={u.id} className="hover:bg-white/2 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="text-white/80 text-sm font-medium">{u.display_name}</div>
+                    <div className="text-white/30 text-xs">{u.email}</div>
+                  </td>
+                  <td className="px-4 py-3"><span className="text-white/60 text-xs capitalize">{u.subscription_tier}</span></td>
+                  <td className="px-4 py-3"><span className={`text-sm font-medium ${price > 0 ? 'text-emerald-400' : 'text-white/20'}`}>{price > 0 ? `$${price}` : '$0'}</span></td>
+                  <td className="px-4 py-3"><span className="text-white/60 text-sm">{u.total_messages}</span></td>
+                  <td className="px-4 py-3"><span className="text-white/50 text-sm">{timeAgo(u.last_active_at)}</span></td>
+                  <td className="px-4 py-3">
+                    {u.total_messages === 0 ? <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Never used</span>
+                    : inactive ? <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">At risk</span>
+                    : <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Healthy</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
-
-export default RevenueDashboard;

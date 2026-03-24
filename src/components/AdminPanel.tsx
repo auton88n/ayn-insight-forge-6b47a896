@@ -12,10 +12,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';
-import { ErrorMonitor } from '@/components/admin/ErrorMonitor';
-import { RevenueDashboard } from '@/components/admin/RevenueDashboard';
-import { ConversationViewer } from '@/components/admin/ConversationViewer';
-import { EmailBroadcast } from '@/components/admin/EmailBroadcast';
 import { RateLimitMonitoring } from '@/components/admin/RateLimitMonitoring';
 import { SystemSettings } from '@/components/admin/SystemSettings';
 import { ApplicationManagement, ServiceApplication } from '@/components/admin/ApplicationManagement';
@@ -31,6 +27,11 @@ import { BetaFeedbackViewer } from '@/components/admin/BetaFeedbackViewer';
 import { MessageFeedbackViewer } from '@/components/admin/MessageFeedbackViewer';
 import { MarketingCommandCenter } from '@/components/admin/marketing/MarketingCommandCenter';
 import { AYNActivityLog } from '@/components/admin/AYNActivityLog';
+import { ErrorMonitoring } from '@/components/admin/ErrorMonitoring';
+import { RevenueDashboard } from '@/components/admin/RevenueDashboard';
+import { ConversationViewer } from '@/components/admin/ConversationViewer';
+import { UserDetailPage } from '@/components/admin/UserDetailPage';
+import { EmailBroadcast } from '@/components/admin/EmailBroadcast';
 import { TermsConsentViewer } from '@/components/admin/TermsConsentViewer';
 import { CommandCenterPanel } from '@/components/admin/workforce/CommandCenterPanel';
 
@@ -160,9 +161,10 @@ export const AdminPanel = ({
       const results = await Promise.allSettled([
         fetchWithRetry('access_grants?select=*&order=created_at.desc'),
         fetchWithRetry('profiles?select=user_id,company_name,contact_person,avatar_url'),
-        fetchWithRetry(`messages?select=id&created_at=gte.${new Date().toISOString().split('T')[0]}`),
+        fetchWithRetry(`messages?select=id&created_at=gte.${new Date(new Date().setHours(0,0,0,0)).toISOString()}`),
         fetchWithRetry('system_config?select=key,value'),
-        fetchWithRetry('service_applications?select=*&order=created_at.desc')
+        fetchWithRetry('service_applications?select=*&order=created_at.desc'),
+        fetchWithRetry('admin_users_view?select=id,email,display_name,auth_provider,avatar_url')
       ]);
 
       const usersData = results[0].status === 'fulfilled' ? results[0].value as AccessGrantWithProfile[] : [];
@@ -175,6 +177,8 @@ export const AdminPanel = ({
       const messagesData = results[2].status === 'fulfilled' ? results[2].value as { id: string; }[] : [];
       const configData = results[3].status === 'fulfilled' ? results[3].value as { key: string; value: unknown; }[] : [];
       const applicationsData = results[4].status === 'fulfilled' ? results[4].value as ServiceApplication[] : [];
+      const enrichedUsers = results[5].status === 'fulfilled' ? results[5].value as { id: string; email: string; display_name: string; auth_provider: string; avatar_url: string | null }[] : [];
+      const enrichedMap = new Map(enrichedUsers.map(u => [u.id, u]));
 
       // Security: Log access to service applications
       if (applicationsData.length > 0) {
@@ -202,10 +206,23 @@ export const AdminPanel = ({
       }
 
       const profilesMap = new Map(profilesData.map(p => [p.user_id, p]));
-      const usersWithProfiles: AccessGrantWithProfile[] = usersData.map((user: AccessGrantWithProfile) => ({
-        ...user,
-        profiles: profilesMap.get(user.user_id) || null
-      }));
+      const usersWithProfiles: AccessGrantWithProfile[] = usersData.map((user: AccessGrantWithProfile) => {
+        const enriched = enrichedMap.get(user.user_id);
+        const profile = profilesMap.get(user.user_id) || null;
+        return {
+          ...user,
+          profiles: profile,
+          user_email: enriched?.email || user.user_email,
+          // Merge display name into profile if profile is missing
+          ...(profile === null && enriched ? {
+            profiles: {
+              company_name: null,
+              contact_person: enriched.display_name || enriched.email?.split('@')[0] || null,
+              avatar_url: enriched.avatar_url || null
+            }
+          } : {})
+        };
+      });
       setAllUsers(usersWithProfiles);
       setApplications(applicationsData);
 
@@ -365,14 +382,16 @@ export const AdminPanel = ({
         className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm"
       >
         <div className="flex items-center gap-4">
-          <Button 
-            onClick={handleBackClick} 
-            variant="ghost" 
-            size="icon" 
-            className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+          {onBackClick && (
+            <Button 
+              onClick={handleBackClick} 
+              variant="ghost" 
+              size="icon" 
+              className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          )}
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
@@ -437,14 +456,10 @@ export const AdminPanel = ({
                 >
                   <ErrorBoundary>
                     {activeTab === 'overview' && <AdminDashboard systemMetrics={systemMetrics} allUsers={allUsers} />}
-                    {activeTab === 'errors' && <ErrorMonitor />}
-                    {activeTab === 'revenue' && <RevenueDashboard />}
-                    {activeTab === 'conversations' && <ConversationViewer />}
-                    {activeTab === 'email_broadcast' && <EmailBroadcast />}
                     {activeTab === 'google-analytics' && <GoogleAnalytics />}
                     {activeTab === 'applications' && <ApplicationManagement session={session} applications={applications} onRefresh={fetchData} />}
                     {activeTab === 'support' && <SupportManagement />}
-                    {activeTab === 'users' && <UserManagement session={session} allUsers={allUsers} onRefresh={fetchData} />}
+                    {activeTab === 'users' && <UserManagement />}
                     {activeTab === 'rate-limits' && <RateLimitMonitoring session={session} />}
                     {activeTab === 'settings' && <SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />}
                     {activeTab === 'ai-costs' && <AICostDashboard />}
@@ -459,6 +474,11 @@ export const AdminPanel = ({
                     {activeTab === 'terms-consent' && <TermsConsentViewer />}
                     {activeTab === 'ayn-logs' && <AYNActivityLog />}
                     {activeTab === 'ayn-mind' && <CommandCenterPanel />}
+                    {activeTab === 'errors' && <ErrorMonitoring />}
+                    {activeTab === 'revenue' && <RevenueDashboard />}
+                    {activeTab === 'conversations' && <ConversationViewer />}
+                    {activeTab === 'user-detail' && <UserDetailPage />}
+                    {activeTab === 'email-broadcast' && <EmailBroadcast />}
                   </ErrorBoundary>
                 </motion.div>
               </AnimatePresence>

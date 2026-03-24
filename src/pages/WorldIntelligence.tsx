@@ -84,6 +84,77 @@ const ISO2_TO_SIC: Record<string, string> = {
   CA: 'CAN', AU: 'AUS', FR: 'EU', SG: 'ARE', QA: 'ARE',
 };
 
+function AccuracyScoreboard() {
+  const [accuracy, setAccuracy] = useState<any>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await supabase
+          .from('ayn_prediction_outcomes')
+          .select('was_direction_correct, accuracy_score, actual_date')
+          .order('actual_date', { ascending: false })
+          .limit(50);
+        if (!data?.length) return;
+        const total = data.length;
+        const correct = data.filter(r => r.was_direction_correct).length;
+        const avgScore = data.reduce((s, r) => s + (r.accuracy_score || 0), 0) / total;
+        const last30 = data.filter(r => new Date(r.actual_date) >= new Date(Date.now() - 30 * 86400000));
+        const correct30 = last30.filter(r => r.was_direction_correct).length;
+        const pct30 = last30.length ? Math.round(100 * correct30 / last30.length) : null;
+        setAccuracy({ total, correct, pct: Math.round(100 * correct / total), avgScore: Math.round(avgScore), pct30, resolved30: last30.length });
+      } catch {}
+    };
+    load();
+  }, []);
+
+  if (!accuracy || accuracy.total === 0) return null;
+
+  const gradeColor = accuracy.pct >= 80 ? 'text-emerald-400' : accuracy.pct >= 60 ? 'text-amber-400' : 'text-red-400';
+  const grade = accuracy.pct >= 80 ? 'A' : accuracy.pct >= 70 ? 'B' : accuracy.pct >= 60 ? 'C' : accuracy.pct >= 50 ? 'D' : 'F';
+  const meets80 = accuracy.pct >= 80;
+
+  return (
+    <div className={cn(
+      "mb-4 rounded-xl border p-3 bg-black/30",
+      meets80 ? "border-emerald-500/20" : "border-amber-500/20"
+    )}>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="text-center">
+            <div className={cn("text-2xl font-black font-mono", gradeColor)}>{grade}</div>
+            <div className="text-[8px] text-white/30 uppercase tracking-wider">Grade</div>
+          </div>
+          <div className="w-px h-8 bg-white/10" />
+          <div>
+            <div className={cn("text-base font-bold font-mono", gradeColor)}>{accuracy.pct}%</div>
+            <div className="text-[9px] text-white/35">Direction accuracy</div>
+          </div>
+          <div>
+            <div className="text-base font-bold font-mono text-white/60">{accuracy.avgScore}/100</div>
+            <div className="text-[9px] text-white/35">Avg score</div>
+          </div>
+          {accuracy.pct30 !== null && (
+            <div>
+              <div className={cn("text-base font-bold font-mono", accuracy.pct30 >= 80 ? 'text-emerald-400' : 'text-amber-400')}>{accuracy.pct30}%</div>
+              <div className="text-[9px] text-white/35">Last 30 days</div>
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <div className="text-[9px] text-white/30 font-mono">{accuracy.correct}/{accuracy.total} correct · {accuracy.total} resolved</div>
+          {!meets80 && (
+            <div className="text-[9px] text-amber-400/70 mt-0.5">⚠ Below 80% threshold — predictions improving</div>
+          )}
+          {meets80 && (
+            <div className="text-[9px] text-emerald-400/70 mt-0.5">✓ Meets 80% accuracy threshold</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PredictionCard({ pred, onVote, userId, voting }: {
   pred: Prediction;
   onVote: (id: string, vote: 'agree' | 'disagree') => void;
@@ -395,6 +466,19 @@ export default function WorldIntelligence() {
     } catch (e) { console.error('predictions:', e); }
   }, [userId]);
 
+  const fetchWorldSignals = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('ayn_world_signals')
+        .select('*')
+        .eq('status', 'active')
+        .gte('signal_date', new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0])
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (data) setWorldSignals(data);
+    } catch {}
+  }, []);
+
   const fetchConflictPredictions = useCallback(async () => {
     try {
       const { data } = await supabase
@@ -418,11 +502,11 @@ export default function WorldIntelligence() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchSnapshot(), fetchPredictions(), fetchCountryIntel(), fetchConflictPredictions()]).finally(() => setLoading(false));
+    Promise.all([fetchSnapshot(), fetchPredictions(), fetchCountryIntel(), fetchConflictPredictions(), fetchWorldSignals()]).finally(() => setLoading(false));
     const ch = supabase.channel('wi').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ayn_market_snapshot' }, p => setSnapshot(p.new as MarketSnapshot)).subscribe();
     const tick = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => { supabase.removeChannel(ch); clearInterval(tick); };
-  }, [fetchSnapshot, fetchPredictions, fetchCountryIntel, fetchConflictPredictions]);
+  }, [fetchSnapshot, fetchPredictions, fetchCountryIntel, fetchConflictPredictions, fetchWorldSignals]);
 
   const handleVote = async (predId: string, vote: 'agree' | 'disagree') => {
     if (!userId || votingId) return;
@@ -687,6 +771,9 @@ export default function WorldIntelligence() {
               <span className="text-[8px] text-white/18">{filteredPreds.length} active · vote to validate</span>
             </div>
 
+            {/* Accuracy scoreboard */}
+            <AccuracyScoreboard />
+
             <div className="flex flex-wrap gap-2 mb-4">
               <div className="flex gap-1 bg-black/40 border border-white/8 rounded-lg p-1">
                 {(['1_week', '1_month', '1_year'] as const).map(h => (
@@ -738,6 +825,51 @@ export default function WorldIntelligence() {
                           <div className={cn('h-full rounded-full', prob > 60 ? 'bg-emerald-500' : prob > 40 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${Math.min(prob, 100)}%` }} />
                         </div>
                         <span className={cn('text-sm font-mono font-bold', prob > 60 ? 'text-emerald-400' : prob > 40 ? 'text-amber-400' : 'text-red-400')}>{prob.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ─── WORLD SIGNALS ─── */}
+          {worldSignals.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-[10px] font-mono font-bold text-amber-400 tracking-[0.15em] uppercase">Live World Signals</span>
+                <div className="flex-1 h-px bg-gradient-to-r from-amber-500/20 to-transparent" />
+                <span className="text-[8px] text-white/20 font-mono">Geopolitical · Economic · Historical</span>
+              </div>
+              <div className="space-y-2">
+                {worldSignals.map((sig, i) => {
+                  const severityColor = sig.severity === 'critical' ? 'border-red-500/30 bg-red-500/5'
+                    : sig.severity === 'high' ? 'border-orange-500/30 bg-orange-500/5'
+                    : 'border-amber-500/20 bg-amber-500/3';
+                  const severityDot = sig.severity === 'critical' ? 'bg-red-400'
+                    : sig.severity === 'high' ? 'bg-orange-400' : 'bg-amber-400';
+                  const impactIcon = (v: string) => v === 'spike' ? '↑' : v === 'drop' ? '↓' : v === 'volatile' ? '⚡' : '→';
+                  return (
+                    <div key={i} className={`border rounded-xl p-3 ${severityColor}`}>
+                      <div className="flex items-start gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${severityDot}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-mono font-bold text-white/80">{sig.headline}</span>
+                            <span className="text-[8px] font-mono text-white/30 uppercase tracking-wider">{sig.signal_type?.replace('_',' ')}</span>
+                          </div>
+                          {sig.summary && <p className="text-[9px] text-white/40 mt-0.5 leading-relaxed">{sig.summary}</p>}
+                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                            {sig.impact_on_gold && <span className="text-[8px] font-mono text-amber-300/70">🥇{impactIcon(sig.impact_on_gold)}</span>}
+                            {sig.impact_on_oil && <span className="text-[8px] font-mono text-orange-300/70">🛢{impactIcon(sig.impact_on_oil)}</span>}
+                            {sig.impact_on_btc && <span className="text-[8px] font-mono text-blue-300/70">₿{impactIcon(sig.impact_on_btc)}</span>}
+                            {sig.historical_parallel && <span className="text-[8px] text-white/25 font-mono">📜 {sig.historical_parallel}</span>}
+                          </div>
+                          {sig.ancient_parallel && (
+                            <p className="text-[8px] text-purple-300/50 mt-1 italic font-mono">{sig.ancient_parallel.slice(0,120)}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

@@ -85,16 +85,16 @@ export function UserAILimits() {
 
       if (limitsError) throw limitsError;
 
-      // Fetch profiles to get names
+      // Fetch user names from enriched view (includes Google users)
       const userIds = limitsData?.map(l => l.user_id) || [];
       const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('user_id, contact_person, company_name')
-        .in('user_id', userIds);
+        .from('admin_users_view')
+        .select('id, display_name, email')
+        .in('id', userIds);
 
       // Create a map for quick lookup
       const profileMap = new Map(
-        profilesData?.map(p => [p.user_id, p.contact_person || p.company_name]) || []
+        profilesData?.map((p: any) => [p.id, p.display_name || p.email?.split('@')[0]]) || []
       );
 
       // Merge the data

@@ -1,676 +1,404 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { 
-  CreditCard, 
-  Users, 
-  DollarSign, 
-  TrendingUp,
-  Search,
-  Edit2,
-  Crown,
-  Zap,
-  Sparkles,
-  UserCheck,
-  RefreshCw,
-  Calendar,
-  Plus,
-   AlertCircle,
-    Settings2,
-    Building,
-    Infinity as InfinityIcon
-} from 'lucide-react';
-import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Search, RefreshCw, Edit2, Mail, Shield, Chrome, Users, Crown, Zap, Infinity as InfinityIcon, User, CheckCircle, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { SUBSCRIPTION_TIERS, type TierKey } from '@/contexts/SubscriptionContext';
 
-interface UserSubscription {
+// The one true user record — everything in one place
+interface UnifiedUser {
+  // Identity
   id: string;
-  user_id: string;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
+  email: string;
+  display_name: string;
+  avatar_url: string | null;
+  auth_provider: string; // 'google' | 'email'
+  email_verified: boolean;
+  signed_up_at: string;
+  last_sign_in_at: string | null;
+  // Plan
   subscription_tier: string;
-  status: string;
-  current_period_end: string | null;
-  created_at: string;
+  subscription_status: string;
+  is_unlimited: boolean;
+  monthly_messages: number;
+  current_monthly_messages: number;
+  bonus_credits: number;
+  // Usage
+  total_messages: number;
+  messages_7d: number;
+  messages_30d: number;
+  last_active_at: string | null;
+  active_days_total: number;
+  // Role
+  role: string;
 }
 
-interface ProfileData {
-  user_id: string;
-  company_name: string | null;
-  contact_person: string | null;
+const TIERS: { id: TierKey; label: string; icon: React.ElementType; color: string; bg: string }[] = [
+  { id: 'free', label: 'Free', icon: User, color: 'text-white/50', bg: 'bg-white/5' },
+  { id: 'starter', label: 'Starter', icon: Zap, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+  { id: 'pro', label: 'Pro', icon: Crown, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  { id: 'business', label: 'Business', icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  { id: 'unlimited', label: 'Unlimited', icon: InfinityIcon, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+];
+
+function tierColor(tier: string) {
+  if (tier === 'unlimited') return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+  if (tier === 'pro') return 'bg-purple-500/15 text-purple-400 border-purple-500/30';
+  if (tier === 'starter') return 'bg-blue-500/15 text-blue-400 border-blue-500/30';
+  if (tier === 'business') return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+  return 'bg-white/5 text-white/40 border-white/10';
 }
 
-// Merged user data showing ALL users with optional subscription
-interface MergedUserData {
-  user_id: string;
-  company_name: string | null;
-  contact_person: string | null;
-  subscription: UserSubscription | null;
-  hasSubscriptionRecord: boolean;
+function timeAgo(date: string | null) {
+  if (!date) return 'Never';
+  const d = Date.now() - new Date(date).getTime();
+  const m = Math.floor(d / 60000);
+  const h = Math.floor(d / 3600000);
+  const dy = Math.floor(d / 86400000);
+  if (m < 2) return 'Just now';
+  if (m < 60) return `${m}m ago`;
+  if (h < 24) return `${h}h ago`;
+  if (dy < 30) return `${dy}d ago`;
+  return `${Math.floor(dy / 30)}mo ago`;
 }
-
-interface RevenueMetrics {
-  totalMRR: number;
-  totalSubscribers: number;
-  totalUsers: number;
-  freeUsers: number;
-  starterUsers: number;
-  proUsers: number;
-  businessUsers: number;
-   enterpriseUsers: number;
-   unlimitedUsers: number;
-  noRecordUsers: number;
-}
-
-const tierConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
-  free: { icon: Users, color: 'text-muted-foreground', bg: 'bg-muted' },
-  starter: { icon: Zap, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-  pro: { icon: Sparkles, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-  business: { icon: Crown, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-   enterprise: { icon: Building, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-   unlimited: { icon: InfinityIcon, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-};
 
 export const SubscriptionManagement = () => {
-  const [mergedUsers, setMergedUsers] = useState<MergedUserData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterTier, setFilterTier] = useState<string>('all');
-  const [editingUser, setEditingUser] = useState<MergedUserData | null>(null);
+  const [users, setUsers] = useState<UnifiedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterTier, setFilterTier] = useState('all');
+  const [filterProvider, setFilterProvider] = useState('all');
+  const [editing, setEditing] = useState<UnifiedUser | null>(null);
   const [newTier, setNewTier] = useState<TierKey>('free');
-  const [useCustomOverride, setUseCustomOverride] = useState(false);
-  const [customLimit, setCustomLimit] = useState<number>(100);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [customLimit, setCustomLimit] = useState(100);
+  const [useCustom, setUseCustom] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
-  const [metrics, setMetrics] = useState<RevenueMetrics>({
-    totalMRR: 0,
-    totalSubscribers: 0,
-    totalUsers: 0,
-    freeUsers: 0,
-    starterUsers: 0,
-    proUsers: 0,
-    businessUsers: 0,
-     enterpriseUsers: 0,
-     unlimitedUsers: 0,
-    noRecordUsers: 0,
-  });
-
-  const fetchSubscriptions = useCallback(async () => {
-    setIsLoading(true);
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
     try {
-      // Fetch ALL profiles (all users in the system)
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, company_name, contact_person')
-        .order('created_at', { ascending: false });
-
-      if (profilesError) throw profilesError;
-
-      // Security: Log admin bulk access to profiles
-      if (profiles && profiles.length > 0) {
-        supabase.from('security_logs').insert({
-          action: 'admin_profiles_bulk_access',
-          details: {
-            count: profiles.length,
-            context: 'subscription_management',
-            timestamp: new Date().toISOString()
-          },
-          severity: 'high'
-        });
-      }
-
-      // Fetch existing subscriptions
-      const { data: subs, error: subsError } = await supabase
-        .from('user_subscriptions')
-        .select('*');
-
-      if (subsError) throw subsError;
-
-      // Create a map of subscriptions by user_id
-      const subscriptionMap = new Map<string, UserSubscription>(
-        (subs || []).map(sub => [sub.user_id, {
-          id: sub.id,
-          user_id: sub.user_id,
-          stripe_customer_id: sub.stripe_customer_id,
-          stripe_subscription_id: sub.stripe_subscription_id,
-          subscription_tier: sub.subscription_tier || 'free',
-          status: sub.status || 'inactive',
-          current_period_end: sub.current_period_end,
-          created_at: sub.created_at || new Date().toISOString(),
-        }])
-      );
-
-      // Merge profiles with subscriptions (LEFT JOIN logic)
-      const merged: MergedUserData[] = (profiles || []).map((profile: ProfileData) => ({
-        user_id: profile.user_id,
-        company_name: profile.company_name,
-        contact_person: profile.contact_person,
-        subscription: subscriptionMap.get(profile.user_id) || null,
-        hasSubscriptionRecord: subscriptionMap.has(profile.user_id),
-      }));
-
-      setMergedUsers(merged);
-
-      // Calculate metrics
-       const tierCounts = { free: 0, starter: 0, pro: 0, business: 0, enterprise: 0, unlimited: 0 };
-      let mrr = 0;
-      let noRecordCount = 0;
-
-      merged.forEach(user => {
-        if (!user.hasSubscriptionRecord) {
-          noRecordCount++;
-          return;
-        }
-        const tier = user.subscription?.subscription_tier as TierKey;
-        if (tier in tierCounts) {
-          tierCounts[tier as keyof typeof tierCounts]++;
-          const tierData = SUBSCRIPTION_TIERS[tier as keyof typeof SUBSCRIPTION_TIERS];
-           if (user.subscription?.status === 'active' && tier !== 'free' && tier !== 'unlimited' && tierData && tierData.price > 0) {
-            mrr += tierData.price || 0;
-          }
-        }
-      });
-
-      setMetrics({
-        totalMRR: mrr,
-        totalSubscribers: merged.filter(u => u.subscription?.status === 'active' && u.subscription?.subscription_tier !== 'free').length,
-        totalUsers: merged.length,
-        freeUsers: tierCounts.free,
-        starterUsers: tierCounts.starter,
-        proUsers: tierCounts.pro,
-        businessUsers: tierCounts.business,
-         enterpriseUsers: tierCounts.enterprise,
-         unlimitedUsers: tierCounts.unlimited,
-        noRecordUsers: noRecordCount,
-      });
-    } catch (error) {
-      console.error('Error fetching subscriptions:', error);
-      toast.error('Failed to load subscriptions');
+      const { data, error } = await supabase
+        .from('admin_users_view')
+        .select('*')
+        .order('signed_up_at', { ascending: false });
+      if (error) throw error;
+      setUsers((data || []) as UnifiedUser[]);
+    } catch (e: any) {
+      toast.error('Failed to load users: ' + e.message);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchSubscriptions();
-  }, [fetchSubscriptions]);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  const handleSetOrOverrideTier = async () => {
-    if (!editingUser) return;
-    setIsUpdating(true);
+  const filtered = users.filter(u => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || u.email.toLowerCase().includes(q) || u.display_name.toLowerCase().includes(q);
+    const matchTier = filterTier === 'all' || u.subscription_tier === filterTier;
+    const matchProvider = filterProvider === 'all' || u.auth_provider === filterProvider;
+    return matchSearch && matchTier && matchProvider;
+  });
 
+  // Metrics
+  const metrics = {
+    total: users.length,
+    google: users.filter(u => u.auth_provider === 'google').length,
+    email: users.filter(u => u.auth_provider === 'email').length,
+    unlimited: users.filter(u => u.is_unlimited).length,
+    active7d: users.filter(u => u.messages_7d > 0).length,
+    paid: users.filter(u => u.subscription_tier !== 'free' && u.subscription_status === 'active').length,
+  };
+
+  const handleUpdate = async () => {
+    if (!editing) return;
+    setUpdating(true);
     try {
       const tierData = SUBSCRIPTION_TIERS[newTier as keyof typeof SUBSCRIPTION_TIERS];
-      const effectiveLimit = useCustomOverride ? customLimit : tierData?.limits.monthlyCredits;
-      
-      // Use upsert for robustness - handles both new and existing records
-      // Only set core tier fields, never overwrite Stripe fields
-      const { error } = await supabase
-        .from('user_subscriptions')
-        .upsert({ 
-          user_id: editingUser.user_id,
-          subscription_tier: newTier,
-          status: newTier === 'free' ? 'inactive' : 'active',
-          updated_at: new Date().toISOString()
-        }, { 
-          onConflict: 'user_id',
-          ignoreDuplicates: false 
-        });
+      const limit = useCustom ? customLimit : (tierData?.limits?.monthlyCredits ?? 50);
+      const isUnlimited = newTier === 'unlimited' || newTier === 'enterprise';
 
-      if (error) throw error;
+      // Update user_subscriptions
+      const { error: subErr } = await supabase.from('user_subscriptions').upsert({
+        user_id: editing.id,
+        subscription_tier: newTier,
+        status: newTier === 'free' ? 'inactive' : 'active',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      if (subErr) throw subErr;
 
-      // UPSERT user_ai_limits to set credit limits
-      if (tierData) {
-        const isUnlimitedTier = newTier === 'unlimited' || newTier === 'enterprise';
-        const { error: limitsError } = await supabase
-          .from('user_ai_limits')
-          .upsert({
-            user_id: editingUser.user_id,
-            monthly_messages: effectiveLimit,
-            monthly_engineering: tierData.limits.monthlyEngineering,
-            is_unlimited: isUnlimitedTier,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'user_id' });
+      // Update user_ai_limits (the real enforced system)
+      const { error: limErr } = await supabase.from('user_ai_limits').upsert({
+        user_id: editing.id,
+        monthly_messages: isUnlimited ? 999999 : limit,
+        daily_messages: isUnlimited ? 999999 : Math.floor(limit / 30),
+        is_unlimited: isUnlimited,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      if (limErr) throw limErr;
 
-        if (limitsError) throw limitsError;
-      }
+      // Update access_grants for backward compat
+      await supabase.from('access_grants').update({
+        monthly_limit: isUnlimited ? -1 : limit,
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', editing.id);
 
-      // Also update access_grants for compatibility
-      const { error: grantsError } = await supabase
-        .from('access_grants')
-        .update({ 
-          monthly_limit: effectiveLimit,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', editingUser.user_id);
-
-      if (grantsError) console.error('Error updating access_grants:', grantsError);
-
-      toast.success(`Tier set to ${tierData?.name || newTier}`);
-      setEditingUser(null);
-      setUseCustomOverride(false);
-      fetchSubscriptions();
-    } catch (error) {
-      console.error('Error updating tier:', error);
-      toast.error('Failed to update user tier');
+      toast.success(`${editing.display_name} updated to ${newTier}`);
+      setEditing(null);
+      setUseCustom(false);
+      fetchUsers();
+    } catch (e: any) {
+      toast.error('Update failed: ' + e.message);
     } finally {
-      setIsUpdating(false);
+      setUpdating(false);
     }
   };
 
-  const filteredUsers = mergedUsers.filter(user => {
-    const matchesSearch = 
-      user.user_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.contact_person?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (filterTier === 'all') return matchesSearch;
-    if (filterTier === 'no-record') return matchesSearch && !user.hasSubscriptionRecord;
-    return matchesSearch && user.subscription?.subscription_tier === filterTier;
-  });
-
-  const metricCards = [
-    { 
-      label: 'Monthly Revenue', 
-      value: `$${metrics.totalMRR}`, 
-      icon: DollarSign, 
-      gradient: 'from-emerald-500/20 to-emerald-600/5',
-      iconColor: 'text-emerald-500',
-      iconBg: 'bg-emerald-500/10'
-    },
-    { 
-      label: 'Total Users', 
-      value: metrics.totalUsers, 
-      icon: Users, 
-      gradient: 'from-slate-500/20 to-slate-600/5',
-      iconColor: 'text-slate-500',
-      iconBg: 'bg-slate-500/10'
-    },
-    { 
-      label: 'Paid Subscribers', 
-      value: metrics.totalSubscribers, 
-      icon: UserCheck, 
-      gradient: 'from-blue-500/20 to-blue-600/5',
-      iconColor: 'text-blue-500',
-      iconBg: 'bg-blue-500/10'
-    },
-    { 
-      label: 'No Record', 
-      value: metrics.noRecordUsers, 
-      icon: AlertCircle, 
-      gradient: 'from-orange-500/20 to-orange-600/5',
-      iconColor: 'text-orange-500',
-      iconBg: 'bg-orange-500/10'
-    },
-  ];
+  const openEdit = (u: UnifiedUser) => {
+    setEditing(u);
+    setNewTier((u.subscription_tier || 'free') as TierKey);
+    setCustomLimit(u.monthly_messages || 50);
+    setUseCustom(false);
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      {/* Revenue Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metricCards.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <Card key={metric.label} className="relative overflow-hidden border border-border/50 shadow-lg bg-card/80 backdrop-blur-xl">
-              <div className={`absolute inset-0 bg-gradient-to-br ${metric.gradient} opacity-60`} />
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground font-medium">{metric.label}</p>
-                    <p className="text-3xl font-bold tracking-tight">{metric.value}</p>
-                  </div>
-                  <div className={`p-3.5 rounded-2xl ${metric.iconBg}`}>
-                    <Icon className={`w-6 h-6 ${metric.iconColor}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+    <div className="p-6 space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-6 gap-3">
+        {[
+          { label: 'Total Users', value: metrics.total, color: 'text-white' },
+          { label: 'Via Google', value: metrics.google, color: 'text-blue-400' },
+          { label: 'Via Email', value: metrics.email, color: 'text-white/60' },
+          { label: 'Unlimited', value: metrics.unlimited, color: 'text-emerald-400' },
+          { label: 'Active 7d', value: metrics.active7d, color: 'text-green-400' },
+          { label: 'Paid Plans', value: metrics.paid, color: 'text-purple-400' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-white/3 border border-white/8 rounded-xl p-4 text-center">
+            <div className={`text-2xl font-bold ${color}`}>{value}</div>
+            <div className="text-white/30 text-xs mt-1">{label}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Tier Distribution */}
-      <Card className="border border-border/50 shadow-lg bg-card/80 backdrop-blur-xl">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <div className="p-2 rounded-xl bg-primary/10 ring-1 ring-primary/20">
-              <TrendingUp className="w-4 h-4 text-primary" />
-            </div>
-            Subscription Distribution
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-            {Object.entries(tierConfig).map(([tier, config]) => {
-              const Icon = config.icon;
-              const countMap: Record<string, number> = {
-                free: metrics.freeUsers,
-                starter: metrics.starterUsers,
-                pro: metrics.proUsers,
-                business: metrics.businessUsers,
-                enterprise: metrics.enterpriseUsers,
-                unlimited: metrics.unlimitedUsers,
-              };
-              const count = countMap[tier] ?? 0;
-              const total = metrics.totalUsers || 1;
-              const percentage = ((count / total) * 100).toFixed(1);
-              
-              return (
-                <div key={tier} className="text-center p-4 rounded-xl bg-muted/30 border border-border/50">
-                  <div className={`mx-auto w-12 h-12 rounded-xl ${config.bg} flex items-center justify-center mb-3`}>
-                    <Icon className={`w-6 h-6 ${config.color}`} />
-                  </div>
-                  <p className="text-2xl font-bold">{count}</p>
-                  <p className="text-sm text-muted-foreground capitalize">{tier}</p>
-                  <p className="text-xs text-muted-foreground/60">{percentage}%</p>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Controls */}
+      <div className="flex gap-3 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <Input placeholder="Search name or email..." value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-white/5 border-white/10 text-white placeholder-white/30" />
+        </div>
+        {/* Tier filter */}
+        <div className="flex gap-1">
+          {['all', 'free', 'starter', 'pro', 'unlimited'].map(t => (
+            <button key={t} onClick={() => setFilterTier(t)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+                filterTier === t ? 'bg-white text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+        {/* Provider filter */}
+        <div className="flex gap-1">
+          {[{ v: 'all', l: 'All' }, { v: 'google', l: '🔵 Google' }, { v: 'email', l: '✉️ Email' }].map(({ v, l }) => (
+            <button key={v} onClick={() => setFilterProvider(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                filterProvider === v ? 'bg-white text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}
+          className="border-white/10 text-white/60 hover:bg-white/5">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
 
-      {/* User Subscriptions List */}
-      <Card className="border border-border/50 shadow-lg bg-card/80 backdrop-blur-xl">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <div className="p-2 rounded-xl bg-primary/10 ring-1 ring-primary/20">
-                <CreditCard className="w-4 h-4 text-primary" />
-              </div>
-              User Subscriptions
-              <Badge variant="secondary" className="ml-2">
-                {metrics.totalUsers} users
-              </Badge>
-            </CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={fetchSubscriptions}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-          
-          <div className="flex gap-3 mt-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search users..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={filterTier} onValueChange={setFilterTier}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Filter tier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                <SelectItem value="no-record">No Record</SelectItem>
-                <SelectItem value="free">Free</SelectItem>
-                <SelectItem value="starter">Starter</SelectItem>
-                <SelectItem value="pro">Pro</SelectItem>
-                <SelectItem value="business">Business</SelectItem>
-                 <SelectItem value="enterprise">Enterprise</SelectItem>
-                 <SelectItem value="unlimited">Unlimited</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-2">
-              {filteredUsers.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No users found</p>
-                </div>
-              ) : (
-                filteredUsers.map((user) => {
-                  const tier = user.subscription?.subscription_tier as keyof typeof tierConfig;
-                  const config = user.hasSubscriptionRecord ? (tierConfig[tier] || tierConfig.free) : null;
-                  const Icon = config?.icon || AlertCircle;
-                  
-                  return (
-                    <div
-                      key={user.user_id}
-                      className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover:bg-muted/50 border border-transparent hover:border-border/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                            {(user.company_name || user.contact_person || 'U').charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium text-sm">
-                            {user.company_name || user.contact_person || user.user_id.slice(0, 8)}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            {user.hasSubscriptionRecord ? (
-                              <>
-                                <Calendar className="w-3 h-3" />
-                                {user.subscription?.current_period_end 
-                                  ? `Renews ${format(new Date(user.subscription.current_period_end), 'MMM d, yyyy')}`
-                                  : 'No billing date'
-                                }
-                              </>
-                            ) : (
-                              <span className="text-orange-500">No subscription record</span>
-                            )}
-                          </div>
-                        </div>
+      <div className="text-white/25 text-xs">{filtered.length} of {users.length} users</div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-white/8 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-white/3 border-b border-white/8">
+            <tr>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">User</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Sign-in</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Plan</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Usage</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Credits</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Last Active</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Joined</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {loading ? (
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-white/30 text-sm">Loading...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-white/30 text-sm">No users found</td></tr>
+            ) : filtered.map(u => (
+              <tr key={u.id} className="hover:bg-white/2 transition-colors">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    {u.avatar_url ? (
+                      <img src={u.avatar_url} className="w-8 h-8 rounded-full" alt="" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 text-sm font-medium">
+                        {(u.display_name || u.email)[0].toUpperCase()}
                       </div>
-                      
-                      <div className="flex items-center gap-3">
-                        {user.hasSubscriptionRecord ? (
-                          <>
-                            <Badge 
-                              variant="secondary" 
-                              className={`${config?.bg} ${config?.color} border-0 gap-1.5`}
-                            >
-                              <Icon className="w-3 h-3" />
-                              {tier.charAt(0).toUpperCase() + tier.slice(1)}
-                            </Badge>
-                            <Badge 
-                              variant={user.subscription?.status === 'active' ? 'default' : 'secondary'}
-                              className={user.subscription?.status === 'active' 
-                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
-                                : 'bg-muted text-muted-foreground'
-                              }
-                            >
-                              {user.subscription?.status}
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingUser(user);
-                                setNewTier((user.subscription?.subscription_tier || 'free') as TierKey);
-                              }}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Badge 
-                              variant="outline" 
-                              className="border-orange-500/30 text-orange-500 gap-1.5"
-                            >
-                              <AlertCircle className="w-3 h-3" />
-                              No Record
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
-                              onClick={() => {
-                                setEditingUser(user);
-                                setNewTier('free');
-                              }}
-                            >
-                              <Plus className="w-4 h-4" />
-                              Set Tier
-                            </Button>
-                          </>
-                        )}
+                    )}
+                    <div>
+                      <div className="text-white text-sm font-medium flex items-center gap-1">
+                        {u.display_name}
+                        {u.role === 'admin' && <Shield className="w-3 h-3 text-amber-400" />}
                       </div>
+                      <div className="text-white/40 text-xs">{u.email}</div>
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      {/* Edit/Set Tier Dialog */}
-      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingUser?.hasSubscriptionRecord 
-                ? 'Override Subscription Tier' 
-                : 'Set Subscription Tier'
-              }
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>User</Label>
-              <p className="text-sm text-muted-foreground">
-                {editingUser?.company_name || editingUser?.contact_person || editingUser?.user_id}
-              </p>
-            </div>
-            {editingUser?.hasSubscriptionRecord && (
-              <div className="space-y-2">
-                <Label>Current Tier</Label>
-                <p className="text-sm text-muted-foreground capitalize">
-                  {editingUser?.subscription?.subscription_tier || 'None'}
-                </p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>New Tier</Label>
-              <Select value={newTier} onValueChange={(v) => setNewTier(v as TierKey)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                   {Object.entries(SUBSCRIPTION_TIERS).map(([key, tier]) => {
-                     // Format display text based on tier type
-                     let displayText = '';
-                     if (key === 'enterprise') {
-                       displayText = 'Enterprise - Contact Sales';
-                     } else if (key === 'unlimited') {
-                       displayText = 'Unlimited (Admin Override)';
-                     } else if (tier.limits.monthlyCredits === -1) {
-                       displayText = `${tier.name} - Unlimited`;
-                     } else if ('isDaily' in tier.limits && tier.limits.isDaily) {
-                       displayText = `${tier.name} - $${tier.price}/mo (${tier.limits.monthlyCredits} credits/day)`;
-                     } else {
-                       displayText = `${tier.name} - $${tier.price}/mo (${tier.limits.monthlyCredits} credits)`;
-                     }
-                     return (
-                       <SelectItem key={key} value={key}>
-                         {displayText}
-                       </SelectItem>
-                     );
-                   })}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Custom Override Section */}
-            <div className="space-y-3 pt-2 border-t border-border/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Settings2 className="w-4 h-4 text-muted-foreground" />
-                  <Label htmlFor="custom-override" className="text-sm font-medium">
-                    Custom Credit Override
-                  </Label>
-                </div>
-                <Switch
-                  id="custom-override"
-                  checked={useCustomOverride}
-                  onCheckedChange={setUseCustomOverride}
-                />
-              </div>
-              
-              {useCustomOverride && (
-                <div className="space-y-2">
-                  <Label htmlFor="custom-limit" className="text-xs text-muted-foreground">
-                    Custom monthly credits
-                  </Label>
-                  <Input
-                    id="custom-limit"
-                    type="number"
-                    min={0}
-                    value={customLimit}
-                    onChange={(e) => setCustomLimit(Number(e.target.value))}
-                    placeholder="Enter custom limit"
-                  />
-                </div>
-              )}
-              
-              {/* Effective Credits Summary */}
-              <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Effective credits:</span>
-                  <span className="font-semibold">
-                     {(() => {
-                       const effectiveCredits = useCustomOverride 
-                         ? customLimit 
-                         : SUBSCRIPTION_TIERS[newTier]?.limits.monthlyCredits || 0;
-                       return effectiveCredits === -1 ? 'Unlimited' : `${effectiveCredits} / month`;
-                     })()}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1.5 text-xs text-white/60">
+                    {u.auth_provider === 'google' ? (
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        Google
+                      </>
+                    ) : (
+                      <><Mail className="w-3 h-3" />Email</>
+                    )}
+                    {u.email_verified ? (
+                      <CheckCircle className="w-3 h-3 text-green-500/70" />
+                    ) : (
+                      <XCircle className="w-3 h-3 text-red-400/70" />
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${tierColor(u.subscription_tier)}`}>
+                    {u.subscription_tier}
                   </span>
-                </div>
+                  {u.subscription_status === 'active' && u.subscription_tier !== 'free' && (
+                    <div className="text-green-400/60 text-xs mt-0.5">active</div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-white text-sm">{u.total_messages}</div>
+                  <div className="text-xs">
+                    {u.messages_7d > 0 && <span className="text-green-400">{u.messages_7d} this wk</span>}
+                    {u.messages_7d === 0 && u.messages_30d > 0 && <span className="text-yellow-400/70">{u.messages_30d} this mo</span>}
+                    {u.messages_30d === 0 && u.total_messages > 0 && <span className="text-white/20">inactive</span>}
+                    {u.total_messages === 0 && <span className="text-white/20">never used</span>}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  {u.is_unlimited ? (
+                    <span className="text-emerald-400 text-xs">∞ unlimited</span>
+                  ) : (
+                    <div>
+                      <div className="text-white/70 text-sm">{u.current_monthly_messages}/{u.monthly_messages}</div>
+                      {u.bonus_credits > 0 && <div className="text-amber-400/70 text-xs">+{u.bonus_credits} bonus</div>}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-white/60 text-sm">{timeAgo(u.last_active_at)}</div>
+                  {u.active_days_total > 0 && <div className="text-white/25 text-xs">{u.active_days_total} days</div>}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-white/50 text-xs">
+                    {u.signed_up_at ? new Date(u.signed_up_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => openEdit(u)}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors">
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editing} onOpenChange={o => !o && setEditing(null)}>
+        <DialogContent className="bg-[#0f0f0f] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Edit — {editing?.display_name}
+            </DialogTitle>
+            <p className="text-white/40 text-sm">{editing?.email}</p>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Current state */}
+            <div className="bg-white/3 border border-white/8 rounded-lg p-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-white/40">Current plan</span>
+                <span className="capitalize text-white">{editing?.subscription_tier}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Sign-in via</span>
+                <span className="text-white capitalize">{editing?.auth_provider}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Messages used</span>
+                <span className="text-white">{editing?.current_monthly_messages} / {editing?.is_unlimited ? '∞' : editing?.monthly_messages}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Total messages</span>
+                <span className="text-white">{editing?.total_messages}</span>
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              {editingUser?.hasSubscriptionRecord 
-                ? `This will ${useCustomOverride ? 'set a custom credit limit' : 'apply tier defaults'}. Use with caution - this bypasses Stripe billing.`
-                : `This will create a subscription record ${useCustomOverride ? 'with custom credits' : 'using tier defaults'}.`
-              }
-            </p>
+            {/* Plan selector */}
+            <div>
+              <Label className="text-white/60 text-xs mb-2 block">Set Plan</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {TIERS.map(({ id, label, icon: Icon, color, bg }) => (
+                  <button key={id} onClick={() => setNewTier(id)}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-all ${
+                      newTier === id
+                        ? 'border-white/30 bg-white/8 text-white'
+                        : 'border-white/8 bg-white/3 text-white/50 hover:bg-white/5'}`}>
+                    <div className={`w-7 h-7 rounded-lg ${bg} flex items-center justify-center`}>
+                      <Icon className={`w-3.5 h-3.5 ${color}`} />
+                    </div>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom limit */}
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={useCustom} onChange={e => setUseCustom(e.target.checked)}
+                  className="rounded border-white/20 bg-white/5" />
+                <span className="text-white/60 text-sm">Custom message limit</span>
+              </label>
+              {useCustom && (
+                <input type="number" value={customLimit} onChange={e => setCustomLimit(Number(e.target.value))}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-white/30" />
+              )}
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setEditing(null)} className="text-white/50 hover:text-white">
               Cancel
             </Button>
-            <Button onClick={handleSetOrOverrideTier} disabled={isUpdating}>
-              {isUpdating 
-                ? 'Saving...' 
-                : editingUser?.hasSubscriptionRecord 
-                  ? 'Save Override' 
-                  : 'Create Subscription'
-              }
+            <Button onClick={handleUpdate} disabled={updating}
+              className="bg-white text-black hover:bg-white/90">
+              {updating ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   );
 };

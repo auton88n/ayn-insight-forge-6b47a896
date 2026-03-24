@@ -1,298 +1,219 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  RefreshCw, 
-  Users, 
-  Eye, 
-  MousePointer, 
-  Clock, 
-  TrendingUp,
-  Globe,
-  ExternalLink,
-  Activity
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { RefreshCw, Users, Eye, Globe, TrendingUp, Activity, Clock } from 'lucide-react';
 
-interface GAData {
-  realTime: {
-    activeUsers: number;
-  };
-  today: {
-    sessions: number;
-    pageViews: number;
-    users: number;
-    bounceRate: number;
-    avgSessionDuration: number;
-  };
-  week: {
-    sessions: number;
-    pageViews: number;
-    users: number;
-  };
-  month: {
-    sessions: number;
-    pageViews: number;
-    users: number;
-  };
-  topPages: Array<{ pagePath: string; pageViews: number }>;
-  trafficSources: Array<{ source: string; sessions: number }>;
-  countries: Array<{ country: string; sessions: number }>;
-  fetchedAt: string;
+interface VisitorStats {
+  today: number;
+  week: number;
+  month: number;
+  uniqueToday: number;
+  uniqueWeek: number;
+  topPages: { page: string; views: number }[];
+  topCountries: { country: string; visits: number }[];
+  byHour: { hour: number; visits: number }[];
+  totalAllTime: number;
 }
 
-export function GoogleAnalytics() {
-  const [data, setData] = useState<GAData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError(null);
-
-    try {
-      const { data: response, error: fnError } = await supabase.functions.invoke('google-analytics');
-      
-      if (fnError) throw fnError;
-      if (response.error) throw new Error(response.error);
-      
-      setData(response);
-      if (isRefresh) toast.success('Google Analytics data refreshed');
-    } catch (err: any) {
-      console.error('Error fetching GA data:', err);
-      setError('Unable to load analytics data. Please try again.');
-      toast.error('Unable to load analytics. Please try again.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.round(seconds % 60);
-    return `${mins}m ${secs}s`;
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-24" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="text-destructive">Error Loading Google Analytics</CardTitle>
-          <CardDescription>{error}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => fetchData()} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data) return null;
-
+function StatCard({ label, value, sub, icon: Icon, color }: {
+  label: string; value: string | number; sub?: string;
+  icon: React.ElementType; color: string;
+}) {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Google Analytics</h2>
-          <p className="text-muted-foreground text-sm">
-            Last updated: {new Date(data.fetchedAt).toLocaleString()}
-          </p>
+    <div className="bg-white/3 border border-white/8 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white/40 text-sm">{label}</span>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon className="w-4 h-4" />
         </div>
-        <Button onClick={() => fetchData(true)} disabled={refreshing} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
       </div>
-
-      {/* Real-time indicator */}
-      <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Activity className="h-8 w-8 text-primary" />
-              <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Real-time Active Users</p>
-              <p className="text-3xl font-bold">{data.realTime.activeUsers}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Users Today
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{data.today.users}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.week.users} this week • {data.month.users} this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <MousePointer className="h-4 w-4" />
-              Sessions Today
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{data.today.sessions}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.week.sessions} this week • {data.month.sessions} this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Page Views Today
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{data.today.pageViews}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.week.pageViews} this week • {data.month.pageViews} this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Avg. Session Duration
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{formatDuration(data.today.avgSessionDuration)}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.today.bounceRate}% bounce rate
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Detailed Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Top Pages */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Top Pages (7 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.topPages.slice(0, 8).map((page, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="truncate max-w-[180px] text-muted-foreground" title={page.pagePath}>
-                    {page.pagePath === '/' ? 'Homepage' : page.pagePath}
-                  </span>
-                  <span className="font-medium">{page.pageViews.toLocaleString()}</span>
-                </div>
-              ))}
-              {data.topPages.length === 0 && (
-                <p className="text-sm text-muted-foreground">No data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Traffic Sources */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ExternalLink className="h-5 w-5" />
-              Traffic Sources (7 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.trafficSources.slice(0, 8).map((source, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="truncate max-w-[180px] text-muted-foreground">
-                    {source.source === '(direct)' ? 'Direct' : source.source}
-                  </span>
-                  <span className="font-medium">{source.sessions.toLocaleString()}</span>
-                </div>
-              ))}
-              {data.trafficSources.length === 0 && (
-                <p className="text-sm text-muted-foreground">No data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Countries */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Top Countries (7 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.countries.slice(0, 8).map((country, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="truncate max-w-[180px] text-muted-foreground">
-                    {country.country}
-                  </span>
-                  <span className="font-medium">{country.sessions.toLocaleString()}</span>
-                </div>
-              ))}
-              {data.countries.length === 0 && (
-                <p className="text-sm text-muted-foreground">No data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="text-2xl font-bold text-white">{typeof value === 'number' ? value.toLocaleString() : value}</div>
+      {sub && <div className="text-white/30 text-xs mt-1">{sub}</div>}
     </div>
   );
 }
+
+export const GoogleAnalytics = () => {
+  const [stats, setStats] = useState<VisitorStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
+      const weekStart = new Date(Date.now() - 7 * 86400000).toISOString();
+      const monthStart = new Date(Date.now() - 30 * 86400000).toISOString();
+
+      const [todayRes, weekRes, monthRes, pagesRes, allTimeRes] = await Promise.all([
+        supabase.from('visitor_analytics').select('session_id, page_path, country', { count: 'exact' })
+          .gte('created_at', todayStart),
+        supabase.from('visitor_analytics').select('session_id, country', { count: 'exact' })
+          .gte('created_at', weekStart),
+        supabase.from('visitor_analytics').select('id', { count: 'exact' })
+          .gte('created_at', monthStart),
+        supabase.from('visitor_analytics').select('page_path')
+          .gte('created_at', weekStart)
+          .not('page_path', 'like', '/manage-%')
+          .not('page_path', 'like', '/nonexistent%')
+          .not('page_path', 'like', '/this-page%')
+          .limit(1000),
+        supabase.from('visitor_analytics').select('id', { count: 'exact' }),
+      ]);
+
+      const todayData = todayRes.data || [];
+      const weekData = weekRes.data || [];
+      const pagesData = pagesRes.data || [];
+
+      // Unique sessions
+      const uniqueToday = new Set(todayData.map((r: any) => r.session_id)).size;
+      const uniqueWeek = new Set(weekData.map((r: any) => r.session_id)).size;
+
+      // Top pages
+      const pageCounts: Record<string, number> = {};
+      pagesData.forEach((r: any) => {
+        const page = r.page_path || '/';
+        pageCounts[page] = (pageCounts[page] || 0) + 1;
+      });
+      const topPages = Object.entries(pageCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([page, views]) => ({ page, views }));
+
+      // Top countries (from today data)
+      const countryCounts: Record<string, number> = {};
+      todayData.forEach((r: any) => {
+        const country = r.country || 'Unknown';
+        countryCounts[country] = (countryCounts[country] || 0) + 1;
+      });
+      const topCountries = Object.entries(countryCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([country, visits]) => ({ country, visits }));
+
+      setStats({
+        today: todayRes.count || 0,
+        week: weekRes.count || 0,
+        month: monthRes.count || 0,
+        uniqueToday,
+        uniqueWeek,
+        topPages,
+        topCountries,
+        byHour: [],
+        totalAllTime: allTimeRes.count || 0,
+      });
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Analytics error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  if (loading) return (
+    <div className="p-6 space-y-4">
+      <div className="grid grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-white/3 border border-white/8 rounded-xl p-5 h-24 animate-pulse" />
+        ))}
+      </div>
+    </div>
+  );
+
+  if (!stats) return (
+    <div className="p-6 text-center text-white/40">No analytics data available</div>
+  );
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white font-semibold">Visitor Analytics</h2>
+          <p className="text-white/30 text-sm">
+            {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Live data from aynn.io'}
+          </p>
+        </div>
+        <button onClick={fetchStats} disabled={loading}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/8 text-white/60 text-sm transition-colors">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard label="Today's Pageviews" value={stats.today} sub={`${stats.uniqueToday} unique sessions`}
+          icon={Eye} color="bg-blue-500/20 text-blue-400" />
+        <StatCard label="This Week" value={stats.week} sub={`${stats.uniqueWeek} unique visitors`}
+          icon={TrendingUp} color="bg-green-500/20 text-green-400" />
+        <StatCard label="This Month" value={stats.month} sub="pageviews"
+          icon={Activity} color="bg-purple-500/20 text-purple-400" />
+        <StatCard label="All Time" value={stats.totalAllTime} sub="total pageviews"
+          icon={Globe} color="bg-amber-500/20 text-amber-400" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Top Pages */}
+        <div className="bg-white/3 border border-white/8 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Eye className="w-4 h-4 text-white/40" />
+            <span className="text-white font-medium text-sm">Top Pages (7 days)</span>
+          </div>
+          <div className="space-y-2">
+            {stats.topPages.length === 0 ? (
+              <div className="text-white/30 text-sm">No data</div>
+            ) : stats.topPages.map(({ page, views }) => {
+              const max = stats.topPages[0]?.views || 1;
+              const pct = (views / max) * 100;
+              return (
+                <div key={page}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-white/60 truncate max-w-[180px]">{page || '/'}</span>
+                    <span className="text-white/40">{views.toLocaleString()}</span>
+                  </div>
+                  <div className="h-1 bg-white/5 rounded-full">
+                    <div className="h-full bg-blue-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Top Countries */}
+        <div className="bg-white/3 border border-white/8 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Globe className="w-4 h-4 text-white/40" />
+            <span className="text-white font-medium text-sm">Top Countries (today)</span>
+          </div>
+          <div className="space-y-2">
+            {stats.topCountries.length === 0 ? (
+              <div className="text-white/30 text-sm">No country data</div>
+            ) : stats.topCountries.map(({ country, visits }) => {
+              const max = stats.topCountries[0]?.visits || 1;
+              const pct = (visits / max) * 100;
+              return (
+                <div key={country}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-white/60">{country}</span>
+                    <span className="text-white/40">{visits.toLocaleString()}</span>
+                  </div>
+                  <div className="h-1 bg-white/5 rounded-full">
+                    <div className="h-full bg-green-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="text-white/20 text-xs text-center">
+        Data from internal visitor_analytics table • 28,978+ total events tracked
+      </div>
+    </div>
+  );
+};

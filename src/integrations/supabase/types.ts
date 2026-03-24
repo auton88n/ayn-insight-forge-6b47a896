@@ -961,6 +961,78 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_prediction_accuracy: {
+        Row: {
+          asset_accuracy: Json | null
+          avg_accuracy_score: number | null
+          avg_value_error_pct: number | null
+          created_at: string | null
+          direction_accuracy_pct: number | null
+          direction_correct: number | null
+          direction_wrong: number | null
+          horizon_accuracy: Json | null
+          id: string
+          meets_80_threshold: boolean | null
+          notes: string | null
+          overall_grade: string | null
+          period_end: string
+          period_start: string
+          resolved_price_predictions: number | null
+          total_price_predictions: number | null
+          total_world_predictions: number | null
+          world_accuracy_pct: number | null
+          world_pending_review: number | null
+          world_verified_correct: number | null
+          world_verified_wrong: number | null
+        }
+        Insert: {
+          asset_accuracy?: Json | null
+          avg_accuracy_score?: number | null
+          avg_value_error_pct?: number | null
+          created_at?: string | null
+          direction_accuracy_pct?: number | null
+          direction_correct?: number | null
+          direction_wrong?: number | null
+          horizon_accuracy?: Json | null
+          id?: string
+          meets_80_threshold?: boolean | null
+          notes?: string | null
+          overall_grade?: string | null
+          period_end: string
+          period_start: string
+          resolved_price_predictions?: number | null
+          total_price_predictions?: number | null
+          total_world_predictions?: number | null
+          world_accuracy_pct?: number | null
+          world_pending_review?: number | null
+          world_verified_correct?: number | null
+          world_verified_wrong?: number | null
+        }
+        Update: {
+          asset_accuracy?: Json | null
+          avg_accuracy_score?: number | null
+          avg_value_error_pct?: number | null
+          created_at?: string | null
+          direction_accuracy_pct?: number | null
+          direction_correct?: number | null
+          direction_wrong?: number | null
+          horizon_accuracy?: Json | null
+          id?: string
+          meets_80_threshold?: boolean | null
+          notes?: string | null
+          overall_grade?: string | null
+          period_end?: string
+          period_start?: string
+          resolved_price_predictions?: number | null
+          total_price_predictions?: number | null
+          total_world_predictions?: number | null
+          world_accuracy_pct?: number | null
+          world_pending_review?: number | null
+          world_verified_correct?: number | null
+          world_verified_wrong?: number | null
+        }
+        Relationships: []
+      }
       ayn_prediction_lessons: {
         Row: {
           applied_count: number | null
@@ -1225,11 +1297,13 @@ export type Database = {
           baseline_value: number | null
           confidence: number | null
           created_at: string
+          fear_greed_at_prediction: number | null
           generated_by: string | null
           horizon: string
           id: string
           key_drivers: Json | null
           market_context: Json | null
+          market_regime: string | null
           metric: string
           predicted_direction: string | null
           predicted_high: number | null
@@ -1238,6 +1312,7 @@ export type Database = {
           predicted_value: number | null
           reasoning: string
           risks: Json | null
+          signal_used: Json | null
           status: string
           target_date: string
         }
@@ -1248,11 +1323,13 @@ export type Database = {
           baseline_value?: number | null
           confidence?: number | null
           created_at?: string
+          fear_greed_at_prediction?: number | null
           generated_by?: string | null
           horizon: string
           id?: string
           key_drivers?: Json | null
           market_context?: Json | null
+          market_regime?: string | null
           metric?: string
           predicted_direction?: string | null
           predicted_high?: number | null
@@ -1261,6 +1338,7 @@ export type Database = {
           predicted_value?: number | null
           reasoning: string
           risks?: Json | null
+          signal_used?: Json | null
           status?: string
           target_date: string
         }
@@ -1271,11 +1349,13 @@ export type Database = {
           baseline_value?: number | null
           confidence?: number | null
           created_at?: string
+          fear_greed_at_prediction?: number | null
           generated_by?: string | null
           horizon?: string
           id?: string
           key_drivers?: Json | null
           market_context?: Json | null
+          market_regime?: string | null
           metric?: string
           predicted_direction?: string | null
           predicted_high?: number | null
@@ -1284,6 +1364,7 @@ export type Database = {
           predicted_value?: number | null
           reasoning?: string
           risks?: Json | null
+          signal_used?: Json | null
           status?: string
           target_date?: string
         }
@@ -1640,14 +1721,64 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_wisdom_frameworks: {
+        Row: {
+          active: boolean | null
+          applies_to_assets: string[] | null
+          category: string
+          confidence_weight: number | null
+          created_at: string | null
+          id: string
+          prediction_bias: string | null
+          principle: string
+          quote: string | null
+          reference: string | null
+          source: string
+          source_full: string | null
+          trigger_conditions: string[] | null
+        }
+        Insert: {
+          active?: boolean | null
+          applies_to_assets?: string[] | null
+          category: string
+          confidence_weight?: number | null
+          created_at?: string | null
+          id?: string
+          prediction_bias?: string | null
+          principle: string
+          quote?: string | null
+          reference?: string | null
+          source: string
+          source_full?: string | null
+          trigger_conditions?: string[] | null
+        }
+        Update: {
+          active?: boolean | null
+          applies_to_assets?: string[] | null
+          category?: string
+          confidence_weight?: number | null
+          created_at?: string | null
+          id?: string
+          prediction_bias?: string | null
+          principle?: string
+          quote?: string | null
+          reference?: string | null
+          source?: string
+          source_full?: string | null
+          trigger_conditions?: string[] | null
+        }
+        Relationships: []
+      }
       ayn_world_predictions: {
         Row: {
           actionable_move: string | null
           confidence: number | null
           conflict_signals: Json | null
           created_at: string
+          data_sources: Json | null
           domain: string
           escalation_risk: string | null
+          expires_at: string | null
           financial_trigger: string | null
           historical_parallel: string
           horizon: string
@@ -1658,10 +1789,16 @@ export type Database = {
           prediction_date: string
           probability: string | null
           region: string
+          resolution_correct: boolean | null
+          resolution_notes: string | null
+          resolution_source: string | null
+          resolved_at: string | null
+          signal_quality: number | null
           status: string | null
           tags: Json | null
           target_period: string | null
           title: string
+          verified_by: string | null
           what_is_happening: string
           what_it_means: string
           what_to_do_now: string
@@ -1673,8 +1810,10 @@ export type Database = {
           confidence?: number | null
           conflict_signals?: Json | null
           created_at?: string
+          data_sources?: Json | null
           domain: string
           escalation_risk?: string | null
+          expires_at?: string | null
           financial_trigger?: string | null
           historical_parallel: string
           horizon: string
@@ -1685,10 +1824,16 @@ export type Database = {
           prediction_date?: string
           probability?: string | null
           region?: string
+          resolution_correct?: boolean | null
+          resolution_notes?: string | null
+          resolution_source?: string | null
+          resolved_at?: string | null
+          signal_quality?: number | null
           status?: string | null
           tags?: Json | null
           target_period?: string | null
           title: string
+          verified_by?: string | null
           what_is_happening: string
           what_it_means: string
           what_to_do_now: string
@@ -1700,8 +1845,10 @@ export type Database = {
           confidence?: number | null
           conflict_signals?: Json | null
           created_at?: string
+          data_sources?: Json | null
           domain?: string
           escalation_risk?: string | null
+          expires_at?: string | null
           financial_trigger?: string | null
           historical_parallel?: string
           horizon?: string
@@ -1712,15 +1859,96 @@ export type Database = {
           prediction_date?: string
           probability?: string | null
           region?: string
+          resolution_correct?: boolean | null
+          resolution_notes?: string | null
+          resolution_source?: string | null
+          resolved_at?: string | null
+          signal_quality?: number | null
           status?: string | null
           tags?: Json | null
           target_period?: string | null
           title?: string
+          verified_by?: string | null
           what_is_happening?: string
           what_it_means?: string
           what_to_do_now?: string
           who_gets_hurt?: string
           who_wins?: string
+        }
+        Relationships: []
+      }
+      ayn_world_signals: {
+        Row: {
+          ancient_parallel: string | null
+          biblical_parallel: string | null
+          confidence_impact: number | null
+          countries_involved: string[] | null
+          created_at: string | null
+          headline: string
+          historical_parallel: string | null
+          id: string
+          impact_on_btc: string | null
+          impact_on_equities: string | null
+          impact_on_gold: string | null
+          impact_on_oil: string | null
+          impact_on_usd: string | null
+          overrides_regime: boolean | null
+          region: string | null
+          severity: string
+          signal_date: string
+          signal_type: string
+          source_url: string | null
+          status: string | null
+          summary: string | null
+          verified: boolean | null
+        }
+        Insert: {
+          ancient_parallel?: string | null
+          biblical_parallel?: string | null
+          confidence_impact?: number | null
+          countries_involved?: string[] | null
+          created_at?: string | null
+          headline: string
+          historical_parallel?: string | null
+          id?: string
+          impact_on_btc?: string | null
+          impact_on_equities?: string | null
+          impact_on_gold?: string | null
+          impact_on_oil?: string | null
+          impact_on_usd?: string | null
+          overrides_regime?: boolean | null
+          region?: string | null
+          severity?: string
+          signal_date?: string
+          signal_type: string
+          source_url?: string | null
+          status?: string | null
+          summary?: string | null
+          verified?: boolean | null
+        }
+        Update: {
+          ancient_parallel?: string | null
+          biblical_parallel?: string | null
+          confidence_impact?: number | null
+          countries_involved?: string[] | null
+          created_at?: string | null
+          headline?: string
+          historical_parallel?: string | null
+          id?: string
+          impact_on_btc?: string | null
+          impact_on_equities?: string | null
+          impact_on_gold?: string | null
+          impact_on_oil?: string | null
+          impact_on_usd?: string | null
+          overrides_regime?: boolean | null
+          region?: string | null
+          severity?: string
+          signal_date?: string
+          signal_type?: string
+          source_url?: string | null
+          status?: string | null
+          summary?: string | null
+          verified?: boolean | null
         }
         Relationships: []
       }
@@ -2597,6 +2825,7 @@ export type Database = {
           after_sale_services: string | null
           client_signature_url: string | null
           client_signed_at: string | null
+          client_viewed_at: string | null
           company_address: string | null
           company_email: string
           company_name: string
@@ -2608,14 +2837,19 @@ export type Database = {
           currency: string
           delivery_timeline: string | null
           discount_percent: number | null
+          email_open_count: number | null
           email_opened_at: string | null
           email_sent_at: string | null
           id: string
+          last_opened_at: string | null
           notes: string | null
           order_description: string | null
           order_title: string
+          paid_at: string | null
           privacy_notes: string | null
+          receipt_sent_at: string | null
           services: Json
+          signing_token: string | null
           status: string
           stripe_payment_id: string | null
           stripe_payment_link: string | null
@@ -2631,6 +2865,7 @@ export type Database = {
           after_sale_services?: string | null
           client_signature_url?: string | null
           client_signed_at?: string | null
+          client_viewed_at?: string | null
           company_address?: string | null
           company_email: string
           company_name: string
@@ -2642,14 +2877,19 @@ export type Database = {
           currency?: string
           delivery_timeline?: string | null
           discount_percent?: number | null
+          email_open_count?: number | null
           email_opened_at?: string | null
           email_sent_at?: string | null
           id?: string
+          last_opened_at?: string | null
           notes?: string | null
           order_description?: string | null
           order_title: string
+          paid_at?: string | null
           privacy_notes?: string | null
+          receipt_sent_at?: string | null
           services?: Json
+          signing_token?: string | null
           status?: string
           stripe_payment_id?: string | null
           stripe_payment_link?: string | null
@@ -2665,6 +2905,7 @@ export type Database = {
           after_sale_services?: string | null
           client_signature_url?: string | null
           client_signed_at?: string | null
+          client_viewed_at?: string | null
           company_address?: string | null
           company_email?: string
           company_name?: string
@@ -2676,14 +2917,19 @@ export type Database = {
           currency?: string
           delivery_timeline?: string | null
           discount_percent?: number | null
+          email_open_count?: number | null
           email_opened_at?: string | null
           email_sent_at?: string | null
           id?: string
+          last_opened_at?: string | null
           notes?: string | null
           order_description?: string | null
           order_title?: string
+          paid_at?: string | null
           privacy_notes?: string | null
+          receipt_sent_at?: string | null
           services?: Json
+          signing_token?: string | null
           status?: string
           stripe_payment_id?: string | null
           stripe_payment_link?: string | null
@@ -5120,6 +5366,35 @@ export type Database = {
       }
     }
     Views: {
+      ayn_accuracy_dashboard: {
+        Row: {
+          accuracy_30d_pct: number | null
+          avg_accuracy_score: number | null
+          avg_value_error_pct: number | null
+          best_asset: string | null
+          correct_30d: number | null
+          direction_accuracy_pct: number | null
+          direction_correct: number | null
+          direction_wrong: number | null
+          resolved_30d: number | null
+          total_resolved: number | null
+          total_world: number | null
+          world_accuracy_pct: number | null
+          world_correct: number | null
+          world_pending: number | null
+          world_wrong: number | null
+        }
+        Relationships: []
+      }
+      ayn_prediction_context: {
+        Row: {
+          market_regime_json: string | null
+          recent_signals: Json | null
+          track_record: Json | null
+          wisdom_frameworks: Json | null
+        }
+        Relationships: []
+      }
       ayn_prediction_vote_counts: {
         Row: {
           agree_count: number | null
@@ -5465,6 +5740,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_email_opened: { Args: { order_id: string }; Returns: undefined }
       record_device_fingerprint: {
         Args: {
           _device_info: Json

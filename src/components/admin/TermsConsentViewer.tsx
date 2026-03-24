@@ -41,14 +41,14 @@ export const TermsConsentViewer = () => {
           session.access_token
         ),
         supabaseApi.get<ProfileInfo[]>(
-          'profiles?select=user_id,company_name,contact_person',
+          'admin_users_view?select=id,display_name,email',
           session.access_token
         ),
       ]);
 
       setRecords(consentData || []);
       const map = new Map<string, ProfileInfo>();
-      (profilesData || []).forEach(p => map.set(p.user_id, p));
+      (profilesData || []).forEach((p: any) => map.set(p.id, { contact_person: p.display_name, company_name: p.email }));
       setProfiles(map);
     } catch (err) {
       console.error('Failed to fetch consent logs:', err);

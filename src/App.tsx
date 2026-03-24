@@ -57,7 +57,9 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const AdminCustomOrders = lazy(() => import("./pages/AdminCustomOrders"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
-const ManageAdmin = lazy(() => import("./pages/ManageAdmin"));
+
+// Admin route — accessible at /admin
+import AdminApp from './admin-app/AdminApp';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -119,8 +121,10 @@ const AnimatedRoutes = () => {
       <Route path="/privacy" element={<PageTransition><Privacy /></PageTransition>} />
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
-      <Route path="/manage-bae76e99d97e188b" element={<Suspense fallback={<PageLoader />}><ManageAdmin /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
+      <Route path="/manage-bae76e99d97e188b/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
+      <Route path="/admin" element={<Navigate to="/404" replace />} />
+      <Route path="/admin/*" element={<Navigate to="/404" replace />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
     </Routes>
@@ -138,7 +142,9 @@ const AnimatedRoutes = () => {
   );
 };
 
-const App = () => (
+const App = () => {
+  // Detect admin subdomain and serve admin panel
+  return (
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
@@ -163,5 +169,6 @@ const App = () => (
     </QueryClientProvider>
   </HelmetProvider>
 );
+};
 
 export default App;

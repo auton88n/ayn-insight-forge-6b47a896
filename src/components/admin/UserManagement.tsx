@@ -1,610 +1,330 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Session } from '@supabase/supabase-js';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from '@/components/ui/dropdown-menu';
-import { toast } from 'sonner';
-import { 
-  Search, 
-  Download, 
-  MoreVertical,
-  UserCheck,
-  UserX,
-  Trash2,
-  Filter,
-  CheckSquare,
-  ShieldCheck,
-  Shield,
-  User,
-  Users,
-  Loader2
-} from 'lucide-react';
-import { format } from 'date-fns';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { UserDetailModal } from './UserDetailModal';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Search, RefreshCw, Mail, Activity, TrendingUp, Clock, Shield, User } from 'lucide-react';
+import { toast } from 'sonner';
 
-interface Profile {
-  company_name: string | null;
-  contact_person: string | null;
-  avatar_url: string | null;
-}
-
-interface AccessGrantWithProfile {
+interface AdminUser {
   id: string;
-  user_id: string;
+  email: string;
+  display_name: string;
+  avatar_url: string | null;
+  auth_provider: string;
+  signed_up_at: string;
+  last_sign_in_at: string | null;
+  last_active_at: string | null;
+  email_verified: boolean;
+  contact_person: string | null;
+  company_name: string | null;
+  role: string;
+  subscription_tier: string;
+  subscription_status: string;
   is_active: boolean;
-  granted_at: string | null;
-  expires_at: string | null;
   current_month_usage: number | null;
   monthly_limit: number | null;
-  created_at: string;
-  profiles: Profile | null;
-  user_email?: string;
-  role?: 'admin' | 'duty' | 'user';
+  total_messages: number;
+  messages_7d: number;
+  messages_30d: number;
+  active_days_total: number;
+  days_since_last_use: number | null;
 }
 
-interface UserManagementProps {
-  session: Session;
-  allUsers: AccessGrantWithProfile[];
-  onRefresh: () => void;
+function timeAgo(date: string | null): string {
+  if (!date) return 'Never';
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 2) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
 }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05 }
-  }
-};
+function formatDate(date: string | null): string {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
-const itemVariants = {
-  hidden: { opacity: 0, x: -10 },
-  visible: { 
-    opacity: 1, 
-    x: 0,
-    transition: { duration: 0.2 }
-  }
-};
+function activityLevel(user: AdminUser): { label: string; color: string } {
+  if (user.messages_7d > 20) return { label: 'Very Active', color: 'bg-green-500/20 text-green-400 border-green-500/30' };
+  if (user.messages_7d > 5) return { label: 'Active', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+  if (user.messages_30d > 0) return { label: 'Occasional', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+  if (user.total_messages > 0) return { label: 'Inactive', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
+  return { label: 'Never Used', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
+}
 
-export const UserManagement = ({ session, allUsers, onRefresh }: UserManagementProps) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'revoked'>('all');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'duty' | 'user'>('all');
-  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
-  const [userRoles, setUserRoles] = useState<Map<string, string>>(new Map());
-  const [changingRole, setChangingRole] = useState<string | null>(null);
-  const [selectedUserDetail, setSelectedUserDetail] = useState<AccessGrantWithProfile | null>(null);
+export const UserManagement = () => {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'never'>('all');
+  const [sortBy, setSortBy] = useState<'signed_up' | 'last_active' | 'messages' | 'name'>('signed_up');
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
-  // Fetch user roles on mount
-  const fetchUserRoles = useCallback(async () => {
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
     try {
-      const rolesData = await supabaseApi.get('user_roles?select=user_id,role', session.access_token) as { user_id: string; role: string }[];
-      const rolesMap = new Map<string, string>();
-      if (Array.isArray(rolesData)) {
-        rolesData.forEach((r) => {
-          rolesMap.set(r.user_id, r.role);
-        });
-      }
-      setUserRoles(rolesMap);
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-    }
-  }, [session.access_token]);
-
-  // Load roles when component mounts or users change
-  useEffect(() => {
-    fetchUserRoles();
-  }, [allUsers.length, fetchUserRoles]);
-
-  const filteredUsers = useMemo(() => {
-    return allUsers.filter(user => {
-      const matchesSearch = 
-        (user.profiles?.company_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (user.profiles?.contact_person?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (user.user_email?.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      const matchesStatus = 
-        statusFilter === 'all' ||
-        (statusFilter === 'active' && user.is_active) ||
-        (statusFilter === 'pending' && !user.is_active && !user.granted_at) ||
-        (statusFilter === 'revoked' && !user.is_active && user.granted_at);
-
-      const userRole = userRoles.get(user.user_id) || 'user';
-      const matchesRole = 
-        roleFilter === 'all' || roleFilter === userRole;
-      
-      return (matchesSearch || !searchQuery) && matchesStatus && matchesRole;
-    });
-  }, [allUsers, searchQuery, statusFilter, roleFilter, userRoles]);
-
-  // Group users by role for organized display
-  const groupedUsers = useMemo(() => {
-    const groups = {
-      admin: [] as typeof filteredUsers,
-      duty: [] as typeof filteredUsers,
-      user: [] as typeof filteredUsers,
-    };
-    
-    filteredUsers.forEach(user => {
-      const role = (userRoles.get(user.user_id) || 'user') as keyof typeof groups;
-      groups[role].push(user);
-    });
-    
-    return groups;
-  }, [filteredUsers, userRoles]);
-
-  // Role stats
-  const roleStats = useMemo(() => ({
-    admin: allUsers.filter(u => userRoles.get(u.user_id) === 'admin').length,
-    duty: allUsers.filter(u => userRoles.get(u.user_id) === 'duty').length,
-    user: allUsers.filter(u => !userRoles.get(u.user_id) || userRoles.get(u.user_id) === 'user').length,
-  }), [allUsers, userRoles]);
-
-  const toggleUserSelection = (userId: string) => {
-    const newSelected = new Set(selectedUsers);
-    if (newSelected.has(userId)) {
-      newSelected.delete(userId);
-    } else {
-      newSelected.add(userId);
-    }
-    setSelectedUsers(newSelected);
-  };
-
-  const handleActivate = async (userId: string) => {
-    try {
-      await supabaseApi.patch(
-        `access_grants?user_id=eq.${userId}`,
-        session.access_token,
-        { is_active: true, granted_at: new Date().toISOString() }
-      );
-      toast.success('User activated');
-      onRefresh();
-    } catch (error) {
-      console.error('Error activating user:', error);
-      toast.error('Failed to activate user');
-    }
-  };
-
-  const handleDeactivate = async (userId: string) => {
-    try {
-      await supabaseApi.patch(
-        `access_grants?user_id=eq.${userId}`,
-        session.access_token,
-        { is_active: false }
-      );
-      toast.success('User deactivated');
-      onRefresh();
-    } catch (error) {
-      console.error('Error deactivating user:', error);
-      toast.error('Failed to deactivate user');
-    }
-  };
-
-  // Handle role change using secure RPC
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'duty' | 'user') => {
-    setChangingRole(userId);
-    try {
-      // Use the secure RPC function
-      const { error } = await supabase.rpc('manage_user_role', {
-        p_target_user_id: userId,
-        p_new_role: newRole
-      });
-
-      if (error) {
-        console.error('RPC error:', error);
-        if (error.message.includes('Only admins')) {
-          toast.error('Permission denied: Only admins can change roles');
-        } else if (error.message.includes('Cannot demote yourself')) {
-          toast.error('Cannot demote yourself');
-        } else {
-          toast.error('Failed to change role');
-        }
-        return;
-      }
-      
-      // Update local state
-      setUserRoles(prev => new Map(prev).set(userId, newRole));
-      toast.success(`Role changed to ${newRole}`);
-      onRefresh();
-    } catch (error) {
-      console.error('Error changing role:', error);
-      toast.error('Failed to change role');
+      const { data, error } = await supabase
+        .from('admin_users_view')
+        .select('*');
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (err: any) {
+      toast.error('Failed to load users: ' + err.message);
     } finally {
-      setChangingRole(null);
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const filtered = users
+    .filter(u => {
+      const q = search.toLowerCase();
+      const matchSearch = !q ||
+        u.email.toLowerCase().includes(q) ||
+        u.display_name.toLowerCase().includes(q) ||
+        (u.company_name || '').toLowerCase().includes(q);
+
+      const matchFilter =
+        filter === 'all' ? true :
+        filter === 'active' ? u.messages_7d > 0 :
+        filter === 'inactive' ? (u.total_messages > 0 && u.messages_30d === 0) :
+        filter === 'never' ? u.total_messages === 0 : true;
+
+      return matchSearch && matchFilter;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'last_active') return (b.last_active_at || '0').localeCompare(a.last_active_at || '0');
+      if (sortBy === 'messages') return b.total_messages - a.total_messages;
+      if (sortBy === 'name') return a.display_name.localeCompare(b.display_name);
+      return (b.signed_up_at || '').localeCompare(a.signed_up_at || '');
+    });
+
+  const stats = {
+    total: users.length,
+    active7d: users.filter(u => u.messages_7d > 0).length,
+    neverUsed: users.filter(u => u.total_messages === 0).length,
+    google: users.filter(u => u.auth_provider === 'google').length,
+    email: users.filter(u => u.auth_provider === 'email').length,
   };
 
-  const handleBulkAction = async (action: 'activate' | 'deactivate' | 'delete') => {
-    if (selectedUsers.size === 0) return;
-    
-    try {
-      const userIds = Array.from(selectedUsers);
-      
-      if (action === 'activate') {
-        await Promise.all(
-          userIds.map(userId =>
-            supabaseApi.patch(
-              `access_grants?user_id=eq.${userId}`,
-              session.access_token,
-              { is_active: true, granted_at: new Date().toISOString() }
-            )
-          )
-        );
-      } else if (action === 'deactivate') {
-        await Promise.all(
-          userIds.map(userId =>
-            supabaseApi.patch(
-              `access_grants?user_id=eq.${userId}`,
-              session.access_token,
-              { is_active: false }
-            )
-          )
-        );
-      } else if (action === 'delete') {
-        await Promise.all(
-          userIds.map(userId =>
-            supabaseApi.delete(
-              `access_grants?user_id=eq.${userId}`,
-              session.access_token
-            )
-          )
-        );
-      }
-      
-      toast.success(`${action === 'delete' ? 'Deleted' : action === 'activate' ? 'Activated' : 'Deactivated'} ${selectedUsers.size} users`);
-      setSelectedUsers(new Set());
-      onRefresh();
-    } catch (error) {
-      console.error('Bulk action error:', error);
-      toast.error('Bulk action failed');
-    }
-  };
-
-  const exportUsers = () => {
-    const csv = [
-      ['Company', 'Contact', 'Status', 'Usage', 'Limit', 'Created'],
-      ...filteredUsers.map(u => [
-        u.profiles?.company_name || '',
-        u.profiles?.contact_person || '',
-        u.is_active ? 'Active' : 'Pending',
-        u.current_month_usage || 0,
-        u.monthly_limit || 'Unlimited',
-        format(new Date(u.created_at), 'yyyy-MM-dd'),
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `users-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Render a single user card
-  const renderUserCard = (user: AccessGrantWithProfile) => {
-    const role = userRoles.get(user.user_id) || 'user';
-    const roleConfig = {
-      admin: { label: 'Admin', variant: 'destructive' as const, icon: ShieldCheck },
-      duty: { label: 'Duty', variant: 'default' as const, icon: Shield },
-      user: { label: 'User', variant: 'secondary' as const, icon: User },
-    };
-    const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.user;
-    const RoleIcon = config.icon;
-    const isChangingRole = changingRole === user.user_id;
-
-    return (
-      <motion.div
-        key={user.id}
-        variants={itemVariants}
-        className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
-          selectedUsers.has(user.user_id) 
-            ? 'bg-primary/5 border-primary/20' 
-            : 'bg-card hover:bg-muted/50 border-border/50'
-        }`}
-      >
-        <div className="flex items-center gap-4">
-          <input
-            type="checkbox"
-            checked={selectedUsers.has(user.user_id)}
-            onChange={() => toggleUserSelection(user.user_id)}
-            className="w-4 h-4 rounded border-muted-foreground/30"
-          />
-          <Avatar className="w-10 h-10">
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {(user.profiles?.company_name || user.user_email || 'U').charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="font-medium truncate">
-              {user.profiles?.company_name || user.profiles?.contact_person || 'Unknown'}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {user.user_email || format(new Date(user.created_at), 'MMM d, yyyy')}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Role Badge - Clickable dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-7 px-2 gap-1.5"
-                disabled={isChangingRole}
-              >
-                {isChangingRole ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <RoleIcon className="w-3 h-3" />
-                )}
-                <span className="text-xs">{config.label}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="text-xs">Change Role</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => handleRoleChange(user.user_id, 'user')}
-                disabled={role === 'user'}
-              >
-                <User className="w-4 h-4 mr-2" />
-                User
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => handleRoleChange(user.user_id, 'duty')}
-                disabled={role === 'duty'}
-              >
-                <Shield className="w-4 h-4 mr-2" />
-                Duty
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => handleRoleChange(user.user_id, 'admin')}
-                disabled={role === 'admin'}
-              >
-                <ShieldCheck className="w-4 h-4 mr-2" />
-                Admin
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Status Badge */}
-          <Badge variant={user.is_active ? 'outline' : 'secondary'} className="text-xs">
-            {user.is_active ? 'Active' : 'Pending'}
-          </Badge>
-
-          {/* Actions */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-8 h-8">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setSelectedUserDetail(user)}>
-                <User className="w-4 h-4 mr-2" />
-                View Details
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {user.is_active ? (
-                <DropdownMenuItem onClick={() => handleDeactivate(user.user_id)}>
-                  <UserX className="w-4 h-4 mr-2" />
-                  Deactivate
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={() => handleActivate(user.user_id)}>
-                  <UserCheck className="w-4 h-4 mr-2" />
-                  Activate
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </motion.div>
-    );
+  const tierColor = (tier: string) => {
+    if (tier === 'unlimited') return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+    if (tier === 'pro') return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+    if (tier === 'starter') return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+    return 'bg-white/5 text-white/40 border-white/10';
   };
 
   return (
-    <>
-      <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription>{filteredUsers.length} users</CardDescription>
+    <div className="p-6 space-y-6">
+      {/* Header stats */}
+      <div className="grid grid-cols-5 gap-3">
+        {[
+          { label: 'Total Users', value: stats.total, icon: User },
+          { label: 'Active 7d', value: stats.active7d, icon: Activity },
+          { label: 'Never Used', value: stats.neverUsed, icon: TrendingUp },
+          { label: 'Via Google', value: stats.google, icon: Shield },
+          { label: 'Via Email', value: stats.email, icon: Mail },
+        ].map(({ label, value, icon: Icon }) => (
+          <div key={label} className="bg-white/3 border border-white/8 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Icon className="w-3.5 h-3.5 text-white/40" />
+              <span className="text-white/40 text-xs">{label}</span>
             </div>
-            <div className="flex items-center gap-2">
-              {selectedUsers.size > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <CheckSquare className="w-4 h-4 mr-2" />
-                      {selectedUsers.size} selected
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleBulkAction('activate')}>
-                      <UserCheck className="w-4 h-4 mr-2" />
-                      Activate All
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleBulkAction('deactivate')}>
-                      <UserX className="w-4 h-4 mr-2" />
-                      Deactivate All
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => handleBulkAction('delete')}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete All
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              <Button variant="outline" size="sm" onClick={exportUsers}>
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
+            <div className="text-2xl font-bold text-white">{value}</div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Role Stats Bar */}
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant={roleFilter === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setRoleFilter('all')}
-              className="gap-2"
-            >
-              <Users className="w-4 h-4" />
-              All ({allUsers.length})
-            </Button>
-            <Button
-              variant={roleFilter === 'admin' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setRoleFilter('admin')}
-              className="gap-2"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              Admins ({roleStats.admin})
-            </Button>
-            <Button
-              variant={roleFilter === 'duty' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setRoleFilter('duty')}
-              className="gap-2"
-            >
-              <Shield className="w-4 h-4" />
-              Duty ({roleStats.duty})
-            </Button>
-            <Button
-              variant={roleFilter === 'user' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setRoleFilter('user')}
-              className="gap-2"
-            >
-              <User className="w-4 h-4" />
-              Users ({roleStats.user})
-            </Button>
-          </div>
+        ))}
+      </div>
 
-          {/* Filters */}
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, company, or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Filter className="w-4 h-4" />
-                  {statusFilter === 'all' ? 'All Status' : statusFilter}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setStatusFilter('all')}>All Status</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter('active')}>Active</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter('pending')}>Pending</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter('revoked')}>Revoked</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+      {/* Controls */}
+      <div className="flex gap-3 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <Input
+            placeholder="Search by name, email, or company..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-white/5 border-white/10 text-white placeholder-white/30"
+          />
+        </div>
+        <div className="flex gap-1">
+          {(['all', 'active', 'inactive', 'never'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
+                filter === f ? 'bg-white text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'
+              }`}>
+              {f === 'never' ? 'Never Used' : f}
+            </button>
+          ))}
+        </div>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+          className="bg-white/5 border border-white/10 text-white/60 text-xs rounded-lg px-3 py-2">
+          <option value="signed_up">Sort: Newest</option>
+          <option value="last_active">Sort: Last Active</option>
+          <option value="messages">Sort: Most Messages</option>
+          <option value="name">Sort: Name</option>
+        </select>
+        <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}
+          className="border-white/10 text-white/60 hover:bg-white/5">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
 
-          {/* User List */}
-          <ScrollArea className="h-[450px]">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={roleFilter}
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="space-y-4"
-              >
-                {filteredUsers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No users found
-                  </p>
-                ) : (
-                  // Render grouped sections when showing all, otherwise flat list
-                  roleFilter === 'all' ? (
-                    <>
-                      {/* Admins Section */}
-                      {groupedUsers.admin.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 px-2">
-                            <ShieldCheck className="w-4 h-4 text-destructive" />
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Admins ({groupedUsers.admin.length})
-                            </span>
+      {/* User count */}
+      <div className="text-white/30 text-xs">
+        Showing {filtered.length} of {users.length} users
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-white/8 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-white/3 border-b border-white/8">
+            <tr>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">User</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Provider</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Plan</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Activity</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Messages</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Last Active</th>
+              <th className="text-left px-4 py-3 text-white/40 text-xs font-medium">Joined</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {loading ? (
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-white/30 text-sm">Loading users...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-white/30 text-sm">No users found</td></tr>
+            ) : filtered.map(user => {
+              const activity = activityLevel(user);
+              const isExpanded = expandedUser === user.id;
+              return (
+                <>
+                  <tr key={user.id}
+                    onClick={() => setExpandedUser(isExpanded ? null : user.id)}
+                    className="hover:bg-white/3 cursor-pointer transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 text-sm font-medium">
+                            {(user.display_name || user.email)[0].toUpperCase()}
                           </div>
-                          {groupedUsers.admin.map(user => renderUserCard(user))}
-                        </div>
-                      )}
-                      
-                      {/* Duty Section */}
-                      {groupedUsers.duty.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 px-2">
-                            <Shield className="w-4 h-4 text-primary" />
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Duty ({groupedUsers.duty.length})
-                            </span>
+                        )}
+                        <div>
+                          <div className="text-white text-sm font-medium flex items-center gap-1.5">
+                            {user.display_name}
+                            {user.role === 'admin' && <Shield className="w-3 h-3 text-amber-400" />}
                           </div>
-                          {groupedUsers.duty.map(user => renderUserCard(user))}
+                          <div className="text-white/40 text-xs">{user.email}</div>
+                          {user.company_name && (
+                            <div className="text-white/25 text-xs">{user.company_name}</div>
+                          )}
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {user.auth_provider === 'google' ? (
+                          <span className="flex items-center gap-1 text-xs text-white/60">
+                            <svg width="12" height="12" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Google
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs text-white/60">
+                            <Mail className="w-3 h-3" /> Email
+                          </span>
+                        )}
+                        {!user.email_verified && (
+                          <span className="text-xs text-red-400/70">⚠ unverified</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${tierColor(user.subscription_tier)}`}>
+                        {user.subscription_tier}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${activity.color}`}>
+                        {activity.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-white text-sm font-medium">{user.total_messages.toLocaleString()}</div>
+                      <div className="text-white/30 text-xs">
+                        {user.messages_7d > 0 && <span className="text-green-400">{user.messages_7d} this week</span>}
+                        {user.messages_7d === 0 && user.messages_30d > 0 && <span className="text-yellow-400/70">{user.messages_30d} this month</span>}
+                        {user.messages_30d === 0 && user.total_messages > 0 && <span>none recently</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-white/70 text-sm">{timeAgo(user.last_active_at)}</div>
+                      {user.active_days_total > 0 && (
+                        <div className="text-white/30 text-xs">{user.active_days_total} active days</div>
                       )}
-                      
-                      {/* Users Section */}
-                      {groupedUsers.user.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 px-2">
-                            <User className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm font-medium text-muted-foreground">
-                              Users ({groupedUsers.user.length})
-                            </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-white/60 text-sm">{formatDate(user.signed_up_at)}</div>
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr key={`${user.id}-expanded`} className="bg-white/2">
+                      <td colSpan={7} className="px-6 py-4">
+                        <div className="grid grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="text-white/30 text-xs mb-1">ACCOUNT</div>
+                            <div className="space-y-1">
+                              <div className="text-white/60">ID: <span className="text-white/40 font-mono text-xs">{user.id.slice(0,8)}...</span></div>
+                              <div className="text-white/60">Role: <span className="text-white capitalize">{user.role}</span></div>
+                              <div className="text-white/60">Status: <span className={user.is_active ? 'text-green-400' : 'text-red-400'}>{user.is_active ? 'Active' : 'Inactive'}</span></div>
+                              <div className="text-white/60">Verified: <span className={user.email_verified ? 'text-green-400' : 'text-red-400'}>{user.email_verified ? 'Yes' : 'No'}</span></div>
+                            </div>
                           </div>
-                          {groupedUsers.user.map(user => renderUserCard(user))}
+                          <div>
+                            <div className="text-white/30 text-xs mb-1">USAGE</div>
+                            <div className="space-y-1">
+                              <div className="text-white/60">Total messages: <span className="text-white">{user.total_messages}</span></div>
+                              <div className="text-white/60">Last 7 days: <span className="text-white">{user.messages_7d}</span></div>
+                              <div className="text-white/60">Last 30 days: <span className="text-white">{user.messages_30d}</span></div>
+                              <div className="text-white/60">Active days: <span className="text-white">{user.active_days_total}</span></div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-white/30 text-xs mb-1">SUBSCRIPTION</div>
+                            <div className="space-y-1">
+                              <div className="text-white/60">Plan: <span className="text-white capitalize">{user.subscription_tier}</span></div>
+                              <div className="text-white/60">Status: <span className="text-white capitalize">{user.subscription_status}</span></div>
+                              {user.monthly_limit && <div className="text-white/60">Monthly limit: <span className="text-white">{user.monthly_limit}</span></div>}
+                              {user.current_month_usage != null && <div className="text-white/60">Used this month: <span className="text-white">{user.current_month_usage}</span></div>}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-white/30 text-xs mb-1">TIMELINE</div>
+                            <div className="space-y-1">
+                              <div className="text-white/60">Joined: <span className="text-white">{formatDate(user.signed_up_at)}</span></div>
+                              <div className="text-white/60">Last sign in: <span className="text-white">{timeAgo(user.last_sign_in_at)}</span></div>
+                              <div className="text-white/60">Last message: <span className="text-white">{timeAgo(user.last_active_at)}</span></div>
+                              {user.days_since_last_use != null && (
+                                <div className="text-white/60">Days inactive: <span className="text-white">{Math.floor(user.days_since_last_use)}</span></div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    // Flat list when filtered by role
-                    filteredUsers.map(user => renderUserCard(user))
-                  )
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-      
-      <UserDetailModal 
-        user={selectedUserDetail} 
-        isOpen={!!selectedUserDetail} 
-        onClose={() => setSelectedUserDetail(null)} 
-      />
-    </>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 };

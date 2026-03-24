@@ -216,30 +216,9 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [isChangingPin, setIsChangingPin] = useState(false);
-  const [pendingPinChange, setPendingPinChange] = useState<{
-    id: string;
-    created_at: string;
-    expires_at: string;
-  } | null>(null);
 
-  // Check for pending PIN changes
-  useEffect(() => {
-    const checkPendingPinChange = async () => {
-      const { data } = await supabase
-        .from('pending_pin_changes')
-        .select('id, created_at, expires_at')
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (data) {
-        setPendingPinChange(data);
-      }
-    };
-    checkPendingPinChange();
-  }, []);
+
+  // PIN change is now direct — no pending state needed
 
   const handleChange = <K extends keyof SystemConfig>(key: K, value: SystemConfig[K]) => {
     setLocalConfig(prev => ({ ...prev, [key]: value }));
@@ -294,35 +273,32 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
 
     setIsChangingPin(true);
     try {
-      const { data, error } = await supabase.functions.invoke('set-admin-pin', {
-        body: { newPin }
-      });
+      // Hash the new PIN using SHA-256 (same as the PIN gate)
+      const msgBuffer = new TextEncoder().encode(newPin);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      if (error) {
-        console.error('Error from edge function:', error);
-        toast.error('Failed to request PIN change');
-        return;
-      }
+      // Update directly in app_settings
+      const { error } = await supabase
+        .from('app_settings')
+        .upsert({ key: 'admin_pin_hash', value: hashHex, updated_at: new Date().toISOString() }, { onConflict: 'key' });
 
-      if (!data?.success) {
-        toast.error(data?.error || 'Failed to request PIN change');
-        return;
-      }
+      if (error) throw error;
 
-      toast.success('PIN change request sent! Check your email to approve.');
+      toast.success('PIN updated successfully!');
       setNewPin('');
       setConfirmPin('');
-      
-      if (data.pending_id) {
-        setPendingPinChange({
-          id: data.pending_id,
-          created_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
-        });
-      }
+
+      // Log the change
+      await supabase.from('security_logs').insert({
+        action: 'admin_pin_changed',
+        details: { changed_at: new Date().toISOString() },
+        severity: 'high'
+      }).catch(() => {});
     } catch (error) {
       console.error('Error changing PIN:', error);
-      toast.error('Failed to request PIN change');
+      toast.error('Failed to update PIN');
     } finally {
       setIsChangingPin(false);
     }
@@ -575,22 +551,12 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
       <motion.div variants={itemVariants}>
         <CollapsibleSection
           title="Admin Panel PIN"
-          description="Change the PIN with email approval"
+          description="Change the admin PIN — takes effect immediately"
           icon={<KeyRound className="w-5 h-5 text-purple-500" />}
           accentColor="purple"
         >
           <div className="space-y-4">
-            {pendingPinChange && (
-              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="font-medium">PIN Change Pending Approval</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Check your email to approve. Expires: {new Date(pendingPinChange.expires_at).toLocaleString()}
-                </p>
-              </div>
-            )}
+
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -602,7 +568,7 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="••••"
                   maxLength={6}
-                  disabled={!!pendingPinChange}
+                  
                   className="bg-muted/30 border-border/50"
                 />
               </div>
@@ -615,7 +581,7 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
                   onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="••••"
                   maxLength={6}
-                  disabled={!!pendingPinChange}
+                  
                   className="bg-muted/30 border-border/50"
                 />
               </div>
@@ -623,7 +589,7 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
             
             <Button 
               onClick={handleChangePin} 
-              disabled={isChangingPin || !newPin || !confirmPin || !!pendingPinChange}
+              disabled={isChangingPin || !newPin || !confirmPin}
               className="w-full bg-gradient-to-r from-purple-600 to-purple-500"
             >
               {isChangingPin ? (
@@ -631,12 +597,11 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
               ) : (
                 <KeyRound className="w-4 h-4 mr-2" />
               )}
-              Request PIN Change
+              Update PIN
             </Button>
             
             <p className="text-xs text-muted-foreground">
-              <Mail className="w-4 h-4 inline mr-1" />
-              You'll receive an email with an approval link. PIN changes require email confirmation.
+              PIN updated immediately. Takes effect on next login.
             </p>
           </div>
         </CollapsibleSection>

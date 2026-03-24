@@ -36,6 +36,9 @@ interface CreditGift {
   gift_type: string | null;
   given_by: string | null;
   created_at: string | null;
+  user_name?: string;
+  user_email?: string;
+  given_by_name?: string;
 }
 
 type DateFilter = 'all' | 'today' | 'week' | 'month';
@@ -60,7 +63,28 @@ export const CreditGiftHistory = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setGifts(data || []);
+      const giftsData = data || [];
+      // Enrich with user names
+      const allIds = [...new Set([
+        ...giftsData.map((g: any) => g.user_id).filter(Boolean),
+        ...giftsData.map((g: any) => g.given_by).filter(Boolean)
+      ])];
+      if (allIds.length > 0) {
+        const { data: users } = await supabase
+          .from('admin_users_view')
+          .select('id, display_name, email')
+          .in('id', allIds);
+        const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+        giftsData.forEach((g: any) => {
+          const u = userMap.get(g.user_id) as any;
+          if (u) { g.user_name = u.display_name; g.user_email = u.email; }
+          if (g.given_by) {
+            const giver = userMap.get(g.given_by) as any;
+            if (giver) g.given_by_name = giver.display_name;
+          }
+        });
+      }
+      setGifts(giftsData);
     } catch (err) {
       console.error('Error fetching credit gifts:', err);
       toast.error("Couldn't load credit gift history. Please try again.");
@@ -365,11 +389,11 @@ export const CreditGiftHistory = () => {
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            {gift.user_id.slice(0, 8)}...
+                            {gift.user_name || gift.user_email?.split('@')[0] || gift.user_id.slice(0, 8)}
                           </span>
                           {gift.given_by && (
                             <span>
-                              by {gift.given_by.slice(0, 8)}...
+                              by {gift.given_by_name || gift.given_by?.slice(0, 8)}
                             </span>
                           )}
                         </div>

@@ -1,4 +1,5 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, DollarSign as DollarIcon, MessageCircle, UserSearch, Send as SendIcon } from 'lucide-react';
 import {
   LayoutDashboard, 
   LineChart, 
@@ -14,8 +15,6 @@ import {
   FlaskConical,
   ChevronLeft,
   ChevronsRight,
-  AlertTriangle,
-  Mail,
   CreditCard,
   Gift,
   Sparkles,
@@ -32,14 +31,12 @@ import { cn } from '@/lib/utils';
 
 export type AdminTabId = 
   | 'overview' 
-  | 'errors'
-  | 'revenue'
-  | 'conversations'
-  | 'email_broadcast'
   | 'google-analytics' 
   | 'applications' 
   | 'support' 
-  | 'users' 
+  | 'users'
+  | 'user-detail'
+  | 'conversations'
   | 'rate-limits' 
   | 'settings' 
   | 'ai-costs' 
@@ -54,6 +51,9 @@ export type AdminTabId =
   | 'terms-consent'
   | 'ayn-logs'
   | 'ayn-mind'
+  | 'errors'
+  | 'revenue'
+  | 'email-broadcast'
 ;
 
 interface AdminSection {
@@ -68,10 +68,6 @@ interface AdminSection {
 
 const mainSections: AdminSection[] = [
   { id: 'overview', title: 'Overview', shortTitle: 'Ovr', icon: LayoutDashboard, gradient: 'from-blue-500 to-cyan-500', adminOnly: true },
-  { id: 'revenue', title: 'Revenue', shortTitle: 'Rev', icon: DollarSign, gradient: 'from-emerald-500 to-teal-500', adminOnly: true },
-  { id: 'conversations', title: 'Conversations', shortTitle: 'Chat', icon: MessageSquare, gradient: 'from-indigo-500 to-violet-500', adminOnly: true },
-  { id: 'email_broadcast', title: 'Broadcasts', shortTitle: 'Mail', icon: Mail, gradient: 'from-amber-500 to-orange-500', adminOnly: true },
-  { id: 'errors', title: 'Error Monitor', shortTitle: 'Err', icon: AlertTriangle, gradient: 'from-red-500 to-rose-600', adminOnly: true },
   { id: 'google-analytics', title: 'Analytics', shortTitle: 'Ana', icon: LineChart, gradient: 'from-green-500 to-emerald-500', adminOnly: true },
   { id: 'applications', title: 'Applications', shortTitle: 'App', icon: FileText, gradient: 'from-amber-500 to-orange-500', adminOnly: false, hasBadge: true },
   { id: 'support', title: 'Support', shortTitle: 'Sup', icon: MessageSquare, gradient: 'from-purple-500 to-pink-500', adminOnly: false },
@@ -93,6 +89,11 @@ const aiSections: AdminSection[] = [
   { id: 'twitter-marketing', title: 'Twitter Marketing', shortTitle: 'Twtr', icon: Twitter, gradient: 'from-sky-500 to-blue-600', adminOnly: true },
   { id: 'ayn-logs', title: 'AYN Logs', shortTitle: 'Logs', icon: Activity, gradient: 'from-orange-500 to-red-500', adminOnly: true },
   { id: 'ayn-mind', title: 'AYN Mind', shortTitle: 'Mind', icon: Brain, gradient: 'from-violet-500 to-purple-600', adminOnly: true },
+  { id: 'errors', title: 'Error Monitor', shortTitle: 'Err', icon: AlertTriangle, gradient: 'from-red-500 to-rose-600', adminOnly: true },
+  { id: 'revenue', title: 'Revenue', shortTitle: 'Rev', icon: DollarIcon, gradient: 'from-emerald-500 to-green-600', adminOnly: true },
+  { id: 'conversations', title: 'Conversations', shortTitle: 'Conv', icon: MessageCircle, gradient: 'from-blue-500 to-indigo-600', adminOnly: true },
+  { id: 'user-detail', title: 'User Detail', shortTitle: 'Det', icon: UserSearch, gradient: 'from-purple-500 to-violet-600', adminOnly: true },
+  { id: 'email-broadcast', title: 'Email Broadcast', shortTitle: 'Email', icon: SendIcon, gradient: 'from-cyan-500 to-blue-500', adminOnly: true },
 ];
 
 interface AdminSidebarProps {

@@ -130,31 +130,48 @@ export function AdminAIAssistant() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch stats on mount and periodically
+  // Fetch stats directly from DB — fast, no AI call needed
   const fetchStats = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const now24h = new Date(Date.now() - 86400000).toISOString();
+      const [llmRes, failRes, ticketRes, rateLimitRes, testRes] = await Promise.allSettled([
+        supabase.from('llm_usage_logs').select('was_fallback', { count: 'exact' }).gte('created_at', now24h),
+        supabase.from('llm_failures').select('id', { count: 'exact' }).gte('created_at', now24h),
+        supabase.from('support_tickets').select('id', { count: 'exact' }).eq('status', 'open'),
+        supabase.from('api_rate_limits').select('blocked_until').not('blocked_until', 'is', null),
+        supabase.from('test_results').select('status').gte('created_at', now24h),
+      ]);
 
-      // Quick ping to get stats from a simple message
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/admin-ai-assistant`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ message: 'quick stats check' })
-        }
-      );
+      const llmData = llmRes.status === 'fulfilled' ? llmRes.value.data || [] : [];
+      const llmTotal = llmData.length;
+      const fallbackCount = llmData.filter((r: any) => r.was_fallback).length;
+      const fallbackRate = llmTotal > 0 ? (fallbackCount / llmTotal) * 100 : 0;
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.quickStats) {
-          setStats(data.quickStats);
-        }
-      }
+      const openTickets = ticketRes.status === 'fulfilled' ? (ticketRes.value.count || 0) : 0;
+
+      const rateLimitData = rateLimitRes.status === 'fulfilled' ? rateLimitRes.value.data || [] : [];
+      const blockedUsers = rateLimitData.filter((r: any) => r.blocked_until && new Date(r.blocked_until) > new Date()).length;
+
+      const testData = testRes.status === 'fulfilled' ? testRes.value.data || [] : [];
+      const testTotal = testData.length;
+      const testPassed = testData.filter((r: any) => r.status === 'passed').length;
+      const testPassRate = testTotal > 0 ? (testPassed / testTotal) * 100 : 100;
+
+      // System health: deduct for issues
+      let health = 100;
+      if (testPassRate < 90) health -= (90 - testPassRate);
+      if (fallbackRate > 5) health -= (fallbackRate - 5) * 2;
+      if (blockedUsers > 0) health -= blockedUsers * 2;
+      health = Math.max(0, Math.min(100, Math.round(health)));
+
+      setStats({
+        systemHealth: health,
+        testPassRate: Math.round(testPassRate),
+        blockedUsers,
+        openTickets: Number(openTickets),
+        llmFallbackRate: Math.round(fallbackRate * 10) / 10,
+        calcUsage24h: 0,
+      });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     } finally {

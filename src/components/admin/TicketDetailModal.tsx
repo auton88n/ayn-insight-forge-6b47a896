@@ -64,6 +64,23 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchMessages = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('ticket_messages')
+        .select('*')
+        .eq('ticket_id', ticket.id)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      setMessages(data || []);
+    } catch (err) {
+      console.error('Error fetching messages:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [ticket.id]);
+
   useEffect(() => {
     if (isOpen) {
       fetchMessages();
@@ -76,24 +93,8 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
     }
   }, [messages]);
 
-  const fetchMessages = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('ticket_messages')
-        .select('*')
-        .eq('ticket_id', ticket.id)
-        .order('created_at');
 
-      if (error) throw error;
-      setMessages(data || []);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-      toast.error('Failed to load messages');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [ticket.id]);
+
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;

@@ -1020,7 +1020,16 @@ serve(async (req) => {
       console.log('[ayn-unified] User authenticated:', userId.substring(0, 8) + '...');
     }
 
-    const { messages: rawMessages, intent: forcedIntent, context = {}, stream = true, sessionId } = await req.json();
+    let body: any = {};
+    try { body = await req.json(); } catch { body = {}; }
+    const { messages: rawMessages, intent: forcedIntent, context = {}, stream = true, sessionId, _internal_warm } = body;
+
+    // Fast-return for keep-warm pings — just confirms function is alive
+    if (_internal_warm) {
+      return new Response(JSON.stringify({ status: 'warm', ts: Date.now() }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     if (!rawMessages || !Array.isArray(rawMessages)) {
       return new Response(JSON.stringify({ error: 'Messages array required' }), {
@@ -1304,10 +1313,10 @@ You may discuss trading concepts, strategy, and education freely — just don't 
           marketContext += `\n\nEXPAT SPENDING SIGNALS:\n${hits.map((h: any) => `- ${h.title}: ${h.snippet?.substring(0, 200)}`).join('\n')}`;
         }
 
-        intelligenceContext = `\n\nLIVE WORLD INTELLIGENCE (updated ${ageHours}h ago):
+        intelligenceContext = `\n\nBACKGROUND INTELLIGENCE (for context only — do NOT recite this unless the user specifically asks about markets or world events):
 ${brief.join('\n')}${marketContext}
 
-HOW TO USE THIS: Only surface data that is directly relevant to the user's question. When relevant, connect signals specifically to their situation — name real numbers, real demographics, real competitor data. Never just recite the numbers without connecting them to what the user is trying to do.`;
+RULE: This data is background context. If the user said "hello", "how are you", or anything casual — ignore this entirely. Only use it when they ask about markets, business strategy, world events, or investment. Never open a response by citing these numbers unprompted.`;
 
         // Inject country intelligence profiles if countries were detected
         const profiles = countryProfiles as any[];

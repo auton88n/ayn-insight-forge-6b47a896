@@ -137,6 +137,7 @@ export const Sidebar = ({
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [showSupportWidget, setShowSupportWidget] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   
   // Use database-synced pinned chats hook instead of localStorage
   const { pinnedChats, togglePin } = usePinnedChats(userId, accessToken);
@@ -185,7 +186,7 @@ export const Sidebar = ({
       <div className="p-2 space-y-0.5">
         {subscriptionTier === 'free' && (
           <Button 
-            onClick={() => navigate('/pricing')} 
+            onClick={() => { setMenuOpen(false); navigate('/pricing'); }} 
             variant="ghost" 
             className="w-full justify-start h-11 px-3 gap-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-purple-600/10 hover:from-purple-500/20 hover:to-purple-600/20 border border-purple-500/20 transition-colors duration-150"
           >
@@ -200,7 +201,7 @@ export const Sidebar = ({
         )}
         
         <Button 
-          onClick={() => navigate('/settings')} 
+          onClick={() => { setMenuOpen(false); navigate('/settings'); }} 
           onMouseEnter={() => import('@/pages/Settings')} 
           variant="ghost" 
           className="w-full justify-start h-11 px-3 gap-3 rounded-xl hover:bg-muted/60 transition-colors duration-150"
@@ -215,7 +216,7 @@ export const Sidebar = ({
         </Button>
         
         <Button onClick={() => {
-          onStartTutorial?.();
+          setMenuOpen(false); onStartTutorial?.();
         }} variant="ghost" className="w-full justify-start h-11 px-3 gap-3 rounded-xl hover:bg-muted/60 transition-colors duration-150">
           <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center">
             <GraduationCap className="w-4 h-4 text-muted-foreground" />
@@ -227,7 +228,7 @@ export const Sidebar = ({
         </Button>
         
         <Button onClick={() => {
-          setShowSupportWidget(true);
+          setMenuOpen(false); setShowSupportWidget(true);
         }} variant="ghost" className="w-full justify-start h-11 px-3 gap-3 rounded-xl hover:bg-muted/60 transition-colors duration-150">
           <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center">
             <Headphones className="w-4 h-4 text-muted-foreground" />
@@ -238,17 +239,7 @@ export const Sidebar = ({
           </div>
         </Button>
         
-        {hasDutyAccess && (
-          <Button onClick={onAdminPanelClick} variant="ghost" className="w-full justify-start h-11 px-3 gap-3 rounded-xl hover:bg-muted/60 transition-colors duration-150">
-            <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-muted-foreground" />
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">{isAdmin ? 'Admin Panel' : 'Duty Panel'}</span>
-              <span className="text-[10px] text-muted-foreground/70">{isAdmin ? 'Manage system' : 'Manage support'}</span>
-            </div>
-          </Button>
-        )}
+
       </div>
       
       {/* Gradient Divider */}
@@ -280,7 +271,7 @@ export const Sidebar = ({
         </Button>
       </div>
     </>
-  ), [userName, userEmail, hasDutyAccess, isAdmin, isSigningOut, subscriptionTier, onAdminPanelClick, onLogout, onStartTutorial, navigate]);
+  ), [userName, userEmail, hasDutyAccess, isAdmin, isSigningOut, subscriptionTier, onAdminPanelClick, onLogout, onStartTutorial, navigate, setShowSupportWidget, setMenuOpen]);
 
 
   const formatCompactTime = (date: Date): string => {
@@ -541,7 +532,7 @@ return <SidebarMenuItem key={chat.sessionId} className={cn("relative", index > 0
 
       <SidebarFooter className="p-3 space-y-3">
         
-        {/* User Profile - Mobile: Sheet, Desktop: Popover */}
+        {/* User Profile */}
         {isMobile ? (
           <Sheet>
             <SheetTrigger asChild>
@@ -555,19 +546,22 @@ return <SidebarMenuItem key={chat.sessionId} className={cn("relative", index > 0
             </SheetContent>
           </Sheet>
         ) : (
-          <Popover>
-            <PopoverTrigger asChild>
-              <ProfileTriggerButton userName={userName} userEmail={userEmail} userAvatar={userAvatar} />
-            </PopoverTrigger>
-            <PopoverContent 
-              className="w-[19rem] p-0 rounded-2xl overflow-hidden bg-background border border-border/60 shadow-2xl"
-              align="start" 
-              side="top" 
-              sideOffset={8}
-            >
-              {ProfileMenuContent}
-            </PopoverContent>
-          </Popover>
+          <div className="relative">
+            <ProfileTriggerButton
+              userName={userName}
+              userEmail={userEmail}
+              userAvatar={userAvatar}
+              onClick={() => setMenuOpen(o => !o)}
+            />
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                <div className="absolute bottom-full left-0 mb-2 w-[19rem] z-50 rounded-2xl overflow-hidden bg-background border border-border/60 shadow-2xl">
+                  {ProfileMenuContent}
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {/* Support Widget */}

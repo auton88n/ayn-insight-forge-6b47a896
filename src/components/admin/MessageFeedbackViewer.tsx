@@ -15,6 +15,8 @@ interface MessageRating {
   message_preview: string;
   rating: 'positive' | 'negative';
   created_at: string;
+  user_name?: string;
+  user_email?: string;
 }
 
 export const MessageFeedbackViewer = () => {
@@ -37,7 +39,24 @@ export const MessageFeedbackViewer = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      setRatings((data as MessageRating[]) || []);
+      
+      // Enrich with user names
+      const ratingsData = (data as MessageRating[]) || [];
+      const userIds = [...new Set(ratingsData.map(r => r.user_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('admin_users_view')
+          .select('id, display_name, email')
+          .in('id', userIds);
+        const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+        ratingsData.forEach(r => {
+          if (r.user_id) {
+            const u = userMap.get(r.user_id) as any;
+            if (u) { r.user_name = u.display_name; r.user_email = u.email; }
+          }
+        });
+      }
+      setRatings(ratingsData);
     } catch (err) {
       console.error('Failed to fetch ratings:', err);
     } finally {

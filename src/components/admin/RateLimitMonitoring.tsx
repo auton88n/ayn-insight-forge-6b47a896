@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Session } from '@supabase/supabase-js';
 import { supabaseApi } from '@/lib/supabaseApi';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,8 @@ import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 
 interface RateLimitStat {
   user_id: string;
+  user_name?: string;
+  user_email?: string;
   endpoint: string;
   request_count: number;
   max_requests: number;
@@ -57,7 +60,21 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
   const fetchStats = useCallback(async () => {
     try {
       const data = await supabaseApi.rpc<RateLimitStat[]>('get_rate_limit_stats', session.access_token);
-      setStats(data || []);
+      const statsData = data || [];
+      // Enrich with user names (skip internal service IDs like 'support-bot')
+      const userIds = statsData.map(s => s.user_id).filter(id => id && id.includes('-'));
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('admin_users_view')
+          .select('id, display_name, email')
+          .in('id', userIds);
+        const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+        statsData.forEach(s => {
+          const u = userMap.get(s.user_id) as any;
+          if (u) { s.user_name = u.display_name; s.user_email = u.email; }
+        });
+      }
+      setStats(statsData);
     } catch (error) {
       console.error('Error fetching rate limit stats:', error);
       toast.error(getErrorMessage(ErrorCodes.DATA_LOAD_FAILED).description);
@@ -203,6 +220,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium">
+                              {stat.user_name || (stat.user_id.includes('-') ? stat.user_email || stat.user_id.slice(0,8) : stat.user_id)}
+                            </span>
                             <code className="text-xs bg-muted px-2 py-0.5 rounded">
                               {stat.endpoint}
                             </code>

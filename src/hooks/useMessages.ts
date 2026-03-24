@@ -600,7 +600,7 @@ export const useMessages = (
             (chunk) => {
               setMessages(prev => prev.map(msg => 
                 msg.id === aynMessageId 
-                  ? { ...msg, content: msg.content + chunk }
+                  ? { ...msg, content: (msg.content + chunk).replace(/\[MEMORY:[^\]]*\]?/g, '') }
                   : msg
               ));
             },
@@ -608,7 +608,7 @@ export const useMessages = (
               // Mark message as complete
               setMessages(prev => prev.map(msg =>
                 msg.id === aynMessageId
-                  ? { ...msg, isTyping: false, status: 'sent' }
+                  ? { ...msg, content: msg.content.replace(/\[MEMORY:[^\]]+\]/g, '').trim(), isTyping: false, status: 'sent' }
                   : msg
               ));
             }
