@@ -228,19 +228,45 @@ export default function ClientSign() {
 
         {/* Project + Services */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
-            <div className="font-bold text-zinc-900 dark:text-zinc-100">{order.order_title}</div>
-            {order.order_description && <div className="text-xs text-zinc-500 mt-1">{order.order_description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/\n/g, ' ').replace(/`/g, '').substring(0, 200)}{order.order_description.length > 200 ? '...' : ''}</div>}
-          </div>
+          {order.order_description ? (
+            <details className="border-b border-zinc-100 dark:border-zinc-800 group">
+              <summary className="px-5 py-3.5 flex items-center justify-between cursor-pointer list-none">
+                <div className="font-bold text-zinc-900 dark:text-zinc-100">{order.order_title}</div>
+                <ChevronDown className="w-4 h-4 text-zinc-400 group-open:rotate-180 transition-transform flex-shrink-0 ml-2" />
+              </summary>
+              <div className="px-5 pb-4 text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-zinc-100 dark:border-zinc-800 pt-3">
+                {order.order_description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim()}
+              </div>
+            </details>
+          ) : (
+            <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="font-bold text-zinc-900 dark:text-zinc-100">{order.order_title}</div>
+            </div>
+          )}
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {(order.services || []).map((s, i) => (
-              <div key={i} className="flex justify-between items-start px-5 py-3.5">
-                <div>
-                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{s.name}</div>
-                  {s.description && <div className="text-xs text-zinc-500 mt-0.5">{s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').substring(0, 120)}</div>}
+              {s.description && s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim().length > 80 ? (
+                <details key={i} className="group">
+                  <summary className="flex justify-between items-center px-5 py-3.5 cursor-pointer list-none">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <ChevronDown className="w-3.5 h-3.5 text-zinc-400 group-open:rotate-180 transition-transform flex-shrink-0" />
+                      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{s.name}</div>
+                    </div>
+                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
+                  </summary>
+                  <div className="px-5 pb-3.5 text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-zinc-50 dark:border-zinc-800/50 pt-2 ml-5">
+                    {s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim()}
+                  </div>
+                </details>
+              ) : (
+                <div key={i} className="flex justify-between items-start px-5 py-3.5">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{s.name}</div>
+                    {s.description && <div className="text-xs text-zinc-500 mt-0.5">{s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').trim()}</div>}
+                  </div>
+                  <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
                 </div>
-                <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
-              </div>
+              )}
             ))}
           </div>
           {/* Totals */}
