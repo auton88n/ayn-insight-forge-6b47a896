@@ -1,6 +1,6 @@
 // Thin wrapper that embeds AdminCustomOrders into the admin panel tab
 // Strips the standalone page's back button/navigation
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,85 @@ function emptyForm() {
     payment_terms: 'Payment is due within 30 days of invoice. Late payments incur 1.5% monthly interest.', notes: '',
     stripe_payment_link: '',
   };
+}
+
+
+// ── AI Contract Reviewer ──────────────────────────────────────────────
+function AIReviewer({ contractData }: { contractData: any }) {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [review, setReview] = React.useState('');
+  const [asked, setAsked] = React.useState(false);
+
+  const runReview = async () => {
+    setLoading(true); setAsked(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: `You are a legal contract AI reviewer. Review this service agreement for completeness, fairness, and legal protection of both parties.
+
+CONTRACT DETAILS:
+- Client: ${contractData.company_name}
+- Project: ${contractData.order_title}
+- Description: ${contractData.order_description || 'Not specified'}
+- System Plan: ${contractData.system_plan || 'Not specified'}
+- Payment Terms: ${contractData.payment_terms || 'Not specified'}
+- Delivery Timeline: ${contractData.delivery_timeline || 'Not specified'}
+- Warranty: ${contractData.warranty || 'Not specified'}
+- Termination: ${contractData.termination_clause || 'Not specified'}
+- Terms & Conditions: ${contractData.terms_and_conditions || 'Not specified'}
+- After-Sale Services: ${contractData.after_sale_services || 'Not specified'}
+- Governing Law: ${contractData.governing_law || 'Not specified'}
+
+Provide a structured review:
+1. ✅ What is well-covered
+2. ⚠️ Gaps or weaknesses
+3. 🔴 Critical issues that could expose either party
+4. 💡 Specific suggestions to strengthen it
+
+Be concise but thorough. Format clearly with emoji headers.` }],
+        }),
+      });
+      const data = await res.json();
+      setReview(data.content?.find((b: any) => b.type === 'text')?.text || 'No response.');
+    } catch (e: any) { setReview('Error: ' + e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl overflow-hidden">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          <span className="text-purple-300 font-semibold text-sm">AI Contract Reviewer</span>
+          <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Beta</span>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-purple-400" /> : <ChevronDown className="w-4 h-4 text-purple-400" />}
+      </button>
+      {open && (
+        <div className="border-t border-purple-500/20 p-4 space-y-3">
+          <p className="text-xs text-zinc-400 leading-relaxed">AI will read your contract and flag missing clauses, weak protections, or anything that could be a risk — before you send it.</p>
+          {!asked ? (
+            <Button onClick={runReview} disabled={loading} size="sm" className="bg-purple-600 hover:bg-purple-500 text-white text-xs h-8 gap-2">
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Review this contract
+            </Button>
+          ) : loading ? (
+            <div className="flex items-center gap-2 text-xs text-purple-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Analyzing...</div>
+          ) : (
+            <div className="space-y-2">
+              <div className="bg-zinc-900 rounded-lg p-4 text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{review}</div>
+              <Button onClick={() => { setReview(''); setAsked(false); }} size="sm" variant="outline" className="border-white/10 text-white/50 text-xs h-7">Run again</Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const CustomOrders = () => {

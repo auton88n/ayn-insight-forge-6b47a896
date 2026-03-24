@@ -33,6 +33,7 @@ import { ConversationViewer } from '@/components/admin/ConversationViewer';
 import { UserDetailPage } from '@/components/admin/UserDetailPage';
 import { EmailBroadcast } from '@/components/admin/EmailBroadcast';
 import { CustomOrders } from '@/components/admin/CustomOrders';
+import { NDAManager } from '@/components/admin/NDAManager';
 import { TermsConsentViewer } from '@/components/admin/TermsConsentViewer';
 import { CommandCenterPanel } from '@/components/admin/workforce/CommandCenterPanel';
 
@@ -482,6 +483,7 @@ export const AdminPanel = ({
                     {activeTab === 'conversations' && <ConversationViewer key={refreshKey} />}
                     {activeTab === 'user-detail' && <UserDetailPage key={refreshKey} />}
                     {activeTab === 'email-broadcast' && <EmailBroadcast key={refreshKey} />}
+                    {activeTab === 'nda' && <NDAManager key={refreshKey} />}
                     {activeTab === 'custom-orders' && <CustomOrders key={refreshKey} />}
                   </ErrorBoundary>
                 </motion.div>
