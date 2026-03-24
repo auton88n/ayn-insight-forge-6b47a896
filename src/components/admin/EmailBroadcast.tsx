@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Send, Users, Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { Send, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,166 +8,137 @@ import { Label } from '@/components/ui/label';
 
 type Segment = 'all' | 'active' | 'inactive' | 'paid' | 'free';
 
+const SEGMENTS = [
+  { id: 'all' as Segment, label: 'All Users', desc: 'Everyone' },
+  { id: 'active' as Segment, label: 'Active', desc: 'Used in last 7 days' },
+  { id: 'inactive' as Segment, label: 'Inactive', desc: 'No activity in 30d' },
+  { id: 'paid' as Segment, label: 'Paid', desc: 'Non-free plans' },
+  { id: 'free' as Segment, label: 'Free', desc: 'Free tier only' },
+];
+
 export const EmailBroadcast = () => {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [segment, setSegment] = useState<Segment>('all');
-  const [preview, setPreview] = useState<{ email: string; name: string }[]>([]);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [recipients, setRecipients] = useState<{ email: string; name: string }[]>([]);
+  const [loadingRecipients, setLoadingRecipients] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-
-
-
-  // Auto-load on mount and segment change
-  useEffect(() => { loadPreview(); }, [loadPreview]);
-
-  const loadPreview = useCallback(async () => {
-    setLoadingPreview(true);
+  const loadRecipients = useCallback(async (seg: Segment) => {
+    setLoadingRecipients(true);
     try {
-      const { data } = await supabase.from('admin_users_view').select('email, display_name, subscription_tier, messages_7d, messages_30d, total_messages');
+      const { data, error } = await supabase
+        .from('admin_users_view')
+        .select('email, display_name, subscription_tier, total_messages, messages_7d, messages_30d');
+      if (error) throw error;
       const all = (data || []) as any[];
       let filtered = all;
-      if (segment === 'active') filtered = all.filter(u => u.messages_7d > 0);
-      else if (segment === 'inactive') filtered = all.filter(u => u.total_messages > 0 && u.messages_30d === 0);
-      else if (segment === 'paid') filtered = all.filter(u => u.subscription_tier !== 'free');
-      else if (segment === 'free') filtered = all.filter(u => u.subscription_tier === 'free');
-      setPreview(filtered.map(u => ({ email: u.email, name: u.display_name })));
-    } finally { setLoadingPreview(false); }
-  }, [segment]);
+      if (seg === 'active') filtered = all.filter(u => (u.messages_7d ?? 0) > 0);
+      else if (seg === 'inactive') filtered = all.filter(u => (u.total_messages ?? 0) > 0 && (u.messages_30d ?? 0) === 0);
+      else if (seg === 'paid') filtered = all.filter(u => u.subscription_tier !== 'free');
+      else if (seg === 'free') filtered = all.filter(u => u.subscription_tier === 'free');
+      setRecipients(filtered.filter((u: any) => u.email).map((u: any) => ({
+        email: u.email,
+        name: u.display_name || u.email.split('@')[0],
+      })));
+    } catch (e: any) {
+      toast.error('Failed to load recipients: ' + e.message);
+    } finally {
+      setLoadingRecipients(false);
+    }
+  }, []);
+
+  useEffect(() => { loadRecipients('all'); }, [loadRecipients]);
 
   const handleSend = async () => {
-    if (!subject.trim() || !body.trim()) { toast.error('Subject and body are required'); return; }
-    if (preview.length === 0) { toast.error('Load recipients first'); return; }
-    if (!confirm(`Send to ${preview.length} users? This cannot be undone.`)) return;
-
+    if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return; }
+    if (recipients.length === 0) { toast.error('No recipients'); return; }
+    if (!confirm(`Send to ${recipients.length} users?`)) return;
     setSending(true);
+    let ok = 0;
     try {
-      // Use send-email edge function for each recipient
-      let successCount = 0;
-      // Batch in groups of 10 to avoid timeouts
-      for (let i = 0; i < preview.length; i += 10) {
-        const batch = preview.slice(i, i + 10);
-        await Promise.allSettled(batch.map(r =>
+      for (let i = 0; i < recipients.length; i += 10) {
+        await Promise.allSettled(recipients.slice(i, i + 10).map(r =>
           supabase.functions.invoke('send-email', {
-            body: {
-              to: r.email,
-              emailType: 'broadcast',
-              data: { userName: r.name, subject, message: body }
-            }
-          }).then(res => { if (!res.error) successCount++; })
+            body: { to: r.email, emailType: 'broadcast', data: { userName: r.name, subject, message: body } }
+          }).then(res => { if (!res.error) ok++; })
         ));
       }
-      toast.success(`Sent to ${successCount} of ${preview.length} recipients`);
-      setSent(true);
-      setSubject(''); setBody(''); setPreview([]);
+      toast.success(`Sent to ${ok}/${recipients.length}`);
+      setSent(true); setSubject(''); setBody('');
     } catch (e: any) {
-      toast.error('Send failed: ' + e.message);
+      toast.error(e.message);
     } finally { setSending(false); }
   };
 
-  const SEGMENTS = [
-    { id: 'all', label: 'All Users', desc: 'Everyone' },
-    { id: 'active', label: 'Active', desc: 'Used in last 7 days' },
-    { id: 'inactive', label: 'Inactive', desc: 'No activity in 30d' },
-    { id: 'paid', label: 'Paid', desc: 'Non-free plans' },
-    { id: 'free', label: 'Free', desc: 'Free tier only' },
-  ] as const;
-
   return (
-    <div className="space-y-5">
+    <div className="p-6 space-y-5 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-white font-medium flex items-center gap-2"><Mail className="w-4 h-4 text-blue-400" />Email Broadcast</h3>
-          <p className="text-white/30 text-xs">Send emails to your users via segments</p>
+          <h3 className="text-white font-semibold text-lg flex items-center gap-2">
+            <Mail className="w-5 h-5 text-blue-400" />Email Broadcast
+          </h3>
+          <p className="text-white/30 text-sm">Send emails to your users via segments</p>
         </div>
-        {sent && <div className="flex items-center gap-1.5 text-green-400 text-sm"><CheckCircle className="w-4 h-4" />Email sent!</div>}
+        {sent && <div className="flex items-center gap-1.5 text-green-400 text-sm"><CheckCircle className="w-4 h-4" />Sent!</div>}
       </div>
 
-      {/* Segment picker */}
       <div>
         <Label className="text-white/40 text-xs mb-2 block">Audience Segment</Label>
         <div className="flex gap-2 flex-wrap">
           {SEGMENTS.map(s => (
-            <button key={s.id} onClick={() => { setSegment(s.id); setPreview([]); }}
-              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${segment === s.id ? 'bg-white text-black border-white' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/8'}`}>
-              <div>{s.label}</div>
-              <div className="font-normal opacity-60">{s.desc}</div>
+            <button key={s.id} onClick={() => { setSegment(s.id); loadRecipients(s.id); }}
+              className={`px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${segment === s.id ? 'bg-white text-black border-white' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
+              <div>{s.label}</div><div className="font-normal opacity-60">{s.desc}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Preview recipients */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <Label className="text-white/40 text-xs">Recipients</Label>
-          <Button variant="ghost" size="sm" onClick={loadPreview} disabled={loadingPreview}
-            className="text-white/50 hover:text-white text-xs h-7">
-            {loadingPreview ? 'Loading...' : preview.length > 0 ? `${preview.length} recipients loaded` : 'Load recipients'}
-          </Button>
+          <Label className="text-white/40 text-xs">{loadingRecipients ? 'Loading...' : `${recipients.length} recipients`}</Label>
+          <button onClick={() => loadRecipients(segment)} disabled={loadingRecipients} className="text-white/40 hover:text-white/70 text-xs">Refresh</button>
         </div>
-        {preview.length > 0 && (
-          <div className="bg-white/3 border border-white/8 rounded-xl p-3 max-h-28 overflow-y-auto">
+        {recipients.length > 0 && (
+          <div className="bg-white/3 border border-white/8 rounded-xl p-3 max-h-24 overflow-y-auto">
             <div className="flex flex-wrap gap-1.5">
-              {preview.slice(0, 20).map((r, i) => (
+              {recipients.slice(0, 20).map((r, i) => (
                 <span key={i} className="text-xs bg-white/8 text-white/60 px-2 py-0.5 rounded-full">{r.name || r.email}</span>
               ))}
-              {preview.length > 20 && <span className="text-xs text-white/30 px-2 py-0.5">+{preview.length - 20} more</span>}
+              {recipients.length > 20 && <span className="text-xs text-white/30 px-2 py-0.5">+{recipients.length - 20} more</span>}
             </div>
           </div>
         )}
       </div>
 
-      {/* Compose */}
       <div className="space-y-3">
         <div>
           <Label className="text-white/40 text-xs mb-1.5 block">Subject</Label>
-          <Input value={subject} onChange={e => setSubject(e.target.value)}
-            placeholder="Your message subject..." className="bg-white/5 border-white/10 text-white placeholder-white/30" />
+          <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Your message subject..."
+            className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
         </div>
         <div>
           <Label className="text-white/40 text-xs mb-1.5 block">Message Body</Label>
-          <textarea value={body} onChange={e => setBody(e.target.value)}
-            placeholder="Write your message here..."
-            rows={8} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/30 resize-none" />
+          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your message here..."
+            rows={8} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-white/30 resize-none" />
         </div>
       </div>
 
-      {/* Resend status */}
-      <div className="bg-white/3 border border-white/8 rounded-xl p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
-            <Mail className="w-4 h-4 text-blue-400" />
-          </div>
-          <div>
-            <div className="text-white/80 text-sm font-medium">Resend Email</div>
-            <div className="text-white/30 text-xs">
-              Add <code className="bg-white/5 px-1 rounded text-white/50">RESEND_API_KEY</code> in{' '}
-              <a href="https://supabase.com/dashboard/project/dfkoxuokfkttjhfjcecx/settings/functions"
-                 target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 underline">
-                Supabase Secrets
-              </a>
-              {' '}to enable sending
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full">
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-2 bg-white/3 border border-white/8 rounded-lg px-3 py-2">
           <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-          <span className="text-green-400 text-xs">Connected ✓</span>
+          <span className="text-white/50 text-xs">Resend Connected</span>
         </div>
-      </div>
-
-      <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 text-white/25 text-xs">
           <AlertCircle className="w-3.5 h-3.5" />
-          <span>Emails sent from <code className="bg-white/5 px-1 rounded">noreply@mail.aynn.io</code></span>
+          <span>From <code className="bg-white/5 px-1 rounded">noreply@mail.aynn.io</code></span>
         </div>
-        <Button onClick={handleSend} disabled={sending || !subject || !body || preview.length === 0}
+        <Button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim() || recipients.length === 0}
           className="ml-auto bg-blue-600 hover:bg-blue-500 text-white gap-2">
           <Send className="w-4 h-4" />
-          {sending ? 'Sending...' : `Send to ${preview.length} users`}
+          {sending ? 'Sending...' : `Send to ${recipients.length} users`}
         </Button>
       </div>
     </div>
