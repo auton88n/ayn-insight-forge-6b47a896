@@ -62,6 +62,88 @@ Deno.serve(async (req) => {
   }
 
   try {
+
+    // ── Contract / NDA Builder (no auth required — admin panel only) ──
+    const bodyText = await req.text();
+    let parsedBody: any;
+    try { parsedBody = JSON.parse(bodyText); } catch { parsedBody = {}; }
+
+    if (parsedBody.action === 'contract_builder') {
+      const { type, messages } = parsedBody;
+      if (!type || !messages) {
+        return new Response(JSON.stringify({ error: 'type and messages required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) {
+        return new Response(JSON.stringify({ error: 'AI not configured' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const systemPrompt = type === 'contract' ? `You are AYN AI's contract specialist. Help structure a professional service agreement through natural conversation.
+
+Collect these fields:
+- order_title, company_name, contact_person, company_email, company_phone, company_address
+- order_description (full scope), system_plan (technical approach)
+- delivery_timeline, payment_terms, warranty, termination_clause
+- terms_and_conditions, after_sale_services, additional_services, privacy_notes, governing_law
+- services: array of [{name, description, price, quantity}]
+- discount_percent (default 0), tax_percent (default 15), currency (default USD)
+- stripe_payment_link (if available)
+
+Rules:
+- Ask 2-3 questions at a time, keep it conversational
+- Once you have client name, email, project title, and at least one service with price, offer to generate
+- Write professional legal clauses based on the project type
+- When generating, include a friendly summary then the JSON in <CONTRACT_DATA> tags
+
+When ready:
+Great! Here is your contract summary...
+
+<CONTRACT_DATA>
+{ all fields as JSON }
+</CONTRACT_DATA>` : `You are AYN AI's legal specialist. Help draft a professional NDA through natural conversation.
+
+Collect these fields:
+- company_name, contact_person, company_email, company_phone
+- nda_purpose, confidential_info, obligations, exclusions, duration, governing_law, additional_clauses
+
+Rules:
+- Ask 2-3 questions at a time
+- Once you have company name, email, and purpose, offer to generate
+- Write complete professional NDA clauses
+- When generating, include a friendly summary then the JSON in <NDA_DATA> tags
+
+When ready:
+Perfect! Here is your NDA summary...
+
+<NDA_DATA>
+{ all fields as JSON }
+</NDA_DATA>`;
+      const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        }),
+      });
+      if (!aiRes.ok) {
+        const err = await aiRes.text();
+        return new Response(JSON.stringify({ error: `Gateway error: ${err}` }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      const aiData = await aiRes.json();
+      const text = aiData.choices?.[0]?.message?.content || '';
+      return new Response(JSON.stringify({ text }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    // Re-parse body for the rest of the handler
+    const reqBody = parsedBody;
+
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'No authorization header' }), {
@@ -100,7 +182,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message, context = {} } = await req.json();
+    const { message, context = {} } = reqBody;
 
     if (!message) {
       return new Response(JSON.stringify({ error: 'Message required' }), {

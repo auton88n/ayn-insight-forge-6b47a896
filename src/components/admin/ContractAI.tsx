@@ -46,13 +46,15 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
     setLoading(true);
 
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-contract-builder`, {
+      // Use admin-ai-assistant which already has LOVABLE_API_KEY injected by Lovable
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-ai-assistant`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
+          action: 'contract_builder',
           type,
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
         }),
@@ -60,7 +62,7 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
-      const text = data.text || '';
+      const text = data.text || data.response || data.message || data.content || '';
 
       // Check if AI returned contract data
       const tag = type === 'contract' ? 'CONTRACT_DATA' : 'NDA_DATA';
