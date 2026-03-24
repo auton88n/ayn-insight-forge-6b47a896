@@ -1,5 +1,6 @@
 // Thin wrapper that embeds AdminCustomOrders into the admin panel tab
 // Strips the standalone page's back button/navigation
+import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
@@ -149,6 +150,7 @@ export const CustomOrders = () => {
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [sendingPdf, setSendingPdf] = useState<string | null>(null);
+  const [showAI, setShowAI] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -543,6 +545,27 @@ export const CustomOrders = () => {
                 </div>
               </div>
 
+              <div className="flex flex-1 overflow-hidden">
+                {showAI && (
+                  <div className="w-80 flex-shrink-0 border-r border-white/10">
+                    <ContractAI type="contract"
+                      onClose={() => setShowAI(false)}
+                      onFill={fields => setForm(f => {
+                        const updated = { ...f, ...fields };
+                        // Handle services array from AI
+                        if (fields.services && Array.isArray(fields.services)) {
+                          updated.services = fields.services.map((s: any) => ({
+                            name: s.name || '',
+                            description: s.description || '',
+                            price: Number(s.price) || 0,
+                            quantity: Number(s.quantity) || 1,
+                          }));
+                        }
+                        return updated;
+                      })} />
+                  </div>
+                )}
+                <div className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-6 pb-10">
 
                 {/* ── SECTION: Client Info ── */}
@@ -756,6 +779,8 @@ export const CustomOrders = () => {
                   <Button onClick={() => setPanel('none')} variant="outline" className="border-white/10 text-white/50 h-10 px-6">Cancel</Button>
                 </div>
 
+              </div>
+                </div>
               </div>
             </div>
           )}

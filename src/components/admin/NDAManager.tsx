@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ContractAI } from './ContractAI';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { useToast } from '@/hooks/use-toast';
@@ -173,6 +174,7 @@ export const NDAManager = () => {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
+  const [showAI, setShowAI] = useState(false);
 
   const fetchNDAs = async () => {
     setLoading(true);
@@ -270,9 +272,15 @@ export const NDAManager = () => {
           </div>
           <p className="text-zinc-500 text-xs mt-0.5">Send and manage non-disclosure agreements</p>
         </div>
-        <Button onClick={() => openForm()} size="sm" className="bg-white text-black hover:bg-zinc-100 h-8 text-xs gap-1">
-          <Plus className="w-3.5 h-3.5" /> New NDA
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => { setShowAI(true); openForm(); }} size="sm"
+            className="bg-purple-600 hover:bg-purple-500 h-8 text-xs gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" /> AI Draft
+          </Button>
+          <Button onClick={() => { setShowAI(false); openForm(); }} size="sm" className="bg-white text-black hover:bg-zinc-100 h-8 text-xs gap-1">
+            <Plus className="w-3.5 h-3.5" /> New NDA
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -331,6 +339,11 @@ export const NDAManager = () => {
             <div className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
               <span className="text-white font-semibold text-sm">{editingNda ? 'Edit NDA' : 'New NDA Agreement'}</span>
               <div className="flex gap-2">
+                <button onClick={() => setShowAI(!showAI)}
+                  className={cn("h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors",
+                    showAI ? "bg-purple-600 text-white" : "bg-purple-500/15 text-purple-400 hover:bg-purple-500/25")}>
+                  <Sparkles className="w-3 h-3" /> {showAI ? 'Hide AI' : 'AI'}
+                </button>
                 <Button onClick={handleSave} disabled={saving} size="sm" className="bg-blue-600 hover:bg-blue-500 h-7 text-xs px-4">
                   {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingNda ? 'Save' : 'Create'}
                 </Button>
@@ -340,7 +353,15 @@ export const NDAManager = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-5 pb-10">
+            <div className="flex-1 flex overflow-hidden">
+              {showAI && (
+                <div className="w-80 flex-shrink-0 border-r border-white/10">
+                  <ContractAI type="nda"
+                    onClose={() => setShowAI(false)}
+                    onFill={fields => setForm(f => ({ ...f, ...fields }))} />
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5 pb-10">
 
               {/* AI Reviewer */}
               <AIReviewer contractData={form} type="nda" />
@@ -394,6 +415,7 @@ export const NDAManager = () => {
                   <TA field={field} rows={rows} placeholder={placeholder} />
                 </div>
               ))}
+              </div>
             </div>
           </div>
         )}
