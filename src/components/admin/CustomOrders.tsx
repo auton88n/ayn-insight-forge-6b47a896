@@ -2,6 +2,7 @@
 // Strips the standalone page's back button/navigation
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -129,10 +130,15 @@ export const CustomOrders = () => {
   const handleSendEmail = async (order: CustomOrder) => {
     setSendingEmail(order.id);
     try {
-      const { error } = await supabase.functions.invoke('send-contract-email', {
-        body: { orderId: order.id }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ orderId: order.id }),
       });
-      if (error) throw error;
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Send failed');
       await supabase.from('custom_orders').update({ status: 'sent', email_sent_at: new Date().toISOString() }).eq('id', order.id);
       toast({ title: '✅ Contract sent', description: `Sent to ${order.company_email}` });
       fetchOrders();
@@ -146,14 +152,23 @@ export const CustomOrders = () => {
   const handleGeneratePdf = async (order: CustomOrder) => {
     setGeneratingPdf(order.id);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-contract-pdf', {
-        body: { orderId: order.id }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-contract-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ orderId: order.id }),
       });
-      if (error) throw error;
-      if (data?.pdf_url) {
-        window.open(data.pdf_url, '_blank');
-        toast({ title: '📄 PDF generated' });
-        fetchOrders();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'PDF generation failed');
+      if (data?.html) {
+        // Open contract HTML in new tab — user can print/save as PDF from browser
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(data.html);
+          win.document.close();
+        }
+        toast({ title: '📄 Contract opened — use Ctrl+P to save as PDF' });
       }
     } catch (e: any) {
       toast({ title: 'PDF failed', description: e.message, variant: 'destructive' });
