@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, DollarSign as DollarIcon, MessageCircle, UserSearch, Send as SendIcon } from 'lucide-react';
+import { AlertTriangle, DollarSign as DollarIcon, MessageCircle, UserSearch, Send as SendIcon, ShoppingBag } from 'lucide-react';
 import {
   LayoutDashboard, 
   LineChart, 
@@ -54,6 +54,7 @@ export type AdminTabId =
   | 'errors'
   | 'revenue'
   | 'email-broadcast'
+  | 'custom-orders'
 ;
 
 interface AdminSection {
@@ -94,6 +95,7 @@ const aiSections: AdminSection[] = [
   { id: 'conversations', title: 'Conversations', shortTitle: 'Conv', icon: MessageCircle, gradient: 'from-blue-500 to-indigo-600', adminOnly: true },
   { id: 'user-detail', title: 'User Detail', shortTitle: 'Det', icon: UserSearch, gradient: 'from-purple-500 to-violet-600', adminOnly: true },
   { id: 'email-broadcast', title: 'Email Broadcast', shortTitle: 'Email', icon: SendIcon, gradient: 'from-cyan-500 to-blue-500', adminOnly: true },
+  { id: 'custom-orders', title: 'Custom Orders', shortTitle: 'Orders', icon: ShoppingBag, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
 ];
 
 interface AdminSidebarProps {
