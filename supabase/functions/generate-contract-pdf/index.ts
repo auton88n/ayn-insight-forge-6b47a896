@@ -15,7 +15,7 @@ function formatText(text: string): string {
   return text
     .split('\n')
     .filter(line => !line.match(/^\s*[|\-]+\s*$/))
-    .map(line => line.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/`/g, '').replace(/\|/g, ' · ').trim())
+    .map(line => line.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/[\x60]/g, '').replace(/\|/g, ' · ').trim())
     .filter(line => line.length > 0)
     .join('<br>');
 }
