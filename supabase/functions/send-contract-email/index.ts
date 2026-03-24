@@ -6,6 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatDescription(text: string): string {
+  if (!text) return '';
+  return text
+    .split('\n')
+    .filter(line => !line.match(/^\s*[|\-]+\s*$/))
+    .map(line => line.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/`/g, '').replace(/\|/g, ' · ').trim())
+    .filter(line => line.length > 0)
+    .join('<br>');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -17,7 +32,6 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Verify admin
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) throw new Error('No authorization');
     const token = authHeader.replace('Bearer ', '');
@@ -35,7 +49,6 @@ Deno.serve(async (req) => {
     const { orderId, contractPdfUrl } = await req.json();
     if (!orderId) throw new Error('orderId required');
 
-    // Fetch order
     const { data: order, error: orderErr } = await supabase
       .from('custom_orders')
       .select('*')
@@ -45,88 +58,106 @@ Deno.serve(async (req) => {
 
     const resendKey = Deno.env.get('RESEND_API_KEY');
     if (!resendKey) throw new Error('RESEND_API_KEY not configured');
-
     const resend = new Resend(resendKey);
 
-    const formatCurrency = (amount: number) => {
-      return new Intl.NumberFormat('en-SA', { style: 'currency', currency: order.currency || 'SAR' }).format(amount);
-    };
+    const formatCurrency = (amount: number) =>
+      new Intl.NumberFormat('en-SA', { style: 'currency', currency: order.currency || 'SAR' }).format(amount);
 
-    const emailHtml = `
-<!DOCTYPE html>
+    const services = (order.services || []) as Array<{ name: string; price: number; quantity: number; description?: string }>;
+    const isPaid = order.status === 'paid';
+
+    const serviceRows = services.map((s) => `
+      <tr>
+        <td style="padding:14px 18px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #f0f0f0;">${escapeHtml(s.name)}</td>
+        <td style="padding:14px 18px;font-size:13px;color:#666;text-align:center;border-bottom:1px solid #f0f0f0;">${s.quantity || 1}</td>
+        <td style="padding:14px 18px;font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;border-bottom:1px solid #f0f0f0;">${formatCurrency(s.price * (s.quantity || 1))}</td>
+      </tr>
+    `).join('');
+
+    const paymentSection = isPaid ? `
+      <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:24px;text-align:center;margin:28px 0;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#16a34a;margin-bottom:6px;">Payment Status</div>
+        <div style="font-size:28px;font-weight:900;color:#16a34a;letter-spacing:-1px;">PAID IN FULL</div>
+        <div style="font-size:12px;color:#15803d;margin-top:6px;">Thank you for your payment</div>
+      </div>
+    ` : (order.stripe_payment_link ? `
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${order.stripe_payment_link}" target="_blank" style="display:inline-block;background:#000;color:#fff;padding:16px 48px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.3px;">Complete Payment →</a>
+        <div style="font-size:11px;color:#999;margin-top:10px;">Secure payment via Stripe</div>
+      </div>
+    ` : '');
+
+    const descriptionBlock = order.order_description ? `
+      <div style="margin:20px 0;padding:16px 20px;background:#fafafa;border-radius:8px;border-left:3px solid #e0e0e0;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:8px;">Project Description</div>
+        <div style="font-size:13px;color:#555;line-height:1.7;">${formatDescription(order.order_description)}</div>
+      </div>
+    ` : '';
+
+    const emailHtml = `<!DOCTYPE html>
 <html lang="en" dir="ltr">
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; line-height: 1.6; background: #f5f5f5; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 0 auto; background: white; }
-    .header { background: #000; color: white; padding: 32px; text-align: center; }
-    .header h1 { font-size: 36px; font-weight: 900; letter-spacing: -2px; margin: 0; }
-    .header .sub { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7; margin-top: 8px; }
-    .content { padding: 32px; }
-    .greeting { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
-    .text { font-size: 14px; color: #555; margin-bottom: 16px; }
-    .order-box { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 24px; }
-    .order-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-    .order-detail { font-size: 13px; color: #666; margin-bottom: 4px; }
-    .amount-box { background: #000; color: white; border-radius: 10px; padding: 24px; text-align: center; margin-bottom: 24px; }
-    .amount { font-size: 32px; font-weight: 900; }
-    .amount-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7; margin-bottom: 8px; }
-    .btn { display: inline-block; background: #000; color: white; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; }
-    .btn-container { text-align: center; margin-bottom: 24px; }
-    .pdf-link { display: inline-block; background: #f0f0f0; color: #333; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 12px; margin-top: 12px; }
-    .footer { background: #fafafa; padding: 24px; text-align: center; font-size: 11px; color: #aaa; border-top: 1px solid #eee; }
-    .services-list { list-style: none; padding: 0; margin: 0; }
-    .services-list li { padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px; display: flex; justify-content: space-between; }
-    .services-list li:last-child { border-bottom: none; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>AYN</h1>
-      <div class="sub">Service Agreement</div>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f5f0;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;">
+
+    <!-- Header -->
+    <div style="background:#000;padding:40px 36px 36px;">
+      <div style="font-size:38px;font-weight:900;color:#fff;letter-spacing:-2px;line-height:1;">AYN</div>
+      <div style="width:40px;height:2px;background:#fff;opacity:0.3;margin:12px 0;"></div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.5);">Service Agreement</div>
     </div>
-    <div class="content">
-      <div class="greeting">Hello ${escapeHtml(order.contact_person)},</div>
-      <p class="text">
-        Thank you for choosing AYN. We're excited to work with <strong>${escapeHtml(order.company_name)}</strong>. 
-        Please find below the details of your service agreement and payment link.
+
+    <!-- Content -->
+    <div style="padding:36px;">
+      <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:6px;">Hello ${escapeHtml(order.contact_person)},</div>
+      <p style="font-size:14px;color:#666;line-height:1.7;margin:12px 0 24px;">
+        Thank you for choosing AYN. We're pleased to present the service agreement for <strong style="color:#1a1a1a;">${escapeHtml(order.company_name)}</strong>.
       </p>
-      
-      <div class="order-box">
-        <div class="order-title">${escapeHtml(order.order_title)}</div>
-        ${order.order_description ? `<div class="order-detail">${escapeHtml(order.order_description)}</div>` : ''}
-        <div style="margin-top: 12px;">
-          <ul class="services-list">
-            ${((order.services || []) as Array<{ name: string; price: number; quantity: number }>).map((s: any) => 
-              `<li><span>${escapeHtml(s.name)}</span><span style="font-weight:600;">${formatCurrency(s.price * (s.quantity || 1))}</span></li>`
-            ).join('')}
-          </ul>
+
+      <!-- Project Title -->
+      <div style="border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;color:#000;letter-spacing:-0.3px;">${escapeHtml(order.order_title)}</div>
+      </div>
+
+      ${descriptionBlock}
+
+      <!-- Services Table -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:24px 0;">
+        <thead>
+          <tr style="background:#fafafa;">
+            <th style="padding:12px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;text-align:left;border-bottom:2px solid #eee;">Service</th>
+            <th style="padding:12px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;text-align:center;border-bottom:2px solid #eee;">Qty</th>
+            <th style="padding:12px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;text-align:right;border-bottom:2px solid #eee;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${serviceRows}</tbody>
+      </table>
+
+      <!-- Total -->
+      <div style="background:#000;border-radius:10px;padding:24px 28px;margin:24px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);">Total Amount</div>
+          <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-1px;">${formatCurrency(order.total_amount)}</div>
         </div>
       </div>
 
-      <div class="amount-box">
-        <div class="amount-label">Total Amount Due</div>
-        <div class="amount">${formatCurrency(order.total_amount)}</div>
-      </div>
-
-      ${order.stripe_payment_link ? `
-      <div class="btn-container">
-        <a href="${order.stripe_payment_link}" class="btn" target="_blank">Complete Payment →</a>
-      </div>` : ''}
+      ${paymentSection}
 
       ${contractPdfUrl ? `
-      <div class="btn-container">
-        <a href="${contractPdfUrl}" class="pdf-link" target="_blank">📄 View & Download Contract PDF</a>
+      <div style="text-align:center;margin:20px 0;">
+        <a href="${contractPdfUrl}" target="_blank" style="display:inline-block;background:#f5f5f5;color:#333;padding:12px 28px;border-radius:6px;font-weight:600;font-size:12px;text-decoration:none;">📄 View Contract PDF</a>
       </div>` : ''}
 
-      <p class="text" style="font-size: 12px; color: #888;">
-        If you have any questions regarding this agreement, please don't hesitate to contact us at contact@ayn.sa.
-      </p>
+      <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
+        <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
+          Questions? Contact us at <a href="mailto:contact@ayn.sa" style="color:#666;">contact@ayn.sa</a>
+        </p>
+      </div>
     </div>
-    <div class="footer">
-      © ${new Date().getFullYear()} AYN AI Technologies. All rights reserved.
+
+    <!-- Footer -->
+    <div style="background:#fafafa;padding:20px 36px;border-top:1px solid #eee;text-align:center;">
+      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI Technologies · All rights reserved</div>
     </div>
   </div>
 </body>
@@ -146,10 +177,9 @@ Deno.serve(async (req) => {
       throw new Error(`Email send failed: ${emailError.message}`);
     }
 
-    // Update order status
     await supabase
       .from('custom_orders')
-      .update({ 
+      .update({
         status: 'sent',
         email_sent_at: new Date().toISOString(),
         contract_pdf_url: contractPdfUrl || null,
@@ -158,10 +188,7 @@ Deno.serve(async (req) => {
 
     console.log('[send-contract-email] Email sent:', emailData?.id);
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      emailId: emailData?.id 
-    }), {
+    return new Response(JSON.stringify({ success: true, emailId: emailData?.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
@@ -172,8 +199,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
