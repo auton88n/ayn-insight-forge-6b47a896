@@ -292,8 +292,8 @@ export default function ClientSign() {
                   </div>
                   <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
                 </div>
-              )}
-            ))}
+              )
+            )}
           </div>
           <div className="bg-zinc-900 dark:bg-zinc-800 px-5 py-4 flex justify-between items-center">
             <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Due</span>
