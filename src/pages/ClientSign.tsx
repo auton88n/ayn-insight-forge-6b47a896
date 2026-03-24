@@ -254,8 +254,7 @@ export default function ClientSign() {
             </div>
           )}
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {(order.services || []).map((s, i) => (
-              {s.description && s.description.length > 80 ? (
+            {(order.services || []).map((s, i) => s.description && s.description.length > 80 ? (
                 <details key={i} className="group">
                   <summary className="flex justify-between items-center px-5 py-3.5 cursor-pointer list-none">
                     <div className="flex items-center gap-1.5 flex-1 min-w-0">
