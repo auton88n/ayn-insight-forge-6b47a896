@@ -25,6 +25,9 @@ interface CustomOrder {
   tax_percent: number; total_amount: number; currency: string;
   terms_and_conditions: string | null; privacy_notes: string | null;
   after_sale_services: string | null; delivery_timeline: string | null;
+  warranty: string | null; termination_clause: string | null;
+  additional_services: string | null; system_plan: string | null;
+  governing_law: string | null; payment_terms: string | null;
   admin_signature_url: string | null; client_signature_url: string | null;
   admin_signed_at: string | null; client_signed_at: string | null;
   stripe_payment_link: string | null; contract_pdf_url: string | null;
@@ -47,7 +50,11 @@ function emptyForm() {
     services: [{ name: '', description: '', price: 0, quantity: 1 }] as ServiceItem[],
     discount_percent: 0, tax_percent: 15, currency: 'USD',
     terms_and_conditions: 'Payment due within 30 days of invoice.',
-    privacy_notes: '', after_sale_services: '', delivery_timeline: '', notes: '',
+    privacy_notes: '', after_sale_services: '', delivery_timeline: '',
+    warranty: 'All services include a 30-day warranty period for bug fixes and adjustments.',
+    termination_clause: 'Either party may terminate this agreement with 14 days written notice. Client is liable for work completed to date.',
+    additional_services: '', system_plan: '', governing_law: 'This agreement is governed by the laws of the applicable jurisdiction.',
+    payment_terms: 'Payment is due within 30 days of invoice. Late payments incur 1.5% monthly interest.', notes: '',
     stripe_payment_link: '',
   };
 }
@@ -540,7 +547,7 @@ export const CustomOrders = () => {
                 ); })()}
               </div>
 
-              {/* Payment & extras */}
+              {/* Payment */}
               <div className="space-y-2">
                 <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Payment</div>
                 <div>
@@ -549,17 +556,62 @@ export const CustomOrders = () => {
                     placeholder="https://buy.stripe.com/..." className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
                 </div>
                 <div>
+                  <label className="text-white/30 text-xs mb-1 block">Payment Terms</label>
+                  <textarea value={form.payment_terms || ''} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))}
+                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
+                </div>
+              </div>
+
+              {/* Contract Sections */}
+              <div className="space-y-2">
+                <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Contract Details</div>
+                <div>
                   <label className="text-white/30 text-xs mb-1 block">Delivery Timeline</label>
                   <Input value={form.delivery_timeline || ''} onChange={e => setForm(f => ({ ...f, delivery_timeline: e.target.value }))}
-                    placeholder="e.g. 2-3 weeks" className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
+                    placeholder="e.g. 4-6 weeks" className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">System Plan <span className="text-white/20">(technical overview, architecture)</span></label>
+                  <textarea value={form.system_plan || ''} onChange={e => setForm(f => ({ ...f, system_plan: e.target.value }))}
+                    rows={3} placeholder="Describe the technical approach, architecture, tools..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">After-Sale Services</label>
+                  <textarea value={form.after_sale_services || ''} onChange={e => setForm(f => ({ ...f, after_sale_services: e.target.value }))}
+                    rows={2} placeholder="Support, maintenance, SLA details..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Additional Services / Add-ons</label>
+                  <textarea value={form.additional_services || ''} onChange={e => setForm(f => ({ ...f, additional_services: e.target.value }))}
+                    rows={2} placeholder="Optional services available for additional cost..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Warranty</label>
+                  <textarea value={form.warranty || ''} onChange={e => setForm(f => ({ ...f, warranty: e.target.value }))}
+                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Termination Clause</label>
+                  <textarea value={form.termination_clause || ''} onChange={e => setForm(f => ({ ...f, termination_clause: e.target.value }))}
+                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
                 </div>
                 <div>
                   <label className="text-white/30 text-xs mb-1 block">Terms & Conditions</label>
                   <textarea value={form.terms_and_conditions || ''} onChange={e => setForm(f => ({ ...f, terms_and_conditions: e.target.value }))}
-                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
+                    rows={3} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
                 </div>
                 <div>
-                  <label className="text-white/30 text-xs mb-1 block">Notes</label>
+                  <label className="text-white/30 text-xs mb-1 block">Privacy & Data Protection</label>
+                  <textarea value={form.privacy_notes || ''} onChange={e => setForm(f => ({ ...f, privacy_notes: e.target.value }))}
+                    rows={2} placeholder="How client data is handled and protected..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Governing Law</label>
+                  <Input value={form.governing_law || ''} onChange={e => setForm(f => ({ ...f, governing_law: e.target.value }))}
+                    placeholder="e.g. Laws of Canada" className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
+                </div>
+                <div>
+                  <label className="text-white/30 text-xs mb-1 block">Internal Notes</label>
                   <textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                     rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
                 </div>
