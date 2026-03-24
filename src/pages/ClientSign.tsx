@@ -208,7 +208,7 @@ export default function ClientSign() {
           <div className="grid grid-cols-2 gap-px bg-zinc-100 dark:bg-zinc-800">
             <div className="bg-white dark:bg-zinc-900 p-4">
               <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Service Provider</div>
-              <div className="font-bold text-zinc-900 dark:text-zinc-100">AYN AI Technologies</div>
+              <div className="font-bold text-zinc-900 dark:text-zinc-100">AYN AI</div>
               <div className="text-xs text-zinc-500 mt-1">aynn.io</div>
             </div>
             <div className="bg-white dark:bg-zinc-900 p-4">
@@ -223,7 +223,7 @@ export default function ClientSign() {
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
           <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
             <div className="font-bold text-zinc-900 dark:text-zinc-100">{order.order_title}</div>
-            {order.order_description && <div className="text-xs text-zinc-500 mt-1">{order.order_description}</div>}
+            {order.order_description && <div className="text-xs text-zinc-500 mt-1">{order.order_description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/\n/g, ' ').replace(/`/g, '').substring(0, 200)}{order.order_description.length > 200 ? '...' : ''}</div>}
           </div>
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {(order.services || []).map((s, i) => (
@@ -264,22 +264,10 @@ export default function ClientSign() {
           <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Signatures</span>
           </div>
-          <div className="grid grid-cols-2 gap-px bg-zinc-100 dark:bg-zinc-800">
-            {/* AYN Signature */}
+          {/* Client Signature — full width, AYN signs internally */}
+          <div className="bg-zinc-100 dark:bg-zinc-800">
             <div className="bg-white dark:bg-zinc-900 p-4">
-              <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-3">AYN AI Technologies</div>
-              <div className={cn('rounded-xl border-2 h-20 flex items-center justify-center mb-3 overflow-hidden', order.admin_signature_url ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20' : 'border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800')}>
-                {order.admin_signature_url
-                  ? <img src={order.admin_signature_url} alt="AYN Signature" className="max-h-16 max-w-full object-contain" />
-                  : <span className="text-xs text-zinc-400 italic">Awaiting AYN signature</span>}
-              </div>
-              <div className={cn('text-[10px] font-semibold', order.admin_signed_at ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400')}>
-                {order.admin_signed_at ? `✓ Signed ${new Date(order.admin_signed_at).toLocaleDateString()}` : 'Not yet signed'}
-              </div>
-            </div>
-            {/* Client Signature */}
-            <div className="bg-white dark:bg-zinc-900 p-4">
-              <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-3">{order.contact_person}</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-3">{order.contact_person} · Client</div>
               <div className={cn('rounded-xl border-2 h-20 flex items-center justify-center mb-3 overflow-hidden', alreadySigned ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20' : 'border-dashed border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10')}>
                 {alreadySigned && order.client_signature_url
                   ? <img src={order.client_signature_url} alt="Client Signature" className="max-h-16 max-w-full object-contain" />

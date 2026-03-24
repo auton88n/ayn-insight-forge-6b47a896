@@ -62,6 +62,7 @@ export const CustomOrders = () => {
   const [saving, setSaving] = useState(false);
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
+  const [sendingPdf, setSendingPdf] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -185,6 +186,26 @@ export const CustomOrders = () => {
     setMarkingPaid(null);
   };
 
+  const handleSendPdf = async (order: CustomOrder) => {
+    setSendingPdf(order.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to send PDF');
+      toast({ title: '📄 Contract PDF sent', description: `Sent to ${order.company_email}` });
+    } catch (e: any) {
+      toast({ title: 'Send PDF failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setSendingPdf(null);
+    }
+  };
+
   const filtered = orders.filter(o => {
     const q = search.toLowerCase();
     const matchSearch = !q || o.company_name.toLowerCase().includes(q) || o.company_email.toLowerCase().includes(q) || o.order_title.toLowerCase().includes(q) || o.contact_person.toLowerCase().includes(q);
@@ -305,6 +326,10 @@ export const CustomOrders = () => {
                               {markingPaid === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
                             </button>
                           )}
+                          <button onClick={() => handleSendPdf(order)} disabled={sendingPdf === order.id}
+                            className="p-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-400" title="Send contract PDF to client">
+                            {sendingPdf === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                          </button>
                           <button onClick={() => handleDelete(order.id)}
                             className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-white/30 hover:text-red-400" title="Delete">
                             <Trash2 className="w-3.5 h-3.5" />
@@ -405,7 +430,10 @@ export const CustomOrders = () => {
                   <Edit2 className="w-3.5 h-3.5 mr-1.5" />Edit
                 </Button>
                 <Button onClick={() => handleGeneratePdf(viewingOrder)} disabled={generatingPdf === viewingOrder.id} variant="outline" size="sm" className="flex-1 border-white/10 text-white/60">
-                  {generatingPdf === viewingOrder.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}PDF
+                  {generatingPdf === viewingOrder.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}Preview
+                </Button>
+                <Button onClick={() => handleSendPdf(viewingOrder)} disabled={sendingPdf === viewingOrder.id} variant="outline" size="sm" className="flex-1 border-white/10 text-purple-400">
+                  {sendingPdf === viewingOrder.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}Send PDF
                 </Button>
                 {['draft','signed'].includes(viewingOrder.status) && (
                   <Button onClick={() => handleSendEmail(viewingOrder)} disabled={sendingEmail === viewingOrder.id} size="sm" className="flex-1 bg-blue-600 hover:bg-blue-500">
