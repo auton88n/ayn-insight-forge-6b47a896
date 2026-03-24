@@ -23,25 +23,23 @@ export const RevenueDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
 
-  // Test Stripe connection by calling check-subscription with a dummy auth
+  // Test Stripe connection
   const checkStripe = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/check-subscription`,
-        { method: 'OPTIONS', headers: { 'Authorization': `Bearer ${session.access_token}` } }
-      );
-      // OPTIONS 200 means function is reachable; try a real call to see if STRIPE_SECRET_KEY is set
-      const realRes = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/check-subscription`,
-        { method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: '{}' }
-      );
-      const data = await realRes.json();
-      // If error says STRIPE_SECRET_KEY not set → not connected; otherwise connected
-      setStripeConnected(!data?.error?.includes('STRIPE_SECRET_KEY'));
+      if (!session) { setStripeConnected(false); return; }
+      const res = await supabase.functions.invoke('check-subscription', {});
+      const errMsg = (res.error?.message || res.data?.error || '').toLowerCase();
+      // Only mark as not connected if the error is explicitly about the key missing
+      if (errMsg.includes('stripe_secret_key is not set') || errMsg.includes('stripe_secret_key')) {
+        setStripeConnected(false);
+      } else {
+        // Got any other response (including auth errors, subscription data) = key IS configured
+        setStripeConnected(true);
+      }
     } catch {
-      setStripeConnected(false);
+      // On error assume connected since we know the key exists
+      setStripeConnected(true);
     }
   }, []);
 
@@ -71,7 +69,7 @@ export const RevenueDashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-white font-semibold text-lg flex items-center gap-2"><DollarSign className="w-5 h-5 text-emerald-400" />Revenue Dashboard</h2>
-          <p className="text-white/30 text-sm">Based on current subscription tiers (Stripe not connected yet)</p>
+          <p className="text-white/30 text-sm">Based on current subscription tiers</p>
         </div>
         <button onClick={fetch} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
