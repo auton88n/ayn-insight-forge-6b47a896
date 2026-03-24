@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, X, ChevronRight, FileText, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,81 +14,6 @@ interface ContractAIProps {
   onFill: (fields: Record<string, any>) => void;
   onClose: () => void;
 }
-
-const SYSTEM_CONTRACT = `You are AYN AI's contract specialist. Your job is to help structure a professional service agreement by having a natural conversation with the admin.
-
-Your goal: extract all necessary information to fill these fields:
-- order_title: project name
-- company_name: client company
-- contact_person: client contact name
-- company_email: client email
-- company_phone: client phone (optional)
-- company_address: client address (optional)
-- order_description: full project description/scope
-- system_plan: technical approach, architecture, tools
-- delivery_timeline: when will it be delivered
-- payment_terms: how payment works (amounts, schedule)
-- warranty: guarantee period and what's covered
-- termination_clause: how either party can exit
-- terms_and_conditions: general legal terms
-- after_sale_services: ongoing support after delivery
-- additional_services: optional add-ons available
-- privacy_notes: how client data is handled
-- governing_law: which jurisdiction's laws apply
-- services: array of deliverables [{name, description, price, quantity}]
-- discount_percent: any discount (default 0)
-- tax_percent: tax rate (default 15)
-- currency: USD, SAR, AED, etc.
-- stripe_payment_link: payment URL if available
-
-INSTRUCTIONS:
-1. Start by asking what kind of project/service and who the client is
-2. Ask natural follow-up questions to fill in gaps
-3. Don't ask for everything at once — keep it conversational (2-3 questions max per message)
-4. When you have enough info (at minimum: client name, email, project title, services, and pricing), offer to generate the contract
-5. When ready to generate, respond with ONLY a JSON block wrapped in <CONTRACT_DATA> tags like this:
-
-<CONTRACT_DATA>
-{
-  "order_title": "...",
-  "company_name": "...",
-  ...all fields...
-}
-</CONTRACT_DATA>
-
-Make the contract professional, protective of AYN AI's interests, and fair to the client. Fill in reasonable defaults for legal clauses based on the project type. Be helpful and efficient.`;
-
-const SYSTEM_NDA = `You are AYN AI's legal specialist. Your job is to help structure a professional NDA by having a natural conversation.
-
-Your goal: extract information to fill these NDA fields:
-- company_name: the other party's company name
-- contact_person: their contact name
-- company_email: their email
-- company_phone: their phone (optional)
-- nda_purpose: why this NDA is being signed
-- confidential_info: what information is considered confidential
-- obligations: what the receiving party must do/not do
-- exclusions: what is NOT confidential
-- duration: how long the NDA lasts
-- governing_law: which jurisdiction applies
-- additional_clauses: any special clauses (non-compete, IP, etc.)
-
-INSTRUCTIONS:
-1. Start by asking who the NDA is with and why
-2. Ask follow-up questions naturally (2-3 at a time)
-3. Fill in professional defaults for standard NDA clauses
-4. When you have: company name, email, purpose — offer to generate the NDA
-5. When ready, respond with ONLY JSON wrapped in <NDA_DATA> tags:
-
-<NDA_DATA>
-{
-  "company_name": "...",
-  "contact_person": "...",
-  ...all fields...
-}
-</NDA_DATA>
-
-Make it legally sound, protect AYN AI's confidential information, and be fair to both parties.`;
 
 export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -120,19 +46,21 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
     setLoading(true);
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-contract-builder`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: type === 'contract' ? SYSTEM_CONTRACT : SYSTEM_NDA,
+          type,
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
         }),
       });
 
       const data = await res.json();
-      const text = data.content?.find((b: any) => b.type === 'text')?.text || '';
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      const text = data.text || '';
 
       // Check if AI returned contract data
       const tag = type === 'contract' ? 'CONTRACT_DATA' : 'NDA_DATA';
