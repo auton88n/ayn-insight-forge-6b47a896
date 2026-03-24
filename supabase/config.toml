@@ -325,3 +325,6 @@ verify_jwt = false
 
 [functions.send-contract-pdf]
 verify_jwt = false
+
+[functions.ai-contract-builder]
+verify_jwt = false
