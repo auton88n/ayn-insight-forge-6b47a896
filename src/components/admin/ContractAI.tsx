@@ -47,14 +47,13 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
 
     try {
       // Use admin-ai-assistant which already has LOVABLE_API_KEY injected by Lovable
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-ai-assistant`, {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-contract-builder`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
-          action: 'contract_builder',
           type,
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
         }),
