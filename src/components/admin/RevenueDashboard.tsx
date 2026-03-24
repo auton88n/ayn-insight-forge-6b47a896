@@ -55,33 +55,48 @@ export const RevenueDashboard = () => {
         </button>
       </div>
 
-      {/* Stripe connection guide */}
-      <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-5 space-y-4">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-          <div>
-            <div className="text-amber-400 font-medium text-sm">Stripe Not Connected</div>
-            <div className="text-amber-400/60 text-xs">Revenue figures below are estimated from tier prices — not real payments</div>
+      {/* Stripe status */}
+      <div className="bg-white/3 border border-white/8 rounded-xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#635bff]/20 flex items-center justify-center">
+              <DollarSign className="w-4 h-4 text-[#635bff]" />
+            </div>
+            <div>
+              <div className="text-white font-medium text-sm">Stripe Integration</div>
+              <div className="text-white/30 text-xs">Handles payments, subscriptions, webhooks</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            <span className="text-amber-400 text-xs">Secrets needed</span>
           </div>
         </div>
-        <div className="space-y-2 text-sm">
-          <div className="text-white/50 text-xs font-medium uppercase tracking-wide">How to connect Stripe:</div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
           {[
-            { step: '1', text: 'Go to stripe.com → Developers → API Keys', sub: 'Copy your Secret Key (sk_live_...)' },
-            { step: '2', text: 'In Supabase Dashboard → Settings → Edge Functions → Secrets', sub: 'Add: STRIPE_SECRET_KEY = sk_live_...' },
-            { step: '3', text: 'In Stripe Dashboard → Developers → Webhooks', sub: 'Add endpoint: https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/stripe-webhook' },
-            { step: '4', text: 'Copy the Webhook Signing Secret', sub: 'Add to Supabase Secrets: STRIPE_WEBHOOK_SECRET = whsec_...' },
-          ].map(({ step, text, sub }) => (
-            <div key={step} className="flex items-start gap-3 bg-white/3 rounded-lg px-3 py-2">
-              <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">{step}</span>
+            { key: 'STRIPE_SECRET_KEY', desc: 'From Stripe → Developers → API Keys', done: false },
+            { key: 'STRIPE_WEBHOOK_SECRET', desc: 'From Stripe → Developers → Webhooks', done: false },
+          ].map(({ key, desc, done }) => (
+            <div key={key} className="flex items-start gap-2 bg-white/2 rounded-lg p-3">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${done ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/20'}`}>
+                {done ? '✓' : '○'}
+              </div>
               <div>
-                <div className="text-white/70 text-xs">{text}</div>
-                <div className="text-white/30 text-xs font-mono mt-0.5">{sub}</div>
+                <code className="text-white/70 font-mono">{key}</code>
+                <div className="text-white/25 mt-0.5">{desc}</div>
               </div>
             </div>
           ))}
         </div>
-        <div className="text-white/25 text-xs">Once connected, real MRR, payments, and subscription events will appear automatically.</div>
+        <div className="text-white/20 text-xs">
+          Add both secrets at{' '}
+          <a href="https://supabase.com/dashboard/project/dfkoxuokfkttjhfjcecx/settings/functions" 
+             target="_blank" rel="noopener noreferrer"
+             className="text-blue-400/70 hover:text-blue-400 underline">
+            Supabase → Settings → Edge Functions → Secrets
+          </a>
+          {' '}— webhook URL: <code className="text-white/30">supabase.co/functions/v1/stripe-webhook</code>
+        </div>
       </div>
 
       {/* KPIs */}

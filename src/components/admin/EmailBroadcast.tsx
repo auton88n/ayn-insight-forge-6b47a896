@@ -132,24 +132,27 @@ export const EmailBroadcast = () => {
         </div>
       </div>
 
-      {/* Resend setup guide */}
-      <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
-          <span className="text-blue-400 text-sm font-medium">Set up Resend to send emails</span>
-        </div>
-        <div className="space-y-1.5 text-xs">
-          {[
-            { step: '1', text: 'Go to resend.com → Create account → API Keys', code: null },
-            { step: '2', text: 'Create a new API Key', code: null },
-            { step: '3', text: 'In Supabase → Settings → Edge Functions → Secrets, add:', code: 'RESEND_API_KEY = re_...' },
-            { step: '4', text: 'In Resend → Domains, verify your domain:', code: 'mail.aynn.io' },
-          ].map(({ step, text, code }) => (
-            <div key={step} className="flex items-start gap-2">
-              <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">{step}</span>
-              <span className="text-white/50">{text} {code && <code className="bg-white/5 text-white/70 px-1 rounded font-mono">{code}</code>}</span>
+      {/* Resend status */}
+      <div className="bg-white/3 border border-white/8 rounded-xl p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
+            <Mail className="w-4 h-4 text-blue-400" />
+          </div>
+          <div>
+            <div className="text-white/80 text-sm font-medium">Resend Email</div>
+            <div className="text-white/30 text-xs">
+              Add <code className="bg-white/5 px-1 rounded text-white/50">RESEND_API_KEY</code> in{' '}
+              <a href="https://supabase.com/dashboard/project/dfkoxuokfkttjhfjcecx/settings/functions"
+                 target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 underline">
+                Supabase Secrets
+              </a>
+              {' '}to enable sending
             </div>
-          ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <span className="text-amber-400 text-xs">Key needed</span>
         </div>
       </div>
 
