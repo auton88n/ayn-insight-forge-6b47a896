@@ -96,6 +96,7 @@ export const AdminPanel = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [allUsers, setAllUsers] = useState<AccessGrantWithProfile[]>([]);
   const [applications, setApplications] = useState<ServiceApplication[]>([]);
   const [systemMetrics, setSystemMetrics] = useState<SystemMetrics>({
@@ -294,6 +295,7 @@ export const AdminPanel = ({
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    setRefreshKey(k => k + 1);
     fetchData();
   };
 
@@ -455,30 +457,30 @@ export const AdminPanel = ({
                   transition={{ duration: 0.15 }}
                 >
                   <ErrorBoundary>
-                    {activeTab === 'overview' && <AdminDashboard systemMetrics={systemMetrics} allUsers={allUsers} />}
-                    {activeTab === 'google-analytics' && <GoogleAnalytics />}
+                    {activeTab === 'overview' && <AdminDashboard key={refreshKey} systemMetrics={systemMetrics} allUsers={allUsers} />}
+                    {activeTab === 'google-analytics' && <GoogleAnalytics key={refreshKey} />}
                     {activeTab === 'applications' && <ApplicationManagement session={session} applications={applications} onRefresh={fetchData} />}
-                    {activeTab === 'support' && <SupportManagement />}
-                    {activeTab === 'users' && <UserManagement />}
-                    {activeTab === 'rate-limits' && <RateLimitMonitoring session={session} />}
+                    {activeTab === 'support' && <SupportManagement key={refreshKey} />}
+                    {activeTab === 'users' && <UserManagement key={refreshKey} />}
+                    {activeTab === 'rate-limits' && <RateLimitMonitoring key={refreshKey} session={session} />}
                     {activeTab === 'settings' && <SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />}
-                    {activeTab === 'ai-costs' && <AICostDashboard />}
-                    {activeTab === 'ai-limits' && <UserAILimits />}
-                    {activeTab === 'ai-assistant' && <AdminAIAssistant />}
-                    {activeTab === 'subscriptions' && <SubscriptionManagement />}
-                    {activeTab === 'credit-history' && <CreditGiftHistory />}
-                    {activeTab === 'beta-feedback' && <BetaFeedbackViewer />}
-                    {activeTab === 'message-feedback' && <MessageFeedbackViewer />}
-                    {activeTab === 'test-results' && <TestResultsDashboard />}
-                    {activeTab === 'twitter-marketing' && <MarketingCommandCenter />}
-                    {activeTab === 'terms-consent' && <TermsConsentViewer />}
-                    {activeTab === 'ayn-logs' && <AYNActivityLog />}
-                    {activeTab === 'ayn-mind' && <CommandCenterPanel />}
-                    {activeTab === 'errors' && <ErrorMonitoring />}
-                    {activeTab === 'revenue' && <RevenueDashboard />}
-                    {activeTab === 'conversations' && <ConversationViewer />}
-                    {activeTab === 'user-detail' && <UserDetailPage />}
-                    {activeTab === 'email-broadcast' && <EmailBroadcast />}
+                    {activeTab === 'ai-costs' && <AICostDashboard key={refreshKey} />}
+                    {activeTab === 'ai-limits' && <UserAILimits key={refreshKey} />}
+                    {activeTab === 'ai-assistant' && <AdminAIAssistant key={refreshKey} />}
+                    {activeTab === 'subscriptions' && <SubscriptionManagement key={refreshKey} />}
+                    {activeTab === 'credit-history' && <CreditGiftHistory key={refreshKey} />}
+                    {activeTab === 'beta-feedback' && <BetaFeedbackViewer key={refreshKey} />}
+                    {activeTab === 'message-feedback' && <MessageFeedbackViewer key={refreshKey} />}
+                    {activeTab === 'test-results' && <TestResultsDashboard key={refreshKey} />}
+                    {activeTab === 'twitter-marketing' && <MarketingCommandCenter key={refreshKey} />}
+                    {activeTab === 'terms-consent' && <TermsConsentViewer key={refreshKey} />}
+                    {activeTab === 'ayn-logs' && <AYNActivityLog key={refreshKey} />}
+                    {activeTab === 'ayn-mind' && <CommandCenterPanel key={refreshKey} />}
+                    {activeTab === 'errors' && <ErrorMonitoring key={refreshKey} />}
+                    {activeTab === 'revenue' && <RevenueDashboard key={refreshKey} />}
+                    {activeTab === 'conversations' && <ConversationViewer key={refreshKey} />}
+                    {activeTab === 'user-detail' && <UserDetailPage key={refreshKey} />}
+                    {activeTab === 'email-broadcast' && <EmailBroadcast key={refreshKey} />}
                   </ErrorBoundary>
                 </motion.div>
               </AnimatePresence>

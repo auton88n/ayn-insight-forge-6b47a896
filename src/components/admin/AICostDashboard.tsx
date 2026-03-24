@@ -183,9 +183,10 @@ export function AICostDashboard() {
           variant="outline" 
           size="sm"
           onClick={() => { setIsLoading(true); fetchStats(); }}
+          disabled={isLoading}
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          {isLoading ? "Loading..." : "Refresh"}
         </Button>
       </div>
 

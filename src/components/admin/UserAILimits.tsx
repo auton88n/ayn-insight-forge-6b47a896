@@ -254,10 +254,11 @@ export function UserAILimits() {
           variant="outline" 
           size="sm"
           onClick={() => { setIsLoading(true); fetchLimits(); }}
+          disabled={isLoading}
           className="border-border/50"
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          {isLoading ? "Loading..." : "Refresh"}
         </Button>
       </motion.div>
 
