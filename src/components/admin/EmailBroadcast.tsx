@@ -17,6 +17,9 @@ export const EmailBroadcast = () => {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  // Auto-load on mount and segment change
+  useEffect(() => { loadPreview(); }, [loadPreview]);
+
   const loadPreview = useCallback(async () => {
     setLoadingPreview(true);
     try {
@@ -129,10 +132,31 @@ export const EmailBroadcast = () => {
         </div>
       </div>
 
+      {/* Resend setup guide */}
+      <div className="bg-blue-500/8 border border-blue-500/20 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
+          <span className="text-blue-400 text-sm font-medium">Set up Resend to send emails</span>
+        </div>
+        <div className="space-y-1.5 text-xs">
+          {[
+            { step: '1', text: 'Go to resend.com → Create account → API Keys', code: null },
+            { step: '2', text: 'Create a new API Key', code: null },
+            { step: '3', text: 'In Supabase → Settings → Edge Functions → Secrets, add:', code: 'RESEND_API_KEY = re_...' },
+            { step: '4', text: 'In Resend → Domains, verify your domain:', code: 'mail.aynn.io' },
+          ].map(({ step, text, code }) => (
+            <div key={step} className="flex items-start gap-2">
+              <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">{step}</span>
+              <span className="text-white/50">{text} {code && <code className="bg-white/5 text-white/70 px-1 rounded font-mono">{code}</code>}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-amber-400/70 text-xs">
+        <div className="flex items-center gap-1.5 text-white/25 text-xs">
           <AlertCircle className="w-3.5 h-3.5" />
-          <span>Requires <code className="bg-white/5 px-1 rounded">RESEND_API_KEY</code> secret to be configured</span>
+          <span>Emails sent from <code className="bg-white/5 px-1 rounded">noreply@mail.aynn.io</code></span>
         </div>
         <Button onClick={handleSend} disabled={sending || !subject || !body || preview.length === 0}
           className="ml-auto bg-blue-600 hover:bg-blue-500 text-white gap-2">

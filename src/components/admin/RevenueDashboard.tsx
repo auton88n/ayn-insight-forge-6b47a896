@@ -55,10 +55,33 @@ export const RevenueDashboard = () => {
         </button>
       </div>
 
-      {/* No Stripe warning */}
-      <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
-        <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-        <p className="text-amber-400/80 text-sm">Stripe is not connected — revenue figures are calculated from tier prices, not actual payments. Connect Stripe to see real revenue.</p>
+      {/* Stripe connection guide */}
+      <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+          <div>
+            <div className="text-amber-400 font-medium text-sm">Stripe Not Connected</div>
+            <div className="text-amber-400/60 text-xs">Revenue figures below are estimated from tier prices — not real payments</div>
+          </div>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="text-white/50 text-xs font-medium uppercase tracking-wide">How to connect Stripe:</div>
+          {[
+            { step: '1', text: 'Go to stripe.com → Developers → API Keys', sub: 'Copy your Secret Key (sk_live_...)' },
+            { step: '2', text: 'In Supabase Dashboard → Settings → Edge Functions → Secrets', sub: 'Add: STRIPE_SECRET_KEY = sk_live_...' },
+            { step: '3', text: 'In Stripe Dashboard → Developers → Webhooks', sub: 'Add endpoint: https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/stripe-webhook' },
+            { step: '4', text: 'Copy the Webhook Signing Secret', sub: 'Add to Supabase Secrets: STRIPE_WEBHOOK_SECRET = whsec_...' },
+          ].map(({ step, text, sub }) => (
+            <div key={step} className="flex items-start gap-3 bg-white/3 rounded-lg px-3 py-2">
+              <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">{step}</span>
+              <div>
+                <div className="text-white/70 text-xs">{text}</div>
+                <div className="text-white/30 text-xs font-mono mt-0.5">{sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="text-white/25 text-xs">Once connected, real MRR, payments, and subscription events will appear automatically.</div>
       </div>
 
       {/* KPIs */}
