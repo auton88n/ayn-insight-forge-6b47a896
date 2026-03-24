@@ -163,13 +163,13 @@ export const CustomOrders = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'PDF generation failed');
       if (data?.html) {
-        // Open contract HTML in new tab — user can print/save as PDF from browser
-        const win = window.open('', '_blank');
-        if (win) {
-          win.document.write(data.html);
-          win.document.close();
-        }
-        toast({ title: '📄 Contract opened — use Ctrl+P to save as PDF' });
+        // Use Blob URL — renders as a proper HTML page, not a download
+        const blob = new Blob([data.html], { type: 'text/html;charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        const tab = window.open(blobUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+        if (!tab) toast({ title: 'Allow popups', description: 'Enable popups to view the contract', variant: 'destructive' });
+        else toast({ title: '📄 Contract opened', description: 'Use Ctrl+P / Cmd+P to save as PDF' });
       }
     } catch (e: any) {
       toast({ title: 'PDF failed', description: e.message, variant: 'destructive' });
