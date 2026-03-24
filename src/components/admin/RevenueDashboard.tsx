@@ -21,6 +21,29 @@ function timeAgo(d: string | null) {
 export const RevenueDashboard = () => {
   const [users, setUsers] = useState<UserRevenue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
+
+  // Test Stripe connection by calling check-subscription with a dummy auth
+  const checkStripe = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/check-subscription`,
+        { method: 'OPTIONS', headers: { 'Authorization': `Bearer ${session.access_token}` } }
+      );
+      // OPTIONS 200 means function is reachable; try a real call to see if STRIPE_SECRET_KEY is set
+      const realRes = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/check-subscription`,
+        { method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: '{}' }
+      );
+      const data = await realRes.json();
+      // If error says STRIPE_SECRET_KEY not set → not connected; otherwise connected
+      setStripeConnected(!data?.error?.includes('STRIPE_SECRET_KEY'));
+    } catch {
+      setStripeConnected(false);
+    }
+  }, []);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -32,7 +55,7 @@ export const RevenueDashboard = () => {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { fetch(); checkStripe(); }, [fetch, checkStripe]);
 
   const mrr = users.reduce((s, u) => s + (TIER_PRICE[u.subscription_tier] || 0), 0);
   const paid = users.filter(u => u.subscription_tier !== 'free' && u.subscription_status === 'active');
@@ -74,12 +97,12 @@ export const RevenueDashboard = () => {
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           {[
-            { key: 'STRIPE_SECRET_KEY', desc: 'From Stripe → Developers → API Keys', done: false },
-            { key: 'STRIPE_WEBHOOK_SECRET', desc: 'From Stripe → Developers → Webhooks', done: false },
-          ].map(({ key, desc, done }) => (
+            { key: 'STRIPE_SECRET_KEY', desc: 'From Stripe → Developers → API Keys' },
+            { key: 'STRIPE_WEBHOOK_SECRET', desc: 'From Stripe → Developers → Webhooks' },
+          ].map(({ key, desc }) => (
             <div key={key} className="flex items-start gap-2 bg-white/2 rounded-lg p-3">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${done ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/20'}`}>
-                {done ? '✓' : '○'}
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs ${stripeConnected ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/20'}`}>
+                {stripeConnected ? '✓' : '○'}
               </div>
               <div>
                 <code className="text-white/70 font-mono">{key}</code>

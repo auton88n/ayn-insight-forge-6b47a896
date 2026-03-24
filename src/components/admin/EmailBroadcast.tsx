@@ -16,6 +16,24 @@ export const EmailBroadcast = () => {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [resendConnected, setResendConnected] = useState<boolean | null>(null);
+
+  // Test Resend by attempting a send to a dummy address
+  useEffect(() => {
+    const checkResend = async () => {
+      try {
+        const res = await supabase.functions.invoke('send-email', {
+          body: { to: 'test@check.internal', emailType: 'broadcast', data: { userName: 'test', subject: 'test', message: 'test' } }
+        });
+        // If error says 'not configured' or 'RESEND_API_KEY' → not connected
+        const errMsg = res.error?.message || res.data?.error || '';
+        setResendConnected(!errMsg.includes('not configured') && !errMsg.includes('RESEND'));
+      } catch {
+        setResendConnected(false);
+      }
+    };
+    checkResend();
+  }, []);
 
   // Auto-load on mount and segment change
   useEffect(() => { loadPreview(); }, [loadPreview]);
@@ -150,10 +168,22 @@ export const EmailBroadcast = () => {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          <span className="text-amber-400 text-xs">Key needed</span>
-        </div>
+        {resendConnected === null ? (
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+            <div className="w-1.5 h-1.5 rounded-full bg-white/30 animate-pulse" />
+            <span className="text-white/40 text-xs">Checking...</span>
+          </div>
+        ) : resendConnected ? (
+          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+            <span className="text-green-400 text-xs">Connected ✓</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            <span className="text-amber-400 text-xs">Key needed</span>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
