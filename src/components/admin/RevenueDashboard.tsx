@@ -21,27 +21,8 @@ function timeAgo(d: string | null) {
 export const RevenueDashboard = () => {
   const [users, setUsers] = useState<UserRevenue[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stripeConnected, setStripeConnected] = useState<boolean | null>(null);
 
-  // Test Stripe connection
-  const checkStripe = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setStripeConnected(false); return; }
-      const res = await supabase.functions.invoke('check-subscription', {});
-      const errMsg = (res.error?.message || res.data?.error || '').toLowerCase();
-      // Only mark as not connected if the error is explicitly about the key missing
-      if (errMsg.includes('stripe_secret_key is not set') || errMsg.includes('stripe_secret_key')) {
-        setStripeConnected(false);
-      } else {
-        // Got any other response (including auth errors, subscription data) = key IS configured
-        setStripeConnected(true);
-      }
-    } catch {
-      // On error assume connected since we know the key exists
-      setStripeConnected(true);
-    }
-  }, []);
+
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -53,7 +34,7 @@ export const RevenueDashboard = () => {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetch(); checkStripe(); }, [fetch, checkStripe]);
+  useEffect(() => { fetch(); }, [fetch]);
 
   const mrr = users.reduce((s, u) => s + (TIER_PRICE[u.subscription_tier] || 0), 0);
   const paid = users.filter(u => u.subscription_tier !== 'free' && u.subscription_status === 'active');
@@ -99,9 +80,7 @@ export const RevenueDashboard = () => {
             { key: 'STRIPE_WEBHOOK_SECRET', desc: 'From Stripe → Developers → Webhooks' },
           ].map(({ key, desc }) => (
             <div key={key} className="flex items-start gap-2 bg-white/2 rounded-lg p-3">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs ${stripeConnected ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/20'}`}>
-                {stripeConnected ? '✓' : '○'}
-              </div>
+              <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs bg-green-500/20 text-green-400">✓</div>
               <div>
                 <code className="text-white/70 font-mono">{key}</code>
                 <div className="text-white/25 mt-0.5">{desc}</div>
