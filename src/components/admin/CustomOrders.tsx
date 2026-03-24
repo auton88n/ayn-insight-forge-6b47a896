@@ -452,176 +452,231 @@ export const CustomOrders = () => {
           )}
 
           {panel === 'form' && (
-            <div className="p-5 space-y-4 flex-1 overflow-y-auto">
-              {/* Client info */}
-              <div className="space-y-2">
-                <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Client Info</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { key: 'company_name', label: 'Company Name *' },
-                    { key: 'contact_person', label: 'Contact Person *' },
-                    { key: 'company_email', label: 'Email *' },
-                    { key: 'company_phone', label: 'Phone' },
-                  ].map(({ key, label }) => (
-                    <div key={key}>
-                      <label className="text-white/30 text-xs mb-1 block">{label}</label>
-                      <Input value={(form as any)[key] || ''} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                        className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
+            <div className="flex-1 overflow-y-auto">
+              {/* Form header */}
+              <div className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
+                <span className="text-white font-semibold text-sm">{editingOrder ? 'Edit Order' : 'New Custom Order'}</span>
+                <div className="flex gap-2">
+                  <Button onClick={handleSave} disabled={saving} size="sm" className="bg-blue-600 hover:bg-blue-500 h-7 text-xs px-4">
+                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingOrder ? 'Save Changes' : 'Create Order'}
+                  </Button>
+                  <Button onClick={() => setPanel('none')} variant="outline" size="sm" className="border-white/10 text-white/50 h-7 text-xs px-3">Cancel</Button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6 pb-10">
+
+                {/* ── SECTION: Client Info ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Client Information</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { key: 'company_name', label: 'Company Name *', placeholder: 'Acme Corp' },
+                      { key: 'contact_person', label: 'Contact Person *', placeholder: 'John Smith' },
+                      { key: 'company_email', label: 'Email *', placeholder: 'john@acme.com' },
+                      { key: 'company_phone', label: 'Phone', placeholder: '+1 555 000 0000' },
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key}>
+                        <label className="text-white/40 text-xs mb-1.5 block">{label}</label>
+                        <Input value={(form as any)[key] || ''} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                          placeholder={placeholder} className="bg-white/5 border-white/10 text-white text-sm h-9 placeholder:text-white/15" />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Company Address</label>
+                    <Input value={form.company_address || ''} onChange={e => setForm(f => ({ ...f, company_address: e.target.value }))}
+                      placeholder="123 Main St, City, Country" className="bg-white/5 border-white/10 text-white text-sm h-9 placeholder:text-white/15" />
+                  </div>
+                </div>
+
+                {/* ── SECTION: Project Overview ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-4 bg-purple-500 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Project Overview</span>
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Project Title *</label>
+                    <Input value={form.order_title} onChange={e => setForm(f => ({ ...f, order_title: e.target.value }))}
+                      placeholder="e.g. AI-Powered CRM Integration" className="bg-white/5 border-white/10 text-white text-sm h-9 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Project Description</label>
+                    <textarea value={form.order_description || ''} onChange={e => setForm(f => ({ ...f, order_description: e.target.value }))}
+                      rows={4} placeholder="Describe the project goals, requirements, and expected outcomes..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">System Plan & Technical Approach</label>
+                    <textarea value={form.system_plan || ''} onChange={e => setForm(f => ({ ...f, system_plan: e.target.value }))}
+                      rows={4} placeholder="Architecture, tech stack, integrations, methodology..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                </div>
+
+                {/* ── SECTION: Services & Pricing ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-4 bg-amber-500 rounded-full" />
+                      <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Services & Pricing</span>
+                    </div>
+                    <button onClick={() => setForm(f => ({ ...f, services: [...f.services, { name: '', description: '', price: 0, quantity: 1 }] }))}
+                      className="text-blue-400 text-xs flex items-center gap-1 hover:text-blue-300 bg-blue-500/10 px-2.5 py-1 rounded-lg">
+                      <Plus className="w-3 h-3" /> Add Service
+                    </button>
+                  </div>
+                  {form.services.map((svc, i) => (
+                    <div key={i} className="bg-black/20 border border-white/8 rounded-lg p-3 space-y-2">
+                      <div className="flex gap-2 items-start">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex gap-2">
+                            <Input value={svc.name} onChange={e => { const s = [...form.services]; s[i].name = e.target.value; setForm(f => ({ ...f, services: s })); }}
+                              placeholder="Service name *" className="flex-1 bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/15" />
+                            <Input type="number" value={svc.price} onChange={e => { const s = [...form.services]; s[i].price = Number(e.target.value); setForm(f => ({ ...f, services: s })); }}
+                              placeholder="Price" className="w-24 bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/15" />
+                            <Input type="number" value={svc.quantity} onChange={e => { const s = [...form.services]; s[i].quantity = Number(e.target.value); setForm(f => ({ ...f, services: s })); }}
+                              placeholder="Qty" className="w-16 bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/15" />
+                          </div>
+                          <textarea value={svc.description} onChange={e => { const s = [...form.services]; s[i].description = e.target.value; setForm(f => ({ ...f, services: s })); }}
+                            rows={2} placeholder="Service description (will appear in contract)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white/70 text-xs leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                        </div>
+                        {form.services.length > 1 && (
+                          <button onClick={() => { const s = form.services.filter((_, j) => j !== i); setForm(f => ({ ...f, services: s })); }}
+                            className="text-red-400/50 hover:text-red-400 mt-1 flex-shrink-0"><Minus className="w-4 h-4" /></button>
+                        )}
+                      </div>
                     </div>
                   ))}
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Address</label>
-                  <Input value={form.company_address || ''} onChange={e => setForm(f => ({ ...f, company_address: e.target.value }))}
-                    className="bg-white/5 border-white/10 text-white text-sm h-8" />
-                </div>
-              </div>
-
-              {/* Order info */}
-              <div className="space-y-2">
-                <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Order Info</div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Order Title *</label>
-                  <Input value={form.order_title} onChange={e => setForm(f => ({ ...f, order_title: e.target.value }))}
-                    className="bg-white/5 border-white/10 text-white text-sm h-8" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Description</label>
-                  <textarea value={form.order_description || ''} onChange={e => setForm(f => ({ ...f, order_description: e.target.value }))}
-                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
-                </div>
-              </div>
-
-              {/* Services */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Services</div>
-                  <button onClick={() => setForm(f => ({ ...f, services: [...f.services, { name: '', description: '', price: 0, quantity: 1 }] }))}
-                    className="text-blue-400 text-xs flex items-center gap-1 hover:text-blue-300">
-                    <Plus className="w-3 h-3" />Add
-                  </button>
-                </div>
-                {form.services.map((svc, i) => (
-                  <div key={i} className="bg-white/3 border border-white/8 rounded-lg p-3 space-y-2">
-                    <div className="flex gap-2">
-                      <Input value={svc.name} onChange={e => { const s = [...form.services]; s[i].name = e.target.value; setForm(f => ({ ...f, services: s })); }}
-                        placeholder="Service name" className="flex-1 bg-white/5 border-white/10 text-white text-xs h-7" />
-                      <Input type="number" value={svc.price} onChange={e => { const s = [...form.services]; s[i].price = Number(e.target.value); setForm(f => ({ ...f, services: s })); }}
-                        placeholder="Price" className="w-20 bg-white/5 border-white/10 text-white text-xs h-7" />
-                      <Input type="number" value={svc.quantity} onChange={e => { const s = [...form.services]; s[i].quantity = Number(e.target.value); setForm(f => ({ ...f, services: s })); }}
-                        placeholder="Qty" className="w-14 bg-white/5 border-white/10 text-white text-xs h-7" />
-                      {form.services.length > 1 && (
-                        <button onClick={() => { const s = form.services.filter((_, j) => j !== i); setForm(f => ({ ...f, services: s })); }}
-                          className="text-red-400/50 hover:text-red-400"><Minus className="w-3.5 h-3.5" /></button>
-                      )}
-                    </div>
-                    <Input value={svc.description} onChange={e => { const s = [...form.services]; s[i].description = e.target.value; setForm(f => ({ ...f, services: s })); }}
-                      placeholder="Description (optional)" className="bg-white/5 border-white/10 text-white/60 text-xs h-7" />
+                  <div className="grid grid-cols-3 gap-3 pt-1">
+                    {[
+                      { key: 'discount_percent', label: 'Discount %' },
+                      { key: 'tax_percent', label: 'Tax / VAT %' },
+                      { key: 'currency', label: 'Currency', type: 'select', opts: ['USD','SAR','AED','EUR','GBP','CAD'] },
+                    ].map(({ key, label, type, opts }) => (
+                      <div key={key}>
+                        <label className="text-white/40 text-xs mb-1.5 block">{label}</label>
+                        {type === 'select' ? (
+                          <Select value={(form as any)[key]} onValueChange={v => setForm(f => ({ ...f, [key]: v }))}>
+                            <SelectTrigger className="bg-white/5 border-white/10 text-white text-sm h-9"><SelectValue /></SelectTrigger>
+                            <SelectContent>{(opts || []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : (
+                          <Input type="number" value={(form as any)[key]} onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
+                            className="bg-white/5 border-white/10 text-white text-sm h-9" />
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { key: 'discount_percent', label: 'Discount %' },
-                    { key: 'tax_percent', label: 'Tax %' },
-                    { key: 'currency', label: 'Currency', type: 'select', opts: ['USD','SAR','AED','EUR','GBP'] },
-                  ].map(({ key, label, type, opts }) => (
-                    <div key={key}>
-                      <label className="text-white/30 text-xs mb-1 block">{label}</label>
-                      {type === 'select' ? (
-                        <Select value={(form as any)[key]} onValueChange={v => setForm(f => ({ ...f, [key]: v }))}>
-                          <SelectTrigger className="bg-white/5 border-white/10 text-white text-xs h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>{(opts || []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                        </Select>
-                      ) : (
-                        <Input type="number" value={(form as any)[key]} onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
-                          className="bg-white/5 border-white/10 text-white text-xs h-8" />
-                      )}
+                  {(() => { const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent); return (
+                    <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-lg px-4 py-3 mt-1">
+                      <span className="text-white/40 text-xs">Subtotal: ${subtotal.toFixed(2)}</span>
+                      <span className="text-white font-bold text-base">Total: ${total.toFixed(2)} {form.currency}</span>
                     </div>
-                  ))}
+                  ); })()}
                 </div>
-                {(() => { const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent); return (
-                  <div className="flex justify-between items-center bg-white/3 rounded-lg px-3 py-2">
-                    <span className="text-white/40 text-xs">Subtotal: ${subtotal.toFixed(2)}</span>
-                    <span className="text-white font-semibold text-sm">Total: ${total.toFixed(2)} {form.currency}</span>
+
+                {/* ── SECTION: Payment ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-4 bg-green-500 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Payment</span>
                   </div>
-                ); })()}
-              </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Stripe Payment Link</label>
+                    <Input value={form.stripe_payment_link || ''} onChange={e => setForm(f => ({ ...f, stripe_payment_link: e.target.value }))}
+                      placeholder="https://buy.stripe.com/..." className="bg-white/5 border-white/10 text-white text-sm h-9 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Payment Terms</label>
+                    <textarea value={form.payment_terms || ''} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))}
+                      rows={3} placeholder="e.g. 50% upfront, 50% on delivery. Payment due within 30 days of invoice..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                </div>
 
-              {/* Payment */}
-              <div className="space-y-2">
-                <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Payment</div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Stripe Payment Link</label>
-                  <Input value={form.stripe_payment_link || ''} onChange={e => setForm(f => ({ ...f, stripe_payment_link: e.target.value }))}
-                    placeholder="https://buy.stripe.com/..." className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
+                {/* ── SECTION: Delivery & Timeline ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-4 bg-cyan-500 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Delivery & Timeline</span>
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Estimated Delivery Timeline</label>
+                    <Input value={form.delivery_timeline || ''} onChange={e => setForm(f => ({ ...f, delivery_timeline: e.target.value }))}
+                      placeholder="e.g. 4–6 weeks from contract signing" className="bg-white/5 border-white/10 text-white text-sm h-9 placeholder:text-white/15" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Payment Terms</label>
-                  <textarea value={form.payment_terms || ''} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))}
-                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
-                </div>
-              </div>
 
-              {/* Contract Sections */}
-              <div className="space-y-2">
-                <div className="text-white/40 text-xs font-medium uppercase tracking-wide">Contract Details</div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Delivery Timeline</label>
-                  <Input value={form.delivery_timeline || ''} onChange={e => setForm(f => ({ ...f, delivery_timeline: e.target.value }))}
-                    placeholder="e.g. 4-6 weeks" className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
+                {/* ── SECTION: After-Sale & Add-ons ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-4 bg-indigo-500 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">After-Sale Services & Add-ons</span>
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">After-Sale Support & Maintenance</label>
+                    <textarea value={form.after_sale_services || ''} onChange={e => setForm(f => ({ ...f, after_sale_services: e.target.value }))}
+                      rows={3} placeholder="e.g. 3 months of free bug fixes, monthly check-ins, response time SLA..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Additional Services & Add-ons Available</label>
+                    <textarea value={form.additional_services || ''} onChange={e => setForm(f => ({ ...f, additional_services: e.target.value }))}
+                      rows={3} placeholder="Optional services the client can add at extra cost..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">System Plan <span className="text-white/20">(technical overview, architecture)</span></label>
-                  <textarea value={form.system_plan || ''} onChange={e => setForm(f => ({ ...f, system_plan: e.target.value }))}
-                    rows={3} placeholder="Describe the technical approach, architecture, tools..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
+
+                {/* ── SECTION: Legal Terms ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-4 bg-rose-500 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Legal Terms</span>
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Warranty & Guarantee</label>
+                    <textarea value={form.warranty || ''} onChange={e => setForm(f => ({ ...f, warranty: e.target.value }))}
+                      rows={3} placeholder="e.g. 30-day warranty covering bug fixes and minor adjustments..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Termination Clause</label>
+                    <textarea value={form.termination_clause || ''} onChange={e => setForm(f => ({ ...f, termination_clause: e.target.value }))}
+                      rows={3} placeholder="e.g. Either party may terminate with 14 days written notice. Client is liable for work completed to date..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Terms & Conditions</label>
+                    <textarea value={form.terms_and_conditions || ''} onChange={e => setForm(f => ({ ...f, terms_and_conditions: e.target.value }))}
+                      rows={4} placeholder="General terms governing this agreement..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Privacy & Data Protection</label>
+                    <textarea value={form.privacy_notes || ''} onChange={e => setForm(f => ({ ...f, privacy_notes: e.target.value }))}
+                      rows={3} placeholder="How client data is collected, stored, and protected..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Governing Law & Jurisdiction</label>
+                    <Input value={form.governing_law || ''} onChange={e => setForm(f => ({ ...f, governing_law: e.target.value }))}
+                      placeholder="e.g. Province of Ontario, Canada" className="bg-white/5 border-white/10 text-white text-sm h-9 placeholder:text-white/15" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">After-Sale Services</label>
-                  <textarea value={form.after_sale_services || ''} onChange={e => setForm(f => ({ ...f, after_sale_services: e.target.value }))}
-                    rows={2} placeholder="Support, maintenance, SLA details..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Additional Services / Add-ons</label>
-                  <textarea value={form.additional_services || ''} onChange={e => setForm(f => ({ ...f, additional_services: e.target.value }))}
-                    rows={2} placeholder="Optional services available for additional cost..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Warranty</label>
-                  <textarea value={form.warranty || ''} onChange={e => setForm(f => ({ ...f, warranty: e.target.value }))}
-                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Termination Clause</label>
-                  <textarea value={form.termination_clause || ''} onChange={e => setForm(f => ({ ...f, termination_clause: e.target.value }))}
-                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Terms & Conditions</label>
-                  <textarea value={form.terms_and_conditions || ''} onChange={e => setForm(f => ({ ...f, terms_and_conditions: e.target.value }))}
-                    rows={3} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Privacy & Data Protection</label>
-                  <textarea value={form.privacy_notes || ''} onChange={e => setForm(f => ({ ...f, privacy_notes: e.target.value }))}
-                    rows={2} placeholder="How client data is handled and protected..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30 placeholder:text-white/20" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Governing Law</label>
-                  <Input value={form.governing_law || ''} onChange={e => setForm(f => ({ ...f, governing_law: e.target.value }))}
-                    placeholder="e.g. Laws of Canada" className="bg-white/5 border-white/10 text-white text-sm h-8 placeholder:text-white/20" />
-                </div>
-                <div>
-                  <label className="text-white/30 text-xs mb-1 block">Internal Notes</label>
+
+                {/* ── SECTION: Internal Notes ── */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-1 h-4 bg-white/20 rounded-full" />
+                    <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">Internal Notes</span>
+                  </div>
                   <textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                    rows={2} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-white/30" />
+                    rows={3} placeholder="Private notes — not visible to client or included in contract..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
                 </div>
-              </div>
 
-              <div className="flex gap-2 pt-2 pb-6">
-                <Button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-500">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingOrder ? 'Save Changes' : 'Create Order'}
-                </Button>
-                <Button onClick={() => setPanel('none')} variant="outline" className="border-white/10 text-white/50">Cancel</Button>
+                <div className="flex gap-3 pb-6">
+                  <Button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-500 h-10">
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingOrder ? 'Save Changes' : 'Create Order'}
+                  </Button>
+                  <Button onClick={() => setPanel('none')} variant="outline" className="border-white/10 text-white/50 h-10 px-6">Cancel</Button>
+                </div>
+
               </div>
             </div>
           )}
