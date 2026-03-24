@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_ANON_KEY } from '@/config';
 import { cn } from '@/lib/utils';
-import { CheckCircle, ChevronDown, PenTool } from 'lucide-react';
+import { CheckCircle, ChevronDown, PenTool, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface NDA {
   id: string; company_name: string; company_email: string;
@@ -122,143 +123,192 @@ export default function NDASign() {
   const today = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Header */}
-      <div className="bg-zinc-900 text-white px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+    <div className="min-h-screen bg-zinc-200/50 dark:bg-zinc-950 py-8 px-4 sm:px-6 lg:px-8 font-serif selection:bg-amber-100">
+      
+      {/* Sticky Banner - Status */}
+      <div className="fixed top-0 left-0 right-0 bg-zinc-900 border-b border-zinc-800 text-white px-6 py-2.5 flex items-center justify-between z-30 font-sans shadow-md">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+          <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
+            <Shield className="w-3.5 h-3.5 text-zinc-300" />
           </div>
-          <div>
-            <div className="font-black text-base leading-tight">AYN</div>
-            <div className="text-[9px] uppercase tracking-widest opacity-40">Non-Disclosure Agreement</div>
-          </div>
+          <span className="text-xs font-semibold tracking-wide uppercase opacity-90">Secure Legal Gateway</span>
         </div>
-        {signed ? (
-          <span className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-xs font-semibold px-3 py-1.5 rounded-full border border-emerald-500/30">
-            <CheckCircle className="w-3 h-3" /> Signed
-          </span>
-        ) : (
-          <span className="text-xs text-zinc-500">{ndaRef}</span>
-        )}
+        <div>
+          {signed ? (
+            <span className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30 uppercase tracking-widest">
+              <CheckCircle className="w-3 h-3" /> Fully Executed
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 bg-amber-500/20 text-amber-400 text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full border border-amber-500/30 uppercase tracking-widest">
+              Action Required
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-        {/* Signed success */}
-        {signed && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center">
-            <div className="text-3xl mb-2">✅</div>
-            <div className="text-emerald-400 font-bold text-lg">You've signed this NDA</div>
-            <div className="text-emerald-600 dark:text-emerald-500 text-sm mt-1">
-              Signed on {nda.client_signed_at ? new Date(nda.client_signed_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : today}
-            </div>
-          </div>
-        )}
+      <div className="max-w-[800px] mx-auto mt-10 bg-white shadow-2xl border border-zinc-300 rounded-sm relative text-zinc-900">
+        
+        {/* Paper texture subtle overlay */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.02]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
 
-        {/* Parties */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Agreement Between</span>
-          </div>
-          <div className="grid grid-cols-2 gap-px bg-zinc-100 dark:bg-zinc-800">
-            <div className="bg-white dark:bg-zinc-900 p-4">
-              <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Disclosing Party</div>
-              <div className="font-bold text-zinc-900 dark:text-zinc-100">AYN AI</div>
+        <div className="px-8 py-12 sm:px-16 sm:py-16 relative z-10">
+          
+          {/* Legal Header */}
+          <div className="text-center mb-12 border-b-2 border-zinc-900 pb-8">
+            <div className="mb-6 flex justify-center">
+               <div className="w-12 h-12 border border-zinc-900 flex items-center justify-center p-2 rounded-sm bg-zinc-50">
+                 <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" className="text-zinc-900">
+                   <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+                   <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+                   <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+                 </svg>
+               </div>
             </div>
-            <div className="bg-white dark:bg-zinc-900 p-4">
-              <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Receiving Party</div>
-              <div className="font-bold text-zinc-900 dark:text-zinc-100">{nda.company_name}</div>
-              <div className="text-xs text-zinc-500 mt-1">{nda.contact_person}</div>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-widest text-zinc-900 mb-2 font-sans">
+              MUTUAL NON-DISCLOSURE AGREEMENT
+            </h1>
+            <p className="text-sm text-zinc-500 uppercase tracking-widest font-sans font-semibold mt-4">
+              Reference Id: {ndaRef}
+            </p>
+            <p className="text-sm text-zinc-500 uppercase tracking-widest font-sans mt-1">
+              Effective Date: {nda.client_signed_at ? new Date(nda.client_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Upon execution by both parties'}
+            </p>
           </div>
-        </div>
 
-        {/* NDA Sections */}
-        {[
-          { label: 'Purpose', value: nda.nda_purpose },
-          { label: 'Confidential Information', value: nda.confidential_info },
-          { label: 'Obligations', value: nda.obligations },
-          { label: 'Exclusions', value: nda.exclusions },
-          { label: 'Duration', value: nda.duration },
-          { label: 'Additional Clauses', value: nda.additional_clauses },
-          { label: 'Governing Law', value: nda.governing_law },
-        ].filter(s => s.value).map(section => (
-          <details key={section.label} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden group">
-            <summary className="px-5 py-3.5 flex items-center justify-between cursor-pointer list-none">
-              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{section.label}</span>
-              <ChevronDown className="w-4 h-4 text-zinc-400 group-open:rotate-180 transition-transform" />
-            </summary>
-            <div className="px-5 pb-5 text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed border-t border-zinc-100 dark:border-zinc-800 pt-4">
-              {cleanText(section.value!)}
+          {/* Preamble */}
+          <div className="mb-10 text-sm sm:text-base leading-loose text-justify text-zinc-800">
+            <p className="indent-8">
+              This Mutual Non-Disclosure Agreement (the <span className="font-bold">"Agreement"</span>) is entered into as of the Effective Date, by and between:
+            </p>
+            <div className="my-6 pl-8 border-l-4 border-zinc-200 space-y-4 font-sans text-sm">
+              <p>
+                <span className="font-bold tracking-wider text-zinc-900 uppercase text-xs block mb-0.5">Disclosing Party</span>
+                <span className="font-semibold text-base text-zinc-900">AYN AI</span><br/>
+                <span className="text-zinc-600">Represented by Authorized Signatory</span>
+              </p>
+              <p>
+                <span className="font-bold tracking-wider text-zinc-900 uppercase text-xs block mb-0.5">Receiving Party</span>
+                <span className="font-semibold text-base text-zinc-900">{nda.company_name}</span><br/>
+                <span className="text-zinc-600">Represented by {nda.contact_person}</span><br/>
+                <span className="text-zinc-500 italic">{nda.company_email}</span>
+              </p>
             </div>
-          </details>
-        ))}
-
-        {/* Signatures */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Signatures</span>
+            <p className="indent-8">
+              The parties wish to explore a potential business relationship in connection with the Purpose outlined below. In connection with this opportunity, each party may disclose to the other certain confidential technical and business information format.
+            </p>
           </div>
-          <div className="bg-white dark:bg-zinc-900 p-4">
-            <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-3">{nda.contact_person} · Receiving Party</div>
-            <div className={cn('rounded-xl border-2 h-20 flex items-center justify-center mb-3 overflow-hidden',
-              signed ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20' : 'border-dashed border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10')}>
-              {signed && nda.client_signature_url
-                ? <img src={nda.client_signature_url} alt="Signature" className="max-h-16 max-w-full object-contain" />
-                : <span className="text-xs text-amber-600 dark:text-amber-400 font-medium italic">Your signature here</span>}
-            </div>
-            <div className={cn('text-[10px] font-semibold', signed ? 'text-emerald-600' : 'text-amber-600')}>
-              {signed ? `✓ Signed ${nda.client_signed_at ? new Date(nda.client_signed_at).toLocaleDateString() : ''}` : '⚠ Awaiting your signature'}
-            </div>
-          </div>
-        </div>
 
-        {/* Sign pad */}
-        {!signed && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <PenTool className="w-4 h-4 text-zinc-400" />
-                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Sign the NDA</span>
+          {/* Legal Clauses */}
+          <div className="space-y-8 text-sm sm:text-base leading-relaxed text-justify text-zinc-800 font-serif">
+            {[
+              { label: '1. Purpose of Disclosure', value: nda.nda_purpose },
+              { label: '2. Definition of Confidential Information', value: nda.confidential_info },
+              { label: '3. Obligations of the Receiving Party', value: nda.obligations },
+              { label: '4. Exclusions from Confidential Information', value: nda.exclusions },
+              { label: '5. Term and Duration', value: nda.duration },
+              { label: '6. Additional Provisions', value: nda.additional_clauses },
+              { label: '7. Governing Law and Jurisdiction', value: nda.governing_law },
+            ].filter(s => s.value).map((section, idx) => (
+              <section key={idx} className="page-break-inside-avoid">
+                <h2 className="font-bold text-zinc-900 mb-2 font-sans tracking-wide uppercase text-sm sm:text-base">
+                  {section.label}
+                </h2>
+                <div className="pl-4">
+                  {cleanText(section.value!).split('\n').map((paragraph, i) => (
+                    <p key={i} className="mb-3">{paragraph}</p>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          {/* Binding Clause */}
+          <div className="mt-12 mb-10 text-justify text-sm leading-relaxed text-zinc-700 italic border-t border-zinc-200 pt-8">
+            IN WITNESS WHEREOF, the parties hereto have caused this Mutual Non-Disclosure Agreement to be executed as of the date first written above by their duly authorized representatives. By digitally signing below, the parties confirm their agreement to be legally bound by these terms.
+          </div>
+
+          {/* Signatures Area */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 font-sans">
+            
+            {/* Disclosing Party (AYN AI) */}
+            <div>
+              <p className="font-bold text-xs tracking-widest uppercase text-zinc-400 mb-8 border-b border-zinc-200 pb-2">Disclosing Party</p>
+              
+              <div className="h-24 flex items-end mb-2">
+                <div className="w-full border-b border-zinc-400 pb-2 text-zinc-900 text-2xl font-[signature] italic opacity-80 select-none">
+                  AYN AI Services
+                </div>
               </div>
-              <div className="text-xs text-zinc-500 mt-0.5">Draw your signature in the box below</div>
+              <p className="font-semibold text-sm text-zinc-900">Name: Authorized Signatory</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Title: Administration</p>
+              <p className="text-[10px] text-zinc-400 mt-2 font-mono bg-zinc-50 inline-block px-2 py-0.5 rounded border border-zinc-200">
+                Timestamp: {nda.client_signed_at ? new Date(nda.client_signed_at).toISOString() : 'Pending Execution'}
+              </p>
             </div>
-            <div className="p-4 space-y-3">
-              {!showPad ? (
-                <button onClick={() => { setShowPad(true); setTimeout(initCanvas, 50); }}
-                  className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold py-4 rounded-2xl text-sm">
-                  ✍️ Sign this NDA
-                </button>
-              ) : (
+
+            {/* Receiving Party (Client) */}
+            <div>
+              <p className="font-bold text-xs tracking-widest uppercase text-zinc-400 mb-8 border-b border-zinc-200 pb-2">Receiving Party</p>
+              
+              {signed ? (
                 <>
-                  <canvas ref={canvasRef}
-                    className="w-full h-36 border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 touch-none cursor-crosshair"
-                    onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
-                    onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
-                  <div className="flex gap-2">
-                    <button onClick={() => { const ctx = canvasRef.current?.getContext('2d'); if (ctx && canvasRef.current) { ctx.clearRect(0,0,canvasRef.current.width, canvasRef.current.height); } }}
-                      className="flex-1 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 py-3 rounded-xl text-sm font-medium">
-                      Clear
-                    </button>
-                    <button onClick={handleSign} disabled={signing}
-                      className="flex-2 flex-1 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 rounded-xl text-sm font-bold disabled:opacity-50">
-                      {signing ? 'Saving...' : 'Submit Signature'}
-                    </button>
+                  <div className="h-24 flex items-end mb-2">
+                    <div className="w-full border-b border-zinc-400 pb-2 relative">
+                      {nda.client_signature_url && (
+                        <img src={nda.client_signature_url} alt="Signature" className="absolute bottom-1 left-0 max-h-20 max-w-[250px] object-contain mix-blend-multiply filter contrast-125 invert-0" style={{ filter: 'grayscale(100%) contrast(150%) brightness(50%)' }} />
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-zinc-400 text-center">By signing, you agree to the terms of this Non-Disclosure Agreement.</p>
+                  <p className="font-semibold text-sm text-zinc-900">Name: {nda.contact_person}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">Company: {nda.company_name}</p>
+                  <p className="text-[10px] text-zinc-400 mt-2 font-mono bg-emerald-50 text-emerald-700 inline-block px-2 py-0.5 rounded border border-emerald-200">
+                    Verified ID: {nda.company_email}
+                  </p>
                 </>
+              ) : (
+                <div className="rounded-none border border-zinc-300 bg-zinc-50 p-6 shadow-inner relative">
+                  <div className="absolute top-0 right-0 p-2 opacity-30 pointer-events-none">
+                     <PenTool className="w-4 h-4 text-zinc-800" />
+                  </div>
+                  {!showPad ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm font-semibold text-amber-700 mb-4">Signature Required</p>
+                      <Button onClick={() => { setShowPad(true); setTimeout(initCanvas, 50); }} className="w-full font-serif font-bold text-sm h-12 bg-zinc-900 hover:bg-zinc-800 text-white shadow-md">
+                        Click to Sign Document
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-sans px-1">Draw signature in black ink below:</p>
+                      <div className="relative border border-zinc-400 bg-white shadow-sm overflow-hidden">
+                        {/* Signature line overlay */}
+                        <div className="absolute bottom-4 left-4 right-4 border-b border-blue-200 pointer-events-none"></div>
+                        <canvas ref={canvasRef}
+                          className="w-full h-36 touch-none cursor-crosshair relative z-10 mix-blend-multiply"
+                          onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                          onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
+                      </div>
+                      <div className="flex gap-3 font-sans">
+                        <Button variant="outline" onClick={() => { const ctx = canvasRef.current?.getContext('2d'); if (ctx && canvasRef.current) { ctx.clearRect(0,0,canvasRef.current.width, canvasRef.current.height); } }} className="flex-1 text-xs">
+                          Clear
+                        </Button>
+                        <Button onClick={handleSign} disabled={signing} className="flex-[2] bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs">
+                          {signing ? 'Executing...' : 'Sign & Execute NDA'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
+            
           </div>
-        )}
-
-        <div className="text-center text-xs text-zinc-400 pb-8">
-          {ndaRef} · © {new Date().getFullYear()} AYN AI · aynn.io
+          
         </div>
+      </div>
+      
+      <div className="max-w-3xl mx-auto mt-6 mb-12 text-center text-[10px] text-zinc-500 font-sans uppercase tracking-widest">
+        Powered by AYN AI Legal Compliance Engine
       </div>
     </div>
   );
