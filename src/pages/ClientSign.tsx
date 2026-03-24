@@ -161,7 +161,15 @@ export default function ClientSign() {
       {/* Header */}
       <div className="bg-zinc-900 text-white px-6 py-4 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center font-black text-sm">A</div>
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
           <div>
             <div className="font-black text-base leading-tight tracking-tight">AYN</div>
             <div className="text-[9px] uppercase tracking-widest opacity-40">Service Agreement</div>
@@ -209,7 +217,6 @@ export default function ClientSign() {
             <div className="bg-white dark:bg-zinc-900 p-4">
               <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Service Provider</div>
               <div className="font-bold text-zinc-900 dark:text-zinc-100">AYN AI</div>
-              <div className="text-xs text-zinc-500 mt-1">aynn.io</div>
             </div>
             <div className="bg-white dark:bg-zinc-900 p-4">
               <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-2">Client</div>
@@ -230,7 +237,7 @@ export default function ClientSign() {
               <div key={i} className="flex justify-between items-start px-5 py-3.5">
                 <div>
                   <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{s.name}</div>
-                  {s.description && <div className="text-xs text-zinc-500 mt-0.5">{s.description}</div>}
+                  {s.description && <div className="text-xs text-zinc-500 mt-0.5">{s.description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\|/g, ' · ').replace(/`/g, '').substring(0, 120)}</div>}
                 </div>
                 <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 ml-4 shrink-0">{fmt(s.price * (s.quantity || 1))}</div>
               </div>
