@@ -289,9 +289,6 @@ export default function NDASign() {
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Times New Roman',Times,serif;color:#000;background:#fff;font-size:12pt;line-height:1.75;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .wrap{max-width:760px;margin:0 auto;padding:18mm 18mm 18mm 18mm}
-  .doc-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:22px;border-bottom:2pt solid #000}
-  .doc-header-brand{font-size:20pt;font-weight:900;letter-spacing:-1pt;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
-  .doc-header-meta{font-size:8.5pt;color:#000;text-align:left;line-height:1.6}
   .brand{text-align:center;padding-bottom:22px;margin-bottom:26px;border-bottom:2.5pt double #000;page-break-inside:avoid}
   .brand-name{font-size:42pt;font-weight:900;letter-spacing:-2pt;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
   .doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5pt;margin-top:14px;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
@@ -316,10 +313,6 @@ export default function NDASign() {
 </style>
 </head><body>
 <div class="wrap">
-<div class="doc-header">
-  <div class="doc-header-meta">${ndaRef} &nbsp;&middot;&nbsp; ${today}</div>
-  <div class="doc-header-brand">AYN AI</div>
-</div>
 <div class="brand">
   <div class="brand-name">AYN AI</div>
   <div class="doc-title">Non-Disclosure Agreement</div>
