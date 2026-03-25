@@ -488,6 +488,22 @@ export const NDAManager = () => {
                     {sending === viewingNda.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Send className="w-3.5 h-3.5 mr-1" />}
                     {viewingNda.email_sent_at ? 'Resend NDA' : 'Send NDA'}
                   </Button>
+                  {viewingNda.admin_signature_url && viewingNda.client_signature_url && (
+                    <Button onClick={async () => {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const token = session?.access_token || SUPABASE_ANON_KEY;
+                      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-completion`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ ndaId: viewingNda.id }),
+                      });
+                      const r = await res.json();
+                      if (r.success) toast({ title: '📨 Completion emails sent to both parties' });
+                      else toast({ title: 'Failed', description: r.error, variant: 'destructive' });
+                    }} size="sm" className="bg-green-700 hover:bg-green-600 text-xs gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> Send Signed Copy
+                    </Button>
+                  )}
                   <Button onClick={() => openForm(viewingNda)} size="sm" variant="outline"
                     className="border-white/10 text-white/50 text-xs">
                     <Edit className="w-3.5 h-3.5" />
