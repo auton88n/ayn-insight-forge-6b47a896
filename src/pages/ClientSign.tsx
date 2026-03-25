@@ -33,65 +33,82 @@ function SignaturePad({ onSave, existingUrl, signedAt, locked }: {
     const c = canvasRef.current; if (!c) return;
     const ctx = c.getContext('2d'); if (!ctx) return;
     c.width = c.offsetWidth * 2; c.height = c.offsetHeight * 2;
-    ctx.scale(2, 2); ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.scale(2, 2); ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !showPad) return;
+    const prevent = (e: TouchEvent) => { if (drawing.current) e.preventDefault(); };
+    canvas.addEventListener('touchstart', prevent, { passive: false });
+    canvas.addEventListener('touchmove', prevent, { passive: false });
+    return () => {
+      canvas.removeEventListener('touchstart', prevent);
+      canvas.removeEventListener('touchmove', prevent);
+    };
+  }, [showPad]);
 
   const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
-    if ('touches' in e) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    if ('touches' in e) {
+      const t = e.touches[0];
+      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    }
     return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
   };
-
   const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!canvasRef.current) return; drawing.current = true;
+    if (!canvasRef.current) return;
+    drawing.current = true;
     const ctx = canvasRef.current.getContext('2d'); if (!ctx) return;
-    const pos = getPos(e, canvasRef.current); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); e.preventDefault();
+    const pos = getPos(e, canvasRef.current);
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    e.preventDefault();
   };
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!drawing.current || !canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d'); if (!ctx) return;
-    const pos = getPos(e, canvasRef.current); ctx.lineTo(pos.x, pos.y); ctx.stroke(); e.preventDefault();
+    const pos = getPos(e, canvasRef.current);
+    ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    e.preventDefault();
   };
   const stopDraw = () => { drawing.current = false; };
-
   const handleSave = async () => {
     if (!canvasRef.current) return; setSaving(true);
     try { await onSave(canvasRef.current.toDataURL('image/png')); setShowPad(false); }
-    catch (e: any) { alert('Failed: ' + e.message); } finally { setSaving(false); }
+    catch(e: any) { alert('Failed: ' + e.message); } finally { setSaving(false); }
   };
 
   if (existingUrl) return (
     <div>
-      <img src={existingUrl} alt="Signature" style={{ maxHeight: 52, maxWidth: 180, objectFit: 'contain' }} />
-      {signedAt && <div style={{ fontSize: 10, color: '#888', marginTop: 3, fontFamily: '"Times New Roman",serif', fontStyle: 'italic' }}>
+      <img src={existingUrl} alt="Signature" style={{ maxHeight: 56, maxWidth: 200, objectFit: 'contain' }} />
+      {signedAt && <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic' }}>
         Signed {new Date(signedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
       </div>}
     </div>
   );
-
-  if (locked) return <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', fontFamily: '"Times New Roman",serif', padding: '8px 0' }}>Awaiting AYN AI signature first</div>;
-
+  if (locked) return <div style={{ fontSize: 12, color: '#aaa', fontStyle: 'italic', padding: '12px 0' }}>Awaiting AYN AI signature first</div>;
   return (
     <div>
       {!showPad ? (
-        <div style={{ border: '1px dashed #bbb', borderRadius: 3, padding: '10px 14px', textAlign: 'center', cursor: 'pointer', minHeight: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        <div style={{ border: '2px dashed #ccc', borderRadius: 8, padding: '24px 16px', textAlign: 'center', cursor: 'pointer', minHeight: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}
           onClick={() => { setShowPad(true); setTimeout(initCanvas, 50); }}>
-          <span style={{ fontSize: 12, color: '#aaa', fontFamily: '"Times New Roman",serif', fontStyle: 'italic' }}>Click to sign</span>
+          <span style={{ fontSize: 14, color: '#aaa', fontStyle: 'italic' }}>Tap to sign</span>
         </div>
       ) : (
         <div>
-          <canvas ref={canvasRef} style={{ width: '100%', height: 88, border: '1px solid #ddd', borderRadius: 3, background: '#fafafa', display: 'block', touchAction: 'none', cursor: 'crosshair' }}
+          <canvas ref={canvasRef}
+            style={{ width: '100%', height: 130, border: '1px solid #ddd', borderRadius: 8, background: '#fafafa', display: 'block', touchAction: 'none', cursor: 'crosshair' }}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button onClick={() => { const ctx = canvasRef.current?.getContext('2d'); if (ctx && canvasRef.current) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); }}
-              style={{ flex: 1, padding: '5px', border: '1px solid #ddd', background: 'white', borderRadius: 3, fontFamily: '"Times New Roman",serif', fontSize: 11, cursor: 'pointer' }}>Clear</button>
+              style={{ flex: 1, padding: '12px', border: '1px solid #ccc', background: 'white', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>Clear</button>
             <button onClick={handleSave} disabled={saving}
-              style={{ flex: 2, padding: '5px', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: 3, fontFamily: '"Times New Roman",serif', fontSize: 11, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+              style={{ flex: 2, padding: '12px', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Saving...' : 'Confirm Signature'}
             </button>
           </div>
-          <p style={{ fontSize: 10, color: '#aaa', textAlign: 'center', marginTop: 4, fontFamily: '"Times New Roman",serif', fontStyle: 'italic' }}>By signing, you agree to the terms of this agreement.</p>
+          <p style={{ fontSize: 10, color: '#aaa', textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>By signing, you agree to the terms of this agreement.</p>
         </div>
       )}
     </div>
@@ -343,7 +360,7 @@ export default function ClientSign() {
           </div>
 
           {/* Signatures */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 10 }}>Service Provider</div>
               <div style={{ borderBottom: '1px solid #1a1a1a', minHeight: 72, paddingBottom: 8, marginBottom: 8 }}>
