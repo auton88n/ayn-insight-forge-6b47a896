@@ -3163,6 +3163,7 @@ export type Database = {
       }
       custom_orders: {
         Row: {
+          additional_services: string | null
           admin_signature_url: string | null
           admin_signed_at: string | null
           after_sale_services: string | null
@@ -3183,12 +3184,14 @@ export type Database = {
           email_open_count: number | null
           email_opened_at: string | null
           email_sent_at: string | null
+          governing_law: string | null
           id: string
           last_opened_at: string | null
           notes: string | null
           order_description: string | null
           order_title: string
           paid_at: string | null
+          payment_terms: string | null
           privacy_notes: string | null
           receipt_sent_at: string | null
           services: Json
@@ -3197,12 +3200,16 @@ export type Database = {
           stripe_payment_id: string | null
           stripe_payment_link: string | null
           subtotal: number
+          system_plan: string | null
           tax_percent: number | null
+          termination_clause: string | null
           terms_and_conditions: string | null
           total_amount: number
           updated_at: string
+          warranty: string | null
         }
         Insert: {
+          additional_services?: string | null
           admin_signature_url?: string | null
           admin_signed_at?: string | null
           after_sale_services?: string | null
@@ -3223,12 +3230,14 @@ export type Database = {
           email_open_count?: number | null
           email_opened_at?: string | null
           email_sent_at?: string | null
+          governing_law?: string | null
           id?: string
           last_opened_at?: string | null
           notes?: string | null
           order_description?: string | null
           order_title: string
           paid_at?: string | null
+          payment_terms?: string | null
           privacy_notes?: string | null
           receipt_sent_at?: string | null
           services?: Json
@@ -3237,12 +3246,16 @@ export type Database = {
           stripe_payment_id?: string | null
           stripe_payment_link?: string | null
           subtotal?: number
+          system_plan?: string | null
           tax_percent?: number | null
+          termination_clause?: string | null
           terms_and_conditions?: string | null
           total_amount?: number
           updated_at?: string
+          warranty?: string | null
         }
         Update: {
+          additional_services?: string | null
           admin_signature_url?: string | null
           admin_signed_at?: string | null
           after_sale_services?: string | null
@@ -3263,12 +3276,14 @@ export type Database = {
           email_open_count?: number | null
           email_opened_at?: string | null
           email_sent_at?: string | null
+          governing_law?: string | null
           id?: string
           last_opened_at?: string | null
           notes?: string | null
           order_description?: string | null
           order_title?: string
           paid_at?: string | null
+          payment_terms?: string | null
           privacy_notes?: string | null
           receipt_sent_at?: string | null
           services?: Json
@@ -3277,10 +3292,13 @@ export type Database = {
           stripe_payment_id?: string | null
           stripe_payment_link?: string | null
           subtotal?: number
+          system_plan?: string | null
           tax_percent?: number | null
+          termination_clause?: string | null
           terms_and_conditions?: string | null
           total_amount?: number
           updated_at?: string
+          warranty?: string | null
         }
         Relationships: [
           {
@@ -4514,6 +4532,105 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      nda_agreements: {
+        Row: {
+          additional_clauses: string | null
+          admin_signature_url: string | null
+          admin_signed_at: string | null
+          client_signature_url: string | null
+          client_signed_at: string | null
+          client_viewed_at: string | null
+          company_address: string | null
+          company_email: string
+          company_name: string
+          company_phone: string | null
+          confidential_info: string | null
+          contact_person: string
+          created_at: string | null
+          created_by: string | null
+          duration: string | null
+          email_sent_at: string | null
+          exclusions: string | null
+          governing_law: string | null
+          id: string
+          nda_purpose: string | null
+          notes: string | null
+          obligations: string | null
+          signing_token: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          additional_clauses?: string | null
+          admin_signature_url?: string | null
+          admin_signed_at?: string | null
+          client_signature_url?: string | null
+          client_signed_at?: string | null
+          client_viewed_at?: string | null
+          company_address?: string | null
+          company_email: string
+          company_name: string
+          company_phone?: string | null
+          confidential_info?: string | null
+          contact_person: string
+          created_at?: string | null
+          created_by?: string | null
+          duration?: string | null
+          email_sent_at?: string | null
+          exclusions?: string | null
+          governing_law?: string | null
+          id?: string
+          nda_purpose?: string | null
+          notes?: string | null
+          obligations?: string | null
+          signing_token?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          additional_clauses?: string | null
+          admin_signature_url?: string | null
+          admin_signed_at?: string | null
+          client_signature_url?: string | null
+          client_signed_at?: string | null
+          client_viewed_at?: string | null
+          company_address?: string | null
+          company_email?: string
+          company_name?: string
+          company_phone?: string | null
+          confidential_info?: string | null
+          contact_person?: string
+          created_at?: string | null
+          created_by?: string | null
+          duration?: string | null
+          email_sent_at?: string | null
+          exclusions?: string | null
+          governing_law?: string | null
+          id?: string
+          nda_purpose?: string | null
+          notes?: string | null
+          obligations?: string | null
+          signing_token?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nda_agreements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nda_agreements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_users_view"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       news_cache: {
         Row: {
