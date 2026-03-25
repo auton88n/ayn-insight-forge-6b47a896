@@ -187,13 +187,14 @@ Deno.serve(async (req) => {
     // Build the completion email
     const emailHtml = `<!DOCTYPE html>
 <html lang="en" dir="ltr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<head><meta charset="UTF-8"><meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f5f5f0;font-family:'Helvetica Neue',Arial,sans-serif;">
   <div style="max-width:600px;margin:0 auto;background:#fff;">
 
     <!-- Header -->
     <div style="background:#0a0a0a;padding:44px 48px 40px;text-align:center;">
-      <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
+      <div style="font-size:42px;font-weight:900;color:#fff !important;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
       <div style="width:40px;height:2px;background:#fff;opacity:0.3;margin:12px 0;"></div>
       <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.5);">NDA Fully Executed</div>
     </div>
@@ -235,7 +236,7 @@ Deno.serve(async (req) => {
 
       <!-- Download CTA -->
       <div style="text-align:center;margin:28px 0;">
-        <a href="${pdfUrl}" target="_blank" style="display:inline-block;background:#000;color:#fff;padding:14px 40px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;">📄 Download Signed NDA</a>
+        <a href="${pdfUrl}" target="_blank" style="display:inline-block;background:#000;color:#fff !important;padding:14px 40px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;">📄 Download Signed NDA</a>
         <div style="font-size:11px;color:#999;margin-top:10px;">Opens as a printable document — use Ctrl+P / ⌘+P to save as PDF</div>
       </div>
 
@@ -247,7 +248,7 @@ Deno.serve(async (req) => {
     </div>
 
     <!-- Footer -->
-    <div style="background:#1a1a1a;padding:20px 36px;border-top:1px solid rgba(255,255,255,0.08);text-align:center;">
+    <div style="background:#1a1a1a !important;padding:20px 36px;border-top:1px solid rgba(255,255,255,0.08);text-align:center;">
       <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · All rights reserved</div>
     </div>
   </div>

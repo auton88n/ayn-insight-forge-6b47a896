@@ -75,9 +75,9 @@ Deno.serve(async (req) => {
 
     const serviceRows = services.map((s) => `
       <tr>
-        <td style="padding:14px 20px;font-size:13px;color:#fff;border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(s.name)}</td>
+        <td style="padding:14px 20px;font-size:13px;color:#fff !important;border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(s.name)}</td>
         <td style="padding:14px 20px;font-size:13px;color:rgba(255,255,255,0.5);text-align:center;border-bottom:1px solid rgba(255,255,255,0.08);">${s.quantity || 1}</td>
-        <td style="padding:14px 20px;font-size:13px;font-weight:700;color:#fff;text-align:right;border-bottom:1px solid rgba(255,255,255,0.08);">${formatCurrency(s.price * (s.quantity || 1))}</td>
+        <td style="padding:14px 20px;font-size:13px;font-weight:700;color:#fff !important;text-align:right;border-bottom:1px solid rgba(255,255,255,0.08);">${formatCurrency(s.price * (s.quantity || 1))}</td>
       </tr>
     `).join('');
 
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       : (order.stripe_payment_link
           ? `<div style="text-align:center;margin:32px 0;">
                <a href="${order.stripe_payment_link}" target="_blank"
-                 style="display:inline-block;background:#111;color:#fff;padding:15px 44px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.5px;">
+                 style="display:inline-block;background:#111;color:#fff !important;padding:15px 44px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.5px;">
                  Complete Payment →
                </a>
                <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:10px;">Secure payment via Stripe</div>
@@ -106,27 +106,28 @@ Deno.serve(async (req) => {
     // ─── Shared HTML structure ────────────────────────────────────────────────
     const buildEmail = (recipientName: string, signUrl: string, isAdmin: boolean) => `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<head><meta charset="UTF-8"><meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AYN AI — Service Agreement</title></head>
-<body style="margin:0;padding:0;background:#0f0f0f;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:0;">
+<body bgcolor="#0f0f0f" style="margin:0;padding:0;background:#0f0f0f !important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<table bgcolor="#0f0f0f" width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f !important;padding:0;">
 <tr><td align="center" style="padding:40px 0;">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#0f0f0f;">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#0f0f0f !important;">
 
   <!-- ── HEADER ── -->
   <tr><td style="background:#0a0a0a;padding:44px 48px 40px;text-align:center;">
-    <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
+    <div style="font-size:42px;font-weight:900;color:#fff !important;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
     <div style="width:40px;height:3px;background:#6366f1;margin:14px auto;border-radius:2px;"></div>
     <div style="font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Service Agreement</div>
   </td></tr>
 
   <!-- ── GREETING ── -->
   <tr><td style="padding:44px 48px 0;">
-    <div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:10px;">Hello ${escapeHtml(recipientName)},</div>
+    <div style="font-size:22px;font-weight:800;color:#fff !important;margin-bottom:10px;">Hello ${escapeHtml(recipientName)},</div>
     <p style="font-size:14px;color:rgba(255,255,255,0.5);line-height:1.8;margin:0;">
       ${isAdmin
-        ? `A service agreement has been sent to <strong style="color:#fff;">${escapeHtml(order.company_name)}</strong>. Please review and add your signature below.`
-        : `Please review and sign your service agreement with <strong style="color:#fff;">AYN AI</strong>.`}
+        ? `A service agreement has been sent to <strong style="color:#fff !important;">${escapeHtml(order.company_name)}</strong>. Please review and add your signature below.`
+        : `Please review and sign your service agreement with <strong style="color:#fff !important;">AYN AI</strong>.`}
     </p>
   </td></tr>
 
@@ -134,7 +135,7 @@ Deno.serve(async (req) => {
   <tr><td style="padding:28px 48px 0;">
     <div style="background:#f9f9f9;border-radius:10px;padding:24px 28px;border:1px solid #ebebeb;">
       <div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:10px;">Project</div>
-      <div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:${descriptionBlock ? '16px' : '0'};">${escapeHtml(order.order_title)}</div>
+      <div style="font-size:17px;font-weight:800;color:#fff !important;margin-bottom:${descriptionBlock ? '16px' : '0'};">${escapeHtml(order.order_title)}</div>
       ${descriptionBlock}
     </div>
   </td></tr>
@@ -166,7 +167,7 @@ Deno.serve(async (req) => {
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Total Due</td>
-              <td style="font-size:30px;font-weight:900;color:#fff;letter-spacing:-1.5px;text-align:right;">${formatCurrency(totalAmount)}</td>
+              <td style="font-size:30px;font-weight:900;color:#fff !important;letter-spacing:-1.5px;text-align:right;">${formatCurrency(totalAmount)}</td>
             </tr>
           </table>
         </td>
@@ -179,7 +180,7 @@ Deno.serve(async (req) => {
 
   <!-- ── SIGN BUTTON ── -->
   <tr><td style="padding:28px 48px 0;">
-    <div style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:28px;text-align:center;">
+    <div style="background:#1a1a1a !important;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:28px;text-align:center;">
       <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-bottom:16px;">Please review and sign this agreement</div>
       <a href="${signUrl}" target="_blank"
         style="display:inline-block;background:#fff;color:#0f0f0f;padding:16px 52px;border-radius:100px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.3px;">
