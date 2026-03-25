@@ -11,7 +11,7 @@ interface NDA {
   governing_law: string | null; additional_clauses: string | null;
   admin_signature_url: string | null; admin_signed_at: string | null;
   client_signature_url: string | null; client_signed_at: string | null;
-  status: string | null; signing_token: string;
+  status: string | null; signing_token: string | null;
 }
 
 function SignaturePad({ onSave, existingUrl, signedAt, locked }: {
