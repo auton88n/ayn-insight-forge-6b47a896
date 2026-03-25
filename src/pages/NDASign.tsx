@@ -285,31 +285,34 @@ export default function NDASign() {
 
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+  @page{size:A4;margin:20mm 18mm 20mm 18mm}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'EB Garamond','Times New Roman',Times,serif;color:#1a1a1a;background:#fff;padding:64px;max-width:760px;margin:0 auto;line-height:1.75;font-size:14px}
-  .brand{text-align:center;padding-bottom:28px;margin-bottom:32px;border-bottom:2.5px double #1a1a1a}
-  .brand-name{font-size:48px;font-weight:900;letter-spacing:-2px;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
-  .doc-title{font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-top:20px;font-family:'Helvetica Neue',Arial,sans-serif}
-  .doc-ref{font-size:11px;color:#888;margin-top:6px;letter-spacing:.5px}
-  .parties{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:24px 0 32px;padding:20px 0;border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0}
-  .party-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:6px;font-family:'Helvetica Neue',Arial,sans-serif}
-  .party-name{font-size:15px;font-weight:600}
-  .party-info{font-size:12px;color:#666;margin-top:2px}
-  .sec{margin-bottom:28px}
-  .sec h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;color:#333}
-  .sec p{font-size:13px;line-height:1.85;text-align:justify;color:#222}
-  .witness{border-top:1px solid #ccc;padding-top:20px;margin:32px 0;font-style:italic;font-size:13px;color:#444;line-height:1.8}
-  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px}
+  body{font-family:'Times New Roman',Times,serif;color:#000;background:#fff;font-size:12pt;line-height:1.75;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:760px;margin:0 auto;padding:48px 0}
+  .brand{text-align:center;padding-bottom:24px;margin-bottom:28px;border-bottom:2.5pt double #000;page-break-inside:avoid}
+  .brand-name{font-size:42pt;font-weight:900;letter-spacing:-2pt;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
+  .doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5pt;margin-top:14px;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
+  .doc-ref{font-size:9pt;color:#333;margin-top:5px;letter-spacing:.5px}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:24px 0 28px;padding:16px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
+  .party-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:5px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .party-name{font-size:12pt;font-weight:700;color:#000}
+  .party-info{font-size:10pt;color:#000;margin-top:2px}
+  .sec{margin-bottom:24px;page-break-inside:avoid}
+  .sec h3{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;padding-bottom:5px;border-bottom:1pt solid #ccc;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;page-break-after:avoid}
+  .sec p{font-size:11pt;line-height:1.85;text-align:justify;color:#000}
+  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:26px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:24px;page-break-inside:avoid}
   .sig-block{}
-  .sig-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:12px;font-family:'Helvetica Neue',Arial,sans-serif}
-  .sig-img{min-height:64px;border-bottom:1px solid #1a1a1a;margin-bottom:10px;padding-bottom:4px}
-  .sig-name{font-size:13px;font-weight:600}
-  .sig-title{font-size:12px;color:#666}
-  .sig-date{font-size:11px;color:#999;font-style:italic;margin-top:4px}
-  .footer{margin-top:48px;padding-top:14px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#bbb;letter-spacing:.5px}
+  .sig-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .sig-img{min-height:56px;border-bottom:1pt solid #000;margin-bottom:8px;padding-bottom:3px}
+  .sig-name{font-size:11pt;font-weight:700;color:#000}
+  .sig-title{font-size:10pt;color:#000}
+  .sig-date{font-size:9pt;color:#333;font-style:italic;margin-top:3px}
+  .footer{margin-top:40px;padding-top:10px;border-top:0.5pt solid #ccc;text-align:center;font-size:8.5pt;color:#444;letter-spacing:.5px;page-break-inside:avoid}
+  @media print{body{padding:0}.wrap{padding:0}}
 </style>
 </head><body>
+<div class="wrap">
 <div class="brand">
   <div class="brand-name">AYN AI</div>
   <div class="doc-title">Non-Disclosure Agreement</div>
@@ -355,15 +358,16 @@ ${sections}
 </div>
 
 <div class="footer">${ndaRef} &nbsp;&middot;&nbsp; &copy; ${new Date().getFullYear()} AYN AI &nbsp;&middot;&nbsp; This document is confidential</div>
+</div><!-- /wrap -->
 </body></html>`;
 
-                  const blob = new Blob([html], { type: 'text/html' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${ndaRef}_signed.html`;
-                  a.click();
-                  URL.revokeObjectURL(url);
+                  // Open in new window and trigger print dialog (Save as PDF)
+                  const win = window.open('', '_blank');
+                  if (win) {
+                    win.document.write(html);
+                    win.document.close();
+                    setTimeout(() => { win.focus(); win.print(); }, 600);
+                  }
                 }}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8,

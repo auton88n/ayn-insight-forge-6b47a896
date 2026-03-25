@@ -399,53 +399,93 @@ export default function ClientSign() {
                   const rows = (order.services || []).map(s =>
                     `<tr><td>${s.name}${s.description ? `<div class="sdesc">${s.description.substring(0, 80)}</div>` : ''}</td><td class="r">${s.quantity || 1}</td><td class="r">${fmt(s.price)}</td><td class="r b">${fmt(s.price * (s.quantity || 1))}</td></tr>`
                   ).join('');
+                  // Strip markdown from description
+                  const cleanDesc = (t: string) => t
+                    .split('\n')
+                    .filter(l => !l.match(/^\s*[-|]+\s*$/))
+                    .map(l => l.replace(/#{1,6}\s/g,'').replace(/\*\*/g,'').replace(/[`]/g,'').replace(/\|/g,' · ').trim())
+                    .filter(l => l.length > 0)
+                    .join('<br>');
+
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>${contractRef} — AYN AI Service Agreement</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Times New Roman',Times,serif;color:#1a1a1a;background:#fff;padding:64px;max-width:760px;margin:0 auto;font-size:13px;line-height:1.8}
-.hd{text-align:center;padding-bottom:28px;margin-bottom:32px;border-bottom:3px double #1a1a1a}
-.brand{font-size:48px;font-weight:900;letter-spacing:-2px;font-family:'Helvetica Neue',Arial,sans-serif}
-.doc-title{font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:16px}
-.ref{font-size:11px;color:#888;margin-top:6px}
-.parties{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:0 0 28px;padding:16px 0;border-top:1px solid #ddd;border-bottom:1px solid #ddd}
-.plabel{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:6px}
-.pname{font-size:14px;font-weight:600}
-.pinfo{font-size:12px;color:#666;margin-top:1px}
-.art{margin-bottom:26px}
-.art h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif;color:#333}
-.art p{font-size:13px;line-height:1.85;text-align:justify}
-table{width:100%;border-collapse:collapse}
-th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;text-align:left;padding:6px 0;border-bottom:1px solid #ddd}
-th.r,td.r{text-align:right}
-td{padding:8px 0;font-size:12px;border-bottom:1px solid #f5f5f5;vertical-align:top}
-td.b{font-weight:700}
-.sdesc{font-size:11px;color:#888;margin-top:2px}
-.total-row td{border-top:2px solid #1a1a1a;padding-top:10px;font-weight:900;font-size:14px}
-.witness{border-top:1px solid #ccc;padding-top:18px;margin:28px 0;font-style:italic;font-size:12px;color:#444;line-height:1.8}
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:24px}
-.sig-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
-.sig-img{min-height:60px;border-bottom:1px solid #1a1a1a;margin-bottom:8px;padding-bottom:4px}
-.sig-name{font-size:13px;font-weight:600}
-.sig-title{font-size:12px;color:#666}
-.sig-date{font-size:11px;color:#999;font-style:italic;margin-top:3px}
-.footer{margin-top:40px;padding-top:12px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#bbb;letter-spacing:.5px}
-</style></head><body>
+  @page{size:A4;margin:20mm 18mm 20mm 18mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Times New Roman',Times,serif;color:#000;background:#fff;font-size:12pt;line-height:1.75;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:760px;margin:0 auto;padding:48px 0}
+  .hd{text-align:center;padding-bottom:24px;margin-bottom:28px;border-bottom:2.5pt double #000;page-break-inside:avoid}
+  .brand{font-size:42pt;font-weight:900;letter-spacing:-2pt;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;line-height:1}
+  .doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5pt;margin-top:14px;color:#000}
+  .ref{font-size:9pt;color:#333;margin-top:5px;letter-spacing:.5px}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px;padding:14px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
+  .plabel{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:5px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .pname{font-size:12pt;font-weight:700;color:#000}
+  .pinfo{font-size:10pt;color:#000;margin-top:2px}
+  .art{margin-bottom:22px;page-break-inside:avoid}
+  .art h3{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:1pt solid #ccc;padding-bottom:5px;margin-bottom:9px;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;page-break-after:avoid}
+  .art p{font-size:11pt;line-height:1.8;text-align:justify;color:#000}
+  table{width:100%;border-collapse:collapse;page-break-inside:avoid}
+  th{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#000;text-align:left;padding:6px 4px;border-bottom:1.5pt solid #000}
+  th.r,td.r{text-align:right}
+  td{padding:7px 4px;font-size:10.5pt;border-bottom:0.5pt solid #ddd;vertical-align:top;color:#000}
+  td.b{font-weight:700;color:#000}
+  .sdesc{font-size:9pt;color:#333;margin-top:3px}
+  .total-row td{border-top:2pt solid #000;border-bottom:none;padding-top:9px;font-weight:900;font-size:13pt;color:#000}
+  .disc-note{font-size:9pt;color:#333;text-align:right;padding:4px 0}
+  .tax-note{font-size:8.5pt;color:#555;text-align:right;padding:3px 0}
+  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:26px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:22px;page-break-inside:avoid}
+  .sig-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .sig-img{min-height:56px;border-bottom:1pt solid #000;margin-bottom:7px;padding-bottom:3px}
+  .sig-name{font-size:11pt;font-weight:700;color:#000}
+  .sig-title{font-size:10pt;color:#000}
+  .sig-date{font-size:9pt;color:#333;font-style:italic;margin-top:3px}
+  .footer{margin-top:36px;padding-top:10px;border-top:0.5pt solid #ccc;text-align:center;font-size:8.5pt;color:#444;letter-spacing:.5px;page-break-inside:avoid}
+  @media print{
+    body{padding:0}
+    .wrap{padding:0}
+    .no-print{display:none!important}
+  }
+</style>
+</head><body>
+<div class="wrap">
 <div class="hd">
   <div class="brand">AYN AI</div>
   <div class="doc-title">Service Agreement &amp; Price Quote</div>
   <div class="ref">${contractRef} &nbsp;&middot;&nbsp; ${today}</div>
 </div>
 <div class="parties">
-  <div><div class="plabel">Service Provider</div><div class="pname">AYN AI</div><div class="pinfo">Ghazi ALDhyaei</div><div class="pinfo">ghazi@aynn.io</div></div>
-  <div><div class="plabel">Client</div><div class="pname">${order.company_name}</div><div class="pinfo">${order.contact_person}</div>${order.company_email ? `<div class="pinfo">${order.company_email}</div>` : ''}</div>
+  <div>
+    <div class="plabel">Service Provider</div>
+    <div class="pname">AYN AI</div>
+    <div class="pinfo">Ghazi ALDhyaei</div>
+    <div class="pinfo">ghazi@aynn.io</div>
+  </div>
+  <div>
+    <div class="plabel">Client</div>
+    <div class="pname">${order.company_name}</div>
+    <div class="pinfo">${order.contact_person}</div>
+    ${order.company_email ? `<div class="pinfo">${order.company_email}</div>` : ''}
+  </div>
 </div>
-<div class="art"><h3>Project Scope</h3><p><strong>${order.order_title}</strong>${order.order_description ? '<br><br>' + order.order_description.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '') : ''}</p>${order.system_plan ? `<p style="margin-top:10px"><strong>Technical Approach:</strong> ${order.system_plan}</p>` : ''}</div>
-<div class="art"><h3>Deliverables &amp; Pricing</h3>
-<table><thead><tr><th>Service</th><th class="r" style="width:50px">Qty</th><th class="r" style="width:90px">Unit Price</th><th class="r" style="width:100px">Total</th></tr></thead>
-<tbody>${rows}</tbody>
-<tfoot>${discAmt > 0 ? `<tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Subtotal</td><td class="r" style="font-size:11px">${fmt(subtotal)}</td></tr><tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Discount (${order.discount_percent}%)</td><td class="r" style="font-size:11px;color:#c00">−${fmt(discAmt)}</td></tr>` : ''}${taxAmt > 0 ? `<tr><td colspan="4" style="text-align:right;font-size:10px;color:#aaa">Tax Included</td></tr>` : ''}
-<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL DUE</td><td class="r">${fmt(total)}</td></tr>
-</tfoot></table></div>
+<div class="art">
+  <h3>Project Scope</h3>
+  <p><strong>${order.order_title}</strong>${order.order_description ? '<br><br>' + cleanDesc(order.order_description) : ''}</p>
+  ${order.system_plan ? `<p style="margin-top:10px"><strong>Technical Approach:</strong> ${order.system_plan}</p>` : ''}
+</div>
+<div class="art">
+  <h3>Deliverables &amp; Pricing</h3>
+  <table>
+    <thead><tr><th>Service</th><th class="r" style="width:48px">Qty</th><th class="r" style="width:88px">Unit Price</th><th class="r" style="width:96px">Total</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      ${discAmt > 0 ? `<tr><td colspan="3" class="disc-note">Subtotal</td><td class="r disc-note">${fmt(subtotal)}</td></tr><tr><td colspan="3" class="disc-note">Discount (${order.discount_percent}%)</td><td class="r disc-note" style="color:#c00">−${fmt(discAmt)}</td></tr>` : ''}
+      ${taxAmt > 0 ? `<tr><td colspan="4" class="tax-note">Tax Included</td></tr>` : ''}
+      <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL DUE</td><td class="r">${fmt(total)}</td></tr>
+    </tfoot>
+  </table>
+</div>
 ${order.payment_terms ? `<div class="art"><h3>Payment Terms</h3><p>${order.payment_terms}</p></div>` : ''}
 ${order.delivery_timeline ? `<div class="art"><h3>Delivery &amp; Timeline</h3><p>${order.delivery_timeline}</p></div>` : ''}
 ${order.warranty ? `<div class="art"><h3>Warranty</h3><p>${order.warranty}</p></div>` : ''}
@@ -456,16 +496,31 @@ ${order.privacy_notes ? `<div class="art"><h3>Privacy &amp; Confidentiality</h3>
 ${order.governing_law ? `<div class="art"><h3>Governing Law</h3><p>${order.governing_law}</p></div>` : ''}
 <div class="witness"><strong>IN WITNESS WHEREOF</strong>, the parties have agreed to the terms of this Service Agreement and Price Quote. By digitally signing, both parties confirm their acceptance and agreement to be legally bound.</div>
 <div class="sig-grid">
-  <div><div class="sig-label">Service Provider — AYN AI</div><div class="sig-img">${adminSigHtml}</div><div class="sig-name">Ghazi ALDhyaei</div><div class="sig-title">Founder &amp; CEO, AYN AI</div><div class="sig-date">${adminDate ? 'Signed: ' + adminDate : ''}</div></div>
-  <div><div class="sig-label">Client — ${order.company_name}</div><div class="sig-img">${clientSigHtml}</div><div class="sig-name">${order.contact_person}</div><div class="sig-title">Authorized Representative</div><div class="sig-date">${clientDate ? 'Signed: ' + clientDate : ''}</div></div>
+  <div>
+    <div class="sig-label">Service Provider — AYN AI</div>
+    <div class="sig-img">${adminSigHtml}</div>
+    <div class="sig-name">Ghazi ALDhyaei</div>
+    <div class="sig-title">Founder &amp; CEO, AYN AI</div>
+    <div class="sig-date">${adminDate ? 'Signed: ' + adminDate : ''}</div>
+  </div>
+  <div>
+    <div class="sig-label">Client — ${order.company_name}</div>
+    <div class="sig-img">${clientSigHtml}</div>
+    <div class="sig-name">${order.contact_person}</div>
+    <div class="sig-title">Authorized Representative</div>
+    <div class="sig-date">${clientDate ? 'Signed: ' + clientDate : ''}</div>
+  </div>
 </div>
 <div class="footer">${contractRef} &nbsp;&middot;&nbsp; &copy; ${new Date().getFullYear()} AYN AI &nbsp;&middot;&nbsp; aynn.io &nbsp;&middot;&nbsp; This document is confidential</div>
+</div>
 </body></html>`;
-                  const blob = new Blob([html], { type: 'text/html' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url; a.download = `${contractRef}_signed.html`; a.click();
-                  URL.revokeObjectURL(url);
+                  // Open in new window and trigger print dialog (Save as PDF)
+                  const win = window.open('', '_blank');
+                  if (win) {
+                    win.document.write(html);
+                    win.document.close();
+                    setTimeout(() => { win.focus(); win.print(); }, 600);
+                  }
                 }}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#16a34a', color: 'white', border: 'none', borderRadius: 6, padding: '10px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Helvetica Neue',Arial,sans-serif" }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
