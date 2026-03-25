@@ -150,12 +150,12 @@ export default function NDASign() {
 
   return (
     <div style={{ background: '#f0ede8', minHeight: '100vh', padding: '16px 12px 48px' }}>
-      <div style={{ position:'sticky', top:0, zIndex:50, background:'#1a1a1a', color:'white', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', marginBottom:20, borderRadius:6 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', fontFamily:'Arial,sans-serif' }}>Secure Legal Gateway</span>
+      <div style={{ position:'sticky', top:0, zIndex:50, background:'#1a1a1a', color:'white', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', marginBottom:20, borderRadius:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', fontFamily:'Arial,sans-serif', whiteSpace:'nowrap' }}>Secure Legal Gateway</span>
         </div>
-        <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', background: bothSigned ? '#2d6a4f' : '#c9a84c', color:'white', padding:'4px 10px', borderRadius:20, fontFamily:'Arial,sans-serif' }}>
+        <span style={{ fontSize:9, fontWeight:800, letterSpacing:1, textTransform:'uppercase', background: bothSigned ? '#2d6a4f' : '#c9a84c', color:'white', padding:'6px 14px', borderRadius:100, fontFamily:'Arial,sans-serif', flexShrink:0, marginLeft:8, whiteSpace:'nowrap' }}>
           {bothSigned ? '✓ Executed' : 'Action Required'}
         </span>
       </div>
@@ -395,13 +395,25 @@ ${sections}
           <div style={{ marginTop:36 }}>
             <div style={{ fontSize:13, fontWeight:800, textTransform:'uppercase', letterSpacing:1, borderBottom:'1px solid #e0e0e0', paddingBottom:6, marginBottom:16, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>Signatures</div>
             <div style={{ display:'flex', gap:16 }}>
-              <div style={{ flex:1, border:'1px solid #eee', borderRadius:6, padding:14 }}>
+              {/* AYN AI box — shown to admin only, or as signed view for client */}
+              <div style={{ flex:1, border:'1px solid #eee', borderRadius:6, padding:14, opacity: isClient && !nda.admin_signature_url ? 0.4 : 1 }}>
                 <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'#999', marginBottom:10, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>AYN AI</div>
-                <SignaturePad key={`admin-${nda.id}`} onSave={(d) => saveSignature(d, 'admin')} existingUrl={nda.admin_signature_url} signedAt={nda.admin_signed_at} />
+                {isAdmin
+                  ? <SignaturePad key={`admin-${nda.id}`} onSave={(d) => saveSignature(d, 'admin')} existingUrl={nda.admin_signature_url} signedAt={nda.admin_signed_at} />
+                  : nda.admin_signature_url
+                    ? <div><img src={nda.admin_signature_url} style={{ maxHeight:56, maxWidth:180, objectFit:'contain', display:'block' }} /><div style={{ fontSize:10, color:'#aaa', marginTop:4 }}>Ghazi ALDhyaei · Founder & CEO</div></div>
+                    : <div style={{ fontSize:11, color:'#aaa', fontStyle:'italic', padding:'8px 0' }}>Pending AYN AI signature</div>
+                }
               </div>
+              {/* Client box — shown to client only, or as signed view for admin */}
               <div style={{ flex:1, border:'1px solid #eee', borderRadius:6, padding:14 }}>
                 <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'#999', marginBottom:10, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>{nda.company_name}</div>
-                <SignaturePad key={`client-${nda.id}`} onSave={(d) => saveSignature(d, 'client')} existingUrl={nda.client_signature_url} signedAt={nda.client_signed_at} locked={!nda.admin_signature_url} />
+                {isClient
+                  ? <SignaturePad key={`client-${nda.id}`} onSave={(d) => saveSignature(d, 'client')} existingUrl={nda.client_signature_url} signedAt={nda.client_signed_at} locked={!nda.admin_signature_url} />
+                  : nda.client_signature_url
+                    ? <div><img src={nda.client_signature_url} style={{ maxHeight:56, maxWidth:180, objectFit:'contain', display:'block' }} /><div style={{ fontSize:10, color:'#aaa', marginTop:4 }}>{nda.contact_person} · Authorized Representative</div></div>
+                    : <div style={{ fontSize:11, color:'#aaa', fontStyle:'italic', padding:'8px 0' }}>Awaiting client signature</div>
+                }
               </div>
             </div>
           </div>

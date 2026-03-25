@@ -171,12 +171,12 @@ export default function ClientSign() {
   return (
     <div style={{ background: '#f0ede8', minHeight: '100vh', padding: '16px 12px 48px' }}>
       {/* Header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#1a1a1a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', marginBottom: 20, borderRadius: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', fontFamily: 'Arial,sans-serif' }}>Secure Legal Gateway</span>
+      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#1a1a1a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', marginBottom: 20, borderRadius: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', fontFamily: 'Arial,sans-serif', whiteSpace: 'nowrap' }}>Secure Legal Gateway</span>
         </div>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', background: bothSigned ? '#2d6a4f' : '#c9a84c', color: 'white', padding: '4px 10px', borderRadius: 20, fontFamily: 'Arial,sans-serif' }}>
+        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', background: bothSigned ? '#2d6a4f' : '#c9a84c', color: 'white', padding: '6px 14px', borderRadius: 100, fontFamily: 'Arial,sans-serif', flexShrink: 0, marginLeft: 8, whiteSpace: 'nowrap' }}>
           {bothSigned ? '✓ Executed' : 'Action Required'}
         </span>
       </div>
@@ -347,29 +347,35 @@ export default function ClientSign() {
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 10 }}>Service Provider</div>
               <div style={{ borderBottom: '1px solid #1a1a1a', minHeight: 72, paddingBottom: 8, marginBottom: 8 }}>
-                <SignaturePad key={`admin-${order.id}`} existingUrl={order.admin_signature_url} signedAt={order.admin_signed_at}
-                  locked={isClient}
-                  onSave={async (d) => await saveSignature(d, 'admin')} />
+                {isAdmin
+                  ? <SignaturePad key={`admin-${order.id}`} existingUrl={order.admin_signature_url} signedAt={order.admin_signed_at} onSave={async (d) => await saveSignature(d, 'admin')} />
+                  : order.admin_signature_url
+                    ? <img src={order.admin_signature_url} style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain', display: 'block' }} />
+                    : <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>Pending AYN AI signature</div>
+                }
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, ...F }}>AYN AI</div>
-              <div style={{ fontSize: 11, ...F }}>Name: Ghazi ALDhyaei</div>
-              <div style={{ fontSize: 11, ...F }}>Title: Founder &amp; CEO</div>
+              <div style={{ fontSize: 11, ...F }}>Ghazi ALDhyaei</div>
+              <div style={{ fontSize: 11, ...F }}>Founder &amp; CEO</div>
               <div style={{ fontSize: 10, color: '#aaa', fontStyle: 'italic', marginTop: 3, ...F }}>
-                {order.admin_signed_at ? `Signed: ${new Date(order.admin_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}` : 'Pending Execution'}
+                {order.admin_signed_at ? `Signed: ${new Date(order.admin_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}` : ''}
               </div>
             </div>
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 10 }}>Client</div>
               <div style={{ borderBottom: '1px solid #1a1a1a', minHeight: 72, paddingBottom: 8, marginBottom: 8 }}>
-                <SignaturePad key={`client-${order.id}`} existingUrl={order.client_signature_url} signedAt={order.client_signed_at}
-                  locked={isAdmin || !order.admin_signature_url}
-                  onSave={async (d) => await saveSignature(d, 'client')} />
+                {isClient
+                  ? <SignaturePad key={`client-${order.id}`} existingUrl={order.client_signature_url} signedAt={order.client_signed_at} locked={!order.admin_signature_url} onSave={async (d) => await saveSignature(d, 'client')} />
+                  : order.client_signature_url
+                    ? <img src={order.client_signature_url} style={{ maxHeight: 56, maxWidth: 180, objectFit: 'contain', display: 'block' }} />
+                    : <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>Awaiting client signature</div>
+                }
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, ...F }}>{order.company_name}</div>
-              <div style={{ fontSize: 11, ...F }}>Name: {order.contact_person}</div>
-              <div style={{ fontSize: 11, ...F }}>Title: Authorized Representative</div>
+              <div style={{ fontSize: 11, ...F }}>{order.contact_person}</div>
+              <div style={{ fontSize: 11, ...F }}>Authorized Representative</div>
               <div style={{ fontSize: 10, color: '#aaa', fontStyle: 'italic', marginTop: 3, ...F }}>
-                {order.client_signed_at ? `Signed: ${new Date(order.client_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}` : 'Pending Execution'}
+                {order.client_signed_at ? `Signed: ${new Date(order.client_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}` : ''}
               </div>
             </div>
           </div>
