@@ -214,7 +214,8 @@ export const NDAManager = () => {
         await supabase.from('nda_agreements').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editingNda.id);
         toast({ title: 'NDA updated' });
       } else {
-        await supabase.from('nda_agreements').insert({ ...form, status: 'draft' });
+        const signing_token = crypto.randomUUID();
+        await supabase.from('nda_agreements').insert({ ...form, status: 'draft', signing_token });
         toast({ title: 'NDA created' });
       }
       setPanel('none');

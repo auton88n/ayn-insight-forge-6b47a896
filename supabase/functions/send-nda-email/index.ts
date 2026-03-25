@@ -30,7 +30,17 @@ Deno.serve(async (req) => {
     const resend = new Resend(resendKey);
 
     const ndaRef  = `NDA-${nda.id.substring(0,8).toUpperCase()}`;
-    const signUrl = `https://aynn.io/nda/${nda.signing_token}`;
+
+    // Ensure signing_token exists — generate and save if missing
+    let signingToken = nda.signing_token;
+    if (!signingToken) {
+      signingToken = crypto.randomUUID();
+      await supabase.from('nda_agreements')
+        .update({ signing_token: signingToken })
+        .eq('id', ndaId);
+    }
+
+    const signUrl = `https://aynn.io/nda/${signingToken}`;
     const year    = new Date().getFullYear();
 
     const html = `<!DOCTYPE html>
