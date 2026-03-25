@@ -11,7 +11,7 @@ interface NDA {
   governing_law: string | null; additional_clauses: string | null;
   admin_signature_url: string | null; admin_signed_at: string | null;
   client_signature_url: string | null; client_signed_at: string | null;
-  status: string; signing_token: string;
+  status: string | null; signing_token: string;
 }
 
 function SignaturePad({ onSave, existingUrl, signedAt, locked }: {
@@ -120,7 +120,7 @@ export default function NDASign() {
     const sigUrl = urlData.publicUrl;
     const now = new Date().toISOString();
     const updates: any = party === 'admin' ? { admin_signature_url: sigUrl, admin_signed_at: now } : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    await supabase.from('nda_agreements').update(updates).eq('signing_token', token);
+    await supabase.from('nda_agreements').update(updates).eq('signing_token', token!);
     const updated = { ...nda, ...updates };
     setNda(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {
