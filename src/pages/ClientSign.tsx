@@ -123,7 +123,6 @@ export default function ClientSign() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
 
   const fetchOrder = useCallback(async () => {
@@ -157,15 +156,7 @@ export default function ClientSign() {
     const updated = { ...order, ...updates };
     setOrder(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {
-      setCompleting(true);
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/send-contract-completion`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ orderId: order.id }),
-        });
-        setCompleted(true);
-      } finally { setCompleting(false); }
+      setCompleted(true);
     }
   };
 
@@ -572,7 +563,6 @@ ${order.governing_law ? `<div class="art"><h3>Governing Law</h3><p>${order.gover
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                 Download Signed Agreement
               </button>
-              {completing && <div style={{ fontSize: 11, color: '#16a34a', marginTop: 8, ...F }}>Sending to both parties...</div>}
             </div>
           )}
 

@@ -121,7 +121,6 @@ export default function NDASign() {
   const isClient = !isAdmin;
   const [nda, setNda] = useState<NDA | null>(null);
   const [loading, setLoading] = useState(true);
-  const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
 
   const fetchNDA = useCallback(async () => {
@@ -150,15 +149,7 @@ export default function NDASign() {
     const updated = { ...nda, ...updates };
     setNda(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {
-      setCompleting(true);
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/send-nda-completion`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ ndaId: nda.id }),
-        });
-        setCompleted(true);
-      } finally { setCompleting(false); }
+      setCompleted(true);
     }
   };
 
