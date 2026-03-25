@@ -396,52 +396,72 @@ export default function ClientSign() {
                   const clientSigHtml = clientB64 ? `<img src="${clientB64}" style="max-height:56px;max-width:180px;object-fit:contain;display:block;">` : '<div style="height:56px;"></div>';
                   const adminDate = order.admin_signed_at ? new Date(order.admin_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
                   const clientDate = order.client_signed_at ? new Date(order.client_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
-                  // Strip markdown helper
-                  const cleanDesc = (t: string) => t
-                    .split('\n')
-                    .filter(l => !l.match(/^\s*[-|]+\s*$/))
-                    .map(l => l.replace(/#{1,6}\s/g,'').replace(/\*\*/g,'').replace(/[`]/g,'').replace(/\|/g,' · ').trim())
-                    .filter(l => l.length > 0)
-                    .join('<br>');
+                  // Clean markdown to readable HTML list
+                  const cleanDesc = (t: string) => {
+                    const lines = t.split('\n')
+                      .map(l => l.replace(/#{1,6}\s/g,'').replace(/\*\*/g,'').replace(/[`]/g,'').trim())
+                      .filter(l => l.length > 0 && !l.match(/^[-|\s]+$/));
+                    const out: string[] = [];
+                    for (const l of lines) {
+                      if (l.includes('|')) {
+                        // table row — extract non-empty cells
+                        const cells = l.split('|').map(c => c.trim()).filter(c => c && !c.match(/^-+$/));
+                        if (cells.length >= 2) out.push(`<li><strong>${cells[0]}</strong> — ${cells.slice(1).join(', ')}</li>`);
+                        else if (cells.length === 1) out.push(`<li>${cells[0]}</li>`);
+                      } else {
+                        out.push(`<p style="margin:4px 0">${l}</p>`);
+                      }
+                    }
+                    // wrap list items
+                    const result = out.join('').replace(/(<li>.*?<\/li>)+/gs, m => `<ul style="margin:6px 0 6px 16px;padding:0">${m}</ul>`);
+                    return result;
+                  };
                   const rows = (order.services || []).map(s =>
-                    `<tr><td>${s.name}${s.description ? `<div class="sdesc">${cleanDesc(s.description)}</div>` : ''}</td><td class="r">${s.quantity || 1}</td><td class="r">${fmt(s.price)}</td><td class="r b">${fmt(s.price * (s.quantity || 1))}</td></tr>`
+                    `<tr><td>${s.name}</td><td class="r">${s.quantity || 1}</td><td class="r">${fmt(s.price)}</td><td class="r b">${fmt(s.price * (s.quantity || 1))}</td></tr>`
                   ).join('');
 
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title> </title>
 <style>
-  @page{size:A4;margin:0}
+  @page{size:A4;margin:16mm 18mm 16mm 18mm}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Times New Roman',Times,serif;color:#000;background:#fff;font-size:12pt;line-height:1.75;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .wrap{max-width:760px;margin:0 auto;padding:18mm 18mm 18mm 18mm}
-  .hd{text-align:center;padding-bottom:22px;margin-bottom:26px;border-bottom:2.5pt double #000;page-break-inside:avoid}
-  .brand{font-size:42pt;font-weight:900;letter-spacing:-2pt;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;line-height:1}
-  .doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5pt;margin-top:14px;color:#000}
-  .ref{font-size:9pt;color:#333;margin-top:5px;letter-spacing:.5px}
-  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:26px;padding:14px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
-  .plabel{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:5px;font-family:'Helvetica Neue',Arial,sans-serif}
-  .pname{font-size:12pt;font-weight:700;color:#000}
-  .pinfo{font-size:10pt;color:#000;margin-top:2px}
-  .art{margin-bottom:20px;page-break-inside:avoid}
-  .art h3{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:1pt solid #ccc;padding-bottom:5px;margin-bottom:9px;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;page-break-after:avoid}
-  .art p{font-size:11pt;line-height:1.8;text-align:justify;color:#000}
-  table{width:100%;border-collapse:collapse;page-break-inside:avoid}
-  th{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#000;text-align:left;padding:6px 4px;border-bottom:1.5pt solid #000}
+  body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#000;background:#fff;font-size:10pt;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* ── Header ── */
+  .hd{text-align:center;padding-bottom:18px;margin-bottom:22px;border-bottom:2pt solid #000;page-break-inside:avoid}
+  .brand{font-size:36pt;font-weight:900;letter-spacing:-1.5pt;color:#000;line-height:1}
+  .doc-title{font-size:10pt;font-weight:600;text-transform:uppercase;letter-spacing:3pt;margin-top:10px;color:#000}
+  .ref{font-size:8pt;color:#444;margin-top:6px;letter-spacing:.5px}
+  /* ── Parties ── */
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:22px;padding:12px 0;border-top:0.5pt solid #000;border-bottom:0.5pt solid #000;page-break-inside:avoid}
+  .plabel{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:#000;margin-bottom:5px}
+  .pname{font-size:11pt;font-weight:700;color:#000;margin-bottom:2px}
+  .pinfo{font-size:9pt;color:#000;line-height:1.5}
+  /* ── Article sections ── */
+  .art{margin-bottom:18px}
+  .art h3{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;border-bottom:0.5pt solid #000;padding-bottom:4px;margin-bottom:8px;color:#000;page-break-after:avoid}
+  .art p{font-size:10pt;line-height:1.7;color:#000}
+  .art ul{font-size:9.5pt;line-height:1.6;color:#000}
+  .art li{margin-bottom:2px}
+  /* ── Pricing table ── */
+  .tbl-wrap{margin-bottom:18px}
+  .tbl-wrap h3{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;border-bottom:0.5pt solid #000;padding-bottom:4px;margin-bottom:8px;color:#000}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#000;text-align:left;padding:5px 6px;border-bottom:1.5pt solid #000;background:#f9f9f9}
   th.r,td.r{text-align:right}
-  td{padding:7px 4px;font-size:10.5pt;border-bottom:0.5pt solid #ddd;vertical-align:top;color:#000}
-  td.b{font-weight:700;color:#000}
-  .sdesc{font-size:9pt;color:#333;margin-top:3px}
-  .total-row td{border-top:2pt solid #000;border-bottom:none;padding-top:9px;font-weight:900;font-size:13pt;color:#000}
-  .disc-note{font-size:9pt;color:#333;text-align:right;padding:4px 0}
-  .tax-note{font-size:8.5pt;color:#555;text-align:right;padding:3px 0}
-  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:24px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
-  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:22px;page-break-inside:avoid}
-  .sig-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
-  .sig-img{min-height:56px;border-bottom:1pt solid #000;margin-bottom:7px;padding-bottom:3px}
-  .sig-name{font-size:11pt;font-weight:700;color:#000}
-  .sig-title{font-size:10pt;color:#000}
-  .sig-date{font-size:9pt;color:#333;font-style:italic;margin-top:3px}
-  .footer{margin-top:32px;padding-top:10px;border-top:1pt solid #000;text-align:center;font-size:8.5pt;color:#000;letter-spacing:.5px;font-weight:600;page-break-inside:avoid}
+  td{padding:7px 6px;font-size:10pt;border-bottom:0.5pt solid #e0e0e0;vertical-align:middle;color:#000}
+  td.b{font-weight:700}
+  .total-row td{border-top:1.5pt solid #000;border-bottom:none;padding-top:8px;font-weight:900;font-size:12pt;color:#000;background:#fff}
+  .note-row td{border-bottom:none;font-size:8pt;color:#555;padding:3px 6px}
+  /* ── Witness & Sigs ── */
+  .witness{border-top:0.5pt solid #bbb;padding-top:14px;margin:22px 0 18px;font-style:italic;font-size:9.5pt;color:#000;line-height:1.75;page-break-inside:avoid}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;page-break-inside:avoid}
+  .sig-label{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px}
+  .sig-img{min-height:52px;border-bottom:0.75pt solid #000;margin-bottom:6px;padding-bottom:3px}
+  .sig-name{font-size:10.5pt;font-weight:700;color:#000}
+  .sig-title{font-size:9pt;color:#000;margin-top:1px}
+  .sig-date{font-size:8pt;color:#333;font-style:italic;margin-top:3px}
+  /* ── Footer ── */
+  .footer{margin-top:28px;padding-top:8px;border-top:0.75pt solid #000;text-align:center;font-size:7.5pt;color:#000;letter-spacing:.5px;font-weight:600;page-break-inside:avoid}
   @media print{.no-print{display:none!important}}
 </style>
 </head><body>
@@ -470,15 +490,15 @@ export default function ClientSign() {
   <p><strong>${order.order_title}</strong>${order.order_description ? '<br><br>' + cleanDesc(order.order_description) : ''}</p>
   ${order.system_plan ? `<p style="margin-top:10px"><strong>Technical Approach:</strong> ${order.system_plan}</p>` : ''}
 </div>
-<div class="art">
+<div class="tbl-wrap">
   <h3>Deliverables &amp; Pricing</h3>
   <table>
-    <thead><tr><th>Service</th><th class="r" style="width:48px">Qty</th><th class="r" style="width:88px">Unit Price</th><th class="r" style="width:96px">Total</th></tr></thead>
+    <thead><tr><th>Service</th><th class="r" style="width:44px">Qty</th><th class="r" style="width:84px">Unit Price</th><th class="r" style="width:92px">Total</th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot>
-      ${discAmt > 0 ? `<tr><td colspan="3" class="disc-note">Subtotal</td><td class="r disc-note">${fmt(subtotal)}</td></tr><tr><td colspan="3" class="disc-note">Discount (${order.discount_percent}%)</td><td class="r disc-note" style="color:#c00">−${fmt(discAmt)}</td></tr>` : ''}
-      ${taxAmt > 0 ? `<tr><td colspan="4" class="tax-note">Tax Included</td></tr>` : ''}
-      <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL DUE</td><td class="r">${fmt(total)}</td></tr>
+      ${discAmt > 0 ? `<tr class="note-row"><td colspan="3" style="text-align:right">Subtotal</td><td class="r">${fmt(subtotal)}</td></tr><tr class="note-row"><td colspan="3" style="text-align:right">Discount (${order.discount_percent}%)</td><td class="r" style="color:#c00">−${fmt(discAmt)}</td></tr>` : ''}
+      ${taxAmt > 0 ? `<tr class="note-row"><td colspan="4" style="text-align:right;font-style:italic">Tax included in total</td></tr>` : ''}
+      <tr class="total-row"><td colspan="3" style="text-align:right;font-size:9pt;font-weight:700;letter-spacing:1px;text-transform:uppercase">Total Due</td><td class="r b">${fmt(total)}</td></tr>
     </tfoot>
   </table>
 </div>
