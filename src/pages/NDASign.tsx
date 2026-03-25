@@ -99,7 +99,7 @@ export default function NDASign() {
   const [completed, setCompleted] = useState(false);
 
   const fetchNDA = useCallback(async () => {
-    if (!token) return;
+    if (!token || token.length < 10) return; // strict token validation
     const { data, error } = await supabase.from('nda_agreements').select('*').eq('signing_token', token).single();
     if (error || !data) { setLoading(false); return; }
     setNda(data);
@@ -149,7 +149,7 @@ export default function NDASign() {
     <div style={{ background: '#f0ede8', minHeight: '100vh', padding: '16px 12px 48px' }}>
       <div style={{ position:'sticky', top:0, zIndex:50, background:'#1a1a1a', color:'white', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', marginBottom:20, borderRadius:6 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span>🛡️</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', fontFamily:'Arial,sans-serif' }}>Secure Legal Gateway</span>
         </div>
         <span style={{ fontSize:10, fontWeight:700, letterSpacing:1.5, textTransform:'uppercase', background: bothSigned ? '#2d6a4f' : '#c9a84c', color:'white', padding:'4px 10px', borderRadius:20, fontFamily:'Arial,sans-serif' }}>
@@ -163,7 +163,7 @@ export default function NDASign() {
           {/* Header - AYN text-based branding */}
           <div style={{ textAlign:'center', marginBottom:36, borderBottom:'3px double #1a1a1a', paddingBottom:28 }}>
             <div style={{ fontSize:48, fontWeight:900, letterSpacing:-3, lineHeight:1, fontFamily:"'Helvetica Neue',Arial,sans-serif", color:'#000' }}>AYN</div>
-            <div style={{ fontSize:10, fontWeight:600, letterSpacing:5, textTransform:'uppercase', color:'#999', marginTop:6, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>AI Technologies</div>
+            <div style={{ fontSize:10, fontWeight:600, letterSpacing:5, textTransform:'uppercase', color:'#999', marginTop:6, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>AI</div>
             <div style={{ marginTop:22, fontSize:20, fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Non-Disclosure Agreement</div>
             <div style={{ fontSize:11, color:'#888', marginTop:4 }}>{ndaRef} · {new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</div>
           </div>
@@ -174,7 +174,7 @@ export default function NDASign() {
             <div style={{ display:'flex', gap:24 }}>
               <div style={{ flex:1, fontSize:12 }}>
                 <div style={{ fontWeight:700, marginBottom:2 }}>Disclosing Party</div>
-                <div>AYN AI Technologies</div>
+                <div>AYN AI</div>
                 <div style={{ color:'#666' }}>contact@ayn.sa</div>
               </div>
               <div style={{ flex:1, fontSize:12 }}>
@@ -240,9 +240,32 @@ export default function NDASign() {
           {/* Executed Badge */}
           {bothSigned && (
             <div style={{ background:'#f0fdf4', border:'2px solid #86efac', borderRadius:10, padding:20, textAlign:'center', margin:'32px 0' }}>
-              <div style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:'#16a34a' }}>✓ Fully Executed — Both Parties Have Signed</div>
-              {completing && <div style={{ fontSize:11, color:'#16a34a', marginTop:6 }}>Sending signed copies to both parties...</div>}
-              {completed && <div style={{ fontSize:11, color:'#16a34a', marginTop:6 }}>Signed copies have been emailed to both parties</div>}
+              <div style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:'#16a34a', marginBottom:14 }}>✓ Fully Executed — Both Parties Have Signed</div>
+              <button
+                onClick={() => {
+                  // Build and download the signed NDA as HTML file (opens as PDF-quality document)
+                  const html = document.documentElement.outerHTML;
+                  const blob = new Blob([html], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${ndaRef}_signed.html`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  background: '#16a34a', color: 'white', border: 'none',
+                  borderRadius: 8, padding: '10px 20px', fontSize: 13,
+                  fontWeight: 700, cursor: 'pointer', fontFamily: "'Helvetica Neue', Arial, sans-serif",
+                  letterSpacing: 0.3,
+                }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download Signed Agreement
+              </button>
+              {completing && <div style={{ fontSize:11, color:'#16a34a', marginTop:8 }}>Sending signed copies to both parties...</div>}
             </div>
           )}
 
@@ -251,19 +274,19 @@ export default function NDASign() {
             <div style={{ fontSize:13, fontWeight:800, textTransform:'uppercase', letterSpacing:1, borderBottom:'1px solid #e0e0e0', paddingBottom:6, marginBottom:16, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>Signatures</div>
             <div style={{ display:'flex', gap:16 }}>
               <div style={{ flex:1, border:'1px solid #eee', borderRadius:6, padding:14 }}>
-                <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'#999', marginBottom:10, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>AYN AI Technologies</div>
-                <SignaturePad onSave={(d) => saveSignature(d, 'admin')} existingUrl={nda.admin_signature_url} signedAt={nda.admin_signed_at} />
+                <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'#999', marginBottom:10, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>AYN AI</div>
+                <SignaturePad key={`admin-${nda.id}`} onSave={(d) => saveSignature(d, 'admin')} existingUrl={nda.admin_signature_url} signedAt={nda.admin_signed_at} />
               </div>
               <div style={{ flex:1, border:'1px solid #eee', borderRadius:6, padding:14 }}>
                 <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:'#999', marginBottom:10, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>{nda.company_name}</div>
-                <SignaturePad onSave={(d) => saveSignature(d, 'client')} existingUrl={nda.client_signature_url} signedAt={nda.client_signed_at} locked={!nda.admin_signature_url} />
+                <SignaturePad key={`client-${nda.id}`} onSave={(d) => saveSignature(d, 'client')} existingUrl={nda.client_signature_url} signedAt={nda.client_signed_at} locked={!nda.admin_signature_url} />
               </div>
             </div>
           </div>
 
           {/* Footer */}
           <div style={{ textAlign:'center', marginTop:40, paddingTop:16, borderTop:'1px solid #eee' }}>
-            <div style={{ fontSize:10, color:'#bbb', letterSpacing:0.5 }}>© {new Date().getFullYear()} AYN AI Technologies · This document is confidential</div>
+            <div style={{ fontSize:10, color:'#bbb', letterSpacing:0.5 }}>© {new Date().getFullYear()} AYN AI · This document is confidential</div>
           </div>
         </div>
       </div>
