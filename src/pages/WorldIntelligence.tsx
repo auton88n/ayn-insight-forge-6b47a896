@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL } from '@/config';
 import {
   ArrowLeft, RefreshCw, Clock, TrendingUp,
   Globe2, BarChart3, Zap, Target, Activity,
@@ -529,7 +530,25 @@ export default function WorldIntelligence() {
   const crypto = useMemo(() => safeObj(safeObj(snap.markets)?.crypto), [snap]);
   const cryptoPrices = useMemo(() => safeObj(crypto.crypto_prices), [crypto]);
   const sentiment = useMemo(() => safeObj(safeObj(snap.markets)?.sentiment), [snap]);
-  const briefItems = useMemo(() => safeArr(snap.intelligence_brief), [snap]);
+  const briefItems = useMemo(() => {
+    const fromDB = safeArr(snap.intelligence_brief);
+    if (fromDB.length > 0) return fromDB;
+    // Build live fallback from available snapshot data
+    const items: string[] = [];
+    const fg = safeObj(safeObj(snap.markets)?.sentiment);
+    if (fg.value != null) {
+      const label = fg.value <= 25 ? 'Extreme Fear' : fg.value <= 45 ? 'Fear' : fg.value <= 55 ? 'Neutral' : fg.value <= 75 ? 'Greed' : 'Extreme Greed';
+      items.push(`📊 Fear & Greed Index at ${fg.value} — ${label}. Monitor for reversal signals.`);
+    }
+    const macroData = safeObj(snap.macro);
+    const fedRate = safeObj(macroData.fed_funds_rate);
+    if (fedRate.value != null) items.push(`⚡ Fed Funds Rate at ${fedRate.value}% — central bank policy remains dominant macro driver.`);
+    const cpData = safeObj(safeObj(snap.markets)?.crypto);
+    const btcPrice = safeObj(safeObj(cpData.crypto_prices)?.BTC);
+    if (btcPrice.price != null) items.push(`💡 BTC at $${Number(btcPrice.price).toLocaleString()} — crypto risk appetite indicator for broader markets.`);
+    if (items.length === 0) items.push('⏳ Intelligence brief will populate on next data sweep. Trigger pulse engine to refresh.');
+    return items;
+  }, [snap]);
   const sicIntel = useMemo(() => safeObj(snap.sic_intel), [snap]);
   const polymarket = useMemo(() => safeArr(safeObj(snap.prediction_markets)?.prediction_markets), [snap]);
 
@@ -669,6 +688,22 @@ export default function WorldIntelligence() {
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
                   <Radio className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="text-[10px] font-mono font-bold text-emerald-400 tracking-[0.15em]">INTELLIGENCE BRIEF</span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const res = await fetch(`${SUPABASE_URL}/functions/v1/ayn-pulse-engine`, {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' }
+                        });
+                        if (res.ok) { setTimeout(() => { fetchSnapshot(); }, 3000); }
+                      } catch {}
+                    }}
+                    className="text-[8px] font-mono text-emerald-400/50 hover:text-emerald-400 transition-colors uppercase tracking-wider px-2 py-0.5 border border-emerald-500/20 rounded hover:border-emerald-500/40"
+                  >
+                    Trigger Sweep
+                  </button>
                 </div>
                 <div className="p-4 space-y-1">
                   {briefItems.length > 0 ? briefItems.map((item, i) => (

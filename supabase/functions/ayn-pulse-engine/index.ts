@@ -226,7 +226,7 @@ async function generateAYNSynthesis(
   openRouterKey: string, 
   modelId: string, 
   rawIntel: { macro: any; crypto: any; news: any; fg: any }
-): Promise<{ sic_synthesis: any; predictions: any }> {
+): Promise<{ sic_synthesis: any; predictions: any; intelligence_brief: string[] }> {
   
   // Compress news strings for context limit saving
   const compressedNews = Object.entries(rawIntel.news).map(([id, data]: [string, any]) => {
@@ -246,6 +246,13 @@ ${compressedNews}
 
 OUTPUT STRICTLY AS VALID JSON matching exactly this schema:
 {
+  "intelligence_brief": [
+    "⚡ One sharp market/macro insight right now (max 15 words)",
+    "📊 One key data point or trend that matters most today",
+    "⚠ One risk or threat worth monitoring — be specific",
+    "🌍 One geopolitical development with direct financial implication",
+    "💡 One actionable observation for capital allocation"
+  ],
   "ayn_predictions": {
     "1W": "Specifically what you expect to happen in global markets/geopolitics next week (max 2 sentences).",
     "1M": "Specifically what you expect to happen next month.",
@@ -253,8 +260,7 @@ OUTPUT STRICTLY AS VALID JSON matching exactly this schema:
   },
   "sic_synthesis": {
     "USA": { "economic_posture": "Short summary", "trajectory": "Short summary" },
-    "CHN": { "economic_posture": "Short summary", "trajectory": "Short summary" },
-    // do this for all 15 countries provided in the headlines block
+    "CHN": { "economic_posture": "Short summary", "trajectory": "Short summary" }
   }
 }`;
 
@@ -292,11 +298,12 @@ OUTPUT STRICTLY AS VALID JSON matching exactly this schema:
 
     return { 
       sic_synthesis: sicMerged,
-      predictions: parsed.ayn_predictions || { "1W": "N/A", "1M": "N/A", "1Y": "N/A" }
+      predictions: parsed.ayn_predictions || { "1W": "N/A", "1M": "N/A", "1Y": "N/A" },
+      intelligence_brief: parsed.intelligence_brief || []
     };
   } catch (err) {
     console.error('[OpenRouter] LLM synthesis failed:', err);
-    return { sic_synthesis: rawIntel.news, predictions: {} };
+    return { sic_synthesis: rawIntel.news, predictions: {}, intelligence_brief: [] };
   }
 }
 
@@ -360,7 +367,7 @@ Deno.serve(async (req) => {
       news: getData(news)
     };
 
-    let aynSynthesis = { sic_synthesis: rawDataMap.news, predictions: {} };
+    let aynSynthesis = { sic_synthesis: rawDataMap.news, predictions: {}, intelligence_brief: [] as string[] };
     
     // 2. Pass RAW Data through LLM
     if (OPENROUTER_API_KEY && Object.keys(rawDataMap.news).length > 0) {
@@ -383,7 +390,8 @@ Deno.serve(async (req) => {
       },
       prediction_markets: rawDataMap.predictions,
       sic_intel: aynSynthesis.sic_synthesis, // Deep per-country info
-      ayn_predictions: aynSynthesis.predictions // 1W, 1M, 1Y
+      ayn_predictions: aynSynthesis.predictions, // 1W, 1M, 1Y
+      intelligence_brief: aynSynthesis.intelligence_brief // Daily intelligence brief items
     };
 
     const duration = Date.now() - startTime;
