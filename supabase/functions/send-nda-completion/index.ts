@@ -26,28 +26,28 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
     sections.push(`
       <div style="margin:24px 0;">
         <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Article 1 — Purpose</div>
-        <div style="font-size:12px;color:#333;line-height:1.8;">${nl2br(escapeHtml(nda.nda_purpose as string))}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.8;">${nl2br(escapeHtml(nda.nda_purpose as string))}</div>
       </div>`);
   }
   if (nda.confidential_info) {
     sections.push(`
       <div style="margin:24px 0;">
         <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Article 2 — Confidential Information</div>
-        <div style="font-size:12px;color:#333;line-height:1.8;">${nl2br(escapeHtml(nda.confidential_info as string))}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.8;">${nl2br(escapeHtml(nda.confidential_info as string))}</div>
       </div>`);
   }
   if (nda.obligations) {
     sections.push(`
       <div style="margin:24px 0;">
         <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Article 3 — Obligations</div>
-        <div style="font-size:12px;color:#333;line-height:1.8;">${nl2br(escapeHtml(nda.obligations as string))}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.8;">${nl2br(escapeHtml(nda.obligations as string))}</div>
       </div>`);
   }
   if (nda.exclusions) {
     sections.push(`
       <div style="margin:24px 0;">
         <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Article 4 — Exclusions</div>
-        <div style="font-size:12px;color:#333;line-height:1.8;">${nl2br(escapeHtml(nda.exclusions as string))}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.8;">${nl2br(escapeHtml(nda.exclusions as string))}</div>
       </div>`);
   }
   if (nda.duration || nda.governing_law) {
@@ -57,24 +57,24 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
     sections.push(`
       <div style="margin:24px 0;">
         <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Article 5 — Term &amp; Governing Law</div>
-        <div style="font-size:12px;color:#333;line-height:1.8;">${content}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.8;">${content}</div>
       </div>`);
   }
   if (nda.additional_clauses) {
     sections.push(`
       <div style="margin:24px 0;">
         <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Additional Clauses</div>
-        <div style="font-size:12px;color:#333;line-height:1.8;">${nl2br(escapeHtml(nda.additional_clauses as string))}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.8;">${nl2br(escapeHtml(nda.additional_clauses as string))}</div>
       </div>`);
   }
 
   const adminSigBlock = nda.admin_signature_url
-    ? `<img src="${nda.admin_signature_url}" alt="Admin Signature" style="max-height:50px;max-width:180px;object-fit:contain;"/><div style="font-size:10px;color:#666;margin-top:4px;">Signed ${nda.admin_signed_at ? new Date(nda.admin_signed_at as string).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : ''}</div>`
-    : '<div style="font-size:10px;color:#aaa;font-style:italic;">Pending</div>';
+    ? `<img src="${nda.admin_signature_url}" alt="Admin Signature" style="max-height:50px;max-width:180px;object-fit:contain;"/><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:4px;">Signed ${nda.admin_signed_at ? new Date(nda.admin_signed_at as string).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : ''}</div>`
+    : '<div style="font-size:10px;color:rgba(255,255,255,0.3);font-style:italic;">Pending</div>';
 
   const clientSigBlock = nda.client_signature_url
-    ? `<img src="${nda.client_signature_url}" alt="Client Signature" style="max-height:50px;max-width:180px;object-fit:contain;"/><div style="font-size:10px;color:#666;margin-top:4px;">Signed ${nda.client_signed_at ? new Date(nda.client_signed_at as string).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : ''}</div>`
-    : '<div style="font-size:10px;color:#aaa;font-style:italic;">Pending</div>';
+    ? `<img src="${nda.client_signature_url}" alt="Client Signature" style="max-height:50px;max-width:180px;object-fit:contain;"/><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:4px;">Signed ${nda.client_signed_at ? new Date(nda.client_signed_at as string).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : ''}</div>`
+    : '<div style="font-size:10px;color:rgba(255,255,255,0.3);font-style:italic;">Pending</div>';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -100,18 +100,18 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
   <!-- Parties -->
   <div style="margin:24px 0;">
     <div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">Parties</div>
-    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;color:#333;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;color:rgba(255,255,255,0.7);">
       <tr>
         <td style="padding:6px 0;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Disclosing Party</div>
           <div>AYN AI</div>
-          <div style="color:#666;">info@aynn.io</div>
+          <div style="color:rgba(255,255,255,0.5);">info@aynn.io</div>
         </td>
         <td style="padding:6px 0;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Receiving Party</div>
           <div>${escapeHtml(nda.company_name as string)}</div>
-          <div style="color:#666;">${escapeHtml(nda.contact_person as string)}</div>
-          <div style="color:#666;">${escapeHtml(nda.company_email as string)}</div>
+          <div style="color:rgba(255,255,255,0.5);">${escapeHtml(nda.contact_person as string)}</div>
+          <div style="color:rgba(255,255,255,0.5);">${escapeHtml(nda.company_email as string)}</div>
         </td>
       </tr>
     </table>
@@ -144,8 +144,8 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
   </div>
 
   <!-- Footer -->
-  <div style="text-align:center;margin-top:40px;padding-top:16px;border-top:1px solid #eee;">
-    <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · Confidential</div>
+  <div style="text-align:center;margin-top:40px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);">
+    <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · Confidential</div>
   </div>
 </div>
 </body>
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
     <!-- Content -->
     <div style="padding:36px;">
       <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:6px;">Agreement Complete!</div>
-      <p style="font-size:14px;color:#666;line-height:1.7;margin:12px 0 24px;">
+      <p style="font-size:14px;color:rgba(255,255,255,0.5);line-height:1.7;margin:12px 0 24px;">
         The Non-Disclosure Agreement between <strong style="color:#1a1a1a;">AYN AI</strong> and <strong style="color:#1a1a1a;">${escapeHtml(nda.company_name)}</strong> has been signed by both parties and is now in full effect.
       </p>
 
@@ -239,16 +239,16 @@ Deno.serve(async (req) => {
         <div style="font-size:11px;color:#999;margin-top:10px;">Opens as a printable document — use Ctrl+P / ⌘+P to save as PDF</div>
       </div>
 
-      <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
-        <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
-          This is an automated notification. Both parties have been sent a copy. For questions, contact <a href="mailto:info@aynn.io" style="color:#666;">info@aynn.io</a>
+      <div style="margin-top:32px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.08);">
+        <p style="font-size:12px;color:rgba(255,255,255,0.3);line-height:1.6;margin:0;">
+          This is an automated notification. Both parties have been sent a copy. For questions, contact <a href="mailto:info@aynn.io" style="color:rgba(255,255,255,0.5);">info@aynn.io</a>
         </p>
       </div>
     </div>
 
     <!-- Footer -->
-    <div style="background:#fafafa;padding:20px 36px;border-top:1px solid #eee;text-align:center;">
-      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · All rights reserved</div>
+    <div style="background:#1a1a1a;padding:20px 36px;border-top:1px solid rgba(255,255,255,0.08);text-align:center;">
+      <div style="font-size:10px;color:rgba(255,255,255,0.25);letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · All rights reserved</div>
     </div>
   </div>
 </body>
