@@ -328,3 +328,12 @@ verify_jwt = false
 
 [functions.ai-contract-builder]
 verify_jwt = false
+
+[functions.send-nda-email]
+verify_jwt = false
+
+[functions.send-nda-completion]
+verify_jwt = false
+
+[functions.generate-nda-pdf]
+verify_jwt = false
