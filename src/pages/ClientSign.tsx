@@ -254,7 +254,7 @@ export default function ClientSign() {
               <tfoot>
                 {discAmt > 0 && <tr><td colSpan={3} style={{ textAlign: 'right', padding: '6px 0', fontSize: 11, color: '#888' }}>Subtotal</td><td style={{ textAlign: 'right', padding: '6px 0', fontSize: 11 }}>{fmt(subtotal)}</td></tr>}
                 {discAmt > 0 && <tr><td colSpan={3} style={{ textAlign: 'right', padding: '6px 0', fontSize: 11, color: '#888' }}>Discount ({order.discount_percent}%)</td><td style={{ textAlign: 'right', padding: '6px 0', fontSize: 11, color: '#c00' }}>−{fmt(discAmt)}</td></tr>}
-                {taxAmt > 0 && <tr><td colSpan={3} style={{ textAlign: 'right', padding: '6px 0', fontSize: 11, color: '#888' }}>Tax ({order.tax_percent}%)</td><td style={{ textAlign: 'right', padding: '6px 0', fontSize: 11 }}>{fmt(taxAmt)}</td></tr>}
+                {taxAmt > 0 && <tr><td colSpan={4} style={{ textAlign: 'right', padding: '4px 0', fontSize: 10, color: '#aaa' }}>Tax Included</td></tr>}
                 <tr style={{ borderTop: '2px solid #1a1a1a' }}>
                   <td colSpan={3} style={{ textAlign: 'right', padding: '10px 0', fontWeight: 800, fontSize: 13 }}>TOTAL DUE</td>
                   <td style={{ textAlign: 'right', padding: '10px 0', fontWeight: 900, fontSize: 15 }}>{fmt(total)}</td>
@@ -443,7 +443,7 @@ td.b{font-weight:700}
 <div class="art"><h3>Deliverables &amp; Pricing</h3>
 <table><thead><tr><th>Service</th><th class="r" style="width:50px">Qty</th><th class="r" style="width:90px">Unit Price</th><th class="r" style="width:100px">Total</th></tr></thead>
 <tbody>${rows}</tbody>
-<tfoot>${discAmt > 0 ? `<tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Subtotal</td><td class="r" style="font-size:11px">${fmt(subtotal)}</td></tr><tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Discount (${order.discount_percent}%)</td><td class="r" style="font-size:11px;color:#c00">−${fmt(discAmt)}</td></tr>` : ''}${taxAmt > 0 ? `<tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Tax (${order.tax_percent}%)</td><td class="r" style="font-size:11px">${fmt(taxAmt)}</td></tr>` : ''}
+<tfoot>${discAmt > 0 ? `<tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Subtotal</td><td class="r" style="font-size:11px">${fmt(subtotal)}</td></tr><tr><td colspan="3" style="text-align:right;font-size:11px;color:#888">Discount (${order.discount_percent}%)</td><td class="r" style="font-size:11px;color:#c00">−${fmt(discAmt)}</td></tr>` : ''}${taxAmt > 0 ? `<tr><td colspan="4" style="text-align:right;font-size:10px;color:#aaa">Tax Included</td></tr>` : ''}
 <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL DUE</td><td class="r">${fmt(total)}</td></tr>
 </tfoot></table></div>
 ${order.payment_terms ? `<div class="art"><h3>Payment Terms</h3><p>${order.payment_terms}</p></div>` : ''}

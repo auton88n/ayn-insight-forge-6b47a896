@@ -223,7 +223,7 @@ function generateContractHTML(order: any, services: any[]) {
         <div style="width:260px;">
           <div class="totals-row"><span>Subtotal</span><span>${formatCurrency(order.subtotal)}</span></div>
           ${Number(order.discount_percent) > 0 ? `<div class="totals-row" style="color:#dc2626;"><span>Discount (${order.discount_percent}%)</span><span>-${formatCurrency(order.subtotal * order.discount_percent / 100)}</span></div>` : ''}
-          ${Number(order.tax_percent) > 0 ? `<div class="totals-row"><span>VAT (${order.tax_percent}%)</span><span>${formatCurrency((order.subtotal - order.subtotal * (order.discount_percent || 0) / 100) * order.tax_percent / 100)}</span></div>` : ''}
+          ${Number(order.tax_percent) > 0 ? `<div class="totals-note"><span style="font-size:10px;color:#aaa;">Tax Included</span></div>` : ''}
           <div class="totals-row totals-grand"><span>Total</span><span>${formatCurrency(order.total_amount)}</span></div>
         </div>
       </div>

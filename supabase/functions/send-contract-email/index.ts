@@ -60,122 +60,173 @@ Deno.serve(async (req) => {
     if (!resendKey) throw new Error('RESEND_API_KEY not configured');
     const resend = new Resend(resendKey);
 
+    const currency = order.currency || 'USD';
+    const locale = currency === 'SAR' ? 'en-SA' : 'en-US';
     const formatCurrency = (amount: number) =>
-      new Intl.NumberFormat('en-SA', { style: 'currency', currency: order.currency || 'SAR' }).format(amount);
+      new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount);
 
     const services = (order.services || []) as Array<{ name: string; price: number; quantity: number; description?: string }>;
-    const isPaid = order.status === 'paid';
+
+    // Tax included — total is what client pays, no separate tax line
+    const totalAmount = order.total_amount;
+
+    const clientSignUrl = `https://aynn.io/sign/${order.signing_token}`;
+    const adminSignUrl  = `https://aynn.io/sign/${order.signing_token}?role=admin`;
 
     const serviceRows = services.map((s) => `
       <tr>
-        <td style="padding:14px 18px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #f0f0f0;">${escapeHtml(s.name)}</td>
-        <td style="padding:14px 18px;font-size:13px;color:#666;text-align:center;border-bottom:1px solid #f0f0f0;">${s.quantity || 1}</td>
-        <td style="padding:14px 18px;font-size:13px;font-weight:600;color:#1a1a1a;text-align:right;border-bottom:1px solid #f0f0f0;">${formatCurrency(s.price * (s.quantity || 1))}</td>
+        <td style="padding:14px 20px;font-size:13px;color:#111;border-bottom:1px solid #f0f0f0;">${escapeHtml(s.name)}</td>
+        <td style="padding:14px 20px;font-size:13px;color:#666;text-align:center;border-bottom:1px solid #f0f0f0;">${s.quantity || 1}</td>
+        <td style="padding:14px 20px;font-size:13px;font-weight:700;color:#111;text-align:right;border-bottom:1px solid #f0f0f0;">${formatCurrency(s.price * (s.quantity || 1))}</td>
       </tr>
     `).join('');
 
-    const paymentSection = isPaid ? `
-      <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:24px;text-align:center;margin:28px 0;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#16a34a;margin-bottom:6px;">Payment Status</div>
-        <div style="font-size:28px;font-weight:900;color:#16a34a;letter-spacing:-1px;">PAID IN FULL</div>
-        <div style="font-size:12px;color:#15803d;margin-top:6px;">Thank you for your payment</div>
-      </div>
-    ` : (order.stripe_payment_link ? `
-      <div style="text-align:center;margin:28px 0;">
-        <a href="${order.stripe_payment_link}" target="_blank" style="display:inline-block;background:#000;color:#fff;padding:16px 48px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.3px;">Complete Payment →</a>
-        <div style="font-size:11px;color:#999;margin-top:10px;">Secure payment via Stripe</div>
-      </div>
-    ` : '');
+    const paymentSection = order.status === 'paid'
+      ? `<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:24px;text-align:center;margin:32px 0;">
+           <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#16a34a;margin-bottom:6px;">Payment Status</div>
+           <div style="font-size:26px;font-weight:900;color:#16a34a;">PAID IN FULL</div>
+         </div>`
+      : (order.stripe_payment_link
+          ? `<div style="text-align:center;margin:32px 0;">
+               <a href="${order.stripe_payment_link}" target="_blank"
+                 style="display:inline-block;background:#111;color:#fff;padding:15px 44px;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.5px;">
+                 Complete Payment →
+               </a>
+               <div style="font-size:11px;color:#aaa;margin-top:10px;">Secure payment via Stripe</div>
+             </div>`
+          : '');
 
-    const descriptionBlock = order.order_description ? `
-      <div style="margin:20px 0;padding:16px 20px;background:#fafafa;border-radius:8px;border-left:3px solid #e0e0e0;">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:8px;">Project Description</div>
-        <div style="font-size:13px;color:#555;line-height:1.7;">${formatDescription(order.order_description)}</div>
-      </div>
-    ` : '';
+    const descriptionBlock = order.order_description
+      ? `<div style="margin:20px 0;padding:16px 20px;background:#f9f9f9;border-radius:8px;border-left:3px solid #ddd;">
+           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#aaa;margin-bottom:8px;">Project Description</div>
+           <div style="font-size:13px;color:#555;line-height:1.8;">${formatDescription(order.order_description)}</div>
+         </div>`
+      : '';
 
-    const emailHtml = `<!DOCTYPE html>
-<html lang="en" dir="ltr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f5f5f0;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;background:#fff;">
+    // ─── Shared HTML structure ────────────────────────────────────────────────
+    const buildEmail = (recipientName: string, signUrl: string, isAdmin: boolean) => `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AYN AI — Service Agreement</title></head>
+<body style="margin:0;padding:0;background:#f2f2ee;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2ee;padding:40px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.08);">
 
-    <!-- Header -->
-    <div style="background:#000;padding:40px 36px 36px;">
-      <div style="font-size:38px;font-weight:900;color:#fff;letter-spacing:-2px;line-height:1;">AYN</div>
-      <div style="width:40px;height:2px;background:#fff;opacity:0.3;margin:12px 0;"></div>
-      <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.5);">Service Agreement</div>
-    </div>
+  <!-- ── HEADER ── -->
+  <tr><td style="background:#0a0a0a;padding:44px 48px 40px;">
+    <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
+    <div style="width:36px;height:2px;background:rgba(255,255,255,0.2);margin:14px 0 12px;"></div>
+    <div style="font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Service Agreement</div>
+  </td></tr>
 
-    <!-- Content -->
-    <div style="padding:36px;">
-      <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:6px;">Hello ${escapeHtml(order.contact_person)},</div>
-      <p style="font-size:14px;color:#666;line-height:1.7;margin:12px 0 24px;">
-        Thank you for choosing AYN. We're pleased to present the service agreement for <strong style="color:#1a1a1a;">${escapeHtml(order.company_name)}</strong>.
-      </p>
+  <!-- ── GREETING ── -->
+  <tr><td style="padding:44px 48px 0;">
+    <div style="font-size:22px;font-weight:800;color:#111;margin-bottom:10px;">Hello ${escapeHtml(recipientName)},</div>
+    <p style="font-size:14px;color:#666;line-height:1.8;margin:0;">
+      ${isAdmin
+        ? `A service agreement has been sent to <strong style="color:#111;">${escapeHtml(order.company_name)}</strong>. Please review and add your signature below.`
+        : `Please review and sign your service agreement with <strong style="color:#111;">AYN AI</strong>.`}
+    </p>
+  </td></tr>
 
-      <!-- Project Title -->
-      <div style="border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;color:#000;letter-spacing:-0.3px;">${escapeHtml(order.order_title)}</div>
-      </div>
-
+  <!-- ── PROJECT CARD ── -->
+  <tr><td style="padding:28px 48px 0;">
+    <div style="background:#f9f9f9;border-radius:10px;padding:24px 28px;border:1px solid #ebebeb;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#bbb;margin-bottom:10px;">Project</div>
+      <div style="font-size:17px;font-weight:800;color:#111;margin-bottom:${descriptionBlock ? '16px' : '0'};">${escapeHtml(order.order_title)}</div>
       ${descriptionBlock}
-
-      <!-- Services Table -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:24px 0;">
-        <thead>
-          <tr style="background:#fafafa;">
-            <th style="padding:12px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;text-align:left;border-bottom:2px solid #eee;">Service</th>
-            <th style="padding:12px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;text-align:center;border-bottom:2px solid #eee;">Qty</th>
-            <th style="padding:12px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;text-align:right;border-bottom:2px solid #eee;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>${serviceRows}</tbody>
-      </table>
-
-      <!-- Total -->
-      <div style="background:#000;border-radius:10px;padding:24px 28px;margin:24px 0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.5);">Total Amount</div>
-          <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-1px;">${formatCurrency(order.total_amount)}</div>
-        </div>
-      </div>
-
-      ${paymentSection}
-
-      ${contractPdfUrl ? `
-      <div style="text-align:center;margin:20px 0;">
-        <a href="${contractPdfUrl}" target="_blank" style="display:inline-block;background:#f5f5f5;color:#333;padding:12px 28px;border-radius:6px;font-weight:600;font-size:12px;text-decoration:none;">📄 View Contract PDF</a>
-      </div>` : ''}
-
-      <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
-        <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
-          Questions? Contact us at <a href="mailto:ghazi@aynn.io" style="color:#666;">ghazi@aynn.io</a>
-        </p>
-      </div>
     </div>
+  </td></tr>
 
-    <!-- Footer -->
-    <div style="background:#fafafa;padding:20px 36px;border-top:1px solid #eee;text-align:center;">
-      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI Technologies · All rights reserved</div>
+  <!-- ── SERVICES TABLE ── -->
+  <tr><td style="padding:28px 48px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #ebebeb;border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr style="background:#f4f4f4;">
+          <th style="padding:12px 20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#aaa;text-align:left;">Service</th>
+          <th style="padding:12px 20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#aaa;text-align:center;">Qty</th>
+          <th style="padding:12px 20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#aaa;text-align:right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>${serviceRows}</tbody>
+    </table>
+  </td></tr>
+
+  <!-- ── TOTAL ── -->
+  <tr><td style="padding:16px 48px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="text-align:right;padding:6px 0;">
+          <span style="font-size:11px;color:#aaa;margin-right:16px;">Tax Included</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#0a0a0a;border-radius:10px;padding:22px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Total Due</td>
+              <td style="font-size:30px;font-weight:900;color:#fff;letter-spacing:-1.5px;text-align:right;">${formatCurrency(totalAmount)}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- ── PAYMENT BUTTON ── -->
+  ${paymentSection ? `<tr><td style="padding:0 48px;">${paymentSection}</td></tr>` : ''}
+
+  <!-- ── SIGN BUTTON ── -->
+  <tr><td style="padding:28px 48px 0;">
+    <div style="background:#f9f9f9;border:1px solid #ebebeb;border-radius:12px;padding:28px;text-align:center;">
+      <div style="font-size:11px;color:#aaa;margin-bottom:16px;">Please review and sign this agreement</div>
+      <a href="${signUrl}" target="_blank"
+        style="display:inline-block;background:#0a0a0a;color:#fff;padding:16px 52px;border-radius:100px;font-weight:700;font-size:14px;text-decoration:none;letter-spacing:0.3px;">
+        ${isAdmin ? 'Sign as AYN AI →' : 'Review &amp; Sign →'}
+      </a>
     </div>
-  </div>
+  </td></tr>
+
+  <!-- ── FOOTER ── -->
+  <tr><td style="padding:40px 48px 36px;">
+    <div style="border-top:1px solid #f0f0f0;padding-top:24px;">
+      <p style="font-size:12px;color:#bbb;margin:0;line-height:1.7;">
+        Questions? <a href="mailto:ghazi@aynn.io" style="color:#888;text-decoration:none;">ghazi@aynn.io</a>
+      </p>
+    </div>
+  </td></tr>
+
+  <tr><td style="background:#f9f9f9;padding:18px 48px;border-top:1px solid #f0f0f0;text-align:center;">
+    <span style="font-size:10px;color:#ccc;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · <a href="https://aynn.io" style="color:#ccc;text-decoration:none;">aynn.io</a></span>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
 </body>
 </html>`;
 
-    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'AYN <noreply@mail.aynn.io>';
+    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'AYN AI <noreply@mail.aynn.io>';
+    const subject = `AYN AI Service Agreement: ${order.order_title}`;
 
-    const { data: emailData, error: emailError } = await resend.emails.send({
+    // Send to client
+    const { error: clientErr } = await resend.emails.send({
       from: fromEmail,
       to: [order.company_email],
-      subject: `AYN Service Agreement: ${order.order_title} — ${formatCurrency(order.total_amount)}`,
-      html: emailHtml,
+      subject,
+      html: buildEmail(order.contact_person, clientSignUrl, false),
     });
+    if (clientErr) throw new Error(`Client email failed: ${clientErr.message}`);
 
-    if (emailError) {
-      console.error('[send-contract-email] Resend error:', emailError);
-      throw new Error(`Email send failed: ${emailError.message}`);
-    }
+    // Send to admin (Ghazi) with admin signing link
+    const { error: adminErr } = await resend.emails.send({
+      from: fromEmail,
+      to: ['ghazi@aynn.io'],
+      subject: `[Sign Required] ${subject}`,
+      html: buildEmail('Ghazi', adminSignUrl, true),
+    });
+    if (adminErr) console.error('[send-contract-email] Admin email failed:', adminErr);
 
     await supabase
       .from('custom_orders')
@@ -186,9 +237,7 @@ Deno.serve(async (req) => {
       })
       .eq('id', orderId);
 
-    console.log('[send-contract-email] Email sent:', emailData?.id);
-
-    return new Response(JSON.stringify({ success: true, emailId: emailData?.id }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
