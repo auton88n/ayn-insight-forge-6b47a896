@@ -162,8 +162,10 @@ export default function NDASign() {
 
           {/* Header - AYN text-based branding */}
           <div style={{ textAlign:'center', marginBottom:36, borderBottom:'3px double #1a1a1a', paddingBottom:28 }}>
-            <div style={{ fontSize:48, fontWeight:900, letterSpacing:-3, lineHeight:1, fontFamily:"'Helvetica Neue',Arial,sans-serif", color:'#000' }}>AYN</div>
-            <div style={{ fontSize:10, fontWeight:600, letterSpacing:5, textTransform:'uppercase', color:'#999', marginTop:6, fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>AI</div>
+            <div style={{ fontSize:52, fontWeight:900, letterSpacing:-3, lineHeight:1, fontFamily:"'Helvetica Neue',Arial,sans-serif", color:'#000', display:'flex', alignItems:'baseline', justifyContent:'center', gap:10 }}>
+              <span>AYN</span>
+              <span style={{ fontSize:18, fontWeight:400, letterSpacing:6, color:'#888', textTransform:'uppercase' }}>AI</span>
+            </div>
             <div style={{ marginTop:22, fontSize:20, fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Non-Disclosure Agreement</div>
             <div style={{ fontSize:11, color:'#888', marginTop:4 }}>{ndaRef} · {new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</div>
           </div>
@@ -239,12 +241,105 @@ export default function NDASign() {
 
           {/* Executed Badge */}
           {bothSigned && (
-            <div style={{ background:'#f0fdf4', border:'2px solid #86efac', borderRadius:10, padding:20, textAlign:'center', margin:'32px 0' }}>
-              <div style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:'#16a34a', marginBottom:14 }}>✓ Fully Executed — Both Parties Have Signed</div>
+            <div style={{ textAlign:'center', margin:'32px 0' }}>
               <button
                 onClick={() => {
-                  // Build and download the signed NDA as HTML file (opens as PDF-quality document)
-                  const html = document.documentElement.outerHTML;
+                  // Build clean standalone PDF document (no UI chrome, no header, no badges)
+                  const adminSigHtml = nda.admin_signature_url
+                    ? `<img src="${nda.admin_signature_url}" style="max-height:56px;max-width:180px;object-fit:contain;display:block;">`
+                    : '<div style="height:56px;border-bottom:1px solid #999;width:180px;"></div>';
+                  const clientSigHtml = nda.client_signature_url
+                    ? `<img src="${nda.client_signature_url}" style="max-height:56px;max-width:180px;object-fit:contain;display:block;">`
+                    : '<div style="height:56px;border-bottom:1px solid #999;width:180px;"></div>';
+                  const adminDate = nda.admin_signed_at ? new Date(nda.admin_signed_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '';
+                  const clientDate = nda.client_signed_at ? new Date(nda.client_signed_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '';
+                  const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+                  const sections = [
+                    nda.nda_purpose ? `<div class="sec"><h3>Purpose</h3><p>${nda.nda_purpose}</p></div>` : '',
+                    nda.confidential_info ? `<div class="sec"><h3>Confidential Information</h3><p>${nda.confidential_info}</p></div>` : '',
+                    nda.obligations ? `<div class="sec"><h3>Obligations</h3><p>${nda.obligations}</p></div>` : '',
+                    nda.exclusions ? `<div class="sec"><h3>Exclusions</h3><p>${nda.exclusions}</p></div>` : '',
+                    nda.duration ? `<div class="sec"><h3>Term & Duration</h3><p>${nda.duration}</p></div>` : '',
+                    nda.additional_clauses ? `<div class="sec"><h3>Additional Provisions</h3><p>${nda.additional_clauses}</p></div>` : '',
+                    nda.governing_law ? `<div class="sec"><h3>Governing Law</h3><p>${nda.governing_law}</p></div>` : '',
+                  ].join('');
+
+                  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'EB Garamond','Times New Roman',Times,serif;color:#1a1a1a;background:#fff;padding:64px;max-width:760px;margin:0 auto;line-height:1.75;font-size:14px}
+  .brand{text-align:center;padding-bottom:28px;margin-bottom:32px;border-bottom:2.5px double #1a1a1a}
+  .brand-name{font-size:52px;font-weight:700;letter-spacing:-2px;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;display:inline-flex;align-items:baseline;gap:10px}
+  .brand-ai{font-size:16px;font-weight:400;letter-spacing:6px;color:#999;text-transform:uppercase;font-family:'Helvetica Neue',Arial,sans-serif}
+  .doc-title{font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-top:20px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .doc-ref{font-size:11px;color:#888;margin-top:6px;letter-spacing:.5px}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:24px 0 32px;padding:20px 0;border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0}
+  .party-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:6px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .party-name{font-size:15px;font-weight:600}
+  .party-info{font-size:12px;color:#666;margin-top:2px}
+  .sec{margin-bottom:28px}
+  .sec h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e8e8e8;font-family:'Helvetica Neue',Arial,sans-serif;color:#333}
+  .sec p{font-size:13px;line-height:1.85;text-align:justify;color:#222}
+  .witness{border-top:1px solid #ccc;padding-top:20px;margin:32px 0;font-style:italic;font-size:13px;color:#444;line-height:1.8}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px}
+  .sig-block{}
+  .sig-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#888;margin-bottom:12px;font-family:'Helvetica Neue',Arial,sans-serif}
+  .sig-img{min-height:64px;border-bottom:1px solid #1a1a1a;margin-bottom:10px;padding-bottom:4px}
+  .sig-name{font-size:13px;font-weight:600}
+  .sig-title{font-size:12px;color:#666}
+  .sig-date{font-size:11px;color:#999;font-style:italic;margin-top:4px}
+  .footer{margin-top:48px;padding-top:14px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#bbb;letter-spacing:.5px}
+</style>
+</head><body>
+<div class="brand">
+  <div class="brand-name"><span>AYN</span><span class="brand-ai">AI</span></div>
+  <div class="doc-title">Non-Disclosure Agreement</div>
+  <div class="doc-ref">${ndaRef} &nbsp;&middot;&nbsp; ${today}</div>
+</div>
+
+<div class="parties">
+  <div>
+    <div class="party-label">Disclosing Party</div>
+    <div class="party-name">AYN AI</div>
+    <div class="party-info">Ghazi ALDhyaei</div>
+    <div class="party-info">ghazi@aynn.io</div>
+  </div>
+  <div>
+    <div class="party-label">Receiving Party</div>
+    <div class="party-name">${nda.company_name}</div>
+    <div class="party-info">${nda.contact_person}</div>
+    <div class="party-info">${nda.company_email}</div>
+  </div>
+</div>
+
+${sections}
+
+<div class="witness">
+  <strong>IN WITNESS WHEREOF</strong>, the parties hereto have caused this Mutual Non-Disclosure Agreement to be executed as of the date first written above by their duly authorized representatives.
+</div>
+
+<div class="sig-grid">
+  <div class="sig-block">
+    <div class="sig-label">Disclosing Party — AYN AI</div>
+    <div class="sig-img">${adminSigHtml}</div>
+    <div class="sig-name">Ghazi ALDhyaei</div>
+    <div class="sig-title">Founder & CEO, AYN AI</div>
+    <div class="sig-date">${adminDate ? 'Signed: ' + adminDate : ''}</div>
+  </div>
+  <div class="sig-block">
+    <div class="sig-label">Receiving Party — ${nda.company_name}</div>
+    <div class="sig-img">${clientSigHtml}</div>
+    <div class="sig-name">${nda.contact_person}</div>
+    <div class="sig-title">Authorized Representative</div>
+    <div class="sig-date">${clientDate ? 'Signed: ' + clientDate : ''}</div>
+  </div>
+</div>
+
+<div class="footer">${ndaRef} &nbsp;&middot;&nbsp; &copy; ${new Date().getFullYear()} AYN AI &nbsp;&middot;&nbsp; This document is confidential</div>
+</body></html>`;
+
                   const blob = new Blob([html], { type: 'text/html' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -265,7 +360,7 @@ export default function NDASign() {
                 </svg>
                 Download Signed Agreement
               </button>
-              {completing && <div style={{ fontSize:11, color:'#16a34a', marginTop:8 }}>Sending signed copies to both parties...</div>}
+
             </div>
           )}
 
