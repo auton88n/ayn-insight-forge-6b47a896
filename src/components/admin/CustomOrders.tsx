@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import {
   Plus, Send, FileText, Trash2, Eye, Edit2,
   DollarSign, Building2, Clock, CheckCircle, XCircle,
-  Loader2, Download, PenTool, Search, X, Minus, RefreshCw
+  Loader2, Download, PenTool, Search, X, Minus, RefreshCw, Sparkles
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -321,6 +321,10 @@ export const CustomOrders = () => {
                 className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
+              <Button onClick={() => { setForm(emptyForm()); setEditingOrder(null); setShowAI(true); setPanel('form'); }}
+                className="bg-purple-600/80 hover:bg-purple-500 text-white gap-1.5 h-9">
+                <Sparkles className="w-4 h-4" />AI Draft
+              </Button>
               <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white gap-1.5 h-9">
                 <Plus className="w-4 h-4" />New Order
               </Button>
@@ -555,6 +559,10 @@ export const CustomOrders = () => {
               <div className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur border-b border-white/10 px-6 py-3 flex items-center justify-between">
                 <span className="text-white font-semibold text-sm">{editingOrder ? 'Edit Order' : 'New Custom Order'}</span>
                 <div className="flex gap-2">
+                  <Button onClick={() => setShowAI(v => !v)} size="sm"
+                    className={showAI ? "bg-purple-600 hover:bg-purple-500 h-7 text-xs gap-1.5 px-3" : "bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 border border-purple-500/30 h-7 text-xs gap-1.5 px-3"}>
+                    <Sparkles className="w-3 h-3" />{showAI ? 'Hide AI' : 'AI Assistant'}
+                  </Button>
                   <Button onClick={handleSave} disabled={saving} size="sm" className="bg-blue-600 hover:bg-blue-500 h-7 text-xs px-4">
                     {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : editingOrder ? 'Save Changes' : 'Create Order'}
                   </Button>
