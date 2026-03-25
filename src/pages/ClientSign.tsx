@@ -423,7 +423,8 @@ export default function ClientSign() {
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title> </title>
 <style>
-  @page{size:A4;margin:16mm 18mm 16mm 18mm}
+  @page{size:A4;margin:0}
+  .wrap{max-width:760px;margin:0 auto;padding:16mm 18mm 16mm 18mm}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#000;background:#fff;font-size:10pt;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   /* ── Header ── */
