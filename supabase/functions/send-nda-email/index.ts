@@ -29,12 +29,12 @@ Deno.serve(async (req) => {
     if (!resendKey) throw new Error('RESEND_API_KEY not configured');
     const resend = new Resend(resendKey);
 
-    const ndaRef = `NDA-${nda.id.substring(0,8).toUpperCase()}`;
-    const signingUrl = `https://aynn.io/nda/sign/${nda.signing_token}`;
-    const year = new Date().getFullYear();
+    const ndaRef  = `NDA-${nda.id.substring(0,8).toUpperCase()}`;
+    const signUrl = `https://aynn.io/nda/${nda.signing_token}`;
+    const year    = new Date().getFullYear();
 
     const html = `<!DOCTYPE html>
-<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -43,184 +43,147 @@ Deno.serve(async (req) => {
 <title>AYN AI — NDA</title>
 <style>
   :root { color-scheme: light dark; }
-  body, table, td, div, p, a { -webkit-text-size-adjust: 100%; }
-  /* ── Force dark on ALL clients that support it ── */
-  body { background-color: #0f0f0f !important; }
-  .bg-dark { background-color: #0f0f0f !important; }
-  .bg-card { background-color: #1c1c1e !important; }
-  .bg-card2 { background-color: #1c1c1e !important; border-left: 3px solid #6366f1 !important; }
-  .text-white { color: #ffffff !important; }
-  .text-muted { color: rgba(255,255,255,0.45) !important; }
-  .text-dim { color: rgba(255,255,255,0.25) !important; }
-  .border-subtle { border-color: rgba(255,255,255,0.09) !important; }
-  /* ── Apple Mail dark mode override ── */
+  body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif; }
+
+  /* ── Light defaults ── */
+  .wrap     { background-color:#f0f0f0; }
+  .card     { background-color:#ffffff; border:1px solid #e8e8e8; border-radius:16px; }
+  .sect     { background-color:#f7f7f7; border:1px solid #ebebeb; border-radius:12px; }
+  .sect-acc { background-color:#f7f7f7; border:1px solid #ebebeb; border-radius:12px; border-left:3px solid #6366f1; }
+  .logo-txt { color:#0a0a0a; }
+  .head-txt { color:#111111; }
+  .body-txt { color:#444444; }
+  .label    { color:#999999; }
+  .val      { color:#111111; }
+  .muted    { color:#bbbbbb; }
+  .div-line { background-color:#ebebeb; }
+  .step-txt { color:#333333; }
+  .step-sub { color:#888888; }
+
+  /* ── Dark mode (iOS Mail, Apple Mail, Outlook iOS) ── */
   @media (prefers-color-scheme: dark) {
-    body, .bg-dark { background-color: #0f0f0f !important; }
-    .bg-card { background-color: #1c1c1e !important; }
-    .text-white { color: #ffffff !important; }
-    .text-muted { color: rgba(255,255,255,0.5) !important; }
-    .text-dim { color: rgba(255,255,255,0.28) !important; }
+    .wrap     { background-color:#0f0f0f !important; }
+    .card     { background-color:#0f0f0f !important; border-color:#0f0f0f !important; }
+    .sect     { background-color:#1c1c1e !important; border-color:rgba(255,255,255,0.09) !important; }
+    .sect-acc { background-color:#1c1c1e !important; border-color:rgba(255,255,255,0.09) !important; border-left-color:#6366f1 !important; }
+    .logo-txt { color:#ffffff !important; }
+    .head-txt { color:#ffffff !important; }
+    .body-txt { color:rgba(255,255,255,0.55) !important; }
+    .label    { color:rgba(255,255,255,0.3) !important; }
+    .val      { color:#ffffff !important; }
+    .muted    { color:rgba(255,255,255,0.22) !important; }
+    .div-line { background-color:rgba(255,255,255,0.08) !important; }
+    .step-txt { color:#ffffff !important; }
+    .step-sub { color:rgba(255,255,255,0.4) !important; }
+    .cta-btn  { background-color:#ffffff !important; color:#0f0f0f !important; }
   }
-  /* ── Gmail / Outlook dark mode ── */
-  [data-ogsc] body, [data-ogsc] .bg-dark { background-color: #0f0f0f !important; }
-  [data-ogsc] .bg-card { background-color: #1c1c1e !important; }
-  [data-ogsc] .text-white { color: #ffffff !important; }
 </style>
 </head>
-<body bgcolor="#0f0f0f" style="margin:0;padding:0;background-color:#0f0f0f !important;-webkit-text-size-adjust:100%;">
-
-<!-- Outer wrapper -->
-<table class="bg-dark" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0f0f0f"
-  style="background-color:#0f0f0f !important;min-width:100%;">
-<tr><td class="bg-dark" align="center" bgcolor="#0f0f0f"
-  style="background-color:#0f0f0f !important;padding:48px 16px;">
-
-<!-- Email card (no shadow, no white) -->
-<table width="580" cellpadding="0" cellspacing="0" border="0"
-  style="max-width:580px;width:100%;">
+<body>
+<div class="wrap" style="background-color:#f0f0f0;padding:48px 16px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;width:100%;">
 
   <!-- ══ LOGO ══ -->
-  <tr>
-    <td class="bg-dark" align="center" bgcolor="#0f0f0f"
-      style="background-color:#0f0f0f !important;padding:0 0 32px;">
-      <div class="text-white" style="font-size:46px;font-weight:900;letter-spacing:-2px;line-height:1;color:#ffffff !important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
-      <div style="width:44px;height:3px;background:#6366f1;border-radius:2px;margin:14px auto 0;"></div>
-    </td>
-  </tr>
+  <tr><td class="card" style="background-color:#ffffff;border:1px solid #e8e8e8;border-radius:16px;text-align:center;padding:40px 32px 36px;">
+    <div class="logo-txt" style="font-size:48px;font-weight:900;letter-spacing:-2px;line-height:1;color:#0a0a0a;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
+    <div style="width:44px;height:3px;background:#6366f1;border-radius:2px;margin:16px auto 20px;"></div>
+    <div class="label" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#999;">Non-Disclosure Agreement</div>
+  </td></tr>
 
-  <!-- ══ DIVIDER ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 36px;">
-      <div style="height:1px;background:rgba(255,255,255,0.07);"></div>
-    </td>
-  </tr>
+  <tr><td style="height:16px;"></td></tr>
 
   <!-- ══ GREETING ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 28px;">
-      <div class="text-white" style="font-size:26px;font-weight:700;color:#ffffff !important;margin-bottom:12px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Hello ${e(nda.contact_person)},</div>
-      <p class="text-muted" style="font-size:15px;color:rgba(255,255,255,0.5) !important;line-height:1.8;margin:0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-        <span class="text-white" style="color:#ffffff !important;font-weight:700;">AYN AI</span>
-        has prepared a Non-Disclosure Agreement for your review and signature.
-        Please review the details below and sign digitally using the secure link.
-      </p>
-    </td>
-  </tr>
+  <tr><td class="card" style="background-color:#ffffff;border:1px solid #e8e8e8;border-radius:16px;padding:36px 36px 32px;">
 
-  <!-- ══ REFERENCE + COMPANY ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 16px;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0"
-        class="bg-card" bgcolor="#1c1c1e"
-        style="background-color:#1c1c1e !important;border-radius:14px;border:1px solid rgba(255,255,255,0.09);">
-        <tr>
-          <td width="50%" style="padding:22px 26px;border-right:1px solid rgba(255,255,255,0.09);vertical-align:top;">
-            <div class="text-dim" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:rgba(255,255,255,0.3) !important;margin-bottom:8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Reference</div>
-            <div class="text-white" style="font-size:18px;font-weight:800;color:#ffffff !important;letter-spacing:0.3px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${ndaRef}</div>
-          </td>
-          <td width="50%" style="padding:22px 26px;vertical-align:top;">
-            <div class="text-dim" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:rgba(255,255,255,0.3) !important;margin-bottom:8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Company</div>
-            <div class="text-white" style="font-size:18px;font-weight:700;color:#ffffff !important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${e(nda.company_name)}</div>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
+    <div class="head-txt" style="font-size:26px;font-weight:800;color:#111;margin-bottom:14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Hello ${e(nda.contact_person)},</div>
+    <p class="body-txt" style="font-size:15px;color:#444;line-height:1.8;margin:0 0 28px;">
+      <strong class="val" style="color:#111;font-weight:700;">AYN AI</strong>
+      has prepared a Non-Disclosure Agreement for your review and signature.
+      Please review the details below and sign digitally using the secure link.
+    </p>
 
-  ${nda.nda_purpose ? `<!-- ══ PURPOSE ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 16px;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0"
-        class="bg-card" bgcolor="#1c1c1e"
-        style="background-color:#1c1c1e !important;border-radius:14px;border:1px solid rgba(255,255,255,0.09);border-left:3px solid #6366f1;">
-        <tr>
-          <td style="padding:22px 26px;">
-            <div class="text-dim" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:rgba(255,255,255,0.3) !important;margin-bottom:10px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Purpose</div>
-            <div class="text-muted" style="font-size:14px;color:rgba(255,255,255,0.6) !important;line-height:1.75;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${e(nda.nda_purpose)}</div>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>` : ''}
+    <!-- Reference card -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" class="sect" style="background-color:#f7f7f7;border:1px solid #ebebeb;border-radius:12px;margin-bottom:14px;">
+      <tr>
+        <td width="50%" style="padding:20px 22px;border-right:1px solid #ebebeb;vertical-align:top;">
+          <div class="label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:#999;margin-bottom:8px;">Reference</div>
+          <div class="val" style="font-size:17px;font-weight:800;color:#111;letter-spacing:0.3px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${ndaRef}</div>
+        </td>
+        <td width="50%" style="padding:20px 22px;vertical-align:top;">
+          <div class="label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:#999;margin-bottom:8px;">Company</div>
+          <div class="val" style="font-size:17px;font-weight:700;color:#111;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${e(nda.company_name)}</div>
+        </td>
+      </tr>
+    </table>
 
-  ${nda.duration ? `<!-- ══ DURATION ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 28px;">
-      <table cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td class="text-dim" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:rgba(255,255,255,0.3) !important;padding-right:14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Duration</td>
-          <td class="text-white" style="font-size:14px;font-weight:700;color:#ffffff !important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${e(nda.duration)}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>` : ''}
+    ${nda.nda_purpose ? `<!-- Purpose -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" class="sect-acc" style="background-color:#f7f7f7;border:1px solid #ebebeb;border-radius:12px;border-left:3px solid #6366f1;margin-bottom:14px;">
+      <tr><td style="padding:20px 22px;">
+        <div class="label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:#999;margin-bottom:10px;">Purpose</div>
+        <div class="body-txt" style="font-size:14px;color:#444;line-height:1.8;">${e(nda.nda_purpose)}</div>
+      </td></tr>
+    </table>` : ''}
+
+    ${nda.duration ? `<!-- Duration -->
+    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;">
+      <tr>
+        <td class="label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:#999;padding-right:12px;">Duration</td>
+        <td class="val" style="font-size:14px;font-weight:700;color:#111;">${e(nda.duration)}</td>
+      </tr>
+    </table>` : ''}
+
+  </td></tr>
+
+  <tr><td style="height:16px;"></td></tr>
 
   <!-- ══ CTA ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 28px;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0"
-        class="bg-card" bgcolor="#1c1c1e"
-        style="background-color:#1c1c1e !important;border-radius:14px;border:1px solid rgba(255,255,255,0.09);">
-        <tr>
-          <td align="center" style="padding:32px 24px;">
-            <div class="text-dim" style="font-size:11px;color:rgba(255,255,255,0.3) !important;margin-bottom:20px;letter-spacing:0.5px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Click below to review and sign</div>
-            <a href="${signingUrl}" target="_blank"
-              style="display:inline-block;background:#ffffff;color:#0f0f0f;padding:17px 56px;border-radius:100px;font-weight:800;font-size:15px;text-decoration:none;letter-spacing:0.2px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-              Review &amp; Sign Agreement →
-            </a>
-            <div class="text-dim" style="font-size:10px;color:rgba(255,255,255,0.22) !important;margin-top:14px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">Secure digital signing portal</div>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
+  <tr><td class="card" style="background-color:#ffffff;border:1px solid #e8e8e8;border-radius:16px;text-align:center;padding:36px 32px;">
+    <div class="label" style="font-size:11px;color:#999;margin-bottom:20px;letter-spacing:0.5px;">Click below to review and sign</div>
+    <a href="${signUrl}" class="cta-btn" target="_blank"
+      style="display:inline-block;background-color:#0a0a0a;color:#ffffff;padding:17px 56px;border-radius:100px;font-weight:800;font-size:15px;text-decoration:none;letter-spacing:0.2px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+      Review &amp; Sign Agreement →
+    </a>
+    <div class="muted" style="font-size:10px;color:#bbb;margin-top:14px;">Secure digital signing portal · aynn.io</div>
+  </td></tr>
+
+  <tr><td style="height:16px;"></td></tr>
 
   <!-- ══ STEPS ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 40px;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0"
-        class="bg-card" bgcolor="#1c1c1e"
-        style="background-color:#1c1c1e !important;border-radius:14px;border:1px solid rgba(255,255,255,0.09);">
-        <tr>
-          <td style="padding:24px 26px 10px;">
-            <div class="text-dim" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:rgba(255,255,255,0.3) !important;margin-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">What happens next</div>
-            ${[
-              ['Review the full agreement','Read through all terms carefully'],
-              ['Sign digitally','Use the signature pad on the signing page'],
-              ['Both parties receive a copy','Signed PDF delivered automatically']
-            ].map(([title, sub], i) => `
-            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
-              <tr>
-                <td width="32" valign="top" style="padding-top:1px;">
-                  <div style="width:24px;height:24px;background:#6366f1;border-radius:50%;text-align:center;line-height:24px;font-size:11px;font-weight:800;color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${i+1}</div>
-                </td>
-                <td valign="top" style="padding-left:12px;">
-                  <div class="text-white" style="font-size:13px;font-weight:700;color:#ffffff !important;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${title}</div>
-                  <div class="text-muted" style="font-size:12px;color:rgba(255,255,255,0.4) !important;margin-top:2px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${sub}</div>
-                </td>
-              </tr>
-            </table>`).join('')}
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
+  <tr><td class="card" style="background-color:#ffffff;border:1px solid #e8e8e8;border-radius:16px;padding:28px 32px;">
+    <div class="label" style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:#999;margin-bottom:20px;">What happens next</div>
+    ${[
+      ['Review the agreement','Read through all terms carefully before signing'],
+      ['Sign digitally','Use the signature pad on the secure signing page'],
+      ['Receive your copy','Signed PDF is delivered to both parties automatically']
+    ].map(([title, sub], i) => `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;">
+      <tr>
+        <td width="32" valign="top" style="padding-top:1px;">
+          <div style="width:26px;height:26px;background:#6366f1;border-radius:50%;text-align:center;line-height:26px;font-size:11px;font-weight:800;color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${i+1}</div>
+        </td>
+        <td valign="top" style="padding-left:14px;">
+          <div class="step-txt" style="font-size:14px;font-weight:700;color:#222;margin-bottom:2px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">${title}</div>
+          <div class="step-sub" style="font-size:12px;color:#888;line-height:1.5;">${sub}</div>
+        </td>
+      </tr>
+    </table>`).join('')}
+  </td></tr>
+
+  <tr><td style="height:32px;"></td></tr>
 
   <!-- ══ FOOTER ══ -->
-  <tr>
-    <td class="bg-dark" bgcolor="#0f0f0f" style="background-color:#0f0f0f !important;padding:0 0 48px;text-align:center;">
-      <div style="height:1px;background:rgba(255,255,255,0.07);margin-bottom:24px;"></div>
-      <div class="text-dim" style="font-size:11px;color:rgba(255,255,255,0.25) !important;line-height:1.8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-        Questions? <a href="mailto:info@aynn.io" style="color:rgba(255,255,255,0.45) !important;text-decoration:none;">info&#64;aynn.io</a>
-        &nbsp;&middot;&nbsp; © ${year} AYN AI &nbsp;&middot;&nbsp;
-        <a href="https://aynn.io" style="color:rgba(255,255,255,0.45) !important;text-decoration:none;">aynn.io</a>
-      </div>
-    </td>
-  </tr>
+  <tr><td style="text-align:center;">
+    <p class="muted" style="font-size:11px;color:#bbb;margin:0;line-height:1.8;">
+      Questions? <a href="mailto:info@aynn.io" style="color:#888;text-decoration:none;">info&#64;aynn.io</a>
+      &nbsp;&middot;&nbsp; © ${year} AYN AI &nbsp;&middot;&nbsp;
+      <a href="https://aynn.io" style="color:#888;text-decoration:none;">aynn.io</a>
+    </p>
+  </td></tr>
 
-</table><!-- /card -->
-</td></tr>
-</table><!-- /outer -->
+</table>
+</td></tr></table>
+</div>
 </body>
 </html>`;
 
