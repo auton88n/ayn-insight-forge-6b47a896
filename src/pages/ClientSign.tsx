@@ -408,7 +408,7 @@ export default function ClientSign() {
                   ).join('');
 
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<title>${contractRef} — AYN AI Service Agreement</title>
+<title> </title>
 <style>
   @page{size:A4;margin:0}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -522,7 +522,13 @@ ${order.governing_law ? `<div class="art"><h3>Governing Law</h3><p>${order.gover
                   if (win) {
                     win.document.write(html);
                     win.document.close();
-                    setTimeout(() => { win.focus(); win.print(); }, 600);
+                    win.document.title = '';
+                    setTimeout(() => {
+                      win.focus();
+                      win.onbeforeprint = () => { win.document.title = ''; };
+                      win.onafterprint = () => { win.close(); };
+                      win.print();
+                    }, 600);
                   }
                 }}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#16a34a', color: 'white', border: 'none', borderRadius: 6, padding: '10px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Helvetica Neue',Arial,sans-serif" }}>

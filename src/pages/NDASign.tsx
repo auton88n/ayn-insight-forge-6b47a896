@@ -283,7 +283,7 @@ export default function NDASign() {
                     nda.governing_law ? `<div class="sec"><h3>Governing Law</h3><p>${nda.governing_law}</p></div>` : '',
                   ].join('');
 
-                  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+                  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title> </title>
 <style>
   @page{size:A4;margin:0}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -373,7 +373,13 @@ ${sections}
                   if (win) {
                     win.document.write(html);
                     win.document.close();
-                    setTimeout(() => { win.focus(); win.print(); }, 600);
+                    win.document.title = '';
+                    setTimeout(() => {
+                      win.focus();
+                      win.onbeforeprint = () => { win.document.title = ''; };
+                      win.onafterprint = () => { win.close(); };
+                      win.print();
+                    }, 600);
                   }
                 }}
                 style={{
