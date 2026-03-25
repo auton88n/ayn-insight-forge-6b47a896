@@ -182,9 +182,9 @@ function generateContractHTML(order: any, services: any[]) {
       <div class="parties-grid">
         <div class="party-card">
           <div class="party-label">Service Provider</div>
-          <div class="party-name">AYN AI Technologies</div>
+          <div class="party-name">AYN AI</div>
           <div class="party-info">AI-Powered Business Solutions</div>
-          <div class="party-info">ghazi@aynn.io</div>
+          <div class="party-info">info@aynn.io</div>
         </div>
         <div class="party-card">
           <div class="party-label">Client</div>
@@ -286,7 +286,7 @@ function generateContractHTML(order: any, services: any[]) {
     </div>` : '')}
 
     <div class="footer">
-      © ${new Date().getFullYear()} AYN AI Technologies. All rights reserved. This document constitutes a binding service agreement between the parties named herein.
+      © ${new Date().getFullYear()} AYN AI. All rights reserved. This document constitutes a binding service agreement between the parties named herein.
     </div>
   </div>
 </body>

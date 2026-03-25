@@ -52,8 +52,8 @@ Deno.serve(async (req) => {
           <tr>
             <td style="padding:8px 0;width:50%;vertical-align:top;">
               <div style="font-weight:700;margin-bottom:4px;">Disclosing Party</div>
-              <div>AYN AI Technologies</div>
-              <div style="color:#666;">ghazi@aynn.io</div>
+              <div>AYN AI</div>
+              <div style="color:#666;">info@aynn.io</div>
             </td>
             <td style="padding:8px 0;width:50%;vertical-align:top;">
               <div style="font-weight:700;margin-bottom:4px;">Receiving Party</div>
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="width:48%;vertical-align:top;padding:14px;border:1px solid #eee;border-radius:6px;">
-          <div class="sig-label">AYN AI Technologies</div>
+          <div class="sig-label">AYN AI</div>
           ${adminSig}
         </td>
         <td style="width:4%;"></td>
@@ -259,7 +259,7 @@ Deno.serve(async (req) => {
   </div>
 
   <div class="footer">
-    © ${new Date().getFullYear()} AYN AI Technologies · This document is confidential
+    © ${new Date().getFullYear()} AYN AI · This document is confidential
   </div>
 </div>
 

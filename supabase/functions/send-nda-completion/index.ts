@@ -92,7 +92,7 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
   <!-- Header -->
   <div style="text-align:center;margin-bottom:32px;border-bottom:3px double #1a1a1a;padding-bottom:24px;">
     <div style="font-size:42px;font-weight:900;letter-spacing:-2px;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;">AYN</div>
-    <div style="font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:#999;margin-top:8px;font-family:'Helvetica Neue',Arial,sans-serif;">AI Technologies</div>
+    <div style="font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:#999;margin-top:8px;font-family:'Helvetica Neue',Arial,sans-serif;">AI</div>
     <div style="margin-top:20px;font-size:22px;font-weight:700;letter-spacing:-0.5px;">NON-DISCLOSURE AGREEMENT</div>
     <div style="font-size:11px;color:#888;margin-top:4px;">${ndaRef} · ${today}</div>
   </div>
@@ -104,8 +104,8 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
       <tr>
         <td style="padding:6px 0;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Disclosing Party</div>
-          <div>AYN AI Technologies</div>
-          <div style="color:#666;">ghazi@aynn.io</div>
+          <div>AYN AI</div>
+          <div style="color:#666;">info@aynn.io</div>
         </td>
         <td style="padding:6px 0;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Receiving Party</div>
@@ -131,7 +131,7 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="width:48%;vertical-align:top;padding:12px;border:1px solid #eee;border-radius:6px;">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:8px;">AYN AI Technologies</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:8px;">AYN AI</div>
           ${adminSigBlock}
         </td>
         <td style="width:4%;"></td>
@@ -145,7 +145,7 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
 
   <!-- Footer -->
   <div style="text-align:center;margin-top:40px;padding-top:16px;border-top:1px solid #eee;">
-    <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI Technologies · Confidential</div>
+    <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · Confidential</div>
   </div>
 </div>
 </body>
@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
     <div style="padding:36px;">
       <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:6px;">Agreement Complete!</div>
       <p style="font-size:14px;color:#666;line-height:1.7;margin:12px 0 24px;">
-        The Non-Disclosure Agreement between <strong style="color:#1a1a1a;">AYN AI Technologies</strong> and <strong style="color:#1a1a1a;">${escapeHtml(nda.company_name)}</strong> has been signed by both parties and is now in full effect.
+        The Non-Disclosure Agreement between <strong style="color:#1a1a1a;">AYN AI</strong> and <strong style="color:#1a1a1a;">${escapeHtml(nda.company_name)}</strong> has been signed by both parties and is now in full effect.
       </p>
 
       <!-- Executed Badge -->
@@ -241,14 +241,14 @@ Deno.serve(async (req) => {
 
       <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
         <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
-          This is an automated notification. Both parties have been sent a copy. For questions, contact <a href="mailto:ghazi@aynn.io" style="color:#666;">ghazi@aynn.io</a>
+          This is an automated notification. Both parties have been sent a copy. For questions, contact <a href="mailto:info@aynn.io" style="color:#666;">info@aynn.io</a>
         </p>
       </div>
     </div>
 
     <!-- Footer -->
     <div style="background:#fafafa;padding:20px 36px;border-top:1px solid #eee;text-align:center;">
-      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI Technologies · All rights reserved</div>
+      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · All rights reserved</div>
     </div>
   </div>
 </body>
@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
     if (clientErr) console.error('[send-nda-completion] Client email error:', clientErr);
 
     // Send to admin
-    const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'ghazi@aynn.io';
+    const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'info@aynn.io';
     const { error: adminErr } = await resend.emails.send({
       from: fromEmail,
       to: [adminEmail],

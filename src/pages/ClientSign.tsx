@@ -200,7 +200,7 @@ export default function ClientSign() {
                 <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, color: '#888' }}>Service Provider</div>
                 <div style={{ fontWeight: 600 }}>AYN AI</div>
                 <div style={{ color: '#666' }}>Ghazi ALDhyaei</div>
-                <div style={{ color: '#666' }}>ghazi@aynn.io</div>
+                <div style={{ color: '#666' }}>info@aynn.io</div>
               </div>
               <div style={{ fontSize: 12 }}>
                 <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1.5, color: '#888' }}>Client</div>
@@ -477,7 +477,7 @@ export default function ClientSign() {
     <div class="plabel">Service Provider</div>
     <div class="pname">AYN AI</div>
     <div class="pinfo">Ghazi ALDhyaei</div>
-    <div class="pinfo">ghazi&#64;aynn.io</div>
+    <div class="pinfo">info&#64;aynn.io</div>
   </div>
   <div>
     <div class="plabel">Client</div>

@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
   <tr><td style="padding:40px 48px 36px;">
     <div style="border-top:1px solid #f0f0f0;padding-top:24px;">
       <p style="font-size:12px;color:#bbb;margin:0;line-height:1.7;">
-        Questions? <a href="mailto:ghazi@aynn.io" style="color:#888;text-decoration:none;">ghazi@aynn.io</a>
+        Questions? <a href="mailto:info@aynn.io" style="color:#888;text-decoration:none;">info@aynn.io</a>
       </p>
     </div>
   </td></tr>
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
     // Send to admin (Ghazi) with admin signing link
     const { error: adminErr } = await resend.emails.send({
       from: fromEmail,
-      to: ['ghazi@aynn.io'],
+      to: ['info@aynn.io'],
       subject: `[Sign Required] ${subject}`,
       html: buildEmail('Ghazi', adminSignUrl, true),
     });

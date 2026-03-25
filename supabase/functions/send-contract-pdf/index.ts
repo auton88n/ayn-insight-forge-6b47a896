@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     <div style="padding:36px;">
       <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:6px;">Thank you, ${escapeHtml(order.contact_person)}!</div>
       <p style="font-size:14px;color:#666;line-height:1.7;margin:12px 0 24px;">
-        Your payment for the service agreement with <strong style="color:#1a1a1a;">AYN AI Technologies</strong> has been confirmed. Below is a summary of your order.
+        Your payment for the service agreement with <strong style="color:#1a1a1a;">AYN AI</strong> has been confirmed. Below is a summary of your order.
       </p>
 
       <!-- Paid Badge -->
@@ -113,14 +113,14 @@ Deno.serve(async (req) => {
 
       <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
         <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
-          If you have any questions, contact us at <a href="mailto:ghazi@aynn.io" style="color:#666;">ghazi@aynn.io</a>
+          If you have any questions, contact us at <a href="mailto:info@aynn.io" style="color:#666;">info@aynn.io</a>
         </p>
       </div>
     </div>
 
     <!-- Footer -->
     <div style="background:#fafafa;padding:20px 36px;border-top:1px solid #eee;text-align:center;">
-      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI Technologies · All rights reserved</div>
+      <div style="font-size:10px;color:#bbb;letter-spacing:0.5px;">© ${new Date().getFullYear()} AYN AI · All rights reserved</div>
     </div>
   </div>
 </body>
