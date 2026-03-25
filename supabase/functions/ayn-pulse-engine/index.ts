@@ -264,7 +264,7 @@ OUTPUT STRICTLY AS VALID JSON matching exactly this schema:
       headers: {
         'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://ayn.sa'
+        'HTTP-Referer': 'https://aynn.io'
       },
       body: JSON.stringify({
         model: modelId,

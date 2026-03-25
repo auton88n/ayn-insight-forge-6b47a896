@@ -105,7 +105,7 @@ function buildNdaPdfHtml(nda: Record<string, unknown>): string {
         <td style="padding:6px 0;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Disclosing Party</div>
           <div>AYN AI Technologies</div>
-          <div style="color:#666;">contact@ayn.sa</div>
+          <div style="color:#666;">ghazi@aynn.io</div>
         </td>
         <td style="padding:6px 0;width:50%;vertical-align:top;">
           <div style="font-weight:700;">Receiving Party</div>
@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
 
       <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
         <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
-          This is an automated notification. Both parties have been sent a copy. For questions, contact <a href="mailto:contact@ayn.sa" style="color:#666;">contact@ayn.sa</a>
+          This is an automated notification. Both parties have been sent a copy. For questions, contact <a href="mailto:ghazi@aynn.io" style="color:#666;">ghazi@aynn.io</a>
         </p>
       </div>
     </div>
@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'AYN <noreply@ayn.sa>';
+    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'AYN <noreply@mail.aynn.io>';
 
     // Send to client
     const { error: clientErr } = await resend.emails.send({
@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
     if (clientErr) console.error('[send-nda-completion] Client email error:', clientErr);
 
     // Send to admin
-    const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'contact@ayn.sa';
+    const adminEmail = Deno.env.get('ADMIN_EMAIL') || 'ghazi@aynn.io';
     const { error: adminErr } = await resend.emails.send({
       from: fromEmail,
       to: [adminEmail],

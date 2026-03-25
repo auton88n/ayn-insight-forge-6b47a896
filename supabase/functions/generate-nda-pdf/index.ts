@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
             <td style="padding:8px 0;width:50%;vertical-align:top;">
               <div style="font-weight:700;margin-bottom:4px;">Disclosing Party</div>
               <div>AYN AI Technologies</div>
-              <div style="color:#666;">contact@ayn.sa</div>
+              <div style="color:#666;">ghazi@aynn.io</div>
             </td>
             <td style="padding:8px 0;width:50%;vertical-align:top;">
               <div style="font-weight:700;margin-bottom:4px;">Receiving Party</div>

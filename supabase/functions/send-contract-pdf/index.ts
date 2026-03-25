@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
 
       <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
         <p style="font-size:12px;color:#aaa;line-height:1.6;margin:0;">
-          If you have any questions, contact us at <a href="mailto:contact@ayn.sa" style="color:#666;">contact@ayn.sa</a>
+          If you have any questions, contact us at <a href="mailto:ghazi@aynn.io" style="color:#666;">ghazi@aynn.io</a>
         </p>
       </div>
     </div>
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'AYN <noreply@ayn.sa>';
+    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'AYN <noreply@mail.aynn.io>';
 
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: fromEmail,

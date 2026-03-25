@@ -184,7 +184,7 @@ function generateContractHTML(order: any, services: any[]) {
           <div class="party-label">Service Provider</div>
           <div class="party-name">AYN AI Technologies</div>
           <div class="party-info">AI-Powered Business Solutions</div>
-          <div class="party-info">contact@ayn.sa</div>
+          <div class="party-info">ghazi@aynn.io</div>
         </div>
         <div class="party-card">
           <div class="party-label">Client</div>

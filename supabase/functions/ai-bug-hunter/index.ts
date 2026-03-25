@@ -57,7 +57,7 @@ async function callAI(prompt: string, model: string = 'claude'): Promise<string>
         headers: {
           'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://ayn.sa',
+          'HTTP-Referer': 'https://aynn.io',
         },
         body: JSON.stringify({
           model: config.model_id,

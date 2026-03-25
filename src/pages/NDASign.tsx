@@ -179,7 +179,7 @@ export default function NDASign() {
               <div style={{ flex:1, fontSize:12 }}>
                 <div style={{ fontWeight:700, marginBottom:2 }}>Disclosing Party</div>
                 <div>AYN AI</div>
-                <div style={{ color:'#666' }}>contact@ayn.sa</div>
+                <div style={{ color:'#666' }}>ghazi@aynn.io</div>
               </div>
               <div style={{ flex:1, fontSize:12 }}>
                 <div style={{ fontWeight:700, marginBottom:2 }}>Receiving Party</div>

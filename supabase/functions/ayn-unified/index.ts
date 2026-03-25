@@ -286,7 +286,7 @@ async function callLLM(
         headers: {
           'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://ayn.sa',
+          'HTTP-Referer': 'https://aynn.io',
           'X-Title': 'AYN AI Assistant'
         },
         body: JSON.stringify({
