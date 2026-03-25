@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
@@ -93,6 +93,9 @@ function nl2br(text: string | null): string {
 
 export default function NDASign() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const isAdmin = searchParams.get('role') === 'admin';
+  const isClient = !isAdmin;
   const [nda, setNda] = useState<NDA | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);

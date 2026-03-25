@@ -513,6 +513,23 @@ export const CustomOrders = () => {
                   <span className="text-sm">Download Contract PDF</span>
                 </a>
               )}
+              {/* Signing links */}
+              {viewingOrder.signing_token && (
+                <div className="bg-white/3 border border-white/8 rounded-lg p-3 space-y-2">
+                  <div className="text-white/30 text-xs mb-2 uppercase tracking-widest font-bold">Signing Links</div>
+                  <div>
+                    <div className="text-white/30 text-[10px] mb-0.5">Client link (sent via email)</div>
+                    <div className="text-blue-400 text-xs break-all">{`https://aynn.io/sign/${viewingOrder.signing_token}`}</div>
+                  </div>
+                  <div>
+                    <div className="text-white/30 text-[10px] mb-1">Your admin signing link</div>
+                    <a href={`https://aynn.io/sign/${viewingOrder.signing_token}?role=admin`} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg font-medium">
+                      Open &amp; Sign as AYN AI →
+                    </a>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2 pt-2">
                 <Button onClick={() => openEdit(viewingOrder)} variant="outline" size="sm" className="flex-1 border-white/10 text-white/60">
                   <Edit2 className="w-3.5 h-3.5 mr-1.5" />Edit

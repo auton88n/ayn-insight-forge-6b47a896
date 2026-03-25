@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
@@ -100,6 +100,9 @@ function SignaturePad({ onSave, existingUrl, signedAt, locked }: {
 
 export default function ClientSign() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const isAdmin = searchParams.get('role') === 'admin';
+  const isClient = !isAdmin;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -344,7 +347,9 @@ export default function ClientSign() {
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 10 }}>Service Provider</div>
               <div style={{ borderBottom: '1px solid #1a1a1a', minHeight: 72, paddingBottom: 8, marginBottom: 8 }}>
-                <SignaturePad key={`admin-${order.id}`} existingUrl={order.admin_signature_url} signedAt={order.admin_signed_at} onSave={async (d) => await saveSignature(d, 'admin')} />
+                <SignaturePad key={`admin-${order.id}`} existingUrl={order.admin_signature_url} signedAt={order.admin_signed_at}
+                  locked={isClient}
+                  onSave={async (d) => await saveSignature(d, 'admin')} />
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, ...F }}>AYN AI</div>
               <div style={{ fontSize: 11, ...F }}>Name: Ghazi ALDhyaei</div>
@@ -356,7 +361,9 @@ export default function ClientSign() {
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#888', marginBottom: 10 }}>Client</div>
               <div style={{ borderBottom: '1px solid #1a1a1a', minHeight: 72, paddingBottom: 8, marginBottom: 8 }}>
-                <SignaturePad key={`client-${order.id}`} existingUrl={order.client_signature_url} signedAt={order.client_signed_at} locked={!order.admin_signature_url} onSave={async (d) => await saveSignature(d, 'client')} />
+                <SignaturePad key={`client-${order.id}`} existingUrl={order.client_signature_url} signedAt={order.client_signed_at}
+                  locked={isAdmin || !order.admin_signature_url}
+                  onSave={async (d) => await saveSignature(d, 'client')} />
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, ...F }}>{order.company_name}</div>
               <div style={{ fontSize: 11, ...F }}>Name: {order.contact_person}</div>

@@ -425,6 +425,7 @@ export const NDAManager = () => {
           const sc = STATUS_CONFIG[viewingNda.status] || STATUS_CONFIG.draft;
           const ref = `NDA-${viewingNda.id.substring(0,8).toUpperCase()}`;
           const signingUrl = `https://aynn.io/nda/${viewingNda.signing_token}`;
+                  const adminSigningUrl = `https://aynn.io/nda/${viewingNda.signing_token}?role=admin`;
           return (
             <div className="flex-1 border-l border-white/10 flex flex-col overflow-hidden">
               <div className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur border-b border-white/10 px-5 py-3 flex items-center justify-between">
@@ -445,8 +446,14 @@ export const NDAManager = () => {
 
                 {/* Signing link */}
                 <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Signing Link</div>
-                  <div className="text-xs text-blue-400 break-all">{signingUrl}</div>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Client Signing Link (sent in email)</div>
+                  <div className="text-xs text-blue-400 break-all mb-3">{signingUrl}</div>
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Your Admin Signing Link</div>
+                  <div className="text-xs text-purple-400 break-all mb-1">{adminSigningUrl}</div>
+                  <a href={adminSigningUrl} target="_blank" rel="noreferrer"
+                    className="inline-block text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg mt-1 font-medium">
+                    Open &amp; Sign as AYN AI →
+                  </a>
                 </div>
 
                 {/* Signature status */}
