@@ -192,8 +192,8 @@ Deno.serve(async (req) => {
   <div style="max-width:600px;margin:0 auto;background:#fff;">
 
     <!-- Header -->
-    <div style="background:#000;padding:40px 36px 36px;">
-      <div style="font-size:38px;font-weight:900;color:#fff;letter-spacing:-2px;line-height:1;">AYN</div>
+    <div style="background:#0a0a0a;padding:44px 48px 40px;text-align:center;">
+      <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
       <div style="width:40px;height:2px;background:#fff;opacity:0.3;margin:12px 0;"></div>
       <div style="font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.5);">NDA Fully Executed</div>
     </div>

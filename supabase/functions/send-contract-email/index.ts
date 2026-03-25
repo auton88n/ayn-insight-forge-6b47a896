@@ -109,12 +109,12 @@ Deno.serve(async (req) => {
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AYN AI — Service Agreement</title></head>
 <body style="margin:0;padding:0;background:#f2f2ee;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2ee;padding:40px 0;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.08);">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2ee;padding:0;">
+<tr><td align="center" style="padding:40px 0;">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:0;overflow:hidden;">
 
   <!-- ── HEADER ── -->
-  <tr><td style="background:#0a0a0a;padding:44px 48px 40px;">
+  <tr><td style="background:#0a0a0a;padding:44px 48px 40px;text-align:center;">
     <div style="font-size:42px;font-weight:900;color:#fff;letter-spacing:-2.5px;line-height:1;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">AYN AI</div>
     <div style="width:36px;height:2px;background:rgba(255,255,255,0.2);margin:14px 0 12px;"></div>
     <div style="font-size:10px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Service Agreement</div>
