@@ -285,34 +285,41 @@ export default function NDASign() {
 
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
-  @page{size:A4;margin:20mm 18mm 20mm 18mm}
+  @page{size:A4;margin:0}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Times New Roman',Times,serif;color:#000;background:#fff;font-size:12pt;line-height:1.75;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .wrap{max-width:760px;margin:0 auto;padding:48px 0}
-  .brand{text-align:center;padding-bottom:24px;margin-bottom:28px;border-bottom:2.5pt double #000;page-break-inside:avoid}
+  .wrap{max-width:760px;margin:0 auto;padding:18mm 18mm 18mm 18mm}
+  .doc-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:22px;border-bottom:2pt solid #000}
+  .doc-header-brand{font-size:20pt;font-weight:900;letter-spacing:-1pt;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
+  .doc-header-meta{font-size:8.5pt;color:#000;text-align:left;line-height:1.6}
+  .brand{text-align:center;padding-bottom:22px;margin-bottom:26px;border-bottom:2.5pt double #000;page-break-inside:avoid}
   .brand-name{font-size:42pt;font-weight:900;letter-spacing:-2pt;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
   .doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5pt;margin-top:14px;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
   .doc-ref{font-size:9pt;color:#333;margin-top:5px;letter-spacing:.5px}
-  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:24px 0 28px;padding:16px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:22px 0 26px;padding:14px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
   .party-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:5px;font-family:'Helvetica Neue',Arial,sans-serif}
   .party-name{font-size:12pt;font-weight:700;color:#000}
   .party-info{font-size:10pt;color:#000;margin-top:2px}
-  .sec{margin-bottom:24px;page-break-inside:avoid}
+  .sec{margin-bottom:22px;page-break-inside:avoid}
   .sec h3{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;padding-bottom:5px;border-bottom:1pt solid #ccc;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;page-break-after:avoid}
   .sec p{font-size:11pt;line-height:1.85;text-align:justify;color:#000}
-  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:26px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
-  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:24px;page-break-inside:avoid}
+  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:24px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
+  .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:22px;page-break-inside:avoid}
   .sig-block{}
   .sig-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
   .sig-img{min-height:56px;border-bottom:1pt solid #000;margin-bottom:8px;padding-bottom:3px}
   .sig-name{font-size:11pt;font-weight:700;color:#000}
   .sig-title{font-size:10pt;color:#000}
   .sig-date{font-size:9pt;color:#333;font-style:italic;margin-top:3px}
-  .footer{margin-top:40px;padding-top:10px;border-top:0.5pt solid #ccc;text-align:center;font-size:8.5pt;color:#444;letter-spacing:.5px;page-break-inside:avoid}
-  @media print{body{padding:0}.wrap{padding:0}}
+  .footer{margin-top:36px;padding-top:10px;border-top:1pt solid #000;text-align:center;font-size:8.5pt;color:#000;letter-spacing:.5px;font-weight:600;page-break-inside:avoid}
+  @media print{.no-print{display:none!important}}
 </style>
 </head><body>
 <div class="wrap">
+<div class="doc-header">
+  <div class="doc-header-meta">${ndaRef} &nbsp;&middot;&nbsp; ${today}</div>
+  <div class="doc-header-brand">AYN AI</div>
+</div>
 <div class="brand">
   <div class="brand-name">AYN AI</div>
   <div class="doc-title">Non-Disclosure Agreement</div>

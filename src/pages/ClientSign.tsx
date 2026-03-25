@@ -396,33 +396,36 @@ export default function ClientSign() {
                   const clientSigHtml = clientB64 ? `<img src="${clientB64}" style="max-height:56px;max-width:180px;object-fit:contain;display:block;">` : '<div style="height:56px;"></div>';
                   const adminDate = order.admin_signed_at ? new Date(order.admin_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
                   const clientDate = order.client_signed_at ? new Date(order.client_signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
-                  const rows = (order.services || []).map(s =>
-                    `<tr><td>${s.name}${s.description ? `<div class="sdesc">${s.description.substring(0, 80)}</div>` : ''}</td><td class="r">${s.quantity || 1}</td><td class="r">${fmt(s.price)}</td><td class="r b">${fmt(s.price * (s.quantity || 1))}</td></tr>`
-                  ).join('');
-                  // Strip markdown from description
+                  // Strip markdown helper
                   const cleanDesc = (t: string) => t
                     .split('\n')
                     .filter(l => !l.match(/^\s*[-|]+\s*$/))
                     .map(l => l.replace(/#{1,6}\s/g,'').replace(/\*\*/g,'').replace(/[`]/g,'').replace(/\|/g,' · ').trim())
                     .filter(l => l.length > 0)
                     .join('<br>');
+                  const rows = (order.services || []).map(s =>
+                    `<tr><td>${s.name}${s.description ? `<div class="sdesc">${cleanDesc(s.description)}</div>` : ''}</td><td class="r">${s.quantity || 1}</td><td class="r">${fmt(s.price)}</td><td class="r b">${fmt(s.price * (s.quantity || 1))}</td></tr>`
+                  ).join('');
 
                   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${contractRef} — AYN AI Service Agreement</title>
 <style>
-  @page{size:A4;margin:20mm 18mm 20mm 18mm}
+  @page{size:A4;margin:0}
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Times New Roman',Times,serif;color:#000;background:#fff;font-size:12pt;line-height:1.75;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .wrap{max-width:760px;margin:0 auto;padding:48px 0}
-  .hd{text-align:center;padding-bottom:24px;margin-bottom:28px;border-bottom:2.5pt double #000;page-break-inside:avoid}
+  .wrap{max-width:760px;margin:0 auto;padding:18mm 18mm 18mm 18mm}
+  .doc-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:22px;border-bottom:2pt solid #000}
+  .doc-header-brand{font-size:20pt;font-weight:900;letter-spacing:-1pt;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
+  .doc-header-meta{font-size:8.5pt;color:#000;text-align:right;line-height:1.6}
+  .hd{text-align:center;padding-bottom:22px;margin-bottom:26px;border-bottom:2.5pt double #000;page-break-inside:avoid}
   .brand{font-size:42pt;font-weight:900;letter-spacing:-2pt;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;line-height:1}
   .doc-title{font-size:13pt;font-weight:700;text-transform:uppercase;letter-spacing:1.5pt;margin-top:14px;color:#000}
   .ref{font-size:9pt;color:#333;margin-top:5px;letter-spacing:.5px}
-  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px;padding:14px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
+  .parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:26px;padding:14px 0;border-top:1pt solid #bbb;border-bottom:1pt solid #bbb;page-break-inside:avoid}
   .plabel{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:5px;font-family:'Helvetica Neue',Arial,sans-serif}
   .pname{font-size:12pt;font-weight:700;color:#000}
   .pinfo{font-size:10pt;color:#000;margin-top:2px}
-  .art{margin-bottom:22px;page-break-inside:avoid}
+  .art{margin-bottom:20px;page-break-inside:avoid}
   .art h3{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;border-bottom:1pt solid #ccc;padding-bottom:5px;margin-bottom:9px;font-family:'Helvetica Neue',Arial,sans-serif;color:#000;page-break-after:avoid}
   .art p{font-size:11pt;line-height:1.8;text-align:justify;color:#000}
   table{width:100%;border-collapse:collapse;page-break-inside:avoid}
@@ -434,22 +437,22 @@ export default function ClientSign() {
   .total-row td{border-top:2pt solid #000;border-bottom:none;padding-top:9px;font-weight:900;font-size:13pt;color:#000}
   .disc-note{font-size:9pt;color:#333;text-align:right;padding:4px 0}
   .tax-note{font-size:8.5pt;color:#555;text-align:right;padding:3px 0}
-  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:26px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
+  .witness{border-top:1pt solid #aaa;padding-top:16px;margin:24px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
   .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:22px;page-break-inside:avoid}
   .sig-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
   .sig-img{min-height:56px;border-bottom:1pt solid #000;margin-bottom:7px;padding-bottom:3px}
   .sig-name{font-size:11pt;font-weight:700;color:#000}
   .sig-title{font-size:10pt;color:#000}
   .sig-date{font-size:9pt;color:#333;font-style:italic;margin-top:3px}
-  .footer{margin-top:36px;padding-top:10px;border-top:0.5pt solid #ccc;text-align:center;font-size:8.5pt;color:#444;letter-spacing:.5px;page-break-inside:avoid}
-  @media print{
-    body{padding:0}
-    .wrap{padding:0}
-    .no-print{display:none!important}
-  }
+  .footer{margin-top:32px;padding-top:10px;border-top:1pt solid #000;text-align:center;font-size:8.5pt;color:#000;letter-spacing:.5px;font-weight:600;page-break-inside:avoid}
+  @media print{.no-print{display:none!important}}
 </style>
 </head><body>
 <div class="wrap">
+<div class="doc-header">
+  <div class="doc-header-meta">${contractRef} &nbsp;&middot;&nbsp; ${today}</div>
+  <div class="doc-header-brand">AYN AI</div>
+</div>
 <div class="hd">
   <div class="brand">AYN AI</div>
   <div class="doc-title">Service Agreement &amp; Price Quote</div>
