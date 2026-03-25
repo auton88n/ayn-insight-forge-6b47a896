@@ -407,6 +407,7 @@ export default function WorldIntelligence() {
   const [assetFilter, setAssetFilter] = useState<string>('all');
   const [votingId, setVotingId] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<{ intel: CountryIntel; sic: Record<string, any> } | null>(null);
+  const [worldSignals, setWorldSignals] = useState<any[]>([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
