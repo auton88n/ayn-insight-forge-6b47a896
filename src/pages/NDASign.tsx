@@ -264,12 +264,11 @@ export default function NDASign() {
             </div>
           )}
 
-          {/* Executed Badge */}
+          {/* Download button — shown when both signed */}
           {bothSigned && (
-            <div style={{ textAlign:'center', margin:'32px 0' }}>
+            <div style={{ margin:'32px 0' }}>
               <button
                 onClick={async () => {
-                  // Fetch signatures as base64 so they embed correctly in the downloaded file
                   const toBase64 = async (url: string | null) => {
                     if (!url) return null;
                     try {
@@ -325,14 +324,12 @@ export default function NDASign() {
   .sec p{font-size:11pt;line-height:1.85;text-align:justify;color:#000}
   .witness{border-top:1pt solid #aaa;padding-top:16px;margin:24px 0;font-style:italic;font-size:11pt;color:#000;line-height:1.8;page-break-inside:avoid}
   .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:22px;page-break-inside:avoid}
-  .sig-block{}
   .sig-label{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#000;margin-bottom:10px;font-family:'Helvetica Neue',Arial,sans-serif}
   .sig-img{min-height:56px;border-bottom:1pt solid #000;margin-bottom:8px;padding-bottom:3px}
   .sig-name{font-size:11pt;font-weight:700;color:#000}
   .sig-title{font-size:10pt;color:#000}
   .sig-date{font-size:9pt;color:#333;font-style:italic;margin-top:3px}
   .footer{margin-top:36px;padding-top:10px;border-top:1pt solid #000;text-align:center;font-size:8.5pt;color:#000;letter-spacing:.5px;font-weight:600;page-break-inside:avoid}
-  @media print{.no-print{display:none!important}}
 </style>
 </head><body>
 <div class="wrap">
@@ -341,7 +338,6 @@ export default function NDASign() {
   <div class="doc-title">Non-Disclosure Agreement</div>
   <div class="doc-ref">${ndaRef} &nbsp;&middot;&nbsp; ${today}</div>
 </div>
-
 <div class="parties">
   <div>
     <div class="party-label">Disclosing Party</div>
@@ -353,25 +349,20 @@ export default function NDASign() {
     <div class="party-label">Receiving Party</div>
     <div class="party-name">${nda.company_name}</div>
     <div class="party-info">${nda.contact_person}</div>
-    <div class="party-info">${nda.company_email.replace('@', '&#64;')}</div>
+    <div class="party-info">${nda.company_email.replace('@','&#64;')}</div>
   </div>
 </div>
-
 ${sections}
-
-<div class="witness">
-  <strong>IN WITNESS WHEREOF</strong>, the parties hereto have caused this Mutual Non-Disclosure Agreement to be executed as of the date first written above by their duly authorized representatives.
-</div>
-
+<div class="witness"><strong>IN WITNESS WHEREOF</strong>, the parties hereto have caused this Non-Disclosure Agreement to be executed as of the date first written above.</div>
 <div class="sig-grid">
-  <div class="sig-block">
+  <div>
     <div class="sig-label">Disclosing Party — AYN AI</div>
     <div class="sig-img">${adminSigHtml}</div>
     <div class="sig-name">Ghazi ALDhyaei</div>
     <div class="sig-title">Founder & CEO, AYN AI</div>
     <div class="sig-date">${adminDate ? 'Signed: ' + adminDate : ''}</div>
   </div>
-  <div class="sig-block">
+  <div>
     <div class="sig-label">Receiving Party — ${nda.company_name}</div>
     <div class="sig-img">${clientSigHtml}</div>
     <div class="sig-name">${nda.contact_person}</div>
@@ -379,38 +370,36 @@ ${sections}
     <div class="sig-date">${clientDate ? 'Signed: ' + clientDate : ''}</div>
   </div>
 </div>
-
 <div class="footer">${ndaRef} &nbsp;&middot;&nbsp; &copy; ${new Date().getFullYear()} AYN AI &nbsp;&middot;&nbsp; This document is confidential</div>
-</div><!-- /wrap -->
+</div>
 </body></html>`;
 
-                  // Open in new window and trigger print dialog (Save as PDF)
-                  const win = window.open('', '_blank');
-                  if (win) {
-                    win.document.write(html);
-                    win.document.close();
-                    win.document.title = '';
+                  // Use hidden iframe — works on mobile Safari where window.open is blocked
+                  const iframe = document.createElement('iframe');
+                  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:white;';
+                  document.body.appendChild(iframe);
+                  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                  if (doc) {
+                    doc.open(); doc.write(html); doc.close();
                     setTimeout(() => {
-                      win.focus();
-                      win.onbeforeprint = () => { win.document.title = ''; };
-                      win.onafterprint = () => { win.close(); };
-                      win.print();
-                    }, 600);
+                      iframe.contentWindow?.focus();
+                      iframe.contentWindow?.print();
+                      // Remove iframe after print dialog closes
+                      setTimeout(() => document.body.removeChild(iframe), 2000);
+                    }, 500);
                   }
                 }}
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: '#16a34a', color: 'white', border: 'none',
-                  borderRadius: 8, padding: '10px 20px', fontSize: 13,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  width: '100%', background: '#16a34a', color: 'white', border: 'none',
+                  borderRadius: 10, padding: '16px 24px', fontSize: 15,
                   fontWeight: 700, cursor: 'pointer', fontFamily: "'Helvetica Neue', Arial, sans-serif",
-                  letterSpacing: 0.3,
                 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
                 Download Signed Agreement
               </button>
-
             </div>
           )}
 
