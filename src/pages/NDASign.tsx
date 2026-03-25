@@ -162,9 +162,8 @@ export default function NDASign() {
 
           {/* Header - AYN text-based branding */}
           <div style={{ textAlign:'center', marginBottom:36, borderBottom:'3px double #1a1a1a', paddingBottom:28 }}>
-            <div style={{ fontSize:52, fontWeight:900, letterSpacing:-3, lineHeight:1, fontFamily:"'Helvetica Neue',Arial,sans-serif", color:'#000', display:'flex', alignItems:'baseline', justifyContent:'center', gap:10 }}>
-              <span>AYN</span>
-              <span style={{ fontSize:18, fontWeight:400, letterSpacing:6, color:'#888', textTransform:'uppercase' }}>AI</span>
+            <div style={{ fontSize:52, fontWeight:900, letterSpacing:-2, lineHeight:1, fontFamily:"'Helvetica Neue',Arial,sans-serif", color:'#000', textAlign:'center' }}>
+              AYN AI
             </div>
             <div style={{ marginTop:22, fontSize:20, fontWeight:700, letterSpacing:0.8, textTransform:'uppercase' }}>Non-Disclosure Agreement</div>
             <div style={{ fontSize:11, color:'#888', marginTop:4 }}>{ndaRef} · {new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</div>
@@ -243,14 +242,30 @@ export default function NDASign() {
           {bothSigned && (
             <div style={{ textAlign:'center', margin:'32px 0' }}>
               <button
-                onClick={() => {
-                  // Build clean standalone PDF document (no UI chrome, no header, no badges)
-                  const adminSigHtml = nda.admin_signature_url
-                    ? `<img src="${nda.admin_signature_url}" style="max-height:56px;max-width:180px;object-fit:contain;display:block;">`
-                    : '<div style="height:56px;border-bottom:1px solid #999;width:180px;"></div>';
-                  const clientSigHtml = nda.client_signature_url
-                    ? `<img src="${nda.client_signature_url}" style="max-height:56px;max-width:180px;object-fit:contain;display:block;">`
-                    : '<div style="height:56px;border-bottom:1px solid #999;width:180px;"></div>';
+                onClick={async () => {
+                  // Fetch signatures as base64 so they embed correctly in the downloaded file
+                  const toBase64 = async (url: string | null) => {
+                    if (!url) return null;
+                    try {
+                      const res = await fetch(url);
+                      const blob = await res.blob();
+                      return await new Promise<string>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.readAsDataURL(blob);
+                      });
+                    } catch { return null; }
+                  };
+                  const [adminB64, clientB64] = await Promise.all([
+                    toBase64(nda.admin_signature_url),
+                    toBase64(nda.client_signature_url),
+                  ]);
+                  const adminSigHtml = adminB64
+                    ? `<img src="${adminB64}" style="max-height:60px;max-width:200px;object-fit:contain;display:block;">`
+                    : '<div style="height:60px;"></div>';
+                  const clientSigHtml = clientB64
+                    ? `<img src="${clientB64}" style="max-height:60px;max-width:200px;object-fit:contain;display:block;">`
+                    : '<div style="height:60px;"></div>';
                   const adminDate = nda.admin_signed_at ? new Date(nda.admin_signed_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '';
                   const clientDate = nda.client_signed_at ? new Date(nda.client_signed_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '';
                   const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
@@ -271,8 +286,7 @@ export default function NDASign() {
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'EB Garamond','Times New Roman',Times,serif;color:#1a1a1a;background:#fff;padding:64px;max-width:760px;margin:0 auto;line-height:1.75;font-size:14px}
   .brand{text-align:center;padding-bottom:28px;margin-bottom:32px;border-bottom:2.5px double #1a1a1a}
-  .brand-name{font-size:52px;font-weight:700;letter-spacing:-2px;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;display:inline-flex;align-items:baseline;gap:10px}
-  .brand-ai{font-size:16px;font-weight:400;letter-spacing:6px;color:#999;text-transform:uppercase;font-family:'Helvetica Neue',Arial,sans-serif}
+  .brand-name{font-size:48px;font-weight:900;letter-spacing:-2px;line-height:1;font-family:'Helvetica Neue',Arial,sans-serif;color:#000}
   .doc-title{font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-top:20px;font-family:'Helvetica Neue',Arial,sans-serif}
   .doc-ref{font-size:11px;color:#888;margin-top:6px;letter-spacing:.5px}
   .parties{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:24px 0 32px;padding:20px 0;border-top:1px solid #e0e0e0;border-bottom:1px solid #e0e0e0}
@@ -294,7 +308,7 @@ export default function NDASign() {
 </style>
 </head><body>
 <div class="brand">
-  <div class="brand-name"><span>AYN</span><span class="brand-ai">AI</span></div>
+  <div class="brand-name">AYN AI</div>
   <div class="doc-title">Non-Disclosure Agreement</div>
   <div class="doc-ref">${ndaRef} &nbsp;&middot;&nbsp; ${today}</div>
 </div>
