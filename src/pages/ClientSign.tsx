@@ -463,13 +463,13 @@ export default function ClientSign() {
     <div class="plabel">Service Provider</div>
     <div class="pname">AYN AI</div>
     <div class="pinfo">Ghazi ALDhyaei</div>
-    <div class="pinfo">ghazi@aynn.io</div>
+    <div class="pinfo">ghazi&#64;aynn.io</div>
   </div>
   <div>
     <div class="plabel">Client</div>
     <div class="pname">${order.company_name}</div>
     <div class="pinfo">${order.contact_person}</div>
-    ${order.company_email ? `<div class="pinfo">${order.company_email}</div>` : ''}
+    ${order.company_email ? `<div class="pinfo">${order.company_email.replace('@', '&#64;')}</div>` : ''}
   </div>
 </div>
 <div class="art">

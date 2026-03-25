@@ -331,13 +331,13 @@ export default function NDASign() {
     <div class="party-label">Disclosing Party</div>
     <div class="party-name">AYN AI</div>
     <div class="party-info">Ghazi ALDhyaei</div>
-    <div class="party-info">ghazi@aynn.io</div>
+    <div class="party-info">ghazi&#64;aynn.io</div>
   </div>
   <div>
     <div class="party-label">Receiving Party</div>
     <div class="party-name">${nda.company_name}</div>
     <div class="party-info">${nda.contact_person}</div>
-    <div class="party-info">${nda.company_email}</div>
+    <div class="party-info">${nda.company_email.replace('@', '&#64;')}</div>
   </div>
 </div>
 
