@@ -56,6 +56,7 @@ export type AdminTabId =
   | 'email-broadcast'
   | 'custom-orders'
   | 'nda'
+  | 'document-studio'
 ;
 
 interface AdminSection {
@@ -98,6 +99,7 @@ const aiSections: AdminSection[] = [
   { id: 'email-broadcast', title: 'Email Broadcast', shortTitle: 'Email', icon: SendIcon, gradient: 'from-cyan-500 to-blue-500', adminOnly: true },
   { id: 'nda', title: 'NDA Agreements', shortTitle: 'NDA', icon: FileText, gradient: 'from-violet-500 to-purple-600', adminOnly: true },
   { id: 'custom-orders', title: 'Custom Orders', shortTitle: 'Orders', icon: ShoppingBag, gradient: 'from-amber-500 to-orange-600', adminOnly: true },
+  { id: 'document-studio', title: 'Document Studio', shortTitle: 'Docs', icon: FileText, gradient: 'from-blue-500 to-indigo-500', adminOnly: true },
 ];
 
 interface AdminSidebarProps {

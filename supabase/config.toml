@@ -329,6 +329,9 @@ verify_jwt = false
 [functions.ai-contract-builder]
 verify_jwt = false
 
+[functions.generate-business-document]
+verify_jwt = false
+
 [functions.send-nda-email]
 verify_jwt = false
 
