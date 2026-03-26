@@ -34,6 +34,7 @@ import { UserDetailPage } from '@/components/admin/UserDetailPage';
 import { EmailBroadcast } from '@/components/admin/EmailBroadcast';
 import { CustomOrders } from '@/components/admin/CustomOrders';
 import { NDAManager } from '@/components/admin/NDAManager';
+import { DocumentStudio } from '@/components/admin/DocumentStudio';
 import { TermsConsentViewer } from '@/components/admin/TermsConsentViewer';
 import { CommandCenterPanel } from '@/components/admin/workforce/CommandCenterPanel';
 
@@ -485,6 +486,7 @@ export const AdminPanel = ({
                     {activeTab === 'email-broadcast' && <EmailBroadcast key={refreshKey} />}
                     {activeTab === 'nda' && <NDAManager key={refreshKey} />}
                     {activeTab === 'custom-orders' && <CustomOrders key={refreshKey} />}
+                    {activeTab === 'document-studio' && <DocumentStudio key={refreshKey} />}
                   </ErrorBoundary>
                 </motion.div>
               </AnimatePresence>
