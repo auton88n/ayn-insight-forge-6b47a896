@@ -3167,6 +3167,7 @@ export type Database = {
           admin_signature_url: string | null
           admin_signed_at: string | null
           after_sale_services: string | null
+          client_responsibilities: string | null
           client_signature_url: string | null
           client_signed_at: string | null
           client_viewed_at: string | null
@@ -3187,13 +3188,18 @@ export type Database = {
           governing_law: string | null
           id: string
           last_opened_at: string | null
+          loyalty_discount: string | null
           notes: string | null
           order_description: string | null
           order_title: string
+          out_of_scope: string | null
           paid_at: string | null
+          payment_split: string | null
           payment_terms: string | null
+          phase_breakdown: Json | null
           privacy_notes: string | null
           receipt_sent_at: string | null
+          scope_of_work: string | null
           services: Json
           signing_token: string | null
           status: string
@@ -3213,6 +3219,7 @@ export type Database = {
           admin_signature_url?: string | null
           admin_signed_at?: string | null
           after_sale_services?: string | null
+          client_responsibilities?: string | null
           client_signature_url?: string | null
           client_signed_at?: string | null
           client_viewed_at?: string | null
@@ -3233,13 +3240,18 @@ export type Database = {
           governing_law?: string | null
           id?: string
           last_opened_at?: string | null
+          loyalty_discount?: string | null
           notes?: string | null
           order_description?: string | null
           order_title: string
+          out_of_scope?: string | null
           paid_at?: string | null
+          payment_split?: string | null
           payment_terms?: string | null
+          phase_breakdown?: Json | null
           privacy_notes?: string | null
           receipt_sent_at?: string | null
+          scope_of_work?: string | null
           services?: Json
           signing_token?: string | null
           status?: string
@@ -3259,6 +3271,7 @@ export type Database = {
           admin_signature_url?: string | null
           admin_signed_at?: string | null
           after_sale_services?: string | null
+          client_responsibilities?: string | null
           client_signature_url?: string | null
           client_signed_at?: string | null
           client_viewed_at?: string | null
@@ -3279,13 +3292,18 @@ export type Database = {
           governing_law?: string | null
           id?: string
           last_opened_at?: string | null
+          loyalty_discount?: string | null
           notes?: string | null
           order_description?: string | null
           order_title?: string
+          out_of_scope?: string | null
           paid_at?: string | null
+          payment_split?: string | null
           payment_terms?: string | null
+          phase_breakdown?: Json | null
           privacy_notes?: string | null
           receipt_sent_at?: string | null
+          scope_of_work?: string | null
           services?: Json
           signing_token?: string | null
           status?: string
