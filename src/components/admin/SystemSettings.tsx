@@ -295,7 +295,7 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
         action: 'admin_pin_changed',
         details: { changed_at: new Date().toISOString() },
         severity: 'high'
-      }).catch(() => {});
+      } as any).then(() => {}).catch(() => {});
     } catch (error) {
       console.error('Error changing PIN:', error);
       toast.error('Failed to update PIN');

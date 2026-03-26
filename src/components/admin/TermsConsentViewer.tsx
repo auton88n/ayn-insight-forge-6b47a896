@@ -48,7 +48,7 @@ export const TermsConsentViewer = () => {
 
       setRecords(consentData || []);
       const map = new Map<string, ProfileInfo>();
-      (profilesData || []).forEach((p: any) => map.set(p.id, { contact_person: p.display_name, company_name: p.email }));
+      (profilesData || []).forEach((p: any) => map.set(p.id, { user_id: p.id, contact_person: p.display_name, company_name: p.email }));
       setProfiles(map);
     } catch (err) {
       console.error('Failed to fetch consent logs:', err);

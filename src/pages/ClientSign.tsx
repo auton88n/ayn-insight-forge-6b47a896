@@ -152,7 +152,7 @@ export default function ClientSign() {
     const updates: any = party === 'admin'
       ? { admin_signature_url: sigUrl, admin_signed_at: now }
       : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    await supabase.from('custom_orders').update(updates).eq('signing_token', token);
+    await supabase.from('custom_orders').update(updates).eq('signing_token', token as string);
     const updated = { ...order, ...updates };
     setOrder(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {

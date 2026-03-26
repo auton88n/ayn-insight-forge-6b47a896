@@ -100,7 +100,7 @@ function AccuracyScoreboard() {
         const total = data.length;
         const correct = data.filter(r => r.was_direction_correct).length;
         const avgScore = data.reduce((s, r) => s + (r.accuracy_score || 0), 0) / total;
-        const last30 = data.filter(r => new Date(r.actual_date) >= new Date(Date.now() - 30 * 86400000));
+        const last30 = data.filter(r => r.actual_date && new Date(r.actual_date) >= new Date(Date.now() - 30 * 86400000));
         const correct30 = last30.filter(r => r.was_direction_correct).length;
         const pct30 = last30.length ? Math.round(100 * correct30 / last30.length) : null;
         setAccuracy({ total, correct, pct: Math.round(100 * correct / total), avgScore: Math.round(avgScore), pct30, resolved30: last30.length });
