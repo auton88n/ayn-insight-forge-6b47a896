@@ -291,11 +291,13 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
       setConfirmPin('');
 
       // Log the change
-      await supabase.from('security_logs').insert({
-        action: 'admin_pin_changed',
-        details: { changed_at: new Date().toISOString() },
-        severity: 'high'
-      }).catch(() => {});
+      try {
+        await supabase.from('security_logs').insert({
+          action: 'admin_pin_changed',
+          details: { changed_at: new Date().toISOString() },
+          severity: 'high'
+        } as any);
+      } catch {}
     } catch (error) {
       console.error('Error changing PIN:', error);
       toast.error('Failed to update PIN');

@@ -350,7 +350,7 @@ export default function AdminCustomOrders() {
               <tbody className="divide-y divide-border">
                 {filtered.map(o => {
                   const s = STATUS[o.status] || STATUS.draft;
-                  const openCount = o.email_open_count || 0;
+                  const openCount = (o as any).email_open_count || 0;
                   return (
                     <tr key={o.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="px-4 py-3">
@@ -363,7 +363,7 @@ export default function AdminCustomOrders() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="font-bold text-foreground">{new Intl.NumberFormat('en-SA',{style:'currency',currency:o.currency||'SAR'}).format(Number(o.total_amount))}</div>
-                        {o.paid_at && <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Paid</div>}
+                        {(o as any).paid_at && <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">✓ Paid</div>}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold', s.color)}>
@@ -378,9 +378,9 @@ export default function AdminCustomOrders() {
                             <div className={cn('text-[10px] font-semibold', openCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
                               {openCount > 0 ? `👁 Opened ${openCount}×` : '📤 Sent'}
                             </div>
-                            {o.email_opened_at && (
+                            {(o as any).email_opened_at && (
                               <div className="text-[9px] text-muted-foreground">
-                                {new Date(o.email_opened_at).toLocaleDateString()}
+                                {new Date((o as any).email_opened_at).toLocaleDateString()}
                               </div>
                             )}
                           </div>

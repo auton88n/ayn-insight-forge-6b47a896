@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import {
   Plus, Send, FileText, Trash2, Eye, Edit2,
   DollarSign, Building2, Clock, CheckCircle, XCircle,
-  Loader2, Download, PenTool, Search, X, Minus, RefreshCw, Sparkles
+  Loader2, Download, PenTool, Search, X, Minus, RefreshCw, Sparkles,
+  ChevronUp, ChevronDown
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -179,7 +180,7 @@ export const CustomOrders = () => {
 
   const openNew = () => { setForm(emptyForm()); setEditingOrder(null); setPanel('form'); };
   const openEdit = (o: CustomOrder) => {
-    setForm({ ...o, services: o.services || [{ name: '', description: '', price: 0, quantity: 1 }], stripe_payment_link: o.stripe_payment_link || '' });
+    setForm({ ...o, services: o.services || [{ name: '', description: '', price: 0, quantity: 1 }], stripe_payment_link: o.stripe_payment_link || '' } as any);
     setEditingOrder(o);
     setPanel('form');
   };
@@ -192,12 +193,12 @@ export const CustomOrders = () => {
     setSaving(true);
     try {
       const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent);
-      const payload = { ...form, subtotal, total_amount: total, status: editingOrder?.status || 'draft' };
+      const payload = { ...form, subtotal, total_amount: total, status: editingOrder?.status || 'draft', services: form.services as any };
       if (editingOrder) {
-        await supabase.from('custom_orders').update(payload).eq('id', editingOrder.id);
+        await supabase.from('custom_orders').update(payload as any).eq('id', editingOrder.id);
         toast({ title: 'Order updated' });
       } else {
-        await supabase.from('custom_orders').insert(payload);
+        await supabase.from('custom_orders').insert(payload as any);
         toast({ title: 'Order created' });
       }
       setPanel('none');
@@ -518,16 +519,16 @@ export const CustomOrders = () => {
                 </a>
               )}
               {/* Signing links */}
-              {viewingOrder.signing_token && (
+               {(viewingOrder as any).signing_token && (
                 <div className="bg-white/3 border border-white/8 rounded-lg p-3 space-y-2">
                   <div className="text-white/30 text-xs mb-2 uppercase tracking-widest font-bold">Signing Links</div>
                   <div>
                     <div className="text-white/30 text-[10px] mb-0.5">Client link (sent via email)</div>
-                    <div className="text-blue-400 text-xs break-all">{`https://aynn.io/sign/${viewingOrder.signing_token}`}</div>
+                    <div className="text-blue-400 text-xs break-all">{`https://aynn.io/sign/${(viewingOrder as any).signing_token}`}</div>
                   </div>
                   <div>
                     <div className="text-white/30 text-[10px] mb-1">Your admin signing link</div>
-                    <a href={`https://aynn.io/sign/${viewingOrder.signing_token}?role=admin`} target="_blank" rel="noreferrer"
+                    <a href={`https://aynn.io/sign/${(viewingOrder as any).signing_token}?role=admin`} target="_blank" rel="noreferrer"
                       className="inline-flex items-center gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg font-medium">
                       Open &amp; Sign as AYN AI →
                     </a>

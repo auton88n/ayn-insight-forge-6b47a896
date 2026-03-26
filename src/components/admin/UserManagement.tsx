@@ -72,7 +72,7 @@ export const UserManagement = () => {
         .from('admin_users_view')
         .select('*');
       if (error) throw error;
-      setUsers(data || []);
+      setUsers((data || []) as unknown as AdminUser[]);
     } catch (err: any) {
       toast.error('Failed to load users: ' + err.message);
     } finally {
