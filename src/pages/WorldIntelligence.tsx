@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { Json } from '@/integrations/supabase/types';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
+import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
 
 
 // ─── WorldMonitor live map hook ──────────────────────────────────────────────
@@ -755,20 +756,29 @@ export default function WorldIntelligence() {
   }, [predictions, activeHorizon, assetFilter]);
 
 
-  // Map points: use live WorldMonitor data with SIC overlays
+  // Map points: seeds (always) + live WorldMonitor data + SIC overlays
   const mapPoints: MapPoint[] = useMemo(() => {
-    const pts = [...liveMapPoints];
-    // Overlay SIC country dots on top of live data
+    // Start from comprehensive seed data — always displayed
+    const pts: MapPoint[] = [...INTELLIGENCE_SEEDS];
+
+    // Merge live data on top (WorldMonitor augments but doesn't replace seeds)
+    liveMapPoints.forEach(live => {
+      const isDuplicate = pts.some(p =>
+        Math.abs(p.coordinates[0] - live.coordinates[0]) < 1.5 &&
+        Math.abs(p.coordinates[1] - live.coordinates[1]) < 1.5
+      );
+      if (!isDuplicate) pts.push(live);
+    });
+
+    // Overlay SIC country dots where not already covered
     Object.entries(sicIntel).forEach(([code, d]) => {
       const coords = SIC_COORDINATES[code];
       if (!coords) return;
       const data = d as any;
       const hasData = (data.economic_posture?.length > 5) || (data.news?.length > 0);
-      // Only add if not already covered by live data in this area
       const alreadyCovered = pts.some(p =>
-        Math.abs(p.coordinates[0] - coords[0]) < 4 &&
-        Math.abs(p.coordinates[1] - coords[1]) < 4 &&
-        p.category !== 'S.I.C.'
+        Math.abs(p.coordinates[0] - coords[0]) < 3 &&
+        Math.abs(p.coordinates[1] - coords[1]) < 3
       );
       if (!alreadyCovered) {
         pts.push({ id: code, coordinates: coords, label: data.name || code, risk: data.risk_level === 'CRITICAL' ? 'critical' : hasData ? 'alert' : 'stable', category: 'S.I.C.', detail: hasData ? 'Click for dossier →' : code });
@@ -776,6 +786,8 @@ export default function WorldIntelligence() {
     });
     return pts;
   }, [liveMapPoints, sicIntel]);
+
+
 
 
 
@@ -859,14 +871,15 @@ export default function WorldIntelligence() {
                 <span className="text-[10px] font-mono font-bold text-cyan-400 tracking-[0.15em]">GLOBAL THREAT MAP</span>
                 <span className="text-[8px] text-white/18">· click countries for intelligence dossier</span>
               </div>
-              <div className="p-2">
+              <div className="p-0">
                 <HeatMap2D
                   points={mapPoints}
-                  height={400}
+                  height={440}
                   onPointClick={handleMapClick}
                   showLayerToggle={true}
                   isLive={true}
                   lastRefresh={mapLastRefresh}
+                  ticker={THREAT_TICKER}
                 />
               </div>
             </div>
