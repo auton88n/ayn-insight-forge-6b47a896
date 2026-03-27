@@ -859,106 +859,104 @@ export default function WorldIntelligence() {
       )}
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[1600px] mx-auto p-4 space-y-6">
+        <div className="max-w-[1600px] mx-auto p-4 space-y-5">
 
-          {/* ─── OVERVIEW ─── */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-5">
-            {/* Map */}
-            <div className="bg-black/50 border border-white/6 rounded-xl overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/5 bg-gradient-to-r from-cyan-500/5 to-transparent">
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,200,255,0.5)]" />
-                <Globe2 className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-[10px] font-mono font-bold text-cyan-400 tracking-[0.15em]">GLOBAL THREAT MAP</span>
-                <span className="text-[8px] text-white/18">· click countries for intelligence dossier</span>
+          {/* ─── FULL-WIDTH MAP ─── */}
+          <div className="rounded-2xl overflow-hidden border border-white/8 shadow-[0_0_60px_rgba(0,255,200,0.04)]">
+            <HeatMap2D
+              points={mapPoints}
+              height={580}
+              onPointClick={handleMapClick}
+              showLayerToggle={true}
+              isLive={true}
+              lastRefresh={mapLastRefresh}
+              ticker={THREAT_TICKER}
+            />
+          </div>
+
+          {/* ─── CARDS ROW ─── */}
+          {/* ─── INTEL BRIEF + MACRO (2-col below map) ─── */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-5">
+            {/* Intelligence brief */}
+            <div className="bg-black/50 border border-white/6 rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5 bg-gradient-to-r from-emerald-500/6 to-transparent">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.6)] animate-pulse" />
+                <Radio className="w-4 h-4 text-emerald-400" />
+                <span className="text-[11px] font-mono font-bold text-emerald-400 tracking-widest uppercase">Intelligence Brief</span>
+                <div className="flex-1" />
+                <button
+                  onClick={async () => {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const res = await fetch(`${SUPABASE_URL}/functions/v1/ayn-pulse-engine`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' }
+                      });
+                      if (res.ok) { setTimeout(() => { fetchSnapshot(); }, 3000); }
+                    } catch {}
+                  }}
+                  className="text-[9px] font-mono text-emerald-400/50 hover:text-emerald-400 transition-all uppercase tracking-wider px-3 py-1 border border-emerald-500/20 rounded-lg hover:border-emerald-500/40 hover:bg-emerald-500/5"
+                >
+                  ↺ Refresh
+                </button>
               </div>
-              <div className="p-0">
-                <HeatMap2D
-                  points={mapPoints}
-                  height={440}
-                  onPointClick={handleMapClick}
-                  showLayerToggle={true}
-                  isLive={true}
-                  lastRefresh={mapLastRefresh}
-                  ticker={THREAT_TICKER}
-                />
+              <div className="p-4 space-y-2">
+                {briefItems.length > 0 ? briefItems.map((item, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
+                    className={cn('text-[11px] font-mono leading-relaxed py-2.5 px-4 border-l-2 rounded-r-lg',
+                      String(item).toLowerCase().includes('fear') || String(item).includes('⚠')
+                        ? 'border-l-red-500/50 text-red-200/60 bg-red-500/4'
+                        : 'border-l-emerald-400/30 text-white/55 bg-white/2')}>
+                    {String(item)}
+                  </motion.div>
+                )) : <p className="text-[11px] text-white/20 text-center py-6 font-mono">Awaiting intelligence sweep...</p>}
               </div>
             </div>
 
-            {/* Right: Brief + macro */}
+            {/* Macro + Fear&Greed */}
             <div className="space-y-4">
-              <div className="bg-black/50 border border-white/6 rounded-xl overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/5 bg-gradient-to-r from-emerald-500/5 to-transparent">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
-                  <Radio className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[10px] font-mono font-bold text-emerald-400 tracking-[0.15em]">INTELLIGENCE BRIEF</span>
-                  <div className="flex-1" />
-                  <button
-                    onClick={async () => {
-                      try {
-                        const { data: { session } } = await supabase.auth.getSession();
-                        const res = await fetch(`${SUPABASE_URL}/functions/v1/ayn-pulse-engine`, {
-                          method: 'POST',
-                          headers: { Authorization: `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' }
-                        });
-                        if (res.ok) { setTimeout(() => { fetchSnapshot(); }, 3000); }
-                      } catch {}
-                    }}
-                    className="text-[8px] font-mono text-emerald-400/50 hover:text-emerald-400 transition-colors uppercase tracking-wider px-2 py-0.5 border border-emerald-500/20 rounded hover:border-emerald-500/40"
-                  >
-                    Trigger Sweep
-                  </button>
+              {/* Fear & Greed */}
+              <div className="bg-black/50 border border-white/6 rounded-2xl p-5">
+                <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">Market Sentiment</div>
+                <div className={cn('text-5xl font-mono font-bold mb-1',
+                  (sentiment.value || 0) <= 25 ? 'text-red-400' : (sentiment.value || 0) <= 45 ? 'text-orange-400' : (sentiment.value || 0) <= 55 ? 'text-amber-400' : 'text-emerald-400')}>
+                  {sentiment.value ?? '—'}
                 </div>
-                <div className="p-4 space-y-1">
-                  {briefItems.length > 0 ? briefItems.map((item, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
-                      className={cn('text-[10px] font-mono leading-relaxed py-2 px-3 border-l-2 rounded-r',
-                        String(item).toLowerCase().includes('fear') || String(item).includes('⚠')
-                          ? 'border-l-red-500/40 text-red-200/55 bg-red-500/3'
-                          : 'border-l-emerald-400/25 text-white/50 bg-white/2')}>
-                      {String(item)}
-                    </motion.div>
-                  )) : <p className="text-[10px] text-white/18 text-center py-4 font-mono">Awaiting intelligence sweep...</p>}
+                <div className="text-[10px] text-white/30 mb-3 font-mono">{sentiment.classification || 'Fear & Greed Index'}</div>
+                <div className="h-2 bg-white/6 rounded-full overflow-hidden">
+                  <div className={cn('h-full rounded-full transition-all duration-1000',
+                    (sentiment.value || 0) <= 25 ? 'bg-gradient-to-r from-red-600 to-red-400'
+                    : (sentiment.value || 0) <= 45 ? 'bg-gradient-to-r from-orange-600 to-orange-400'
+                    : 'bg-gradient-to-r from-emerald-600 to-emerald-400')}
+                    style={{ width: `${sentiment.value || 0}%` }} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-black/50 border border-white/6 rounded-xl p-4">
-                  <div className="text-[8px] text-white/25 uppercase tracking-wider mb-2 font-mono">Fear & Greed</div>
-                  <div className={cn('text-3xl font-mono font-bold',
-                    (sentiment.value || 0) <= 25 ? 'text-red-400' : (sentiment.value || 0) <= 45 ? 'text-orange-400' : (sentiment.value || 0) <= 55 ? 'text-amber-400' : 'text-emerald-400')}>
-                    {sentiment.value ?? '—'}
-                  </div>
-                  <div className="text-[9px] text-white/25 mt-0.5 font-mono">{sentiment.classification}</div>
-                  <div className="h-1.5 bg-white/5 rounded-full mt-3 overflow-hidden">
-                    <div className={cn('h-full rounded-full transition-all',
-                      (sentiment.value || 0) <= 25 ? 'bg-red-500' : (sentiment.value || 0) <= 45 ? 'bg-orange-500' : 'bg-emerald-500')}
-                      style={{ width: `${sentiment.value || 0}%` }} />
-                  </div>
-                </div>
-
-                <div className="bg-black/50 border border-white/6 rounded-xl p-4">
-                  <div className="text-[8px] text-white/25 uppercase tracking-wider mb-3 font-mono">US Macro</div>
-                  <div className="space-y-2">
-                    {[
-                      { k: 'fed_funds_rate', label: 'Fed Rate', suffix: '%' },
-                      { k: 'treasury_10yr', label: '10Y Yield', suffix: '%' },
-                      { k: 'yield_curve', label: 'Yield Curve', field: 'signal', suffix: '' },
-                    ].map(({ k, label, suffix, field }) => {
-                      const d = safeObj(macro[k]);
-                      const val = field ? d[field] : d.value;
-                      if (!val) return null;
-                      return (
-                        <div key={k} className="flex justify-between text-[9px] font-mono">
-                          <span className="text-white/25">{label}</span>
-                          <span className="text-white/65 font-bold">{val}{suffix}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+              {/* US Macro */}
+              <div className="bg-black/50 border border-white/6 rounded-2xl p-5">
+                <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">US Macro Indicators</div>
+                <div className="space-y-3">
+                  {[
+                    { k: 'fed_funds_rate', label: 'Fed Rate', suffix: '%' },
+                    { k: 'treasury_10yr',  label: '10Y Yield', suffix: '%' },
+                    { k: 'yield_curve',    label: 'Yield Curve', field: 'signal', suffix: '' },
+                  ].map(({ k, label, suffix, field }) => {
+                    const d = safeObj(macro[k]);
+                    const val = field ? d[field as keyof typeof d] : d.value;
+                    if (!val) return null;
+                    return (
+                      <div key={k} className="flex justify-between items-center py-2 border-b border-white/4 last:border-0">
+                        <span className="text-[11px] text-white/40 font-mono">{label}</span>
+                        <span className="text-[13px] text-white/80 font-mono font-bold">{String(val)}{suffix}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           </div>
+
+
 
           {/* ─── STOCKS ─── */}
           {(safeArr(stocks.top_gainers).length > 0 || safeArr(stocks.top_losers).length > 0) && (
