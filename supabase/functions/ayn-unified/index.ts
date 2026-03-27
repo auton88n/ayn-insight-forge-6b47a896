@@ -609,8 +609,117 @@ export const AYN_TOOLS = [
         required: ["country_codes"]
       }
     }
+  },
+  // ─── WorldMonitor Live Intelligence Tools ───────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "get_live_conflict_data",
+      description: "Gets LIVE real-time conflict zone data from WorldMonitor: active war zones, escalation signals, ceasefire status, casualty estimates, territorial changes. Use when the user asks about wars, conflicts, military operations, or geopolitical flashpoints.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_military_signals",
+      description: "Gets live military deployment data: troop movements, naval vessel positions, military exercises, airspace violations, defense spending alerts. Use for questions about military power, army movements, or defense situations.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_maritime_intelligence",
+      description: "Gets live maritime and shipping intelligence: AIS ship tracking, chokepoint status (Hormuz, Suez, Malacca, Bab-el-Mandeb), port disruptions, Houthi attack alerts, piracy incidents. ALWAYS call this for shipping, supply chain, or maritime questions.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_sanctions_data",
+      description: "Searches live OFAC, EU, and UN sanctions lists. Can check if a specific entity, company, or individual is sanctioned. Use for compliance questions or when analyzing sanctioned countries/entities.",
+      parameters: {
+        type: "object",
+        properties: { entity: { type: "string", description: "Entity name or country to search (optional)" } }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_cyber_threats",
+      description: "Gets live cyberattack intelligence: active APT groups, ransomware campaigns, infrastructure attacks, DDoS incidents, nation-state cyber operations. Use for cybersecurity or digital warfare questions.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_natural_disasters",
+      description: "Gets live natural disaster data: earthquakes (5.0+), tsunamis, active wildfires, volcanic eruptions, severe weather events. Use for disaster, climate, or humanitarian crisis questions.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_infrastructure_status",
+      description: "Gets live global infrastructure status: power grid outages, undersea cable cuts, data center incidents, critical infrastructure disruptions. Use for energy security or infrastructure vulnerability questions.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_global_forecast",
+      description: "Gets AI-powered geopolitical forecasts: probability-weighted predictions for conflict escalation, regime changes, election outcomes, economic crises. Similar to Polymarket but for geopolitical events.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_aviation_intelligence",
+      description: "Gets live aviation intelligence: airspace closures, NOTAM alerts, military aviation incidents, commercial flight disruptions, drone activity reports. Use for air travel safety or airspace questions.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_satellite_imagery",
+      description: "Gets satellite-derived intelligence: troop buildup detection, facility construction, environmental changes, ship/vehicle movement patterns detected from satellite imagery analysis.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
   }
 ];
+
+// ─── WorldMonitor live data fetcher ────────────────────────────────────────
+async function worldMonitorFetch(domain: string, entity?: string): Promise<any> {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const params = new URLSearchParams({ domain });
+    if (entity) params.set('entity', entity);
+    const res = await fetch(
+      `${supabaseUrl}/functions/v1/worldmonitor-proxy?${params.toString()}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    if (!res.ok) return { status: 'WorldMonitor proxy error', http: res.status };
+    return await res.json();
+  } catch (err) {
+    console.error(`[ayn-unified] worldMonitorFetch(${domain}) error:`, err);
+    return { status: 'WorldMonitor data temporarily unavailable', domain };
+  }
+}
 
 export async function executeTool(toolCall: any, supabase: any): Promise<any> {
   const name = toolCall?.function?.name;
@@ -664,6 +773,42 @@ export async function executeTool(toolCall: any, supabase: any): Promise<any> {
       if (codes.length === 0) return { status: 'No country codes provided' };
       const { data } = await supabase.from('ayn_trade_flows').select('country_code, country_name, top_exports, top_imports, opportunities, dependencies, intelligence_brief').in('country_code', codes);
       return data || { status: 'No trade data found' };
+    }
+    // ─── WorldMonitor Live Tools ─────────────────────────────────────────────
+    if (name === 'get_live_conflict_data') {
+      return await worldMonitorFetch('conflict');
+    }
+    if (name === 'get_military_signals') {
+      return await worldMonitorFetch('military');
+    }
+    if (name === 'get_maritime_intelligence') {
+      return await worldMonitorFetch('maritime');
+    }
+    if (name === 'get_sanctions_data') {
+      return await worldMonitorFetch('sanctions', args.entity);
+    }
+    if (name === 'get_cyber_threats') {
+      return await worldMonitorFetch('cyber');
+    }
+    if (name === 'get_natural_disasters') {
+      // Fetch both seismology and wildfire in parallel
+      const [seismo, wildfire] = await Promise.all([
+        worldMonitorFetch('seismology'),
+        worldMonitorFetch('wildfire'),
+      ]);
+      return { earthquakes: seismo, wildfires: wildfire };
+    }
+    if (name === 'get_infrastructure_status') {
+      return await worldMonitorFetch('infrastructure');
+    }
+    if (name === 'get_global_forecast') {
+      return await worldMonitorFetch('forecast');
+    }
+    if (name === 'get_aviation_intelligence') {
+      return await worldMonitorFetch('aviation');
+    }
+    if (name === 'get_satellite_imagery') {
+      return await worldMonitorFetch('satellite');
     }
   } catch (err) {
     return { error: String(err) };

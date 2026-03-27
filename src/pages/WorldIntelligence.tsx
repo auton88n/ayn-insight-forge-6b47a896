@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL } from '@/config';
@@ -13,6 +14,124 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { Json } from '@/integrations/supabase/types';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
+
+
+// ─── WorldMonitor live map hook ──────────────────────────────────────────────
+// Polls conflict, maritime, cyber, seismology & wildfire domains every 3 mins
+async function fetchWMDomain(domain: string, token: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/worldmonitor-proxy?domain=${domain}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // WorldMonitor returns items array at different paths depending on domain
+    return data?.items ?? data?.data ?? data?.events ?? data?.alerts ?? data?.results ?? [];
+  } catch { return []; }
+}
+
+function parseConflictPoints(items: any[]): MapPoint[] {
+  return items
+    .filter((i: any) => i?.location?.coordinates ?? i?.coordinates ?? i?.lat)
+    .map((i: any): MapPoint => {
+      const lng = i.location?.coordinates?.[0] ?? i.coordinates?.[0] ?? i.lng ?? i.longitude;
+      const lat = i.location?.coordinates?.[1] ?? i.coordinates?.[1] ?? i.lat ?? i.latitude;
+      if (!lng || !lat) return null as any;
+      const risk = (i.severity ?? i.intensity ?? '').toLowerCase().includes('critical') ? 'critical'
+        : (i.severity ?? '').toLowerCase().includes('high') ? 'high' : 'alert';
+      return {
+        id: i.id ?? String(lat),
+        coordinates: [lng, lat] as [number, number],
+        label: (i.title ?? i.name ?? i.region ?? 'CONFLICT').substring(0, 18).toUpperCase(),
+        detail: i.summary ?? i.description ?? i.status ?? '',
+        category: 'Conflict',
+        risk,
+      };
+    }).filter(Boolean);
+}
+
+function parseMaritimePoints(items: any[]): MapPoint[] {
+  return items
+    .filter((i: any) => i?.position?.coordinates ?? i?.location?.coordinates ?? i?.lat)
+    .map((i: any): MapPoint => {
+      const lng = i.position?.coordinates?.[0] ?? i.location?.coordinates?.[0] ?? i.lng ?? i.longitude;
+      const lat = i.position?.coordinates?.[1] ?? i.location?.coordinates?.[1] ?? i.lat ?? i.latitude;
+      if (!lng || !lat) return null as any;
+      return {
+        id: i.mmsi ?? i.id ?? String(lat),
+        coordinates: [lng, lat] as [number, number],
+        label: (i.name ?? i.vessel_name ?? i.ship_name ?? i.type ?? 'VESSEL').substring(0, 14).toUpperCase(),
+        detail: `${i.type ?? ''} · ${i.flag ?? ''} · ${ i.destination ?? i.status ?? ''}`.trim().replace(/^·\s*/, ''),
+        category: 'Maritime',
+        risk: 'maritime' as any,
+        heading: i.heading ?? i.course,
+        speed: i.speed,
+      };
+    }).filter(Boolean).slice(0, 40); // cap at 40 ships to avoid clutter
+}
+
+function parseCyberPoints(items: any[]): MapPoint[] {
+  return items
+    .filter((i: any) => i?.origin?.coordinates ?? i?.location?.coordinates ?? i?.lat)
+    .map((i: any): MapPoint => {
+      const lng = i.origin?.coordinates?.[0] ?? i.location?.coordinates?.[0] ?? i.lng;
+      const lat = i.origin?.coordinates?.[1] ?? i.location?.coordinates?.[1] ?? i.lat;
+      if (!lng || !lat) return null as any;
+      return {
+        id: i.id ?? String(lat),
+        coordinates: [lng, lat] as [number, number],
+        label: (i.actor ?? i.type ?? i.attack_type ?? 'CYBER').substring(0, 16).toUpperCase(),
+        detail: i.description ?? i.target ?? '',
+        category: 'Cyber',
+        risk: 'cyber' as any,
+      };
+    }).filter(Boolean).slice(0, 20);
+}
+
+function parseDisasterPoints(items: any[], type: 'seismology' | 'wildfire'): MapPoint[] {
+  return items
+    .filter((i: any) => i?.coordinates ?? i?.location?.coordinates ?? i?.lat)
+    .map((i: any): MapPoint => {
+      const lng = i.coordinates?.[0] ?? i.location?.coordinates?.[0] ?? i.lng;
+      const lat = i.coordinates?.[1] ?? i.location?.coordinates?.[1] ?? i.lat;
+      if (!lng || !lat) return null as any;
+      const mag = i.magnitude ?? i.richter_scale ?? 0;
+      return {
+        id: i.id ?? String(lat),
+        coordinates: [lng, lat] as [number, number],
+        label: type === 'seismology'
+          ? `M${mag.toFixed(1)} ${(i.place ?? i.region ?? '').substring(0, 10).toUpperCase()}`
+          : (i.name ?? i.location ?? 'WILDFIRE').substring(0, 16).toUpperCase(),
+        detail: type === 'seismology'
+          ? `M${mag} earthquake · depth ${i.depth ?? '?'}km`
+          : `${i.area_ha ?? i.size ?? '?'} ha · ${i.containment ?? '?'}% contained`,
+        category: 'Disaster',
+        risk: 'disaster' as any,
+      };
+    }).filter(Boolean).slice(0, 25);
+}
+
+function parseAviationPoints(items: any[]): MapPoint[] {
+  return items
+    .filter((i: any) => i?.position?.coordinates ?? i?.location?.coordinates ?? i?.lat)
+    .map((i: any): MapPoint => {
+      const lng = i.position?.coordinates?.[0] ?? i.location?.coordinates?.[0] ?? i.lng;
+      const lat = i.position?.coordinates?.[1] ?? i.location?.coordinates?.[1] ?? i.lat;
+      if (!lng || !lat) return null as any;
+      return {
+        id: i.icao ?? i.callsign ?? i.id ?? String(lat),
+        coordinates: [lng, lat] as [number, number],
+        label: (i.callsign ?? i.flight ?? i.incident_type ?? 'AIRCRAFT').substring(0, 14).toUpperCase(),
+        detail: i.description ?? i.status ?? i.origin ?? '',
+        category: 'Aviation',
+        risk: 'aviation' as any,
+        heading: i.heading ?? i.track,
+        speed: i.speed_knots ?? i.speed,
+      };
+    }).filter(Boolean).slice(0, 30);
+}
+
 
 interface MarketSnapshot { snapshot: Json; fetched_at: string; sources_used: string[] | null; }
 interface Prediction {
@@ -409,6 +528,10 @@ export default function WorldIntelligence() {
   const [votingId, setVotingId] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<{ intel: CountryIntel; sic: Record<string, any> } | null>(null);
   const [worldSignals, setWorldSignals] = useState<any[]>([]);
+  const [liveMapPoints, setLiveMapPoints] = useState<MapPoint[]>([]);
+  const [mapLastRefresh, setMapLastRefresh] = useState<Date | undefined>();
+  const mapRefreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
@@ -503,8 +626,61 @@ export default function WorldIntelligence() {
     } catch {}
   }, []);
 
+  // ─── Live WorldMonitor map data (3-min polling) ─────────────────────────────────
+  const fetchLiveMapData = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+    try {
+      const [conflictItems, maritimeItems, cyberItems, seismoItems, wildfireItems, aviationItems] = await Promise.allSettled([
+        fetchWMDomain('conflict', token),
+        fetchWMDomain('maritime', token),
+        fetchWMDomain('cyber', token),
+        fetchWMDomain('seismology', token),
+        fetchWMDomain('wildfire', token),
+        fetchWMDomain('aviation', token),
+      ]);
+      const get = (r: PromiseSettledResult<any[]>) => r.status === 'fulfilled' ? r.value : [];
+      const pts: MapPoint[] = [
+        ...parseConflictPoints(get(conflictItems)),
+        ...parseMaritimePoints(get(maritimeItems)),
+        ...parseCyberPoints(get(cyberItems)),
+        ...parseDisasterPoints(get(seismoItems), 'seismology'),
+        ...parseDisasterPoints(get(wildfireItems), 'wildfire'),
+        ...parseAviationPoints(get(aviationItems)),
+      ];
+      const staticFallback: MapPoint[] = [
+        { coordinates: [33.0, 48.0], label: 'UKRAINE/RUSSIA', risk: 'critical', category: 'Conflict', detail: 'Active conflict zone' },
+        { coordinates: [34.5, 31.5], label: 'GAZA/ISRAEL',   risk: 'critical', category: 'Conflict', detail: 'Active conflict zone' },
+        { coordinates: [44.2, 15.4], label: 'YEMEN',          risk: 'high',     category: 'Conflict', detail: 'Houthi maritime disruption' },
+        { coordinates: [32.3, 30.0], label: 'SUEZ CANAL',     risk: 'maritime' as any, category: 'Maritime', detail: 'Critical shipping corridor' },
+        { coordinates: [56.5, 26.5], label: 'STRAIT HORMUZ',  risk: 'maritime' as any, category: 'Maritime', detail: '30% world oil transit' },
+        { coordinates: [101.0, 2.5], label: 'MALACCA',        risk: 'maritime' as any, category: 'Maritime', detail: 'Key trade route' },
+        { coordinates: [-74.0, 40.7], label: 'NYSE',          risk: 'stable',   category: 'S.I.C.', detail: 'US Markets' },
+      ];
+      const merged = pts.length >= 8 ? pts : [...pts, ...staticFallback];
+      const deduped = merged.filter((v, i, arr) =>
+        i === arr.findIndex(t =>
+          Math.abs(t.coordinates[0] - v.coordinates[0]) < 2 &&
+          Math.abs(t.coordinates[1] - v.coordinates[1]) < 2
+        )
+      );
+      setLiveMapPoints(deduped);
+      setMapLastRefresh(new Date());
+    } catch (err) {
+      console.warn('[WorldIntelligence] Live map fetch error:', err);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchLiveMapData();
+    const t = setInterval(fetchLiveMapData, 3 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [fetchLiveMapData]);
+
   useEffect(() => {
     Promise.all([fetchSnapshot(), fetchPredictions(), fetchCountryIntel(), fetchConflictPredictions(), fetchWorldSignals()]).finally(() => setLoading(false));
+
     const ch = supabase.channel('wi').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ayn_market_snapshot' }, p => setSnapshot(p.new as MarketSnapshot)).subscribe();
     const tick = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => { supabase.removeChannel(ch); clearInterval(tick); };
@@ -578,25 +754,30 @@ export default function WorldIntelligence() {
       });
   }, [predictions, activeHorizon, assetFilter]);
 
+
+  // Map points: use live WorldMonitor data with SIC overlays
   const mapPoints: MapPoint[] = useMemo(() => {
-    const pts: MapPoint[] = [
-      { coordinates: [33.0, 48.0], label: 'UKRAINE/RUSSIA', risk: 'critical', category: 'Conflict', detail: 'Active conflict zone' },
-      { coordinates: [34.5, 31.5], label: 'GAZA/ISRAEL', risk: 'critical', category: 'Conflict', detail: 'Active conflict zone' },
-      { coordinates: [44.2, 15.4], label: 'YEMEN', risk: 'high', category: 'Conflict', detail: 'Houthi maritime disruption' },
-      { coordinates: [-74.0, 40.7], label: 'NYSE', risk: 'stable', category: 'Markets', detail: `Fear&Greed: ${sentiment.value || '—'}` },
-      { coordinates: [-77.0, 38.9], label: 'FED/DC', risk: 'alert', category: 'Policy', detail: `Rate: ${safeObj(macro.fed_funds_rate).value || '—'}%` },
-      { coordinates: [32.3, 30.0], label: 'SUEZ CANAL', risk: 'alert', category: 'Supply Chain', detail: 'Critical corridor' },
-      { coordinates: [101.0, 2.5], label: 'MALACCA', risk: 'alert', category: 'Supply Chain', detail: 'Key trade route' },
-    ];
+    const pts = [...liveMapPoints];
+    // Overlay SIC country dots on top of live data
     Object.entries(sicIntel).forEach(([code, d]) => {
       const coords = SIC_COORDINATES[code];
       if (!coords) return;
       const data = d as any;
       const hasData = (data.economic_posture?.length > 5) || (data.news?.length > 0);
-      pts.push({ id: code, coordinates: coords, label: data.name || code, risk: data.risk_level === 'CRITICAL' ? 'critical' : hasData ? 'alert' : 'stable', category: 'S.I.C.', detail: hasData ? 'Click for dossier →' : code });
+      // Only add if not already covered by live data in this area
+      const alreadyCovered = pts.some(p =>
+        Math.abs(p.coordinates[0] - coords[0]) < 4 &&
+        Math.abs(p.coordinates[1] - coords[1]) < 4 &&
+        p.category !== 'S.I.C.'
+      );
+      if (!alreadyCovered) {
+        pts.push({ id: code, coordinates: coords, label: data.name || code, risk: data.risk_level === 'CRITICAL' ? 'critical' : hasData ? 'alert' : 'stable', category: 'S.I.C.', detail: hasData ? 'Click for dossier →' : code });
+      }
     });
-    return pts.filter((v, i, arr) => i === arr.findIndex(t => Math.abs(t.coordinates[0] - v.coordinates[0]) < 3 && Math.abs(t.coordinates[1] - v.coordinates[1]) < 3));
-  }, [sicIntel, macro, sentiment]);
+    return pts;
+  }, [liveMapPoints, sicIntel]);
+
+
 
   const handleMapClick = (pt: MapPoint) => {
     if (!pt.id) return;
@@ -678,7 +859,16 @@ export default function WorldIntelligence() {
                 <span className="text-[10px] font-mono font-bold text-cyan-400 tracking-[0.15em]">GLOBAL THREAT MAP</span>
                 <span className="text-[8px] text-white/18">· click countries for intelligence dossier</span>
               </div>
-              <div className="p-2"><HeatMap2D points={mapPoints} height={400} onPointClick={handleMapClick} /></div>
+              <div className="p-2">
+                <HeatMap2D
+                  points={mapPoints}
+                  height={400}
+                  onPointClick={handleMapClick}
+                  showLayerToggle={true}
+                  isLive={true}
+                  lastRefresh={mapLastRefresh}
+                />
+              </div>
             </div>
 
             {/* Right: Brief + macro */}
