@@ -782,8 +782,9 @@ export default function WorldIntelligence() {
   }, [cryptoPrices, macro, sentiment]);
 
   const filteredPreds = useMemo(() => {
+    const ASSET_ORDER = ['btc', 'eth', 'copper', 'gold', 'silver', 'usd_jpy', 'oil', 'wheat', 'sol', 'spy', 'qqq', 'gld'];
     const seen = new Set<string>();
-    return predictions
+    const filtered = predictions
       .filter(p => p.horizon === activeHorizon && (assetFilter === 'all' || p.asset === assetFilter))
       .filter(p => {
         const key = `${p.asset}-${p.horizon}`;
@@ -791,6 +792,14 @@ export default function WorldIntelligence() {
         seen.add(key);
         return true;
       });
+    return filtered.sort((a, b) => {
+      const ai = ASSET_ORDER.indexOf(a.asset.toLowerCase());
+      const bi = ASSET_ORDER.indexOf(b.asset.toLowerCase());
+      if (ai === -1 && bi === -1) return a.asset.localeCompare(b.asset);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
   }, [predictions, activeHorizon, assetFilter]);
 
 
