@@ -206,6 +206,335 @@ const ISO2_TO_SIC: Record<string, string> = {
 };
 
 
+// ─── Agent Society Component ──────────────────────────────────────────────────
+const EMOTION_CONFIG: Record<string, { emoji: string; color: string; bg: string; label: string }> = {
+  neutral:    { emoji: '😐', color: 'text-white/50',   bg: 'bg-white/5',        label: 'Neutral'    },
+  confident:  { emoji: '😤', color: 'text-emerald-400',bg: 'bg-emerald-500/10', label: 'Confident'  },
+  panicked:   { emoji: '😱', color: 'text-red-400',    bg: 'bg-red-500/15',     label: 'Panicked'   },
+  happy:      { emoji: '😊', color: 'text-yellow-400', bg: 'bg-yellow-500/10',  label: 'Happy'      },
+  angry:      { emoji: '😡', color: 'text-red-500',    bg: 'bg-red-500/20',     label: 'Angry'      },
+  worried:    { emoji: '😟', color: 'text-amber-400',  bg: 'bg-amber-500/10',   label: 'Worried'    },
+  suspicious: { emoji: '🤨', color: 'text-purple-400', bg: 'bg-purple-500/10',  label: 'Suspicious' },
+  excited:    { emoji: '🤩', color: 'text-cyan-400',   bg: 'bg-cyan-500/10',    label: 'Excited'    },
+  sad:        { emoji: '😢', color: 'text-blue-400',   bg: 'bg-blue-500/10',    label: 'Sad'        },
+  tense:      { emoji: '😬', color: 'text-orange-400', bg: 'bg-orange-500/10',  label: 'Tense'      },
+};
+
+const MSG_TYPE_STYLE: Record<string, string> = {
+  statement: '',
+  question:  'border-l-2 border-blue-400/30 pl-2',
+  reaction:  'border-l-2 border-amber-400/30 pl-2',
+  warning:   'border-l-2 border-red-400/40 pl-2',
+  decision:  'border-l-2 border-emerald-400/40 pl-2',
+};
+
+const ROLE_ICONS: Record<string, string> = {
+  government:   '🏛',
+  central_bank: '🏦',
+  market:       '📈',
+  military:     '⚔️',
+};
+
+function AgentBubble({ msg, isNew }: { msg: any; isNew?: boolean }) {
+  const [showThought, setShowThought] = useState(false);
+  const emotion = EMOTION_CONFIG[msg.emotion] || EMOTION_CONFIG.neutral;
+  const intensity = msg.emotion_intensity || 50;
+  const msgStyle = MSG_TYPE_STYLE[msg.message_type] || '';
+
+  // Animate intensity as a pulse border
+  const intensityClass = intensity >= 80 ? 'ring-1 ring-current ring-opacity-40' : '';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      className={cn('flex gap-3 group', isNew && 'animate-pulse-once')}
+    >
+      {/* Avatar */}
+      <div className="flex-shrink-0 flex flex-col items-center gap-1">
+        <div className={cn(
+          'w-9 h-9 rounded-xl flex items-center justify-center text-lg border transition-all',
+          emotion.bg, intensityClass,
+          'border-white/8'
+        )}>
+          {msg.agent_flag || '🏛'}
+        </div>
+        {/* Emotion dot */}
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-[10px]">{emotion.emoji}</span>
+          {/* Intensity bar */}
+          <div className="w-1 h-6 bg-white/8 rounded-full overflow-hidden">
+            <div
+              className={cn('w-full rounded-full transition-all', emotion.color.replace('text-', 'bg-'))}
+              style={{ height: `${intensity}%`, marginTop: `${100 - intensity}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Message content */}
+      <div className="flex-1 min-w-0">
+        {/* Agent name + role + emotion */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-mono font-black text-white/80">{msg.agent_name}</span>
+          <span className="text-[8px] text-white/25 font-mono">{ROLE_ICONS[msg.agent_role]} {msg.agent_role}</span>
+          <span className={cn('text-[8px] font-mono font-bold', emotion.color)}>{emotion.label}</span>
+          {intensity >= 75 && (
+            <span className={cn('text-[8px] font-mono', emotion.color)}>
+              {intensity >= 90 ? '‼️ EXTREME' : '⚠ HIGH'}
+            </span>
+          )}
+          {msg.message_type !== 'statement' && (
+            <span className="text-[8px] font-mono text-white/20 uppercase ml-auto">{msg.message_type}</span>
+          )}
+        </div>
+
+        {/* The message */}
+        <div className={cn(
+          'text-[11px] text-white/75 leading-relaxed font-mono rounded-lg px-3 py-2.5',
+          emotion.bg, msgStyle,
+          'border border-white/6'
+        )}>
+          {msg.responding_to_agent && (
+            <span className="text-[9px] text-white/30 block mb-1">↩ responding to {msg.responding_to_agent}</span>
+          )}
+          {msg.message}
+        </div>
+
+        {/* Internal thought (hidden, reveal on hover) */}
+        {msg.internal_thought && (
+          <div className="mt-1">
+            <button
+              onClick={() => setShowThought(!showThought)}
+              className="text-[8px] font-mono text-white/20 hover:text-purple-400/60 transition-colors italic"
+            >
+              {showThought ? '↑ hide thoughts' : '💭 internal thought'}
+            </button>
+            {showThought && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="text-[9px] italic text-purple-300/50 font-mono mt-1 px-2 border-l border-purple-500/20"
+              >
+                "{msg.internal_thought}"
+              </motion.p>
+            )}
+          </div>
+        )}
+
+        {/* Market action */}
+        {msg.market_action && (
+          <div className="mt-1.5 text-[8px] font-mono text-emerald-400/60 bg-emerald-500/5 border border-emerald-500/15 rounded px-2 py-1">
+            📊 {msg.market_action.action} — {msg.market_action.reason}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function AgentMoodBoard({ states }: { states: any[] }) {
+  if (!states?.length) return null;
+  return (
+    <div className="grid grid-cols-5 gap-1.5 mb-4">
+      {states.map(s => {
+        const em = EMOTION_CONFIG[s.current_emotion] || EMOTION_CONFIG.neutral;
+        const intensity = s.emotion_intensity || 50;
+        return (
+          <div key={s.agent_id} className={cn(
+            'rounded-lg border border-white/6 p-2 text-center transition-all',
+            em.bg
+          )}>
+            <div className="text-base mb-0.5">{em.emoji}</div>
+            <div className="text-[7px] font-mono text-white/40 truncate">{s.agent_name.split(' ')[0]}</div>
+            <div className={cn('text-[7px] font-mono font-bold', em.color)}>{em.label}</div>
+            {/* stress bar */}
+            <div className="h-0.5 mt-1 rounded-full bg-white/8 overflow-hidden">
+              <div className={cn('h-full rounded-full', em.color.replace('text-', 'bg-'))}
+                style={{ width: `${intensity}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AgentSociety() {
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [agentStates, setAgentStates] = useState<any[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+
+  const loadData = async () => {
+    try {
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'get_conversations' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data.conversations || []);
+        setAgentStates(data.agent_states || []);
+        if (data.conversations?.length && !activeConvId) {
+          setActiveConvId(data.conversations[0].id);
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (!activeConvId) return;
+    const load = async () => {
+      setLoadingMsgs(true);
+      try {
+        const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'get_messages', conversation_id: activeConvId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setMessages(data.messages || []);
+        }
+      } catch {} finally { setLoadingMsgs(false); }
+    };
+    load();
+  }, [activeConvId]);
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'generate_conversation' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await loadData();
+        if (data.conversation_id) {
+          setActiveConvId(data.conversation_id);
+          setMessages(data.messages || []);
+        }
+      }
+    } catch {} finally { setGenerating(false); }
+  };
+
+  const activeConv = conversations.find(c => c.id === activeConvId);
+
+  return (
+    <div className="mb-6">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+        <span className="text-[10px] font-mono font-bold text-purple-400 tracking-[0.15em] uppercase">Agent Society</span>
+        <span className="text-[8px] font-mono text-white/20">Live AI agents reacting to world events</span>
+        <div className="flex-1 h-px bg-gradient-to-r from-purple-500/20 to-transparent" />
+        <button
+          onClick={generate}
+          disabled={generating}
+          className="text-[9px] font-mono text-purple-400/60 hover:text-purple-400 transition-colors disabled:opacity-40"
+        >
+          {generating ? '⟳ generating...' : '⚡ new conversation'}
+        </button>
+      </div>
+
+      {/* Agent mood board — always visible */}
+      {agentStates.length > 0 && <AgentMoodBoard states={agentStates} />}
+
+      {/* Conversation selector */}
+      {conversations.length > 0 && (
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {conversations.slice(0, 4).map(conv => (
+            <button
+              key={conv.id}
+              onClick={() => setActiveConvId(conv.id)}
+              className={cn(
+                'text-[8px] font-mono px-2.5 py-1.5 rounded-lg border transition-all text-left max-w-[180px] truncate',
+                activeConvId === conv.id
+                  ? 'bg-purple-500/15 border-purple-500/40 text-purple-400'
+                  : 'bg-white/3 border-white/8 text-white/35 hover:text-white/60'
+              )}
+            >
+              {conv.topic?.slice(0, 50) || 'Conversation'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {conversations.length === 0 && !generating && (
+        <div className="border border-dashed border-purple-500/20 rounded-xl p-8 text-center">
+          <div className="text-3xl mb-3">🤖💬🤖</div>
+          <p className="text-[11px] font-mono text-white/35 mb-4">
+            No agent conversations yet. Generate one to watch world powers react in real time.
+          </p>
+          <button onClick={generate}
+            className="text-[9px] font-mono text-purple-400 bg-purple-500/10 border border-purple-500/30 px-5 py-2.5 rounded-lg hover:bg-purple-500/20 transition-all">
+            ⚡ Start Agent Society
+          </button>
+        </div>
+      )}
+
+      {generating && (
+        <div className="border border-purple-500/20 rounded-xl p-6 text-center bg-purple-500/5">
+          <div className="text-[10px] font-mono text-purple-400 animate-pulse">
+            ⟳ Agents are forming opinions... processing emotions... preparing statements...
+          </div>
+        </div>
+      )}
+
+      {/* Active conversation: chat room */}
+      {activeConv && (
+        <div className="border border-white/6 rounded-xl overflow-hidden bg-black/30">
+          {/* Topic bar */}
+          <div className="border-b border-white/6 px-4 py-2.5 bg-white/3 flex items-center gap-2">
+            <span className="text-[8px] font-mono text-white/25 uppercase">Discussing</span>
+            <span className="text-[9px] font-mono text-white/60 font-bold flex-1 truncate">{activeConv.topic}</span>
+            <span className="text-[8px] font-mono text-white/20">{new Date(activeConv.created_at).toLocaleTimeString()}</span>
+          </div>
+
+          {/* Messages */}
+          <div className="p-4 space-y-5 max-h-[600px] overflow-y-auto">
+            {loadingMsgs && (
+              <div className="text-center text-[9px] font-mono text-white/25 py-8">Loading conversation...</div>
+            )}
+            <AnimatePresence>
+              {messages.map((msg, i) => (
+                <AgentBubble key={msg.id} msg={msg} isNew={i === messages.length - 1} />
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {/* Footer: intensity summary */}
+          {messages.length > 0 && (
+            <div className="border-t border-white/6 px-4 py-2 bg-white/2 flex items-center gap-4">
+              <span className="text-[8px] font-mono text-white/25">{messages.length} messages</span>
+              {['panicked', 'angry', 'tense'].some(e => messages.some(m => m.emotion === e)) && (
+                <span className="text-[8px] font-mono text-red-400/60">⚠ High tension detected</span>
+              )}
+              {messages.some(m => m.emotion === 'panicked') && (
+                <span className="text-[8px] font-mono text-red-400 animate-pulse">🚨 Agent panic</span>
+              )}
+              {messages.some(m => m.market_action) && (
+                <span className="text-[8px] font-mono text-emerald-400/60">📊 Market actions triggered</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── World Simulator Component ────────────────────────────────────────────────
 const TIME_LAYER_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   historical: { label: 'Historical Anchor', color: 'text-purple-400', bg: 'bg-purple-500/8 border-purple-500/20', icon: '📜' },
@@ -1519,6 +1848,9 @@ export default function WorldIntelligence() {
               </div>
             </div>
           )}
+
+          {/* ─── AGENT SOCIETY ─── */}
+          <AgentSociety />
 
           {/* ─── WORLD SIMULATOR ─── */}
           <WorldSimulator signals={worldSignals} />
