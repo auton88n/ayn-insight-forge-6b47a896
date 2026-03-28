@@ -175,7 +175,7 @@ function injectStyles() {
 function createIntelMarker(cfg: typeof riskConfig[RiskKey], label: string): HTMLElement {
   const c = cfg.color;
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:relative;width:36px;height:36px;cursor:pointer;';
+  wrap.style.cssText = 'position:relative;width:22px;height:22px;cursor:pointer;';
 
   // Pulse ring (only for critical/cyber/disaster)
   if (cfg.pulse) {
@@ -183,7 +183,7 @@ function createIntelMarker(cfg: typeof riskConfig[RiskKey], label: string): HTML
     ring.style.cssText = `
       position:absolute;inset:-5px;border-radius:50%;
       border:2px solid ${c};
-      animation:ayn-pulse-ring 2s ease-out infinite;
+      animation:ayn-pulse-ring 2.2s ease-out infinite;
       pointer-events:none;z-index:0;
     `;
     wrap.appendChild(ring);
@@ -206,7 +206,7 @@ function createIntelMarker(cfg: typeof riskConfig[RiskKey], label: string): HTML
     border:2.5px solid ${c};
     box-shadow:0 0 0 3px ${c}33, 0 0 16px ${c}88, 0 0 32px ${c}44, 0 2px 8px rgba(0,0,0,0.8);
     display:flex;align-items:center;justify-content:center;
-    font-size:15px;color:#fff;
+    font-size:10px;color:#fff;
     transition:transform 0.15s,box-shadow 0.15s;
   `;
   dot.textContent = cfg.icon;
@@ -225,14 +225,14 @@ function createIntelMarker(cfg: typeof riskConfig[RiskKey], label: string): HTML
   const short = label.length > 18 ? label.slice(0,17)+'…' : label;
   chip.style.cssText = `
     position:absolute;
-    bottom:calc(100% + 6px);
+    bottom:calc(100% + 4px);
     left:50%;transform:translateX(-50%);
     background:rgba(0,2,14,0.96);
     border:1px solid ${c}66;
     border-radius:5px;
-    padding:3px 8px 2px;
+    padding:2px 6px 1px;
     white-space:nowrap;
-    font:700 8.5px/13px 'Courier New',monospace;
+    font:700 7.5px/11px 'Courier New',monospace;
     color:${c};
     letter-spacing:0.06em;
     pointer-events:none;
@@ -249,9 +249,9 @@ function createIntelMarker(cfg: typeof riskConfig[RiskKey], label: string): HTML
 function createFlightMarker(heading: number): HTMLElement {
   const el = document.createElement('div');
   el.style.cssText = `
-    width:20px;height:20px;
+    width:14px;height:14px;
     display:flex;align-items:center;justify-content:center;
-    font-size:16px;color:#93c5fd;
+    font-size:12px;color:#93c5fd;
     transform:rotate(${heading}deg);
     filter:drop-shadow(0 0 5px #3b82f6) drop-shadow(0 0 10px #1d4ed8);
     cursor:pointer;
@@ -266,9 +266,9 @@ function createFlightMarker(heading: number): HTMLElement {
 function createShipMarker(heading: number): HTMLElement {
   const el = document.createElement('div');
   el.style.cssText = `
-    width:18px;height:18px;
+    width:12px;height:12px;
     display:flex;align-items:center;justify-content:center;
-    font-size:14px;color:#5eead4;
+    font-size:10px;color:#5eead4;
     transform:rotate(${heading}deg);
     filter:drop-shadow(0 0 4px #14b8a6) drop-shadow(0 0 8px #0d9488);
     cursor:pointer;
@@ -357,7 +357,7 @@ const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 let uid = 0;
 
 export function HeatMap2D({
-  points = [], height = 420, onPointClick,
+  points = [], height = 380, onPointClick,
   showLayerToggle = false, isLive = false, lastRefresh, ticker = [],
 }: {
   points?: MapPoint[]; height?: number;

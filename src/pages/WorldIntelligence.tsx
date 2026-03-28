@@ -2156,7 +2156,7 @@ export default function WorldIntelligence() {
           {/* ─── FULL-WIDTH MAP ─── */}
           <HeatMap2D
             points={mapPoints}
-            height={420}
+            height={380}
             onPointClick={handleMapClick}
             showLayerToggle={true}
             isLive={true}
