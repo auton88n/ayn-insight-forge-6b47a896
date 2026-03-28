@@ -69,21 +69,15 @@ const CSS=`
 .maplibregl-ctrl-zoom-in span,.maplibregl-ctrl-zoom-out span{background-image:none!important;color:#00ffcc!important;font-size:20px!important;display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;height:100%!important;}
 .maplibregl-ctrl-zoom-in span::before{content:'+'!important;}.maplibregl-ctrl-zoom-out span::before{content:'−'!important;}
 .maplibregl-ctrl button:hover{background:rgba(0,255,200,0.1)!important;}.maplibregl-ctrl-attrib{display:none!important;}
-@keyframes ayn-spin{to{transform:rotate(360deg)}}@keyframes ayn-pulse-out{0%{transform:scale(1);opacity:0.8;}100%{transform:scale(2.5);opacity:0;}}
+@keyframes ayn-spin{to{transform:rotate(360deg)}}@keyframes ayn-pulse-out{0%{transform:scale(1);opacity:0.7;}100%{transform:scale(2.8);opacity:0;}}
 `;
 function injectCSS(){if(document.getElementById('ayn-map-v3'))return;const s=document.createElement('style');s.id='ayn-map-v3';s.textContent=CSS;document.head.appendChild(s);}
 
 // Marker SVG factories
-function mkIntel(hex:string,pulse:boolean,zoom:number):string{
-  const r=zoom>=6?9:zoom>=4?7:5; // scales with zoom
-  const p=pulse?`<circle r="${r+6}" stroke="${hex}" stroke-width="1.5" fill="none" opacity="0.7" style="animation:ayn-pulse-out 2s ease-out infinite"/>
-  <circle r="${r+6}" stroke="${hex}" stroke-width="1" fill="none" opacity="0.4" style="animation:ayn-pulse-out 2s ease-out 0.7s infinite"/>`:'';
-  return`<svg width="${(r+8)*2}" height="${(r+8)*2}" viewBox="0 0 ${(r+8)*2} ${(r+8)*2}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
-  <defs><radialGradient id="g${hex.slice(1)}" cx="38%" cy="32%" r="60%"><stop offset="0%" stop-color="${hex}" stop-opacity="1"/><stop offset="100%" stop-color="${hex}" stop-opacity="0.5"/></radialGradient></defs>
-  ${p}
-  <circle cx="${r+8}" cy="${r+8}" r="${r}" fill="url(#g${hex.slice(1)})" stroke="${hex}" stroke-width="1.5" filter="url(#bl)"/>
-  <defs><filter id="bl"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-  </svg>`;
+function mkIntel(hex:string,pulse:boolean,_zoom:number):string{
+  // Simple, reliable 10px dot with optional pulse ring
+  const p=pulse?`<div style="position:absolute;inset:-6px;border-radius:50%;border:1.5px solid ${hex};opacity:0;animation:ayn-pulse-out 2s ease-out infinite;pointer-events:none;"></div><div style="position:absolute;inset:-6px;border-radius:50%;border:1px solid ${hex};opacity:0;animation:ayn-pulse-out 2s ease-out 0.8s infinite;pointer-events:none;"></div>`:'';
+  return`${p}<div style="width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 30%,${hex},${hex}99);border:1.5px solid ${hex};box-shadow:0 0 8px ${hex}99,0 0 16px ${hex}44;position:relative;"></div>`;
 }
 
 function mkLabel(label:string,hex:string):string{
@@ -136,7 +130,7 @@ export function HeatMap2D({
     let dead=false;
     import('maplibre-gl').then(ML=>{
       if(dead||mapRef.current)return;
-      const map=new ML.Map({container:cid,style:DARK_STYLE,center:[15,20],zoom:2,minZoom:1.5,maxZoom:16,antialias:true,fadeDuration:100,renderWorldCopies:false}) as unknown as MLMap;
+      const map=new ML.Map({container:cid,style:DARK_STYLE,center:[10,25],zoom:2.2,minZoom:1.5,maxZoom:16,antialias:true,fadeDuration:100,renderWorldCopies:false}) as unknown as MLMap;
       (map as any).addControl(new ML.NavigationControl({showCompass:false}),'bottom-right');
       (map as any).on('load',()=>{if(!dead){mapRef.current=map;setReady(true);}});
       (map as any).on('zoom',()=>{zoomRef.current=(map as any).getZoom();});
@@ -164,21 +158,22 @@ export function HeatMap2D({
     if(!ready)return;
     import('maplibre-gl').then(ML=>{
       intelMks.current.forEach(m=>m.remove());intelMks.current=[];
-      const zoom=zoomRef.current;
-      const showLabels=zoom>=3.5;
+      const zoom=(mapRef.current as any)?.getZoom()??2;
+      zoomRef.current=zoom;
+      const showLabels=zoom>=3;
 
       filtered.forEach(pt=>{
         const cfg=riskConfig[pt.risk as RiskKey]??riskConfig.unknown;
-        const sz=zoom>=6?34:zoom>=4?28:22;
-        // Wrapper with optional label
+          // Wrapper with optional label
         const el=document.createElement('div');
         el.className='ayn-mk';
         el.style.cssText='position:relative;cursor:pointer;';
         el.innerHTML=mkIntel(cfg.hex,cfg.pulse,zoom)+(showLabels?mkLabel(pt.label,cfg.hex):'');
+        el.style.cssText='position:relative;cursor:pointer;width:10px;height:10px;';
         el.onclick=()=>{
           onPointClick?.(pt);
           popRef.current?.remove();
-          const popup=new ML.Popup({closeButton:true,maxWidth:'300px',offset:[0,-sz/2]})
+          const popup=new ML.Popup({closeButton:true,maxWidth:'300px',offset:[0,-12]})
             .setLngLat([pt.coordinates[0],pt.coordinates[1]])
             .setHTML(popIntel(pt)).addTo(mapRef.current!);
           popRef.current=popup as unknown as MLPopup;
