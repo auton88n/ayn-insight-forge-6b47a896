@@ -207,126 +207,196 @@ const ISO2_TO_SIC: Record<string, string> = {
 
 
 // ─── Agent Society Component ──────────────────────────────────────────────────
-const EMOTION_CONFIG: Record<string, { emoji: string; color: string; bg: string; label: string }> = {
-  neutral:    { emoji: '😐', color: 'text-white/50',   bg: 'bg-white/5',        label: 'Neutral'    },
-  confident:  { emoji: '😤', color: 'text-emerald-400',bg: 'bg-emerald-500/10', label: 'Confident'  },
-  panicked:   { emoji: '😱', color: 'text-red-400',    bg: 'bg-red-500/15',     label: 'Panicked'   },
-  happy:      { emoji: '😊', color: 'text-yellow-400', bg: 'bg-yellow-500/10',  label: 'Happy'      },
-  angry:      { emoji: '😡', color: 'text-red-500',    bg: 'bg-red-500/20',     label: 'Angry'      },
-  worried:    { emoji: '😟', color: 'text-amber-400',  bg: 'bg-amber-500/10',   label: 'Worried'    },
-  suspicious: { emoji: '🤨', color: 'text-purple-400', bg: 'bg-purple-500/10',  label: 'Suspicious' },
-  excited:    { emoji: '🤩', color: 'text-cyan-400',   bg: 'bg-cyan-500/10',    label: 'Excited'    },
-  sad:        { emoji: '😢', color: 'text-blue-400',   bg: 'bg-blue-500/10',    label: 'Sad'        },
-  tense:      { emoji: '😬', color: 'text-orange-400', bg: 'bg-orange-500/10',  label: 'Tense'      },
+const EMOTION_CONFIG: Record<string, {
+  emoji: string; color: string; bg: string; border: string; label: string; particle: string;
+}> = {
+  neutral:    { emoji: '😐', color: '#9ca3af', bg: 'rgba(156,163,175,0.06)', border: 'rgba(156,163,175,0.15)', label: 'Neutral',    particle: '' },
+  confident:  { emoji: '😤', color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)',  label: 'Confident',  particle: '⬆' },
+  panicked:   { emoji: '😱', color: '#f87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.4)',  label: 'PANICKING',  particle: '‼' },
+  happy:      { emoji: '😊', color: '#fde047', bg: 'rgba(253,224,71,0.08)',  border: 'rgba(253,224,71,0.25)',  label: 'Happy',      particle: '✦' },
+  angry:      { emoji: '😡', color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.45)',   label: 'FURIOUS',    particle: '✕' },
+  worried:    { emoji: '😟', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  label: 'Worried',    particle: '?' },
+  suspicious: { emoji: '🤨', color: '#a78bfa', bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.25)', label: 'Suspicious', particle: '•' },
+  excited:    { emoji: '🤩', color: '#22d3ee', bg: 'rgba(34,211,238,0.08)',  border: 'rgba(34,211,238,0.25)',  label: 'Excited',    particle: '★' },
+  sad:        { emoji: '😢', color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)',   label: 'Sad',        particle: '▼' },
+  tense:      { emoji: '😬', color: '#fb923c', bg: 'rgba(251,146,60,0.08)',  border: 'rgba(251,146,60,0.3)',   label: 'Tense',      particle: '~' },
 };
 
-const MSG_TYPE_STYLE: Record<string, string> = {
-  statement: '',
-  question:  'border-l-2 border-blue-400/30 pl-2',
-  reaction:  'border-l-2 border-amber-400/30 pl-2',
-  warning:   'border-l-2 border-red-400/40 pl-2',
-  decision:  'border-l-2 border-emerald-400/40 pl-2',
+const ROLE_BADGE: Record<string, { icon: string; color: string }> = {
+  government:   { icon: '🏛', color: '#9ca3af' },
+  central_bank: { icon: '🏦', color: '#fde047' },
+  market:       { icon: '📊', color: '#34d399' },
+  military:     { icon: '⚔',  color: '#f87171' },
 };
 
-const ROLE_ICONS: Record<string, string> = {
-  government:   '🏛',
-  central_bank: '🏦',
-  market:       '📈',
-  military:     '⚔️',
-};
+function EmotionMeter({ intensity, color }: { intensity: number; color: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 items-center" style={{ height: 36 }}>
+      {[...Array(5)].map((_, i) => {
+        const threshold = (5 - i) * 20;
+        const active = intensity >= threshold;
+        return (
+          <div key={i} className="w-1 rounded-full transition-all duration-500"
+            style={{
+              height: 5,
+              backgroundColor: active ? color : 'rgba(255,255,255,0.06)',
+              boxShadow: active ? `0 0 4px ${color}` : 'none',
+              opacity: active ? 0.9 : 0.3,
+            }} />
+        );
+      })}
+    </div>
+  );
+}
 
-function AgentBubble({ msg, isNew }: { msg: any; isNew?: boolean }) {
+function AgentAvatar({ flag, emotion, size = 'md' }: { flag: string; emotion: string; size?: 'sm' | 'md' | 'lg' }) {
+  const em = EMOTION_CONFIG[emotion] || EMOTION_CONFIG.neutral;
+  const sz = size === 'lg' ? 52 : size === 'md' ? 38 : 28;
+  const fontSize = size === 'lg' ? 28 : size === 'md' ? 20 : 14;
+  const isExtreme = ['panicked', 'angry'].includes(emotion);
+
+  return (
+    <div className="relative flex-shrink-0" style={{ width: sz, height: sz }}>
+      {/* Outer glow ring — pulses on extreme emotion */}
+      <div className="absolute inset-0 rounded-xl transition-all duration-700"
+        style={{
+          border: `1px solid ${em.border}`,
+          boxShadow: isExtreme ? `0 0 20px ${em.color}55, 0 0 40px ${em.color}22` : `0 0 8px ${em.color}22`,
+          animation: isExtreme ? 'pulse 1s ease-in-out infinite' : 'none',
+        }} />
+      {/* Face */}
+      <div className="absolute inset-0.5 rounded-xl flex items-center justify-center"
+        style={{ background: em.bg, backdropFilter: 'blur(8px)' }}>
+        <span style={{ fontSize }}>{flag}</span>
+      </div>
+      {/* Emotion emoji — bottom right */}
+      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px]"
+        style={{ background: 'rgba(0,0,0,0.9)', border: `1px solid ${em.border}`, zIndex: 10 }}>
+        {em.emoji}
+      </div>
+    </div>
+  );
+}
+
+function AgentMessage({ msg, prev, idx }: { msg: any; prev: any; idx: number }) {
   const [showThought, setShowThought] = useState(false);
-  const emotion = EMOTION_CONFIG[msg.emotion] || EMOTION_CONFIG.neutral;
+  const em = EMOTION_CONFIG[msg.emotion] || EMOTION_CONFIG.neutral;
   const intensity = msg.emotion_intensity || 50;
-  const msgStyle = MSG_TYPE_STYLE[msg.message_type] || '';
+  const isExtreme = intensity >= 80;
+  const isNew = idx === 0;
 
-  // Animate intensity as a pulse border
-  const intensityClass = intensity >= 80 ? 'ring-1 ring-current ring-opacity-40' : '';
+  // Message type accent
+  const typeAccent = msg.message_type === 'warning' ? '#ef4444'
+    : msg.message_type === 'decision' ? '#34d399'
+    : msg.message_type === 'question' ? '#60a5fa'
+    : msg.message_type === 'reaction' ? em.color
+    : null;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.3 }}
-      className={cn('flex gap-3 group', isNew && 'animate-pulse-once')}
+      initial={{ opacity: 0, x: -16, scale: 0.97 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      className="flex gap-3 group"
     >
-      {/* Avatar */}
-      <div className="flex-shrink-0 flex flex-col items-center gap-1">
-        <div className={cn(
-          'w-9 h-9 rounded-xl flex items-center justify-center text-lg border transition-all',
-          emotion.bg, intensityClass,
-          'border-white/8'
-        )}>
-          {msg.agent_flag || '🏛'}
-        </div>
-        {/* Emotion dot */}
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="text-[10px]">{emotion.emoji}</span>
-          {/* Intensity bar */}
-          <div className="w-1 h-6 bg-white/8 rounded-full overflow-hidden">
-            <div
-              className={cn('w-full rounded-full transition-all', emotion.color.replace('text-', 'bg-'))}
-              style={{ height: `${intensity}%`, marginTop: `${100 - intensity}%` }}
-            />
-          </div>
-        </div>
+      {/* Avatar + meter */}
+      <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+        <AgentAvatar flag={msg.agent_flag || '🏛'} emotion={msg.emotion} size="md" />
+        <EmotionMeter intensity={intensity} color={em.color} />
       </div>
 
-      {/* Message content */}
-      <div className="flex-1 min-w-0">
-        {/* Agent name + role + emotion */}
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-mono font-black text-white/80">{msg.agent_name}</span>
-          <span className="text-[8px] text-white/25 font-mono">{ROLE_ICONS[msg.agent_role]} {msg.agent_role}</span>
-          <span className={cn('text-[8px] font-mono font-bold', emotion.color)}>{emotion.label}</span>
-          {intensity >= 75 && (
-            <span className={cn('text-[8px] font-mono', emotion.color)}>
-              {intensity >= 90 ? '‼️ EXTREME' : '⚠ HIGH'}
+      {/* Bubble */}
+      <div className="flex-1 min-w-0 pb-1">
+        {/* Name bar */}
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="text-[10px] font-mono font-black" style={{ color: em.color }}>{msg.agent_name}</span>
+          {ROLE_BADGE[msg.agent_role] && (
+            <span className="text-[8px]" style={{ color: ROLE_BADGE[msg.agent_role].color }}>
+              {ROLE_BADGE[msg.agent_role].icon}
             </span>
           )}
+          <span className="text-[7px] font-mono px-1.5 py-0.5 rounded-full font-bold"
+            style={{ color: em.color, background: em.bg, border: `1px solid ${em.border}` }}>
+            {em.emoji} {em.label}
+            {em.particle && <span className="ml-0.5 opacity-70">{em.particle}</span>}
+          </span>
+          {isExtreme && (
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+              className="text-[7px] font-mono font-black"
+              style={{ color: em.color }}
+            >
+              {intensity}% INTENSITY
+            </motion.span>
+          )}
           {msg.message_type !== 'statement' && (
-            <span className="text-[8px] font-mono text-white/20 uppercase ml-auto">{msg.message_type}</span>
+            <span className="ml-auto text-[6px] font-mono uppercase tracking-widest"
+              style={{ color: typeAccent || 'rgba(255,255,255,0.2)' }}>
+              [{msg.message_type}]
+            </span>
           )}
         </div>
 
-        {/* The message */}
-        <div className={cn(
-          'text-[11px] text-white/75 leading-relaxed font-mono rounded-lg px-3 py-2.5',
-          emotion.bg, msgStyle,
-          'border border-white/6'
-        )}>
+        {/* Message bubble */}
+        <div className="relative rounded-xl px-4 py-3 text-[10px] font-mono text-white/75 leading-relaxed"
+          style={{
+            background: `linear-gradient(135deg, ${em.bg}, rgba(0,0,0,0.4))`,
+            border: `1px solid ${em.border}`,
+            boxShadow: isExtreme ? `0 0 24px ${em.color}22, inset 0 1px 0 ${em.color}15` : `inset 0 1px 0 rgba(255,255,255,0.04)`,
+          }}>
+          {/* Type accent bar */}
+          {typeAccent && (
+            <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full" style={{ background: typeAccent, boxShadow: `0 0 6px ${typeAccent}` }} />
+          )}
           {msg.responding_to_agent && (
-            <span className="text-[9px] text-white/30 block mb-1">↩ responding to {msg.responding_to_agent}</span>
+            <div className="text-[8px] mb-1.5 opacity-40 flex items-center gap-1">
+              <span>↩</span>
+              <span>responding to {msg.responding_to_agent}</span>
+            </div>
           )}
           {msg.message}
         </div>
 
-        {/* Internal thought (hidden, reveal on hover) */}
+        {/* Internal thought toggle */}
         {msg.internal_thought && (
-          <div className="mt-1">
-            <button
-              onClick={() => setShowThought(!showThought)}
-              className="text-[8px] font-mono text-white/20 hover:text-purple-400/60 transition-colors italic"
-            >
-              {showThought ? '↑ hide thoughts' : '💭 internal thought'}
+          <div className="mt-1.5 ml-1">
+            <button onClick={() => setShowThought(!showThought)}
+              className="text-[7px] font-mono italic transition-colors flex items-center gap-1"
+              style={{ color: showThought ? '#a78bfa' : 'rgba(255,255,255,0.2)' }}>
+              <span>💭</span>
+              <span>{showThought ? 'hide inner thoughts' : 'reveal inner thoughts'}</span>
             </button>
-            {showThought && (
-              <motion.p
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="text-[9px] italic text-purple-300/50 font-mono mt-1 px-2 border-l border-purple-500/20"
-              >
-                "{msg.internal_thought}"
-              </motion.p>
-            )}
+            <AnimatePresence>
+              {showThought && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginTop: 6 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="rounded-lg px-3 py-2 text-[9px] font-mono italic leading-relaxed"
+                    style={{
+                      color: '#c4b5fd',
+                      background: 'rgba(167,139,250,0.06)',
+                      border: '1px solid rgba(167,139,250,0.15)',
+                      borderLeft: '2px solid rgba(167,139,250,0.4)',
+                    }}>
+                    "{msg.internal_thought}"
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
         {/* Market action */}
         {msg.market_action && (
-          <div className="mt-1.5 text-[8px] font-mono text-emerald-400/60 bg-emerald-500/5 border border-emerald-500/15 rounded px-2 py-1">
-            📊 {msg.market_action.action} — {msg.market_action.reason}
+          <div className="mt-1.5 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[8px] font-mono"
+            style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399' }}>
+            <span>📊</span>
+            <span className="font-bold">{msg.market_action.action}</span>
+            {msg.market_action.reason && <span className="opacity-50">— {msg.market_action.reason}</span>}
           </div>
         )}
       </div>
@@ -337,23 +407,41 @@ function AgentBubble({ msg, isNew }: { msg: any; isNew?: boolean }) {
 function AgentMoodBoard({ states }: { states: any[] }) {
   if (!states?.length) return null;
   return (
-    <div className="grid grid-cols-5 gap-1.5 mb-4">
+    <div className="grid grid-cols-5 gap-2 mb-5">
       {states.map(s => {
         const em = EMOTION_CONFIG[s.current_emotion] || EMOTION_CONFIG.neutral;
         const intensity = s.emotion_intensity || 50;
         return (
-          <div key={s.agent_id} className={cn(
-            'rounded-lg border border-white/6 p-2 text-center transition-all',
-            em.bg
-          )}>
-            <div className="text-base mb-0.5">{em.emoji}</div>
-            <div className="text-[7px] font-mono text-white/40 truncate">{s.agent_name.split(' ')[0]}</div>
-            <div className={cn('text-[7px] font-mono font-bold', em.color)}>{em.label}</div>
-            {/* stress bar */}
-            <div className="h-0.5 mt-1 rounded-full bg-white/8 overflow-hidden">
-              <div className={cn('h-full rounded-full', em.color.replace('text-', 'bg-'))}
-                style={{ width: `${intensity}%` }} />
+          <div key={s.agent_id} className="relative rounded-xl p-2.5 text-center transition-all group cursor-default"
+            style={{
+              background: `linear-gradient(135deg, ${em.bg}, rgba(0,0,0,0.5))`,
+              border: `1px solid ${em.border}`,
+              boxShadow: intensity >= 75 ? `0 0 16px ${em.color}22` : 'none',
+            }}>
+            {/* Big emoji */}
+            <div className="text-xl mb-1">{em.emoji}</div>
+            {/* Flag */}
+            <div className="text-base mb-0.5">{s.agent_id === 'blackrock' ? '💰' : ''}</div>
+            {/* Name */}
+            <div className="text-[7px] font-mono font-bold truncate" style={{ color: em.color }}>
+              {s.agent_name.split(' ')[0].toUpperCase()}
             </div>
+            {/* Emotion */}
+            <div className="text-[6px] font-mono opacity-60 mt-0.5">{em.label}</div>
+            {/* Stress bar */}
+            <div className="h-0.5 mt-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full transition-all duration-1000"
+                style={{ width: `${intensity}%`, background: em.color, boxShadow: `0 0 4px ${em.color}` }} />
+            </div>
+            {/* Concern tooltip on hover */}
+            {s.key_concern && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 whitespace-nowrap">
+                <div className="text-[7px] font-mono rounded-lg px-2 py-1"
+                  style={{ background: 'rgba(0,0,0,0.95)', border: `1px solid ${em.border}`, color: em.color }}>
+                  {s.key_concern.slice(0, 60)}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
@@ -369,21 +457,19 @@ function AgentSociety() {
   const [generating, setGenerating] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+  const msgsEndRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
     try {
       const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'get_conversations' }),
       });
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations || []);
         setAgentStates(data.agent_states || []);
-        if (data.conversations?.length && !activeConvId) {
-          setActiveConvId(data.conversations[0].id);
-        }
+        if (data.conversations?.length && !activeConvId) setActiveConvId(data.conversations[0].id);
       }
     } catch {}
   };
@@ -396,136 +482,179 @@ function AgentSociety() {
       setLoadingMsgs(true);
       try {
         const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: 'get_messages', conversation_id: activeConvId }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          setMessages(data.messages || []);
-        }
+        if (res.ok) { const d = await res.json(); setMessages(d.messages || []); }
       } catch {} finally { setLoadingMsgs(false); }
     };
     load();
   }, [activeConvId]);
 
+  useEffect(() => {
+    msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
   const generate = async () => {
     setGenerating(true);
     try {
       const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'generate_conversation' }),
       });
       if (res.ok) {
         const data = await res.json();
         await loadData();
-        if (data.conversation_id) {
-          setActiveConvId(data.conversation_id);
-          setMessages(data.messages || []);
-        }
+        if (data.conversation_id) { setActiveConvId(data.conversation_id); setMessages(data.messages || []); }
       }
     } catch {} finally { setGenerating(false); }
   };
 
   const activeConv = conversations.find(c => c.id === activeConvId);
+  const hasPanic = messages.some(m => m.emotion === 'panicked');
+  const hasAnger = messages.some(m => m.emotion === 'angry');
+  const avgTension = messages.length
+    ? Math.round(messages.reduce((s, m) => s + (m.emotion_intensity || 50), 0) / messages.length)
+    : 0;
 
   return (
     <div className="mb-6">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-        <span className="text-[10px] font-mono font-bold text-purple-400 tracking-[0.15em] uppercase">Agent Society</span>
-        <span className="text-[8px] font-mono text-white/20">Live AI agents reacting to world events</span>
-        <div className="flex-1 h-px bg-gradient-to-r from-purple-500/20 to-transparent" />
-        <button
-          onClick={generate}
-          disabled={generating}
-          className="text-[9px] font-mono text-purple-400/60 hover:text-purple-400 transition-colors disabled:opacity-40"
-        >
+      {/* ── Header bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-1.5">
+          <motion.div
+            animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-2 h-2 rounded-full bg-purple-400"
+            style={{ boxShadow: '0 0 8px #a855f7' }}
+          />
+        </div>
+        <span className="text-[11px] font-mono font-black text-purple-400 tracking-[0.18em] uppercase">Agent Society</span>
+        <span className="text-[8px] font-mono text-white/20">// Live AI agents · World reaction simulation</span>
+        <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(168,85,247,0.2), transparent)' }} />
+        {avgTension > 0 && (
+          <div className="text-[8px] font-mono px-2 py-0.5 rounded-full"
+            style={{
+              color: avgTension >= 75 ? '#f87171' : avgTension >= 55 ? '#fb923c' : '#9ca3af',
+              background: avgTension >= 75 ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${avgTension >= 75 ? 'rgba(248,113,113,0.3)' : 'rgba(255,255,255,0.08)'}`,
+            }}>
+            TENSION {avgTension}%
+          </div>
+        )}
+        <button onClick={generate} disabled={generating}
+          className="text-[8px] font-mono px-3 py-1 rounded-full transition-all disabled:opacity-40"
+          style={{ color: '#a855f7', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)' }}>
           {generating ? '⟳ generating...' : '⚡ new conversation'}
         </button>
       </div>
 
-      {/* Agent mood board — always visible */}
+      {/* ── Mood board */}
       {agentStates.length > 0 && <AgentMoodBoard states={agentStates} />}
 
-      {/* Conversation selector */}
+      {/* ── Conversation tabs */}
       {conversations.length > 0 && (
-        <div className="flex gap-1.5 mb-3 flex-wrap">
-          {conversations.slice(0, 4).map(conv => (
-            <button
-              key={conv.id}
-              onClick={() => setActiveConvId(conv.id)}
-              className={cn(
-                'text-[8px] font-mono px-2.5 py-1.5 rounded-lg border transition-all text-left max-w-[180px] truncate',
-                activeConvId === conv.id
-                  ? 'bg-purple-500/15 border-purple-500/40 text-purple-400'
-                  : 'bg-white/3 border-white/8 text-white/35 hover:text-white/60'
-              )}
-            >
-              {conv.topic?.slice(0, 50) || 'Conversation'}
+        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+          {conversations.slice(0, 5).map(conv => (
+            <button key={conv.id} onClick={() => setActiveConvId(conv.id)}
+              className="text-[7px] font-mono px-3 py-1.5 rounded-full border transition-all text-left flex-shrink-0 max-w-[180px] truncate"
+              style={{
+                background: activeConvId === conv.id ? 'rgba(168,85,247,0.12)' : 'rgba(255,255,255,0.02)',
+                borderColor: activeConvId === conv.id ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.08)',
+                color: activeConvId === conv.id ? '#a855f7' : 'rgba(255,255,255,0.3)',
+              }}>
+              {conv.topic?.slice(0, 45) || 'Conversation'}
             </button>
           ))}
         </div>
       )}
 
-      {/* Empty state */}
+      {/* ── Empty state */}
       {conversations.length === 0 && !generating && (
-        <div className="border border-dashed border-purple-500/20 rounded-xl p-8 text-center">
-          <div className="text-3xl mb-3">🤖💬🤖</div>
-          <p className="text-[11px] font-mono text-white/35 mb-4">
-            No agent conversations yet. Generate one to watch world powers react in real time.
-          </p>
+        <div className="rounded-2xl p-10 text-center"
+          style={{ border: '1px dashed rgba(168,85,247,0.2)', background: 'rgba(168,85,247,0.03)' }}>
+          <div className="text-4xl mb-4 opacity-60">🌍</div>
+          <p className="text-[11px] font-mono text-white/30 mb-2">The agent society is silent.</p>
+          <p className="text-[9px] font-mono text-white/15 mb-6">Generate a conversation to watch world powers react, argue, panic, and strategize.</p>
           <button onClick={generate}
-            className="text-[9px] font-mono text-purple-400 bg-purple-500/10 border border-purple-500/30 px-5 py-2.5 rounded-lg hover:bg-purple-500/20 transition-all">
-            ⚡ Start Agent Society
+            className="text-[9px] font-mono px-6 py-3 rounded-xl transition-all"
+            style={{ color: '#a855f7', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)' }}>
+            ⚡ Activate Agent Society
           </button>
         </div>
       )}
 
       {generating && (
-        <div className="border border-purple-500/20 rounded-xl p-6 text-center bg-purple-500/5">
-          <div className="text-[10px] font-mono text-purple-400 animate-pulse">
-            ⟳ Agents are forming opinions... processing emotions... preparing statements...
-          </div>
+        <div className="rounded-2xl p-8 text-center"
+          style={{ border: '1px solid rgba(168,85,247,0.2)', background: 'rgba(168,85,247,0.04)' }}>
+          <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.5, repeat: Infinity }}>
+            <div className="text-[10px] font-mono text-purple-400 tracking-widest">
+              ⟳  AGENTS FORMING OPINIONS  ·  PROCESSING WORLD EVENTS  ·  GENERATING REACTIONS
+            </div>
+          </motion.div>
         </div>
       )}
 
-      {/* Active conversation: chat room */}
+      {/* ── Chat room */}
       {activeConv && (
-        <div className="border border-white/6 rounded-xl overflow-hidden bg-black/30">
+        <div className="rounded-2xl overflow-hidden"
+          style={{
+            border: '1px solid rgba(168,85,247,0.15)',
+            background: 'linear-gradient(180deg, rgba(5,0,15,0.95) 0%, rgba(0,0,0,0.98) 100%)',
+            boxShadow: '0 0 60px rgba(168,85,247,0.06)',
+          }}>
+
           {/* Topic bar */}
-          <div className="border-b border-white/6 px-4 py-2.5 bg-white/3 flex items-center gap-2">
-            <span className="text-[8px] font-mono text-white/25 uppercase">Discussing</span>
-            <span className="text-[9px] font-mono text-white/60 font-bold flex-1 truncate">{activeConv.topic}</span>
-            <span className="text-[8px] font-mono text-white/20">{new Date(activeConv.created_at).toLocaleTimeString()}</span>
+          <div className="flex items-center gap-3 px-5 py-3 border-b border-white/5"
+            style={{ background: 'linear-gradient(90deg, rgba(168,85,247,0.06) 0%, transparent 60%)' }}>
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            <span className="text-[8px] font-mono text-white/25 uppercase tracking-widest">Live Discussion</span>
+            <span className="text-[9px] font-mono text-white/55 font-bold flex-1 truncate">{activeConv.topic}</span>
+            {hasPanic && (
+              <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.6, repeat: Infinity }}
+                className="text-[7px] font-mono font-black px-2 py-0.5 rounded-full"
+                style={{ color: '#f87171', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)' }}>
+                🚨 AGENT PANIC DETECTED
+              </motion.span>
+            )}
+            {!hasPanic && hasAnger && (
+              <span className="text-[7px] font-mono px-2 py-0.5 rounded-full"
+                style={{ color: '#ef4444', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                ⚠ HIGH TENSION
+              </span>
+            )}
           </div>
 
           {/* Messages */}
-          <div className="p-4 space-y-5 max-h-[600px] overflow-y-auto">
+          <div className="px-5 py-4 space-y-6 overflow-y-auto" style={{ maxHeight: 560 }}>
             {loadingMsgs && (
-              <div className="text-center text-[9px] font-mono text-white/25 py-8">Loading conversation...</div>
+              <div className="text-center py-8 text-[9px] font-mono text-white/20">Loading conversation...</div>
             )}
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {messages.map((msg, i) => (
-                <AgentBubble key={msg.id} msg={msg} isNew={i === messages.length - 1} />
+                <AgentMessage key={msg.id} msg={msg} prev={messages[i - 1]} idx={messages.length - 1 - i} />
               ))}
             </AnimatePresence>
+            <div ref={msgsEndRef} />
           </div>
 
-          {/* Footer: intensity summary */}
+          {/* Footer stats */}
           {messages.length > 0 && (
-            <div className="border-t border-white/6 px-4 py-2 bg-white/2 flex items-center gap-4">
-              <span className="text-[8px] font-mono text-white/25">{messages.length} messages</span>
-              {['panicked', 'angry', 'tense'].some(e => messages.some(m => m.emotion === e)) && (
-                <span className="text-[8px] font-mono text-red-400/60">⚠ High tension detected</span>
-              )}
-              {messages.some(m => m.emotion === 'panicked') && (
-                <span className="text-[8px] font-mono text-red-400 animate-pulse">🚨 Agent panic</span>
-              )}
-              {messages.some(m => m.market_action) && (
-                <span className="text-[8px] font-mono text-emerald-400/60">📊 Market actions triggered</span>
+            <div className="flex items-center gap-4 px-5 py-2.5 border-t border-white/4"
+              style={{ background: 'rgba(0,0,0,0.5)' }}>
+              <span className="text-[7px] font-mono text-white/20">{messages.length} messages</span>
+              <span className="text-[7px] font-mono text-white/15">·</span>
+              <span className="text-[7px] font-mono text-white/20">
+                {messages.filter(m => m.internal_thought).length} thoughts hidden
+              </span>
+              <span className="text-[7px] font-mono text-white/15">·</span>
+              <span className="text-[7px] font-mono text-white/20">
+                {messages.filter(m => m.market_action).length} market actions
+              </span>
+              {messages.some(m => m.emotion_intensity >= 80) && (
+                <span className="ml-auto text-[7px] font-mono" style={{ color: '#f87171' }}>
+                  ⚠ extreme emotions detected
+                </span>
               )}
             </div>
           )}
