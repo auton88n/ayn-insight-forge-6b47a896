@@ -97,7 +97,7 @@ function Globe3D({ points, activeLayer, onPointClick, flights, ships, showFlight
   const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [GlobeComp, setGlobeComp] = useState<any>(null);
-  const [dims, setDims] = useState({ w: 800, h: 500 });
+  const [dims, setDims] = useState({ w: 900, h: 560 });
 
   useEffect(() => {
     // @ts-ignore
@@ -118,11 +118,11 @@ function Globe3D({ points, activeLayer, onPointClick, flights, ships, showFlight
     const ctrl = globeRef.current.controls?.();
     if (ctrl) {
       ctrl.autoRotate = true;
-      ctrl.autoRotateSpeed = 0.2;
+      ctrl.autoRotateSpeed = 0.18;
       ctrl.enableDamping = true;
-      ctrl.dampingFactor = 0.08;
+      ctrl.dampingFactor = 0.06;
     }
-    globeRef.current.pointOfView?.({ lat: 20, lng: 15, altitude: 1.8 }, 1200);
+    globeRef.current.pointOfView?.({ lat: 22, lng: 15, altitude: 1.6 }, 1500);
   }, [GlobeComp]);
 
   // ── Filtered intel points
@@ -132,62 +132,68 @@ function Globe3D({ points, activeLayer, onPointClick, flights, ships, showFlight
     return points.filter(p => cats.some(c => (p.category || '').toLowerCase().includes(c.toLowerCase())));
   }, [points, activeLayer]);
 
-  // ── Intel globe points
+  // ── Intel points — large, clearly colored, altitude-raised rings
   const intelPoints = useMemo(() => filteredPoints.map(p => ({
     lat: p.coordinates[1], lng: p.coordinates[0],
-    size: (riskConfig[p.risk]?.size ?? 0.4) * 1.2,
+    size: (riskConfig[p.risk]?.size ?? 0.4) * 2.0,  // 2x bigger
     color: riskConfig[p.risk]?.color ?? '#00ffcc',
-    label: p.label, detail: p.detail, risk: p.risk, _type: 'intel', _raw: p,
+    label: p.label,
+    detail: p.detail,
+    risk: p.risk,
+    _type: 'intel',
+    _raw: p,
   })), [filteredPoints]);
 
-  // ── Live flight points (✈ symbol, blue)
-  const flightPoints = useMemo(() => !showFlights ? [] : flights.map(f => ({
-    lat: f.lat, lng: f.lng,
-    size: 0.28,
-    color: '#38bdf8',
-    label: f.callsign,
-    detail: f.country,
-    altitude_m: f.altitude,
-    velocity: f.velocity,
-    heading: f.heading,
-    _type: 'flight',
-  })), [flights, showFlights]);
-
-  // ── Live ship points (⚓ symbol, teal)
-  const shipPoints = useMemo(() => !showShips ? [] : ships.map(s => ({
-    lat: s.lat, lng: s.lng,
-    size: 0.32,
-    color: '#2dd4bf',
-    label: s.name,
-    detail: s.destination ? `→ ${s.destination}` : shipTypeLabel(s.ship_type),
-    speed_kts: s.speed,
-    heading: s.heading,
-    ship_type: s.ship_type,
-    _type: 'ship',
-  })), [ships, showShips]);
-
-  // ── Combine all points
-  const allPoints = useMemo(() => [
-    ...intelPoints, ...flightPoints, ...shipPoints,
-  ], [intelPoints, flightPoints, shipPoints]);
-
-  // ── Threat arcs between critical intel points
+  // ── Threat arcs
   const arcData = useMemo(() => {
     const crits = filteredPoints.filter(p => ['critical', 'cyber', 'high'].includes(p.risk));
-    return crits.slice(0, 10).map((src, i) => {
+    return crits.slice(0, 12).map((src, i) => {
       const dst = filteredPoints[(i * 3 + 5) % Math.max(1, filteredPoints.length)];
       return dst && dst !== src ? {
         startLat: src.coordinates[1], startLng: src.coordinates[0],
         endLat: dst.coordinates[1],   endLng: dst.coordinates[0],
-        color: [riskConfig[src.risk]?.color + 'cc', 'rgba(0,0,0,0)'],
+        color: [riskConfig[src.risk]?.color + 'ee', 'rgba(0,0,0,0)'],
       } : null;
     }).filter(Boolean);
   }, [filteredPoints]);
 
+  // ── HTML elements for flights — actual ✈ icons
+  const flightElements = useMemo(() => {
+    if (!showFlights) return [];
+    // Sample flights for performance (max 800 rendered as HTML)
+    const sample = flights.length > 800 ? flights.filter((_, i) => i % Math.ceil(flights.length / 800) === 0) : flights;
+    return sample.map(f => ({
+      lat: f.lat, lng: f.lng,
+      callsign: f.callsign,
+      country: f.country,
+      altitude_m: f.altitude,
+      velocity: f.velocity,
+      heading: f.heading,
+      _type: 'flight',
+    }));
+  }, [flights, showFlights]);
+
+  // ── HTML elements for ships — actual ⚓ icons
+  const shipElements = useMemo(() => {
+    if (!showShips) return [];
+    return ships.map(s => ({
+      lat: s.lat, lng: s.lng,
+      name: s.name,
+      speed_kts: s.speed,
+      heading: s.heading,
+      ship_type: s.ship_type,
+      destination: s.destination,
+      _type: 'ship',
+    }));
+  }, [ships, showShips]);
+
+  // Combined HTML elements
+  const htmlElements = useMemo(() => [...flightElements, ...shipElements], [flightElements, shipElements]);
+
   if (!GlobeComp) return (
     <div className="w-full h-full flex items-center justify-center">
       <div className="text-[9px] font-mono text-[#00ffcc]/40 animate-pulse tracking-[0.3em]">
-        INITIALIZING GLOBE...
+        INITIALIZING GLOBAL INTELLIGENCE FEED...
       </div>
     </div>
   );
@@ -202,43 +208,81 @@ function Globe3D({ points, activeLayer, onPointClick, flights, ships, showFlight
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
         bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
         atmosphereColor="#00ffcc"
-        atmosphereAltitude={0.12}
-        // All points merged
-        pointsData={allPoints}
-        pointLat="lat" pointLng="lng"
+        atmosphereAltitude={0.15}
+
+        // ── Intel signal points — large glowing dots
+        pointsData={intelPoints}
+        pointLat="lat"
+        pointLng="lng"
         pointColor="color"
-        pointAltitude={0.008}
+        pointAltitude={0.02}
         pointRadius="size"
-        pointResolution={12}
-        pointLabel={(d: any) => {
-          if (d._type === 'flight') return `
-            <div style="background:rgba(0,4,10,0.97);border:1px solid #38bdf855;border-radius:10px;padding:10px 14px;font-family:'Courier New',monospace;min-width:180px;box-shadow:0 0 20px #38bdf822">
-              <div style="color:#38bdf8;font-size:11px;font-weight:900;letter-spacing:0.1em;margin-bottom:3px">✈ ${d.label}</div>
-              <div style="color:rgba(255,255,255,0.5);font-size:8px">Country: ${d.detail}</div>
-              <div style="color:rgba(255,255,255,0.4);font-size:8px">Alt: ${Math.round(d.altitude_m || 0).toLocaleString()}m · ${Math.round((d.velocity || 0) * 1.94)}kts</div>
-              <div style="color:rgba(255,255,255,0.3);font-size:8px">Heading: ${Math.round(d.heading || 0)}°</div>
-            </div>`;
-          if (d._type === 'ship') return `
-            <div style="background:rgba(0,4,10,0.97);border:1px solid #2dd4bf55;border-radius:10px;padding:10px 14px;font-family:'Courier New',monospace;min-width:180px;box-shadow:0 0 20px #2dd4bf22">
-              <div style="color:#2dd4bf;font-size:11px;font-weight:900;letter-spacing:0.1em;margin-bottom:3px">⚓ ${d.label}</div>
-              <div style="color:rgba(255,255,255,0.5);font-size:8px">${shipTypeLabel(d.ship_type)} · ${d.detail}</div>
-              <div style="color:rgba(255,255,255,0.4);font-size:8px">Speed: ${(d.speed_kts || 0).toFixed(1)} kts · Hdg: ${Math.round(d.heading || 0)}°</div>
-            </div>`;
-          return `
-            <div style="background:rgba(0,4,10,0.97);border:1px solid ${d.color}55;border-radius:10px;padding:10px 14px;font-family:'Courier New',monospace;max-width:240px;box-shadow:0 0 30px ${d.color}22">
-              <div style="color:${d.color};font-size:11px;font-weight:900;letter-spacing:0.1em;margin-bottom:4px">${d.label}</div>
-              <div style="color:rgba(255,255,255,0.45);font-size:8px;line-height:1.5">${(d.detail || '').slice(0, 120)}</div>
-            </div>`;
-        }}
+        pointResolution={16}
+        pointsMerge={false}
+        pointLabel={(d: any) => `
+          <div style="background:rgba(0,4,12,0.97);border:1px solid ${d.color}66;border-radius:12px;padding:12px 16px;font-family:'Courier New',monospace;max-width:260px;box-shadow:0 0 30px ${d.color}44,0 8px 32px rgba(0,0,0,0.9)">
+            <div style="color:${d.color};font-size:12px;font-weight:900;letter-spacing:0.12em;margin-bottom:5px">${d.label}</div>
+            <div style="color:rgba(255,255,255,0.5);font-size:9px;line-height:1.5">${(d.detail || 'Intelligence monitoring active.').slice(0, 140)}</div>
+            <div style="color:${d.color};font-size:8px;margin-top:6px;opacity:0.6">● ${(d.risk || '').toUpperCase()}</div>
+          </div>`}
         onPointClick={(d: any) => { if (d._raw) onPointClick?.(d._raw); }}
-        // Threat arcs
+
+        // ── Threat arcs
         arcsData={arcData}
         arcStartLat="startLat" arcStartLng="startLng"
         arcEndLat="endLat"     arcEndLng="endLng"
         arcColor="color"
-        arcDashLength={0.35} arcDashGap={0.15}
-        arcDashAnimateTime={1800}
-        arcStroke={0.3} arcAltitude={0.25}
+        arcDashLength={0.4} arcDashGap={0.15}
+        arcDashAnimateTime={1600}
+        arcStroke={0.5} arcAltitude={0.3}
+
+        // ── Live flights + ships as HTML icons
+        htmlElementsData={htmlElements}
+        htmlLat="lat"
+        htmlLng="lng"
+        htmlAltitude={0.005}
+        htmlElement={(d: any) => {
+          const el = document.createElement('div');
+          if (d._type === 'flight') {
+            el.style.cssText = `
+              position:relative; cursor:pointer; transition:transform 0.2s;
+              filter:drop-shadow(0 0 4px rgba(56,189,248,0.8));
+            `;
+            // Rotate icon to match heading
+            el.innerHTML = `
+              <div style="
+                font-size:14px; line-height:1;
+                transform:rotate(${d.heading || 0}deg);
+                color:#38bdf8;
+                text-shadow:0 0 8px #38bdf8, 0 0 16px #38bdf844;
+              ">✈</div>
+            `;
+            el.title = `✈ ${d.callsign || 'Unknown'}
+${d.country || ''}
+Alt: ${Math.round(d.altitude_m || 0).toLocaleString()}m
+${Math.round((d.velocity || 0) * 1.94)} kts · ${Math.round(d.heading || 0)}°`;
+          } else {
+            el.style.cssText = `
+              position:relative; cursor:pointer;
+              filter:drop-shadow(0 0 4px rgba(45,212,191,0.8));
+            `;
+            el.innerHTML = `
+              <div style="
+                font-size:13px; line-height:1;
+                color:#2dd4bf;
+                text-shadow:0 0 8px #2dd4bf, 0 0 16px #2dd4bf44;
+              ">⚓</div>
+            `;
+            el.title = `⚓ ${d.name || 'Unknown Vessel'}
+${shipTypeLabel(d.ship_type)} → ${d.destination || '?'}
+${(d.speed_kts || 0).toFixed(1)} kts · ${Math.round(d.heading || 0)}°`;
+          }
+
+          // Hover expand
+          el.onmouseenter = () => { el.style.transform = 'scale(1.8)'; el.style.zIndex = '999'; };
+          el.onmouseleave = () => { el.style.transform = 'scale(1)'; el.style.zIndex = '1'; };
+          return el;
+        }}
       />
     </div>
   );
