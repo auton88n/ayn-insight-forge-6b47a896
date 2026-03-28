@@ -161,7 +161,10 @@ function buildConsensus(
   // ── CASE 2: Only ML available
   if (!ayn && ml) {
     const dir = normalizeDirection(ml.predicted_direction);
-    const conf = Math.min(Math.round(Number(ml.confidence) * 100 * 0.80), 65);
+    // v2 stores confidence as 0-100, v1 as 0-1
+    const mlRawConf = Number(ml.confidence);
+    const mlNormConf = (ml.generated_by === 'perpetual-ml-v2-unified') ? mlRawConf : mlRawConf * 100;
+    const conf = Math.min(Math.round(mlNormConf * 0.80), 65);
 
     return {
       asset, horizon, target_date: targetDate, baseline_date: baselineDate,
@@ -174,10 +177,10 @@ function buildConsensus(
       ayn_reasoning: null, ayn_key_drivers: null, ayn_regime: null, ayn_regime_confidence: null,
       ml_direction: normalizeDirection(ml.predicted_direction),
       ml_pct_change: ml.predicted_pct_change,
-      ml_confidence: Number(ml.confidence) * 100,
+      ml_confidence: mlNormConf,
       ml_rmse: (ml.signal_used as any)?.val_rmse ?? null,
       ml_top_drivers: ml.key_drivers,
-      ml_fear_greed: ml.fear_greed_at_prediction,
+      ml_fear_greed: ml.fear_greed_at_prediction ?? (ml.market_context as any)?.ayn_fear_greed,
       agreement: null,
       fusion_method: 'ML_ONLY',
       fusion_notes: `Only Perpetual ML engine available. Confidence reduced to ${conf}% pending AYN reasoning layer.`,
@@ -198,8 +201,12 @@ function buildConsensus(
   const weightedPct = (aynPct * aynWeight) + (mlPct * mlWeight);
 
   // Weighted average of confidence
+  // v1 stored confidence as 0-1 decimal, v2 stores as 0-100 directly
   const aynConf = ayn!.confidence;
-  const mlConf = Number(ml!.confidence) * 100; // perpetual stores as 0-1 decimal
+  const mlRawConf = Number(ml!.confidence);
+  const mlConf = (ml!.generated_by === 'perpetual-ml-v2-unified')
+    ? mlRawConf           // v2: already 0-100
+    : mlRawConf * 100;    // v1: was 0-1 decimal
   const weightedConf = (aynConf * aynWeight) + (mlConf * mlWeight);
 
   let finalConf: number;
@@ -255,7 +262,9 @@ function buildConsensus(
     ml_confidence: mlConf,
     ml_rmse: (ml!.signal_used as any)?.val_rmse ?? null,
     ml_top_drivers: ml!.key_drivers,
-    ml_fear_greed: ml!.fear_greed_at_prediction,
+    ml_fear_greed: ml!.fear_greed_at_prediction ?? (ml!.market_context as any)?.ayn_fear_greed,
+    ml_ayn_feature_pct: (ml!.market_context as any)?.ayn_feature_pct ?? null,
+    ml_tech_feature_pct: (ml!.market_context as any)?.tech_feature_pct ?? null,
     agreement: agree,
     fusion_method: method,
     fusion_notes: notes,
