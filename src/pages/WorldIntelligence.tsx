@@ -404,10 +404,327 @@ function AgentMessage({ msg, prev, idx }: { msg: any; prev: any; idx: number }) 
   );
 }
 
+// Agent node positions on a circle + inner ring layout
+const AGENT_POSITIONS: Record<string, { x: number; y: number; ring: number }> = {
+  usa:       { x: 500, y: 160, ring: 0 },
+  china:     { x: 720, y: 240, ring: 0 },
+  russia:    { x: 680, y: 460, ring: 0 },
+  eu:        { x: 460, y: 560, ring: 0 },
+  iran:      { x: 220, y: 460, ring: 0 },
+  israel:    { x: 180, y: 240, ring: 0 },
+  fed:       { x: 500, y: 310, ring: 1 },
+  opec:      { x: 610, y: 380, ring: 1 },
+  saudi:     { x: 390, y: 380, ring: 1 },
+  blackrock: { x: 500, y: 460, ring: 1 },
+};
+
+const AGENT_FLAGS: Record<string, string> = {
+  usa:'🇺🇸', china:'🇨🇳', russia:'🇷🇺', eu:'🇪🇺', iran:'🇮🇷',
+  israel:'🇮🇱', fed:'🏦', opec:'🛢', saudi:'🇸🇦', blackrock:'💰',
+};
+
+const AGENT_LINKS = [
+  { from: 'usa',   to: 'eu',        strength: 0.9  },
+  { from: 'usa',   to: 'israel',    strength: 0.95 },
+  { from: 'usa',   to: 'fed',       strength: 1.0  },
+  { from: 'usa',   to: 'china',     strength: 0.3  },
+  { from: 'china', to: 'russia',    strength: 0.8  },
+  { from: 'china', to: 'opec',      strength: 0.6  },
+  { from: 'russia',to: 'iran',      strength: 0.85 },
+  { from: 'russia',to: 'eu',        strength: 0.2  },
+  { from: 'iran',  to: 'israel',    strength: 0.05 },
+  { from: 'iran',  to: 'opec',      strength: 0.5  },
+  { from: 'saudi', to: 'opec',      strength: 0.9  },
+  { from: 'saudi', to: 'usa',       strength: 0.7  },
+  { from: 'fed',   to: 'blackrock', strength: 0.85 },
+  { from: 'blackrock','to': 'usa',  strength: 0.7  },
+  { from: 'eu',    to: 'fed',       strength: 0.6  },
+];
+
+function AgentNodeGraph({ states, messages, onSelectAgent, selectedAgent }: {
+  states: any[];
+  messages: any[];
+  onSelectAgent: (id: string | null) => void;
+  selectedAgent: string | null;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const stateMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const s of states) m[s.agent_id] = s;
+    return m;
+  }, [states]);
+
+  // Count messages per agent for activity
+  const activityMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const msg of messages) {
+      m[msg.agent_id] = (m[msg.agent_id] || 0) + 1;
+    }
+    return m;
+  }, [messages]);
+
+  // Pulse animation tick
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1500);
+    return () => clearInterval(t);
+  }, []);
+
+  const W = 900, H = 620;
+  const cx = W / 2, cy = H / 2;
+
+  return (
+    <div className="relative w-full rounded-2xl overflow-hidden mb-5"
+      style={{
+        background: 'radial-gradient(ellipse at 50% 40%, rgba(10,0,30,0.98) 0%, rgba(0,0,5,0.99) 100%)',
+        border: '1px solid rgba(168,85,247,0.15)',
+        boxShadow: '0 0 80px rgba(168,85,247,0.06)',
+      }}>
+
+      {/* Grid background */}
+      <div className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(168,85,247,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(168,85,247,0.04) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }} />
+
+      {/* Header */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-2.5 z-20"
+        style={{ background: 'linear-gradient(180deg, rgba(0,0,10,0.9) 0%, transparent 100%)' }}>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" style={{ boxShadow: '0 0 6px #a855f7' }} />
+          <span className="text-[9px] font-mono font-black text-purple-400 tracking-[0.2em]">AGENT SOCIETY NETWORK</span>
+          <span className="text-[7px] font-mono text-white/20">// {states.length} ACTIVE AGENTS · LIVE</span>
+        </div>
+        <div className="flex items-center gap-3 text-[7px] font-mono text-white/20">
+          <span>NODE SIZE = INFLUENCE</span>
+          <span>·</span>
+          <span>LINK COLOR = ALLIANCE STRENGTH</span>
+          <span>·</span>
+          <span>GLOW = EMOTION</span>
+        </div>
+      </div>
+
+      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`} className="relative z-10">
+        <defs>
+          {/* Glow filters per emotion */}
+          {Object.entries(EMOTION_CONFIG).map(([key, cfg]) => (
+            <filter key={key} id={`glow-${key}`}>
+              <feGaussianBlur stdDeviation="8" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          ))}
+          <filter id="glow-neutral">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          {/* Radial for globe background */}
+          <radialGradient id="bgGrad" cx="50%" cy="50%">
+            <stop offset="0%" stopColor="rgba(168,85,247,0.06)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
+        </defs>
+
+        {/* Background orb */}
+        <ellipse cx={cx} cy={cy} rx={300} ry={280} fill="url(#bgGrad)" />
+
+        {/* Orbit rings */}
+        <circle cx={cx} cy={cy} r={200} fill="none" stroke="rgba(168,85,247,0.06)" strokeWidth="1" strokeDasharray="4 8" />
+        <circle cx={cx} cy={cy} r={110} fill="none" stroke="rgba(168,85,247,0.08)" strokeWidth="1" strokeDasharray="2 6" />
+
+        {/* Links */}
+        {AGENT_LINKS.map((link, i) => {
+          const from = AGENT_POSITIONS[link.from];
+          const to = AGENT_POSITIONS[link.to as string];
+          if (!from || !to) return null;
+          const isHostile = link.strength < 0.15;
+          const isStrong = link.strength > 0.8;
+          const color = isHostile ? '#ef4444' : isStrong ? '#a855f7' : '#6366f1';
+          const opacity = isHostile ? 0.4 : link.strength * 0.5;
+          // Active link if both agents spoke recently
+          const fromActive = (activityMap[link.from] || 0) > 0;
+          const toActive = (activityMap[link.to as string] || 0) > 0;
+          const isActive = fromActive && toActive;
+          return (
+            <g key={i}>
+              {/* Glow line */}
+              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                stroke={color} strokeWidth={isActive ? 2.5 : 1}
+                strokeOpacity={isActive ? opacity * 1.5 : opacity * 0.6}
+                filter={isActive ? `url(#glow-${isHostile ? 'angry' : 'suspicious'})` : undefined}
+                strokeDasharray={isHostile ? '4 4' : undefined} />
+              {/* Animated particle on active links */}
+              {isActive && (
+                <circle r="2.5" fill={color} opacity={0.9}>
+                  <animateMotion dur={`${2 + i * 0.3}s`} repeatCount="indefinite"
+                    path={`M${from.x},${from.y} L${to.x},${to.y}`} />
+                </circle>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Agent Nodes */}
+        {Object.entries(AGENT_POSITIONS).map(([agentId, pos]) => {
+          const state = stateMap[agentId];
+          const em = EMOTION_CONFIG[state?.current_emotion || 'neutral'] || EMOTION_CONFIG.neutral;
+          const intensity = state?.emotion_intensity || 50;
+          const activity = activityMap[agentId] || 0;
+          const isSelected = selectedAgent === agentId;
+          const isHovered = hovered === agentId;
+          const isInner = pos.ring === 1;
+          const baseR = isInner ? 28 : 34;
+          const r = baseR + Math.min(activity * 2, 10);
+          const isExtreme = intensity >= 80;
+          const flag = AGENT_FLAGS[agentId] || '🏛';
+
+          return (
+            <g key={agentId}
+              onClick={() => onSelectAgent(isSelected ? null : agentId)}
+              onMouseEnter={() => setHovered(agentId)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ cursor: 'pointer' }}>
+
+              {/* Selection ring */}
+              {isSelected && (
+                <circle cx={pos.x} cy={pos.y} r={r + 12} fill="none"
+                  stroke="#a855f7" strokeWidth="1.5" strokeDasharray="4 3" opacity={0.8}>
+                  <animateTransform attributeName="transform" type="rotate"
+                    from={`0 ${pos.x} ${pos.y}`} to={`360 ${pos.x} ${pos.y}`} dur="8s" repeatCount="indefinite" />
+                </circle>
+              )}
+
+              {/* Pulse ring (extreme emotion) */}
+              {isExtreme && (
+                <circle cx={pos.x} cy={pos.y} r={r + 8} fill="none"
+                  stroke={em.color} strokeWidth="1" opacity={tick % 2 === 0 ? 0.6 : 0.2}
+                  style={{ transition: 'opacity 0.7s ease' }} />
+              )}
+
+              {/* Outer glow */}
+              <circle cx={pos.x} cy={pos.y} r={r + 4} fill={em.color}
+                opacity={isHovered || isSelected ? 0.15 : 0.06}
+                filter={`url(#glow-${state?.current_emotion || 'neutral'})`} />
+
+              {/* Main circle */}
+              <circle cx={pos.x} cy={pos.y} r={r} fill="rgba(0,0,15,0.9)"
+                stroke={em.color} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
+                strokeOpacity={isSelected ? 1 : isHovered ? 0.9 : 0.6} />
+
+              {/* Activity ring (messages sent) */}
+              {activity > 0 && (
+                <circle cx={pos.x} cy={pos.y} r={r - 3} fill="none"
+                  stroke={em.color} strokeWidth="2" strokeOpacity={0.3}
+                  strokeDasharray={`${activity * 8} 100`} />
+              )}
+
+              {/* Flag emoji */}
+              <text x={pos.x} y={pos.y + (isInner ? 6 : 7)} textAnchor="middle"
+                fontSize={isInner ? 20 : 24} style={{ userSelect: 'none' }}>
+                {flag}
+              </text>
+
+              {/* Emotion emoji badge */}
+              <text x={pos.x + r * 0.65} y={pos.y - r * 0.65} textAnchor="middle"
+                fontSize="12" style={{ userSelect: 'none' }}>
+                {em.emoji}
+              </text>
+
+              {/* Name label */}
+              <text x={pos.x} y={pos.y + r + 14} textAnchor="middle"
+                fill={isSelected || isHovered ? em.color : 'rgba(255,255,255,0.5)'}
+                fontSize="9" fontFamily="'Courier New', monospace" fontWeight="bold"
+                letterSpacing="0.08em">
+                {(state?.agent_name || agentId).split(' ')[0].toUpperCase()}
+              </text>
+
+              {/* Emotion label */}
+              <text x={pos.x} y={pos.y + r + 24} textAnchor="middle"
+                fill={em.color} fontSize="7" fontFamily="'Courier New', monospace"
+                opacity={isHovered || isSelected ? 0.9 : 0.45}>
+                {em.label}
+              </text>
+
+              {/* Intensity arc */}
+              {(() => {
+                const startAngle = -Math.PI / 2;
+                const endAngle = startAngle + (intensity / 100) * Math.PI * 2;
+                const x1 = pos.x + (r + 7) * Math.cos(startAngle);
+                const y1 = pos.y + (r + 7) * Math.sin(startAngle);
+                const x2 = pos.x + (r + 7) * Math.cos(endAngle);
+                const y2 = pos.y + (r + 7) * Math.sin(endAngle);
+                const large = intensity > 50 ? 1 : 0;
+                return (
+                  <path d={`M${x1},${y1} A${r+7},${r+7} 0 ${large},1 ${x2},${y2}`}
+                    fill="none" stroke={em.color} strokeWidth="2.5"
+                    strokeOpacity={isHovered || isSelected ? 0.9 : 0.5}
+                    strokeLinecap="round" />
+                );
+              })()}
+
+              {/* Hover tooltip */}
+              {(isHovered || isSelected) && state && (
+                <g>
+                  <rect x={pos.x - 70} y={pos.y - r - 58} width="140" height="50" rx="6"
+                    fill="rgba(0,0,20,0.97)" stroke={em.color} strokeWidth="0.5" strokeOpacity="0.5" />
+                  <text x={pos.x} y={pos.y - r - 42} textAnchor="middle"
+                    fill={em.color} fontSize="8" fontFamily="'Courier New', monospace" fontWeight="bold">
+                    {state.agent_name}
+                  </text>
+                  <text x={pos.x} y={pos.y - r - 30} textAnchor="middle"
+                    fill="rgba(255,255,255,0.5)" fontSize="7" fontFamily="'Courier New', monospace">
+                    {em.emoji} {em.label} · {intensity}% intensity
+                  </text>
+                  <text x={pos.x} y={pos.y - r - 18} textAnchor="middle"
+                    fill="rgba(255,255,255,0.35)" fontSize="6.5" fontFamily="'Courier New', monospace">
+                    {(state.key_concern || '').slice(0, 32)}
+                  </text>
+                </g>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Center label */}
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(168,85,247,0.25)"
+          fontSize="10" fontFamily="'Courier New', monospace" letterSpacing="0.2em">
+          WORLD
+        </text>
+        <text x={cx} y={cy + 6} textAnchor="middle" fill="rgba(168,85,247,0.15)"
+          fontSize="8" fontFamily="'Courier New', monospace" letterSpacing="0.3em">
+          SOCIETY
+        </text>
+      </svg>
+
+      {/* Legend bottom */}
+      <div className="absolute bottom-3 left-4 flex items-center gap-4 text-[7px] font-mono text-white/25 z-20">
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-px bg-purple-500/60" />
+          <span>ALLIANCE</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-px border-t border-dashed border-red-500/60" />
+          <span>HOSTILITY</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-purple-500/40 animate-pulse" />
+          <span>ACTIVE LINK (BOTH SPOKE)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-0.5 rounded-full bg-purple-400" style={{ transform: 'rotate(-10deg)' }} />
+          <div className="w-1 h-1 rounded-full bg-purple-400 animate-ping" />
+          <span>DATA FLOW</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AgentMoodBoard({ states }: { states: any[] }) {
   if (!states?.length) return null;
   return (
-    <div className="grid grid-cols-5 gap-2 mb-5">
+    <div className="grid grid-cols-5 gap-2 mb-4">
       {states.map(s => {
         const em = EMOTION_CONFIG[s.current_emotion] || EMOTION_CONFIG.neutral;
         const intensity = s.emotion_intensity || 50;
@@ -418,22 +735,15 @@ function AgentMoodBoard({ states }: { states: any[] }) {
               border: `1px solid ${em.border}`,
               boxShadow: intensity >= 75 ? `0 0 16px ${em.color}22` : 'none',
             }}>
-            {/* Big emoji */}
             <div className="text-xl mb-1">{em.emoji}</div>
-            {/* Flag */}
-            <div className="text-base mb-0.5">{s.agent_id === 'blackrock' ? '💰' : ''}</div>
-            {/* Name */}
             <div className="text-[7px] font-mono font-bold truncate" style={{ color: em.color }}>
               {s.agent_name.split(' ')[0].toUpperCase()}
             </div>
-            {/* Emotion */}
             <div className="text-[6px] font-mono opacity-60 mt-0.5">{em.label}</div>
-            {/* Stress bar */}
             <div className="h-0.5 mt-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
               <div className="h-full rounded-full transition-all duration-1000"
                 style={{ width: `${intensity}%`, background: em.color, boxShadow: `0 0 4px ${em.color}` }} />
             </div>
-            {/* Concern tooltip on hover */}
             {s.key_concern && (
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 whitespace-nowrap">
                 <div className="text-[7px] font-mono rounded-lg px-2 py-1"
@@ -456,6 +766,7 @@ function AgentSociety() {
   const [agentStates, setAgentStates] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
   const msgsEndRef = useRef<HTMLDivElement>(null);
 
@@ -549,7 +860,17 @@ function AgentSociety() {
         </button>
       </div>
 
-      {/* ── Mood board */}
+      {/* ── Agent Network Graph */}
+      {agentStates.length > 0 && (
+        <AgentNodeGraph
+          states={agentStates}
+          messages={messages}
+          onSelectAgent={setSelectedAgent}
+          selectedAgent={selectedAgent}
+        />
+      )}
+
+      {/* ── Mood board (compact row) */}
       {agentStates.length > 0 && <AgentMoodBoard states={agentStates} />}
 
       {/* ── Conversation tabs */}
@@ -630,8 +951,18 @@ function AgentSociety() {
             {loadingMsgs && (
               <div className="text-center py-8 text-[9px] font-mono text-white/20">Loading conversation...</div>
             )}
+            {selectedAgent && (
+              <div className="text-[8px] font-mono text-white/25 mb-2 flex items-center gap-2">
+                <span>Filtering by:</span>
+                <span style={{ color: '#a855f7' }}>{agentStates.find(s => s.agent_id === selectedAgent)?.agent_name}</span>
+                <button onClick={() => setSelectedAgent(null)} className="ml-1 text-white/20 hover:text-white/50">✕ show all</button>
+              </div>
+            )}
             <AnimatePresence initial={false}>
-              {messages.map((msg, i) => (
+              {(selectedAgent
+                ? messages.filter(m => m.agent_id === selectedAgent || m.responding_to_agent === selectedAgent)
+                : messages
+              ).map((msg, i) => (
                 <AgentMessage key={msg.id} msg={msg} prev={messages[i - 1]} idx={messages.length - 1 - i} />
               ))}
             </AnimatePresence>
@@ -1770,17 +2101,15 @@ export default function WorldIntelligence() {
         <div className="max-w-[1600px] mx-auto p-4 space-y-5">
 
           {/* ─── FULL-WIDTH MAP ─── */}
-          <div className="rounded-2xl overflow-hidden border border-white/8 shadow-[0_0_60px_rgba(0,255,200,0.04)]">
-            <HeatMap2D
-              points={mapPoints}
-              height={580}
-              onPointClick={handleMapClick}
-              showLayerToggle={true}
-              isLive={true}
-              lastRefresh={mapLastRefresh}
-              ticker={THREAT_TICKER}
-            />
-          </div>
+          <HeatMap2D
+            points={mapPoints}
+            height={620}
+            onPointClick={handleMapClick}
+            showLayerToggle={true}
+            isLive={true}
+            lastRefresh={mapLastRefresh}
+            ticker={THREAT_TICKER}
+          />
 
           {/* ─── CARDS ROW ─── */}
           {/* ─── INTEL BRIEF + MACRO (2-col below map) ─── */}

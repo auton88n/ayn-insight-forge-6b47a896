@@ -101,11 +101,11 @@ function Globe3D({ points, activeLayer, onPointClick }: {
     const ctrl = globeRef.current.controls?.();
     if (ctrl) {
       ctrl.autoRotate = true;
-      ctrl.autoRotateSpeed = 0.35;
+      ctrl.autoRotateSpeed = 0.25;
       ctrl.enableDamping = true;
       ctrl.dampingFactor = 0.1;
     }
-    globeRef.current.pointOfView?.({ lat: 18, lng: 15, altitude: 2.0 }, 800);
+    globeRef.current.pointOfView?.({ lat: 20, lng: 20, altitude: 1.8 }, 1200);
   }, [GlobeComp]);
 
   const filteredPoints = useMemo(() => {
@@ -141,7 +141,7 @@ function Globe3D({ points, activeLayer, onPointClick }: {
   );
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full" style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
       <GlobeComp
         ref={globeRef}
         width={dims.w}
