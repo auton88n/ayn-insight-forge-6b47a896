@@ -557,9 +557,9 @@ export default function WorldIntelligence() {
     try {
       const { data: preds } = await supabase
         .from('ayn_predictions')
-        .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning')
+        .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning,generated_by,key_drivers')
         .eq('status', 'active')
-        .eq('generated_by', 'ayn_prediction_engine_v9')
+        .in('generated_by', ['ayn_prediction_engine_v9', 'perpetual-ml-v1'])
         .order('confidence', { ascending: false })
         .limit(60);
       if (!preds?.length) return;
