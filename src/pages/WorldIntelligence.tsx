@@ -206,208 +206,189 @@ const ISO2_TO_SIC: Record<string, string> = {
 };
 
 function AccuracyScoreboard() {
-  const [accuracy, setAccuracy] = useState<any>(null);
-  const [recentOutcomes, setRecentOutcomes] = useState<any[]>([]);
-  const [expanded, setExpanded] = useState(false);
+  const [data, setData] = useState<any>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await supabase
+        const { data: rows } = await supabase
           .from('ayn_prediction_outcomes')
-          .select('was_direction_correct, accuracy_score, actual_date, actual_direction, actual_pct_change, value_error_pct, what_happened, error_magnitude, ayn_predictions(asset, horizon)')
+          .select('was_direction_correct, accuracy_score, actual_date, actual_direction, actual_pct_change, value_error_pct, prediction_id, ayn_predictions(asset, horizon, predicted_direction, predicted_pct_change)')
           .order('actual_date', { ascending: false })
-          .limit(100);
-        if (!data?.length) return;
+          .limit(200);
 
-        const total = data.length;
-        const correct = data.filter(r => r.was_direction_correct).length;
-        const avgScore = data.reduce((s: number, r: any) => s + (r.accuracy_score || 0), 0) / total;
-        const last30 = data.filter((r: any) => r.actual_date && new Date(r.actual_date) >= new Date(Date.now() - 30 * 86400000));
-        const correct30 = last30.filter((r: any) => r.was_direction_correct).length;
-        const pct30 = last30.length ? Math.round(100 * correct30 / last30.length) : null;
+        if (!rows?.length) return;
 
-        // Streak: count current consecutive correct from most recent
+        // Per-asset stats
+        const byAsset: Record<string, { correct: number; wrong: number; recent: any[] }> = {};
+        let totalCorrect = 0;
+        let totalWrong = 0;
         let streak = 0;
-        for (const r of data) {
-          if (r.was_direction_correct) streak++;
-          else break;
+        let streakRunning = true;
+
+        for (const r of rows) {
+          const asset = (r as any).ayn_predictions?.asset || 'unknown';
+          if (!byAsset[asset]) byAsset[asset] = { correct: 0, wrong: 0, recent: [] };
+
+          if (r.was_direction_correct) {
+            byAsset[asset].correct++;
+            totalCorrect++;
+            if (streakRunning) streak++;
+          } else {
+            byAsset[asset].wrong++;
+            totalWrong++;
+            streakRunning = false;
+          }
+
+          if (byAsset[asset].recent.length < 3) {
+            byAsset[asset].recent.push({
+              correct: r.was_direction_correct,
+              actual: r.actual_direction,
+              predicted: (r as any).ayn_predictions?.predicted_direction,
+              date: r.actual_date,
+            });
+          }
         }
 
-        // By asset accuracy
-        const byAsset: Record<string, { correct: number; total: number }> = {};
-        for (const r of data) {
-          const asset = (r as any).ayn_predictions?.asset;
-          if (!asset) continue;
-          if (!byAsset[asset]) byAsset[asset] = { correct: 0, total: 0 };
-          byAsset[asset].total++;
-          if (r.was_direction_correct) byAsset[asset].correct++;
-        }
+        const total = totalCorrect + totalWrong;
+        const pct = Math.round(100 * totalCorrect / total);
 
-        // Power score: scales from 0 to 100 based on accuracy, streak, and sample size
-        const sampleWeight = Math.min(1, total / 50);
-        const accuracyScore = (correct / total) * 100;
-        const streakBonus = Math.min(20, streak * 2);
-        const powerScore = Math.round((accuracyScore * 0.7 + streakBonus * 0.3) * sampleWeight + accuracyScore * (1 - sampleWeight) * 0.5);
+        // Power score: accuracy drives it, streak adds up to 15pts
+        const streakBonus = Math.min(15, streak * 2);
+        const power = Math.min(100, Math.round(pct * 0.85 + streakBonus));
 
-        setAccuracy({ total, correct, pct: Math.round(100 * correct / total), avgScore: Math.round(avgScore), pct30, resolved30: last30.length, streak, byAsset, powerScore });
-        setRecentOutcomes(data.slice(0, 10));
-      } catch {}
+        setData({ totalCorrect, totalWrong, total, pct, power, streak, byAsset });
+      } catch(e) { console.error(e); }
     };
     load();
   }, []);
 
-  if (!accuracy || accuracy.total === 0) return null;
+  if (!data || data.total === 0) return null;
 
-  const pct = accuracy.pct;
-  const powerScore = accuracy.powerScore;
-  const gradeColor = pct >= 85 ? 'text-emerald-400' : pct >= 70 ? 'text-amber-400' : pct >= 55 ? 'text-orange-400' : 'text-red-400';
-  const grade = pct >= 85 ? 'A' : pct >= 75 ? 'B' : pct >= 65 ? 'C' : pct >= 55 ? 'D' : 'F';
-  const powerLabel = powerScore >= 85 ? 'ORACLE' : powerScore >= 75 ? 'STRONG' : powerScore >= 60 ? 'DEVELOPING' : powerScore >= 45 ? 'LEARNING' : 'CALIBRATING';
-  const powerColor = powerScore >= 85 ? 'text-purple-400' : powerScore >= 75 ? 'text-emerald-400' : powerScore >= 60 ? 'text-amber-400' : 'text-orange-400';
-  const powerBorder = powerScore >= 85 ? 'border-purple-500/30 bg-purple-500/5' : powerScore >= 75 ? 'border-emerald-500/20 bg-emerald-500/5' : powerScore >= 60 ? 'border-amber-500/20 bg-amber-500/5' : 'border-orange-500/20 bg-orange-500/5';
+  const { totalCorrect, totalWrong, total, pct, power, streak, byAsset } = data;
 
-  const barWidth = Math.round(pct);
+  const powerLabel =
+    power >= 85 ? 'ORACLE' :
+    power >= 73 ? 'STRONG' :
+    power >= 58 ? 'DEVELOPING' :
+    power >= 42 ? 'LEARNING' : 'CALIBRATING';
+
+  const powerColor =
+    power >= 85 ? '#a855f7' :
+    power >= 73 ? '#34d399' :
+    power >= 58 ? '#f59e0b' :
+    power >= 42 ? '#fb923c' : '#f87171';
+
+  const barColor =
+    pct >= 80 ? '#34d399' :
+    pct >= 65 ? '#f59e0b' :
+    pct >= 50 ? '#fb923c' : '#f87171';
+
+  const ASSET_ICONS: Record<string, string> = {
+    btc: '₿', eth: 'Ξ', gold: 'Au', silver: 'Ag',
+    oil: '🛢', copper: 'Cu', usd_jpy: '¥', wheat: '🌾',
+  };
+
+  const assetList = Object.entries(byAsset as Record<string, { correct: number; wrong: number; recent: any[] }>)
+    .sort((a, b) => {
+      const pa = a[1].correct / (a[1].correct + a[1].wrong);
+      const pb = b[1].correct / (b[1].correct + b[1].wrong);
+      return pb - pa;
+    });
 
   return (
-    <div className={cn("mb-4 rounded-xl border p-4 transition-all", powerBorder)}>
-      {/* Header row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="text-[10px] font-mono font-bold text-white/40 uppercase tracking-widest">Prediction Engine</div>
-          <div className={cn("text-[10px] font-black font-mono uppercase tracking-widest px-2 py-0.5 rounded", powerColor,
-            powerScore >= 85 ? 'bg-purple-500/10' : powerScore >= 75 ? 'bg-emerald-500/10' : 'bg-amber-500/10'
-          )}>{powerLabel}</div>
-          {accuracy.streak >= 3 && (
-            <div className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-              🔥 {accuracy.streak} streak
+    <div className="mb-4 rounded-xl border border-white/8 bg-black/40 p-4 space-y-4">
+
+      {/* TOP ROW: Power meter + totals */}
+      <div className="flex items-center gap-5">
+
+        {/* Power circle */}
+        <div className="flex-shrink-0 text-center w-20">
+          <div className="relative w-16 h-16 mx-auto">
+            <svg viewBox="0 0 64 64" className="w-16 h-16 -rotate-90">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+              <circle cx="32" cy="32" r="26" fill="none" stroke={powerColor} strokeWidth="6"
+                strokeDasharray={`${(power / 100) * 163.4} 163.4`}
+                strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease' }} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-lg font-black font-mono leading-none" style={{ color: powerColor }}>{power}</span>
             </div>
-          )}
-        </div>
-        <button onClick={() => setExpanded(!expanded)} className="text-[9px] font-mono text-white/30 hover:text-white/60 transition-colors">
-          {expanded ? 'hide details ↑' : 'show details ↓'}
-        </button>
-      </div>
-
-      {/* Main stats */}
-      <div className="flex items-center gap-6 mb-3">
-        {/* Grade */}
-        <div className="text-center min-w-[36px]">
-          <div className={cn("text-3xl font-black font-mono leading-none", gradeColor)}>{grade}</div>
-          <div className="text-[8px] text-white/25 uppercase tracking-wider mt-0.5">Grade</div>
+          </div>
+          <div className="text-[9px] font-black font-mono uppercase tracking-widest mt-1" style={{ color: powerColor }}>
+            {powerLabel}
+          </div>
         </div>
 
-        <div className="w-px h-10 bg-white/8" />
-
-        {/* Direction accuracy with bar */}
-        <div className="flex-1">
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className={cn("text-xl font-black font-mono", gradeColor)}>{pct}%</span>
-            <span className="text-[9px] text-white/35 font-mono">{accuracy.correct}/{accuracy.total} correct</span>
-            {accuracy.pct30 !== null && (
-              <span className={cn("text-[9px] font-mono ml-2", accuracy.pct30 >= 80 ? 'text-emerald-400/70' : 'text-amber-400/70')}>
-                {accuracy.pct30}% last 30d
+        {/* Big correct/wrong */}
+        <div className="flex-1 space-y-2">
+          <div className="flex items-baseline gap-3">
+            <span className="text-3xl font-black font-mono text-emerald-400">{totalCorrect}</span>
+            <span className="text-sm text-white/25 font-mono">correct</span>
+            <span className="text-3xl font-black font-mono text-red-400 ml-2">{totalWrong}</span>
+            <span className="text-sm text-white/25 font-mono">wrong</span>
+            <span className="text-sm font-mono text-white/30 ml-2">of {total}</span>
+            {streak >= 3 && (
+              <span className="ml-3 text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                🔥 {streak} in a row
               </span>
             )}
           </div>
+
           {/* Accuracy bar */}
-          <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all duration-1000",
-                pct >= 85 ? 'bg-emerald-400' : pct >= 70 ? 'bg-amber-400' : pct >= 55 ? 'bg-orange-400' : 'bg-red-400'
-              )}
-              style={{ width: `${barWidth}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-0.5">
-            <span className="text-[8px] text-white/20 font-mono">0%</span>
-            <span className="text-[8px] text-white/20 font-mono">80% target</span>
-            <span className="text-[8px] text-white/20 font-mono">100%</span>
-          </div>
-        </div>
-
-        <div className="w-px h-10 bg-white/8" />
-
-        {/* Power score */}
-        <div className="text-center min-w-[60px]">
-          <div className={cn("text-xl font-black font-mono leading-none", powerColor)}>{powerScore}</div>
-          <div className="text-[8px] text-white/25 uppercase tracking-wider mt-0.5">Power</div>
-        </div>
-
-        {/* Avg score */}
-        <div className="text-center min-w-[44px]">
-          <div className="text-base font-bold font-mono text-white/50">{accuracy.avgScore}</div>
-          <div className="text-[8px] text-white/25 uppercase tracking-wider mt-0.5">/100 Avg</div>
-        </div>
-      </div>
-
-      {/* Status message */}
-      <div className={cn("text-[9px] font-mono",
-        pct >= 80 ? 'text-emerald-400/70' : pct >= 65 ? 'text-amber-400/70' : 'text-orange-400/70'
-      )}>
-        {pct >= 85 ? `✓ Engine exceeds 80% threshold — predictions are highly reliable` :
-         pct >= 80 ? `✓ Meets 80% accuracy threshold — engine performing well` :
-         pct >= 65 ? `⚠ Below 80% target — ${80 - pct}% more accuracy needed to unlock full power` :
-         `⚡ Calibrating — needs ${accuracy.total < 20 ? `${20 - accuracy.total} more resolved predictions` : 'more correct calls'} to reach target`}
-        {accuracy.total < 20 && ` · ${accuracy.total}/20 predictions resolved so far`}
-      </div>
-
-      {/* Expanded: recent outcomes + by asset */}
-      {expanded && (
-        <div className="mt-3 pt-3 border-t border-white/6 space-y-3">
-          {/* By asset breakdown */}
-          {Object.keys(accuracy.byAsset).length > 0 && (
-            <div>
-              <div className="text-[8px] font-mono text-white/25 uppercase tracking-widest mb-2">By Asset</div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {Object.entries(accuracy.byAsset as Record<string, { correct: number; total: number }>)
-                  .sort((a, b) => (b[1].correct / b[1].total) - (a[1].correct / a[1].total))
-                  .map(([asset, stats]) => {
-                    const assetPct = Math.round(100 * stats.correct / stats.total);
-                    return (
-                      <div key={asset} className="bg-white/4 rounded-lg p-2 text-center">
-                        <div className="text-[8px] font-mono text-white/40 uppercase mb-0.5">{asset}</div>
-                        <div className={cn("text-sm font-black font-mono",
-                          assetPct >= 80 ? 'text-emerald-400' : assetPct >= 65 ? 'text-amber-400' : 'text-red-400'
-                        )}>{assetPct}%</div>
-                        <div className="text-[7px] text-white/25 font-mono">{stats.correct}/{stats.total}</div>
-                      </div>
-                    );
-                })}
-              </div>
+          <div>
+            <div className="flex justify-between text-[8px] font-mono text-white/25 mb-1">
+              <span>{pct}% accuracy</span>
+              <span>80% target</span>
             </div>
-          )}
+            <div className="h-2 rounded-full bg-white/6 overflow-hidden relative">
+              <div className="h-full rounded-full transition-all duration-1000"
+                style={{ width: `${pct}%`, backgroundColor: barColor }} />
+              {/* 80% marker */}
+              <div className="absolute top-0 bottom-0 w-px bg-white/30" style={{ left: '80%' }} />
+            </div>
+          </div>
 
-          {/* Recent outcomes */}
-          {recentOutcomes.length > 0 && (
-            <div>
-              <div className="text-[8px] font-mono text-white/25 uppercase tracking-widest mb-2">Recent Resolved Predictions</div>
-              <div className="space-y-1">
-                {recentOutcomes.map((r: any, i: number) => (
-                  <div key={i} className={cn(
-                    "flex items-center gap-2 rounded-lg px-2 py-1.5 text-[9px] font-mono",
-                    r.was_direction_correct ? 'bg-emerald-500/8 border border-emerald-500/15' : 'bg-red-500/8 border border-red-500/15'
-                  )}>
-                    <span className="text-base leading-none">{r.was_direction_correct ? '✅' : '❌'}</span>
-                    <span className="text-white/50 uppercase">{(r as any).ayn_predictions?.asset || '—'}</span>
-                    <span className="text-white/30">{(r as any).ayn_predictions?.horizon || '—'}</span>
-                    <span className={r.was_direction_correct ? 'text-emerald-400' : 'text-red-400'}>
-                      {r.actual_direction || '—'}
-                    </span>
-                    {r.value_error_pct != null && (
-                      <span className="text-white/30">err: {Number(r.value_error_pct).toFixed(1)}%</span>
-                    )}
-                    <span className="ml-auto text-white/20">{r.actual_date ? new Date(r.actual_date).toLocaleDateString() : ''}</span>
-                  </div>
+          <div className="text-[9px] font-mono" style={{ color: powerColor + 'aa' }}>
+            {pct >= 80
+              ? `✓ Above 80% — predictions are reliable`
+              : `${80 - pct}% more accuracy needed to reach full power`}
+          </div>
+        </div>
+      </div>
+
+      {/* ASSET GRID: right vs wrong per asset */}
+      <div className="grid grid-cols-4 gap-2">
+        {assetList.map(([asset, stats]) => {
+          const assetTotal = stats.correct + stats.wrong;
+          const assetPct = Math.round(100 * stats.correct / assetTotal);
+          const color = assetPct >= 80 ? '#34d399' : assetPct >= 60 ? '#f59e0b' : '#f87171';
+          return (
+            <div key={asset} className="rounded-lg bg-white/4 border border-white/6 p-2.5">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[9px] font-mono font-bold text-white/50 uppercase">{asset}</span>
+                <span className="text-[9px] font-mono font-black" style={{ color }}>{assetPct}%</span>
+              </div>
+              {/* Mini bar */}
+              <div className="h-1 rounded-full bg-white/8 overflow-hidden mb-1.5">
+                <div className="h-full rounded-full" style={{ width: `${assetPct}%`, backgroundColor: color }} />
+              </div>
+              {/* ✅❌ dots for recent */}
+              <div className="flex items-center gap-1">
+                {stats.recent.map((r: any, i: number) => (
+                  <span key={i} className="text-[10px]">{r.correct ? '✅' : '❌'}</span>
                 ))}
+                <span className="text-[8px] font-mono text-white/25 ml-auto">{stats.correct}/{assetTotal}</span>
               </div>
             </div>
-          )}
-        </div>
-      )}
+          );
+        })}
+      </div>
+
     </div>
   );
 }
+
 
 function PredictionCard({ pred, onVote, userId, voting }: {
   pred: Prediction;
