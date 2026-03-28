@@ -555,13 +555,58 @@ export default function WorldIntelligence() {
 
   const fetchPredictions = useCallback(async () => {
     try {
-      const { data: preds } = await supabase
+      // ── Try consensus predictions first (combined AYN + ML)
+      const { data: consensus } = await supabase
+        .from('ayn_consensus_predictions' as any)
+        .select('id,asset,horizon,target_date,baseline_value,consensus_direction,consensus_pct_change,consensus_confidence,consensus_strength,ayn_reasoning,ayn_key_drivers,ayn_regime,agreement,fusion_method,fusion_notes,boost_factor')
+        .eq('status', 'active')
+        .order('consensus_confidence', { ascending: false })
+        .limit(60);
+
+      // ── Fallback to raw AYN v10 if consensus hasn't been generated yet
+      const { data: aynPreds } = await supabase
         .from('ayn_predictions')
         .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning,generated_by,key_drivers')
         .eq('status', 'active')
-        .in('generated_by', ['ayn_prediction_engine_v9', 'perpetual-ml-v1'])
+        .in('generated_by', ['ayn_prediction_engine_v10', 'ayn_prediction_engine_v9', 'perpetual-ml-v1'])
         .order('confidence', { ascending: false })
         .limit(60);
+
+      // Use consensus if available, otherwise fall back to raw
+      const preds = (consensus && consensus.length > 0)
+        ? consensus.map((c: any) => ({
+            id: c.id,
+            asset: c.asset,
+            horizon: c.horizon,
+            target_date: c.target_date,
+            baseline_value: Number(c.baseline_value),
+            predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
+            predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
+            predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
+            predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
+            predicted_pct_change: Number(c.consensus_pct_change),
+            confidence: Number(c.consensus_confidence || 50),
+            reasoning: c.ayn_reasoning ?? c.fusion_notes ?? '',
+            key_drivers: c.ayn_key_drivers ?? [],
+            generated_by: 'ayn_consensus_fusion_v1',
+            consensus_strength: c.consensus_strength,
+            agreement: c.agreement,
+            fusion_method: c.fusion_method,
+            boost_factor: c.boost_factor,
+            agree_count: 0, disagree_count: 0, user_vote: null,
+          }))
+        : (aynPreds ?? []).map(p => ({
+            ...p,
+            baseline_value: Number(p.baseline_value),
+            predicted_value: Number(p.predicted_value),
+            predicted_low: Number(p.predicted_low),
+            predicted_high: Number(p.predicted_high),
+            predicted_pct_change: Number(p.predicted_pct_change),
+            predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
+            confidence: Number(p.confidence || 50),
+            agree_count: 0, disagree_count: 0, user_vote: null,
+          }));
+
       if (!preds?.length) return;
 
       const { data: voteCounts } = await supabase
@@ -578,13 +623,6 @@ export default function WorldIntelligence() {
       const vMap = Object.fromEntries((voteCounts || []).map((v: any) => [v.prediction_id, v]));
       setPredictions(preds.map(p => ({
         ...p,
-        baseline_value: Number(p.baseline_value),
-        predicted_value: Number(p.predicted_value),
-        predicted_low: Number(p.predicted_low),
-        predicted_high: Number(p.predicted_high),
-        predicted_pct_change: Number(p.predicted_pct_change),
-        predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
-        confidence: Number(p.confidence || 50),
         agree_count: vMap[p.id]?.agree_count || 0,
         disagree_count: vMap[p.id]?.disagree_count || 0,
         user_vote: (userVoteMap[p.id] || null) as 'agree' | 'disagree' | null,
