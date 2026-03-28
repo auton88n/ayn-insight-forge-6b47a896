@@ -15,6 +15,9 @@ import { format } from 'date-fns';
 import type { Json } from '@/integrations/supabase/types';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
 import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Sphere, Text, Billboard, Line } from '@react-three/drei';
+import * as THREE from 'three';
 
 
 // ─── WorldMonitor live map hook ──────────────────────────────────────────────
@@ -404,42 +407,261 @@ function AgentMessage({ msg, prev, idx }: { msg: any; prev: any; idx: number }) 
   );
 }
 
-// Agent node positions on a circle + inner ring layout
-const AGENT_POSITIONS: Record<string, { x: number; y: number; ring: number }> = {
-  usa:       { x: 500, y: 160, ring: 0 },
-  china:     { x: 720, y: 240, ring: 0 },
-  russia:    { x: 680, y: 460, ring: 0 },
-  eu:        { x: 460, y: 560, ring: 0 },
-  iran:      { x: 220, y: 460, ring: 0 },
-  israel:    { x: 180, y: 240, ring: 0 },
-  fed:       { x: 500, y: 310, ring: 1 },
-  opec:      { x: 610, y: 380, ring: 1 },
-  saudi:     { x: 390, y: 380, ring: 1 },
-  blackrock: { x: 500, y: 460, ring: 1 },
-};
+// ── 3D Agent Network using Three.js / R3F ─────────────────────────────────────
 
-const AGENT_FLAGS: Record<string, string> = {
-  usa:'🇺🇸', china:'🇨🇳', russia:'🇷🇺', eu:'🇪🇺', iran:'🇮🇷',
-  israel:'🇮🇱', fed:'🏦', opec:'🛢', saudi:'🇸🇦', blackrock:'💰',
-};
-
-const AGENT_LINKS = [
-  { from: 'usa',   to: 'eu',        strength: 0.9  },
-  { from: 'usa',   to: 'israel',    strength: 0.95 },
-  { from: 'usa',   to: 'fed',       strength: 1.0  },
-  { from: 'usa',   to: 'china',     strength: 0.3  },
-  { from: 'china', to: 'russia',    strength: 0.8  },
-  { from: 'china', to: 'opec',      strength: 0.6  },
-  { from: 'russia',to: 'iran',      strength: 0.85 },
-  { from: 'russia',to: 'eu',        strength: 0.2  },
-  { from: 'iran',  to: 'israel',    strength: 0.05 },
-  { from: 'iran',  to: 'opec',      strength: 0.5  },
-  { from: 'saudi', to: 'opec',      strength: 0.9  },
-  { from: 'saudi', to: 'usa',       strength: 0.7  },
-  { from: 'fed',   to: 'blackrock', strength: 0.85 },
-  { from: 'blackrock','to': 'usa',  strength: 0.7  },
-  { from: 'eu',    to: 'fed',       strength: 0.6  },
+const AGENT_3D_DATA = [
+  { id:'usa',       name:'United States',  flag:'🇺🇸', pos:[ 0,    2.8,  0   ], ring:0 },
+  { id:'china',     name:'China',          flag:'🇨🇳', pos:[ 3.2,  1.2,  1.2 ], ring:0 },
+  { id:'russia',    name:'Russia',         flag:'🇷🇺', pos:[ 2.8, -1.4,  2.0 ], ring:0 },
+  { id:'eu',        name:'EU',             flag:'🇪🇺', pos:[-1.0, -2.8,  1.5 ], ring:0 },
+  { id:'iran',      name:'Iran',           flag:'🇮🇷', pos:[-3.4, -1.0, -0.5 ], ring:0 },
+  { id:'israel',    name:'Israel',         flag:'🇮🇱', pos:[-3.0,  1.8, -1.0 ], ring:0 },
+  { id:'fed',       name:'Fed Reserve',    flag:'🏦',  pos:[ 0,    0.8, -1.5 ], ring:1 },
+  { id:'opec',      name:'OPEC+',          flag:'🛢',  pos:[ 1.5, -0.8,  0.5 ], ring:1 },
+  { id:'saudi',     name:'Saudi Arabia',   flag:'🇸🇦', pos:[-0.5, -0.5,  1.8 ], ring:1 },
+  { id:'blackrock', name:'BlackRock',      flag:'💰',  pos:[ 0.8,  0.5,  2.2 ], ring:1 },
 ];
+
+const AGENT_LINKS_3D = [
+  { from:'usa',    to:'eu',        strength:0.90, type:'ally'    },
+  { from:'usa',    to:'israel',    strength:0.95, type:'ally'    },
+  { from:'usa',    to:'fed',       strength:1.00, type:'ally'    },
+  { from:'usa',    to:'china',     strength:0.25, type:'rival'   },
+  { from:'china',  to:'russia',    strength:0.80, type:'ally'    },
+  { from:'china',  to:'opec',      strength:0.60, type:'trade'   },
+  { from:'russia', to:'iran',      strength:0.85, type:'ally'    },
+  { from:'russia', to:'eu',        strength:0.15, type:'hostile' },
+  { from:'iran',   to:'israel',    strength:0.02, type:'hostile' },
+  { from:'iran',   to:'opec',      strength:0.50, type:'trade'   },
+  { from:'saudi',  to:'opec',      strength:0.90, type:'ally'    },
+  { from:'saudi',  to:'usa',       strength:0.70, type:'ally'    },
+  { from:'fed',    to:'blackrock', strength:0.85, type:'market'  },
+  { from:'blackrock',to:'usa',     strength:0.70, type:'market'  },
+  { from:'eu',     to:'fed',       strength:0.60, type:'market'  },
+];
+
+const EMOTION_COLORS: Record<string, string> = {
+  neutral:'#9ca3af', confident:'#34d399', panicked:'#f87171',
+  happy:'#fde047', angry:'#ef4444', worried:'#f59e0b',
+  suspicious:'#a78bfa', excited:'#22d3ee', sad:'#60a5fa', tense:'#fb923c',
+};
+
+const LINK_COLORS: Record<string, string> = {
+  ally:'#6366f1', rival:'#f59e0b', hostile:'#ef4444', trade:'#34d399', market:'#a78bfa',
+};
+
+// Glowing sphere node
+function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: any) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const emotion = state?.current_emotion || 'neutral';
+  const intensity = (state?.emotion_intensity || 50) / 100;
+  const color = EMOTION_COLORS[emotion] || '#9ca3af';
+  const isExtreme = intensity >= 0.8;
+  const nodeSize = agent.ring === 0 ? 0.32 : 0.24;
+
+  useFrame((_, delta) => {
+    if (!meshRef.current || !glowRef.current) return;
+    // Gentle float
+    meshRef.current.position.y += Math.sin(Date.now() * 0.001 + agent.pos[0]) * delta * 0.04;
+    // Glow pulse on extreme
+    if (isExtreme) {
+      glowRef.current.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.15);
+    }
+    // Spin on select
+    if (isSelected) meshRef.current.rotation.y += delta * 0.8;
+  });
+
+  return (
+    <group position={agent.pos as [number,number,number]}>
+      {/* Outer glow sphere */}
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[nodeSize * 2.2, 16, 16]} />
+        <meshBasicMaterial color={color} transparent opacity={isSelected ? 0.12 : isHovered ? 0.08 : 0.04} />
+      </mesh>
+
+      {/* Selection ring */}
+      {isSelected && (
+        <mesh rotation={[Math.PI/2, 0, 0]}>
+          <ringGeometry args={[nodeSize * 2.4, nodeSize * 2.6, 32]} />
+          <meshBasicMaterial color={color} transparent opacity={0.7} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* Main sphere */}
+      <mesh ref={meshRef}
+        onClick={(e) => { e.stopPropagation(); onClick(agent.id); }}
+        onPointerOver={(e) => { e.stopPropagation(); onHover(agent.id); document.body.style.cursor='pointer'; }}
+        onPointerOut={() => { onHover(null); document.body.style.cursor='default'; }}>
+        <sphereGeometry args={[nodeSize, 32, 32]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={isSelected ? 0.6 : isHovered ? 0.4 : 0.2 + intensity * 0.3}
+          metalness={0.3}
+          roughness={0.4}
+        />
+      </mesh>
+
+      {/* Intensity arc ring */}
+      <mesh rotation={[Math.PI/2 + intensity * Math.PI * 2 * 0.5, 0, 0]}>
+        <torusGeometry args={[nodeSize * 1.6, 0.02, 8, 48, intensity * Math.PI * 2]} />
+        <meshBasicMaterial color={color} transparent opacity={0.8} />
+      </mesh>
+
+      {/* Billboard label */}
+      <Billboard>
+        <Text position={[0, nodeSize + 0.18, 0]} fontSize={0.13} color="white" anchorX="center"
+          font={undefined} fillOpacity={isHovered || isSelected ? 1 : 0.65}>
+          {agent.flag} {agent.name.split(' ')[0].toUpperCase()}
+        </Text>
+        <Text position={[0, nodeSize + 0.04, 0]} fontSize={0.09} color={color} anchorX="center"
+          fillOpacity={isHovered || isSelected ? 0.9 : 0.4}>
+          {(EMOTION_CONFIG[emotion]?.label || emotion).toUpperCase()}
+          {isExtreme ? ' ‼' : ''}
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
+// Animated link beam between nodes
+function AgentLink3D({ fromPos, toPos, linkType, isActive }: {
+  fromPos: number[]; toPos: number[]; linkType: string; isActive: boolean;
+}) {
+  const color = LINK_COLORS[linkType] || '#6366f1';
+  const points = [
+    new THREE.Vector3(...fromPos as [number,number,number]),
+    new THREE.Vector3(...toPos as [number,number,number]),
+  ];
+  const opacity = linkType === 'hostile' ? 0.5 : isActive ? 0.6 : 0.2;
+  const lineWidth = isActive ? 2 : 1;
+
+  return (
+    <Line points={points} color={color} lineWidth={lineWidth}
+      transparent opacity={opacity}
+      dashed={linkType === 'hostile'} dashSize={0.15} gapSize={0.1} />
+  );
+}
+
+// Floating particle along a link
+function LinkParticle({ fromPos, toPos, color, speed }: any) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const t = useRef(Math.random());
+
+  useFrame((_, delta) => {
+    t.current = (t.current + delta * speed) % 1;
+    if (!meshRef.current) return;
+    const from = new THREE.Vector3(...fromPos);
+    const to = new THREE.Vector3(...toPos);
+    meshRef.current.position.lerpVectors(from, to, t.current);
+  });
+
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[0.04, 8, 8]} />
+      <meshBasicMaterial color={color} transparent opacity={0.9} />
+    </mesh>
+  );
+}
+
+// Background particle field
+function ParticleField() {
+  const count = 200;
+  const positions = useMemo(() => {
+    const arr = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      arr[i*3]   = (Math.random() - 0.5) * 20;
+      arr[i*3+1] = (Math.random() - 0.5) * 20;
+      arr[i*3+2] = (Math.random() - 0.5) * 20;
+    }
+    return arr;
+  }, []);
+
+  const geo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    return g;
+  }, [positions]);
+
+  return (
+    <points geometry={geo}>
+      <pointsMaterial size={0.03} color="#a855f7" transparent opacity={0.4} sizeAttenuation />
+    </points>
+  );
+}
+
+// The 3D scene
+function AgentScene3D({ states, messages, selectedAgent, onSelectAgent }: any) {
+  const stateMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const s of states) m[s.agent_id] = s;
+    return m;
+  }, [states]);
+
+  const activityMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const msg of messages) m[msg.agent_id] = (m[msg.agent_id] || 0) + 1;
+    return m;
+  }, [messages]);
+
+  const posMap = useMemo(() => {
+    const m: Record<string, number[]> = {};
+    for (const a of AGENT_3D_DATA) m[a.id] = a.pos;
+    return m;
+  }, []);
+
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  return (
+    <>
+      <color attach="background" args={['#020008']} />
+      <ambientLight intensity={0.15} />
+      <pointLight position={[0, 8, 0]} intensity={1.2} color="#a855f7" />
+      <pointLight position={[5, -4, 3]} intensity={0.8} color="#6366f1" />
+      <pointLight position={[-5, 2, -3]} intensity={0.6} color="#22d3ee" />
+
+      <OrbitControls
+        enablePan={false} minDistance={5} maxDistance={18}
+        autoRotate autoRotateSpeed={0.4}
+        enableDamping dampingFactor={0.08}
+      />
+
+      <ParticleField />
+
+      {/* Links */}
+      {AGENT_LINKS_3D.map((link, i) => {
+        const fromPos = posMap[link.from];
+        const toPos = posMap[link.to];
+        if (!fromPos || !toPos) return null;
+        const isActive = (activityMap[link.from] || 0) > 0 && (activityMap[link.to] || 0) > 0;
+        return (
+          <group key={i}>
+            <AgentLink3D fromPos={fromPos} toPos={toPos} linkType={link.type} isActive={isActive} />
+            {isActive && (
+              <LinkParticle fromPos={fromPos} toPos={toPos}
+                color={LINK_COLORS[link.type] || '#6366f1'}
+                speed={0.3 + Math.random() * 0.2} />
+            )}
+          </group>
+        );
+      })}
+
+      {/* Agent nodes */}
+      {AGENT_3D_DATA.map(agent => (
+        <AgentNode3D
+          key={agent.id}
+          agent={agent}
+          state={stateMap[agent.id]}
+          isSelected={selectedAgent === agent.id}
+          isHovered={hovered === agent.id}
+          onClick={(id: string) => onSelectAgent(selectedAgent === id ? null : id)}
+          onHover={setHovered}
+        />
+      ))}
+    </>
+  );
+}
 
 function AgentNodeGraph({ states, messages, onSelectAgent, selectedAgent }: {
   states: any[];
@@ -447,279 +669,78 @@ function AgentNodeGraph({ states, messages, onSelectAgent, selectedAgent }: {
   onSelectAgent: (id: string | null) => void;
   selectedAgent: string | null;
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
-  const stateMap = useMemo(() => {
-    const m: Record<string, any> = {};
-    for (const s of states) m[s.agent_id] = s;
-    return m;
-  }, [states]);
-
-  // Count messages per agent for activity
-  const activityMap = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const msg of messages) {
-      m[msg.agent_id] = (m[msg.agent_id] || 0) + 1;
-    }
-    return m;
-  }, [messages]);
-
-  // Pulse animation tick
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 1500);
-    return () => clearInterval(t);
-  }, []);
-
-  const W = 900, H = 620;
-  const cx = W / 2, cy = H / 2;
+  const activeAgent = selectedAgent ? states.find(s => s.agent_id === selectedAgent) : null;
+  const em = activeAgent ? (EMOTION_CONFIG[activeAgent.current_emotion] || EMOTION_CONFIG.neutral) : null;
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden mb-5"
       style={{
-        background: 'radial-gradient(ellipse at 50% 40%, rgba(10,0,30,0.98) 0%, rgba(0,0,5,0.99) 100%)',
-        border: '1px solid rgba(168,85,247,0.15)',
-        boxShadow: '0 0 80px rgba(168,85,247,0.06)',
+        height: 560,
+        background: '#020008',
+        border: '1px solid rgba(168,85,247,0.18)',
+        boxShadow: '0 0 100px rgba(168,85,247,0.08), 0 0 200px rgba(0,0,0,0.9)',
       }}>
 
-      {/* Grid background */}
-      <div className="absolute inset-0 pointer-events-none"
+      {/* Mesh gradient background overlay */}
+      <div className="absolute inset-0 pointer-events-none z-0"
         style={{
-          backgroundImage: 'linear-gradient(rgba(168,85,247,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(168,85,247,0.04) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
+          background: 'radial-gradient(ellipse at 30% 20%, rgba(99,102,241,0.08) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(168,85,247,0.06) 0%, transparent 50%), radial-gradient(ellipse at 50% 50%, rgba(34,211,238,0.03) 0%, transparent 60%)',
         }} />
 
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-2.5 z-20"
-        style={{ background: 'linear-gradient(180deg, rgba(0,0,10,0.9) 0%, transparent 100%)' }}>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" style={{ boxShadow: '0 0 6px #a855f7' }} />
-          <span className="text-[9px] font-mono font-black text-purple-400 tracking-[0.2em]">AGENT SOCIETY NETWORK</span>
-          <span className="text-[7px] font-mono text-white/20">// {states.length} ACTIVE AGENTS · LIVE</span>
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-5 py-3"
+        style={{ background: 'linear-gradient(180deg, rgba(2,0,8,0.95) 0%, transparent 100%)' }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" style={{ boxShadow: '0 0 8px #a855f7' }} />
+          <span className="text-[10px] font-mono font-black text-purple-400 tracking-[0.2em]">AGENT SOCIETY // 3D NETWORK</span>
+          <span className="text-[7px] font-mono text-white/20">{states.length} ACTIVE AGENTS</span>
         </div>
-        <div className="flex items-center gap-3 text-[7px] font-mono text-white/20">
-          <span>NODE SIZE = INFLUENCE</span>
-          <span>·</span>
-          <span>LINK COLOR = ALLIANCE STRENGTH</span>
-          <span>·</span>
-          <span>GLOW = EMOTION</span>
+        <div className="flex items-center gap-4 text-[7px] font-mono text-white/20">
+          <span>DRAG TO ORBIT · SCROLL TO ZOOM · CLICK NODE</span>
         </div>
       </div>
 
-      <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`} className="relative z-10">
-        <defs>
-          {/* Glow filters per emotion */}
-          {Object.entries(EMOTION_CONFIG).map(([key, cfg]) => (
-            <filter key={key} id={`glow-${key}`}>
-              <feGaussianBlur stdDeviation="8" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-          ))}
-          <filter id="glow-neutral">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          {/* Radial for globe background */}
-          <radialGradient id="bgGrad" cx="50%" cy="50%">
-            <stop offset="0%" stopColor="rgba(168,85,247,0.06)" />
-            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-          </radialGradient>
-        </defs>
+      {/* 3D Canvas */}
+      <Canvas camera={{ position: [0, 2, 12], fov: 55 }} className="w-full h-full" style={{ zIndex: 10 }}>
+        <AgentScene3D
+          states={states}
+          messages={messages}
+          selectedAgent={selectedAgent}
+          onSelectAgent={onSelectAgent}
+        />
+      </Canvas>
 
-        {/* Background orb */}
-        <ellipse cx={cx} cy={cy} rx={300} ry={280} fill="url(#bgGrad)" />
-
-        {/* Orbit rings */}
-        <circle cx={cx} cy={cy} r={200} fill="none" stroke="rgba(168,85,247,0.06)" strokeWidth="1" strokeDasharray="4 8" />
-        <circle cx={cx} cy={cy} r={110} fill="none" stroke="rgba(168,85,247,0.08)" strokeWidth="1" strokeDasharray="2 6" />
-
-        {/* Links */}
-        {AGENT_LINKS.map((link, i) => {
-          const from = AGENT_POSITIONS[link.from];
-          const to = AGENT_POSITIONS[link.to as string];
-          if (!from || !to) return null;
-          const isHostile = link.strength < 0.15;
-          const isStrong = link.strength > 0.8;
-          const color = isHostile ? '#ef4444' : isStrong ? '#a855f7' : '#6366f1';
-          const opacity = isHostile ? 0.4 : link.strength * 0.5;
-          // Active link if both agents spoke recently
-          const fromActive = (activityMap[link.from] || 0) > 0;
-          const toActive = (activityMap[link.to as string] || 0) > 0;
-          const isActive = fromActive && toActive;
-          return (
-            <g key={i}>
-              {/* Glow line */}
-              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                stroke={color} strokeWidth={isActive ? 2.5 : 1}
-                strokeOpacity={isActive ? opacity * 1.5 : opacity * 0.6}
-                filter={isActive ? `url(#glow-${isHostile ? 'angry' : 'suspicious'})` : undefined}
-                strokeDasharray={isHostile ? '4 4' : undefined} />
-              {/* Animated particle on active links */}
-              {isActive && (
-                <circle r="2.5" fill={color} opacity={0.9}>
-                  <animateMotion dur={`${2 + i * 0.3}s`} repeatCount="indefinite"
-                    path={`M${from.x},${from.y} L${to.x},${to.y}`} />
-                </circle>
-              )}
-            </g>
-          );
-        })}
-
-        {/* Agent Nodes */}
-        {Object.entries(AGENT_POSITIONS).map(([agentId, pos]) => {
-          const state = stateMap[agentId];
-          const em = EMOTION_CONFIG[state?.current_emotion || 'neutral'] || EMOTION_CONFIG.neutral;
-          const intensity = state?.emotion_intensity || 50;
-          const activity = activityMap[agentId] || 0;
-          const isSelected = selectedAgent === agentId;
-          const isHovered = hovered === agentId;
-          const isInner = pos.ring === 1;
-          const baseR = isInner ? 28 : 34;
-          const r = baseR + Math.min(activity * 2, 10);
-          const isExtreme = intensity >= 80;
-          const flag = AGENT_FLAGS[agentId] || '🏛';
-
-          return (
-            <g key={agentId}
-              onClick={() => onSelectAgent(isSelected ? null : agentId)}
-              onMouseEnter={() => setHovered(agentId)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ cursor: 'pointer' }}>
-
-              {/* Selection ring */}
-              {isSelected && (
-                <circle cx={pos.x} cy={pos.y} r={r + 12} fill="none"
-                  stroke="#a855f7" strokeWidth="1.5" strokeDasharray="4 3" opacity={0.8}>
-                  <animateTransform attributeName="transform" type="rotate"
-                    from={`0 ${pos.x} ${pos.y}`} to={`360 ${pos.x} ${pos.y}`} dur="8s" repeatCount="indefinite" />
-                </circle>
-              )}
-
-              {/* Pulse ring (extreme emotion) */}
-              {isExtreme && (
-                <circle cx={pos.x} cy={pos.y} r={r + 8} fill="none"
-                  stroke={em.color} strokeWidth="1" opacity={tick % 2 === 0 ? 0.6 : 0.2}
-                  style={{ transition: 'opacity 0.7s ease' }} />
-              )}
-
-              {/* Outer glow */}
-              <circle cx={pos.x} cy={pos.y} r={r + 4} fill={em.color}
-                opacity={isHovered || isSelected ? 0.15 : 0.06}
-                filter={`url(#glow-${state?.current_emotion || 'neutral'})`} />
-
-              {/* Main circle */}
-              <circle cx={pos.x} cy={pos.y} r={r} fill="rgba(0,0,15,0.9)"
-                stroke={em.color} strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
-                strokeOpacity={isSelected ? 1 : isHovered ? 0.9 : 0.6} />
-
-              {/* Activity ring (messages sent) */}
-              {activity > 0 && (
-                <circle cx={pos.x} cy={pos.y} r={r - 3} fill="none"
-                  stroke={em.color} strokeWidth="2" strokeOpacity={0.3}
-                  strokeDasharray={`${activity * 8} 100`} />
-              )}
-
-              {/* Flag emoji */}
-              <text x={pos.x} y={pos.y + (isInner ? 6 : 7)} textAnchor="middle"
-                fontSize={isInner ? 20 : 24} style={{ userSelect: 'none' }}>
-                {flag}
-              </text>
-
-              {/* Emotion emoji badge */}
-              <text x={pos.x + r * 0.65} y={pos.y - r * 0.65} textAnchor="middle"
-                fontSize="12" style={{ userSelect: 'none' }}>
-                {em.emoji}
-              </text>
-
-              {/* Name label */}
-              <text x={pos.x} y={pos.y + r + 14} textAnchor="middle"
-                fill={isSelected || isHovered ? em.color : 'rgba(255,255,255,0.5)'}
-                fontSize="9" fontFamily="'Courier New', monospace" fontWeight="bold"
-                letterSpacing="0.08em">
-                {(state?.agent_name || agentId).split(' ')[0].toUpperCase()}
-              </text>
-
-              {/* Emotion label */}
-              <text x={pos.x} y={pos.y + r + 24} textAnchor="middle"
-                fill={em.color} fontSize="7" fontFamily="'Courier New', monospace"
-                opacity={isHovered || isSelected ? 0.9 : 0.45}>
-                {em.label}
-              </text>
-
-              {/* Intensity arc */}
-              {(() => {
-                const startAngle = -Math.PI / 2;
-                const endAngle = startAngle + (intensity / 100) * Math.PI * 2;
-                const x1 = pos.x + (r + 7) * Math.cos(startAngle);
-                const y1 = pos.y + (r + 7) * Math.sin(startAngle);
-                const x2 = pos.x + (r + 7) * Math.cos(endAngle);
-                const y2 = pos.y + (r + 7) * Math.sin(endAngle);
-                const large = intensity > 50 ? 1 : 0;
-                return (
-                  <path d={`M${x1},${y1} A${r+7},${r+7} 0 ${large},1 ${x2},${y2}`}
-                    fill="none" stroke={em.color} strokeWidth="2.5"
-                    strokeOpacity={isHovered || isSelected ? 0.9 : 0.5}
-                    strokeLinecap="round" />
-                );
-              })()}
-
-              {/* Hover tooltip */}
-              {(isHovered || isSelected) && state && (
-                <g>
-                  <rect x={pos.x - 70} y={pos.y - r - 58} width="140" height="50" rx="6"
-                    fill="rgba(0,0,20,0.97)" stroke={em.color} strokeWidth="0.5" strokeOpacity="0.5" />
-                  <text x={pos.x} y={pos.y - r - 42} textAnchor="middle"
-                    fill={em.color} fontSize="8" fontFamily="'Courier New', monospace" fontWeight="bold">
-                    {state.agent_name}
-                  </text>
-                  <text x={pos.x} y={pos.y - r - 30} textAnchor="middle"
-                    fill="rgba(255,255,255,0.5)" fontSize="7" fontFamily="'Courier New', monospace">
-                    {em.emoji} {em.label} · {intensity}% intensity
-                  </text>
-                  <text x={pos.x} y={pos.y - r - 18} textAnchor="middle"
-                    fill="rgba(255,255,255,0.35)" fontSize="6.5" fontFamily="'Courier New', monospace">
-                    {(state.key_concern || '').slice(0, 32)}
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {/* Center label */}
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(168,85,247,0.25)"
-          fontSize="10" fontFamily="'Courier New', monospace" letterSpacing="0.2em">
-          WORLD
-        </text>
-        <text x={cx} y={cy + 6} textAnchor="middle" fill="rgba(168,85,247,0.15)"
-          fontSize="8" fontFamily="'Courier New', monospace" letterSpacing="0.3em">
-          SOCIETY
-        </text>
-      </svg>
-
-      {/* Legend bottom */}
-      <div className="absolute bottom-3 left-4 flex items-center gap-4 text-[7px] font-mono text-white/25 z-20">
-        <div className="flex items-center gap-1.5">
-          <div className="w-6 h-px bg-purple-500/60" />
-          <span>ALLIANCE</span>
+      {/* Selected agent panel */}
+      {activeAgent && em && (
+        <div className="absolute bottom-4 left-4 z-20 rounded-xl px-4 py-3 min-w-[200px]"
+          style={{ background: 'rgba(2,0,15,0.95)', border: `1px solid ${em.border}`, backdropFilter: 'blur(16px)', boxShadow: `0 0 30px ${em.color}22` }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">{em.emoji}</span>
+            <span className="text-[11px] font-mono font-black" style={{ color: em.color }}>{activeAgent.agent_name}</span>
+          </div>
+          <div className="text-[8px] font-mono mb-1" style={{ color: em.color }}>{em.label} · {activeAgent.emotion_intensity}% intensity</div>
+          {activeAgent.key_concern && (
+            <div className="text-[8px] font-mono text-white/35 leading-relaxed">{activeAgent.key_concern}</div>
+          )}
+          {activeAgent.stance_summary && (
+            <div className="text-[8px] font-mono text-white/25 mt-1 italic">&ldquo;{activeAgent.stance_summary.slice(0,80)}&rdquo;</div>
+          )}
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-6 h-px border-t border-dashed border-red-500/60" />
-          <span>HOSTILITY</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-purple-500/40 animate-pulse" />
-          <span>ACTIVE LINK (BOTH SPOKE)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded-full bg-purple-400" style={{ transform: 'rotate(-10deg)' }} />
-          <div className="w-1 h-1 rounded-full bg-purple-400 animate-ping" />
-          <span>DATA FLOW</span>
-        </div>
+      )}
+
+      {/* Legend */}
+      <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-1.5">
+        {Object.entries(LINK_COLORS).map(([type, color]) => (
+          <div key={type} className="flex items-center gap-2">
+            <div className="w-5 h-px" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
+            <span className="text-[6.5px] font-mono uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>{type}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
+
 
 function AgentMoodBoard({ states }: { states: any[] }) {
   if (!states?.length) return null;
