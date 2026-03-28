@@ -30,6 +30,9 @@ interface CustomOrder {
   warranty: string | null; termination_clause: string | null;
   additional_services: string | null; system_plan: string | null;
   governing_law: string | null; payment_terms: string | null;
+  scope_of_work: string | null; client_responsibilities: string | null;
+  out_of_scope: string | null; payment_split: string | null;
+  loyalty_discount: string | null;
   admin_signature_url: string | null; client_signature_url: string | null;
   admin_signed_at: string | null; client_signed_at: string | null;
   stripe_payment_link: string | null; contract_pdf_url: string | null;
@@ -50,13 +53,23 @@ function emptyForm() {
     company_name: '', company_email: '', contact_person: '', company_phone: '',
     company_address: '', order_title: '', order_description: '',
     services: [{ name: '', description: '', price: 0, quantity: 1 }] as ServiceItem[],
-    discount_percent: 0, tax_percent: 15, currency: 'USD',
+    discount_percent: 0, tax_percent: 0, currency: 'USD',
+    scope_of_work: '',
+    client_responsibilities: '',
+    out_of_scope: '',
+    system_plan: 'Built on proprietary architecture developed exclusively by AYN AI. Technical components and infrastructure are not disclosed. Client receives a fully operational platform. Source code is available upon written request — however, requesting or receiving source code immediately and permanently voids the warranty and all AI systems will be remotely deactivated for security reasons. AYN AI holds no liability for the platform following source code release.',
+    payment_terms: '',
+    payment_split: '70% due upon contract signing to commence development. Remaining 30% due upon final delivery and client acceptance. All amounts in USD. Non-refundable once development begins.',
+    delivery_timeline: '',
+    after_sale_services: '1 free month of bug fixes and team training from launch date.\n\nMonthly Maintenance — $1,500/month: Monitoring, fixes, security updates, performance management.\n\nFull IT Service — $5,000/month: All maintenance plus active development, AI updates, and priority support.',
+    loyalty_discount: 'Returning clients receive a 15% loyalty discount on all future feature additions.',
+    additional_services: '',
+    warranty: '12-month warranty from launch covering 2 scheduled system updates for security, performance, and stability.\n\nVoid immediately and permanently if any third party accesses, modifies, or attempts to alter the platform without written authorization from AYN AI. This includes requesting or receiving source code. Upon breach, all AI systems are remotely deactivated. AYN AI holds no liability for failures following unauthorized modifications.',
+    termination_clause: 'Either party may terminate this agreement with 14 days written notice. Client is liable for all work completed to date, calculated pro-rata. Deposits are non-refundable once development has commenced.',
+    privacy_notes: 'The platform is built in compliance with Saudi Arabia\'s Personal Data Protection Law (PDPL). AYN AI responsibilities include: consent collection at registration, customer data deletion on request, customer data export on request, encrypted storage and transmission, and audit logging of all data access.\n\nThe client is the data controller and is solely responsible for publishing a Privacy Policy in Arabic and English, registering with SDAIA, appointing a Data Protection Officer, and notifying SDAIA within 72 hours of any data breach. No card data stored on platform.',
+    governing_law: 'Laws of the Province of Nova Scotia, Canada and the Kingdom of Saudi Arabia. Disputes resolved in courts of Nova Scotia, Canada and the competent courts of Riyadh, Saudi Arabia.',
     terms_and_conditions: 'Payment due within 30 days of invoice.',
-    privacy_notes: '', after_sale_services: '', delivery_timeline: '',
-    warranty: 'All services include a 30-day warranty period for bug fixes and adjustments.',
-    termination_clause: 'Either party may terminate this agreement with 14 days written notice. Client is liable for work completed to date.',
-    additional_services: '', system_plan: '', governing_law: 'This agreement is governed by the laws of the applicable jurisdiction.',
-    payment_terms: 'Payment is due within 30 days of invoice. Late payments incur 1.5% monthly interest.', notes: '',
+    notes: '',
     stripe_payment_link: '',
   };
 }
@@ -642,6 +655,21 @@ export const CustomOrders = () => {
                     <textarea value={form.system_plan || ''} onChange={e => setForm(f => ({ ...f, system_plan: e.target.value }))}
                       rows={4} placeholder="Architecture, tech stack, integrations, methodology..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
                   </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Scope of Work</label>
+                    <textarea value={form.scope_of_work || ''} onChange={e => setForm(f => ({ ...f, scope_of_work: e.target.value }))}
+                      rows={8} placeholder="List all deliverables phase by phase. Use bullet points or numbered list..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Client Responsibilities</label>
+                    <textarea value={form.client_responsibilities || ''} onChange={e => setForm(f => ({ ...f, client_responsibilities: e.target.value }))}
+                      rows={5} placeholder="What the client must provide before development begins: API keys, accounts, content, approvals..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Out of Scope</label>
+                    <textarea value={form.out_of_scope || ''} onChange={e => setForm(f => ({ ...f, out_of_scope: e.target.value }))}
+                      rows={3} placeholder="Features and services explicitly excluded from this contract..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
                 </div>
 
                 {/* ── SECTION: Services & Pricing ── */}
@@ -722,6 +750,11 @@ export const CustomOrders = () => {
                     <textarea value={form.payment_terms || ''} onChange={e => setForm(f => ({ ...f, payment_terms: e.target.value }))}
                       rows={3} placeholder="e.g. 50% upfront, 50% on delivery. Payment due within 30 days of invoice..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
                   </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Payment Split Structure</label>
+                    <textarea value={form.payment_split || ''} onChange={e => setForm(f => ({ ...f, payment_split: e.target.value }))}
+                      rows={3} placeholder="e.g. 70% on signing ($X) to commence Phase 1. 30% on Phase 2 delivery ($X)..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
                 </div>
 
                 {/* ── SECTION: Delivery & Timeline ── */}
@@ -746,7 +779,12 @@ export const CustomOrders = () => {
                   <div>
                     <label className="text-white/40 text-xs mb-1.5 block">After-Sale Support & Maintenance</label>
                     <textarea value={form.after_sale_services || ''} onChange={e => setForm(f => ({ ...f, after_sale_services: e.target.value }))}
-                      rows={3} placeholder="e.g. 3 months of free bug fixes, monthly check-ins, response time SLA..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                      rows={4} placeholder="e.g. 1 free month of bug fixes from launch. Monthly Maintenance $1,500/month. Full IT $5,000/month..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
+                  </div>
+                  <div>
+                    <label className="text-white/40 text-xs mb-1.5 block">Loyalty Discount</label>
+                    <textarea value={form.loyalty_discount || ''} onChange={e => setForm(f => ({ ...f, loyalty_discount: e.target.value }))}
+                      rows={2} placeholder="e.g. Returning clients receive 15% loyalty discount on future feature additions..." className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm leading-relaxed focus:outline-none focus:border-white/30 placeholder:text-white/15" />
                   </div>
                   <div>
                     <label className="text-white/40 text-xs mb-1.5 block">Additional Services & Add-ons Available</label>
