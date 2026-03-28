@@ -215,7 +215,7 @@ function AccuracyScoreboard() {
       try {
         const { data } = await supabase
           .from('ayn_prediction_outcomes')
-          .select('was_direction_correct, accuracy_score, actual_date, actual_direction, actual_pct_change, value_error_pct, what_happened, asset, horizon, error_magnitude')
+          .select('was_direction_correct, accuracy_score, actual_date, actual_direction, actual_pct_change, value_error_pct, what_happened, error_magnitude, ayn_predictions(asset, horizon)')
           .order('actual_date', { ascending: false })
           .limit(100);
         if (!data?.length) return;
@@ -237,10 +237,11 @@ function AccuracyScoreboard() {
         // By asset accuracy
         const byAsset: Record<string, { correct: number; total: number }> = {};
         for (const r of data) {
-          if (!r.asset) continue;
-          if (!byAsset[r.asset]) byAsset[r.asset] = { correct: 0, total: 0 };
-          byAsset[r.asset].total++;
-          if (r.was_direction_correct) byAsset[r.asset].correct++;
+          const asset = (r as any).ayn_predictions?.asset;
+          if (!asset) continue;
+          if (!byAsset[asset]) byAsset[asset] = { correct: 0, total: 0 };
+          byAsset[asset].total++;
+          if (r.was_direction_correct) byAsset[asset].correct++;
         }
 
         // Power score: scales from 0 to 100 based on accuracy, streak, and sample size
@@ -388,8 +389,8 @@ function AccuracyScoreboard() {
                     r.was_direction_correct ? 'bg-emerald-500/8 border border-emerald-500/15' : 'bg-red-500/8 border border-red-500/15'
                   )}>
                     <span className="text-base leading-none">{r.was_direction_correct ? '✅' : '❌'}</span>
-                    <span className="text-white/50 uppercase">{r.asset || '—'}</span>
-                    <span className="text-white/30">{r.horizon || '—'}</span>
+                    <span className="text-white/50 uppercase">{(r as any).ayn_predictions?.asset || '—'}</span>
+                    <span className="text-white/30">{(r as any).ayn_predictions?.horizon || '—'}</span>
                     <span className={r.was_direction_correct ? 'text-emerald-400' : 'text-red-400'}>
                       {r.actual_direction || '—'}
                     </span>
