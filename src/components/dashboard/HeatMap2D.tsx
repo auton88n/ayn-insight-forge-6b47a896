@@ -357,7 +357,7 @@ const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 let uid = 0;
 
 export function HeatMap2D({
-  points = [], height = 580, onPointClick,
+  points = [], height = 420, onPointClick,
   showLayerToggle = false, isLive = false, lastRefresh, ticker = [],
 }: {
   points?: MapPoint[]; height?: number;
