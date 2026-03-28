@@ -56,11 +56,17 @@ function normalizeDirection(dir: string | null): 'UP' | 'DOWN' | 'NEUTRAL' {
 // AYN uses: 1_week, 1_month, 1_year
 // Perpetual uses: 1W, 1M, 3M
 function normalizeHorizon(horizon: string): string {
+  // Handle both short-form (1W, 1M) and already-normalized (1_week, 1_month)
   const map: Record<string, string> = {
     '1W': '1_week',
     '1M': '1_month',
     '3M': '3_month',
     '1Y': '1_year',
+    // Already normalized — pass through
+    '1_week': '1_week',
+    '1_month': '1_month',
+    '3_month': '3_month',
+    '1_year': '1_year',
   };
   return map[horizon] ?? horizon;
 }
@@ -281,7 +287,7 @@ serve(async (req) => {
       .from('ayn_predictions')
       .select('*')
       .eq('status', 'active')
-      .eq('generated_by', 'perpetual-ml-v1')
+      .in('generated_by', ['perpetual-ml-v1', 'perpetual-ml-v2-unified'])
       .order('created_at', { ascending: false });
 
     // ── 3. Index by asset+horizon — keep most recent per pair
