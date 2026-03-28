@@ -39,7 +39,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from perpetual import PerpetualBooster
+from perpetual.perpetual import PerpetualBooster
 from supabase import create_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
