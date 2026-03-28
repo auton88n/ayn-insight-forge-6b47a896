@@ -143,7 +143,7 @@ interface Prediction {
   baseline_value: number; predicted_value: number;
   predicted_low: number; predicted_high: number;
   predicted_direction: 'up' | 'down' | 'sideways';
-  predicted_pct_change: number; confidence: number; reasoning: string;
+  predicted_pct_change: number; confidence: number; reasoning: string; calibration?: { real_accuracy_pct: number; reliability_tier: string; should_show_uncertainty: boolean; calibration_factor: number } | null;
   agree_count?: number; disagree_count?: number; user_vote?: 'agree' | 'disagree' | null;
 }
 interface CountryIntel {
@@ -1538,11 +1538,35 @@ function PredictionCard({ pred, onVote, userId, voting }: {
             {isUp ? <ArrowUpRight className="w-3 h-3" /> : isDown ? <ArrowDownRight className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
             {Number(pred.predicted_pct_change) > 0 ? '+' : ''}{Number(pred.predicted_pct_change).toFixed(1)}%
           </div>
-          <div className="text-[9px] font-mono text-white/25 bg-white/5 px-2 py-1 rounded-full">
-            {pred.confidence}%
+          <div className={cn("text-[9px] font-mono px-2 py-1 rounded-full",
+            pred.calibration?.reliability_tier === 'strong' ? 'bg-emerald-500/15 text-emerald-400'
+            : pred.calibration?.reliability_tier === 'moderate' ? 'bg-blue-500/15 text-blue-400'
+            : pred.calibration?.reliability_tier === 'weak' ? 'bg-amber-500/15 text-amber-400'
+            : pred.calibration?.reliability_tier === 'unreliable' ? 'bg-red-500/15 text-red-400'
+            : 'bg-white/5 text-white/25'
+          )}>
+            {pred.calibration ? Math.round(pred.calibration.real_accuracy_pct) : pred.confidence}%
           </div>
         </div>
       </div>
+
+      {/* Uncertainty warning for unreliable assets */}
+      {pred.calibration?.should_show_uncertainty && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/6 border-b border-amber-500/15">
+          <span className="text-amber-400 text-[10px]">⚠</span>
+          <span className="text-[8px] font-mono text-amber-400/70">
+            Low track record: {Math.round(pred.calibration.real_accuracy_pct)}% historical accuracy on {pred.asset.toUpperCase()} · treat with caution
+          </span>
+        </div>
+      )}
+      {pred.calibration?.reliability_tier === 'strong' && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/5 border-b border-emerald-500/10">
+          <span className="text-emerald-400 text-[10px]">✓</span>
+          <span className="text-[8px] font-mono text-emerald-400/60">
+            Strong track record: {Math.round(pred.calibration.real_accuracy_pct)}% historical accuracy on {pred.asset.toUpperCase()}
+          </span>
+        </div>
+      )}
 
       {/* Price gauge */}
       <div className="px-4 py-4">
@@ -1768,6 +1792,13 @@ export default function WorldIntelligence() {
 
   const fetchPredictions = useCallback(async () => {
     try {
+      // Load calibration data first
+      const { data: calibData } = await supabase
+        .from('ayn_accuracy_calibration')
+        .select('asset, real_accuracy_pct, reliability_tier, should_show_uncertainty, calibration_factor');
+      const calibMap: Record<string, any> = {};
+      for (const c of calibData || []) calibMap[c.asset] = c;
+
       // ── Try consensus predictions first (combined AYN + ML)
       const { data: consensus } = await supabase
         .from('ayn_consensus_predictions' as any)
@@ -1799,6 +1830,7 @@ export default function WorldIntelligence() {
             predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
             predicted_pct_change: Number(c.consensus_pct_change),
             confidence: Number(c.consensus_confidence || 50),
+            calibration: calibMap[c.asset] || null,
             reasoning: c.ayn_reasoning ?? c.fusion_notes ?? '',
             key_drivers: c.ayn_key_drivers ?? [],
             generated_by: 'ayn_consensus_fusion_v1',
