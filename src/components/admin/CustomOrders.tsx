@@ -482,8 +482,10 @@ export const CustomOrders = () => {
                   ['Phone', viewingOrder.company_phone || '—'],
                   ['Status', viewingOrder.status],
                   ['Currency', viewingOrder.currency],
-                  ['Subtotal', `$${viewingOrder.subtotal?.toLocaleString()}`],
-                  ['Total', `$${viewingOrder.total_amount?.toLocaleString()}`],
+                  ['Subtotal (before tax)', `$${Number(viewingOrder.subtotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`],
+                  ...(viewingOrder.discount_percent > 0 ? [['Discount', `${viewingOrder.discount_percent}%  (-$${(Number(viewingOrder.subtotal || 0) * viewingOrder.discount_percent / 100).toFixed(2)})`]] : []),
+                  ...(viewingOrder.tax_percent > 0 ? [['VAT / Tax', `${viewingOrder.tax_percent}%  (+$${(Number(viewingOrder.subtotal || 0) * (1 - viewingOrder.discount_percent/100) * viewingOrder.tax_percent / 100).toFixed(2)})`]] : []),
+                  ['Total (inc. tax)', `$${Number(viewingOrder.total_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`],
                 ].map(([k, v]) => (
                   <div key={k} className="bg-white/3 rounded-lg p-3">
                     <div className="text-white/30 text-xs mb-0.5">{k}</div>
@@ -726,12 +728,37 @@ export const CustomOrders = () => {
                       </div>
                     ))}
                   </div>
-                  {(() => { const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent); return (
-                    <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-lg px-4 py-3 mt-1">
-                      <span className="text-white/40 text-xs">Subtotal: ${subtotal.toFixed(2)}</span>
-                      <span className="text-white font-bold text-base">Total: ${total.toFixed(2)} {form.currency}</span>
-                    </div>
-                  ); })()}
+                  {(() => {
+                    const subtotal = form.services.reduce((s, i) => s + (i.price * i.quantity), 0);
+                    const discountAmt = subtotal * (form.discount_percent / 100);
+                    const afterDiscount = subtotal - discountAmt;
+                    const taxAmt = afterDiscount * (form.tax_percent / 100);
+                    const total = afterDiscount + taxAmt;
+                    return (
+                      <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-3 mt-1 space-y-1.5">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-white/40">Subtotal</span>
+                          <span className="text-white/70">${subtotal.toFixed(2)} {form.currency}</span>
+                        </div>
+                        {discountAmt > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-white/40">Discount ({form.discount_percent}%)</span>
+                            <span className="text-green-400">-${discountAmt.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {form.tax_percent > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-white/40">VAT / Tax ({form.tax_percent}%)</span>
+                            <span className="text-white/70">+${taxAmt.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center border-t border-white/10 pt-1.5 mt-1">
+                          <span className="text-white/60 text-sm font-medium">Total</span>
+                          <span className="text-white font-bold text-base">${total.toFixed(2)} {form.currency}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* ── SECTION: Payment ── */}

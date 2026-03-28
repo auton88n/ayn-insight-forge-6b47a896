@@ -220,11 +220,12 @@ function generateContractHTML(order: any, services: any[]) {
       </table>
 
       <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-        <div style="width:260px;">
-          <div class="totals-row"><span>Subtotal</span><span>${formatCurrency(order.subtotal)}</span></div>
+        <div style="width:300px;">
+          <div class="totals-row"><span>Subtotal (before tax)</span><span>${formatCurrency(order.subtotal)}</span></div>
           ${Number(order.discount_percent) > 0 ? `<div class="totals-row" style="color:#dc2626;"><span>Discount (${order.discount_percent}%)</span><span>-${formatCurrency(order.subtotal * order.discount_percent / 100)}</span></div>` : ''}
-          ${Number(order.tax_percent) > 0 ? `<div class="totals-note"><span style="font-size:10px;color:#aaa;">Tax Included</span></div>` : ''}
-          <div class="totals-row totals-grand"><span>Total</span><span>${formatCurrency(order.total_amount)}</span></div>
+          ${Number(order.tax_percent) > 0 ? `<div class="totals-row" style="color:#888;"><span>VAT / Tax (${order.tax_percent}%)</span><span>+${formatCurrency(order.subtotal * (1 - order.discount_percent / 100) * order.tax_percent / 100)}</span></div>` : ''}
+          <div class="totals-row totals-grand"><span>Total (inc. VAT)</span><span>${formatCurrency(order.total_amount)}</span></div>
+          ${Number(order.tax_percent) > 0 ? `<div style="font-size:10px;color:#aaa;text-align:right;margin-top:4px;">VAT amount: ${formatCurrency(order.subtotal * (1 - order.discount_percent / 100) * order.tax_percent / 100)}</div>` : ''}
         </div>
       </div>
     </div>
@@ -278,10 +279,13 @@ function generateContractHTML(order: any, services: any[]) {
     <div class="paid-stamp">
       <div class="label">Payment Confirmed</div>
       <div class="amount">${formatCurrency(order.total_amount)}</div>
+      ${Number(order.tax_percent) > 0 ? `<div style="font-size:11px;color:#aaa;margin-top:4px;">Includes VAT (${order.tax_percent}%)</div>` : ''}
     </div>` : (order.stripe_payment_link ? `
     <div class="payment-cta no-print">
       <h3>Complete Your Payment</h3>
+      ${Number(order.tax_percent) > 0 ? `<div style="font-size:13px;color:#aaa;margin-bottom:4px;">Before VAT: ${formatCurrency(order.subtotal * (1 - order.discount_percent / 100))}</div>` : ''}
       <div class="amount">${formatCurrency(order.total_amount)}</div>
+      ${Number(order.tax_percent) > 0 ? `<div style="font-size:12px;color:#aaa;margin-top:2px;">Total includes ${order.tax_percent}% VAT</div>` : ''}
       <a href="${order.stripe_payment_link}" target="_blank">Pay Now →</a>
     </div>` : '')}
 
