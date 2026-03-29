@@ -7,6 +7,8 @@ export interface MapPoint {
   label: string;
   detail?: string;
   category?: string;
+  heading?: number;
+  speed?: number;
   risk: 'critical'|'high'|'alert'|'stable'|'unknown'|'satellite'|'aviation'|'maritime'|'cyber'|'disaster'|'nuclear';
 }
 export type MapLayer = 'all'|'conflict'|'maritime'|'aviation'|'cyber'|'disasters'|'nuclear';
