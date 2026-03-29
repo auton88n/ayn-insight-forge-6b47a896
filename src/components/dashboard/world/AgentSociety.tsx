@@ -208,16 +208,16 @@ function AgentMessage({ msg, prev, idx }: { msg: any; prev: any; idx: number }) 
 // ── 3D Agent Network using Three.js / R3F ─────────────────────────────────────
 
 const AGENT_3D_DATA = [
-  { id:'usa',       name:'United States',  flag:'🇺🇸', pos:[ 0,    2.8,  0   ], ring:0 },
-  { id:'china',     name:'China',          flag:'🇨🇳', pos:[ 3.2,  1.2,  1.2 ], ring:0 },
-  { id:'russia',    name:'Russia',         flag:'🇷🇺', pos:[ 2.8, -1.4,  2.0 ], ring:0 },
-  { id:'eu',        name:'EU',             flag:'🇪🇺', pos:[-1.0, -2.8,  1.5 ], ring:0 },
-  { id:'iran',      name:'Iran',           flag:'🇮🇷', pos:[-3.4, -1.0, -0.5 ], ring:0 },
-  { id:'israel',    name:'Israel',         flag:'🇮🇱', pos:[-3.0,  1.8, -1.0 ], ring:0 },
-  { id:'fed',       name:'Fed Reserve',    flag:'🏦',  pos:[ 0,    0.8, -1.5 ], ring:1 },
-  { id:'opec',      name:'OPEC+',          flag:'🛢',  pos:[ 1.5, -0.8,  0.5 ], ring:1 },
-  { id:'saudi',     name:'Saudi Arabia',   flag:'🇸🇦', pos:[-0.5, -0.5,  1.8 ], ring:1 },
-  { id:'blackrock', name:'BlackRock',      flag:'💰',  pos:[ 0.8,  0.5,  2.2 ], ring:1 },
+  { id:'usa',       name:'United States',  flag:'🇺🇸', pos:[ 0.0,  5.2,  0.0 ], ring:0 },
+  { id:'china',     name:'China',          flag:'🇨🇳', pos:[ 4.6,  1.7,  1.7 ], ring:0 },
+  { id:'russia',    name:'Russia',         flag:'🇷🇺', pos:[ 3.9, -1.9,  2.8 ], ring:0 },
+  { id:'eu',        name:'EU',             flag:'🇪🇺', pos:[-1.5, -4.3,  2.3 ], ring:0 },
+  { id:'iran',      name:'Iran',           flag:'🇮🇷', pos:[-4.9, -1.4, -0.7 ], ring:0 },
+  { id:'israel',    name:'Israel',         flag:'🇮🇱', pos:[-4.3,  2.5, -1.4 ], ring:0 },
+  { id:'fed',       name:'Fed Reserve',    flag:'🏦',  pos:[ 0.0,  2.4, -4.6 ], ring:1 },
+  { id:'opec',      name:'OPEC+',          flag:'🛢',  pos:[ 4.4, -2.3,  1.4 ], ring:1 },
+  { id:'saudi',     name:'Saudi Arabia',   flag:'🇸🇦', pos:[-1.3, -1.3,  4.8 ], ring:1 },
+  { id:'blackrock', name:'BlackRock',      flag:'💰',  pos:[ 1.7,  1.0,  4.7 ], ring:1 },
 ];
 
 const AGENT_LINKS_3D = [
@@ -260,11 +260,14 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
 
   useFrame((_, delta) => {
     if (!meshRef.current || !glowRef.current) return;
-    // Gentle float
-    meshRef.current.position.y += Math.sin(Date.now() * 0.001 + agent.pos[0]) * delta * 0.04;
+    // Gentle float (spherical breathing)
+    const time = Date.now() * 0.001;
+    meshRef.current.position.y += Math.sin(time + agent.pos[0]) * delta * 0.1;
+    meshRef.current.position.x += Math.cos(time + agent.pos[2]) * delta * 0.1;
+    
     // Glow pulse on extreme
     if (isExtreme) {
-      glowRef.current.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.15);
+      glowRef.current.scale.setScalar(1 + Math.sin(time * 5) * 0.15);
     }
     // Spin on select
     if (isSelected) meshRef.current.rotation.y += delta * 0.8;
@@ -363,29 +366,84 @@ function LinkParticle({ fromPos, toPos, color, speed }: any) {
   );
 }
 
-// Background particle field
-function ParticleField() {
-  const count = 200;
-  const positions = useMemo(() => {
-    const arr = new Float32Array(count * 3);
+// Dense Interactive Neural Sphere
+function NeuralGlobe() {
+  const count = 450;
+  const radius = 3.6;
+  const maxDistance = 1.0;
+
+  const { positions, linePositions } = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const pts: THREE.Vector3[] = [];
+    
+    // Distribute points uniformly on a sphere using Fibonacci spiral
     for (let i = 0; i < count; i++) {
-      arr[i*3]   = (Math.random() - 0.5) * 20;
-      arr[i*3+1] = (Math.random() - 0.5) * 20;
-      arr[i*3+2] = (Math.random() - 0.5) * 20;
+      const phi = Math.acos(1 - 2 * (i + 0.5) / count);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * (i + 0.5);
+      
+      const x = radius * Math.cos(theta) * Math.sin(phi);
+      const y = radius * Math.cos(phi);
+      const z = radius * Math.sin(theta) * Math.sin(phi);
+      
+      pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+      pts.push(new THREE.Vector3(x, y, z));
     }
-    return arr;
+
+    // Connect nodes that are close to each other to form a neural mesh
+    const lines: number[] = [];
+    for (let i = 0; i < count; i++) {
+      let connections = 0;
+      for (let j = i + 1; j < count; j++) {
+        if (pts[i].distanceTo(pts[j]) < maxDistance) {
+          lines.push(pts[i].x, pts[i].y, pts[i].z, pts[j].x, pts[j].y, pts[j].z);
+          connections++;
+          if (connections > 3) break; // limit connections per node to avoid visual mess
+        }
+      }
+    }
+
+    return { 
+      positions: pos, 
+      linePositions: new Float32Array(lines) 
+    };
   }, []);
 
-  const geo = useMemo(() => {
+  const pointsGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     return g;
   }, [positions]);
 
+  const linesGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+    return g;
+  }, [linePositions]);
+
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.08;
+      groupRef.current.rotation.x += delta * 0.03;
+    }
+  });
+
   return (
-    <points geometry={geo}>
-      <pointsMaterial size={0.03} color="#a855f7" transparent opacity={0.4} sizeAttenuation />
-    </points>
+    <group ref={groupRef}>
+      {/* Node points */}
+      <points geometry={pointsGeo}>
+        <pointsMaterial size={0.06} color="#8b5cf6" transparent opacity={0.8} sizeAttenuation blending={THREE.AdditiveBlending} />
+      </points>
+      {/* Neural connections */}
+      <lineSegments geometry={linesGeo}>
+        <lineBasicMaterial color="#a855f7" transparent opacity={0.15} blending={THREE.AdditiveBlending} />
+      </lineSegments>
+      {/* Hollow inner core to slightly dim back nodes */}
+      <mesh>
+        <sphereGeometry args={[radius * 0.98, 32, 32]} />
+        <meshBasicMaterial color="#020008" transparent opacity={0.3} depthWrite={false} />
+      </mesh>
+    </group>
   );
 }
 
@@ -420,12 +478,13 @@ function AgentScene3D({ states, messages, selectedAgent, onSelectAgent }: any) {
       <pointLight position={[-5, 2, -3]} intensity={0.6} color="#22d3ee" />
 
       <OrbitControls
-        enablePan={false} minDistance={5} maxDistance={18}
-        autoRotate autoRotateSpeed={0.4}
+        enablePan={false} minDistance={8} maxDistance={22}
+        autoRotate autoRotateSpeed={0.3}
         enableDamping dampingFactor={0.08}
       />
 
-      <ParticleField />
+      {/* Replaced Chaotic ParticleField with Dense Neural Globe */}
+      <NeuralGlobe />
 
       {/* Links */}
       {AGENT_LINKS_3D.map((link, i) => {
@@ -499,7 +558,7 @@ function AgentNodeGraph({ states, messages, onSelectAgent, selectedAgent }: {
       </div>
 
       {/* 3D Canvas */}
-      <Canvas camera={{ position: [0, 2, 12], fov: 55 }} className="w-full h-full" style={{ zIndex: 10 }}>
+      <Canvas camera={{ position: [0, 2, 14], fov: 50 }} className="w-full h-full" style={{ zIndex: 10 }}>
         <AgentScene3D
           states={states}
           messages={messages}
