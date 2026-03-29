@@ -65,10 +65,12 @@ export function DevAgentPanel() {
   }, [msgs, running]);
 
   const addRepo = () => {
-    const v = repoIn.trim();
+    let v = repoIn.trim();
+    // Strip full GitHub URLs e.g. https://github.com/owner/repo
+    v = v.replace(/^https?:\/\/github\.com\//, '');
     if (!v || !v.includes('/')) return;
     const idx = v.indexOf('/');
-    const owner = v.slice(0, idx), repo = v.slice(idx + 1);
+    const owner = v.slice(0, idx), repo = v.slice(idx + 1).replace(/\.git$/, '');
     if (!owner || !repo || repos.find(r => r.owner === owner && r.repo === repo)) return;
     setRepos(p => [...p, { owner, repo }]);
     setRepoIn('');
@@ -185,7 +187,7 @@ export function DevAgentPanel() {
               <div className="flex gap-1.5 mt-1.5">
                 <input value={repoIn} onChange={e => setRepoIn(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addRepo()}
-                  placeholder="owner/repo"
+                  placeholder="auton88n/ayn-insight-forge-6b47a896"
                   className="flex-1 min-w-0 text-xs bg-muted/50 border border-border rounded-lg px-2 py-1.5 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/50"
                 />
                 <button onClick={addRepo} className="p-1.5 bg-muted border border-border rounded-lg hover:bg-muted/80 transition-colors">
@@ -361,7 +363,7 @@ export function DevAgentPanel() {
                   </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 px-1">
-                  Commits to feature branches · Edge functions deploy with instant rollback · Requires ANTHROPIC_API_KEY + GITHUB_TOKEN in Supabase secrets
+                  Commits to feature branches · Edge functions deploy with instant rollback · Uses Lovable AI gateway (Gemini) — no extra API keys needed
                 </p>
               </div>
 
