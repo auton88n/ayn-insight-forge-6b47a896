@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import type { Json } from '@/integrations/supabase/types';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
 import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
+// R3F imports kept but AgentNodeGraph is render-gated to prevent dual WebGL context
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sphere, Text, Billboard, Line } from '@react-three/drei';
 import * as THREE from 'three';
@@ -782,6 +783,19 @@ function AgentMoodBoard({ states }: { states: any[] }) {
 }
 
 function AgentSociety() {
+  const [canvasVisible, setCanvasVisible] = useState(false);
+  const agentSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = agentSectionRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setCanvasVisible(true); obs.disconnect(); } },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -851,7 +865,7 @@ function AgentSociety() {
     : 0;
 
   return (
-    <div className="mb-6">
+    <div ref={agentSectionRef} className="mb-6">
       {/* ── Header bar */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center gap-1.5">
@@ -882,14 +896,22 @@ function AgentSociety() {
         </button>
       </div>
 
-      {/* ── Agent Network Graph */}
-      {agentStates.length > 0 && (
+      {/* ── Agent Network Graph — only mount when visible to avoid dual WebGL context */}
+      {agentStates.length > 0 && canvasVisible && (
         <AgentNodeGraph
           states={agentStates}
           messages={messages}
           onSelectAgent={setSelectedAgent}
           selectedAgent={selectedAgent}
         />
+      )}
+      {agentStates.length > 0 && !canvasVisible && (
+        <div style={{height:280,display:'flex',alignItems:'center',justifyContent:'center',
+          background:'rgba(168,85,247,0.04)',border:'1px solid rgba(168,85,247,0.12)',borderRadius:12}}>
+          <span style={{fontFamily:'monospace',fontSize:9,color:'rgba(168,85,247,0.4)',letterSpacing:'0.2em'}}>
+            SCROLL INTO VIEW TO LOAD 3D NETWORK
+          </span>
+        </div>
       )}
 
       {/* ── Mood board (compact row) */}
@@ -1770,7 +1792,7 @@ export default function WorldIntelligence() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const currentTime = useRef(new Date()).current; // Static — no re-render ticker
   const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
@@ -1972,18 +1994,19 @@ export default function WorldIntelligence() {
     }
   }, [supabase]);
 
-  useEffect(() => {
-    fetchLiveMapData();
-    const t = setInterval(fetchLiveMapData, 3 * 60 * 1000);
-    return () => clearInterval(t);
-  }, [fetchLiveMapData]);
+  // WorldMonitor proxy disabled — always returns empty items[]
+  // useEffect(() => { fetchLiveMapData(); ... }, [fetchLiveMapData]);
 
   useEffect(() => {
-    Promise.all([fetchSnapshot(), fetchPredictions(), fetchCountryIntel(), fetchConflictPredictions(), fetchWorldSignals()]).finally(() => setLoading(false));
+    // Staggered fetches — critical data first, rest after
+    fetchSnapshot().finally(() => setLoading(false));
+    setTimeout(() => fetchPredictions(), 300);
+    setTimeout(() => fetchCountryIntel(), 800);
+    setTimeout(() => fetchConflictPredictions(), 1200);
+    setTimeout(() => fetchWorldSignals(), 1800);
 
     const ch = supabase.channel('wi').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ayn_market_snapshot' }, p => setSnapshot(p.new as MarketSnapshot)).subscribe();
-    const tick = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => { supabase.removeChannel(ch); clearInterval(tick); };
+    return () => { supabase.removeChannel(ch); };
   }, [fetchSnapshot, fetchPredictions, fetchCountryIntel, fetchConflictPredictions, fetchWorldSignals]);
 
   const handleVote = async (predId: string, vote: 'agree' | 'disagree') => {
