@@ -258,17 +258,16 @@ const LINK_COLORS: Record<string, string> = {
 };
 
 function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: any) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Group>(null);
   const intensity = (state?.emotion_intensity || 50) / 100;
   const isExtreme = intensity >= 0.8;
-  const nodeSize = 0.1; // Slightly larger than the 0.06 neural points
-  const dotColor = '#8b5cf6'; // EXACT match to neural sphere points
+  const dotColor = '#8b5cf6';
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
     const time = Date.now() * 0.001;
     if (isExtreme) {
-      const scale = 1 + Math.sin(time * 8) * 0.3;
+      const scale = 1 + Math.sin(time * 8) * 0.15;
       meshRef.current.scale.setScalar(scale);
     } else {
       meshRef.current.scale.setScalar(1);
@@ -276,21 +275,31 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
   });
 
   return (
-    <group position={agent.pos as [number,number,number]}>
-      {/* Main simple dot to match the neural sphere aesthetic exactly */}
-      <mesh ref={meshRef}
+    <group position={agent.pos as [number,number,number]} ref={meshRef}>
+      {/* Sci-fi "hot core" and "soft aura" look */}
+      
+      {/* Soft outer glow aura */}
+      <mesh
         onClick={(e) => { e.stopPropagation(); onClick(agent.id); }}
         onPointerOver={(e) => { e.stopPropagation(); onHover(agent.id); document.body.style.cursor='pointer'; }}
         onPointerOut={() => { onHover(null); document.body.style.cursor='default'; }}>
-        <sphereGeometry args={[nodeSize, 16, 16]} />
-        <meshBasicMaterial color={dotColor} transparent opacity={isSelected ? 1 : isHovered ? 0.9 : 0.8} blending={THREE.AdditiveBlending} />
+        <sphereGeometry args={[0.18, 24, 24]} />
+        <meshBasicMaterial color={dotColor} transparent opacity={isSelected ? 0.7 : isHovered ? 0.5 : 0.3} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
 
-      {/* Minimalistic text label floating above */}
+      {/* Intense bright inner core */}
+      <mesh pointerEvents="none">
+        <sphereGeometry args={[0.06, 16, 16]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+
+      {/* Futuristic HUD text label */}
       <Billboard>
-        <Text position={[0, nodeSize + 0.12, 0]} fontSize={0.12} color="white" anchorX="center"
-          font={undefined} fillOpacity={isHovered || isSelected ? 1 : 0.5} outlineWidth={0.015} outlineColor="#000000">
-          {agent.flag} {agent.name}
+        {/* Connection line from core to label */}
+        <Line points={[new THREE.Vector3(0, 0.1, 0), new THREE.Vector3(0, 0.3, 0), new THREE.Vector3(0.2, 0.3, 0)]} color="#a855f7" opacity={0.4} transparent lineWidth={1} />
+        <Text position={[0.22, 0.3, 0]} fontSize={0.10} color="#e9d5ff" anchorX="left"
+          font={undefined} fillOpacity={isHovered || isSelected ? 1 : 0.6} outlineWidth={0.02} outlineColor="#020008">
+          {agent.name.toUpperCase()}
         </Text>
       </Billboard>
     </group>
@@ -387,28 +396,63 @@ function NeuralGlobe() {
   }, [linePositions]);
 
   const groupRef = useRef<THREE.Group>(null);
+  const ringsRef = useRef<THREE.Group>(null);
+  
+  // Custom glowing canvas texture for the neural points to make them soft circles instead of hard squares
+  const pointTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.2, 'rgba(168,85,247,0.8)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(canvas);
+  }, []);
+
   useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.08;
-      groupRef.current.rotation.x += delta * 0.03;
+      groupRef.current.rotation.y += delta * 0.05;
+      groupRef.current.rotation.x += delta * 0.02;
+    }
+    if (ringsRef.current) {
+      // Rotate data rings in opposite directions for sci-fi effect
+      ringsRef.current.children[0].rotation.z -= delta * 0.15;
+      ringsRef.current.children[1].rotation.z += delta * 0.2;
     }
   });
 
   return (
-    <group ref={groupRef}>
-      {/* Node points */}
-      <points geometry={pointsGeo}>
-        <pointsMaterial size={0.06} color="#8b5cf6" transparent opacity={0.8} sizeAttenuation blending={THREE.AdditiveBlending} />
-      </points>
-      {/* Neural connections */}
-      <lineSegments geometry={linesGeo}>
-        <lineBasicMaterial color="#a855f7" transparent opacity={0.15} blending={THREE.AdditiveBlending} />
-      </lineSegments>
-      {/* Hollow inner core to slightly dim back nodes */}
-      <mesh>
-        <sphereGeometry args={[radius * 0.98, 32, 32]} />
-        <meshBasicMaterial color="#020008" transparent opacity={0.3} depthWrite={false} />
-      </mesh>
+    <group>
+      {/* Sci-fi Orbital Data Rings */}
+      <group ref={ringsRef}>
+        <mesh rotation={[Math.PI/2, 0, 0]}>
+          <ringGeometry args={[radius * 1.08, radius * 1.085, 64, 1, 0, Math.PI * 1.6]} />
+          <meshBasicMaterial color="#a855f7" transparent opacity={0.5} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+        <mesh rotation={[Math.PI/2.5, Math.PI/4, 0]}>
+          <ringGeometry args={[radius * 1.25, radius * 1.253, 64, 1, 0, Math.PI * 1.3]} />
+          <meshBasicMaterial color="#22d3ee" transparent opacity={0.3} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      </group>
+
+      <group ref={groupRef}>
+        {/* Node points with soft glowing canvas texture */}
+        <points geometry={pointsGeo}>
+          <pointsMaterial size={0.15} map={pointTexture} transparent opacity={0.9} sizeAttenuation blending={THREE.AdditiveBlending} depthWrite={false} />
+        </points>
+        {/* Subdued Neural connections */}
+        <lineSegments geometry={linesGeo}>
+          <lineBasicMaterial color="#8b5cf6" transparent opacity={0.08} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </lineSegments>
+        {/* Hollow inner core to slightly dim back nodes */}
+        <mesh>
+          <sphereGeometry args={[radius * 0.98, 32, 32]} />
+          <meshBasicMaterial color="#020008" transparent opacity={0.35} depthWrite={false} />
+        </mesh>
+      </group>
     </group>
   );
 }
