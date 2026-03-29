@@ -55,11 +55,11 @@ const VIEW_FILTERS: Record<ViewMode,string> = {
   flir:        'sepia(1) hue-rotate(295deg) saturate(6) brightness(0.85) contrast(1.4)',
 };
 
-// GPS jamming colours by level — very low fill alpha so the NASA texture shows through
+// GPS jamming colours by level — fully transparent fill, stroke-only visual indicator
 const JAM_COLORS: Record<1|2|3, {fill:string; stroke:string}> = {
-  1: { fill:'rgba(234,179,8,0.04)',   stroke:'rgba(234,179,8,0.35)'  },
-  2: { fill:'rgba(249,115,22,0.06)',  stroke:'rgba(249,115,22,0.45)' },
-  3: { fill:'rgba(239,68,68,0.08)',   stroke:'rgba(239,68,68,0.55)' },
+  1: { fill:'rgba(0,0,0,0)', stroke:'rgba(234,179,8,0.45)'  },
+  2: { fill:'rgba(0,0,0,0)', stroke:'rgba(249,115,22,0.55)' },
+  3: { fill:'rgba(0,0,0,0)', stroke:'rgba(239,68,68,0.65)' },
 };
 
 function countLayer(pts:MapPoint[],l:MapLayer){
@@ -420,17 +420,16 @@ export function HeatMap2D({
               labelColor="color" labelSize="size" labelDotRadius="dotRadius"
               labelAltitude={0.015} labelResolution={2}
 
-              // GPS Jamming hexagons — single polygon draw call
-              polygonsData={jamPolygons}
-              polygonGeoJsonGeometry={(d:any)=>({
-                type:'Polygon',
-                coordinates:[d.coords],
-              })}
-              polygonCapColor="fillColor"
-              polygonSideColor="sideColor"
-              polygonStrokeColor="strokeColor"
-              polygonAltitude={0.005}
-              polygonLabel={(d:any)=>`
+              // GPS Jamming hexagons — rendered as paths to guarantee no fill
+              pathsData={jamPolygons}
+              pathPoints="coords"
+              pathPointLat={(p:any)=>p[1]}
+              pathPointLng={(p:any)=>p[0]}
+              pathColor="strokeColor"
+              pathDashLength={0.01}
+              pathDashGap={0}
+              pathStroke={2}
+              pathLabel={(d:any)=>`
                 <div style="background:rgba(0,3,14,0.95);border:1px solid rgba(234,179,8,0.5);border-radius:6px;padding:6px 10px;font-family:monospace">
                   <div style="font-size:10px;font-weight:900;color:#fbbf24">📡 GPS JAMMING</div>
                   <div style="font-size:8px;color:rgba(255,255,255,0.5);margin-top:3px">Level ${d.level === 3 ? '🔴 HIGH' : d.level === 2 ? '🟠 MEDIUM' : '🟡 LOW'} interference</div>
