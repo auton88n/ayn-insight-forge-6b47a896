@@ -212,17 +212,21 @@ export function DevAgentPanel() {
     const aid = 'a' + Date.now();
     setMsgs(p => [...p, { role: 'agent', text: '', id: aid }]);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
 
       // Get enabled skill contents to inject
-      const enabledSkills = skills.filter(s => s.enabled).map(s => s.content).join('\n\n---\n\n');
+      const enabledSkills = skills.filter(s => s.enabled).map(s => (s as any).content ?? '').join('\n\n---\n\n');
 
       const res = await fetch(AGENT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ message: msg, repos, projects, github_token: ghToken, skills: enabledSkills, stream: true }),
+        signal: controller.signal,
       });
 
       if (!res.ok || !res.body) {
@@ -253,9 +257,12 @@ export function DevAgentPanel() {
       await saveMessage(cid, 'agent', full);
       loadConversations();
     } catch (e: any) {
-      const errText = `**Error:** ${e?.message ?? 'Unknown'}`;
+      const errText = e?.name === 'AbortError'
+        ? '**Timed out** — the agent took too long. Try a simpler request.'
+        : `**Error:** ${e?.message ?? 'Unknown'}`;
       setMsgs(p => p.map(m => m.id === aid ? { ...m, text: errText } : m));
     } finally {
+      clearTimeout(timeout);
       setRunning(false);
     }
   };
