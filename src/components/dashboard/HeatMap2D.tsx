@@ -7,7 +7,7 @@ export interface MapPoint {
   label: string;
   detail?: string;
   category?: string;
-  risk: 'critical'|'high'|'alert'|'stable'|'unknown'|'satellite'|'aviation'|'maritime'|'cyber'|'disaster';
+  risk: 'critical'|'high'|'alert'|'stable'|'unknown'|'satellite'|'aviation'|'maritime'|'cyber'|'disaster'|'nuclear';
 }
 export type MapLayer = 'all'|'conflict'|'maritime'|'aviation'|'cyber'|'disasters';
 
@@ -22,6 +22,7 @@ export const riskConfig = {
   maritime: { hex:'#14b8a6', label:'MARITIME',  pulse:false },
   cyber:    { hex:'#ec4899', label:'CYBER',     pulse:true  },
   disaster: { hex:'#f97316', label:'DISASTER',  pulse:true  },
+  nuclear:  { hex:'#84cc16', label:'NUCLEAR',   pulse:true  },
 } as const;
 type RiskKey = keyof typeof riskConfig;
 
@@ -331,7 +332,7 @@ export function HeatMap2D({
           borderRadius:9,padding:'8px 12px',backdropFilter:'blur(10px)'}}>
           <div style={{fontSize:6,fontFamily:'monospace',color:'rgba(255,255,255,0.2)',
             letterSpacing:'0.18em',marginBottom:6}}>SIGNAL KEY</div>
-          {(['critical','high','alert','maritime','aviation','cyber','disaster'] as RiskKey[]).map(r=>(
+          {(['critical','high','alert','maritime','aviation','cyber','disaster','nuclear'] as RiskKey[]).map(r=>(
             <div key={r} style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
               <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
                 background:riskConfig[r].hex,boxShadow:`0 0 5px ${riskConfig[r].hex}`}}/>
