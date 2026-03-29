@@ -145,6 +145,7 @@ interface Prediction {
   predicted_direction: 'up' | 'down' | 'sideways';
   predicted_pct_change: number; confidence: number; reasoning: string; calibration?: { real_accuracy_pct: number; reliability_tier: string; should_show_uncertainty: boolean; calibration_factor: number } | null;
   agree_count?: number; disagree_count?: number; user_vote?: 'agree' | 'disagree' | null;
+  consensus_strength?: string; agreement?: boolean | null; fusion_method?: string; boost_factor?: string | null; generated_by?: string;
 }
 interface CountryIntel {
   country_code: string; country_name: string;
@@ -1549,6 +1550,21 @@ function PredictionCard({ pred, onVote, userId, voting }: {
           </div>
         </div>
       </div>
+
+      {/* Fusion Engine Agreement Banner */}
+      {pred.generated_by === 'ayn_consensus_fusion_v1' && pred.agreement === true && (
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 border-b border-indigo-500/20">
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_6px_rgba(129,140,248,0.8)]" />
+          <span className="text-[8px] font-mono text-indigo-300 font-bold tracking-widest uppercase">
+            Both Engines Agree
+          </span>
+          {pred.boost_factor && (
+            <span className="text-[7.5px] font-mono text-indigo-200/50 ml-auto bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
+              {pred.boost_factor}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Uncertainty warning for unreliable assets */}
       {pred.calibration?.should_show_uncertainty && (
