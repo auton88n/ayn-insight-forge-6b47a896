@@ -259,12 +259,10 @@ const LINK_COLORS: Record<string, string> = {
 
 function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: any) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
-  const emotion = state?.current_emotion || 'neutral';
   const intensity = (state?.emotion_intensity || 50) / 100;
-  const color = EMOTION_COLORS[emotion] || '#9ca3af';
   const isExtreme = intensity >= 0.8;
   const nodeSize = 0.1; // Slightly larger than the 0.06 neural points
+  const dotColor = '#8b5cf6'; // EXACT match to neural sphere points
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -285,7 +283,7 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
         onPointerOver={(e) => { e.stopPropagation(); onHover(agent.id); document.body.style.cursor='pointer'; }}
         onPointerOut={() => { onHover(null); document.body.style.cursor='default'; }}>
         <sphereGeometry args={[nodeSize, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={isSelected ? 1 : isHovered ? 0.9 : 0.8} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color={dotColor} transparent opacity={isSelected ? 1 : isHovered ? 0.9 : 0.8} blending={THREE.AdditiveBlending} />
       </mesh>
 
       {/* Minimalistic text label floating above */}
@@ -465,7 +463,7 @@ function AgentScene3D({ states, messages, selectedAgent, onSelectAgent }: any) {
             <AgentLink3D fromPos={fromPos} toPos={toPos} linkType={link.type} isActive={isActive} />
             {isActive && (
               <LinkParticle fromPos={fromPos} toPos={toPos}
-                color={LINK_COLORS[link.type] || '#6366f1'}
+                color="#ffffff"
                 speed={0.3 + Math.random() * 0.2} />
             )}
           </group>
