@@ -104,12 +104,10 @@ export function HeatMap2D({
   const [activeLayer, setActiveLayer] = useState<MapLayer>('all');
   const [viewMode, setViewMode]       = useState<ViewMode>('standard');
   const [selected, setSelected]       = useState<MapPoint|null>(null);
-  const [pulsePhase, setPulsePhase]   = useState(0);
   const [showJam, setShowJam]         = useState(false);
   const [jamCells, setJamCells]       = useState<GpsHexCell[]>([]);
   const [jamLoading, setJamLoading]   = useState(false);
   const [jamCount, setJamCount]       = useState(0);
-  const rafRef = useRef<number>(0);
   const layers: MapLayer[] = ['all','conflict','maritime','aviation','cyber','disasters','nuclear'];
 
   // Load Globe dynamically
@@ -117,14 +115,7 @@ export function HeatMap2D({
     import('react-globe.gl').then(m=>setGlobe(()=>m.default));
   },[]);
 
-  // Pulse animation
-  useEffect(()=>{
-    const animate=()=>{ setPulsePhase(Date.now()); rafRef.current=requestAnimationFrame(animate); };
-    rafRef.current=requestAnimationFrame(animate);
-    return()=>cancelAnimationFrame(rafRef.current);
-  },[]);
-
-  // Globe controls
+  // Auto-rotate
   useEffect(()=>{
     if(!globeRef.current)return;
     const ctrl=globeRef.current.controls();
@@ -163,16 +154,15 @@ export function HeatMap2D({
   // Globe point data
   const globePoints=useMemo(()=>filtered.map(pt=>{
     const cfg=riskConfig[pt.risk as RiskKey]??riskConfig.unknown;
-    const pulse=cfg.pulse?(0.7+0.3*Math.sin(pulsePhase/500)):1;
     const [r,g,b]=hexRgb(cfg.hex);
     return{
       ...pt, lat:pt.coordinates[1], lng:pt.coordinates[0],
-      color:`rgba(${r},${g},${b},${(0.75*pulse).toFixed(2)})`,
-      ringColor:`rgba(${r},${g},${b},${(0.35*pulse).toFixed(2)})`,
-      size:pt.risk==='critical'?0.65:pt.risk==='high'?0.55:pt.risk==='cyber'||pt.risk==='nuclear'?0.58:0.42,
+      color:`rgba(${r},${g},${b},0.8)`,
+      ringColor:`rgba(${r},${g},${b},0.3)`,
+      size:pt.risk==='critical'?0.18:pt.risk==='high'?0.15:pt.risk==='cyber'||pt.risk==='nuclear'?0.15:0.1,
       altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.015:0.008,
     };
-  }),[filtered,pulsePhase]);
+  }),[filtered]);
 
   // Threat arcs
   const arcs=useMemo(()=>{
@@ -185,7 +175,8 @@ export function HeatMap2D({
       result.push({
         startLat:a.coordinates[1],startLng:a.coordinates[0],
         endLat:b.coordinates[1],  endLng:b.coordinates[0],
-        color:cfg.hex+'88', stroke:a.risk==='critical'?1.2:0.7,
+        color:[cfg.hex+'00', cfg.hex+'cc'],
+        stroke:a.risk==='critical'?0.25:0.15,
       });
     }
     return result;
@@ -202,6 +193,20 @@ export function HeatMap2D({
       strokeColor:JAM_COLORS[c.level].stroke,
     }));
   },[jamCells,showJam]);
+
+  // Labels for zoom-in detail
+  const labels = useMemo(()=>filtered.filter(p=>p.risk==='critical'||p.risk==='high'||p.risk==='cyber'||p.risk==='nuclear').map(pt=>{
+    const cfg=riskConfig[pt.risk as RiskKey]??riskConfig.unknown;
+    return{
+      ...pt,
+      lat:pt.coordinates[1],
+      lng:pt.coordinates[0],
+      text:pt.label,
+      color:cfg.hex+'cc',
+      size:0.2,
+      dotRadius:0,
+    };
+  }),[filtered]);
 
   const handlePointClick=useCallback((pt:any)=>{
     setSelected(pt as MapPoint);
@@ -359,9 +364,9 @@ export function HeatMap2D({
               width={containerRef.current?.clientWidth||1200}
               height={height}
               backgroundColor="rgba(0,0,0,0)"
-              atmosphereColor={viewMode==='nightvision'?'#00ff44':viewMode==='flir'?'#ff4400':'#00ffcc'}
-              atmosphereAltitude={0.18}
-              globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+              atmosphereColor={viewMode==='nightvision'?'#00ff44':viewMode==='flir'?'#ff4400':'#1e3a8a'}
+              atmosphereAltitude={0.15}
+              globeImageUrl={viewMode==='standard'?"//unpkg.com/three-globe/example/img/earth-dark.jpg":"//unpkg.com/three-globe/example/img/earth-night.jpg"}
               bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
 
               // Intel signal points
@@ -379,7 +384,7 @@ export function HeatMap2D({
               // Pulse rings
               ringsData={globePoints.filter((p:any)=>riskConfig[p.risk as RiskKey]?.pulse)}
               ringLat="lat" ringLng="lng" ringColor="ringColor"
-              ringMaxRadius={3.5} ringPropagationSpeed={1.8}
+              ringMaxRadius={1.5} ringPropagationSpeed={1.5}
               ringRepeatPeriod={800} ringAltitude={0.005}
 
               // Threat arcs
@@ -387,8 +392,14 @@ export function HeatMap2D({
               arcStartLat="startLat" arcStartLng="startLng"
               arcEndLat="endLat" arcEndLng="endLng"
               arcColor="color" arcStroke="stroke"
-              arcDashLength={0.3} arcDashGap={0.15}
-              arcDashAnimateTime={3000} arcAltitudeAutoScale={0.25}
+              arcDashLength={0.4} arcDashGap={0.2}
+              arcDashAnimateTime={2000} arcAltitudeAutoScale={0.25}
+
+              // Labels
+              labelsData={labels}
+              labelLat="lat" labelLng="lng" labelText="text"
+              labelColor="color" labelSize="size" labelDotRadius="dotRadius"
+              labelAltitude={0.015} labelResolution={2}
 
               // GPS Jamming hexagons — single polygon draw call
               polygonsData={jamPolygons}
