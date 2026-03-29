@@ -264,38 +264,28 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
   const intensity = (state?.emotion_intensity || 50) / 100;
   const color = EMOTION_COLORS[emotion] || '#9ca3af';
   const isExtreme = intensity >= 0.8;
-  const nodeSize = 0.16; // Big dot relative to 0.06 neural points
+  const nodeSize = 0.1; // Slightly larger than the 0.06 neural points
 
   useFrame((_, delta) => {
-    if (!meshRef.current || !glowRef.current) return;
+    if (!meshRef.current) return;
     const time = Date.now() * 0.001;
-    // Nodes sit firmly on the neural mesh
     if (isExtreme) {
-      glowRef.current.scale.setScalar(1 + Math.sin(time * 8) * 0.25);
+      const scale = 1 + Math.sin(time * 8) * 0.3;
+      meshRef.current.scale.setScalar(scale);
+    } else {
+      meshRef.current.scale.setScalar(1);
     }
   });
 
   return (
     <group position={agent.pos as [number,number,number]}>
-      {/* Outer glow sphere */}
-      <mesh ref={glowRef}>
-        <sphereGeometry args={[nodeSize * 2.8, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={isSelected ? 0.4 : isHovered ? 0.3 : 0.15 + intensity * 0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
-      </mesh>
-
-      {/* Main sphere */}
+      {/* Main simple dot to match the neural sphere aesthetic exactly */}
       <mesh ref={meshRef}
         onClick={(e) => { e.stopPropagation(); onClick(agent.id); }}
         onPointerOver={(e) => { e.stopPropagation(); onHover(agent.id); document.body.style.cursor='pointer'; }}
         onPointerOut={() => { onHover(null); document.body.style.cursor='default'; }}>
-        <sphereGeometry args={[nodeSize, 32, 32]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={isSelected ? 1.5 : isHovered ? 1.2 : 0.6 + intensity * 0.8}
-          metalness={0.1}
-          roughness={0.2}
-        />
+        <sphereGeometry args={[nodeSize, 16, 16]} />
+        <meshBasicMaterial color={color} transparent opacity={isSelected ? 1 : isHovered ? 0.9 : 0.8} blending={THREE.AdditiveBlending} />
       </mesh>
 
       {/* Minimalistic text label floating above */}
