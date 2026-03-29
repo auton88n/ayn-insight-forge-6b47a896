@@ -270,7 +270,7 @@ export function DevAgentPanel() {
             <CardContent className="p-0">
 
               {/* Messages */}
-              <ScrollArea className="h-[480px]" ref={scrollRef}>
+              <ScrollArea className="h-[520px]" ref={scrollRef}>
                 <div className="p-4 space-y-4">
 
                   {msgs.length === 0 && (
@@ -299,13 +299,13 @@ export function DevAgentPanel() {
                   {msgs.map(msg => (
                     <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                       {msg.role === 'user' ? (
-                        /* User bubble — exact same as AdminAIAssistant */
-                        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-foreground text-background">
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                        /* User bubble */
+                        <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-foreground text-background">
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
                         </div>
                       ) : (
-                        /* Agent bubble — exact same as AdminAIAssistant */
-                        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted border border-border">
+                        /* Agent bubble — full width, code blocks scroll horizontally */
+                        <div className="w-full min-w-0 rounded-2xl px-4 py-3 bg-muted border border-border overflow-hidden">
                           {msg.text ? (
                             <div className="text-sm leading-relaxed
                               [&_p]:my-1 [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-semibold
