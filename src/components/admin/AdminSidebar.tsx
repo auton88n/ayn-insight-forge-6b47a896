@@ -29,6 +29,7 @@ import {
   Brain,
   FilePen,
   Notebook,
+  Code2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +63,8 @@ export type AdminTabId =
   | 'email-broadcast'
   | 'custom-orders'
   | 'nda'
-  | 'document-studio';
+  | 'document-studio'
+  | 'dev-agent';
 
 interface AdminSection {
   id: AdminTabId;
@@ -134,6 +136,7 @@ const sidebarGroups: SidebarGroup[] = [
       { id: 'errors',        title: 'Error Monitor',  icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      adminOnly: true },
       { id: 'test-results',  title: 'Test Results',   icon: FlaskConical,  gradient: 'from-pink-500 to-rose-500',     adminOnly: true },
       { id: 'settings',      title: 'Settings',       icon: Settings,      gradient: 'from-slate-500 to-gray-500',    adminOnly: true },
+      { id: 'dev-agent',     title: 'Dev Agent',      icon: Code2,         gradient: 'from-cyan-500 to-teal-600',     adminOnly: true },
     ],
   },
 ];

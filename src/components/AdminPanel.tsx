@@ -19,6 +19,7 @@ import SupportManagement from '@/components/admin/SupportManagement';
 import { GoogleAnalytics } from '@/components/admin/GoogleAnalytics';
 import { AICostDashboard } from '@/components/admin/AICostDashboard';
 import { UserAILimits } from '@/components/admin/UserAILimits';
+import { DevAgentPanel } from '@/components/admin/DevAgentPanel';
 import { AdminAIAssistant } from '@/components/admin/AdminAIAssistant';
 import TestResultsDashboard from '@/components/admin/TestResultsDashboard';
 import { SubscriptionManagement } from '@/components/admin/SubscriptionManagement';
@@ -470,6 +471,7 @@ export const AdminPanel = ({
                     {activeTab === 'ai-costs' && <AICostDashboard key={refreshKey} />}
                     {activeTab === 'ai-limits' && <UserAILimits key={refreshKey} />}
                     {activeTab === 'ai-assistant' && <AdminAIAssistant key={refreshKey} />}
+                    {activeTab === 'dev-agent' && <DevAgentPanel key={refreshKey} />}
                     {activeTab === 'subscriptions' && <SubscriptionManagement key={refreshKey} />}
                     {activeTab === 'credit-history' && <CreditGiftHistory key={refreshKey} />}
                     {activeTab === 'beta-feedback' && <BetaFeedbackViewer key={refreshKey} />}
