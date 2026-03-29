@@ -1,6 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface MapPoint {
@@ -10,302 +8,397 @@ export interface MapPoint {
   detail?: string;
   category?: string;
   risk: 'critical'|'high'|'alert'|'stable'|'unknown'|'satellite'|'aviation'|'maritime'|'cyber'|'disaster';
-  heading?: number;
-  speed?: number;
 }
-
 export type MapLayer = 'all'|'conflict'|'maritime'|'aviation'|'cyber'|'disasters';
 
-const LAYER_CATEGORIES: Record<MapLayer,string[]> = {
-  all:[], conflict:['Conflict','Military'], maritime:['Maritime','Supply Chain'],
-  aviation:['Aviation'], cyber:['Cyber'], disasters:['Disaster','Seismology','Wildfire'],
-};
-
 export const riskConfig = {
-  critical: { color:'#ff2244', size:0.7, glow:'rgba(255,34,68,0.9)',   label:'CONFLICT',  pulse:true  },
-  high:     { color:'#ff6600', size:0.55,glow:'rgba(255,102,0,0.8)',   label:'HIGH RISK', pulse:true  },
-  alert:    { color:'#ffcc00', size:0.45,glow:'rgba(255,204,0,0.7)',   label:'ALERT',     pulse:false },
-  stable:   { color:'#00ff88', size:0.38,glow:'rgba(0,255,136,0.6)',   label:'STABLE',    pulse:false },
-  satellite:{ color:'#cc88ff', size:0.38,glow:'rgba(204,136,255,0.6)',label:'SATELLITE', pulse:false },
-  unknown:  { color:'#00ccff', size:0.38,glow:'rgba(0,204,255,0.6)',   label:'INTEL',     pulse:false },
-  aviation: { color:'#00aaff', size:0.45,glow:'rgba(0,170,255,0.8)',   label:'AVIATION',  pulse:true  },
-  maritime: { color:'#00ffcc', size:0.45,glow:'rgba(0,255,204,0.8)',   label:'MARITIME',  pulse:false },
-  cyber:    { color:'#ff00aa', size:0.45,glow:'rgba(255,0,170,0.8)',   label:'CYBER',     pulse:true  },
-  disaster: { color:'#ff8800', size:0.55,glow:'rgba(255,136,0,0.8)',   label:'DISASTER',  pulse:true  },
+  critical: { hex:'#ef4444', label:'CONFLICT',  pulse:true  },
+  high:     { hex:'#f97316', label:'HIGH RISK', pulse:true  },
+  alert:    { hex:'#eab308', label:'ALERT',     pulse:false },
+  stable:   { hex:'#22c55e', label:'STABLE',    pulse:false },
+  satellite:{ hex:'#a855f7', label:'SATELLITE', pulse:false },
+  unknown:  { hex:'#06b6d4', label:'INTEL',     pulse:false },
+  aviation: { hex:'#3b82f6', label:'AVIATION',  pulse:false },
+  maritime: { hex:'#14b8a6', label:'MARITIME',  pulse:false },
+  cyber:    { hex:'#ec4899', label:'CYBER',     pulse:true  },
+  disaster: { hex:'#f97316', label:'DISASTER',  pulse:true  },
 } as const;
 type RiskKey = keyof typeof riskConfig;
 
-const LAYER_ICONS: Record<MapLayer,string> = { all:'◈',conflict:'⚔',maritime:'⚓',aviation:'✈',cyber:'⬡',disasters:'△' };
-const LAYER_LABELS: Record<MapLayer,string> = { all:'ALL',conflict:'CONFLICT',maritime:'MARITIME',aviation:'AVIATION',cyber:'CYBER',disasters:'DISASTERS' };
+const LAYER_CATS: Record<MapLayer,string[]> = {
+  all:[], conflict:['Conflict','Military'], maritime:['Maritime','Supply Chain'],
+  aviation:['Aviation'], cyber:['Cyber'], disasters:['Disaster','Seismology','Wildfire'],
+};
+const LAYER_META: Record<MapLayer,{icon:string;label:string;color:string}> = {
+  all:      {icon:'◈',label:'ALL',       color:'#00ffcc'},
+  conflict: {icon:'⚔',label:'CONFLICT',  color:'#ef4444'},
+  maritime: {icon:'⚓',label:'MARITIME',  color:'#14b8a6'},
+  aviation: {icon:'✈',label:'AVIATION',  color:'#3b82f6'},
+  cyber:    {icon:'⬡',label:'CYBER',     color:'#ec4899'},
+  disasters:{icon:'△',label:'DISASTERS', color:'#f97316'},
+};
 
-function countLayer(pts:MapPoint[],l:MapLayer){ if(l==='all')return pts.length; const c=LAYER_CATEGORIES[l]; return pts.filter(p=>c.some(x=>(p.category||'').toLowerCase().includes(x.toLowerCase()))).length; }
+function countLayer(pts:MapPoint[],l:MapLayer){
+  if(l==='all')return pts.length;
+  const c=LAYER_CATS[l];
+  return pts.filter(p=>c.some(x=>(p.category||'').toLowerCase().includes(x.toLowerCase()))).length;
+}
+
+// hex → [r,g,b]
+function hexRgb(hex:string):[number,number,number]{
+  const n=parseInt(hex.slice(1),16);
+  return[(n>>16)&255,(n>>8)&255,n&255];
+}
 
 // Ticker
 function ThreatTicker({items}:{items:string[]}){
   const [off,setOff]=useState(0);
-  useEffect(()=>{const t=setInterval(()=>setOff(o=>o+0.4),16);return()=>clearInterval(t);},[]);
+  useEffect(()=>{const t=setInterval(()=>setOff(o=>o+0.35),16);return()=>clearInterval(t);},[]);
   if(!items.length)return null;
   const txt=items.join('   ·   ');
   return(
-    <div className="overflow-hidden whitespace-nowrap flex-1">
-      <span className="inline-block text-[8px] font-mono text-white/35 tracking-widest"
-        style={{transform:`translateX(-${off%(txt.length*5.6)}px)`,transition:'none'}}>
+    <div style={{overflow:'hidden',whiteSpace:'nowrap',flex:1}}>
+      <span style={{display:'inline-block',fontSize:8,fontFamily:'monospace',color:'rgba(255,255,255,0.35)',
+        letterSpacing:'0.06em',transform:`translateX(-${off%(txt.length*5.6)}px)`,transition:'none'}}>
         {txt+'   ·   '+txt}
       </span>
     </div>
   );
 }
 
-// ─── 3D Globe ─────────────────────────────────────────────────────────────────
-function Globe3D({points,activeLayer,onPointClick}:{
-  points:MapPoint[]; activeLayer:MapLayer; onPointClick?:(pt:MapPoint)=>void;
+// ─── Main Component ───────────────────────────────────────────────────────────
+export function HeatMap2D({
+  points=[], height=460, onPointClick,
+  showLayerToggle=false, isLive=false, lastRefresh, ticker=[],
+}:{
+  points?:MapPoint[]; height?:number; onPointClick?:(pt:MapPoint)=>void;
+  showLayerToggle?:boolean; isLive?:boolean; lastRefresh?:Date; ticker?:string[];
 }){
-  const globeRef=useRef<any>(null);
-  const containerRef=useRef<HTMLDivElement>(null);
-  const [GlobeComp,setGlobeComp]=useState<any>(null);
-  const [dims,setDims]=useState({w:900,h:460});
+  const globeRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [GlobeComponent, setGlobeComponent] = useState<any>(null);
+  const [activeLayer, setActiveLayer] = useState<MapLayer>('all');
+  const [selected, setSelected] = useState<MapPoint|null>(null);
+  const [pulsePhase, setPulsePhase] = useState(0);
+  const rafRef = useRef<number>(0);
 
-  useEffect(()=>{
-    // @ts-ignore
-    import('react-globe.gl').then((m:any)=>setGlobeComp(()=>m.default||m));
-  },[]);
+  const layers: MapLayer[] = ['all','conflict','maritime','aviation','cyber','disasters'];
 
+  // Load globe dynamically (avoids SSR issues)
   useEffect(()=>{
-    const obs=new ResizeObserver(entries=>{
-      const r=entries[0]?.contentRect;
-      if(r)setDims({w:Math.floor(r.width),h:Math.floor(r.height)});
+    import('react-globe.gl').then(mod=>{
+      setGlobeComponent(()=>mod.default);
     });
-    if(containerRef.current)obs.observe(containerRef.current);
-    return()=>obs.disconnect();
   },[]);
 
+  // Pulse animation
+  useEffect(()=>{
+    const animate=()=>{
+      setPulsePhase(Date.now());
+      rafRef.current=requestAnimationFrame(animate);
+    };
+    rafRef.current=requestAnimationFrame(animate);
+    return()=>cancelAnimationFrame(rafRef.current);
+  },[]);
+
+  // Auto-rotate
   useEffect(()=>{
     if(!globeRef.current)return;
-    const ctrl=globeRef.current.controls?.();
-    if(ctrl){
-      ctrl.autoRotate=true;
-      ctrl.autoRotateSpeed=0.22;
-      ctrl.enableDamping=true;
-      ctrl.dampingFactor=0.06;
-      ctrl.minDistance=150;
-      ctrl.maxDistance=600;
-    }
-    globeRef.current.pointOfView?.({lat:20,lng:15,altitude:1.8},1200);
-  },[GlobeComp]);
+    globeRef.current.controls().autoRotate=true;
+    globeRef.current.controls().autoRotateSpeed=0.25;
+    globeRef.current.controls().enableZoom=true;
+    globeRef.current.controls().minDistance=120;
+    globeRef.current.controls().maxDistance=600;
+    globeRef.current.pointOfView({lat:25,lng:15,altitude:2.2});
+  },[GlobeComponent]);
 
-  const filtered=useMemo(()=>{
+  const filtered = useMemo(()=>{
     if(activeLayer==='all')return points;
-    const cats=LAYER_CATEGORIES[activeLayer];
-    return points.filter(p=>cats.some(c=>(p.category||'').toLowerCase().includes(c.toLowerCase())));
+    const c=LAYER_CATS[activeLayer];
+    return points.filter(p=>c.some(x=>(p.category||'').toLowerCase().includes(x.toLowerCase())));
   },[points,activeLayer]);
 
-  // Globe point data — sized by risk
-  const globePoints=useMemo(()=>filtered.map(p=>({
-    lat:p.coordinates[1], lng:p.coordinates[0],
-    size:(riskConfig[p.risk as RiskKey]?.size??0.4)*1.4,
-    color:riskConfig[p.risk as RiskKey]?.color??'#00ffcc',
-    label:p.label, detail:p.detail, risk:p.risk, _raw:p,
-  })),[filtered]);
+  // Globe points data
+  const globePoints = useMemo(()=>filtered.map(pt=>{
+    const cfg=riskConfig[pt.risk as RiskKey]??riskConfig.unknown;
+    const pulse=cfg.pulse?(0.7+0.3*Math.sin(pulsePhase/500)):1;
+    const [r,g,b]=hexRgb(cfg.hex);
+    return{
+      ...pt,
+      lat:pt.coordinates[1],
+      lng:pt.coordinates[0],
+      color:`rgba(${r},${g},${b},${(0.75*pulse).toFixed(2)})`,
+      ringColor:`rgba(${r},${g},${b},${(0.35*pulse).toFixed(2)})`,
+      size:pt.risk==='critical'?0.65:pt.risk==='high'?0.55:pt.risk==='cyber'?0.58:0.42,
+      altitude:pt.risk==='critical'?0.015:0.008,
+    };
+  }),[filtered,pulsePhase]);
 
-  // Threat arcs between critical/cyber hotspots
-  const arcData=useMemo(()=>{
-    const crits=filtered.filter(p=>['critical','cyber','high'].includes(p.risk));
-    return crits.slice(0,14).map((src,i)=>{
-      const dst=filtered[(i*4+7)%Math.max(1,filtered.length)];
-      return dst&&dst!==src?{
-        startLat:src.coordinates[1],startLng:src.coordinates[0],
-        endLat:dst.coordinates[1],  endLng:dst.coordinates[0],
-        color:[(riskConfig[src.risk as RiskKey]?.color??'#ff2244')+'dd','rgba(0,0,0,0)'],
-      }:null;
-    }).filter(Boolean);
+  // Threat arcs between high-risk points
+  const arcs = useMemo(()=>{
+    const hot=filtered.filter(p=>p.risk==='critical'||p.risk==='cyber'||p.risk==='high');
+    const result:any[]=[];
+    for(let i=0;i<Math.min(hot.length,12);i++){
+      const a=hot[i];
+      const b=hot[(i+3)%hot.length];
+      if(a===b)continue;
+      const cfg=riskConfig[a.risk as RiskKey]??riskConfig.unknown;
+      result.push({
+        startLat:a.coordinates[1], startLng:a.coordinates[0],
+        endLat:b.coordinates[1],   endLng:b.coordinates[0],
+        color:cfg.hex+'99',
+        stroke:a.risk==='critical'?1.2:0.7,
+      });
+    }
+    return result;
   },[filtered]);
 
-  if(!GlobeComp)return(
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-[#00ffcc]/20 border-t-[#00ffcc] rounded-full animate-spin"/>
-        <span className="text-[9px] font-mono text-[#00ffcc]/40 tracking-[0.3em]">INITIALIZING GLOBE...</span>
+  // Labels for zoom-in detail
+  const labels = useMemo(()=>filtered.map(pt=>{
+    const cfg=riskConfig[pt.risk as RiskKey]??riskConfig.unknown;
+    return{
+      ...pt,
+      lat:pt.coordinates[1],
+      lng:pt.coordinates[0],
+      text:pt.label,
+      color:cfg.hex,
+      size:0.5,
+      dotRadius:0,
+    };
+  }),[filtered]);
+
+  const handlePointClick = useCallback((pt:any)=>{
+    setSelected(pt as MapPoint);
+    onPointClick?.(pt as MapPoint);
+    if(globeRef.current){
+      globeRef.current.pointOfView({lat:pt.lat,lng:pt.lng,altitude:1.2},800);
+    }
+  },[onPointClick]);
+
+  const pill=(lbl:string,val:string,color:string)=>(
+    <div key={lbl} style={{display:'flex',alignItems:'center',gap:6,
+      background:'rgba(0,3,14,0.88)',border:`1px solid ${color}44`,
+      borderRadius:7,padding:'4px 9px',backdropFilter:'blur(8px)'}}>
+      <div style={{width:2,height:16,borderRadius:2,background:color,boxShadow:`0 0 6px ${color}`}}/>
+      <div>
+        <div style={{fontSize:6,fontFamily:'monospace',color:'rgba(255,255,255,0.3)',letterSpacing:'0.18em'}}>{lbl}</div>
+        <div style={{fontSize:13,fontFamily:'monospace',fontWeight:900,color,lineHeight:1.1}}>{val}</div>
       </div>
     </div>
   );
 
   return(
-    <div ref={containerRef} className="w-full h-full"
-      style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <GlobeComp
-        ref={globeRef}
-        width={dims.w} height={dims.h}
-        backgroundColor="rgba(0,0,0,0)"
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        atmosphereColor="#00ffcc"
-        atmosphereAltitude={0.14}
-        // ── Intel points
-        pointsData={globePoints}
-        pointLat="lat" pointLng="lng"
-        pointColor="color"
-        pointAltitude={0.015}
-        pointRadius="size"
-        pointResolution={14}
-        pointsMerge={false}
-        pointLabel={(d:any)=>`
-          <div style="background:rgba(0,4,12,0.97);border:1px solid ${d.color}66;border-radius:12px;padding:12px 16px;font-family:'Courier New',monospace;max-width:260px;box-shadow:0 0 30px ${d.color}44,0 8px 32px rgba(0,0,0,0.9)">
-            <div style="color:${d.color};font-size:12px;font-weight:900;letter-spacing:0.12em;margin-bottom:5px">${d.label}</div>
-            <div style="color:rgba(255,255,255,0.55);font-size:9px;line-height:1.6">${(d.detail||'Intelligence monitoring active.').slice(0,180)}</div>
-          </div>`}
-        onPointClick={(d:any)=>{if(d._raw)onPointClick?.(d._raw);}}
-        onPointHover={(d:any)=>{if(globeRef.current?.controls)globeRef.current.controls().autoRotate=!d;}}
-        // ── Threat arcs
-        arcsData={arcData}
-        arcStartLat="startLat" arcStartLng="startLng"
-        arcEndLat="endLat"     arcEndLng="endLng"
-        arcColor="color"
-        arcDashLength={0.4} arcDashGap={0.15}
-        arcDashAnimateTime={1600}
-        arcStroke={0.5} arcAltitude={0.28}
-        // ── Hex polygons for country fill (subtle)
-        hexPolygonsData={[]}
-      />
-    </div>
-  );
-}
+    <div style={{display:'flex',flexDirection:'column',width:'100%',borderRadius:14,overflow:'hidden',
+      background:'#020b18',border:'1px solid rgba(0,255,200,0.12)',
+      boxShadow:'0 0 60px rgba(0,0,0,0.8)'}}>
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export function HeatMap2D({
-  points=[],height=460,onPointClick,
-  showLayerToggle=false,isLive=false,lastRefresh,ticker=[],
-}:{
-  points?:MapPoint[];height?:number;onPointClick?:(pt:MapPoint)=>void;
-  showLayerToggle?:boolean;isLive?:boolean;lastRefresh?:Date;ticker?:string[];
-}){
-  const [activeLayer,setActiveLayer]=useState<MapLayer>('all');
-  const layers:MapLayer[]=['all','conflict','maritime','aviation','cyber','disasters'];
-
-  const filtered=useMemo(()=>{
-    if(activeLayer==='all')return points;
-    const cats=LAYER_CATEGORIES[activeLayer];
-    return points.filter(p=>cats.some(c=>(p.category||'').toLowerCase().includes(c.toLowerCase())));
-  },[points,activeLayer]);
-
-  return(
-    <div className="w-full flex flex-col rounded-2xl overflow-hidden"
-      style={{
-        background:'radial-gradient(ellipse at 50% 0%,rgba(0,25,18,0.98) 0%,rgba(0,3,8,0.99) 70%)',
-        border:'1px solid rgba(0,255,200,0.12)',
-        boxShadow:'0 0 80px rgba(0,255,200,0.05),inset 0 1px 0 rgba(0,255,200,0.06)',
-      }}>
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#00ffcc]/6"
-        style={{background:'linear-gradient(90deg,rgba(0,255,200,0.04),transparent)'}}>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1.5 items-center">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" style={{boxShadow:'0 0 8px #ff2244'}}/>
-            <div className="w-2 h-2 rounded-full bg-yellow-400 opacity-50"/>
-            <div className="w-2 h-2 rounded-full bg-[#00ff88]" style={{boxShadow:'0 0 6px #00ff88'}}/>
+      {/* ── Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+        padding:'9px 16px',borderBottom:'1px solid rgba(255,255,255,0.05)',
+        background:'linear-gradient(90deg,rgba(0,255,200,0.04),transparent)',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{display:'flex',gap:5}}>
+            {[['#ef4444',true],['#eab308',false],['#22c55e',false]].map(([c,p],i)=>(
+              <div key={i} style={{width:8,height:8,borderRadius:'50%',background:c as string,
+                boxShadow:p?`0 0 8px ${c}`:undefined}}/>
+            ))}
           </div>
-          <span className="text-[10px] font-mono font-black text-[#00ffcc] tracking-[0.22em]">
+          <span style={{fontSize:10,fontFamily:'monospace',fontWeight:900,color:'#00ffcc',letterSpacing:'0.22em'}}>
             AYN // WORLD THREAT MATRIX
           </span>
-          <span className="text-[7px] font-mono text-white/15 tracking-widest">
-            LIVE INTEL · DRAG TO ROTATE · HOVER SIGNAL
+          <span style={{fontSize:7,fontFamily:'monospace',color:'rgba(255,255,255,0.15)',letterSpacing:'0.1em'}}>
+            LIVE INTEL · DRAG TO ROTATE · SCROLL TO ZOOM
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[8px] font-mono text-white/20">{filtered.length} SIGNALS</span>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:8,fontFamily:'monospace',color:'rgba(255,255,255,0.2)'}}>
+            {filtered.length} SIGNALS
+          </span>
           {isLive&&(
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full"
-              style={{border:'1px solid rgba(0,255,136,0.3)',background:'rgba(0,255,136,0.06)'}}>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#00ff88] animate-pulse" style={{boxShadow:'0 0 6px #00ff88'}}/>
-              <span className="text-[7px] font-mono text-[#00ff88] tracking-widest">LIVE</span>
+            <div style={{display:'flex',alignItems:'center',gap:5,padding:'3px 9px',borderRadius:99,
+              border:'1px solid rgba(0,255,136,0.3)',background:'rgba(0,255,136,0.06)'}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:'#22c55e',boxShadow:'0 0 6px #22c55e'}}/>
+              <span style={{fontSize:7,fontFamily:'monospace',color:'#4ade80',letterSpacing:'0.15em'}}>LIVE</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Layer tabs */}
+      {/* ── Layer controls */}
       {showLayerToggle&&(
-        <div className="flex items-center gap-1 px-3 py-2 border-b border-white/4 bg-black/50 overflow-x-auto">
-          {layers.map(layer=>{
-            const cnt=countLayer(points,layer);
-            const active=activeLayer===layer;
-            const danger=layer==='conflict';
+        <div style={{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',padding:'7px 16px',
+          borderBottom:'1px solid rgba(255,255,255,0.04)',background:'rgba(0,0,0,0.45)',flexShrink:0}}>
+          {layers.map(l=>{
+            const{icon,label,color}=LAYER_META[l];
+            const cnt=countLayer(points,l);
+            const act=activeLayer===l;
             return(
-              <button key={layer} onClick={()=>setActiveLayer(layer)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1 rounded-full text-[7px] font-mono uppercase tracking-[0.12em] transition-all border whitespace-nowrap flex-shrink-0',
-                  active
-                    ? danger?'bg-red-500/15 border-red-500/40 text-red-400':'bg-[#00ffcc]/10 border-[#00ffcc]/35 text-[#00ffcc]'
-                    : 'bg-white/2 border-white/6 text-white/25 hover:border-white/12 hover:text-white/40'
-                )}>
-                <span>{LAYER_ICONS[layer]}</span>
-                {LAYER_LABELS[layer]}
-                <span className={cn('text-[6px] px-1 py-0.5 rounded-full font-bold ml-0.5',
-                  active?(danger?'bg-red-500/20 text-red-400':'bg-[#00ffcc]/15 text-[#00ffcc]'):'bg-white/5 text-white/20')}>
-                  {cnt}
-                </span>
+              <button key={l} onClick={()=>setActiveLayer(l)} style={{
+                display:'flex',alignItems:'center',gap:4,padding:'4px 10px',
+                borderRadius:99,cursor:'pointer',transition:'all 0.12s',
+                background:act?`${color}18`:'rgba(255,255,255,0.02)',
+                border:`1px solid ${act?color+'55':'rgba(255,255,255,0.07)'}`,
+                color:act?color:'rgba(255,255,255,0.3)',
+                fontSize:7,fontFamily:'monospace',letterSpacing:'0.1em',whiteSpace:'nowrap'}}>
+                <span style={{fontSize:10}}>{icon}</span>{label}
+                <span style={{background:act?`${color}22`:'rgba(255,255,255,0.06)',
+                  color:act?color:'rgba(255,255,255,0.35)',
+                  padding:'1px 5px',borderRadius:4,fontSize:9,fontWeight:700}}>{cnt}</span>
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Globe */}
-      <div className="relative" style={{height}}>
-        {/* Vignette */}
-        <div className="absolute inset-0 pointer-events-none z-10"
-          style={{background:'radial-gradient(ellipse at 50% 50%,transparent 40%,rgba(0,3,8,0.7) 100%)'}}/>
-        {/* Corner brackets */}
-        {[['top-2 left-2','border-t border-l'],['top-2 right-2','border-t border-r'],
-          ['bottom-2 left-2','border-b border-l'],['bottom-2 right-2','border-b border-r']].map(([p,b],i)=>(
-          <div key={i} className={`absolute w-5 h-5 border-[#00ffcc]/25 z-20 ${p} ${b}`}/>
-        ))}
+      {/* ── Globe + overlays */}
+      <div style={{position:'relative',height,background:'#020b18',overflow:'hidden'}} ref={containerRef}>
 
-        <Globe3D points={points} activeLayer={activeLayer} onPointClick={onPointClick}/>
+        {/* Globe */}
+        {GlobeComponent&&(
+          <GlobeComponent
+            ref={globeRef}
+            width={containerRef.current?.clientWidth||1200}
+            height={height}
+            backgroundColor="rgba(0,0,0,0)"
+            atmosphereColor="#00ffcc"
+            atmosphereAltitude={0.18}
+            globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+            bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
 
-        {/* Signal counters — right side */}
-        <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5">
-          {[
-            {l:'CONFLICT', c:countLayer(points,'conflict'), col:'#ff2244'},
-            {l:'MARITIME', c:countLayer(points,'maritime'), col:'#00ffcc'},
-            {l:'CYBER',    c:countLayer(points,'cyber'),    col:'#ff00aa'},
-            {l:'DISASTERS',c:countLayer(points,'disasters'),col:'#ff8800'},
-          ].filter(s=>s.c>0).map(s=>(
-            <div key={s.l} className="flex items-center gap-2 bg-black/85 border border-white/8 rounded-lg px-2.5 py-1.5"
-              style={{backdropFilter:'blur(12px)'}}>
-              <div className="w-1 h-5 rounded-full" style={{background:s.col,boxShadow:`0 0 8px ${s.col}`}}/>
-              <div>
-                <div className="text-[6px] font-mono text-white/25 tracking-widest">{s.l}</div>
-                <div className="text-[11px] font-mono font-black" style={{color:s.col}}>{s.c}</div>
-              </div>
+            // Points
+            pointsData={globePoints}
+            pointLat="lat"
+            pointLng="lng"
+            pointColor="color"
+            pointRadius="size"
+            pointAltitude="altitude"
+            pointResolution={12}
+            onPointClick={handlePointClick}
+            pointLabel={(d:any)=>`
+              <div style="background:rgba(0,3,14,0.96);border:1px solid ${riskConfig[d.risk as RiskKey]?.hex??'#06b6d4'}55;border-radius:8px;padding:8px 12px;font-family:monospace;max-width:220px">
+                <div style="font-size:11px;font-weight:900;color:${riskConfig[d.risk as RiskKey]?.hex??'#06b6d4'};letter-spacing:0.1em;margin-bottom:4px">${d.label}</div>
+                ${d.detail?`<div style="font-size:8px;color:rgba(255,255,255,0.5);line-height:1.6">${d.detail.slice(0,140)}</div>`:''}
+              </div>`}
+
+            // Rings (pulse effect for critical)
+            ringsData={globePoints.filter((p:any)=>riskConfig[p.risk as RiskKey]?.pulse)}
+            ringLat="lat"
+            ringLng="lng"
+            ringColor="ringColor"
+            ringMaxRadius={3.5}
+            ringPropagationSpeed={1.8}
+            ringRepeatPeriod={800}
+            ringAltitude={0.005}
+
+            // Arcs
+            arcsData={arcs}
+            arcStartLat="startLat"
+            arcStartLng="startLng"
+            arcEndLat="endLat"
+            arcEndLng="endLng"
+            arcColor="color"
+            arcStroke="stroke"
+            arcDashLength={0.3}
+            arcDashGap={0.15}
+            arcDashAnimateTime={3000}
+            arcAltitudeAutoScale={0.25}
+
+            // Labels (visible at close zoom)
+            labelsData={labels}
+            labelLat="lat"
+            labelLng="lng"
+            labelText="text"
+            labelColor="color"
+            labelSize="size"
+            labelDotRadius="dotRadius"
+            labelAltitude={0.02}
+            labelResolution={2}
+          />
+        )}
+
+        {/* Stats — top right */}
+        <div style={{position:'absolute',top:12,right:12,zIndex:10,
+          display:'flex',flexDirection:'column',gap:5,pointerEvents:'none'}}>
+          {countLayer(points,'conflict')>0&&pill('CONFLICT',String(countLayer(points,'conflict')),'#ef4444')}
+          {countLayer(points,'maritime')>0&&pill('MARITIME',String(countLayer(points,'maritime')),'#14b8a6')}
+          {countLayer(points,'cyber')>0&&pill('CYBER',String(countLayer(points,'cyber')),'#ec4899')}
+          {countLayer(points,'disasters')>0&&pill('DISASTER',String(countLayer(points,'disasters')),'#f97316')}
+        </div>
+
+        {/* Legend — bottom left */}
+        <div style={{position:'absolute',bottom:12,left:12,zIndex:10,pointerEvents:'none',
+          background:'rgba(0,2,14,0.93)',border:'1px solid rgba(255,255,255,0.08)',
+          borderRadius:9,padding:'8px 12px',backdropFilter:'blur(10px)'}}>
+          <div style={{fontSize:6,fontFamily:'monospace',color:'rgba(255,255,255,0.2)',
+            letterSpacing:'0.18em',marginBottom:6}}>SIGNAL KEY</div>
+          {(['critical','high','alert','maritime','aviation','cyber','disaster'] as RiskKey[]).map(r=>(
+            <div key={r} style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
+              <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
+                background:riskConfig[r].hex,boxShadow:`0 0 5px ${riskConfig[r].hex}`}}/>
+              <span style={{fontSize:7,fontFamily:'monospace',color:'rgba(255,255,255,0.4)',
+                letterSpacing:'0.08em'}}>{riskConfig[r].label}</span>
             </div>
           ))}
         </div>
 
-        {/* Legend — bottom left */}
-        <div className="absolute bottom-3 left-3 z-20">
-          <div className="bg-black/85 border border-white/8 rounded-xl px-3 py-2.5 space-y-1.5"
-            style={{backdropFilter:'blur(16px)'}}>
-            <div className="text-[5.5px] font-mono text-white/20 uppercase tracking-[0.2em] mb-1">Signal Key</div>
-            {(['critical','high','alert','maritime','aviation','cyber','disaster'] as RiskKey[]).map(r=>(
-              <div key={r} className="flex items-center gap-2.5">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{backgroundColor:riskConfig[r].color,boxShadow:`0 0 6px ${riskConfig[r].glow}`}}/>
-                <span className="text-[6.5px] font-mono text-white/35 uppercase tracking-widest">
-                  {riskConfig[r].label}
-                </span>
+        {/* Selected point detail panel */}
+        {selected&&(
+          <div style={{position:'absolute',bottom:12,left:'50%',transform:'translateX(-50%)',
+            zIndex:20,pointerEvents:'auto',
+            background:'rgba(0,3,14,0.97)',border:`1px solid ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}44`,
+            borderRadius:12,padding:'12px 16px',maxWidth:340,backdropFilter:'blur(16px)',
+            boxShadow:'0 8px 40px rgba(0,0,0,0.9)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:900,
+                  color:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
+                  fontFamily:'monospace',letterSpacing:'0.1em'}}>{selected.label}</div>
+                <div style={{fontSize:7,color:'rgba(255,255,255,0.3)',fontFamily:'monospace',
+                  letterSpacing:'0.15em',marginTop:2}}>
+                  {riskConfig[selected.risk as RiskKey]?.label??'INTEL'}
+                  {selected.category?` · ${selected.category.toUpperCase()}`:''}
+                </div>
               </div>
-            ))}
+              <button onClick={()=>setSelected(null)} style={{
+                background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',
+                borderRadius:6,color:'rgba(255,255,255,0.4)',fontSize:14,padding:'2px 8px',
+                cursor:'pointer',fontFamily:'monospace'}}>✕</button>
+            </div>
+            {selected.detail&&(
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.6)',lineHeight:1.7,
+                fontFamily:'monospace',borderTop:'1px solid rgba(255,255,255,0.06)',paddingTop:8}}>
+                {selected.detail}
+              </div>
+            )}
+            <div style={{fontSize:7,color:'rgba(255,255,255,0.2)',fontFamily:'monospace',
+              marginTop:6}}>
+              {selected.coordinates[1].toFixed(2)}°N · {selected.coordinates[0].toFixed(2)}°E
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Loading state */}
+        {!GlobeComponent&&(
+          <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',
+            alignItems:'center',justifyContent:'center',gap:14,background:'#020b18'}}>
+            <div style={{width:40,height:40,borderRadius:'50%',
+              border:'2px solid rgba(0,255,200,0.12)',borderTop:'2px solid #00ffcc',
+              animation:'ayn-globe-spin 0.8s linear infinite'}}/>
+            <span style={{fontFamily:'monospace',fontSize:9,color:'rgba(0,255,200,0.5)',
+              letterSpacing:'0.2em'}}>INITIALIZING GLOBE...</span>
+            <style>{`@keyframes ayn-globe-spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        )}
       </div>
 
-      {/* Ticker */}
+      {/* ── Ticker */}
       {ticker.length>0&&(
-        <div className="flex items-center gap-3 px-4 py-1.5 border-t border-white/4 bg-black/70">
-          <span className="shrink-0 text-[6.5px] font-mono font-black text-red-400 tracking-widest border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 rounded">
-            ▶ FEED
-          </span>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'5px 16px',
+          borderTop:'1px solid rgba(255,255,255,0.04)',background:'rgba(0,0,0,0.6)',flexShrink:0}}>
+          <span style={{flexShrink:0,fontSize:6.5,fontFamily:'monospace',fontWeight:900,
+            color:'#f87171',letterSpacing:'0.15em',
+            border:'1px solid rgba(248,113,113,0.3)',background:'rgba(248,113,113,0.1)',
+            padding:'2px 6px',borderRadius:4}}>▶ FEED</span>
           <ThreatTicker items={ticker}/>
         </div>
       )}
