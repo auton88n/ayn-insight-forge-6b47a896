@@ -364,10 +364,10 @@ export function HeatMap2D({
               width={containerRef.current?.clientWidth||1200}
               height={height}
               backgroundColor="rgba(0,0,0,0)"
-              atmosphereColor={viewMode==='nightvision'?'#00ff44':viewMode==='flir'?'#ff4400':'#1e3a8a'}
-              atmosphereAltitude={0.15}
-              globeImageUrl={viewMode==='standard'?"//unpkg.com/three-globe/example/img/earth-dark.jpg":"//unpkg.com/three-globe/example/img/earth-night.jpg"}
-              bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+              atmosphereColor={viewMode==='nightvision'?'#00ff44':viewMode==='flir'?'#ff4400':'#1a4080'}
+              atmosphereAltitude={0.12}
+              globeImageUrl={viewMode==='standard'?"/textures/earth-blue-marble-8k.jpg":"/textures/earth-night-lights.jpg"}
+              bumpImageUrl="/textures/earth-bump.jpg"
 
               // Intel signal points
               pointsData={globePoints}
