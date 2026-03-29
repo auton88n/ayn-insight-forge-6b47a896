@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import {
   GitBranch, Database, ArrowUp, Plus, X,
-  Zap, Code2, Trash2, Bot,
+  Zap, Code2, Trash2, Bot, KeyRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -49,11 +49,13 @@ export function DevAgentPanel() {
   const [input,    setInput]    = useState('');
   const [running,  setRunning]  = useState(false);
   const [repoIn,   setRepoIn]   = useState('');
+  const [ghToken,  setGhToken]  = useState(() => getStored<string>('ayn_dev_ghtoken', ''));
   const [projIn,   setProjIn]   = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const textRef   = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { try { localStorage.setItem('ayn_dev_repos', JSON.stringify(repos)); } catch {} }, [repos]);
+  useEffect(() => { try { localStorage.setItem('ayn_dev_ghtoken', ghToken); } catch {} }, [ghToken]);
   useEffect(() => { try { localStorage.setItem('ayn_dev_projs', JSON.stringify(projects)); } catch {} }, [projects]);
   useEffect(() => {
     if (scrollRef.current) {
@@ -95,7 +97,7 @@ export function DevAgentPanel() {
       const res = await fetch(AGENT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: msg, repos, projects, stream: true }),
+        body: JSON.stringify({ message: msg, repos, projects, github_token: ghToken, stream: true }),
       });
       if (!res.ok || !res.body) {
         const err = await res.text().catch(() => `HTTP ${res.status}`);
@@ -190,6 +192,26 @@ export function DevAgentPanel() {
                   <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* GitHub Token */}
+          <Card className="border border-border bg-card">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">GitHub Token</span>
+              </div>
+              <input
+                type="password"
+                value={ghToken}
+                onChange={e => setGhToken(e.target.value)}
+                placeholder="ghp_xxxxxxxxxxxx"
+                className="w-full text-xs bg-muted/50 border border-border rounded-lg px-2 py-1.5 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/50"
+              />
+              <p className="text-[10px] text-muted-foreground/60 mt-1.5 leading-relaxed">
+                github.com/settings/tokens → Classic → repo scope
+              </p>
             </CardContent>
           </Card>
 
