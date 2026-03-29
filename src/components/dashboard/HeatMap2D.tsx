@@ -55,11 +55,11 @@ const VIEW_FILTERS: Record<ViewMode,string> = {
   flir:        'sepia(1) hue-rotate(295deg) saturate(6) brightness(0.85) contrast(1.4)',
 };
 
-// GPS jamming colours by level
+// GPS jamming colours by level — very low fill alpha so the NASA texture shows through
 const JAM_COLORS: Record<1|2|3, {fill:string; stroke:string}> = {
-  1: { fill:'rgba(234,179,8,0.12)',  stroke:'rgba(234,179,8,0.5)'  },
-  2: { fill:'rgba(249,115,22,0.18)', stroke:'rgba(249,115,22,0.6)' },
-  3: { fill:'rgba(239,68,68,0.25)',  stroke:'rgba(239,68,68,0.75)' },
+  1: { fill:'rgba(234,179,8,0.04)',   stroke:'rgba(234,179,8,0.35)'  },
+  2: { fill:'rgba(249,115,22,0.06)',  stroke:'rgba(249,115,22,0.45)' },
+  3: { fill:'rgba(239,68,68,0.08)',   stroke:'rgba(239,68,68,0.55)' },
 };
 
 function countLayer(pts:MapPoint[],l:MapLayer){
@@ -182,16 +182,35 @@ export function HeatMap2D({
     return result;
   },[filtered]);
 
-  // GPS jamming polygons for globe
+  // GPS jamming polygons for globe — with coordinate validation
   const jamPolygons=useMemo(()=>{
     if(!showJam)return[];
-    return jamCells.map(c=>({
-      ...c,
-      coords:c.boundary,
-      fillColor:JAM_COLORS[c.level].fill,
-      sideColor:'rgba(0,0,0,0)',
-      strokeColor:JAM_COLORS[c.level].stroke,
-    }));
+    return jamCells
+      .filter(c=>{
+        if(!c.boundary||c.boundary.length<3) return false;
+        // Reject cells with boundary spans > 5° (likely malformed giant hexes)
+        const lngs=c.boundary.map(p=>p[0]);
+        const lats=c.boundary.map(p=>p[1]);
+        const lngSpan=Math.max(...lngs)-Math.min(...lngs);
+        const latSpan=Math.max(...lats)-Math.min(...lats);
+        if(lngSpan>5||latSpan>5) return false;
+        // Reject cells where coords are clearly out of range
+        if(lngs.some(v=>Math.abs(v)>180)||lats.some(v=>Math.abs(v)>90)) return false;
+        return true;
+      })
+      .map(c=>{
+        // Ensure GeoJSON ring is closed (first point = last point)
+        let ring=[...c.boundary];
+        const first=ring[0], last=ring[ring.length-1];
+        if(first[0]!==last[0]||first[1]!==last[1]) ring.push(first);
+        return{
+          ...c,
+          coords:ring,
+          fillColor:JAM_COLORS[c.level].fill,
+          sideColor:'rgba(0,0,0,0)',
+          strokeColor:JAM_COLORS[c.level].stroke,
+        };
+      });
   },[jamCells,showJam]);
 
   // Labels for zoom-in detail
@@ -410,7 +429,7 @@ export function HeatMap2D({
               polygonCapColor="fillColor"
               polygonSideColor="sideColor"
               polygonStrokeColor="strokeColor"
-              polygonAltitude={0.002}
+              polygonAltitude={0.005}
               polygonLabel={(d:any)=>`
                 <div style="background:rgba(0,3,14,0.95);border:1px solid rgba(234,179,8,0.5);border-radius:6px;padding:6px 10px;font-family:monospace">
                   <div style="font-size:10px;font-weight:900;color:#fbbf24">📡 GPS JAMMING</div>
