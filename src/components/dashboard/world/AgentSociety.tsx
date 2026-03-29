@@ -208,17 +208,26 @@ function AgentMessage({ msg, prev, idx }: { msg: any; prev: any; idx: number }) 
 // ── 3D Agent Network using Three.js / R3F ─────────────────────────────────────
 
 const AGENT_3D_DATA = [
-  { id:'usa',       name:'United States',  flag:'🇺🇸', pos:[ 0.0,  5.2,  0.0 ], ring:0 },
-  { id:'china',     name:'China',          flag:'🇨🇳', pos:[ 4.6,  1.7,  1.7 ], ring:0 },
-  { id:'russia',    name:'Russia',         flag:'🇷🇺', pos:[ 3.9, -1.9,  2.8 ], ring:0 },
-  { id:'eu',        name:'EU',             flag:'🇪🇺', pos:[-1.5, -4.3,  2.3 ], ring:0 },
-  { id:'iran',      name:'Iran',           flag:'🇮🇷', pos:[-4.9, -1.4, -0.7 ], ring:0 },
-  { id:'israel',    name:'Israel',         flag:'🇮🇱', pos:[-4.3,  2.5, -1.4 ], ring:0 },
-  { id:'fed',       name:'Fed Reserve',    flag:'🏦',  pos:[ 0.0,  2.4, -4.6 ], ring:1 },
-  { id:'opec',      name:'OPEC+',          flag:'🛢',  pos:[ 4.4, -2.3,  1.4 ], ring:1 },
-  { id:'saudi',     name:'Saudi Arabia',   flag:'🇸🇦', pos:[-1.3, -1.3,  4.8 ], ring:1 },
-  { id:'blackrock', name:'BlackRock',      flag:'💰',  pos:[ 1.7,  1.0,  4.7 ], ring:1 },
+  { id:'usa',       name:'United States',  flag:'🇺🇸', pos:[ 0.0,  3.6,  0.0 ] },
+  { id:'china',     name:'China',          flag:'🇨🇳', pos:[ 3.2,  1.2,  1.2 ] },
+  { id:'russia',    name:'Russia',         flag:'🇷🇺', pos:[ 2.7, -1.3,  2.0 ] },
+  { id:'eu',        name:'EU',             flag:'🇪🇺', pos:[-1.0, -3.0,  1.6 ] },
+  { id:'iran',      name:'Iran',           flag:'🇮🇷', pos:[-3.4, -1.0, -0.5 ] },
+  { id:'israel',    name:'Israel',         flag:'🇮🇱', pos:[-3.0,  1.8, -0.9 ] },
+  { id:'fed',       name:'Fed Reserve',    flag:'🏦',  pos:[ 0.0,  1.6, -3.2 ] },
+  { id:'opec',      name:'OPEC+',          flag:'🛢',  pos:[ 3.0, -1.6,  1.0 ] },
+  { id:'saudi',     name:'Saudi Arabia',   flag:'🇸🇦', pos:[-0.9, -0.9,  3.3 ] },
+  { id:'blackrock', name:'BlackRock',      flag:'💰',  pos:[ 1.2,  0.7,  3.3 ] },
 ];
+
+// Normalize agent positions to EXACTLY the Neural Globe radius (3.6) so they sit perfectly flush as "big nodes"
+AGENT_3D_DATA.forEach(agent => {
+  const len = Math.sqrt(agent.pos[0]**2 + agent.pos[1]**2 + agent.pos[2]**2);
+  const scale = 3.6 / len;
+  agent.pos[0] *= scale;
+  agent.pos[1] *= scale;
+  agent.pos[2] *= scale;
+});
 
 const AGENT_LINKS_3D = [
   { from:'usa',    to:'eu',        strength:0.90, type:'ally'    },
@@ -248,7 +257,6 @@ const LINK_COLORS: Record<string, string> = {
   ally:'#6366f1', rival:'#f59e0b', hostile:'#ef4444', trade:'#34d399', market:'#a78bfa',
 };
 
-// Glowing sphere node
 function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: any) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -256,38 +264,24 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
   const intensity = (state?.emotion_intensity || 50) / 100;
   const color = EMOTION_COLORS[emotion] || '#9ca3af';
   const isExtreme = intensity >= 0.8;
-  const nodeSize = agent.ring === 0 ? 0.32 : 0.24;
+  const nodeSize = 0.16; // Big dot relative to 0.06 neural points
 
   useFrame((_, delta) => {
     if (!meshRef.current || !glowRef.current) return;
-    // Gentle float (spherical breathing)
     const time = Date.now() * 0.001;
-    meshRef.current.position.y += Math.sin(time + agent.pos[0]) * delta * 0.1;
-    meshRef.current.position.x += Math.cos(time + agent.pos[2]) * delta * 0.1;
-    
-    // Glow pulse on extreme
+    // Nodes sit firmly on the neural mesh
     if (isExtreme) {
-      glowRef.current.scale.setScalar(1 + Math.sin(time * 5) * 0.15);
+      glowRef.current.scale.setScalar(1 + Math.sin(time * 8) * 0.25);
     }
-    // Spin on select
-    if (isSelected) meshRef.current.rotation.y += delta * 0.8;
   });
 
   return (
     <group position={agent.pos as [number,number,number]}>
       {/* Outer glow sphere */}
       <mesh ref={glowRef}>
-        <sphereGeometry args={[nodeSize * 2.2, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={isSelected ? 0.12 : isHovered ? 0.08 : 0.04} />
+        <sphereGeometry args={[nodeSize * 2.8, 16, 16]} />
+        <meshBasicMaterial color={color} transparent opacity={isSelected ? 0.4 : isHovered ? 0.3 : 0.15 + intensity * 0.2} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
-
-      {/* Selection ring */}
-      {isSelected && (
-        <mesh rotation={[Math.PI/2, 0, 0]}>
-          <ringGeometry args={[nodeSize * 2.4, nodeSize * 2.6, 32]} />
-          <meshBasicMaterial color={color} transparent opacity={0.7} side={THREE.DoubleSide} />
-        </mesh>
-      )}
 
       {/* Main sphere */}
       <mesh ref={meshRef}
@@ -298,54 +292,31 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={isSelected ? 0.6 : isHovered ? 0.4 : 0.2 + intensity * 0.3}
-          metalness={0.3}
-          roughness={0.4}
+          emissiveIntensity={isSelected ? 1.5 : isHovered ? 1.2 : 0.6 + intensity * 0.8}
+          metalness={0.1}
+          roughness={0.2}
         />
       </mesh>
 
-      {/* Intensity arc ring */}
-      <mesh rotation={[Math.PI/2 + intensity * Math.PI * 2 * 0.5, 0, 0]}>
-        <torusGeometry args={[nodeSize * 1.6, 0.02, 8, 48, intensity * Math.PI * 2]} />
-        <meshBasicMaterial color={color} transparent opacity={0.8} />
-      </mesh>
-
-      {/* Billboard label */}
+      {/* Minimalistic text label floating above */}
       <Billboard>
-        <Text position={[0, nodeSize + 0.18, 0]} fontSize={0.13} color="white" anchorX="center"
-          font={undefined} fillOpacity={isHovered || isSelected ? 1 : 0.65}>
-          {agent.flag} {agent.name.split(' ')[0].toUpperCase()}
-        </Text>
-        <Text position={[0, nodeSize + 0.04, 0]} fontSize={0.09} color={color} anchorX="center"
-          fillOpacity={isHovered || isSelected ? 0.9 : 0.4}>
-          {(EMOTION_CONFIG[emotion]?.label || emotion).toUpperCase()}
-          {isExtreme ? ' ‼' : ''}
+        <Text position={[0, nodeSize + 0.12, 0]} fontSize={0.12} color="white" anchorX="center"
+          font={undefined} fillOpacity={isHovered || isSelected ? 1 : 0.5} outlineWidth={0.015} outlineColor="#000000">
+          {agent.flag} {agent.name}
         </Text>
       </Billboard>
     </group>
   );
 }
 
-// Animated link beam between nodes
+// Invisible static link — only used when hover or specific UI asks for it
 function AgentLink3D({ fromPos, toPos, linkType, isActive }: {
   fromPos: number[]; toPos: number[]; linkType: string; isActive: boolean;
 }) {
-  const color = LINK_COLORS[linkType] || '#6366f1';
-  const points = [
-    new THREE.Vector3(...fromPos as [number,number,number]),
-    new THREE.Vector3(...toPos as [number,number,number]),
-  ];
-  const opacity = linkType === 'hostile' ? 0.5 : isActive ? 0.6 : 0.2;
-  const lineWidth = isActive ? 2 : 1;
-
-  return (
-    <Line points={points} color={color} lineWidth={lineWidth}
-      transparent opacity={opacity}
-      dashed={linkType === 'hostile'} dashSize={0.15} gapSize={0.1} />
-  );
+  return null; // The user wants NO static lines, only the neural grid + moving signal lights!
 }
 
-// Floating particle along a link
+// Glowing communication signal particle traveling between agents
 function LinkParticle({ fromPos, toPos, color, speed }: any) {
   const meshRef = useRef<THREE.Mesh>(null);
   const t = useRef(Math.random());
@@ -355,13 +326,20 @@ function LinkParticle({ fromPos, toPos, color, speed }: any) {
     if (!meshRef.current) return;
     const from = new THREE.Vector3(...fromPos);
     const to = new THREE.Vector3(...toPos);
-    meshRef.current.position.lerpVectors(from, to, t.current);
+    // Add a slight arc/bulge out so it skips directly above the neural core and doesn't get fully lost inside
+    const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+    mid.normalize().multiplyScalar(4.0); // arch through the sphere
+    
+    // Quadratic bezier curve interpolation
+    const q0 = from.clone().lerp(mid, t.current);
+    const q1 = mid.clone().lerp(to, t.current);
+    meshRef.current.position.copy(q0.lerp(q1, t.current));
   });
 
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[0.04, 8, 8]} />
-      <meshBasicMaterial color={color} transparent opacity={0.9} />
+      <sphereGeometry args={[0.07, 12, 12]} />
+      <meshBasicMaterial color={color} transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} />
     </mesh>
   );
 }
