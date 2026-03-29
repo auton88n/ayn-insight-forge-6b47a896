@@ -333,7 +333,7 @@ function AgentMessage({ msg, prev, idx }: { msg: any; prev: any; idx: number }) 
               style={{ color: em.color }}
             >
               {intensity}% INTENSITY
-            </motion.span>
+            </span>
           )}
           {msg.message_type !== 'statement' && (
             <span className="ml-auto text-[6px] font-mono uppercase tracking-widest"
@@ -952,11 +952,11 @@ function AgentSociety() {
       {generating && (
         <div className="rounded-2xl p-8 text-center"
           style={{ border: '1px solid rgba(168,85,247,0.2)', background: 'rgba(168,85,247,0.04)' }}>
-          <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.5, repeat: Infinity }}>
+          <div style={{animation: 'ayn-fade-pulse 1.5s ease-in-out infinite'}}>
             <div className="text-[10px] font-mono text-purple-400 tracking-widest">
               ⟳  AGENTS FORMING OPINIONS  ·  PROCESSING WORLD EVENTS  ·  GENERATING REACTIONS
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -976,11 +976,11 @@ function AgentSociety() {
             <span className="text-[8px] font-mono text-white/25 uppercase tracking-widest">Live Discussion</span>
             <span className="text-[9px] font-mono text-white/55 font-bold flex-1 truncate">{activeConv.topic}</span>
             {hasPanic && (
-              <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 0.6, repeat: Infinity }}
+              <span style={{animation:'ayn-blink 0.6s ease-in-out infinite'}}
                 className="text-[7px] font-mono font-black px-2 py-0.5 rounded-full"
                 style={{ color: '#f87171', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)' }}>
                 🚨 AGENT PANIC DETECTED
-              </motion.span>
+              </span>
             )}
             {!hasPanic && hasAnger && (
               <span className="text-[7px] font-mono px-2 py-0.5 rounded-full"
@@ -2139,6 +2139,10 @@ export default function WorldIntelligence() {
 
   return (
     <div className="min-h-screen bg-[#050508] text-white font-mono flex flex-col overflow-hidden">
+      <style>{`
+        @keyframes ayn-fade-pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+        @keyframes ayn-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+      `}</style>
       {/* Header */}
       <header className="shrink-0 border-b border-white/6 bg-black/80 backdrop-blur-xl z-50 h-12 flex items-center">
         <div className="flex items-center justify-between px-4 w-full">
@@ -2231,7 +2235,7 @@ export default function WorldIntelligence() {
               </div>
               <div className="p-4 space-y-2">
                 {briefItems.length > 0 ? briefItems.map((item, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }}
+                  <div key={i}
                     className={cn('text-[11px] font-mono leading-relaxed py-2.5 px-4 border-l-2 rounded-r-lg',
                       String(item).toLowerCase().includes('fear') || String(item).includes('⚠')
                         ? 'border-l-red-500/50 text-red-200/60 bg-red-500/4'
@@ -2493,7 +2497,7 @@ export default function WorldIntelligence() {
                           <span className="text-[8px] font-mono text-white/18 ml-auto">Click for full analysis →</span>
                         </div>
                       )}
-                    </motion.button>
+                    </button>
                   );
                 })}
               </div>
