@@ -3,48 +3,49 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
-import {
-  GitBranch, Database, Send, Plus, X,
-  Zap, Terminal, Trash2, ChevronDown, ChevronUp,
-} from 'lucide-react';
+import { GitBranch, Database, Send, Plus, X, Zap, Terminal, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SUPABASE_URL } from '@/config';
 
-const AGENT_URL = `${SUPABASE_URL}/functions/v1/ayn-dev-agent`;
+const AGENT_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/ayn-dev-agent';
 
-interface Repo    { owner: string; repo: string; branch: string }
-interface Msg     { role: 'user' | 'agent'; text: string; id: string }
+interface Repo { owner: string; repo: string }
+interface Msg  { role: 'user' | 'agent'; text: string; id: string }
 
 const PRESETS = [
-  { label: 'Fix security advisors',    prompt: 'Check Supabase security advisors for project dfkoxuokfkttjhfjcecx and fix any ERRORs you find' },
-  { label: 'Diagnose errors from logs',prompt: 'Read edge function logs for project dfkoxuokfkttjhfjcecx and tell me what errors are happening' },
-  { label: 'Fix double-fire bug',      prompt: 'Read the keep-warm edge function and fix the double-fire bug in ayn-market-intelligence for project dfkoxuokfkttjhfjcecx' },
-  { label: 'Performance audit',        prompt: 'Check for unused and duplicate indexes in project dfkoxuokfkttjhfjcecx' },
-  { label: 'List edge functions',      prompt: 'List all edge functions in project dfkoxuokfkttjhfjcecx and their versions' },
-  { label: 'Audit ayn-unified',        prompt: 'Read the ayn-unified edge function source code and suggest performance improvements' },
+  { label: 'Fix security advisors',     prompt: 'Check Supabase security advisors for project dfkoxuokfkttjhfjcecx and fix any ERRORs you find' },
+  { label: 'Diagnose errors from logs', prompt: 'Read edge function logs for project dfkoxuokfkttjhfjcecx and tell me what errors are happening' },
+  { label: 'Fix double-fire bug',       prompt: 'Read the keep-warm edge function and fix the double-fire bug in ayn-market-intelligence for project dfkoxuokfkttjhfjcecx' },
+  { label: 'Performance audit',         prompt: 'Check for unused and duplicate indexes in project dfkoxuokfkttjhfjcecx and list them' },
+  { label: 'List edge functions',       prompt: 'List all edge functions in project dfkoxuokfkttjhfjcecx with their versions' },
+  { label: 'Audit ayn-unified',         prompt: 'Read the ayn-unified edge function source code and suggest improvements' },
 ];
 
+function getRepos(): Repo[] {
+  try { return JSON.parse(localStorage.getItem('ayn_dev_repos') || '[]'); } catch { return []; }
+}
+function getProjects(): string[] {
+  try { return JSON.parse(localStorage.getItem('ayn_dev_projs') || '["dfkoxuokfkttjhfjcecx"]'); } catch { return ['dfkoxuokfkttjhfjcecx']; }
+}
+
 export function DevAgentPanel() {
-  const [repos,    setRepos]    = useState<Repo[]>(() =>
-    JSON.parse(localStorage.getItem('ayn_dev_repos') || '[]'));
-  const [projects, setProjects] = useState<string[]>(() =>
-    JSON.parse(localStorage.getItem('ayn_dev_projs') || '["dfkoxuokfkttjhfjcecx"]'));
+  const [repos,    setRepos]    = useState<Repo[]>(getRepos);
+  const [projects, setProjects] = useState<string[]>(getProjects);
   const [msgs,     setMsgs]     = useState<Msg[]>([]);
   const [input,    setInput]    = useState('');
   const [running,  setRunning]  = useState(false);
   const [repoIn,   setRepoIn]   = useState('');
   const [projIn,   setProjIn]   = useState('');
-  const [sideOpen, setSideOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('ayn_dev_repos', JSON.stringify(repos));
+    try { localStorage.setItem('ayn_dev_repos', JSON.stringify(repos)); } catch {}
   }, [repos]);
+
   useEffect(() => {
-    localStorage.setItem('ayn_dev_projs', JSON.stringify(projects));
+    try { localStorage.setItem('ayn_dev_projs', JSON.stringify(projects)); } catch {}
   }, [projects]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [msgs]);
@@ -52,10 +53,12 @@ export function DevAgentPanel() {
   const addRepo = () => {
     const v = repoIn.trim();
     if (!v || !v.includes('/')) return;
-    const [owner, ...rest] = v.split('/');
-    const repo = rest.join('/');
+    const slash = v.indexOf('/');
+    const owner = v.slice(0, slash);
+    const repo  = v.slice(slash + 1);
+    if (!owner || !repo) return;
     if (repos.find(r => r.owner === owner && r.repo === repo)) return;
-    setRepos(p => [...p, { owner, repo, branch: 'main' }]);
+    setRepos(p => [...p, { owner, repo }]);
     setRepoIn('');
   };
 
@@ -67,9 +70,10 @@ export function DevAgentPanel() {
   };
 
   const fire = async (text: string) => {
-    if (!text.trim() || running) return;
+    const msg = text.trim();
+    if (!msg || running) return;
     setInput('');
-    setMsgs(p => [...p, { role: 'user', text, id: 'u' + Date.now() }]);
+    setMsgs(p => [...p, { role: 'user', text: msg, id: 'u' + Date.now() }]);
     setRunning(true);
     const aid = 'a' + Date.now();
     setMsgs(p => [...p, { role: 'agent', text: '', id: aid }]);
@@ -77,34 +81,47 @@ export function DevAgentPanel() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
+
       const res = await fetch(AGENT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: text, repos, projects, stream: true }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: msg, repos, projects, stream: true }),
       });
-      if (!res.ok) {
-        const err = await res.text();
+
+      if (!res.ok || !res.body) {
+        const err = await res.text().catch(() => `HTTP ${res.status}`);
         setMsgs(p => p.map(m => m.id === aid ? { ...m, text: `**Error ${res.status}:** ${err}` } : m));
         return;
       }
-      const reader = res.body!.getReader();
-      const dec = new TextDecoder();
-      let full = '';
+
+      const reader = res.body.getReader();
+      const dec    = new TextDecoder();
+      let   full   = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        for (const line of dec.decode(value).split('\n')) {
+        const lines = dec.decode(value, { stream: true }).split('\n');
+        for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          const d = line.slice(6);
-          if (d === '[DONE]') break;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') break;
           try {
-            full += JSON.parse(d).text;
-            setMsgs(p => p.map(m => m.id === aid ? { ...m, text: full } : m));
-          } catch (_) {}
+            const obj = JSON.parse(payload);
+            if (obj.text) {
+              full += obj.text;
+              setMsgs(p => p.map(m => m.id === aid ? { ...m, text: full } : m));
+            }
+          } catch { /* skip malformed chunk */ }
         }
       }
     } catch (e: any) {
-      setMsgs(p => p.map(m => m.id === aid ? { ...m, text: `**Error:** ${e.message}` } : m));
+      setMsgs(p => p.map(m => m.id === aid
+        ? { ...m, text: `**Connection error:** ${e?.message ?? 'Unknown error'}` }
+        : m));
     } finally {
       setRunning(false);
     }
@@ -115,43 +132,44 @@ export function DevAgentPanel() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-background">
 
-      {/* ── Sidebar ── */}
-      <div className={cn(
-        'flex flex-col border-r border-border bg-muted/20 transition-all duration-200 flex-shrink-0',
-        sideOpen ? 'w-72' : 'w-0 overflow-hidden'
-      )}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-black text-cyan-400 tracking-widest">DEV AGENT</span>
-          </div>
-          <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-400">BETA</Badge>
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <div className="w-64 border-r border-border flex flex-col flex-shrink-0 bg-muted/20">
+
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <Terminal className="w-4 h-4 text-cyan-400" />
+          <span className="text-xs font-black text-cyan-400 tracking-widest">DEV AGENT</span>
+          <span className="ml-auto text-[9px] px-2 py-0.5 rounded-full border border-cyan-500/30 text-cyan-400">BETA</span>
         </div>
 
         <ScrollArea className="flex-1">
+
           {/* GitHub repos */}
           <div className="p-3 border-b border-border/50">
             <div className="flex items-center gap-1.5 mb-2">
               <GitBranch className="w-3 h-3 text-violet-400" />
-              <span className="text-[9px] font-bold text-violet-400 tracking-widest uppercase">GitHub Repos</span>
+              <span className="text-[9px] font-bold text-violet-400 tracking-wider uppercase">GitHub Repos</span>
             </div>
             {repos.map((r, i) => (
-              <div key={i} className="flex items-center justify-between bg-violet-500/8 border border-violet-500/20 rounded-md px-2 py-1 mb-1">
-                <span className="text-[9px] text-violet-300 truncate flex-1">{r.owner}/{r.repo}</span>
+              <div key={i} className="flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 rounded px-2 py-1 mb-1">
+                <span className="text-[9px] text-violet-300 flex-1 truncate">{r.owner}/{r.repo}</span>
                 <button onClick={() => setRepos(p => p.filter((_, j) => j !== i))}
-                  className="text-red-400/50 hover:text-red-400 ml-2 flex-shrink-0">
-                  <X className="w-2.5 h-2.5" />
+                  className="text-red-400/50 hover:text-red-400 flex-shrink-0">
+                  <X className="w-3 h-3" />
                 </button>
               </div>
             ))}
             <div className="flex gap-1 mt-1">
-              <input value={repoIn} onChange={e => setRepoIn(e.target.value)}
+              <input
+                value={repoIn}
+                onChange={e => setRepoIn(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addRepo()}
                 placeholder="owner/repo"
-                className="flex-1 bg-background border border-border rounded px-2 py-1 text-[9px] text-foreground outline-none focus:border-violet-400/50 placeholder:text-muted-foreground/40"
-                onKeyDown={e => e.key === 'Enter' && addRepo()} />
-              <Button size="sm" variant="outline" onClick={addRepo} className="h-6 w-6 p-0">
+                className="flex-1 min-w-0 bg-background border border-border rounded px-2 py-1 text-[9px] text-foreground outline-none focus:border-violet-500/50 placeholder:text-muted-foreground/40"
+              />
+              <Button size="sm" variant="outline" onClick={addRepo} className="h-6 w-6 p-0 flex-shrink-0">
                 <Plus className="w-3 h-3" />
               </Button>
             </div>
@@ -161,23 +179,26 @@ export function DevAgentPanel() {
           <div className="p-3 border-b border-border/50">
             <div className="flex items-center gap-1.5 mb-2">
               <Database className="w-3 h-3 text-cyan-400" />
-              <span className="text-[9px] font-bold text-cyan-400 tracking-widest uppercase">Supabase Projects</span>
+              <span className="text-[9px] font-bold text-cyan-400 tracking-wider uppercase">Supabase Projects</span>
             </div>
             {projects.map(p => (
-              <div key={p} className="flex items-center justify-between bg-cyan-500/8 border border-cyan-500/20 rounded-md px-2 py-1 mb-1">
-                <span className="text-[9px] text-cyan-300 truncate flex-1">{p}</span>
+              <div key={p} className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 rounded px-2 py-1 mb-1">
+                <span className="text-[9px] text-cyan-300 flex-1 truncate">{p}</span>
                 <button onClick={() => setProjects(prev => prev.filter(x => x !== p))}
-                  className="text-red-400/50 hover:text-red-400 ml-2 flex-shrink-0">
-                  <X className="w-2.5 h-2.5" />
+                  className="text-red-400/50 hover:text-red-400 flex-shrink-0">
+                  <X className="w-3 h-3" />
                 </button>
               </div>
             ))}
             <div className="flex gap-1 mt-1">
-              <input value={projIn} onChange={e => setProjIn(e.target.value)}
+              <input
+                value={projIn}
+                onChange={e => setProjIn(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addProj()}
                 placeholder="project-ref"
-                className="flex-1 bg-background border border-border rounded px-2 py-1 text-[9px] text-foreground outline-none focus:border-cyan-400/50 placeholder:text-muted-foreground/40"
-                onKeyDown={e => e.key === 'Enter' && addProj()} />
-              <Button size="sm" variant="outline" onClick={addProj} className="h-6 w-6 p-0">
+                className="flex-1 min-w-0 bg-background border border-border rounded px-2 py-1 text-[9px] text-foreground outline-none focus:border-cyan-500/50 placeholder:text-muted-foreground/40"
+              />
+              <Button size="sm" variant="outline" onClick={addProj} className="h-6 w-6 p-0 flex-shrink-0">
                 <Plus className="w-3 h-3" />
               </Button>
             </div>
@@ -187,62 +208,71 @@ export function DevAgentPanel() {
           <div className="p-3">
             <div className="flex items-center gap-1.5 mb-2">
               <Zap className="w-3 h-3 text-amber-400" />
-              <span className="text-[9px] font-bold text-amber-400 tracking-widest uppercase">Quick Tasks</span>
+              <span className="text-[9px] font-bold text-amber-400 tracking-wider uppercase">Quick Tasks</span>
             </div>
             {PRESETS.map(p => (
-              <button key={p.label} onClick={() => fire(p.prompt)} disabled={running}
-                className="w-full text-left text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted/60 px-2 py-2 rounded-md mb-0.5 transition-colors disabled:opacity-40 flex items-center gap-2">
-                <span className="w-1 h-1 rounded-full bg-muted-foreground/50 flex-shrink-0" />
+              <button
+                key={p.label}
+                onClick={() => fire(p.prompt)}
+                disabled={running}
+                className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors mb-0.5 disabled:opacity-40"
+              >
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/40 flex-shrink-0" />
                 {p.label}
               </button>
             ))}
           </div>
+
         </ScrollArea>
 
         {msgs.length > 0 && (
           <div className="p-3 border-t border-border">
-            <Button variant="ghost" size="sm" onClick={() => setMsgs([])}
-              className="w-full text-[9px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10">
+            <Button
+              variant="ghost" size="sm"
+              onClick={() => setMsgs([])}
+              className="w-full text-[9px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
+            >
               <Trash2 className="w-3 h-3 mr-1" /> Clear conversation
             </Button>
           </div>
         )}
       </div>
 
-      {/* ── Chat ── */}
+      {/* ── Chat ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Topbar */}
+        {/* Top bar */}
         <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-background/50 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => setSideOpen(v => !v)} className="h-7 w-7 p-0">
-            {sideOpen ? <ChevronDown className="w-3.5 h-3.5 rotate-90" /> : <ChevronUp className="w-3.5 h-3.5 rotate-90" />}
-          </Button>
-          <span className="text-xs font-semibold text-foreground">AI Dev Agent</span>
-          <span className="text-[10px] text-muted-foreground">Reads code → diagnoses → fixes → deploys</span>
+          <span className="text-sm font-semibold text-foreground">AI Dev Agent</span>
+          <span className="text-[10px] text-muted-foreground">reads code → diagnoses → fixes → deploys</span>
           {running && (
-            <Badge variant="outline" className="ml-auto text-[9px] border-cyan-500/40 text-cyan-400 animate-pulse">
+            <span className="ml-auto text-[9px] px-2 py-0.5 rounded-full border border-cyan-500/40 text-cyan-400 animate-pulse">
               Working...
-            </Badge>
+            </span>
           )}
         </div>
 
         {/* Messages */}
         <ScrollArea className="flex-1">
-          <div className="p-5 flex flex-col gap-4">
+          <div className="p-5 flex flex-col gap-4 min-h-full">
+
             {msgs.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-2xl">🤖</div>
+              <div className="flex flex-col items-center justify-center gap-4 text-center py-16">
+                <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-3xl">🤖</div>
                 <div>
                   <p className="text-sm font-bold text-foreground mb-1">AYN Dev Agent</p>
                   <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
                     Describe what to fix or build. The agent reads your code, diagnoses the issue,
-                    writes the fix, commits to a feature branch, and deploys edge functions — all autonomously.
+                    writes the fix, and deploys — all autonomously.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-2 max-w-md w-full">
+                <div className="grid grid-cols-2 gap-2 max-w-sm w-full">
                   {PRESETS.slice(0, 4).map(p => (
-                    <button key={p.label} onClick={() => fire(p.prompt)}
-                      className="text-left text-[10px] text-muted-foreground hover:text-foreground border border-border hover:border-cyan-500/30 hover:bg-cyan-500/5 rounded-lg px-3 py-2 transition-all">
+                    <button
+                      key={p.label}
+                      onClick={() => fire(p.prompt)}
+                      className="text-left text-[10px] text-muted-foreground hover:text-foreground border border-border hover:border-cyan-500/30 hover:bg-muted/40 rounded-lg px-3 py-2 transition-all"
+                    >
                       {p.label}
                     </button>
                   ))}
@@ -253,7 +283,7 @@ export function DevAgentPanel() {
             {msgs.map(msg => (
               <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                 {msg.role === 'user' ? (
-                  <div className="max-w-[70%] bg-primary/10 border border-primary/20 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm text-foreground">
+                  <div className="max-w-[70%] bg-primary/10 border border-primary/20 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm">
                     {msg.text}
                   </div>
                 ) : (
@@ -264,27 +294,28 @@ export function DevAgentPanel() {
                       {running && msg.id === msgs[msgs.length - 1]?.id && (
                         <div className="flex gap-1">
                           {[0, 1, 2].map(i => (
-                            <span key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce"
-                              style={{ animationDelay: `${i * 0.15}s` }} />
+                            <span
+                              key={i}
+                              className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce"
+                              style={{ animationDelay: `${i * 0.15}s` }}
+                            />
                           ))}
                         </div>
                       )}
                     </div>
                     {msg.text ? (
-                      <div className="prose prose-sm prose-invert max-w-none text-[11px] leading-relaxed
-                        [&_code]:text-cyan-300 [&_code]:bg-cyan-500/10 [&_code]:border [&_code]:border-cyan-500/20 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[10px]
-                        [&_pre]:bg-black/60 [&_pre]:border [&_pre]:border-white/8 [&_pre]:rounded-xl [&_pre]:p-3
-                        [&_pre_code]:bg-transparent [&_pre_code]:border-0 [&_pre_code]:p-0
-                        [&_h1]:text-cyan-400 [&_h2]:text-cyan-400 [&_h3]:text-cyan-400
-                        [&_strong]:text-white [&_a]:text-cyan-400">
+                      <div className="text-sm text-foreground leading-relaxed [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_pre]:my-2 [&_pre]:text-xs [&_code]:text-cyan-400 [&_code]:bg-cyan-500/10 [&_code]:rounded [&_code]:px-1 [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:text-foreground/80 [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-semibold [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h1]:mt-3 [&_h2]:mt-3 [&_h3]:mt-2 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_li]:my-0.5 [&_a]:text-cyan-400 [&_a]:underline [&_strong]:text-white [&_p]:my-1">
                         <ReactMarkdown>{msg.text}</ReactMarkdown>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <div className="flex gap-1">
                           {[0, 1, 2].map(i => (
-                            <span key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-400/50 animate-bounce"
-                              style={{ animationDelay: `${i * 0.15}s` }} />
+                            <span
+                              key={i}
+                              className="w-1.5 h-1.5 rounded-full bg-cyan-400/50 animate-bounce"
+                              style={{ animationDelay: `${i * 0.15}s` }}
+                            />
                           ))}
                         </div>
                         Reading code and thinking...
@@ -294,11 +325,12 @@ export function DevAgentPanel() {
                 )}
               </div>
             ))}
+
             <div ref={bottomRef} />
           </div>
         </ScrollArea>
 
-        {/* Input */}
+        {/* Input bar */}
         <div className="p-4 border-t border-border bg-background/50 flex-shrink-0">
           <div className="flex gap-3 items-end">
             <Textarea
@@ -307,20 +339,25 @@ export function DevAgentPanel() {
               onKeyDown={handleKey}
               placeholder="Describe what to fix or build... (Enter to send, Shift+Enter for new line)"
               disabled={running}
-              className="flex-1 resize-none min-h-[42px] max-h-[140px] text-sm"
               rows={1}
-              onInput={(e: any) => {
-                e.target.style.height = 'auto';
-                e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
+              className="flex-1 resize-none min-h-[42px] max-h-36 text-sm"
+              onInput={(e: React.FormEvent<HTMLTextAreaElement>) => {
+                const el = e.currentTarget;
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 144) + 'px';
               }}
             />
-            <Button onClick={() => fire(input)} disabled={running || !input.trim()} size="sm"
-              className="h-[42px] w-[42px] p-0 flex-shrink-0">
+            <Button
+              onClick={() => fire(input)}
+              disabled={running || !input.trim()}
+              size="sm"
+              className="h-10 w-10 p-0 flex-shrink-0"
+            >
               <Send className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-[9px] text-muted-foreground/50 mt-2">
-            Agent reads before editing · GitHub changes go to feature branches · Edge functions deploy with instant rollback
+          <p className="text-[9px] text-muted-foreground/40 mt-2">
+            Commits to feature branches · Edge functions deploy with instant rollback · Needs ANTHROPIC_API_KEY + GITHUB_TOKEN in Supabase secrets
           </p>
         </div>
       </div>
