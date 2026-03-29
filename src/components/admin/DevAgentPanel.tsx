@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,11 @@ import ReactMarkdown from 'react-markdown';
 import {
   GitBranch, Database, ArrowUp, Plus, X,
   Zap, Code2, Trash2, Bot, MessageSquare,
-  PenSquare, ChevronLeft, Settings2, Sparkles,
+  PenSquare, Settings2, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const AGENT_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/ayn-dev-agent';
-const SUPA_URL  = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
 interface Repo { owner: string; repo: string }
 interface Msg  { role: 'user' | 'agent'; text: string; id: string }
@@ -47,23 +46,32 @@ const TypingIndicator = () => (
 
 type Tab = 'chat' | 'history' | 'skills';
 
+const categoryColor: Record<string, string> = {
+  coding: 'from-violet-500 to-purple-600',
+  design: 'from-pink-500 to-rose-600',
+  architecture: 'from-cyan-500 to-blue-600',
+  security: 'from-red-500 to-orange-600',
+  testing: 'from-green-500 to-emerald-600',
+  general: 'from-slate-500 to-gray-600',
+};
+
 export function DevAgentPanel() {
-  const [tab, setTab]           = useState<Tab>('chat');
-  const [repos, setRepos]       = useState<Repo[]>(() => getStored('ayn_dev_repos', []));
-  const [projects, setProjects] = useState<string[]>(() => getStored('ayn_dev_projs', ['dfkoxuokfkttjhfjcecx']));
-  const [ghToken, setGhToken]   = useState(() => getStored<string>('ayn_dev_ghtoken', ''));
-  const [msgs, setMsgs]         = useState<Msg[]>([]);
-  const [convId, setConvId]     = useState<string | null>(null);
+  const [tab, setTab]             = useState<Tab>('chat');
+  const [repos, setRepos]         = useState<Repo[]>(() => getStored('ayn_dev_repos', []));
+  const [projects, setProjects]   = useState<string[]>(() => getStored('ayn_dev_projs', ['dfkoxuokfkttjhfjcecx']));
+  const [ghToken, setGhToken]     = useState<string>(() => getStored('ayn_dev_ghtoken', ''));
+  const [msgs, setMsgs]           = useState<Msg[]>([]);
+  const [convId, setConvId]       = useState<string | null>(null);
   const [convTitle, setConvTitle] = useState('New conversation');
-  const [conversations, setConversations] = useState<Conv[]>([]);
-  const [skills, setSkills]     = useState<Skill[]>([]);
-  const [input, setInput]       = useState('');
-  const [running, setRunning]   = useState(false);
-  const [repoIn, setRepoIn]     = useState('');
-  const [projIn, setProjIn]     = useState('');
+  const [conversations, setConvs] = useState<Conv[]>([]);
+  const [skills, setSkills]       = useState<Skill[]>([]);
+  const [input, setInput]         = useState('');
+  const [running, setRunning]     = useState(false);
+  const [repoIn, setRepoIn]       = useState('');
+  const [projIn, setProjIn]       = useState('');
   const [showSetup, setShowSetup] = useState(false);
-  const scrollRef  = useRef<HTMLDivElement>(null);
-  const textRef    = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textRef   = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { try { localStorage.setItem('ayn_dev_repos', JSON.stringify(repos)); } catch {} }, [repos]);
   useEffect(() => { try { localStorage.setItem('ayn_dev_projs', JSON.stringify(projects)); } catch {} }, [projects]);
@@ -74,94 +82,54 @@ export function DevAgentPanel() {
       const el = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (el) el.scrollTop = el.scrollHeight;
     }
-  }, [msgs, running]);
+  }, [msgs]);
 
-  // Load conversations and skills on mount
-  useEffect(() => { loadConversations(); loadSkills(); }, []);
+  useEffect(() => { loadConvs(); loadSkills(); }, []);
 
-  const serviceHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return {
-      Authorization: `Bearer ${session?.access_token ?? ''}`,
-      apikey: session?.access_token ?? '',
-      'Content-Type': 'application/json',
-    };
-  };
-
-  const loadConversations = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?order=updated_at.desc&limit=50`, {
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
-    });
-    if (res.ok) setConversations(await res.json());
+  const loadConvs = async () => {
+    const { data } = await supabase
+      .from('ayn_dev_conversations')
+      .select('id, title, updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(50);
+    if (data) setConvs(data as Conv[]);
   };
 
   const loadSkills = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_skills?order=category`, {
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
-    });
-    if (res.ok) setSkills(await res.json());
+    const { data } = await supabase
+      .from('ayn_dev_skills')
+      .select('id, name, category, description, enabled')
+      .order('category');
+    if (data) setSkills(data as Skill[]);
   };
 
-  const loadConversation = async (id: string, title: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_messages?conversation_id=eq.${id}&order=created_at`, {
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
-    });
-    if (res.ok) {
-      const rows: Array<{ id: string; role: string; content: string }> = await res.json();
-      setMsgs(rows.map(r => ({ id: r.id, role: r.role as 'user' | 'agent', text: r.content })));
+  const loadConv = async (id: string, title: string) => {
+    const { data } = await supabase
+      .from('ayn_dev_messages')
+      .select('id, role, content')
+      .eq('conversation_id', id)
+      .order('created_at');
+    if (data) {
+      setMsgs(data.map((r: any) => ({ id: r.id, role: r.role, text: r.content })));
       setConvId(id);
       setConvTitle(title);
       setTab('chat');
     }
   };
 
-  const createConversation = async (firstMsg: string): Promise<string> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const title = firstMsg.slice(0, 60) + (firstMsg.length > 60 ? '...' : '');
-    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations`, {
-      method: 'POST',
-      headers: { ...(await serviceHeaders()), Prefer: 'return=representation', Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
-      body: JSON.stringify({ title }),
-    });
-    const [conv] = await res.json();
-    return conv.id;
-  };
-
-  const saveMessage = async (cid: string, role: string, content: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_messages`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: cid, role, content }),
-    });
-    // update conversation updated_at
-    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?id=eq.${cid}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updated_at: new Date().toISOString() }),
-    });
+  const saveMsg = async (cid: string, role: string, content: string) => {
+    await supabase.from('ayn_dev_messages').insert({ conversation_id: cid, role, content });
+    await supabase.from('ayn_dev_conversations').update({ updated_at: new Date().toISOString() }).eq('id', cid);
   };
 
   const toggleSkill = async (id: string, enabled: boolean) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_skills?id=eq.${id}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    });
+    await supabase.from('ayn_dev_skills').update({ enabled }).eq('id', id);
     setSkills(s => s.map(sk => sk.id === id ? { ...sk, enabled } : sk));
   };
 
-  const deleteConversation = async (id: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?id=eq.${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
-    });
-    setConversations(c => c.filter(x => x.id !== id));
+  const deleteConv = async (id: string) => {
+    await supabase.from('ayn_dev_conversations').delete().eq('id', id);
+    setConvs(c => c.filter(x => x.id !== id));
     if (convId === id) newChat();
   };
 
@@ -170,6 +138,7 @@ export function DevAgentPanel() {
     setConvId(null);
     setConvTitle('New conversation');
     setTab('chat');
+    setInput('');
   };
 
   const addRepo = () => {
@@ -193,20 +162,27 @@ export function DevAgentPanel() {
     const msg = text.trim();
     if (!msg || running) return;
     setInput('');
-    if (textRef.current) { textRef.current.style.height = 'auto'; }
+    if (textRef.current) textRef.current.style.height = 'auto';
 
-    // Create conversation if needed
+    // Create or reuse conversation
     let cid = convId;
     if (!cid) {
-      cid = await createConversation(msg);
+      const title = msg.slice(0, 60) + (msg.length > 60 ? '...' : '');
+      const { data } = await supabase
+        .from('ayn_dev_conversations')
+        .insert({ title })
+        .select('id')
+        .single();
+      if (!data) return;
+      cid = data.id;
       setConvId(cid);
-      setConvTitle(msg.slice(0, 60));
-      loadConversations();
+      setConvTitle(title);
+      loadConvs();
     }
 
     const uid = 'u' + Date.now();
     setMsgs(p => [...p, { role: 'user', text: msg, id: uid }]);
-    await saveMessage(cid, 'user', msg);
+    await saveMsg(cid, 'user', msg);
 
     setRunning(true);
     const aid = 'a' + Date.now();
@@ -216,19 +192,27 @@ export function DevAgentPanel() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
 
-      // Get enabled skill contents to inject
-      const enabledSkills = skills.filter(s => s.enabled).map(s => s.content).join('\n\n---\n\n');
+      // Build skills context
+      const enabledSkills = skills.filter(s => s.enabled).map(s => s.content ?? s.description).join('\n\n---\n\n');
 
       const res = await fetch(AGENT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: msg, repos, projects, github_token: ghToken, skills: enabledSkills, stream: true }),
+        body: JSON.stringify({
+          message: msg,
+          repos,
+          projects,
+          github_token: ghToken,
+          skills: enabledSkills,
+          stream: true,
+        }),
       });
 
       if (!res.ok || !res.body) {
         const err = await res.text().catch(() => `HTTP ${res.status}`);
-        setMsgs(p => p.map(m => m.id === aid ? { ...m, text: `**Error ${res.status}:** ${err}` } : m));
-        await saveMessage(cid, 'agent', `Error ${res.status}: ${err}`);
+        const errText = `**Error ${res.status}:** ${err}`;
+        setMsgs(p => p.map(m => m.id === aid ? { ...m, text: errText } : m));
+        await saveMsg(cid, 'agent', errText);
         return;
       }
 
@@ -245,15 +229,18 @@ export function DevAgentPanel() {
           if (payload === '[DONE]') break;
           try {
             const obj = JSON.parse(payload);
-            if (obj.text) { full += obj.text; setMsgs(p => p.map(m => m.id === aid ? { ...m, text: full } : m)); }
+            if (obj.text) {
+              full += obj.text;
+              setMsgs(p => p.map(m => m.id === aid ? { ...m, text: full } : m));
+            }
           } catch {}
         }
       }
 
-      await saveMessage(cid, 'agent', full);
-      loadConversations();
+      if (full) await saveMsg(cid, 'agent', full);
+      loadConvs();
     } catch (e: any) {
-      const errText = `**Error:** ${e?.message ?? 'Unknown'}`;
+      const errText = `**Error:** ${e?.message ?? 'Unknown error'}`;
       setMsgs(p => p.map(m => m.id === aid ? { ...m, text: errText } : m));
     } finally {
       setRunning(false);
@@ -271,20 +258,11 @@ export function DevAgentPanel() {
     el.style.height = Math.min(el.scrollHeight, 160) + 'px';
   };
 
-  const categoryColor: Record<string, string> = {
-    coding: 'from-violet-500 to-purple-600',
-    design: 'from-pink-500 to-rose-600',
-    architecture: 'from-cyan-500 to-blue-600',
-    security: 'from-red-500 to-orange-600',
-    testing: 'from-green-500 to-emerald-600',
-    general: 'from-slate-500 to-gray-600',
-  };
-
   return (
     <div className="space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
             <Code2 className="w-5 h-5 text-foreground" />
@@ -299,26 +277,24 @@ export function DevAgentPanel() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Tab buttons */}
-          <Button variant="ghost" size="sm" onClick={() => { setTab('chat'); }}
-            className={cn('gap-1.5', tab === 'chat' && 'bg-muted')}>
-            <MessageSquare className="w-3.5 h-3.5" />Chat
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setTab('history'); loadConversations(); }}
-            className={cn('gap-1.5', tab === 'history' && 'bg-muted')}>
-            <MessageSquare className="w-3.5 h-3.5" />History
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setTab('skills'); loadSkills(); }}
-            className={cn('gap-1.5', tab === 'skills' && 'bg-muted')}>
-            <Sparkles className="w-3.5 h-3.5" />Skills
-          </Button>
-          <Button variant="ghost" size="sm" onClick={newChat} className="gap-1.5">
-            <PenSquare className="w-3.5 h-3.5" />New chat
+        <div className="flex items-center gap-1 flex-wrap">
+          {(['chat', 'history', 'skills'] as Tab[]).map(t => (
+            <Button key={t} variant="ghost" size="sm"
+              onClick={() => { setTab(t); if (t === 'history') loadConvs(); if (t === 'skills') loadSkills(); }}
+              className={cn('gap-1.5 text-xs capitalize', tab === t && 'bg-muted')}>
+              {t === 'chat' && <MessageSquare className="w-3.5 h-3.5" />}
+              {t === 'history' && <MessageSquare className="w-3.5 h-3.5" />}
+              {t === 'skills' && <Sparkles className="w-3.5 h-3.5" />}
+              {t}
+            </Button>
+          ))}
+          <Button variant="ghost" size="sm" onClick={newChat} className="gap-1.5 text-xs">
+            <PenSquare className="w-3.5 h-3.5" />New
           </Button>
           {msgs.length > 0 && tab === 'chat' && (
-            <Button variant="ghost" size="sm" onClick={() => setMsgs([])} className="text-muted-foreground hover:text-foreground">
-              <Trash2 className="w-4 h-4 mr-2" />Clear
+            <Button variant="ghost" size="sm" onClick={() => setMsgs([])}
+              className="text-muted-foreground hover:text-foreground text-xs">
+              <Trash2 className="w-3.5 h-3.5 mr-1" />Clear
             </Button>
           )}
         </div>
@@ -326,42 +302,42 @@ export function DevAgentPanel() {
 
       <div className="flex gap-4 items-start">
 
-        {/* Left sidebar — connections */}
-        <div className="w-56 flex-shrink-0 space-y-3">
-          {/* Setup toggle */}
+        {/* Sidebar */}
+        <div className="w-52 flex-shrink-0 space-y-3">
+
+          {/* Connections */}
           <Card className="border border-border bg-card">
             <CardContent className="p-3">
               <button onClick={() => setShowSetup(v => !v)}
-                className="w-full flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <Settings2 className="w-3.5 h-3.5" />
-                <span className="font-medium uppercase tracking-wider text-[9px]">Connections</span>
-                <span className="ml-auto text-[9px]">{showSetup ? '▲' : '▼'}</span>
+                className="w-full flex items-center gap-2 text-[9px] font-bold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+                <Settings2 className="w-3 h-3" />Connections
+                <span className="ml-auto">{showSetup ? '▲' : '▼'}</span>
               </button>
 
               {showSetup && (
-                <div className="mt-3 space-y-3">
+                <div className="mt-3 space-y-3 pt-3 border-t border-border/50">
                   {/* GitHub Repos */}
                   <div>
-                    <div className="flex items-center gap-1.5 mb-2">
+                    <div className="flex items-center gap-1 mb-1.5">
                       <GitBranch className="w-3 h-3 text-muted-foreground" />
                       <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Repos</span>
                     </div>
                     {repos.map((r, i) => (
-                      <div key={i} className="flex items-center gap-1.5 bg-muted rounded px-2 py-1 mb-1 group">
-                        <span className="text-[9px] flex-1 truncate">{r.owner}/{r.repo}</span>
+                      <div key={i} className="flex items-center gap-1 bg-muted rounded px-2 py-1 mb-1 group text-[9px]">
+                        <span className="flex-1 truncate">{r.owner}/{r.repo}</span>
                         <button onClick={() => setRepos(p => p.filter((_, j) => j !== i))}
                           className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground">
-                          <X className="w-3 h-3" />
+                          <X className="w-2.5 h-2.5" />
                         </button>
                       </div>
                     ))}
-                    <div className="flex gap-1 mt-1">
+                    <div className="flex gap-1">
                       <input value={repoIn} onChange={e => setRepoIn(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addRepo()}
                         placeholder="owner/repo"
-                        className="flex-1 min-w-0 text-[9px] bg-muted/50 border border-border rounded px-2 py-1 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/50"
+                        className="flex-1 min-w-0 text-[9px] bg-muted/50 border border-border rounded px-2 py-1 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/40 text-foreground"
                       />
-                      <button onClick={addRepo} className="p-1 bg-muted border border-border rounded hover:bg-muted/80">
+                      <button onClick={addRepo} className="p-1 bg-muted border border-border rounded hover:bg-muted/80 text-foreground">
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
@@ -369,35 +345,35 @@ export function DevAgentPanel() {
 
                   {/* GitHub Token */}
                   <div>
-                    <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GitHub Token</div>
+                    <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">GitHub Token</div>
                     <input type="password" value={ghToken} onChange={e => setGhToken(e.target.value)}
                       placeholder="ghp_xxxxxxxxxxxx"
-                      className="w-full text-[9px] bg-muted/50 border border-border rounded px-2 py-1 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/50"
+                      className="w-full text-[9px] bg-muted/50 border border-border rounded px-2 py-1 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/40 text-foreground"
                     />
                   </div>
 
                   {/* Supabase */}
                   <div>
-                    <div className="flex items-center gap-1.5 mb-2">
+                    <div className="flex items-center gap-1 mb-1.5">
                       <Database className="w-3 h-3 text-muted-foreground" />
                       <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Supabase</span>
                     </div>
                     {projects.map(p => (
-                      <div key={p} className="flex items-center gap-1.5 bg-muted rounded px-2 py-1 mb-1 group">
-                        <span className="text-[9px] flex-1 truncate">{p}</span>
+                      <div key={p} className="flex items-center gap-1 bg-muted rounded px-2 py-1 mb-1 group text-[9px]">
+                        <span className="flex-1 truncate">{p}</span>
                         <button onClick={() => setProjects(prev => prev.filter(x => x !== p))}
                           className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground">
-                          <X className="w-3 h-3" />
+                          <X className="w-2.5 h-2.5" />
                         </button>
                       </div>
                     ))}
-                    <div className="flex gap-1 mt-1">
+                    <div className="flex gap-1">
                       <input value={projIn} onChange={e => setProjIn(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addProj()}
                         placeholder="project-ref"
-                        className="flex-1 min-w-0 text-[9px] bg-muted/50 border border-border rounded px-2 py-1 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/50"
+                        className="flex-1 min-w-0 text-[9px] bg-muted/50 border border-border rounded px-2 py-1 outline-none focus:border-foreground/30 placeholder:text-muted-foreground/40 text-foreground"
                       />
-                      <button onClick={addProj} className="p-1 bg-muted border border-border rounded hover:bg-muted/80">
+                      <button onClick={addProj} className="p-1 bg-muted border border-border rounded hover:bg-muted/80 text-foreground">
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
@@ -410,25 +386,27 @@ export function DevAgentPanel() {
           {/* Quick Tasks */}
           <Card className="border border-border bg-card">
             <CardContent className="p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Zap className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Quick Tasks</span>
+              <div className="flex items-center gap-1 mb-2">
+                <Zap className="w-3 h-3 text-muted-foreground" />
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Quick Tasks</span>
               </div>
               {PRESETS.map(p => (
-                <button key={p.label} onClick={() => { setTab('chat'); fire(p.prompt); }} disabled={running}
-                  className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors mb-0.5 disabled:opacity-40 group">
-                  <span className="text-sm">{p.icon}</span>
-                  <span className="text-[9px] text-muted-foreground group-hover:text-foreground transition-colors">{p.label}</span>
+                <button key={p.label}
+                  onClick={() => { setTab('chat'); fire(p.prompt); }}
+                  disabled={running}
+                  className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted transition-colors mb-0.5 disabled:opacity-40 group">
+                  <span className="text-xs">{p.icon}</span>
+                  <span className="text-[9px] text-muted-foreground group-hover:text-foreground">{p.label}</span>
                 </button>
               ))}
             </CardContent>
           </Card>
         </div>
 
-        {/* Right — main content */}
+        {/* Main content */}
         <div className="flex-1 min-w-0">
 
-          {/* CHAT TAB */}
+          {/* CHAT */}
           {tab === 'chat' && (
             <Card className="border border-border bg-card overflow-hidden">
               <CardContent className="p-0">
@@ -449,7 +427,7 @@ export function DevAgentPanel() {
                           {PRESETS.slice(0, 4).map(p => (
                             <button key={p.label} onClick={() => fire(p.prompt)}
                               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted border border-border hover:bg-muted/80 transition-colors text-sm">
-                              <span>{p.icon}</span><span>{p.label}</span>
+                              <span>{p.icon}</span><span className="text-xs">{p.label}</span>
                             </button>
                           ))}
                         </div>
@@ -489,13 +467,19 @@ export function DevAgentPanel() {
                 <div className="p-3 border-t border-border">
                   <div className="relative bg-muted/50 border border-border rounded-xl overflow-hidden">
                     <div className="flex items-end gap-2 p-2">
-                      <Textarea ref={textRef} placeholder="Ask the agent to fix something, read code, or diagnose an issue..."
-                        value={input} onChange={handleTextareaChange} onKeyDown={handleKeyPress} disabled={running}
+                      <Textarea
+                        ref={textRef}
+                        placeholder="Ask the agent to fix something, read code, or diagnose an issue..."
+                        value={input}
+                        onChange={handleTextareaChange}
+                        onKeyDown={handleKeyPress}
+                        disabled={running}
                         className="flex-1 resize-none min-h-[44px] max-h-[160px] text-sm bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 py-2"
                       />
                       <AnimatePresence>
                         {input.trim() && !running && (
-                          <motion.button initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+                          <motion.button
+                            initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
                             onClick={() => fire(input)}
                             className="shrink-0 w-9 h-9 rounded-lg bg-foreground text-background flex items-center justify-center hover:opacity-90 transition-opacity">
                             <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
@@ -512,14 +496,14 @@ export function DevAgentPanel() {
             </Card>
           )}
 
-          {/* HISTORY TAB */}
+          {/* HISTORY */}
           {tab === 'history' && (
             <Card className="border border-border bg-card">
               <CardContent className="p-0">
                 <div className="p-3 border-b border-border flex items-center justify-between">
                   <span className="text-sm font-semibold">Conversation History</span>
                   <Button variant="ghost" size="sm" onClick={newChat} className="gap-1.5 text-xs">
-                    <PenSquare className="w-3.5 h-3.5" /> New Chat
+                    <PenSquare className="w-3.5 h-3.5" />New Chat
                   </Button>
                 </div>
                 <ScrollArea className="h-[520px]">
@@ -534,7 +518,7 @@ export function DevAgentPanel() {
                         <div key={conv.id}
                           className={cn('flex items-center gap-2 px-3 py-2.5 rounded-lg group cursor-pointer hover:bg-muted transition-colors',
                             convId === conv.id && 'bg-muted border border-border')}
-                          onClick={() => loadConversation(conv.id, conv.title)}>
+                          onClick={() => loadConv(conv.id, conv.title)}>
                           <MessageSquare className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm truncate">{conv.title}</p>
@@ -542,7 +526,7 @@ export function DevAgentPanel() {
                               {new Date(conv.updated_at).toLocaleDateString()}
                             </p>
                           </div>
-                          <button onClick={e => { e.stopPropagation(); deleteConversation(conv.id); }}
+                          <button onClick={e => { e.stopPropagation(); deleteConv(conv.id); }}
                             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 flex-shrink-0">
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -555,21 +539,29 @@ export function DevAgentPanel() {
             </Card>
           )}
 
-          {/* SKILLS TAB */}
+          {/* SKILLS */}
           {tab === 'skills' && (
             <Card className="border border-border bg-card">
               <CardContent className="p-0">
                 <div className="p-3 border-b border-border">
                   <p className="text-sm font-semibold">Agent Skills</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Toggle skills to inject domain knowledge into the agent. Enabled skills are included in every prompt.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Toggle skills to inject domain knowledge into the agent. Enabled skills are included in every prompt.
+                  </p>
                 </div>
                 <ScrollArea className="h-[520px]">
                   <div className="p-3 space-y-3">
+                    {skills.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                        <Sparkles className="w-8 h-8 text-muted-foreground/40" />
+                        <p className="text-sm text-muted-foreground">No skills loaded</p>
+                      </div>
+                    )}
                     {skills.map(skill => (
                       <div key={skill.id} className={cn('rounded-xl border p-4 transition-all',
-                        skill.enabled ? 'border-border bg-muted/30' : 'border-border/50 bg-muted/10 opacity-60')}>
+                        skill.enabled ? 'border-border bg-muted/30' : 'border-border/40 bg-muted/10 opacity-60')}>
                         <div className="flex items-start gap-3">
-                          <div className={cn('w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 text-white text-xs font-bold',
+                          <div className={cn('w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold',
                             categoryColor[skill.category] ?? categoryColor.general)}>
                             {skill.category.slice(0, 2).toUpperCase()}
                           </div>
@@ -582,7 +574,7 @@ export function DevAgentPanel() {
                           </div>
                           {/* Toggle */}
                           <button onClick={() => toggleSkill(skill.id, !skill.enabled)}
-                            className={cn('w-10 h-5 rounded-full transition-colors flex-shrink-0 relative',
+                            className={cn('w-10 h-5 rounded-full transition-colors flex-shrink-0 relative mt-0.5',
                               skill.enabled ? 'bg-foreground' : 'bg-muted border border-border')}>
                             <span className={cn('absolute top-0.5 w-4 h-4 rounded-full transition-all',
                               skill.enabled ? 'bg-background right-0.5' : 'bg-muted-foreground left-0.5')} />
