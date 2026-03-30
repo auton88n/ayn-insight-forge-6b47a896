@@ -147,7 +147,7 @@ serve(async (req) => {
           method: 'POST',
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'google/gemini-3-flash-preview',
             messages: [{
               role: 'user',
               content: `Based on these successful hooks: ${ourAnalysis.best_hooks.join(', ')}\n\nGive me ONE 3-word phrase for a bold branded image. Just the 3 words, nothing else.`,

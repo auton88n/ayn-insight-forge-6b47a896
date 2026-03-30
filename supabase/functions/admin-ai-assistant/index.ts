@@ -5,7 +5,7 @@ import { getEmployeePersonality, getAgentDisplayName, getAgentEmoji } from "../_
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 // Admin AI system prompt with security boundaries
@@ -125,7 +125,7 @@ Perfect! Here is your NDA summary...
         method: 'POST',
         headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'google/gemini-3-flash-preview',
           messages: [{ role: 'system', content: systemPrompt }, ...messages],
         }),
       });
@@ -444,7 +444,8 @@ Perfect! Here is your NDA summary...
           details: { input_preview: message.slice(0, 200), function: 'admin-ai-assistant' },
           severity: 'high'
         })
-        .then(() => {});
+        .then(() => {})
+        .catch(() => {});
     }
 
     // ─── Agent-Specific Response ───
@@ -466,7 +467,7 @@ Perfect! Here is your NDA summary...
       const agentResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'google/gemini-2.5-flash', messages: agentMessages }),
+        body: JSON.stringify({ model: 'google/gemini-3-flash-preview', messages: agentMessages }),
       });
 
       if (!agentResponse.ok) {
@@ -535,7 +536,7 @@ Admin question: ${sanitizedMessage}`
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         messages,
         max_tokens: 300,
       }),

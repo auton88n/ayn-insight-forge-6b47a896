@@ -19,7 +19,6 @@ import SupportManagement from '@/components/admin/SupportManagement';
 import { GoogleAnalytics } from '@/components/admin/GoogleAnalytics';
 import { AICostDashboard } from '@/components/admin/AICostDashboard';
 import { UserAILimits } from '@/components/admin/UserAILimits';
-import { DevAgentPanel } from '@/components/admin/DevAgentPanel';
 import { AdminAIAssistant } from '@/components/admin/AdminAIAssistant';
 import TestResultsDashboard from '@/components/admin/TestResultsDashboard';
 import { SubscriptionManagement } from '@/components/admin/SubscriptionManagement';
@@ -123,78 +122,111 @@ export const AdminPanel = ({
     sessionTimeout: 30
   });
 
+  // Direct REST API fetch
+  const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+    const token = session.access_token;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+    return JSON.parse(text);
+  }, [session.access_token]);
+
+  // Fetch with retry logic
+  const fetchWithRetry = useCallback(async (endpoint: string, retries = 1): Promise<unknown[]> => {
+    try {
+      return await fetchWithAuth(endpoint);
+    } catch (error) {
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 500));
+        return fetchWithRetry(endpoint, retries - 1);
+      }
+      if (import.meta.env.DEV) {
+        console.error(`Failed to fetch ${endpoint}:`, error);
+      }
+      return [];
+    }
+  }, [fetchWithAuth]);
+
   const fetchData = useCallback(async () => {
     try {
-      // Use supabase JS client for all queries — it properly sends the JWT and
-      // triggers admin RLS policies (has_role / user_roles EXISTS checks).
-      // Raw REST fetch was bypassing RLS context causing empty names and missing data.
-      const [
-        accessGrantsRes,
-        adminUsersRes,
-        messagesTodayRes,
-        configRes,
-        applicationsRes,
-      ] = await Promise.allSettled([
-        supabase.from('access_grants').select('*').order('created_at', { ascending: false }),
-        supabase.from('admin_users_view').select('id,email,display_name,auth_provider,avatar_url,contact_person,company_name,is_active,signed_up_at,last_sign_in_at,subscription_tier,subscription_status,total_messages,messages_7d,messages_30d,last_active_at,days_since_last_use,is_unlimited,monthly_messages,current_monthly_messages,bonus_credits,role'),
-        supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString()),
-        supabase.from('system_config').select('key,value'),
-        supabase.from('service_applications').select('*').order('created_at', { ascending: false }),
+      const results = await Promise.allSettled([
+        fetchWithRetry('access_grants?select=*&order=created_at.desc'),
+        fetchWithRetry('profiles?select=user_id,company_name,contact_person,avatar_url'),
+        fetchWithRetry(`messages?select=id&created_at=gte.${new Date(new Date().setHours(0,0,0,0)).toISOString()}`),
+        fetchWithRetry('system_config?select=key,value'),
+        fetchWithRetry('service_applications?select=*&order=created_at.desc'),
+        fetchWithRetry('admin_users_view?select=id,email,display_name,auth_provider,avatar_url')
       ]);
 
-      const accessGrantsData = accessGrantsRes.status === 'fulfilled' ? (accessGrantsRes.value.data || []) as AccessGrantWithProfile[] : [];
-      const enrichedUsers = adminUsersRes.status === 'fulfilled' ? (adminUsersRes.value.data || []) as { id: string; email: string; display_name: string; auth_provider: string; avatar_url: string | null; contact_person: string | null; company_name: string | null; is_active: boolean | null; }[] : [];
-      const todayMessageCount = messagesTodayRes.status === 'fulfilled' ? (messagesTodayRes.value.count || 0) : 0;
-      const configData = configRes.status === 'fulfilled' ? (configRes.value.data || []) as { key: string; value: unknown; }[] : [];
-      const applicationsData = applicationsRes.status === 'fulfilled' ? (applicationsRes.value.data || []) as ServiceApplication[] : [];
-
+      const usersData = results[0].status === 'fulfilled' ? results[0].value as AccessGrantWithProfile[] : [];
+      const profilesData = results[1].status === 'fulfilled' ? results[1].value as {
+        user_id: string;
+        company_name: string | null;
+        contact_person: string | null;
+        avatar_url: string | null;
+      }[] : [];
+      const messagesData = results[2].status === 'fulfilled' ? results[2].value as { id: string; }[] : [];
+      const configData = results[3].status === 'fulfilled' ? results[3].value as { key: string; value: unknown; }[] : [];
+      const applicationsData = results[4].status === 'fulfilled' ? results[4].value as ServiceApplication[] : [];
+      const enrichedUsers = results[5].status === 'fulfilled' ? results[5].value as { id: string; email: string; display_name: string; auth_provider: string; avatar_url: string | null }[] : [];
       const enrichedMap = new Map(enrichedUsers.map(u => [u.id, u]));
 
       // Security: Log access to service applications
       if (applicationsData.length > 0) {
         supabase.from('security_logs').insert({
           action: 'service_applications_view',
-          details: { count: applicationsData.length, timestamp: new Date().toISOString() },
+          details: { 
+            count: applicationsData.length,
+            timestamp: new Date().toISOString()
+          },
           severity: 'high'
         });
       }
 
-      // Build users list: merge access_grants with enriched admin_users_view data
-      const usersWithProfiles: AccessGrantWithProfile[] = accessGrantsData.map((user: AccessGrantWithProfile) => {
+      // Security: Log admin bulk access to profiles
+      if (profilesData.length > 0) {
+        supabase.from('security_logs').insert({
+          action: 'admin_profiles_bulk_access',
+          details: {
+            count: profilesData.length,
+            context: 'admin_panel',
+            timestamp: new Date().toISOString()
+          },
+          severity: 'high'
+        });
+      }
+
+      const profilesMap = new Map(profilesData.map(p => [p.user_id, p]));
+      const usersWithProfiles: AccessGrantWithProfile[] = usersData.map((user: AccessGrantWithProfile) => {
         const enriched = enrichedMap.get(user.user_id);
+        const profile = profilesMap.get(user.user_id) || null;
         return {
           ...user,
+          profiles: profile,
           user_email: enriched?.email || user.user_email,
-          profiles: {
-            company_name: enriched?.company_name || null,
-            contact_person: enriched?.contact_person || enriched?.display_name || enriched?.email?.split('@')[0] || null,
-            avatar_url: enriched?.avatar_url || null,
-          },
+          // Merge display name into profile if profile is missing
+          ...(profile === null && enriched ? {
+            profiles: {
+              company_name: null,
+              contact_person: enriched.display_name || enriched.email?.split('@')[0] || null,
+              avatar_url: enriched.avatar_url || null
+            }
+          } : {})
         };
       });
-
-      // If admin_users_view returned users not in access_grants, include them too
-      enrichedUsers.forEach(enriched => {
-        if (!usersWithProfiles.find(u => u.user_id === enriched.id)) {
-          usersWithProfiles.push({
-            id: enriched.id,
-            user_id: enriched.id,
-            is_active: enriched.is_active ?? false,
-            granted_at: null,
-            expires_at: null,
-            current_month_usage: null,
-            monthly_limit: null,
-            created_at: new Date().toISOString(),
-            user_email: enriched.email,
-            profiles: {
-              company_name: enriched.company_name || null,
-              contact_person: enriched.contact_person || enriched.display_name || enriched.email?.split('@')[0] || null,
-              avatar_url: enriched.avatar_url || null,
-            },
-          });
-        }
-      });
-
       setAllUsers(usersWithProfiles);
       setApplications(applicationsData);
 
@@ -204,8 +236,8 @@ export const AdminPanel = ({
         totalUsers: usersWithProfiles.length,
         activeUsers: activeCount,
         pendingUsers: pendingCount,
-        todayMessages: todayMessageCount,
-        weeklyGrowth: 0,
+        todayMessages: messagesData.length,
+        weeklyGrowth: 0
       });
 
       if (configData.length > 0) {
@@ -221,7 +253,7 @@ export const AdminPanel = ({
           defaultMonthlyLimit: configMap.get('default_monthly_limit') as number || 100,
           requireApproval: configMap.get('require_approval') as boolean ?? true,
           maxLoginAttempts: configMap.get('max_login_attempts') as number || 5,
-          sessionTimeout: configMap.get('session_timeout') as number || 30,
+          sessionTimeout: configMap.get('session_timeout') as number || 30
         }));
       }
     } catch (error) {
@@ -233,7 +265,7 @@ export const AdminPanel = ({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [fetchWithRetry]);
 
   // Lock body scroll when admin panel is mounted
   useLayoutEffect(() => {
@@ -438,7 +470,6 @@ export const AdminPanel = ({
                     {activeTab === 'ai-costs' && <AICostDashboard key={refreshKey} />}
                     {activeTab === 'ai-limits' && <UserAILimits key={refreshKey} />}
                     {activeTab === 'ai-assistant' && <AdminAIAssistant key={refreshKey} />}
-                    {activeTab === 'dev-agent' && <DevAgentPanel key={refreshKey} />}
                     {activeTab === 'subscriptions' && <SubscriptionManagement key={refreshKey} />}
                     {activeTab === 'credit-history' && <CreditGiftHistory key={refreshKey} />}
                     {activeTab === 'beta-feedback' && <BetaFeedbackViewer key={refreshKey} />}

@@ -101,7 +101,7 @@ export const supabaseApi = {
           'Authorization': `Bearer ${token}`,
           'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
-          'Prefer': method === 'GET' ? 'return=representation' : 'return=representation',
+          'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal',
           ...headers,
         },
         body: body ? JSON.stringify(body) : undefined,

@@ -365,7 +365,7 @@ serve(async (req) => {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ model: 'google/gemini-2.5-flash', messages }),
+      body: JSON.stringify({ model: 'google/gemini-3-flash-preview', messages }),
     });
 
     if (!aiResponse.ok) {
@@ -434,7 +434,7 @@ serve(async (req) => {
         const retryRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
           method: 'POST',
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'google/gemini-2.5-flash', messages: retryMessages }),
+          body: JSON.stringify({ model: 'google/gemini-3-flash-preview', messages: retryMessages }),
         });
         
         if (retryRes.ok) {
@@ -624,7 +624,7 @@ async function handlePhoto(
       method: 'POST',
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         messages: [{
           role: 'system',
           content: 'You are AYN, analyzing an image sent by the founder on Telegram. Be concise, insightful, and actionable. If it\'s a screenshot of the app or dashboard, comment on UX/data. If it\'s anything else, describe what you see and offer your take.',
@@ -748,7 +748,7 @@ async function handleDocument(
     const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'google/gemini-2.5-flash', messages: aiMessages }),
+      body: JSON.stringify({ model: 'google/gemini-3-flash-preview', messages: aiMessages }),
     });
 
     if (!aiRes.ok) {
@@ -816,7 +816,7 @@ async function handleVoice(
       method: 'POST',
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: 'You are AYN, receiving a voice message from the founder on Telegram. First transcribe what they said, then respond naturally. Format: start with "🎙️ [transcription]" then your response below.' },
           { role: 'user', content: [

@@ -361,7 +361,7 @@ serve(async (req) => {
             method: 'POST',
             headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'google/gemini-2.5-flash',
+              model: 'google/gemini-3-flash-preview',
               messages: [{
                 role: 'system',
                 content: `You are AYN's creative brain. Generate ONE actionable business idea for growing AYN's client base or improving the platform. Be specific and creative — not generic advice.`,
@@ -424,7 +424,7 @@ serve(async (req) => {
           method: 'POST',
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'google/gemini-3-flash-preview',
             messages: [{
               role: 'system',
               content: `You are AYN, texting your boss/partner on Telegram. Write a SHORT casual message about what you just did in your latest check-in cycle.

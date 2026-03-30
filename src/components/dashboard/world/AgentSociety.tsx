@@ -288,7 +288,7 @@ function AgentNode3D({ agent, state, isSelected, isHovered, onClick, onHover }: 
       </mesh>
 
       {/* Intense bright inner core */}
-      <mesh raycast={() => null}>
+      <mesh pointerEvents="none">
         <sphereGeometry args={[0.06, 16, 16]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>

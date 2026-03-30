@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { FileCheck, CheckCircle2, XCircle, Search, Users } from 'lucide-react';
+import { supabaseApi } from '@/lib/supabaseApi';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
@@ -31,18 +32,23 @@ export const TermsConsentViewer = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [consentRes, usersRes] = await Promise.all([
-        supabase.from('terms_consent_log').select('*').order('accepted_at', { ascending: false }),
-        supabase.from('admin_users_view').select('id,display_name,email,contact_person,company_name'),
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const [consentData, profilesData] = await Promise.all([
+        supabaseApi.get<ConsentRecord[]>(
+          'terms_consent_log?select=*&order=accepted_at.desc',
+          session.access_token
+        ),
+        supabaseApi.get<ProfileInfo[]>(
+          'admin_users_view?select=id,display_name,email',
+          session.access_token
+        ),
       ]);
 
-      setRecords(consentRes.data || []);
+      setRecords(consentData || []);
       const map = new Map<string, ProfileInfo>();
-      (usersRes.data || []).forEach((p: any) => map.set(p.id, {
-        user_id: p.id,
-        contact_person: p.contact_person || p.display_name || null,
-        company_name: p.company_name || p.email || null,
-      }));
+      (profilesData || []).forEach((p: any) => map.set(p.id, { user_id: p.id, contact_person: p.display_name, company_name: p.email }));
       setProfiles(map);
     } catch (err) {
       console.error('Failed to fetch consent logs:', err);

@@ -400,7 +400,7 @@ Deno.serve(async (req) => {
     for (let i = 0; i < endpointsToTest.length; i += concurrency) {
       const batch = endpointsToTest.slice(i, i + concurrency);
       const batchResults = await Promise.all(
-        batch.map((endpoint: string) => testEndpoint(endpoint))
+        batch.map(endpoint => testEndpoint(endpoint))
       );
       
       for (let j = 0; j < batch.length; j++) {
@@ -408,11 +408,11 @@ Deno.serve(async (req) => {
         const results = batchResults[j];
         allResults.push(...results);
         
-        const passed = results.filter((r: any) => r.passed).length;
-        const failed = results.filter((r: any) => !r.passed).length;
-        const avgDuration = results.reduce((a: number, r: any) => a + r.duration_ms, 0) / results.length;
+        const passed = results.filter(r => r.passed).length;
+        const failed = results.filter(r => !r.passed).length;
+        const avgDuration = results.reduce((a, r) => a + r.duration_ms, 0) / results.length;
         
-        const byCategory = results.reduce((acc: Record<string, { passed: number; failed: number }>, r: any) => {
+        const byCategory = results.reduce((acc, r) => {
           if (!acc[r.category]) acc[r.category] = { passed: 0, failed: 0 };
           acc[r.category][r.passed ? 'passed' : 'failed']++;
           return acc;

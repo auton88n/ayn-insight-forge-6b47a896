@@ -205,22 +205,10 @@ export default function AdminApp() {
   }, []);
 
   const checkAdmin = async (s: Session) => {
-    const attempt = async () => {
-      const { data, error } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
-      if (error) throw error;
-      return data?.role === 'admin';
-    };
     try {
-      const isAdmin = await attempt();
-      setStep(isAdmin ? 'ready' : 'denied');
-    } catch {
-      // Retry once after a short delay — transient errors shouldn't lock out the admin
-      try {
-        await new Promise(r => setTimeout(r, 1000));
-        const isAdmin = await attempt();
-        setStep(isAdmin ? 'ready' : 'denied');
-      } catch { setStep('denied'); }
-    }
+      const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).single();
+      setStep(data?.role === 'admin' ? 'ready' : 'denied');
+    } catch { setStep('denied'); }
   };
 
   const handlePinSuccess = () => {

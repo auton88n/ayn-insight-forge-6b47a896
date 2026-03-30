@@ -285,7 +285,7 @@ serve(async (req) => {
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'google/gemini-2.5-flash', messages }),
+      body: JSON.stringify({ model: 'google/gemini-3-flash-preview', messages }),
     });
 
     if (!aiResponse.ok) {
@@ -555,7 +555,7 @@ async function handleCreatorVoice(
     const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'google/gemini-2.5-flash', messages }),
+      body: JSON.stringify({ model: 'google/gemini-3-flash-preview', messages }),
     });
 
     if (!aiRes.ok) {
@@ -636,7 +636,7 @@ async function handleCreatorPhoto(
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         messages: [
           { role: 'system', content: 'You\'re AYN, looking at an image the creator sent. Give sharp feedback: scroll-stop factor, brand fit (AYN = black/white, minimal, bold), what works, what to fix. Be direct.' },
           { role: 'user', content: [
@@ -847,7 +847,7 @@ async function pruneMarketingHistory(supabase: any, apiKey: string) {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'google/gemini-3-flash-preview',
       messages: [
         {
           role: 'system',

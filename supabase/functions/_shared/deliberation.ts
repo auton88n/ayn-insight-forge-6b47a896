@@ -132,7 +132,7 @@ Respond as JSON: {"position":"...","reasoning":"...","objections":"...","confide
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'google/gemini-3-flash-preview',
             messages: [{ role: 'user', content: prompt }],
             response_format: { type: 'json_object' },
           }),
