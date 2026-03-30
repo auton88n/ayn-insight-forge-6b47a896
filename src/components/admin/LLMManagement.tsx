@@ -69,31 +69,24 @@ export function LLMManagement() {
 
   const fetchModels = async () => {
     try {
-      const { data, error } = await supabase
-        .from('llm_models')
-        .select('*')
-        .order('intent_type')
-        .order('priority');
-
+      const { data, error } = await supabase.rpc('get_admin_llm_management');
       if (error) throw error;
-      setModels(data || []);
+      const d = data as any;
 
-      // Fetch health data
-      const { data: usageLogs } = await supabase
-        .from('llm_usage_logs')
-        .select('model_id, was_fallback, created_at')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      const modelsData: LLMModel[] = d?.models || [];
+      setModels(modelsData);
 
-      const { data: failures } = await supabase
-        .from('llm_failures')
-        .select('model_id, created_at')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      const usageLogs: { model_id: string | null; was_fallback: boolean; created_at: string }[] = d?.recent_logs || [];
+      const failures: { model_id: string | null; created_at: string }[] = d?.failures || [];
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const recentLogs = usageLogs.filter(l => l.created_at >= cutoff);
+      const recentFailures = failures.filter(f => f.created_at >= cutoff);
 
       // Calculate health per model
       const health: Record<string, ModelHealth> = {};
-      (data || []).forEach((model: LLMModel) => {
-        const modelUsage = (usageLogs || []).filter((l: { model_id: string | null }) => l.model_id === model.id);
-        const modelFailures = (failures || []).filter((f: { model_id: string | null }) => f.model_id === model.id);
+      modelsData.forEach((model: LLMModel) => {
+        const modelUsage = recentLogs.filter(l => l.model_id === model.id);
+        const modelFailures = recentFailures.filter(f => f.model_id === model.id);
         const total = modelUsage.length + modelFailures.length;
         
         health[model.id] = {

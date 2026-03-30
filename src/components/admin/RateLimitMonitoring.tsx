@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Session } from '@supabase/supabase-js';
-import { supabaseApi } from '@/lib/supabaseApi';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,14 +58,14 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const data = await supabaseApi.rpc<RateLimitStat[]>('get_rate_limit_stats', session.access_token);
-      const statsData = data || [];
-      // Enrich with user names (skip internal service IDs like 'support-bot')
+      const { data, error } = await supabase.rpc('get_admin_rate_limit_stats');
+      if (error) throw error;
+      const statsData: RateLimitStat[] = Array.isArray(data) ? data : [];
+      // Enrich with user names
       const userIds = statsData.map(s => s.user_id).filter(id => id && id.includes('-'));
       if (userIds.length > 0) {
         const { data: allUsers } = await supabase.rpc('get_admin_users');
-        const users = (allUsers || []).filter((u: any) => userIds.includes(u.id));
-        const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+        const userMap = new Map((allUsers as any[] || []).map((u: any) => [u.id, u]));
         statsData.forEach(s => {
           const u = userMap.get(s.user_id) as any;
           if (u) { s.user_name = u.display_name; s.user_email = u.email; }
@@ -80,7 +79,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [session.access_token]);
+  }, []);
 
   useEffect(() => {
     fetchStats();
@@ -90,10 +89,11 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   const handleUnblock = async (userId: string, endpoint: string) => {
     try {
-      await supabaseApi.rpc('admin_unblock_user', session.access_token, {
+      const { error } = await supabase.rpc('admin_unblock_user', {
         p_user_id: userId,
         p_endpoint: endpoint
       });
+      if (error) throw error;
       toast.success('User unblocked');
       fetchStats();
     } catch (error) {

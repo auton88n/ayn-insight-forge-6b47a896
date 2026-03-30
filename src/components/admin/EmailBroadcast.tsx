@@ -28,11 +28,9 @@ export const EmailBroadcast = () => {
   const loadRecipients = useCallback(async (seg: Segment) => {
     setLoadingRecipients(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_users_view')
-        .select('email, display_name, subscription_tier, total_messages, messages_7d, messages_30d');
+      const { data, error } = await supabase.rpc('get_admin_email_broadcast_users');
       if (error) throw error;
-      const all = (data || []) as any[];
+      const all = (Array.isArray(data) ? data : []) as any[];
       let filtered = all;
       if (seg === 'active') filtered = all.filter(u => (u.messages_7d ?? 0) > 0);
       else if (seg === 'inactive') filtered = all.filter(u => (u.total_messages ?? 0) > 0 && (u.messages_30d ?? 0) === 0);

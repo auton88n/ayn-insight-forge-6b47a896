@@ -178,8 +178,8 @@ export const NDAManager = () => {
 
   const fetchNDAs = async () => {
     setLoading(true);
-    const { data } = await supabase.from('nda_agreements').select('*').order('created_at', { ascending: false });
-    setNdas((data || []) as unknown as NDA[]);
+    const { data, error } = await supabase.rpc('get_admin_nda_agreements');
+    if (!error) setNdas((Array.isArray(data) ? data : []) as unknown as NDA[]);
     setLoading(false);
   };
 

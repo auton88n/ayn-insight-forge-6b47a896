@@ -37,20 +37,12 @@ const BetaProgramSettings = () => {
 
   useEffect(() => {
     const loadConfig = async () => {
-      const { data } = await supabase
-        .from('system_config')
-        .select('key, value')
-        .in('key', ['beta_mode', 'beta_feedback_reward']);
-      
-      if (data) {
-        data.forEach(item => {
-          if (item.key === 'beta_mode') {
-            setBetaMode(item.value === true || item.value === 'true');
-          } else if (item.key === 'beta_feedback_reward') {
-            setFeedbackReward(parseInt(String(item.value)) || 5);
-          }
-        });
-      }
+      const { data } = await supabase.rpc('get_admin_system_config');
+      const configData = (data as any)?.config || [];
+      configData.forEach((item: any) => {
+        if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
+        else if (item.key === 'beta_feedback_reward') setFeedbackReward(parseInt(String(item.value)) || 5);
+      });
       setLoading(false);
     };
     loadConfig();

@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { UserGrowthChart } from './UserGrowthChart';
 import { ChurnAlerts } from './ChurnAlerts';
 import { useEffect, useState } from 'react';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 
 interface Profile {
   company_name: string | null;

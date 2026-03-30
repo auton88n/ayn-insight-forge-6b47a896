@@ -39,9 +39,8 @@ export const UserDetailPage = () => {
 
   const fetchUserMsgs = useCallback(async (uid: string) => {
     setLoadingMsgs(true);
-    const { data } = await supabase.from('messages').select('id,content,sender,created_at')
-      .eq('user_id', uid).order('created_at', { ascending: false }).limit(10);
-    setRecentMsgs((data || []) as RecentMsg[]);
+    const { data } = await supabase.rpc('get_admin_user_messages', { p_user_id: uid, p_limit: 10 });
+    setRecentMsgs((Array.isArray(data) ? data : []) as RecentMsg[]);
     setLoadingMsgs(false);
   }, []);
 

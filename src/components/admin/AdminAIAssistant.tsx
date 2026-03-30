@@ -133,28 +133,17 @@ export function AdminAIAssistant() {
   // Fetch stats directly from DB — fast, no AI call needed
   const fetchStats = useCallback(async () => {
     try {
-      const now24h = new Date(Date.now() - 86400000).toISOString();
-      const [llmRes, failRes, ticketRes, rateLimitRes, testRes] = await Promise.allSettled([
-        supabase.from('llm_usage_logs').select('was_fallback', { count: 'exact' }).gte('created_at', now24h),
-        supabase.from('llm_failures').select('id', { count: 'exact' }).gte('created_at', now24h),
-        supabase.from('support_tickets').select('id', { count: 'exact' }).eq('status', 'open'),
-        supabase.from('api_rate_limits').select('blocked_until').not('blocked_until', 'is', null),
-        supabase.from('test_results').select('status').gte('created_at', now24h),
-      ]);
+      const { data, error } = await supabase.rpc('get_admin_system_monitoring');
+      if (error) throw error;
+      const d = data as any;
 
-      const llmData = llmRes.status === 'fulfilled' ? llmRes.value.data || [] : [];
-      const llmTotal = llmData.length;
-      const fallbackCount = llmData.filter((r: any) => r.was_fallback).length;
-      const fallbackRate = llmTotal > 0 ? (fallbackCount / llmTotal) * 100 : 0;
-
-      const openTickets = ticketRes.status === 'fulfilled' ? (ticketRes.value.count || 0) : 0;
-
-      const rateLimitData = rateLimitRes.status === 'fulfilled' ? rateLimitRes.value.data || [] : [];
-      const blockedUsers = rateLimitData.filter((r: any) => r.blocked_until && new Date(r.blocked_until) > new Date()).length;
-
-      const testData = testRes.status === 'fulfilled' ? testRes.value.data || [] : [];
-      const testTotal = testData.length;
-      const testPassed = testData.filter((r: any) => r.status === 'passed').length;
+      const llmUsage = d.llm_usage_24h || 0;
+      const llmFallbacks = d.llm_fallbacks_24h || 0;
+      const fallbackRate = llmUsage > 0 ? (llmFallbacks / llmUsage) * 100 : 0;
+      const openTickets = d.open_tickets || 0;
+      const blockedUsers = d.blocked_users || 0;
+      const testTotal = d.test_results_24h || 0;
+      const testPassed = d.test_results_pass || 0;
       const testPassRate = testTotal > 0 ? (testPassed / testTotal) * 100 : 100;
 
       // System health: deduct for issues

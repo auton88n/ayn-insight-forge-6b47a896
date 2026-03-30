@@ -123,48 +123,64 @@ export const AdminPanel = ({
 
   const fetchData = useCallback(async () => {
     try {
-      const [accessGrantsRes, adminUsersRes, messagesTodayRes, configRes, applicationsRes] = await Promise.allSettled([
-        supabase.from('access_grants').select('*').order('created_at', { ascending: false }),
-        supabase.from('admin_users_view').select('id,email,display_name,auth_provider,avatar_url,contact_person,company_name,is_active,signed_up_at,last_sign_in_at,subscription_tier,subscription_status,total_messages,messages_7d,messages_30d,last_active_at,days_since_last_use,is_unlimited,monthly_messages,current_monthly_messages,bonus_credits,role'),
-        supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString()),
-        supabase.from('system_config').select('key,value'),
-        supabase.from('service_applications').select('*').order('created_at', { ascending: false }),
+      // All queries go through SECURITY DEFINER RPCs — they bypass RLS and check admin role internally
+      const [dashboardRes, applicationsRes, configRes] = await Promise.allSettled([
+        supabase.rpc('get_admin_dashboard_stats'),
+        supabase.rpc('get_admin_applications'),
+        supabase.rpc('get_admin_system_config'),
       ]);
 
-      const accessGrantsData = accessGrantsRes.status === 'fulfilled' ? (accessGrantsRes.value.data || []) as AccessGrantWithProfile[] : [];
-      const enrichedUsers = adminUsersRes.status === 'fulfilled' ? (adminUsersRes.value.data || []) as { id: string; email: string; display_name: string; auth_provider: string; avatar_url: string | null; contact_person: string | null; company_name: string | null; is_active: boolean | null; }[] : [];
-      const todayMessageCount = messagesTodayRes.status === 'fulfilled' ? (messagesTodayRes.value.count || 0) : 0;
-      const configData = configRes.status === 'fulfilled' ? (configRes.value.data || []) as { key: string; value: unknown; }[] : [];
-      const applicationsData = applicationsRes.status === 'fulfilled' ? (applicationsRes.value.data || []) as ServiceApplication[] : [];
-      const enrichedMap = new Map(enrichedUsers.map(u => [u.id, u]));
-
-      if (applicationsData.length > 0) {
-        supabase.from('security_logs').insert({ action: 'service_applications_view', details: { count: applicationsData.length, timestamp: new Date().toISOString() }, severity: 'high' });
+      // Dashboard stats
+      if (dashboardRes.status === 'fulfilled' && dashboardRes.value.data) {
+        const stats = dashboardRes.value.data as any;
+        setSystemMetrics({
+          totalUsers: stats.total_users || 0,
+          activeUsers: stats.active_users || 0,
+          pendingUsers: 0,
+          todayMessages: stats.today_messages || 0,
+          weeklyGrowth: 0,
+        });
+        const recentUsers: AccessGrantWithProfile[] = (stats.recent_users || []).map((u: any) => ({
+          id: u.id,
+          user_id: u.id,
+          is_active: u.is_active ?? false,
+          granted_at: u.signed_up_at || null,
+          expires_at: null,
+          current_month_usage: null,
+          monthly_limit: null,
+          created_at: u.signed_up_at || new Date().toISOString(),
+          user_email: u.email,
+          profiles: { company_name: null, contact_person: u.display_name || u.email?.split('@')[0] || null, avatar_url: null },
+        }));
+        setAllUsers(recentUsers);
       }
 
-      const usersWithProfiles: AccessGrantWithProfile[] = accessGrantsData.map((user: AccessGrantWithProfile) => {
-        const enriched = enrichedMap.get(user.user_id);
-        return {
-          ...user,
-          user_email: enriched?.email || user.user_email,
-          profiles: { company_name: enriched?.company_name || null, contact_person: enriched?.contact_person || enriched?.display_name || enriched?.email?.split('@')[0] || null, avatar_url: enriched?.avatar_url || null },
-        };
-      });
-      enrichedUsers.forEach(enriched => {
-        if (!usersWithProfiles.find(u => u.user_id === enriched.id)) {
-          usersWithProfiles.push({ id: enriched.id, user_id: enriched.id, is_active: enriched.is_active ?? false, granted_at: null, expires_at: null, current_month_usage: null, monthly_limit: null, created_at: new Date().toISOString(), user_email: enriched.email, profiles: { company_name: enriched.company_name || null, contact_person: enriched.contact_person || enriched.display_name || enriched.email?.split('@')[0] || null, avatar_url: enriched.avatar_url || null } });
+      // Applications
+      if (applicationsRes.status === 'fulfilled' && applicationsRes.value.data) {
+        const appsData = applicationsRes.value.data as any;
+        setApplications((Array.isArray(appsData) ? appsData : []) as ServiceApplication[]);
+      }
+
+      // System config
+      if (configRes.status === 'fulfilled' && configRes.value.data) {
+        const configResult = configRes.value.data as any;
+        const configData = configResult?.config || [];
+        if (configData.length > 0) {
+          const configMap = new Map(configData.map((c: any) => [c.key, c.value]));
+          setSystemConfig(prev => ({
+            ...prev,
+            maintenanceMode: configMap.get('maintenance_mode') as boolean || false,
+            maintenanceMessage: configMap.get('maintenance_message') as string || '',
+            maintenanceStartTime: configMap.get('maintenance_start_time') as string || '',
+            maintenanceEndTime: configMap.get('maintenance_end_time') as string || '',
+            preMaintenanceNotice: configMap.get('pre_maintenance_notice') as boolean || false,
+            preMaintenanceMessage: configMap.get('pre_maintenance_message') as string || '',
+            defaultMonthlyLimit: configMap.get('default_monthly_limit') as number || 100,
+            requireApproval: configMap.get('require_approval') as boolean ?? true,
+            maxLoginAttempts: configMap.get('max_login_attempts') as number || 5,
+            sessionTimeout: configMap.get('session_timeout') as number || 30,
+          }));
         }
-      });
-
-      setAllUsers(usersWithProfiles);
-      setApplications(applicationsData);
-      const activeCount = usersWithProfiles.filter((u: AccessGrantWithProfile) => u.is_active).length;
-      const pendingCount = usersWithProfiles.filter((u: AccessGrantWithProfile) => !u.is_active && !u.granted_at).length;
-      setSystemMetrics({ totalUsers: usersWithProfiles.length, activeUsers: activeCount, pendingUsers: pendingCount, todayMessages: todayMessageCount, weeklyGrowth: 0 });
-
-      if (configData.length > 0) {
-        const configMap = new Map(configData.map(c => [c.key, c.value]));
-        setSystemConfig(prev => ({ ...prev, maintenanceMode: configMap.get('maintenance_mode') as boolean || false, maintenanceMessage: configMap.get('maintenance_message') as string || '', maintenanceStartTime: configMap.get('maintenance_start_time') as string || '', maintenanceEndTime: configMap.get('maintenance_end_time') as string || '', preMaintenanceNotice: configMap.get('pre_maintenance_notice') as boolean || false, preMaintenanceMessage: configMap.get('pre_maintenance_message') as string || '', defaultMonthlyLimit: configMap.get('default_monthly_limit') as number || 100, requireApproval: configMap.get('require_approval') as boolean ?? true, maxLoginAttempts: configMap.get('max_login_attempts') as number || 5, sessionTimeout: configMap.get('session_timeout') as number || 30 }));
       }
     } catch (error) {
       if (import.meta.env.DEV) console.error('Error fetching admin data:', error);

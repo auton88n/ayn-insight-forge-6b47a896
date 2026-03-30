@@ -48,41 +48,22 @@ export const SystemMonitoring = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const now24h = new Date(Date.now() - 86400000).toISOString();
-      const [
-        usersRes, activeRes, msgTodayRes, msgTotalRes,
-        errorsRes, llmRes, ticketsRes, blockedRes,
-        healthRes, healthEventsRes, errorEventsRes
-      ] = await Promise.allSettled([
-        supabase.from('admin_users_view').select('id', { count: 'exact', head: true }),
-        supabase.from('admin_users_view').select('id', { count: 'exact', head: true }).not('last_sign_in_at', 'is', null).gte('last_sign_in_at', new Date(Date.now() - 30*86400000).toISOString()),
-        supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString()),
-        supabase.from('messages').select('id', { count: 'exact', head: true }),
-        supabase.from('error_logs').select('id', { count: 'exact', head: true }).gte('created_at', now24h),
-        supabase.from('llm_usage_logs').select('was_fallback').gte('created_at', now24h),
-        supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-        supabase.from('api_rate_limits').select('blocked_until').not('blocked_until', 'is', null),
-        supabase.from('system_health_checks').select('status', { count: 'exact' }).gte('created_at', now24h),
-        supabase.from('system_health_checks').select('id,status,check_name,message,created_at').order('created_at', { ascending: false }).limit(8),
-        supabase.from('error_logs').select('id,error_type,message,severity,created_at').order('created_at', { ascending: false }).limit(8),
-      ]);
+      const { data, error } = await supabase.rpc('get_admin_system_monitoring');
+      if (error) throw error;
+      const d = data as any;
 
-      const totalUsers = usersRes.status === 'fulfilled' ? usersRes.value.count || 0 : 0;
-      const activeUsers = activeRes.status === 'fulfilled' ? activeRes.value.count || 0 : 0;
-      const msgToday = msgTodayRes.status === 'fulfilled' ? msgTodayRes.value.count || 0 : 0;
-      const msgTotal = msgTotalRes.status === 'fulfilled' ? msgTotalRes.value.count || 0 : 0;
-      const recentErrors = errorsRes.status === 'fulfilled' ? errorsRes.value.count || 0 : 0;
-      const openTickets = ticketsRes.status === 'fulfilled' ? ticketsRes.value.count || 0 : 0;
-
-      const llmData = llmRes.status === 'fulfilled' ? llmRes.value.data || [] : [];
-      const fallbackRate = llmData.length > 0 ? Math.round((llmData.filter((r:any) => r.was_fallback).length / llmData.length) * 1000) / 10 : 0;
-
-      const blockedData = blockedRes.status === 'fulfilled' ? blockedRes.value.data || [] : [];
-      const blockedUsers = blockedData.filter((r:any) => r.blocked_until && new Date(r.blocked_until) > new Date()).length;
-
-      const healthData = healthRes.status === 'fulfilled' ? healthRes.value.data || [] : [];
-      const healthTotal = healthData.length;
-      const healthPass = healthData.filter((r:any) => r.status === 'ok').length;
+      const totalUsers = d.total_users || 0;
+      const activeUsers = d.active_users_30d || 0;
+      const msgToday = d.messages_today || 0;
+      const msgTotal = d.messages_total || 0;
+      const recentErrors = d.errors_24h || 0;
+      const openTickets = d.open_tickets || 0;
+      const llmUsage = d.llm_usage_24h || 0;
+      const llmFallbacks = d.llm_fallbacks_24h || 0;
+      const fallbackRate = llmUsage > 0 ? Math.round((llmFallbacks / llmUsage) * 1000) / 10 : 0;
+      const blockedUsers = d.blocked_users || 0;
+      const healthTotal = d.health_checks_24h || 0;
+      const healthPass = d.health_checks_ok || 0;
 
       let health = 100;
       if (fallbackRate > 5) health -= (fallbackRate - 5) * 2;
@@ -93,12 +74,8 @@ export const SystemMonitoring = () => {
       setMetrics({ totalUsers, activeUsers, messagesToday: msgToday, messagesTotal: msgTotal, avgResponseMs: 0, errorRate: msgToday > 0 ? Math.round(recentErrors * 100 / msgToday * 100)/100 : 0, fallbackRate, systemHealth: health, openTickets, blockedUsers, recentErrors, recentSecurityEvents: 0, healthChecksPass: healthPass, healthChecksTotal: healthTotal, uptime: '99.9%' });
 
       const combined: RecentEvent[] = [];
-      if (healthEventsRes.status === 'fulfilled') {
-        (healthEventsRes.value.data || []).forEach((h:any) => combined.push({ id: h.id, type: 'health', label: h.check_name || 'Health check', detail: h.message || (h.status === 'ok' ? 'Passed' : 'Failed'), severity: h.status, created_at: h.created_at }));
-      }
-      if (errorEventsRes.status === 'fulfilled') {
-        (errorEventsRes.value.data || []).forEach((e:any) => combined.push({ id: e.id, type: 'error', label: e.error_type || 'Error', detail: e.message || 'Application error', severity: e.severity || 'medium', created_at: e.created_at }));
-      }
+      (d.recent_health || []).forEach((h: any) => combined.push({ id: h.id, type: 'health', label: h.check_name || 'Health check', detail: h.message || (h.status === 'ok' ? 'Passed' : 'Failed'), severity: h.status, created_at: h.created_at }));
+      (d.recent_errors || []).forEach((e: any) => combined.push({ id: e.id, type: 'error', label: e.error_type || 'Error', detail: e.message || 'Application error', severity: e.severity || 'medium', created_at: e.created_at }));
       combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setEvents(combined.slice(0, 12));
     } catch (err) {

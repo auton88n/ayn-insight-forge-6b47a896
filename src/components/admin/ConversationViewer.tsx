@@ -40,9 +40,8 @@ export const ConversationViewer = () => {
   const fetchMessages = useCallback(async (userId: string) => {
     setLoadingMsgs(true);
     try {
-      const { data } = await supabase.from('messages').select('id, content, sender, created_at, mode_used')
-        .eq('user_id', userId).order('created_at', { ascending: true }).limit(200);
-      setMessages((data || []) as Message[]);
+      const { data } = await supabase.rpc('get_admin_user_messages', { p_user_id: userId, p_limit: 200 });
+      setMessages((Array.isArray(data) ? data : []) as Message[]);
     } finally { setLoadingMsgs(false); }
   }, []);
 

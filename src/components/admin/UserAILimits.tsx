@@ -77,31 +77,9 @@ export function UserAILimits() {
 
   const fetchLimits = async () => {
     try {
-      // Fetch limits
-      const { data: limitsData, error: limitsError } = await supabase
-        .from('user_ai_limits')
-        .select('*')
-        .order('current_daily_messages', { ascending: false });
-
-      if (limitsError) throw limitsError;
-
-      // Fetch user names from enriched view (includes Google users)
-      const userIds = limitsData?.map(l => l.user_id) || [];
-      const { data: allUsersData } = await supabase.rpc('get_admin_users');
-      const profilesData = (allUsersData || []).filter((u: any) => userIds.includes(u.id));
-
-      // Create a map for quick lookup
-      const profileMap = new Map(
-        profilesData?.map((p: any) => [p.id, p.display_name || p.email?.split('@')[0]]) || []
-      );
-
-      // Merge the data
-      const mergedLimits = (limitsData || []).map(limit => ({
-        ...limit,
-        display_name: profileMap.get(limit.user_id) || undefined
-      }));
-
-      setLimits(mergedLimits);
+      const { data, error } = await supabase.rpc('get_admin_ai_limits');
+      if (error) throw error;
+      setLimits((Array.isArray(data) ? data : []) as any[]);
     } catch (error) {
       console.error('Error fetching limits:', error);
       toast.error(getErrorMessage(ErrorCodes.DATA_LOAD_FAILED).description);
