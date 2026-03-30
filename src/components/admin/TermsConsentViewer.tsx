@@ -31,13 +31,21 @@ export const TermsConsentViewer = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [consentRes, usersRes] = await Promise.all([
-        supabase.from('terms_consent_log').select('*').order('accepted_at', { ascending: false }),
-        supabase.from('admin_users_view').select('id,display_name,email,contact_person,company_name'),
-      ]);
-      setRecords(consentRes.data || []);
+      const { data, error } = await supabase.rpc('get_admin_terms_consent');
+      if (error) throw error;
+      const rows = data || [];
+      setRecords(rows.map((r: any) => ({
+        id: r.id, user_id: r.user_id, terms_version: r.terms_version,
+        privacy_accepted: r.privacy_accepted, terms_accepted: r.terms_accepted,
+        ai_disclaimer_accepted: r.ai_disclaimer_accepted,
+        accepted_at: r.accepted_at, user_agent: r.user_agent,
+      })));
       const map = new Map<string, ProfileInfo>();
-      (usersRes.data || []).forEach((p: any) => map.set(p.id, { user_id: p.id, contact_person: p.contact_person || p.display_name || null, company_name: p.company_name || p.email || null }));
+      rows.forEach((r: any) => map.set(r.user_id, {
+        user_id: r.user_id,
+        contact_person: r.display_name || null,
+        company_name: r.email || null,
+      }));
       setProfiles(map);
     } catch (err) {
       console.error('Failed to fetch consent logs:', err);

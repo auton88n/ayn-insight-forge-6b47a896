@@ -46,12 +46,7 @@ export const NotificationLogViewer = () => {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_notification_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
+      const { data, error } = await supabase.rpc('get_admin_notification_log');
       if (error) throw error;
       setLogs((data || []) as NotificationLog[]);
     } catch (error) {

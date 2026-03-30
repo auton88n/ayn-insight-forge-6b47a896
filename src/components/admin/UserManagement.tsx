@@ -68,9 +68,7 @@ export const UserManagement = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_users_view')
-        .select('*');
+      const { data, error } = await supabase.rpc('get_admin_users');
       if (error) throw error;
       setUsers((data || []) as unknown as AdminUser[]);
     } catch (err: any) {

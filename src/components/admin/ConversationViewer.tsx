@@ -22,23 +22,17 @@ export const ConversationViewer = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: msgs } = await supabase.from('messages').select('user_id, created_at').order('created_at', { ascending: false });
-      const { data: usersData } = await supabase.from('admin_users_view').select('id, display_name, email, auth_provider');
-
-      const userMap = new Map((usersData || []).map((u: any) => [u.id, u]));
-      const convoMap = new Map<string, { count: number; last: string; first: string }>();
-      (msgs || []).forEach((m: any) => {
-        const e = convoMap.get(m.user_id);
-        if (!e) { convoMap.set(m.user_id, { count: 1, last: m.created_at, first: m.created_at }); }
-        else { e.count++; if (m.created_at > e.last) e.last = m.created_at; if (m.created_at < e.first) e.first = m.created_at; }
-      });
-
-      const convos: UserConvo[] = Array.from(convoMap.entries())
-        .map(([uid, c]) => {
-          const u = userMap.get(uid) as any;
-          return { user_id: uid, display_name: u?.display_name || uid.slice(0,8), email: u?.email || '', auth_provider: u?.auth_provider || 'email', message_count: c.count, last_message: c.last, first_message: c.first };
-        })
-        .sort((a, b) => b.last_message.localeCompare(a.last_message));
+      const { data, error } = await supabase.rpc('get_admin_conversations');
+      if (error) throw error;
+      const convos: UserConvo[] = (data || []).map((r: any) => ({
+        user_id: r.user_id,
+        display_name: r.display_name || r.email?.split('@')[0] || r.user_id.slice(0,8),
+        email: r.email || '',
+        auth_provider: r.auth_provider || 'email',
+        message_count: Number(r.message_count),
+        last_message: r.last_message_at,
+        first_message: r.last_message_at,
+      }));
       setUsers(convos);
     } finally { setLoading(false); }
   }, []);

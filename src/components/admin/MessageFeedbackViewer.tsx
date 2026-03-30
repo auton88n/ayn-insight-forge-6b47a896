@@ -27,34 +27,15 @@ export const MessageFeedbackViewer = () => {
   const fetchRatings = useCallback(async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('message_ratings')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (filter !== 'all') {
-        query = query.eq('rating', filter);
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await supabase.rpc('get_admin_message_ratings');
       if (error) throw error;
-      
-      // Enrich with user names
-      const ratingsData = (data as MessageRating[]) || [];
-      const userIds = [...new Set(ratingsData.map(r => r.user_id).filter(Boolean))];
-      if (userIds.length > 0) {
-        const { data: users } = await supabase
-          .from('admin_users_view')
-          .select('id, display_name, email')
-          .in('id', userIds);
-        const userMap = new Map((users || []).map((u: any) => [u.id, u]));
-        ratingsData.forEach(r => {
-          if (r.user_id) {
-            const u = userMap.get(r.user_id) as any;
-            if (u) { r.user_name = u.display_name; r.user_email = u.email; }
-          }
-        });
+      let ratingsData = (data || []).map((r: any) => ({
+        ...r,
+        user_name: r.display_name,
+        user_email: r.email,
+      })) as MessageRating[];
+      if (filter !== 'all') {
+        ratingsData = ratingsData.filter(r => r.rating === filter);
       }
       setRatings(ratingsData);
     } catch (err) {
