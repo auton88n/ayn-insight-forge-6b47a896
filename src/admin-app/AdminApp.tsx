@@ -205,10 +205,19 @@ export default function AdminApp() {
   }, []);
 
   const checkAdmin = async (s: Session) => {
+    const attempt = async () => {
+      const { data, error } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
+      if (error) throw error;
+      return data?.role === 'admin';
+    };
     try {
-      const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).single();
-      setStep(data?.role === 'admin' ? 'ready' : 'denied');
-    } catch { setStep('denied'); }
+      setStep(await attempt() ? 'ready' : 'denied');
+    } catch {
+      try {
+        await new Promise(r => setTimeout(r, 1000));
+        setStep(await attempt() ? 'ready' : 'denied');
+      } catch { setStep('denied'); }
+    }
   };
 
   const handlePinSuccess = () => {
