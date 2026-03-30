@@ -141,7 +141,7 @@ Be specific with price levels. If you can see indicator values, include them. If
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-3-flash-preview',
+      model: 'google/gemini-2.5-flash',
       messages: [{
         role: 'user',
         content: [
@@ -795,7 +795,7 @@ ${INJECTION_GUARD}`;
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-3-flash-preview',
+      model: 'google/gemini-2.5-flash',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 3500,
       temperature: 0.3,
