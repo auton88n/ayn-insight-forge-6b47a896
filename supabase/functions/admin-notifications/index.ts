@@ -321,7 +321,7 @@ function generateDailyReportContent(metrics: Record<string, unknown>): string {
 }
 
 // Fetch daily metrics from database
-async function fetchDailyMetrics(supabase: ReturnType<typeof createClient>): Promise<Record<string, unknown>> {
+async function fetchDailyMetrics(supabase: any): Promise<Record<string, unknown>> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
