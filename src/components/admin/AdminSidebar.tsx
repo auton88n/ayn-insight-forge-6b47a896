@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   DollarSign as DollarIcon,
@@ -228,11 +227,9 @@ export const AdminSidebar = ({
     .filter((group) => group.items.length > 0 && (isAdmin || !group.adminOnly));
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width: isCollapsed ? 60 : 240 }}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
-      className="relative z-30 shrink-0 min-h-0 border-r border-border bg-muted/30 backdrop-blur-sm flex flex-col"
+    <aside
+      style={{ width: isCollapsed ? 60 : 240, transition: 'width 0.2s ease' }}
+      className="relative z-30 shrink-0 min-h-0 border-r border-border bg-muted/30 flex flex-col"
     >
       <div className="flex-1 p-2 space-y-0.5 overflow-y-auto overscroll-contain min-h-0">
         {visibleGroups.map((group, groupIdx) => (
@@ -280,6 +277,6 @@ export const AdminSidebar = ({
           )}
         </Tooltip>
       </div>
-    </motion.aside>
+    </aside>
   );
 };

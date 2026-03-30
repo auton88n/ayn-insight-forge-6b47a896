@@ -210,19 +210,7 @@ export const AdminPanel = ({
   }, []);
 
   useEffect(() => {
-    const initTimer = setTimeout(() => {
-      fetchData();
-    }, 100);
-
-    const safetyTimeout = setTimeout(() => {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }, 8000);
-    
-    return () => {
-      clearTimeout(initTimer);
-      clearTimeout(safetyTimeout);
-    };
+    fetchData();
   }, [fetchData]);
 
   const handleRefresh = () => {
@@ -277,21 +265,6 @@ export const AdminPanel = ({
       toast.error('Failed to update settings');
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <motion.div
-          className="relative"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-        >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/40 to-primary blur-xl" />
-          <Loader2 className="w-10 h-10 text-primary relative z-10" />
-        </motion.div>
-      </div>
-    );
-  }
 
   const newAppsCount = applications.filter(a => a.status === 'new').length;
 
