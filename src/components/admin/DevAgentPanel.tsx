@@ -19,7 +19,7 @@ const AGENT_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/ayn-dev
 interface Repo { owner: string; repo: string }
 interface Msg  { role: 'user' | 'agent'; text: string; id: string }
 interface Conv  { id: string; title: string; updated_at: string }
-interface Skill { id: string; name: string; category: string; description: string; enabled: boolean }
+interface Skill { id: string; name: string; category: string; description: string; content: string; enabled: boolean }
 
 const PRESETS = [
   { icon: '🔒', label: 'Fix security advisors',     prompt: 'Check Supabase security advisors for project dfkoxuokfkttjhfjcecx and fix any ERRORs' },
@@ -98,7 +98,7 @@ export function DevAgentPanel() {
   const loadSkills = async () => {
     const { data } = await supabase
       .from('ayn_dev_skills')
-      .select('id, name, category, description, enabled')
+      .select('id, name, category, description, content, enabled')
       .order('category');
     if (data) setSkills(data as Skill[]);
   };
