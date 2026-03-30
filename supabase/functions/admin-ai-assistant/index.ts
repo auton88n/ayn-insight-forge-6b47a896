@@ -5,7 +5,7 @@ import { getEmployeePersonality, getAgentDisplayName, getAgentEmoji } from "../_
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 // Admin AI system prompt with security boundaries
@@ -444,8 +444,7 @@ Perfect! Here is your NDA summary...
           details: { input_preview: message.slice(0, 200), function: 'admin-ai-assistant' },
           severity: 'high'
         })
-        .then(() => {})
-        .catch(() => {});
+        .then(() => {});
     }
 
     // ─── Agent-Specific Response ───
