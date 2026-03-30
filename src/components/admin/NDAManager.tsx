@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ContractAI } from './ContractAI';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';

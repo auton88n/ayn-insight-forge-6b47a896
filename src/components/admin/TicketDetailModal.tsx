@@ -18,7 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 interface Ticket {

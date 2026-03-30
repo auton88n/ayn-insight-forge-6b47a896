@@ -9,7 +9,7 @@ import {
   Clock, Network, TrendingUp, Eye, RefreshCw
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { formatDistanceToNow } from 'date-fns';
 
 interface RealMetrics {

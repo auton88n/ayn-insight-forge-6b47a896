@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { RefreshCw, ThumbsUp, ThumbsDown, MessageSquare, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 

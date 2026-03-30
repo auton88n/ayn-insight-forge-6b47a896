@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { ArrowLeft, Sun, Moon, RefreshCw, Loader2, Sparkles } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { UserManagement } from '@/components/admin/UserManagement';

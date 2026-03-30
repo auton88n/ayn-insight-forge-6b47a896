@@ -22,7 +22,7 @@ import {
   Filter,
   TrendingUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';

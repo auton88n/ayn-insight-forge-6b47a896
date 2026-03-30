@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 
 interface WeekData { week: string; signups: number; cumulative: number; }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { DollarSign, TrendingUp, Users, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface UserRevenue {

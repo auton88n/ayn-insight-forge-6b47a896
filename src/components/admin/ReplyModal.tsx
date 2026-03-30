@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import {
   Dialog,
   DialogContent,

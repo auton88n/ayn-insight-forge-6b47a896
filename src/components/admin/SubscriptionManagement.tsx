@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { Search, RefreshCw, Edit2, Mail, Shield, Chrome, Users, Crown, Zap, Infinity as InfinityIcon, User, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';

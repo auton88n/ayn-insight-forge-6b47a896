@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { RefreshCw, Users, Eye, Globe, TrendingUp, Activity, Clock } from 'lucide-react';
 
 interface VisitorStats {

@@ -2,7 +2,7 @@
 // Strips the standalone page's back button/navigation
 import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

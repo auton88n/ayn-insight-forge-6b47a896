@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AlertTriangle, RefreshCw, Bug, Clock, User, ChevronDown, ChevronRight, CheckCircle, EyeOff, Wrench, Lightbulb, X } from 'lucide-react';
 import { toast } from 'sonner';
 
