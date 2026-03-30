@@ -51,90 +51,33 @@ export function AICostDashboard() {
 
   const fetchStats = async () => {
     try {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-      const { count: todayCount } = await supabase
-        .from('llm_usage_logs')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayStart);
-
-      const { count: weekCount } = await supabase
-        .from('llm_usage_logs')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', weekStart);
-
-      const { count: monthCount } = await supabase
-        .from('llm_usage_logs')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', monthStart);
-
-      const { data: usageLogs } = await supabase
-        .from('llm_usage_logs')
-        .select('intent_type, was_fallback, cost_sar, response_time_ms, input_tokens, output_tokens, model_name')
-        .gte('created_at', monthStart);
-
-      const { count: failureCount } = await supabase
-        .from('llm_failures')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', weekStart);
-
-      const byIntent: Record<string, number> = {};
-      const byModel: Record<string, { count: number; inputTokens: number; outputTokens: number }> = {};
-      let fallbackCount = 0;
-      let totalCost = 0;
-      let totalResponseTime = 0;
-      let responseTimeCount = 0;
-      let totalInputTokens = 0;
-      let totalOutputTokens = 0;
-
-      (usageLogs || []).forEach((log) => {
-        byIntent[log.intent_type] = (byIntent[log.intent_type] || 0) + 1;
-        if (log.was_fallback) fallbackCount++;
-        totalCost += log.cost_sar || 0;
-        if (log.response_time_ms) {
-          totalResponseTime += log.response_time_ms;
-          responseTimeCount++;
-        }
-        totalInputTokens += log.input_tokens || 0;
-        totalOutputTokens += log.output_tokens || 0;
-
-        if (log.model_name) {
-          if (!byModel[log.model_name]) {
-            byModel[log.model_name] = { count: 0, inputTokens: 0, outputTokens: 0 };
-          }
-          byModel[log.model_name].count++;
-          byModel[log.model_name].inputTokens += log.input_tokens || 0;
-          byModel[log.model_name].outputTokens += log.output_tokens || 0;
-        }
-      });
-
-      const total = usageLogs?.length || 0;
-      const avgResponseTime = responseTimeCount > 0 ? totalResponseTime / responseTimeCount : null;
-      const successRate = total > 0 ? ((total - (failureCount || 0)) / (total + (failureCount || 0))) * 100 : null;
-      
-      setFallbackRate(total > 0 ? (fallbackCount / total) * 100 : null);
-
+      const { data, error } = await supabase.rpc('get_admin_ai_cost_stats');
+      if (error) throw error;
+      const d = data || {};
       setStats({
-        today: todayCount || 0,
-        week: weekCount || 0,
-        month: monthCount || 0,
-        byIntent,
-        byModel,
-        avgResponseTime,
-        successRate,
-        totalCost,
-        totalInputTokens,
-        totalOutputTokens
+        todayCount: Number(d.today_count || 0),
+        weekCount: Number(d.week_count || 0),
+        monthCount: Number(d.month_count || 0),
+        totalCount: Number(d.total_count || 0),
+        todayFailures: Number(d.today_failures || 0),
+        weekFailures: Number(d.week_failures || 0),
+        monthFailures: Number(d.month_failures || 0),
+        fallbackToday: Number(d.fallback_today || 0),
+        fallbackWeek: Number(d.fallback_week || 0),
+        byModel: d.by_model || [],
+        recentFailures: d.recent_failures || [],
+        successRate: d.today_count > 0 ? Math.round(((d.today_count - d.today_failures) / d.today_count) * 100) : 100,
+        fallbackRate: d.today_count > 0 ? Math.round((d.fallback_today / d.today_count) * 100) : 0,
       });
+    } catch (error) {
+    } catch (error) {
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Error fetching stats:', error);
       }
       toast.error('Failed to load cost data');
-    } finally {
+    }
+    }finally {
       setIsLoading(false);
     }
   };

@@ -80,10 +80,7 @@ export const SubscriptionManagement = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_users_view')
-        .select('*')
-        .order('signed_up_at', { ascending: false });
+      const { data, error } = await supabase.rpc('get_admin_subscriptions');
       if (error) throw error;
       setUsers((data || []) as UnifiedUser[]);
     } catch (e: any) {

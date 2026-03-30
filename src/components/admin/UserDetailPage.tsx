@@ -32,7 +32,7 @@ export const UserDetailPage = () => {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('admin_users_view').select('*').order('total_messages', { ascending: false });
+    const { data } = await supabase.rpc('get_admin_users');
     setUsers((data || []) as UserFull[]);
     setLoading(false);
   }, []);

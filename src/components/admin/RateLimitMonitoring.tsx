@@ -64,10 +64,8 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
       // Enrich with user names (skip internal service IDs like 'support-bot')
       const userIds = statsData.map(s => s.user_id).filter(id => id && id.includes('-'));
       if (userIds.length > 0) {
-        const { data: users } = await supabase
-          .from('admin_users_view')
-          .select('id, display_name, email')
-          .in('id', userIds);
+        const { data: allUsers } = await supabase.rpc('get_admin_users');
+        const users = (allUsers || []).filter((u: any) => userIds.includes(u.id));
         const userMap = new Map((users || []).map((u: any) => [u.id, u]));
         statsData.forEach(s => {
           const u = userMap.get(s.user_id) as any;

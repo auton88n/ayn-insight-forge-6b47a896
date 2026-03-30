@@ -12,7 +12,8 @@ export const UserGrowthChart = () => {
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: users } = await supabase.from('admin_users_view').select('signed_up_at');
+      const { data: usersRaw } = await supabase.rpc('get_admin_user_growth');
+      const users = usersRaw || [];
       const rows = (users || []) as { signed_up_at: string }[];
 
       // Group by week

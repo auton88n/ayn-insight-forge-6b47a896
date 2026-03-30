@@ -87,10 +87,8 @@ export function UserAILimits() {
 
       // Fetch user names from enriched view (includes Google users)
       const userIds = limitsData?.map(l => l.user_id) || [];
-      const { data: profilesData } = await supabase
-        .from('admin_users_view')
-        .select('id, display_name, email')
-        .in('id', userIds);
+      const { data: allUsersData } = await supabase.rpc('get_admin_users');
+      const profilesData = (allUsersData || []).filter((u: any) => userIds.includes(u.id));
 
       // Create a map for quick lookup
       const profileMap = new Map(

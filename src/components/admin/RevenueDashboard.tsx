@@ -27,9 +27,7 @@ export const RevenueDashboard = () => {
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase.from('admin_users_view').select(
-        'id,display_name,email,auth_provider,subscription_tier,subscription_status,is_unlimited,total_messages,messages_30d,signed_up_at,last_active_at'
-      );
+      const { data } = await supabase.rpc('get_admin_subscriptions');
       setUsers((data || []) as UserRevenue[]);
     } finally { setLoading(false); }
   }, []);
