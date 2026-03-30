@@ -47,7 +47,7 @@ export async function analyzeOurTweets(
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages: [{
           role: 'system',
           content: `You're a Twitter/X strategist. Analyze these tweets and return ONLY valid JSON (no markdown, no backticks) with this structure:
@@ -132,7 +132,7 @@ export async function generateTweetDrafts(
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages: [{
           role: 'system',
           content: `You're AYN's content creator. Write 2 tweet drafts under 280 chars each. Format each as:

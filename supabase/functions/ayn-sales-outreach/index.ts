@@ -89,7 +89,7 @@ async function handleProspect(supabase: any, url: string) {
     method: 'POST',
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-3-flash-preview',
+      model: 'google/gemini-2.5-flash',
       messages: [{
         role: 'system',
         content: `You are a sales analyst. Analyze this company's website and identify:
@@ -218,7 +218,7 @@ async function handleDraftEmail(supabase: any, lead_id: string) {
     method: 'POST',
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-3-flash-preview',
+      model: 'google/gemini-2.5-flash',
       messages: [{
         role: 'system',
         content: `You're writing a sales email for AYN (aynn.io). We build AI-powered solutions for businesses.
@@ -484,7 +484,7 @@ async function handleSearchLeads(supabase: any, query: string) {
     method: 'POST',
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-3-flash-preview',
+      model: 'google/gemini-2.5-flash',
       messages: [{
         role: 'system',
         content: `You are a B2B lead researcher. Given a search query about an industry or type of business, suggest 5 real company website URLs that match. Focus on small-to-medium businesses that could benefit from AI automation, websites, or customer support solutions.

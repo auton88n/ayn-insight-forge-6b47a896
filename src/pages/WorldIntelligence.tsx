@@ -150,7 +150,7 @@ interface Prediction {
   predicted_direction: 'up' | 'down' | 'sideways';
   predicted_pct_change: number; confidence: number; reasoning: string; calibration?: { real_accuracy_pct: number; reliability_tier: string; should_show_uncertainty: boolean; calibration_factor: number } | null;
   agree_count?: number; disagree_count?: number; user_vote?: 'agree' | 'disagree' | null;
-  consensus_strength?: string; agreement?: boolean | null; fusion_method?: string; boost_factor?: string | null; generated_by?: string;
+  consensus_strength?: string; agreement?: boolean | null; fusion_method?: string; boost_factor?: string | null; generated_by?: string | null;
 }
 interface CountryIntel {
   country_code: string; country_name: string;

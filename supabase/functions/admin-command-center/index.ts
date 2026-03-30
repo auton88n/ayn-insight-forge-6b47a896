@@ -347,7 +347,7 @@ async function generateAgentMessage(agentKey: string, command: string, rawResult
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemMsg },
           { role: 'user', content: `Command: "${command}"\n\nResult:\n${resultStr}` },
@@ -503,7 +503,7 @@ async function runMiniDiscussion(supabase: any, topic: string, apiKey: string) {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'google/gemini-3-flash-preview',
+          model: 'google/gemini-2.5-flash',
           messages: [{ role: 'system', content: systemMsg }, { role: 'user', content: userMsg }],
           max_tokens: 60,
         }),

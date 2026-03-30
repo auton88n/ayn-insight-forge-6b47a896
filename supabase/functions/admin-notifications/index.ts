@@ -321,7 +321,7 @@ function generateDailyReportContent(metrics: Record<string, unknown>): string {
 }
 
 // Fetch daily metrics from database
-async function fetchDailyMetrics(supabase: ReturnType<typeof createClient>): Promise<Record<string, unknown>> {
+async function fetchDailyMetrics(supabase: any): Promise<Record<string, unknown>> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
@@ -353,7 +353,7 @@ async function fetchDailyMetrics(supabase: ReturnType<typeof createClient>): Pro
 }
 
 // Fetch all active user emails for maintenance notification
-async function fetchAllUserEmails(supabase: ReturnType<typeof createClient>): Promise<string[]> {
+async function fetchAllUserEmails(supabase: any): Promise<string[]> {
   // Fetch ALL users from access_grants regardless of active status
   // This ensures maintenance notifications reach everyone
   const { data, error } = await supabase
