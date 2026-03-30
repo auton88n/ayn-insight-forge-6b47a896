@@ -8,6 +8,8 @@ export interface MapPoint {
   detail?: string;
   category?: string;
   risk: 'critical'|'high'|'alert'|'stable'|'unknown'|'satellite'|'aviation'|'maritime'|'cyber'|'disaster'|'nuclear';
+  heading?: number;
+  speed?: number;
 }
 export type MapLayer = 'all'|'conflict'|'maritime'|'aviation'|'cyber'|'disasters'|'nuclear';
 export type ViewMode  = 'standard'|'nightvision'|'flir';
