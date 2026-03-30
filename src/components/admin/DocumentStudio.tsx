@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { FileText, Loader2, Download, Sparkles, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -75,7 +74,7 @@ export const DocumentStudio = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+      <div>
         <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <FileText className="w-6 h-6 text-primary" />
           Document Studio
@@ -83,11 +82,11 @@ export const DocumentStudio = () => {
         <p className="text-muted-foreground text-sm mt-1">
           AI-powered business document generator with AYN branding
         </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Panel */}
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
+        <div>
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -159,10 +158,10 @@ export const DocumentStudio = () => {
               )}
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* Preview Panel */}
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+        <div>
           <Card className="h-full flex flex-col">
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-lg">Preview</CardTitle>
@@ -194,7 +193,7 @@ export const DocumentStudio = () => {
               )}
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

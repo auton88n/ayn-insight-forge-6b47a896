@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -421,9 +420,9 @@ export function CommandCenterPanel() {
       </div>
 
       {/* Directives panel (collapsible) */}
-      <AnimatePresence>
+      
         {showDirectives && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+          <div>
             <Card className="border border-border">
               <CardContent className="p-3 space-y-2">
                 <div className="flex gap-2">
@@ -454,9 +453,9 @@ export function CommandCenterPanel() {
                 ))}
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Chat area */}
       <Card className="border border-border overflow-hidden">
@@ -507,13 +506,13 @@ export function CommandCenterPanel() {
                   )}
 
                   {msg.role === 'user' ? (
-                    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
+                    <div>
                       <div className="max-w-[80%] bg-foreground text-background rounded-2xl rounded-br-md px-4 py-2.5">
                         <p className="text-sm">{msg.content}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ) : (
-                    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+                    <div>
                       {/* AYN's message */}
                       {msg.content && (
                         <div className="flex gap-3">
@@ -533,13 +532,13 @@ export function CommandCenterPanel() {
                       {msg.tool_results?.map((result, i) => (
                         <ToolResultCard key={i} result={result} />
                       ))}
-                    </motion.div>
+                    </div>
                   )}
                 </div>
               ))}
 
               {isLoading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
+                <div>
                   <div className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-sm bg-gradient-to-br from-violet-500 to-purple-600 text-white animate-pulse">
                     🧠
                   </div>
@@ -549,25 +548,19 @@ export function CommandCenterPanel() {
                       <span className="text-sm text-muted-foreground">AYN is thinking...</span>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               )}
             </div>
           </ScrollArea>
 
           {/* Scroll to bottom button */}
-          <AnimatePresence>
+          
             {showScrollButton && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                onClick={scrollToBottom}
-                className="absolute bottom-20 right-4 w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-10"
-              >
+              <button>
                 <ChevronDown className="w-4 h-4" />
-              </motion.button>
+              </button>
             )}
-          </AnimatePresence>
+          
           </div>
 
           {/* Input */}
@@ -582,17 +575,13 @@ export function CommandCenterPanel() {
                   disabled={isLoading}
                   className="flex-1 resize-none min-h-[44px] max-h-[120px] text-sm bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 py-2"
                 />
-                <AnimatePresence>
+                
                   {input.trim() && !isLoading && (
-                    <motion.button
-                      initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                      onClick={handleSend}
-                      className="shrink-0 w-9 h-9 rounded-lg bg-foreground text-background flex items-center justify-center hover:opacity-90"
-                    >
+                    <button>
                       <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-                    </motion.button>
+                    </button>
                   )}
-                </AnimatePresence>
+                
               </div>
             </div>
           </div>
@@ -647,7 +636,7 @@ function ToolResultCard({ result }: { result: ToolResult }) {
         {result.responses.map((r, i) => {
           const meta = getAgentMeta(r.employeeId);
           return (
-            <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex gap-2.5">
+            <div>
               <div className={cn("w-6 h-6 rounded-md shrink-0 flex items-center justify-center text-xs bg-gradient-to-br text-white", meta.gradient)}>
                 {meta.emoji}
               </div>
@@ -655,7 +644,7 @@ function ToolResultCard({ result }: { result: ToolResult }) {
                 <span className="text-xs font-medium text-muted-foreground">{meta.name}</span>
                 <p className="text-sm">{r.reply}</p>
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>

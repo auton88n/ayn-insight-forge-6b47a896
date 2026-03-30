@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -166,25 +165,17 @@ export function LLMManagement() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-        >
+        <div>
           <RefreshCw className="w-8 h-8 text-primary" />
-        </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
+    <div>
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex items-center justify-between">
+      <div>
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-primary/10 ring-1 ring-primary/20">
             <Bot className="w-5 h-5 text-primary" />
@@ -206,10 +197,10 @@ export function LLMManagement() {
           <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
-      </motion.div>
+      </div>
 
       {/* Quick Stats */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div>
         {[
           { label: 'Active Models', value: activeModels, icon: Zap, color: 'from-primary/20 to-primary/5', iconColor: 'text-primary' },
           { label: 'Avg Uptime (24h)', value: `${avgUptime.toFixed(1)}%`, icon: TrendingUp, color: 'from-emerald-500/20 to-emerald-500/5', iconColor: 'text-emerald-500' },
@@ -234,13 +225,13 @@ export function LLMManagement() {
             </Card>
           );
         })}
-      </motion.div>
+      </div>
 
       {/* Models by Intent */}
       <ScrollArea className="h-[500px]">
-        <motion.div variants={containerVariants} className="space-y-4">
+        <div>
           {Object.entries(groupedModels).map(([intent, intentModels]) => (
-            <motion.div key={intent} variants={itemVariants}>
+            <div>
               <Card className="relative overflow-hidden border border-border/50 bg-card/80 backdrop-blur-xl">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
                 <CardHeader className="pb-3">
@@ -256,11 +247,7 @@ export function LLMManagement() {
                     {intentModels.map((model, index) => {
                       const health = healthData[model.id] || { uptime: 100, successCount: 0, failureCount: 0 };
                       return (
-                        <motion.div 
-                          key={model.id}
-                          whileHover={{ x: 4 }}
-                          className="flex items-center justify-between p-4 rounded-xl bg-muted/20 border border-border/30 hover:bg-muted/40 hover:border-border/50 transition-all group"
-                        >
+                        <div>
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2">
                               {getPriorityIcon(index)}
@@ -296,16 +283,16 @@ export function LLMManagement() {
                               onCheckedChange={(checked) => toggleModel(model.id, checked)}
                             />
                           </div>
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       </ScrollArea>
-    </motion.div>
+    </div>
   );
 }

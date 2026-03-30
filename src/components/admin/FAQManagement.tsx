@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Plus, 
   Search, 
@@ -207,15 +206,10 @@ const FAQManagement: React.FC = () => {
           { label: 'Total Views', value: stats.totalViews },
           { label: 'Helpful Votes', value: stats.totalHelpful },
         ].map((stat) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-card border border-border rounded-xl p-4"
-          >
+          <div>
             <p className="text-sm text-muted-foreground">{stat.label}</p>
             <p className="text-2xl font-bold">{stat.value}</p>
-          </motion.div>
+          </div>
         ))}
       </div>
 
@@ -260,13 +254,7 @@ const FAQManagement: React.FC = () => {
             </div>
           ) : (
             filteredFaqs.map((faq, index) => (
-              <motion.div
-                key={faq.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: index * 0.02 }}
-                className="bg-card border border-border rounded-xl p-4 hover:border-primary/50 transition-colors"
-              >
+              <div>
                 <div className="flex items-start gap-3">
                   <div className="cursor-move text-muted-foreground">
                     <GripVertical className="h-5 w-5" />
@@ -333,7 +321,7 @@ const FAQManagement: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))
           )}
         </div>

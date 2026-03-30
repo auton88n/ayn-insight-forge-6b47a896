@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { 
   X, 
   Send, 
@@ -289,14 +288,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
               </div>
             ) : (
               messages.map((message) => (
-                <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-3 ${
-                    message.sender_type !== 'user' ? 'justify-end' : ''
-                  }`}
-                >
+                <div>
                   {message.sender_type === 'user' && (
                     <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
                       {getSenderIcon(message.sender_type)}
@@ -330,7 +322,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                       {getSenderIcon(message.sender_type)}
                     </div>
                   )}
-                </motion.div>
+                </div>
               ))
             )}
           </div>

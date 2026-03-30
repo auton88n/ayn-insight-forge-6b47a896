@@ -23,7 +23,6 @@ import {
   ThumbsDown
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
 
 interface PersonaResult {
   name: string;
@@ -194,17 +193,7 @@ export const UXJourneyResults: React.FC<UXJourneyResultsProps> = ({
           <TabsContent value="personas">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {personas.map((persona, idx) => (
-                <motion.div
-                  key={persona.name}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                    selectedPersona === persona.name 
-                      ? 'ring-2 ring-primary border-primary' 
-                      : 'hover:bg-muted/50'
-                  }`}
-                  onClick={() => setSelectedPersona(
+                <div> setSelectedPersona(
                     selectedPersona === persona.name ? null : persona.name
                   )}
                 >
@@ -242,7 +231,7 @@ export const UXJourneyResults: React.FC<UXJourneyResultsProps> = ({
                       )}
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
 
@@ -324,11 +313,7 @@ const JourneyCard: React.FC<{ journey: JourneyResult; showPersona?: boolean }> =
       </div>
 
       {expanded && (
-        <motion.div 
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="mt-3 pt-3 border-t"
-        >
+        <div>
           <div className="flex items-center gap-1 flex-wrap">
             {journey.steps.map((step, idx) => (
               <React.Fragment key={idx}>
@@ -361,7 +346,7 @@ const JourneyCard: React.FC<{ journey: JourneyResult; showPersona?: boolean }> =
               ))}
             </div>
           )}
-        </motion.div>
+        </div>
       )}
     </div>
   );

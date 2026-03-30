@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Search, 
   Filter, 
@@ -281,12 +280,7 @@ const SupportManagement: React.FC = () => {
             { label: 'Resolved', value: stats.resolved, icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', filter: 'resolved' },
             { label: 'Closed', value: stats.closed, icon: XCircle, color: 'text-muted-foreground', bg: 'bg-muted/50', filter: 'closed' },
           ].map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => setStatusFilter(stat.filter)}
+            <div> setStatusFilter(stat.filter)}
               className={`bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30 ${statusFilter === stat.filter ? 'ring-2 ring-primary/50' : ''}`}
             >
               <div className="flex items-center justify-between">
@@ -298,7 +292,7 @@ const SupportManagement: React.FC = () => {
                   <stat.icon className={`h-6 w-6 ${stat.color}`} />
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -372,23 +366,14 @@ const SupportManagement: React.FC = () => {
               <p className="text-sm">Try adjusting your filters or search query</p>
             </div>
           ) : (
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="p-2 space-y-2"
-              >
+              <div>
                 {paginatedTickets.map((ticket) => {
                   const statusConfig = getStatusConfig(ticket.status);
                   const priorityConfig = getPriorityConfig(ticket.priority);
                   const StatusIcon = statusConfig.icon;
 
                   return (
-                    <motion.div
-                      key={ticket.id}
-                      variants={itemVariants}
-                      className="group bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
-                      onClick={() => setSelectedTicket(ticket)}
+                    <div> setSelectedTicket(ticket)}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
@@ -463,10 +448,10 @@ const SupportManagement: React.FC = () => {
                           <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
-              </motion.div>
+              </div>
             )}
         </ScrollArea>
 

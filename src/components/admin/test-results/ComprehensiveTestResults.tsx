@@ -22,7 +22,6 @@ import {
   Bug
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface EndpointResult {
   endpoint: string;
@@ -235,15 +234,9 @@ export const ComprehensiveTestResults: React.FC<ComprehensiveTestResultsProps> =
         {/* Endpoint List */}
         <ScrollArea className="h-[500px]">
           <div className="space-y-2">
-            <AnimatePresence>
+            
               {filteredResults.map((endpoint, idx) => (
-                <motion.div
-                  key={endpoint.endpoint}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: idx * 0.02 }}
-                >
+                <div>
                   <Collapsible 
                     open={expandedEndpoints.has(endpoint.endpoint)}
                     onOpenChange={() => toggleEndpoint(endpoint.endpoint)}
@@ -326,9 +319,9 @@ export const ComprehensiveTestResults: React.FC<ComprehensiveTestResultsProps> =
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
-                </motion.div>
+                </div>
               ))}
-            </AnimatePresence>
+            
           </div>
         </ScrollArea>
       </CardContent>

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -83,8 +82,6 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
   }, [fetchStats]);
 
   const handleUnblock = async (userId: string, endpoint: string) => {
@@ -115,15 +112,10 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
   }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
+    <div>
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <motion.div variants={itemVariants}>
+        <div>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -137,9 +129,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div variants={itemVariants}>
+        <div>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -153,9 +145,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div variants={itemVariants}>
+        <div>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -169,11 +161,11 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
 
       {/* Rate Limit Table */}
-      <motion.div variants={itemVariants}>
+      <div>
         <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -205,13 +197,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
                   stats.map((stat, index) => {
                     const usagePercent = (stat.request_count / stat.max_requests) * 100;
                     return (
-                      <motion.div
-                        key={`${stat.user_id}-${stat.endpoint}-${index}`}
-                        variants={itemVariants}
-                        className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
-                          stat.is_blocked 
-                            ? 'bg-red-500/5 border-red-500/20' 
-                            : usagePercent > 80 
+                      <div> 80 
                             ? 'bg-orange-500/5 border-orange-500/20' 
                             : 'bg-card border-transparent'
                         }`}
@@ -267,7 +253,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
                             </Button>
                           )}
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })
                 )}
@@ -275,7 +261,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
             </ScrollArea>
           </CardContent>
         </Card>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };

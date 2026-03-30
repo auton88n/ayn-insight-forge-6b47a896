@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +11,9 @@ import {
   Activity
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { UserGrowthChart } from './UserGrowthChart';
-import { ChurnAlerts } from './ChurnAlerts';
-import { useEffect, useState } from 'react';
+const UserGrowthChart = lazy(() => import('./UserGrowthChart').then(m => ({ default: m.UserGrowthChart })));
+const ChurnAlerts = lazy(() => import('./ChurnAlerts').then(m => ({ default: m.ChurnAlerts })));
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 
 interface Profile {
@@ -134,21 +133,13 @@ export const AdminDashboard = ({ systemMetrics, allUsers }: AdminDashboardProps)
   const recentUsers = allUsers.slice(0, 10);
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
+    <div>
       {/* Premium Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric, index) => {
           const Icon = metric.icon;
           return (
-            <motion.div 
-              key={metric.label} 
-              variants={itemVariants}
-            >
+            <div>
               <Card className={`relative overflow-hidden border border-border/50 shadow-lg ${metric.glow} bg-card/80 backdrop-blur-xl cursor-default`}>
                 {/* Gradient background */}
                 <div className={`absolute inset-0 bg-gradient-to-br ${metric.gradient} opacity-60 group-hover:opacity-80 transition-opacity`} />
@@ -176,13 +167,13 @@ export const AdminDashboard = ({ systemMetrics, allUsers }: AdminDashboardProps)
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           );
         })}
       </div>
 
       {/* Recent Activity - Premium Card */}
-      <motion.div variants={itemVariants}>
+      <div>
         <Card className="relative overflow-hidden border border-border/50 shadow-lg bg-card/80 backdrop-blur-xl">
           {/* Gradient accent bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
@@ -251,17 +242,17 @@ export const AdminDashboard = ({ systemMetrics, allUsers }: AdminDashboardProps)
             </ScrollArea>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Growth + Churn row */}
       <div className="grid grid-cols-2 gap-4 mt-4">
-        <motion.div variants={itemVariants} className="bg-card border border-border/50 rounded-2xl p-5">
-          <UserGrowthChart />
-        </motion.div>
-        <motion.div variants={itemVariants} className="bg-card border border-border/50 rounded-2xl p-5">
-          <ChurnAlerts />
-        </motion.div>
+        <div>
+          <Suspense fallback={<div className="h-40 animate-pulse bg-muted/30 rounded-xl" />}><UserGrowthChart /></Suspense>
+        </div>
+        <div>
+          <Suspense fallback={<div className="h-40 animate-pulse bg-muted/30 rounded-xl" />}><ChurnAlerts /></Suspense>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 };

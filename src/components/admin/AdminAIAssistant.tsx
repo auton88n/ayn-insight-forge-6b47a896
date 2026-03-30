@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { 
   Bot, 
@@ -36,20 +35,7 @@ import { SUPABASE_URL } from '@/config';
 const TypingIndicator = () => (
   <div className="flex items-center gap-1.5 px-4 py-3">
     {[0, 1, 2].map((i) => (
-      <motion.div
-        key={i}
-        className="w-2 h-2 rounded-full bg-muted-foreground/60"
-        animate={{
-          y: [0, -6, 0],
-          opacity: [0.4, 1, 0.4],
-        }}
-        transition={{
-          duration: 0.8,
-          repeat: Infinity,
-          delay: i * 0.15,
-          ease: "easeInOut",
-        }}
-      />
+      <div />
     ))}
   </div>
 );
@@ -170,9 +156,6 @@ export function AdminAIAssistant() {
 
   useEffect(() => {
     fetchStats();
-    // Refresh stats every 30 seconds
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
   }, [fetchStats]);
 
   // Auto-scroll to bottom
@@ -471,19 +454,15 @@ export function AdminAIAssistant() {
                   )}
                 />
                 
-                <AnimatePresence>
+                
                   {input.trim() && !isLoading && (
-                    <motion.button
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      onClick={() => sendMessage()}
+                    <button> sendMessage()}
                       className="shrink-0 w-9 h-9 rounded-lg bg-foreground text-background flex items-center justify-center hover:opacity-90 transition-opacity"
                     >
                       <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-                    </motion.button>
+                    </button>
                   )}
-                </AnimatePresence>
+                
               </div>
             </div>
           </div>

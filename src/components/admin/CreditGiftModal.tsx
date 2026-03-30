@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Gift, Loader2, Sparkles } from 'lucide-react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserInfo {
   user_id: string;
@@ -87,33 +86,17 @@ export const CreditGiftModal = ({ isOpen, onClose, user, onSuccess }: CreditGift
   return (
     <Dialog open={isOpen} onOpenChange={() => !isSubmitting && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <AnimatePresence mode="wait">
+        
           {showSuccess ? (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              className="flex flex-col items-center justify-center py-8"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', bounce: 0.5 }}
-                className="w-16 h-16 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 flex items-center justify-center mb-4"
-              >
+            <div>
+              <div>
                 <Sparkles className="w-8 h-8 text-white" />
-              </motion.div>
+              </div>
               <h3 className="text-xl font-bold text-foreground">Credits Added!</h3>
               <p className="text-muted-foreground mt-1">+{amount} credits gifted</p>
-            </motion.div>
+            </div>
           ) : (
-            <motion.div
-              key="form"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
+            <div>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Gift className="w-5 h-5 text-purple-500" />
@@ -208,9 +191,9 @@ export const CreditGiftModal = ({ isOpen, onClose, user, onSuccess }: CreditGift
                   Gift {amount} Credits
                 </Button>
               </DialogFooter>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        
       </DialogContent>
     </Dialog>
   );

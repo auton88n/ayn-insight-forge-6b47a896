@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Dialog,
   DialogContent,
@@ -122,11 +121,7 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
           {/* PIN Display */}
           <div className="flex justify-center gap-3">
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <motion.div
-                key={i}
-                initial={{ scale: 0.8 }}
-                animate={{ 
-                  scale: pin.length > i ? 1.1 : 1,
+              <div> i ? 1.1 : 1,
                   backgroundColor: pin.length > i ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.1)'
                 }}
                 className="w-4 h-4 rounded-full border border-white/20"
@@ -135,18 +130,13 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
           </div>
 
           {/* Error Message */}
-          <AnimatePresence>
+          
             {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="text-red-400 text-sm text-center"
-              >
+              <p>
                 {error}
-              </motion.p>
+              </p>
             )}
-          </AnimatePresence>
+          
 
           {/* Numpad */}
           <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">

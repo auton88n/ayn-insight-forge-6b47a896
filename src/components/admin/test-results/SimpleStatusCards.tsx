@@ -13,7 +13,6 @@ import {
   ChevronUp,
   TestTube2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -266,15 +265,9 @@ const SimpleStatusCards = ({ testResults = [], testRuns = [] }: SimpleStatusCard
               </div>
               
               {/* Expanded Details */}
-              <AnimatePresence>
+              
                 {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
+                  <div>
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <ScrollArea className="max-h-64">
                         <div className="space-y-2 pr-2">
@@ -346,9 +339,9 @@ const SimpleStatusCards = ({ testResults = [], testRuns = [] }: SimpleStatusCard
                         </div>
                       </ScrollArea>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
+              
             </CardContent>
           </Card>
         );
