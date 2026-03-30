@@ -166,7 +166,7 @@ export const AdminPanel = ({
       const results = await Promise.allSettled([
         fetchWithRetry('access_grants?select=*&order=created_at.desc'),
         fetchWithRetry('profiles?select=user_id,company_name,contact_person,avatar_url'),
-        fetchWithRetry(`messages?select=id&created_at=gte.${new Date(new Date().setHours(0,0,0,0)).toISOString()}`),
+        fetchWithRetry(`messages?select=id&created_at=gte.${new Date(new Date().setHours(0,0,0,0)).toISOString()}&order=created_at.desc`),
         fetchWithRetry('system_config?select=key,value'),
         fetchWithRetry('service_applications?select=*&order=created_at.desc'),
         fetchWithRetry('admin_users_view?select=id,email,display_name,auth_provider,avatar_url')

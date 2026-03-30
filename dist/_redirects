@@ -1,0 +1,8 @@
+# Serve static files directly (before SPA catch-all)
+/sitemap.xml    /sitemap.xml    200
+/robots.txt     /robots.txt     200
+/favicon.ico    /favicon.ico    200
+/favicon.png    /favicon.png    200
+
+# SPA catch-all - serve index.html for all other routes
+/*    /index.html   200
