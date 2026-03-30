@@ -55,29 +55,24 @@ export function AICostDashboard() {
       if (error) throw error;
       const d = data || {};
       setStats({
-        todayCount: Number(d.today_count || 0),
-        weekCount: Number(d.week_count || 0),
-        monthCount: Number(d.month_count || 0),
-        totalCount: Number(d.total_count || 0),
-        todayFailures: Number(d.today_failures || 0),
-        weekFailures: Number(d.week_failures || 0),
-        monthFailures: Number(d.month_failures || 0),
-        fallbackToday: Number(d.fallback_today || 0),
-        fallbackWeek: Number(d.fallback_week || 0),
-        byModel: d.by_model || [],
-        recentFailures: d.recent_failures || [],
+        today: Number(d.today_count || 0),
+        week: Number(d.week_count || 0),
+        month: Number(d.month_count || 0),
+        byIntent: {},
+        byModel: d.by_model ? Object.fromEntries((d.by_model).map((m: any) => [m.model, m.count])) : {},
+        avgResponseTime: null,
         successRate: d.today_count > 0 ? Math.round(((d.today_count - d.today_failures) / d.today_count) * 100) : 100,
-        fallbackRate: d.today_count > 0 ? Math.round((d.fallback_today / d.today_count) * 100) : 0,
+        totalCost: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
       });
-    } catch (error) {
-    } catch (error) {
+      setFallbackRate(d.today_count > 0 ? Math.round((d.fallback_today / d.today_count) * 100) : 0);
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Error fetching stats:', error);
       }
       toast.error('Failed to load cost data');
-    }
-    }finally {
+    } finally {
       setIsLoading(false);
     }
   };
