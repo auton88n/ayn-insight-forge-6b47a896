@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
@@ -97,7 +96,7 @@ export const AdminPanel = ({
   const defaultTab: AdminTabId = isAdmin ? 'overview' : 'applications';
   const [activeTab, setActiveTab] = useState<AdminTabId>(defaultTab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [allUsers, setAllUsers] = useState<AccessGrantWithProfile[]>([]);
@@ -205,21 +204,7 @@ export const AdminPanel = ({
     };
   }, []);
 
-  useEffect(() => {
-    const initTimer = setTimeout(() => {
-      fetchData();
-    }, 100);
-
-    const safetyTimeout = setTimeout(() => {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }, 8000);
-    
-    return () => {
-      clearTimeout(initTimer);
-      clearTimeout(safetyTimeout);
-    };
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -281,11 +266,7 @@ export const AdminPanel = ({
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <motion.header 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm"
-      >
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           {onBackClick && (
             <Button 
@@ -334,7 +315,7 @@ export const AdminPanel = ({
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
         </div>
-      </motion.header>
+      </header>
 
       {/* Main Layout: Sidebar + Content */}
       <div className="flex-1 flex min-h-0">
@@ -352,35 +333,33 @@ export const AdminPanel = ({
           <div className="flex-1 overflow-y-auto overscroll-contain">
             <div className="p-6 max-w-6xl mx-auto">
               <ErrorBoundary>
-                  <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
-                    {activeTab === 'overview' && <AdminDashboard key={refreshKey} systemMetrics={systemMetrics} allUsers={allUsers} />}
-                    {activeTab === 'google-analytics' && <GoogleAnalytics key={refreshKey} />}
-                    {activeTab === 'applications' && <ApplicationManagement session={session} applications={applications} onRefresh={fetchData} />}
-                    {activeTab === 'support' && <SupportManagement key={refreshKey} />}
-                    {activeTab === 'users' && <UserManagement key={refreshKey} />}
-                    {activeTab === 'rate-limits' && <RateLimitMonitoring key={refreshKey} session={session} />}
-                    {activeTab === 'settings' && <SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />}
-                    {activeTab === 'ai-costs' && <AICostDashboard key={refreshKey} />}
-                    {activeTab === 'ai-limits' && <UserAILimits key={refreshKey} />}
-                    {activeTab === 'ai-assistant' && <AdminAIAssistant key={refreshKey} />}
-                    {activeTab === 'subscriptions' && <SubscriptionManagement key={refreshKey} />}
-                    {activeTab === 'credit-history' && <CreditGiftHistory key={refreshKey} />}
-                    {activeTab === 'beta-feedback' && <BetaFeedbackViewer key={refreshKey} />}
-                    {activeTab === 'message-feedback' && <MessageFeedbackViewer key={refreshKey} />}
-                    {activeTab === 'test-results' && <TestResultsDashboard key={refreshKey} />}
-                    {activeTab === 'twitter-marketing' && <MarketingCommandCenter key={refreshKey} />}
-                    {activeTab === 'terms-consent' && <TermsConsentViewer key={refreshKey} />}
-                    {activeTab === 'ayn-logs' && <AYNActivityLog key={refreshKey} />}
+                  {activeTab === 'overview' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><AdminDashboard key={refreshKey} systemMetrics={systemMetrics} allUsers={allUsers} /></Suspense>}
+                  {activeTab === 'google-analytics' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><GoogleAnalytics key={refreshKey} /></Suspense>}
+                  {activeTab === 'applications' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><ApplicationManagement session={session} applications={applications} onRefresh={fetchData} /></Suspense>}
+                  {activeTab === 'support' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><SupportManagement key={refreshKey} /></Suspense>}
+                  {activeTab === 'users' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><UserManagement key={refreshKey} /></Suspense>}
+                  {activeTab === 'rate-limits' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><RateLimitMonitoring key={refreshKey} session={session} /></Suspense>}
+                  {activeTab === 'settings' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} /></Suspense>}
+                  {activeTab === 'ai-costs' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><AICostDashboard key={refreshKey} /></Suspense>}
+                  {activeTab === 'ai-limits' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><UserAILimits key={refreshKey} /></Suspense>}
+                  {activeTab === 'ai-assistant' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><AdminAIAssistant key={refreshKey} /></Suspense>}
+                  {activeTab === 'subscriptions' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><SubscriptionManagement key={refreshKey} /></Suspense>}
+                  {activeTab === 'credit-history' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><CreditGiftHistory key={refreshKey} /></Suspense>}
+                  {activeTab === 'beta-feedback' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><BetaFeedbackViewer key={refreshKey} /></Suspense>}
+                  {activeTab === 'message-feedback' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><MessageFeedbackViewer key={refreshKey} /></Suspense>}
+                  {activeTab === 'test-results' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><TestResultsDashboard key={refreshKey} /></Suspense>}
+                  {activeTab === 'twitter-marketing' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><MarketingCommandCenter key={refreshKey} /></Suspense>}
+                  {activeTab === 'terms-consent' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><TermsConsentViewer key={refreshKey} /></Suspense>}
+                    {activeTab === 'ayn-logs' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><AYNActivityLog key={refreshKey} /></Suspense>}
                     {activeTab === 'ayn-mind' && <CommandCenterPanel key={refreshKey} />}
-                    {activeTab === 'errors' && <ErrorMonitoring key={refreshKey} />}
-                    {activeTab === 'revenue' && <RevenueDashboard key={refreshKey} />}
-                    {activeTab === 'conversations' && <ConversationViewer key={refreshKey} />}
+                    {activeTab === 'errors' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><ErrorMonitoring key={refreshKey} /></Suspense>}
+                    {activeTab === 'revenue' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><RevenueDashboard key={refreshKey} /></Suspense>}
+                    {activeTab === 'conversations' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><ConversationViewer key={refreshKey} /></Suspense>}
                     {activeTab === 'user-detail' && <UserDetailPage key={refreshKey} />}
-                    {activeTab === 'email-broadcast' && <EmailBroadcast key={refreshKey} />}
+                    {activeTab === 'email-broadcast' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><EmailBroadcast key={refreshKey} /></Suspense>}
                     {activeTab === 'nda' && <NDAManager key={refreshKey} />}
-                    {activeTab === 'custom-orders' && <CustomOrders key={refreshKey} />}
-                    {activeTab === 'document-studio' && <DocumentStudio key={refreshKey} />}
-                  </Suspense>
+                    {activeTab === 'custom-orders' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><CustomOrders key={refreshKey} /></Suspense>}
+                    {activeTab === 'document-studio' && <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}><DocumentStudio key={refreshKey} /></Suspense>}
               </ErrorBoundary>
             </div>
           </div>

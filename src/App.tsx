@@ -124,6 +124,7 @@ const AnimatedRoutes = () => {
       <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
+      <Route path="/manage-bae76e99d97e188b" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/manage-bae76e99d97e188b/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/admin" element={<Navigate to="/404" replace />} />
       <Route path="/admin/*" element={<Navigate to="/404" replace />} />
