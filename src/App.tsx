@@ -59,8 +59,8 @@ const AdminCustomOrders = lazy(() => import("./pages/AdminCustomOrders"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
 
-// Admin route — accessible at /admin
-import AdminApp from './admin-app/AdminApp';
+// Admin — lazy loaded so 3D/globe/main app code never loads for admin users
+const AdminApp = lazy(() => import('./admin-app/AdminApp'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
