@@ -9,10 +9,7 @@ const LOCKOUT_MINUTES = 5;
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_KEY = 'ayn_admin_lockout';
 const ATTEMPTS_KEY = 'ayn_admin_attempts';
-// Cache the admin role check in sessionStorage — skip DB call on every page load
 const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
-// Cache the PIN hash locally — skip DB call on every PIN entry
-const PIN_HASH_KEY = 'ayn_admin_pin_hash';
 
 function Loader() {
   return (
@@ -22,35 +19,15 @@ function Loader() {
   );
 }
 
-// Pre-fetch and cache the PIN hash so each digit entry doesn't hit the DB
-async function getCachedPinHash(): Promise<string | null> {
-  const cached = sessionStorage.getItem(PIN_HASH_KEY);
-  if (cached) return cached;
-  try {
-    const { data } = await adminSupabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'admin_pin_hash')
-      .single();
-    if (data?.value) {
-      sessionStorage.setItem(PIN_HASH_KEY, data.value as string);
-      return data.value as string;
-    }
-  } catch {}
-  return null;
-}
-
-function PinScreen({ onSuccess }: { onSuccess: () => void }) {
+// PIN screen — shown AFTER login since verify-admin-pin requires a JWT
+function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => void }) {
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
-  const [shake, setShake] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
-
-  // Pre-fetch PIN hash as soon as screen mounts — so it's ready when user finishes typing
-  useEffect(() => { getCachedPinHash(); }, []);
 
   useEffect(() => {
     const lockout = localStorage.getItem(LOCKOUT_KEY);
@@ -61,6 +38,8 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
       if (Date.now() < until) setLockedUntil(until);
       else { localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY); }
     }
+    // Focus first input
+    setTimeout(() => inputs.current[0]?.focus(), 100);
   }, []);
 
   useEffect(() => {
@@ -75,47 +54,53 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
     return () => clearInterval(interval);
   }, [lockedUntil]);
 
-  const sendAlert = async () => {
-    try { await adminSupabase.functions.invoke('admin-pin-alert', { body: {} }); } catch {}
-  };
-
-  const triggerLockout = async () => {
-    const until = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
-    localStorage.setItem(LOCKOUT_KEY, until.toString());
-    localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
-    setLockedUntil(until);
-    setAttempts(MAX_ATTEMPTS);
-    await sendAlert();
-  };
-
   const checkPin = async (fullPin: string) => {
-    if (lockedUntil) return;
+    if (lockedUntil || checking) return;
+    setChecking(true);
     try {
-      const msgBuffer = new TextEncoder().encode(fullPin);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-      const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-      // Use cached hash — no DB call on every attempt
-      const storedHash = await getCachedPinHash();
-      if (storedHash === hashHex) {
-        localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
-        onSuccess();
-      } else {
+      // Use the edge function — requires authenticated session
+      const { data, error: fnError } = await adminSupabase.functions.invoke('verify-admin-pin', {
+        body: { pin: fullPin },
+      });
+
+      if (fnError || !data?.success) {
+        if (data?.locked) {
+          // Server-side lockout
+          const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
+          localStorage.setItem(LOCKOUT_KEY, until.toString());
+          setLockedUntil(until);
+          return;
+        }
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
         localStorage.setItem(ATTEMPTS_KEY, newAttempts.toString());
-        if (newAttempts >= MAX_ATTEMPTS) { await triggerLockout(); }
-        else {
-          setShake(true);
+        if (newAttempts >= MAX_ATTEMPTS) {
+          const until = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
+          localStorage.setItem(LOCKOUT_KEY, until.toString());
+          localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
+          setLockedUntil(until);
+          try { await adminSupabase.functions.invoke('admin-pin-alert', { body: {} }); } catch {}
+        } else {
           setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`);
           setPin(['', '', '', '']);
-          setTimeout(() => { setShake(false); inputs.current[0]?.focus(); }, 600);
+          setTimeout(() => inputs.current[0]?.focus(), 100);
         }
+      } else {
+        localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
+        sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
+        onSuccess();
       }
-    } catch { setError('Something went wrong.'); }
+    } catch {
+      setError('Unable to verify PIN. Please try again.');
+      setPin(['', '', '', '']);
+      setTimeout(() => inputs.current[0]?.focus(), 100);
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handleChange = (i: number, val: string) => {
-    if (lockedUntil || !/^\d*$/.test(val)) return;
+    if (lockedUntil || !/^\d*$/.test(val) || checking) return;
     const newPin = [...pin]; newPin[i] = val.slice(-1); setPin(newPin); setError('');
     if (val && i < 3) inputs.current[i + 1]?.focus();
     if (newPin.every(d => d !== '')) checkPin(newPin.join(''));
@@ -140,21 +125,26 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
           <div>
             <div className="text-red-400 text-sm mb-2">Too many failed attempts</div>
             <div className="text-4xl font-mono font-bold text-white mb-2">{mins}:{secs.toString().padStart(2,'0')}</div>
-            <div className="text-white/30 text-xs mt-4">Warning sent to admin</div>
+            <div className="text-white/30 text-xs mt-4">Try again later</div>
           </div>
         ) : (
           <>
-            <div className="text-white/50 text-sm mb-8">Enter PIN</div>
-            <div className={`flex gap-3 justify-center mb-4 ${shake ? 'animate-bounce' : ''}`}>
+            <div className="text-white/50 text-sm mb-8">Enter admin PIN</div>
+            <div className="flex gap-3 justify-center mb-4">
               {pin.map((digit, i) => (
                 <input key={i} ref={el => inputs.current[i] = el} type="password" inputMode="numeric"
                   maxLength={1} value={digit} onChange={e => handleChange(i, e.target.value)}
-                  onKeyDown={e => handleKey(i, e)} autoFocus={i === 0}
-                  className={`w-12 h-14 text-center text-xl font-bold bg-white/5 border rounded-xl text-white focus:outline-none transition-all ${
+                  onKeyDown={e => handleKey(i, e)}
+                  disabled={checking}
+                  className={`w-12 h-14 text-center text-xl font-bold bg-white/5 border rounded-xl text-white focus:outline-none transition-all disabled:opacity-50 ${
                     error ? 'border-red-500/60 bg-red-500/5' : digit ? 'border-white/30' : 'border-white/10 focus:border-white/30'}`} />
               ))}
             </div>
-            {error && <p className="text-red-400 text-xs">{error}</p>}
+            {checking && <p className="text-white/30 text-xs">Verifying...</p>}
+            {error && !checking && <p className="text-red-400 text-xs">{error}</p>}
+            <button onClick={() => { adminSupabase.auth.signOut(); }} className="text-white/20 text-xs mt-6 underline">
+              Sign out
+            </button>
           </>
         )}
       </div>
@@ -210,7 +200,7 @@ function AccessDenied() {
   );
 }
 
-type Step = 'checking' | 'pin' | 'login' | 'ready' | 'denied';
+type Step = 'checking' | 'login' | 'pin' | 'ready' | 'denied';
 
 export default function AdminApp() {
   const [step, setStep] = useState<Step>('checking');
@@ -219,52 +209,38 @@ export default function AdminApp() {
   const checkAdmin = useCallback(async (s: Session) => {
     // Check sessionStorage cache first — skip DB call if already verified this session
     const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-    if (cached === s.user.id) {
-      setStep('ready');
-      return;
-    }
+    if (cached === s.user.id) { setStep('ready'); return; }
     try {
-      const { data } = await adminSupabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', s.user.id)
-        .maybeSingle();
-      if (data?.role === 'admin') {
-        // Cache the verification for this session
-        sessionStorage.setItem(ADMIN_VERIFIED_KEY, s.user.id);
-        setStep('ready');
+      const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
+      if (data?.role === 'admin' || data?.role === 'duty') {
+        // Verified as admin — now require PIN
+        setStep('pin');
       } else {
         setStep('denied');
       }
-    } catch {
-      setStep('denied');
-    }
+    } catch { setStep('denied'); }
   }, []);
 
   useEffect(() => {
-    // Check session immediately — no delay
     adminSupabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) { setSession(session); checkAdmin(session); }
-      else setStep('pin');
+      if (session) {
+        setSession(session);
+        // If already PIN-verified this session, go straight to ready
+        const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
+        if (cached === session.user.id) { setStep('ready'); }
+        else { checkAdmin(session); }
+      } else {
+        setStep('login');
+      }
     });
 
     const { data: { subscription } } = adminSupabase.auth.onAuthStateChange((_e, s) => {
       if (!s) {
-        // Clear caches on sign out
         sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
-        sessionStorage.removeItem(PIN_HASH_KEY);
-        setStep('pin');
-        setSession(null);
+        setStep('login'); setSession(null);
       }
     });
     return () => subscription.unsubscribe();
-  }, [checkAdmin]);
-
-  const handlePinSuccess = useCallback(() => {
-    adminSupabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) { setSession(session); checkAdmin(session); }
-      else setStep('login');
-    });
   }, [checkAdmin]);
 
   const handleLoginSuccess = useCallback((s: Session) => {
@@ -272,17 +248,18 @@ export default function AdminApp() {
     checkAdmin(s);
   }, [checkAdmin]);
 
+  const handlePinSuccess = useCallback(() => {
+    setStep('ready');
+  }, []);
+
   if (step === 'checking') return <Loader />;
-  if (step === 'pin') return <PinScreen onSuccess={handlePinSuccess} />;
   if (step === 'login') return <LoginScreen onSuccess={handleLoginSuccess} />;
+  if (step === 'pin') return <PinScreen session={session!} onSuccess={handlePinSuccess} />;
   if (step === 'denied') return <AccessDenied />;
 
   return (
     <Routes>
-      <Route
-        path="/"
-        element={<AdminPanel session={session!} isAdmin={true} onBackClick={() => {}} />}
-      />
+      <Route path="/" element={<AdminPanel session={session!} isAdmin={true} onBackClick={() => {}} />} />
       <Route path="/custom-orders" element={<AdminCustomOrders />} />
       <Route path="*" element={<Navigate to="/manage-bae76e99d97e188b" replace />} />
     </Routes>

@@ -24,7 +24,8 @@ export const ChurnAlerts = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc('get_admin_churn_alerts');
-      setUsers(atRisk as ChurnUser[]);
+      const atRisk = (data || []) as unknown as ChurnUser[];
+      setUsers(atRisk);
     } finally { setLoading(false); }
   }, [threshold]);
 

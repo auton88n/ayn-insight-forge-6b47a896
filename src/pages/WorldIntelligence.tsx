@@ -74,7 +74,7 @@ function parseMaritimePoints(items: any[]): MapPoint[] {
         detail: `${i.type ?? ''} · ${i.flag ?? ''} · ${ i.destination ?? i.status ?? ''}`.trim().replace(/^·\s*/, ''),
         category: 'Maritime',
         risk: 'maritime' as any,
-        heading: i.heading ?? i.course,
+        // heading not on MapPoint type
         speed: i.speed,
       };
     }).filter(Boolean).slice(0, 40); // cap at 40 ships to avoid clutter
@@ -135,7 +135,7 @@ function parseAviationPoints(items: any[]): MapPoint[] {
         detail: i.description ?? i.status ?? i.origin ?? '',
         category: 'Aviation',
         risk: 'aviation' as any,
-        heading: i.heading ?? i.track,
+        // heading not on MapPoint type
         speed: i.speed_knots ?? i.speed,
       };
     }).filter(Boolean).slice(0, 30);
@@ -367,7 +367,7 @@ export default function WorldIntelligence() {
     try {
       // Load calibration data first
       const { data: calibData } = await supabase
-        .from('ayn_accuracy_calibration')
+        .from('ayn_accuracy_calibration' as any)
         .select('asset, real_accuracy_pct, reliability_tier, should_show_uncertainty, calibration_factor');
       const calibMap: Record<string, any> = {};
       for (const c of calibData || []) calibMap[c.asset] = c;
