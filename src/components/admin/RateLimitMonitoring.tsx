@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -114,12 +115,15 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
   }
 
   return (
-    <div
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
       className="space-y-6"
     >
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
+        <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -133,9 +137,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
 
-        <div>
+        <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -149,9 +153,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
 
-        <div>
+        <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -165,11 +169,11 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       </div>
 
       {/* Rate Limit Table */}
-      <div>
+      <motion.div variants={itemVariants}>
         <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -201,8 +205,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
                   stats.map((stat, index) => {
                     const usagePercent = (stat.request_count / stat.max_requests) * 100;
                     return (
-                      <div
+                      <motion.div
                         key={`${stat.user_id}-${stat.endpoint}-${index}`}
+                        variants={itemVariants}
                         className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
                           stat.is_blocked 
                             ? 'bg-red-500/5 border-red-500/20' 
@@ -262,7 +267,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
                             </Button>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })
                 )}
@@ -270,7 +275,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
             </ScrollArea>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

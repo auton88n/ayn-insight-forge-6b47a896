@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -195,17 +196,25 @@ export function UserAILimits() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+        >
           <RefreshCw className="w-8 h-8 text-primary" />
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-6"
+    >
       {/* Header */}
-      <div>
+      <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-primary/10 ring-1 ring-primary/20">
             <Shield className="w-5 h-5 text-primary" />
@@ -227,10 +236,10 @@ export function UserAILimits() {
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
           {isLoading ? "Loading..." : "Refresh"}
         </Button>
-      </div>
+      </motion.div>
 
       {/* Search */}
-      <div>
+      <motion.div variants={itemVariants} className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Search by name or user ID..."
@@ -238,10 +247,10 @@ export function UserAILimits() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10 bg-muted/30 border-border/50"
         />
-      </div>
+      </motion.div>
 
       {/* Stats */}
-      <div>
+      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { label: 'Total Users', value: limits.length, Icon: Users, color: 'from-primary/20 to-primary/5', iconColor: 'text-primary' },
           { label: 'Unlimited Users', value: unlimitedCount, Icon: InfinityIcon, color: 'from-emerald-500/20 to-emerald-500/5', iconColor: 'text-emerald-500' },
@@ -265,10 +274,10 @@ export function UserAILimits() {
             </Card>
           );
         })}
-      </div>
+      </motion.div>
 
       {/* User List */}
-      <div>
+      <motion.div variants={itemVariants}>
         <Card className="relative overflow-hidden border border-border/50 bg-card/80 backdrop-blur-xl">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
           <CardHeader>
@@ -276,13 +285,22 @@ export function UserAILimits() {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[400px]">
-              <div>
+              <motion.div variants={containerVariants} className="space-y-2">
                 {filteredLimits.map(user => {
                   const isEditing = editingUser === user.user_id;
                   const msgPercentage = getUsagePercentage(user.current_daily_messages, user.daily_messages);
                   
                   return (
-                    <div>
+                    <motion.div 
+                      key={user.user_id}
+                      variants={itemVariants}
+                      whileHover={{ x: 4 }}
+                      className={`p-4 rounded-xl border transition-all ${
+                        isEditing 
+                          ? 'bg-primary/5 border-primary/30' 
+                          : 'bg-muted/20 border-border/30 hover:bg-muted/40'
+                      }`}
+                    >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-3">
@@ -389,7 +407,7 @@ export function UserAILimits() {
                           )}
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
                 
@@ -401,11 +419,11 @@ export function UserAILimits() {
                     <p className="text-sm text-muted-foreground">No users found</p>
                   </div>
                 )}
-              </div>
+              </motion.div>
             </ScrollArea>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Credit Gift Modal */}
       <CreditGiftModal
@@ -419,6 +437,6 @@ export function UserAILimits() {
           fetchLimits();
         }}
       />
-    </div>
+    </motion.div>
   );
 }

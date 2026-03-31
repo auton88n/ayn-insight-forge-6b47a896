@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, parseISO } from 'date-fns';
 
@@ -193,7 +194,11 @@ export const CreditGiftHistory = () => {
   }
 
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-6 p-6"
+    >
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -336,7 +341,12 @@ export const CreditGiftHistory = () => {
             <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-3">
                 {filteredGifts.map((gift) => (
-                  <div>
+                  <motion.div
+                    key={gift.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -378,13 +388,13 @@ export const CreditGiftHistory = () => {
                           : ''}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </ScrollArea>
           )}
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 };

@@ -6,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Star, RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Bug, Lightbulb, Users } from 'lucide-react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -83,7 +84,12 @@ export const BetaFeedbackViewer = () => {
   }
 
   return (
-    <div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="space-y-6 p-6"
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -97,7 +103,7 @@ export const BetaFeedbackViewer = () => {
       </div>
 
       {/* Stats Cards */}
-      <div>
+      <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/20">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -147,10 +153,10 @@ export const BetaFeedbackViewer = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
 
       {/* Feedback List */}
-      <div>
+      <motion.div variants={itemVariants}>
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">All Feedback</CardTitle>
@@ -165,7 +171,11 @@ export const BetaFeedbackViewer = () => {
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-4">
                   {feedback.map((entry) => (
-                    <div>
+                    <motion.div
+                      key={entry.id}
+                      variants={itemVariants}
+                      className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-2">
                           {/* Rating Stars */}
@@ -246,14 +256,14 @@ export const BetaFeedbackViewer = () => {
                           </Badge>
                         )}
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </ScrollArea>
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

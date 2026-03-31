@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -130,7 +131,12 @@ export const VisitorAnalytics = () => {
   };
 
   return (
-    <div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-6"
+    >
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
         <div>
@@ -163,7 +169,7 @@ export const VisitorAnalytics = () => {
         ].map((stat) => {
           const Icon = stat.icon;
           return (
-            <div>
+            <motion.div key={stat.label} variants={itemVariants}>
               <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -179,14 +185,14 @@ export const VisitorAnalytics = () => {
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </motion.div>
           );
         })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Countries */}
-        <div>
+        <motion.div variants={itemVariants}>
           <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -226,12 +232,12 @@ export const VisitorAnalytics = () => {
               </ScrollArea>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
 
         {/* Devices & Pages */}
         <div className="space-y-6">
           {/* Device Breakdown */}
-          <div>
+          <motion.div variants={itemVariants}>
             <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -258,10 +264,10 @@ export const VisitorAnalytics = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
 
           {/* Top Pages */}
-          <div>
+          <motion.div variants={itemVariants}>
             <Card className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -295,9 +301,9 @@ export const VisitorAnalytics = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

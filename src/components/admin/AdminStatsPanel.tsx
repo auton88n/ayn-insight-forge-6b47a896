@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { 
   Activity, 
   TestTube, 
@@ -38,11 +39,20 @@ const StatCard = ({ label, value, icon: Icon, status, onClick }: StatCardProps) 
   };
 
   return (
-    <button>
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center justify-center p-3 rounded-lg border transition-colors",
+        "hover:bg-accent/50 cursor-pointer",
+        statusColors[status]
+      )}
+    >
       <Icon className="w-4 h-4 mb-1" />
       <span className="text-lg font-semibold">{value}</span>
       <span className="text-[10px] opacity-70">{label}</span>
-    </button>
+    </motion.button>
   );
 };
 

@@ -22,6 +22,7 @@ import {
   Accessibility,
   Languages
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface TestFile {
   name: string;
@@ -311,7 +312,12 @@ const E2ETestCoverage: React.FC = () => {
           <ScrollArea className="h-[500px]">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {E2E_TEST_CATEGORIES.map((category, index) => (
-                <div>
+                <motion.div
+                  key={category.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
                   <Card className="h-full">
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -355,7 +361,7 @@ const E2ETestCoverage: React.FC = () => {
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </motion.div>
               ))}
             </div>
           </ScrollArea>

@@ -16,44 +16,24 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: false,
     minify: 'esbuild',
-    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // Core React
-          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
-            return 'vendor-react';
-          }
-          // Supabase
-          if (id.includes('@supabase/')) {
-            return 'vendor-supabase';
-          }
-          // 3D + globe — large, only WorldIntelligence page
-          if (id.includes('react-globe.gl') || id.includes('/three/') || id.includes('@react-three/')) {
-            return 'vendor-3d';
-          }
-          // Charts
-          if (id.includes('recharts') || id.includes('d3-')) {
-            return 'vendor-charts';
-          }
-          // Framer motion
-          if (id.includes('framer-motion')) {
-            return 'vendor-motion';
-          }
-          // Icons
-          if (id.includes('lucide-react')) {
-            return 'vendor-icons';
-          }
-          // Radix UI
-          if (id.includes('@radix-ui/')) {
-            return 'vendor-ui';
-          }
-          // TanStack
-          if (id.includes('@tanstack/')) {
-            return 'vendor-query';
-          }
-          // NOTE: Do NOT group admin components here — let vite auto-split them
-          // as separate lazy chunks via the React.lazy() imports in AdminPanel.tsx
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-select',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-tooltip',
+          ],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-charts': ['recharts'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-3d': ['three', '@react-three/fiber', '@react-three/drei'],
+          'vendor-motion': ['framer-motion'],
         },
       },
     },

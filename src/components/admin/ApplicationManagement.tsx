@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -340,7 +341,10 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
 
           {/* Application List */}
           <ScrollArea className="h-[450px]">
-            <div
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
               className="space-y-2"
             >
               {paginatedApplications.length === 0 ? (
@@ -356,8 +360,10 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
                   const StatusIcon = statusConfig.icon;
                   
                   return (
-                    <div
+                    <motion.div
                       key={app.id}
+                      variants={itemVariants}
+                      whileHover={{ x: 4 }}
                       className="group flex items-center justify-between p-4 rounded-xl border bg-muted/20 border-border/30 hover:bg-muted/40 hover:border-border/50 transition-all cursor-pointer"
                       onClick={() => handleViewApplication(app)}
                     >
@@ -429,11 +435,11 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })
               )}
-            </div>
+            </motion.div>
           </ScrollArea>
 
           {/* Pagination */}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -179,9 +180,12 @@ const CollapsibleSection = ({ title, description, icon, children, defaultOpen = 
                   <CardDescription className="text-sm">{description}</CardDescription>
                 </div>
               </div>
-              <div>
+              <motion.div
+                animate={{ rotate: isOpen ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
                 <ChevronDown className="w-5 h-5 text-muted-foreground" />
-              </div>
+              </motion.div>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
@@ -295,9 +299,14 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
   };
 
   return (
-    <div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="space-y-4"
+    >
       {/* Header */}
-      <div>
+      <motion.div variants={itemVariants} className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-xl bg-primary/10 ring-1 ring-primary/20">
             <Settings className="w-5 h-5 text-primary" />
@@ -322,10 +331,10 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
             Save Changes
           </Button>
         )}
-      </div>
+      </motion.div>
       
       {/* Maintenance Mode */}
-      <div>
+      <motion.div variants={itemVariants}>
         <CollapsibleSection
           title="Maintenance Mode"
           description="Block users during maintenance"
@@ -443,10 +452,10 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
             </p>
           </div>
         </CollapsibleSection>
-      </div>
+      </motion.div>
 
       {/* User Settings */}
-      <div>
+      <motion.div variants={itemVariants}>
         <CollapsibleSection
           title="Default User Settings"
           description="Settings applied to new users"
@@ -478,10 +487,10 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
             </div>
           </div>
         </CollapsibleSection>
-      </div>
+      </motion.div>
 
       {/* Security Settings */}
-      <div>
+      <motion.div variants={itemVariants}>
         <CollapsibleSection
           title="Security Settings"
           description="Configure authentication and session security"
@@ -518,10 +527,10 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
             </div>
           </div>
         </CollapsibleSection>
-      </div>
+      </motion.div>
 
       {/* Beta Program Settings */}
-      <div>
+      <motion.div variants={itemVariants}>
         <CollapsibleSection
           title="Beta Program"
           description="Beta mode and feedback rewards"
@@ -530,10 +539,10 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
         >
           <BetaProgramSettings />
         </CollapsibleSection>
-      </div>
+      </motion.div>
 
       {/* Admin PIN Settings */}
-      <div>
+      <motion.div variants={itemVariants}>
         <CollapsibleSection
           title="Admin Panel PIN"
           description="Change the admin PIN — takes effect immediately"
@@ -590,12 +599,12 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
             </p>
           </div>
         </CollapsibleSection>
-      </div>
+      </motion.div>
 
       {/* Notification Log */}
-      <div>
+      <motion.div variants={itemVariants}>
         <NotificationLogViewer />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

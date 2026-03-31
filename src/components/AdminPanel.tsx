@@ -1,5 +1,6 @@
+import { useState, useEffect, useCallback, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
@@ -9,38 +10,33 @@ import { ArrowLeft, Sun, Moon, RefreshCw, Loader2, Sparkles } from 'lucide-react
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
-
-// Lazy-loaded panels — each becomes its own JS chunk, only fetched when first visited
-const AdminDashboard       = lazy(() => import('@/components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const UserManagement       = lazy(() => import('@/components/admin/UserManagement').then(m => ({ default: m.UserManagement })));
-const RateLimitMonitoring  = lazy(() => import('@/components/admin/RateLimitMonitoring').then(m => ({ default: m.RateLimitMonitoring })));
-const SystemSettings       = lazy(() => import('@/components/admin/SystemSettings').then(m => ({ default: m.SystemSettings })));
-const ApplicationManagement= lazy(() => import('@/components/admin/ApplicationManagement').then(m => ({ default: m.ApplicationManagement })));
-const SupportManagement    = lazy(() => import('@/components/admin/SupportManagement'));
-const GoogleAnalytics      = lazy(() => import('@/components/admin/GoogleAnalytics').then(m => ({ default: m.GoogleAnalytics })));
-const AICostDashboard      = lazy(() => import('@/components/admin/AICostDashboard').then(m => ({ default: m.AICostDashboard })));
-const UserAILimits         = lazy(() => import('@/components/admin/UserAILimits').then(m => ({ default: m.UserAILimits })));
-const AdminAIAssistant     = lazy(() => import('@/components/admin/AdminAIAssistant').then(m => ({ default: m.AdminAIAssistant })));
-const TestResultsDashboard = lazy(() => import('@/components/admin/TestResultsDashboard'));
-const SubscriptionManagement = lazy(() => import('@/components/admin/SubscriptionManagement').then(m => ({ default: m.SubscriptionManagement })));
-const CreditGiftHistory    = lazy(() => import('@/components/admin/CreditGiftHistory').then(m => ({ default: m.CreditGiftHistory })));
-const BetaFeedbackViewer   = lazy(() => import('@/components/admin/BetaFeedbackViewer').then(m => ({ default: m.BetaFeedbackViewer })));
-const MessageFeedbackViewer= lazy(() => import('@/components/admin/MessageFeedbackViewer').then(m => ({ default: m.MessageFeedbackViewer })));
-const MarketingCommandCenter=lazy(() => import('@/components/admin/marketing/MarketingCommandCenter').then(m => ({ default: m.MarketingCommandCenter })));
-const AYNActivityLog       = lazy(() => import('@/components/admin/AYNActivityLog').then(m => ({ default: m.AYNActivityLog })));
-const ErrorMonitoring      = lazy(() => import('@/components/admin/ErrorMonitoring').then(m => ({ default: m.ErrorMonitoring })));
-const RevenueDashboard     = lazy(() => import('@/components/admin/RevenueDashboard').then(m => ({ default: m.RevenueDashboard })));
-const ConversationViewer   = lazy(() => import('@/components/admin/ConversationViewer').then(m => ({ default: m.ConversationViewer })));
-const UserDetailPage       = lazy(() => import('@/components/admin/UserDetailPage').then(m => ({ default: m.UserDetailPage })));
-const EmailBroadcast       = lazy(() => import('@/components/admin/EmailBroadcast').then(m => ({ default: m.EmailBroadcast })));
-const CustomOrders         = lazy(() => import('@/components/admin/CustomOrders').then(m => ({ default: m.CustomOrders })));
-const NDAManager           = lazy(() => import('@/components/admin/NDAManager').then(m => ({ default: m.NDAManager })));
-const DocumentStudio       = lazy(() => import('@/components/admin/DocumentStudio').then(m => ({ default: m.DocumentStudio })));
-const TermsConsentViewer   = lazy(() => import('@/components/admin/TermsConsentViewer').then(m => ({ default: m.TermsConsentViewer })));
-const CommandCenterPanel   = lazy(() => import('@/components/admin/workforce/CommandCenterPanel').then(m => ({ default: m.CommandCenterPanel })));
-
-// Types needed at this level
-import type { ServiceApplication } from '@/components/admin/ApplicationManagement';
+import { AdminDashboard } from '@/components/admin/AdminDashboard';
+import { UserManagement } from '@/components/admin/UserManagement';
+import { RateLimitMonitoring } from '@/components/admin/RateLimitMonitoring';
+import { SystemSettings } from '@/components/admin/SystemSettings';
+import { ApplicationManagement, ServiceApplication } from '@/components/admin/ApplicationManagement';
+import SupportManagement from '@/components/admin/SupportManagement';
+import { GoogleAnalytics } from '@/components/admin/GoogleAnalytics';
+import { AICostDashboard } from '@/components/admin/AICostDashboard';
+import { UserAILimits } from '@/components/admin/UserAILimits';
+import { AdminAIAssistant } from '@/components/admin/AdminAIAssistant';
+import TestResultsDashboard from '@/components/admin/TestResultsDashboard';
+import { SubscriptionManagement } from '@/components/admin/SubscriptionManagement';
+import { CreditGiftHistory } from '@/components/admin/CreditGiftHistory';
+import { BetaFeedbackViewer } from '@/components/admin/BetaFeedbackViewer';
+import { MessageFeedbackViewer } from '@/components/admin/MessageFeedbackViewer';
+import { MarketingCommandCenter } from '@/components/admin/marketing/MarketingCommandCenter';
+import { AYNActivityLog } from '@/components/admin/AYNActivityLog';
+import { ErrorMonitoring } from '@/components/admin/ErrorMonitoring';
+import { RevenueDashboard } from '@/components/admin/RevenueDashboard';
+import { ConversationViewer } from '@/components/admin/ConversationViewer';
+import { UserDetailPage } from '@/components/admin/UserDetailPage';
+import { EmailBroadcast } from '@/components/admin/EmailBroadcast';
+import { CustomOrders } from '@/components/admin/CustomOrders';
+import { NDAManager } from '@/components/admin/NDAManager';
+import { DocumentStudio } from '@/components/admin/DocumentStudio';
+import { TermsConsentViewer } from '@/components/admin/TermsConsentViewer';
+import { CommandCenterPanel } from '@/components/admin/workforce/CommandCenterPanel';
 
 
 // Types
@@ -209,7 +205,19 @@ export const AdminPanel = ({
   }, []);
 
   useEffect(() => {
-    fetchData();
+    const initTimer = setTimeout(() => {
+      fetchData();
+    }, 100);
+
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }, 8000);
+    
+    return () => {
+      clearTimeout(initTimer);
+      clearTimeout(safetyTimeout);
+    };
   }, [fetchData]);
 
   const handleRefresh = () => {
@@ -265,12 +273,31 @@ export const AdminPanel = ({
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <motion.div
+          className="relative"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+        >
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/40 to-primary blur-xl" />
+          <Loader2 className="w-10 h-10 text-primary relative z-10" />
+        </motion.div>
+      </div>
+    );
+  }
+
   const newAppsCount = applications.filter(a => a.status === 'new').length;
 
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
+      <motion.header 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm"
+      >
         <div className="flex items-center gap-4">
           {onBackClick && (
             <Button 
@@ -319,7 +346,7 @@ export const AdminPanel = ({
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
         </div>
-      </header>
+      </motion.header>
 
       {/* Main Layout: Sidebar + Content */}
       <div className="flex-1 flex min-h-0">
@@ -336,13 +363,15 @@ export const AdminPanel = ({
         <main className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto overscroll-contain">
             <div className="p-6 max-w-6xl mx-auto">
-              <div key={activeTab}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
                   <ErrorBoundary>
-                    <Suspense fallback={
-                      <div className="flex items-center justify-center py-24">
-                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                      </div>
-                    }>
                     {activeTab === 'overview' && <AdminDashboard key={refreshKey} systemMetrics={systemMetrics} allUsers={allUsers} />}
                     {activeTab === 'google-analytics' && <GoogleAnalytics key={refreshKey} />}
                     {activeTab === 'applications' && <ApplicationManagement session={session} applications={applications} onRefresh={fetchData} />}
@@ -370,9 +399,9 @@ export const AdminPanel = ({
                     {activeTab === 'nda' && <NDAManager key={refreshKey} />}
                     {activeTab === 'custom-orders' && <CustomOrders key={refreshKey} />}
                     {activeTab === 'document-studio' && <DocumentStudio key={refreshKey} />}
-                    </Suspense>
                   </ErrorBoundary>
-              </div>
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
         </main>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Search, 
   Mail, 
@@ -247,9 +248,18 @@ const ContactMessagesView: React.FC = () => {
             <p className="text-sm">Try adjusting your filters or search query</p>
           </div>
         ) : (
-          <div>
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="p-2 space-y-2"
+          >
             {paginatedMessages.map((msg) => (
-              <div>
+              <motion.div
+                key={msg.id}
+                variants={itemVariants}
+                className="group bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all duration-200"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
@@ -310,9 +320,9 @@ const ContactMessagesView: React.FC = () => {
                     </Button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </ScrollArea>
 
