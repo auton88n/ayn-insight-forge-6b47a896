@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, RefreshCw, Mail, Activity, TrendingUp, Clock, Shield, User } from 'lucide-react';
-import { toast } from 'sonner';
+import { useAdminUsers, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AdminUser {
   id: string;
@@ -58,27 +58,13 @@ function activityLevel(user: AdminUser): { label: string; color: string } {
 }
 
 export const UserManagement = () => {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawUsers, isLoading: loading } = useAdminUsers();
+  const users = useMemo(() => (Array.isArray(rawUsers) ? rawUsers : []) as unknown as AdminUser[], [rawUsers]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'never'>('all');
   const [sortBy, setSortBy] = useState<'signed_up' | 'last_active' | 'messages' | 'name'>('signed_up');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
-
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_users');
-      if (error) throw error;
-      setUsers((data || []) as unknown as AdminUser[]);
-    } catch (err: any) {
-      toast.error('Failed to load users: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const filtered = users
     .filter(u => {
@@ -167,7 +153,7 @@ export const UserManagement = () => {
           <option value="messages">Sort: Most Messages</option>
           <option value="name">Sort: Name</option>
         </select>
-        <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.users() })} disabled={loading}
           className="border-white/10 text-white/60 hover:bg-white/5">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>

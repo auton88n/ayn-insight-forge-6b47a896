@@ -1,42 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useState, useMemo } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
+import { useAdminUserGrowth } from '@/admin-app/hooks/useAdminQuery';
 
 interface WeekData { week: string; signups: number; cumulative: number; }
 
 export const UserGrowthChart = () => {
-  const [data, setData] = useState<WeekData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawData, isLoading: loading } = useAdminUserGrowth();
   const [view, setView] = useState<'weekly' | 'cumulative'>('cumulative');
 
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: usersRaw } = await supabase.rpc('get_admin_user_growth');
-      const users = usersRaw || [];
-      const rows = (users || []) as { signed_up_at: string }[];
-
-      // Group by week
-      const weekMap = new Map<string, number>();
-      rows.forEach(r => {
-        const d = new Date(r.signed_up_at);
-        d.setHours(0,0,0,0);
-        d.setDate(d.getDate() - d.getDay()); // start of week
-        const key = d.toISOString().slice(0, 10);
-        weekMap.set(key, (weekMap.get(key) || 0) + 1);
-      });
-
-      const sorted = Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-      let cum = 0;
-      const weeks: WeekData[] = sorted.map(([week, signups]) => {
-        cum += signups;
-        return { week, signups, cumulative: cum };
-      });
-      setData(weeks);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { fetch(); }, [fetch]);
+  const data = useMemo(() => {
+    const users = rawData || [];
+    const rows = (Array.isArray(users) ? users : []) as { signed_up_at: string }[];
+    const weekMap = new Map<string, number>();
+    rows.forEach(r => {
+      const d = new Date(r.signed_up_at);
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate() - d.getDay());
+      const key = d.toISOString().slice(0, 10);
+      weekMap.set(key, (weekMap.get(key) || 0) + 1);
+    });
+    const sorted = Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    let cum = 0;
+    return sorted.map(([week, signups]) => {
+      cum += signups;
+      return { week, signups, cumulative: cum };
+    });
+  }, [rawData]);
 
   const vals = data.map(d => view === 'cumulative' ? d.cumulative : d.signups);
   const max = Math.max(...vals, 1);

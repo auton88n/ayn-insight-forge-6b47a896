@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useState, useMemo } from 'react';
 import { AlertTriangle, RefreshCw, Clock, Mail, TrendingDown } from 'lucide-react';
+import { useAdminChurnAlerts } from '@/admin-app/hooks/useAdminQuery';
 
 interface ChurnUser {
   id: string; display_name: string; email: string; auth_provider: string;
@@ -16,20 +16,9 @@ function riskLevel(u: ChurnUser): { label: string; color: string } {
 }
 
 export const ChurnAlerts = () => {
-  const [users, setUsers] = useState<ChurnUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawData, isLoading: loading } = useAdminChurnAlerts();
+  const users = useMemo(() => (Array.isArray(rawData) ? rawData : []) as unknown as ChurnUser[], [rawData]);
   const [threshold, setThreshold] = useState(14);
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_churn_alerts');
-      const atRisk = (data || []) as unknown as ChurnUser[];
-      setUsers(atRisk);
-    } finally { setLoading(false); }
-  }, [threshold]);
-
-  useEffect(() => { fetch(); }, [fetch]);
 
   const neverUsed = users.filter(u => u.total_messages === 0).length;
   const highRisk = users.filter(u => u.days_inactive > 60 && u.total_messages > 0).length;

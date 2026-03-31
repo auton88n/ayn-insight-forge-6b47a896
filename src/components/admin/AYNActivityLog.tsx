@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,8 @@ import {
   RefreshCw, ChevronDown, ChevronUp, Filter, Wrench, Circle
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAdminActivityLog, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ActivityLog {
   id: string;
@@ -82,51 +84,33 @@ const AI_EMPLOYEES: Record<string, { name: string; emoji: string }> = {
 };
 
 export const AYNActivityLog = () => {
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading } = useAdminActivityLog();
   const [filter, setFilter] = useState<string>('all');
   const [employeeFilter, setEmployeeFilter] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
   const liveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    const { data: rawData, error } = await supabase.rpc('get_admin_activity_log', { p_limit: 500 });
-    let data = (rawData || []).filter((r: any) => {
+  const logs = useMemo(() => {
+    const all = Array.isArray(rawData) ? rawData : [];
+    return all.filter((r: any) => {
       if (filter !== 'all' && FILTER_GROUPS[filter] && !FILTER_GROUPS[filter].includes(r.action_type)) return false;
       if (employeeFilter !== 'all' && r.triggered_by !== employeeFilter) return false;
       return true;
-    });
-    if (!error && data) {
-      setLogs(data as ActivityLog[]);
-    }
-    setLoading(false);
-  }, [filter, employeeFilter]);
+    }) as ActivityLog[];
+  }, [rawData, filter, employeeFilter]);
 
   useEffect(() => {
-    fetchLogs();
-
     const channel = supabase
       .channel('ayn-activity-log-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ayn_activity_log' }, (payload) => {
-        const newLog = payload.new as ActivityLog;
-        const filterTypes = FILTER_GROUPS[filter];
-        if (filter === 'all' || filterTypes?.includes(newLog.action_type)) {
-          setLogs(prev => [newLog, ...prev].slice(0, 200));
-        }
-        // Pulse live indicator
-        setIsLive(true);
-        if (liveTimeout.current) clearTimeout(liveTimeout.current);
-        liveTimeout.current = setTimeout(() => setIsLive(false), 3000);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ayn_activity_log' }, () => {
+        // Real-time: just invalidate the cache so React Query refetches
+        queryClient.invalidateQueries({ queryKey: adminKeys.activityLog() });
       })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      if (liveTimeout.current) clearTimeout(liveTimeout.current);
-    };
-  }, [fetchLogs, filter]);
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const getConfig = (type: string) => ACTION_CONFIG[type] || ACTION_CONFIG.command;
 
@@ -178,7 +162,7 @@ export const AYNActivityLog = () => {
             </span>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.activityLog() })} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>

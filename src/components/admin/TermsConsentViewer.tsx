@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { FileCheck, CheckCircle2, XCircle, Search, Users } from 'lucide-react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useAdminTermsConsent } from '@/admin-app/hooks/useAdminQuery';
 import { format } from 'date-fns';
 
 interface ConsentRecord {
@@ -24,37 +24,25 @@ interface ProfileInfo {
 }
 
 export const TermsConsentViewer = () => {
-  const [records, setRecords] = useState<ConsentRecord[]>([]);
-  const [profiles, setProfiles] = useState<Map<string, ProfileInfo>>(new Map());
+  const { data: rawData, isLoading } = useAdminTermsConsent();
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_admin_terms_consent');
-      if (error) throw error;
-      const rows = data || [];
-      setRecords(rows.map((r: any) => ({
-        id: r.id, user_id: r.user_id, terms_version: r.terms_version,
-        privacy_accepted: r.privacy_accepted, terms_accepted: r.terms_accepted,
-        ai_disclaimer_accepted: r.ai_disclaimer_accepted,
-        accepted_at: r.accepted_at, user_agent: r.user_agent,
-      })));
-      const map = new Map<string, ProfileInfo>();
-      rows.forEach((r: any) => map.set(r.user_id, {
-        user_id: r.user_id,
-        contact_person: r.display_name || null,
-        company_name: r.email || null,
-      }));
-      setProfiles(map);
-    } catch (err) {
-      console.error('Failed to fetch consent logs:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const { records, profiles } = useMemo(() => {
+    const rows = Array.isArray(rawData) ? rawData : [];
+    const recs = rows.map((r: any) => ({
+      id: r.id, user_id: r.user_id, terms_version: r.terms_version,
+      privacy_accepted: r.privacy_accepted, terms_accepted: r.terms_accepted,
+      ai_disclaimer_accepted: r.ai_disclaimer_accepted,
+      accepted_at: r.accepted_at, user_agent: r.user_agent,
+    })) as ConsentRecord[];
+    const map = new Map<string, ProfileInfo>();
+    rows.forEach((r: any) => map.set(r.user_id, {
+      user_id: r.user_id,
+      contact_person: r.display_name || null,
+      company_name: r.email || null,
+    }));
+    return { records: recs, profiles: map };
+  }, [rawData]);
 
   const filtered = records.filter(r => {
     if (!search) return true;

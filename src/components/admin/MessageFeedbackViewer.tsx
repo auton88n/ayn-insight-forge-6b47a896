@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useAdminMessageFeedback, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ThumbsUp, ThumbsDown, MessageSquare, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -20,37 +21,23 @@ interface MessageRating {
 }
 
 export const MessageFeedbackViewer = () => {
-  const [ratings, setRatings] = useState<MessageRating[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading } = useAdminMessageFeedback();
   const [filter, setFilter] = useState<'all' | 'positive' | 'negative'>('all');
 
-  const fetchRatings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_message_ratings');
-      if (error) throw error;
-      let ratingsData = (data || []).map((r: any) => ({
-        ...r,
-        user_name: r.display_name,
-        user_email: r.email,
-      })) as MessageRating[];
-      if (filter !== 'all') {
-        ratingsData = ratingsData.filter(r => r.rating === filter);
-      }
-      setRatings(ratingsData);
-    } catch (err) {
-      console.error('Failed to fetch ratings:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+  const allRatings = useMemo(() => (rawData || []).map((r: any) => ({
+    ...r,
+    user_name: r.display_name,
+    user_email: r.email,
+  })) as MessageRating[], [rawData]);
 
-  useEffect(() => {
-    fetchRatings();
-  }, [fetchRatings]);
+  const ratings = useMemo(() =>
+    filter === 'all' ? allRatings : allRatings.filter(r => r.rating === filter),
+    [allRatings, filter]
+  );
 
-  const positiveCount = ratings.filter(r => r.rating === 'positive').length;
-  const negativeCount = ratings.filter(r => r.rating === 'negative').length;
+  const positiveCount = allRatings.filter(r => r.rating === 'positive').length;
+  const negativeCount = allRatings.filter(r => r.rating === 'negative').length;
 
   return (
     <div className="space-y-6">

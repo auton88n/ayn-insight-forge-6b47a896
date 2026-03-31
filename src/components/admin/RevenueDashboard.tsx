@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useMemo } from 'react';
 import { DollarSign, TrendingUp, Users, RefreshCw, AlertCircle } from 'lucide-react';
+import { useAdminRevenue, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UserRevenue {
   id: string; display_name: string; email: string; auth_provider: string;
@@ -19,20 +20,9 @@ function timeAgo(d: string | null) {
 }
 
 export const RevenueDashboard = () => {
-  const [users, setUsers] = useState<UserRevenue[]>([]);
-  const [loading, setLoading] = useState(true);
-
-
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await supabase.rpc('get_admin_subscriptions');
-      setUsers((data || []) as UserRevenue[]);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { fetch(); }, [fetch]);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading } = useAdminRevenue();
+  const users = useMemo(() => (Array.isArray(rawData) ? rawData : []) as UserRevenue[], [rawData]);
 
   const mrr = users.reduce((s, u) => s + (TIER_PRICE[u.subscription_tier] || 0), 0);
   const paid = users.filter(u => u.subscription_tier !== 'free' && u.subscription_status === 'active');
@@ -50,7 +40,7 @@ export const RevenueDashboard = () => {
           <h2 className="text-white font-semibold text-lg flex items-center gap-2"><DollarSign className="w-5 h-5 text-emerald-400" />Revenue Dashboard</h2>
           <p className="text-white/30 text-sm">Based on current subscription tiers</p>
         </div>
-        <button onClick={fetch} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
+        <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.revenue() })} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>

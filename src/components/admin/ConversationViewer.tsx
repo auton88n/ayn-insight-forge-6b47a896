@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useState, useMemo } from 'react';
 import { MessageSquare, Search, RefreshCw, User, Bot, ChevronDown, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useAdminConversations, useAdminUserMessages } from '@/admin-app/hooks/useAdminQuery';
 
 interface UserConvo {
   user_id: string; display_name: string; email: string; auth_provider: string;
@@ -12,41 +12,22 @@ interface Message {
 }
 
 export const ConversationViewer = () => {
-  const [users, setUsers] = useState<UserConvo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawData, isLoading: loading } = useAdminConversations();
+  const users = useMemo(() => (rawData || []).map((r: any) => ({
+    user_id: r.user_id,
+    display_name: r.display_name || r.email?.split('@')[0] || r.user_id?.slice(0,8),
+    email: r.email || '',
+    auth_provider: r.auth_provider || 'email',
+    message_count: Number(r.message_count),
+    last_message: r.last_message_at,
+    first_message: r.last_message_at,
+  })) as UserConvo[], [rawData]);
+
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserConvo | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_conversations');
-      if (error) throw error;
-      const convos: UserConvo[] = (data || []).map((r: any) => ({
-        user_id: r.user_id,
-        display_name: r.display_name || r.email?.split('@')[0] || r.user_id.slice(0,8),
-        email: r.email || '',
-        auth_provider: r.auth_provider || 'email',
-        message_count: Number(r.message_count),
-        last_message: r.last_message_at,
-        first_message: r.last_message_at,
-      }));
-      setUsers(convos);
-    } finally { setLoading(false); }
-  }, []);
-
-  const fetchMessages = useCallback(async (userId: string) => {
-    setLoadingMsgs(true);
-    try {
-      const { data } = await supabase.rpc('get_admin_user_messages', { p_user_id: userId, p_limit: 200 });
-      setMessages((Array.isArray(data) ? data : []) as Message[]);
-    } finally { setLoadingMsgs(false); }
-  }, []);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-  useEffect(() => { if (selectedUser) fetchMessages(selectedUser.user_id); }, [selectedUser, fetchMessages]);
+  const { data: rawMessages, isLoading: loadingMsgs } = useAdminUserMessages(selectedUser?.user_id || null);
+  const messages = useMemo(() => (Array.isArray(rawMessages) ? rawMessages : []) as Message[], [rawMessages]);
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();

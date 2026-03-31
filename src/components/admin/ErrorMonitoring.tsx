@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AlertTriangle, RefreshCw, Bug, Clock, User, ChevronDown, ChevronRight, CheckCircle, EyeOff, Wrench, Lightbulb, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAdminErrorMonitoring, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ErrorGroup {
   message: string;
@@ -72,61 +74,52 @@ function timeAgo(d: string) {
 }
 
 export const ErrorMonitoring = () => {
-  const [groups, setGroups] = useState<ErrorGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rpcData, isLoading: loading } = useAdminErrorMonitoring();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
-  const [totalErrors, setTotalErrors] = useState(0);
   const [showResolved, setShowResolved] = useState(false);
   const [fixingError, setFixingError] = useState<string | null>(null);
   const [noteInput, setNoteInput] = useState('');
 
-  const fetchGroups = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: rpcData } = await supabase.rpc('get_admin_error_monitoring', { p_limit: 2000 });
-      let rows = (rpcData?.errors || []);
-      if (timeRange !== 'all') {
-        const ms = { '24h': 86400000, '7d': 604800000, '30d': 2592000000 }[timeRange];
-        const cutoff = new Date(Date.now() - ms).toISOString();
-        rows = rows.filter((r: any) => r.created_at >= cutoff);
-      }
-      setTotalErrors(rows.length);
-      const resolutions = rpcData?.resolutions || [];
-      const resMap = new Map((resolutions).map((r: any) => [r.error_pattern, r]));
-
-      const map = new Map<string, ErrorGroup>();
-      rows.forEach((r: any) => {
-        const key = (r.error_message || 'Unknown error').slice(0, 120);
-        if (!map.has(key)) {
-          const res = resMap.get(key) as any;
-          map.set(key, {
-            message: key, count: 0, last_seen: r.created_at, first_seen: r.created_at,
-            user_ids: [], urls: [], sample_stack: r.error_stack,
-            status: res?.status || 'open',
-            resolution_note: res?.resolution_note,
-            fix_description: res?.fix_description,
-          });
-        }
-        const g = map.get(key)!;
-        g.count++;
-        if (r.created_at > g.last_seen) g.last_seen = r.created_at;
-        if (r.created_at < g.first_seen) g.first_seen = r.created_at;
-        if (r.user_id && !g.user_ids.includes(r.user_id)) g.user_ids.push(r.user_id);
-        if (r.url && !g.urls.includes(r.url)) g.urls.push(r.url);
-      });
-
-      setGroups(Array.from(map.values()).sort((a, b) => {
-        if (a.status === 'open' && b.status !== 'open') return -1;
-        if (a.status !== 'open' && b.status === 'open') return 1;
-        return b.count - a.count;
-      }));
-    } finally {
-      setLoading(false);
+  const { groups, totalErrors } = useMemo(() => {
+    let rows = ((rpcData as any)?.errors || []);
+    if (timeRange !== 'all') {
+      const ms = { '24h': 86400000, '7d': 604800000, '30d': 2592000000 }[timeRange];
+      const cutoff = new Date(Date.now() - ms).toISOString();
+      rows = rows.filter((r: any) => r.created_at >= cutoff);
     }
-  }, [timeRange]);
+    const resolutions = (rpcData as any)?.resolutions || [];
+    const resMap = new Map((resolutions).map((r: any) => [r.error_pattern, r]));
 
-  useEffect(() => { fetchGroups(); }, [fetchGroups]);
+    const map = new Map<string, ErrorGroup>();
+    rows.forEach((r: any) => {
+      const key = (r.error_message || 'Unknown error').slice(0, 120);
+      if (!map.has(key)) {
+        const res = resMap.get(key) as any;
+        map.set(key, {
+          message: key, count: 0, last_seen: r.created_at, first_seen: r.created_at,
+          user_ids: [], urls: [], sample_stack: r.error_stack,
+          status: res?.status || 'open',
+          resolution_note: res?.resolution_note,
+          fix_description: res?.fix_description,
+        });
+      }
+      const g = map.get(key)!;
+      g.count++;
+      if (r.created_at > g.last_seen) g.last_seen = r.created_at;
+      if (r.created_at < g.first_seen) g.first_seen = r.created_at;
+      if (r.user_id && !g.user_ids.includes(r.user_id)) g.user_ids.push(r.user_id);
+      if (r.url && !g.urls.includes(r.url)) g.urls.push(r.url);
+    });
+
+    const sorted = Array.from(map.values()).sort((a, b) => {
+      if (a.status === 'open' && b.status !== 'open') return -1;
+      if (a.status !== 'open' && b.status === 'open') return 1;
+      return b.count - a.count;
+    });
+    return { groups: sorted, totalErrors: rows.length };
+  }, [rpcData, timeRange]);
 
   const updateResolution = async (pattern: string, status: 'resolved' | 'ignored', note: string) => {
     const { error } = await supabase.from('error_group_resolutions').upsert({
@@ -142,7 +135,7 @@ export const ErrorMonitoring = () => {
     toast.success(status === 'resolved' ? '✅ Marked as resolved' : '🙈 Ignored');
     setFixingError(null);
     setNoteInput('');
-    fetchGroups();
+    queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
   };
 
   const reopen = async (pattern: string) => {
@@ -151,7 +144,7 @@ export const ErrorMonitoring = () => {
       .eq('error_pattern', pattern);
     if (error) { toast.error('Failed'); return; }
     toast.success('Reopened');
-    fetchGroups();
+    queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
   };
 
   const severityColor = (count: number, status: string) => {
