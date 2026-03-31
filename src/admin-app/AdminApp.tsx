@@ -1,16 +1,18 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase } from './adminSupabase';
 import { AdminPanel } from '@/components/AdminPanel';
 import AdminCustomOrders from '@/pages/AdminCustomOrders';
 
-// Use adminSupabase everywhere — completely isolated from main app
-
 const LOCKOUT_MINUTES = 5;
 const MAX_ATTEMPTS = 3;
 const LOCKOUT_KEY = 'ayn_admin_lockout';
 const ATTEMPTS_KEY = 'ayn_admin_attempts';
+// Cache the admin role check in sessionStorage — skip DB call on every page load
+const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
+// Cache the PIN hash locally — skip DB call on every PIN entry
+const PIN_HASH_KEY = 'ayn_admin_pin_hash';
 
 function Loader() {
   return (
@@ -18,6 +20,24 @@ function Loader() {
       <div className="w-8 h-8 border border-white/20 border-t-white rounded-full animate-spin" />
     </div>
   );
+}
+
+// Pre-fetch and cache the PIN hash so each digit entry doesn't hit the DB
+async function getCachedPinHash(): Promise<string | null> {
+  const cached = sessionStorage.getItem(PIN_HASH_KEY);
+  if (cached) return cached;
+  try {
+    const { data } = await adminSupabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'admin_pin_hash')
+      .single();
+    if (data?.value) {
+      sessionStorage.setItem(PIN_HASH_KEY, data.value as string);
+      return data.value as string;
+    }
+  } catch {}
+  return null;
 }
 
 function PinScreen({ onSuccess }: { onSuccess: () => void }) {
@@ -28,6 +48,9 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Pre-fetch PIN hash as soon as screen mounts — so it's ready when user finishes typing
+  useEffect(() => { getCachedPinHash(); }, []);
 
   useEffect(() => {
     const lockout = localStorage.getItem(LOCKOUT_KEY);
@@ -71,8 +94,9 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
       const msgBuffer = new TextEncoder().encode(fullPin);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
       const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-      const { data } = await adminSupabase.from('app_settings').select('value').eq('key', 'admin_pin_hash').single();
-      if (data?.value === hashHex) {
+      // Use cached hash — no DB call on every attempt
+      const storedHash = await getCachedPinHash();
+      if (storedHash === hashHex) {
         localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
         onSuccess();
       } else {
@@ -192,42 +216,61 @@ export default function AdminApp() {
   const [step, setStep] = useState<Step>('checking');
   const [session, setSession] = useState<Session | null>(null);
 
+  const checkAdmin = useCallback(async (s: Session) => {
+    // Check sessionStorage cache first — skip DB call if already verified this session
+    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
+    if (cached === s.user.id) {
+      setStep('ready');
+      return;
+    }
+    try {
+      const { data } = await adminSupabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', s.user.id)
+        .maybeSingle();
+      if (data?.role === 'admin') {
+        // Cache the verification for this session
+        sessionStorage.setItem(ADMIN_VERIFIED_KEY, s.user.id);
+        setStep('ready');
+      } else {
+        setStep('denied');
+      }
+    } catch {
+      setStep('denied');
+    }
+  }, []);
+
   useEffect(() => {
-    // Use admin-specific session only
+    // Check session immediately — no delay
     adminSupabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setSession(session); checkAdmin(session); }
       else setStep('pin');
     });
+
     const { data: { subscription } } = adminSupabase.auth.onAuthStateChange((_e, s) => {
-      if (!s) { setStep('pin'); setSession(null); }
+      if (!s) {
+        // Clear caches on sign out
+        sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
+        sessionStorage.removeItem(PIN_HASH_KEY);
+        setStep('pin');
+        setSession(null);
+      }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkAdmin]);
 
-  const checkAdmin = async (s: Session) => {
-    const attempt = async () => {
-      const { data, error } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
-      if (error) throw error;
-      return data?.role === 'admin';
-    };
-    try {
-      setStep(await attempt() ? 'ready' : 'denied');
-    } catch {
-      try {
-        await new Promise(r => setTimeout(r, 1000));
-        setStep(await attempt() ? 'ready' : 'denied');
-      } catch { setStep('denied'); }
-    }
-  };
-
-  const handlePinSuccess = () => {
+  const handlePinSuccess = useCallback(() => {
     adminSupabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setSession(session); checkAdmin(session); }
       else setStep('login');
     });
-  };
+  }, [checkAdmin]);
 
-  const handleLoginSuccess = (s: Session) => { setSession(s); checkAdmin(s); };
+  const handleLoginSuccess = useCallback((s: Session) => {
+    setSession(s);
+    checkAdmin(s);
+  }, [checkAdmin]);
 
   if (step === 'checking') return <Loader />;
   if (step === 'pin') return <PinScreen onSuccess={handlePinSuccess} />;
@@ -238,10 +281,7 @@ export default function AdminApp() {
     <Routes>
       <Route
         path="/"
-        element={
-          // Pass onBackClick as empty function — no back navigation to main app
-          <AdminPanel session={session!} isAdmin={true} onBackClick={() => {}} />
-        }
+        element={<AdminPanel session={session!} isAdmin={true} onBackClick={() => {}} />}
       />
       <Route path="/custom-orders" element={<AdminCustomOrders />} />
       <Route path="*" element={<Navigate to="/manage-bae76e99d97e188b" replace />} />

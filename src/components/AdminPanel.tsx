@@ -273,20 +273,7 @@ export const AdminPanel = ({
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <motion.div
-          className="relative"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-        >
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/40 to-primary blur-xl" />
-          <Loader2 className="w-10 h-10 text-primary relative z-10" />
-        </motion.div>
-      </div>
-    );
-  }
+  // Don't block rendering — panels fetch their own data via Suspense
 
   const newAppsCount = applications.filter(a => a.status === 'new').length;
 

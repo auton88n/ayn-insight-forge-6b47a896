@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 
 interface RateLimitStat {
+  id: string;
   user_id: string;
   user_name?: string;
   user_email?: string;
@@ -25,6 +26,8 @@ interface RateLimitStat {
   request_count: number;
   max_requests: number;
   violation_count: number;
+  window_start?: string;
+  last_violation?: string | null;
   is_blocked: boolean;
   blocked_until: string | null;
   last_activity: string;
@@ -60,18 +63,8 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
     try {
       const { data, error } = await supabase.rpc('get_admin_rate_limit_stats');
       if (error) throw error;
-      const statsData: RateLimitStat[] = Array.isArray(data) ? data : [];
-      // Enrich with user names
-      const userIds = statsData.map(s => s.user_id).filter(id => id && id.includes('-'));
-      if (userIds.length > 0) {
-        const { data: allUsers } = await supabase.rpc('get_admin_users');
-        const userMap = new Map((allUsers as any[] || []).map((u: any) => [u.id, u]));
-        statsData.forEach(s => {
-          const u = userMap.get(s.user_id) as any;
-          if (u) { s.user_name = u.display_name; s.user_email = u.email; }
-        });
-      }
-      setStats(statsData);
+      // RPC now returns user_name and user_email directly — no second query needed
+      setStats(Array.isArray(data) ? data as RateLimitStat[] : []);
     } catch (error) {
       console.error('Error fetching rate limit stats:', error);
       toast.error(getErrorMessage(ErrorCodes.DATA_LOAD_FAILED).description);
@@ -83,7 +76,8 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 30000);
+    // Refresh every 60s instead of 30s — rate limits don't change that fast
+    const interval = setInterval(fetchStats, 60000);
     return () => clearInterval(interval);
   }, [fetchStats]);
 
