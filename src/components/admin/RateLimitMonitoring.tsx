@@ -82,6 +82,8 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   useEffect(() => {
     fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, [fetchStats]);
 
   const handleUnblock = async (userId: string, endpoint: string) => {
@@ -112,7 +114,9 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
   }
 
   return (
-    <div>
+    <div
+      className="space-y-6"
+    >
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -197,7 +201,12 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
                   stats.map((stat, index) => {
                     const usagePercent = (stat.request_count / stat.max_requests) * 100;
                     return (
-                      <div> 80 
+                      <div
+                        key={`${stat.user_id}-${stat.endpoint}-${index}`}
+                        className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
+                          stat.is_blocked 
+                            ? 'bg-red-500/5 border-red-500/20' 
+                            : usagePercent > 80 
                             ? 'bg-orange-500/5 border-orange-500/20' 
                             : 'bg-card border-transparent'
                         }`}

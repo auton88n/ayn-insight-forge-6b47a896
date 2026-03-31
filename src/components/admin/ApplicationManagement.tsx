@@ -340,7 +340,9 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
 
           {/* Application List */}
           <ScrollArea className="h-[450px]">
-            <div>
+            <div
+              className="space-y-2"
+            >
               {paginatedApplications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="p-4 rounded-2xl bg-muted/50 mb-4">
@@ -354,7 +356,10 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
                   const StatusIcon = statusConfig.icon;
                   
                   return (
-                    <div> handleViewApplication(app)}
+                    <div
+                      key={app.id}
+                      className="group flex items-center justify-between p-4 rounded-xl border bg-muted/20 border-border/30 hover:bg-muted/40 hover:border-border/50 transition-all cursor-pointer"
+                      onClick={() => handleViewApplication(app)}
                     >
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         {/* Avatar */}

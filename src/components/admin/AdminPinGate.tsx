@@ -121,22 +121,21 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
           {/* PIN Display */}
           <div className="flex justify-center gap-3">
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div> i ? 1.1 : 1,
-                  backgroundColor: pin.length > i ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.1)'
-                }}
+              <div
+                key={i}
                 className="w-4 h-4 rounded-full border border-white/20"
               />
             ))}
           </div>
 
           {/* Error Message */}
-          
-            {error && (
-              <p>
+          {error && (
+              <p
+                className="text-red-400 text-sm text-center"
+              >
                 {error}
               </p>
             )}
-          
 
           {/* Numpad */}
           <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">

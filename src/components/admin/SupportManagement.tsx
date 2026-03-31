@@ -280,7 +280,9 @@ const SupportManagement: React.FC = () => {
             { label: 'Resolved', value: stats.resolved, icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-500/10', filter: 'resolved' },
             { label: 'Closed', value: stats.closed, icon: XCircle, color: 'text-muted-foreground', bg: 'bg-muted/50', filter: 'closed' },
           ].map((stat, index) => (
-            <div> setStatusFilter(stat.filter)}
+            <div
+              key={stat.label}
+              onClick={() => setStatusFilter(stat.filter)}
               className={`bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30 ${statusFilter === stat.filter ? 'ring-2 ring-primary/50' : ''}`}
             >
               <div className="flex items-center justify-between">
@@ -366,14 +368,19 @@ const SupportManagement: React.FC = () => {
               <p className="text-sm">Try adjusting your filters or search query</p>
             </div>
           ) : (
-              <div>
+              <div
+                className="p-2 space-y-2"
+              >
                 {paginatedTickets.map((ticket) => {
                   const statusConfig = getStatusConfig(ticket.status);
                   const priorityConfig = getPriorityConfig(ticket.priority);
                   const StatusIcon = statusConfig.icon;
 
                   return (
-                    <div> setSelectedTicket(ticket)}
+                    <div
+                      key={ticket.id}
+                      className="group bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 hover:border-primary/30 hover:shadow-md transition-all duration-200 cursor-pointer"
+                      onClick={() => setSelectedTicket(ticket)}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">

@@ -456,7 +456,7 @@ export function AdminAIAssistant() {
                 
                 
                   {input.trim() && !isLoading && (
-                    <button> sendMessage()}
+                    <button onClick={() => sendMessage()}
                       className="shrink-0 w-9 h-9 rounded-lg bg-foreground text-background flex items-center justify-center hover:opacity-90 transition-opacity"
                     >
                       <ArrowUp className="w-4 h-4" strokeWidth={2.5} />

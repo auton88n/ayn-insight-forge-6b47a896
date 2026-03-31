@@ -193,7 +193,14 @@ export const UXJourneyResults: React.FC<UXJourneyResultsProps> = ({
           <TabsContent value="personas">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {personas.map((persona, idx) => (
-                <div> setSelectedPersona(
+                <div
+                  key={persona.name}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    selectedPersona === persona.name 
+                      ? 'ring-2 ring-primary border-primary' 
+                      : 'hover:bg-muted/50'
+                  }`}
+                  onClick={() => setSelectedPersona(
                     selectedPersona === persona.name ? null : persona.name
                   )}
                 >
@@ -313,7 +320,9 @@ const JourneyCard: React.FC<{ journey: JourneyResult; showPersona?: boolean }> =
       </div>
 
       {expanded && (
-        <div>
+        <div
+          className="mt-3 pt-3 border-t"
+        >
           <div className="flex items-center gap-1 flex-wrap">
             {journey.steps.map((step, idx) => (
               <React.Fragment key={idx}>

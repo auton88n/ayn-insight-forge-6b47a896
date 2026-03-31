@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback, useLayoutEffect, lazy, Suspense } from 'react';
 import { useTheme } from 'next-themes';
 import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
@@ -271,11 +270,7 @@ export const AdminPanel = ({
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <motion.header 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm"
-      >
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           {onBackClick && (
             <Button 
@@ -324,7 +319,7 @@ export const AdminPanel = ({
             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
         </div>
-      </motion.header>
+      </header>
 
       {/* Main Layout: Sidebar + Content */}
       <div className="flex-1 flex min-h-0">
