@@ -74,8 +74,7 @@ function parseMaritimePoints(items: any[]): MapPoint[] {
         detail: `${i.type ?? ''} · ${i.flag ?? ''} · ${ i.destination ?? i.status ?? ''}`.trim().replace(/^·\s*/, ''),
         category: 'Maritime',
         risk: 'maritime' as any,
-        // heading not on MapPoint type
-        speed: i.speed,
+        // heading/speed not on MapPoint type
       };
     }).filter(Boolean).slice(0, 40); // cap at 40 ships to avoid clutter
 }
