@@ -1,80 +1,64 @@
-# AI-Powered Business Document Generator — Admin Tool
 
-## Summary
 
-Add a new admin panel tab "Document Studio" that lets you describe what you need in plain text, and AI generates a professional PDF document with full AYN branding (brain icon + AYN text, blue divider, report reference number, date — matching the uploaded image style).
+# Fix Build Errors + Admin Panel Review
 
-## What You Get
+## Current State
 
-- A new "Document Studio" tab in the admin sidebar
-- Text input where you describe what you want (business plan, deal memo, letter, brainstorming doc, etc.)
-- Document type selector: Business Plan, Deal Memo, Letter, Brainstorming, Report, Proposal
-- AI generates structured content with proper sections, then renders it as a branded PDF
-- PDF matches the uploaded image: brain icon + "AYN" header, report reference badge,and clean typography
-- Download button for the generated PDF
-- History of previously generated documents
+The admin panel (`AdminPanel.tsx`) is already well-structured — lazy loading, React Query caching, sidebar navigation, error boundaries, and skeleton fallbacks are all in place. No architectural issues found there.
+
+The **only blockers** are 4 TypeScript build errors in the World Intelligence files. Everything else compiles and runs.
 
 ---
 
-## Technical Plan
+## Step 1: Fix `WorldSimulator.tsx` — line 122-124
 
-### 1. Create Edge Function: `generate-business-document`
+**Error**: `data[0].id` — TypeScript can't infer types for `ayn_world_simulations` (not in generated types).
 
-- Accepts: `{ prompt, documentType, language }` from admin
-- Uses Lovable AI Gateway (`google/gemini-3-flash-preview`) with tool calling to extract structured sections (title, sections with headings + content + optional bullet lists)
-- Generates an HTML document styled to match the AYN branding from the image:
-  - Brain SVG icon + "AYN" text in header (left)
-  - Report reference + date (right)
-  - Blue horizontal divider
-  - Clean serif/sans-serif body with proper heading hierarchy
-  - `@media print` + `@page` CSS for Ctrl+P PDF saving
-- Returns the HTML as a response (same pattern as `generate-contract-pdf`)
-- Auth: requires admin role (JWT + user_roles check)
-
-### 2. Create Admin Component: `DocumentStudio.tsx`
-
-- UI with:
-  - Document type dropdown (Business Plan, Deal Memo, Letter, Brainstorming, Report, Proposal)
-  - Large textarea for the user's prompt/description
-  - "Generate" button that calls the edge function
-  - Loading state with progress indicator
-  - Preview panel showing the generated document in an iframe
-  - "Download as PDF" button (opens in new tab for Ctrl+P, same as contract PDF flow)
-- Follows existing admin component patterns (card-based layout, motion animations)
-
-### 3. Register in Admin Panel
-
-- Add `'document-studio'` to `AdminTabId` type in `AdminSidebar.tsx`
-- Add sidebar entry with `FileText` or `Scroll` icon in the AI sections
-- Add the tab rendering in `AdminPanel.tsx`
-- Import and render `DocumentStudio` component
-
-### 4. Register Edge Function
-
-- Add `[functions.generate-business-document]` with `verify_jwt = false` to `supabase/config.toml`
+**Fix**: Cast `data` to `any[]` immediately after the query:
+```typescript
+const results = (data || []) as any[];
+if (results.length) {
+  setSimulations(results);
+  setActiveSimId(results[0].id);
+}
+```
 
 ---
 
-## Files to Create/Modify
+## Step 2: Fix `WorldIntelligence.tsx` — lines 78, 139 (remove `speed`)
 
+**Error**: `speed` does not exist on `MapPoint`.
 
-| File                                                     | Action                                |
-| -------------------------------------------------------- | ------------------------------------- |
-| `supabase/functions/generate-business-document/index.ts` | Create — AI + branded HTML generation |
-| `src/components/admin/DocumentStudio.tsx`                | Create — admin UI component           |
-| `src/components/admin/AdminSidebar.tsx`                  | Edit — add tab ID + sidebar entry     |
-| `src/components/AdminPanel.tsx`                          | Edit — import + render DocumentStudio |
-| `supabase/config.toml`                                   | Edit — register new function          |
+**Fix**: Delete line 78 (`speed: i.speed,`) and line 139 (`speed: i.speed_knots ?? i.speed,`).
 
+---
 
-## Branding Details (from uploaded image)
+## Step 3: Fix `WorldIntelligence.tsx` — line 373 (calibration data)
 
-The PDF will replicate the exact style:
+**Error**: `c.asset` fails because the query result type is `SelectQueryError`.
 
-- Header: Brain SVG (inline, ~28px) + bold "AYN" text (48px, black, tight letter-spacing)
-- Top-right: "Report: AYN-XXXXXXXX" + "Date: Month DD, YYYY" in small gray text
-- Blue divider line (3px, #2563eb) below header
-- Document title in bold navy, underlined
-- Section headings in bold, clean hierarchy
-- Bullet lists with proper indentation
-- Clean white background, professional spacing
+**Fix**: Cast the array:
+```typescript
+for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
+```
+
+---
+
+## Step 4: Fix `WorldIntelligence.tsx` — line 153 (`generated_by` type)
+
+**Error**: `generated_by` returns `string | null` from DB but interface only accepts `string | undefined`.
+
+**Fix**: Change line 153 in the `Prediction` interface:
+```typescript
+generated_by?: string | null;
+```
+
+---
+
+## Files Modified
+- `src/components/dashboard/world/WorldSimulator.tsx` — 1 change (cast data to `any[]`)
+- `src/pages/WorldIntelligence.tsx` — 4 changes (remove `speed` x2, cast calibData, fix `generated_by` type)
+
+## Admin Panel Assessment
+The admin panel code is solid — already uses lazy loading for all 27 tabs, React Query for data fetching, proper error boundaries, and skeleton loading states. No changes needed there.
+
