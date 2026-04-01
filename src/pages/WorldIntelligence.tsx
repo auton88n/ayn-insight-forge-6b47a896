@@ -134,8 +134,7 @@ function parseAviationPoints(items: any[]): MapPoint[] {
         detail: i.description ?? i.status ?? i.origin ?? '',
         category: 'Aviation',
         risk: 'aviation' as any,
-        // heading not on MapPoint type
-        speed: i.speed_knots ?? i.speed,
+        // heading/speed not on MapPoint type
       };
     }).filter(Boolean).slice(0, 30);
 }
