@@ -368,7 +368,7 @@ export default function WorldIntelligence() {
         .from('ayn_accuracy_calibration' as any)
         .select('asset, real_accuracy_pct, reliability_tier, should_show_uncertainty, calibration_factor');
       const calibMap: Record<string, any> = {};
-      for (const c of calibData || []) calibMap[c.asset] = c;
+      for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
 
       // ── Try consensus predictions first (combined AYN + ML)
       const { data: consensus } = await supabase
