@@ -74,8 +74,7 @@ function parseMaritimePoints(items: any[]): MapPoint[] {
         detail: `${i.type ?? ''} · ${i.flag ?? ''} · ${ i.destination ?? i.status ?? ''}`.trim().replace(/^·\s*/, ''),
         category: 'Maritime',
         risk: 'maritime' as any,
-        // heading not on MapPoint type
-        speed: i.speed,
+        // heading/speed not on MapPoint type
       };
     }).filter(Boolean).slice(0, 40); // cap at 40 ships to avoid clutter
 }
@@ -135,8 +134,7 @@ function parseAviationPoints(items: any[]): MapPoint[] {
         detail: i.description ?? i.status ?? i.origin ?? '',
         category: 'Aviation',
         risk: 'aviation' as any,
-        // heading not on MapPoint type
-        speed: i.speed_knots ?? i.speed,
+        // heading/speed not on MapPoint type
       };
     }).filter(Boolean).slice(0, 30);
 }
@@ -150,7 +148,7 @@ interface Prediction {
   predicted_direction: 'up' | 'down' | 'sideways';
   predicted_pct_change: number; confidence: number; reasoning: string; calibration?: { real_accuracy_pct: number; reliability_tier: string; should_show_uncertainty: boolean; calibration_factor: number } | null;
   agree_count?: number; disagree_count?: number; user_vote?: 'agree' | 'disagree' | null;
-  consensus_strength?: string; agreement?: boolean | null; fusion_method?: string; boost_factor?: string | null; generated_by?: string;
+  consensus_strength?: string; agreement?: boolean | null; fusion_method?: string; boost_factor?: string | null; generated_by?: string | null;
 }
 interface CountryIntel {
   country_code: string; country_name: string;
@@ -370,7 +368,7 @@ export default function WorldIntelligence() {
         .from('ayn_accuracy_calibration' as any)
         .select('asset, real_accuracy_pct, reliability_tier, should_show_uncertainty, calibration_factor');
       const calibMap: Record<string, any> = {};
-      for (const c of calibData || []) calibMap[c.asset] = c;
+      for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
 
       // ── Try consensus predictions first (combined AYN + ML)
       const { data: consensus } = await supabase

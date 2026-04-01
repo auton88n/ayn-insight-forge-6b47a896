@@ -119,9 +119,10 @@ function WorldSimulator({ signals }: { signals: any[] }) {
           .select('*')
           .order('created_at', { ascending: false })
           .limit(10);
-        if (data?.length) {
-          setSimulations(data);
-          setActiveSimId(data[0].id);
+        const results = (data || []) as any[];
+        if (results.length) {
+          setSimulations(results);
+          setActiveSimId(results[0].id);
         }
       } catch {}
     };
