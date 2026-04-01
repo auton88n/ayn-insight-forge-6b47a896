@@ -63,50 +63,7 @@ export type Database = {
           usage_reset_date?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "access_grants_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "access_grants_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "access_grants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "access_grants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_access_grants_user_id"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_access_grants_user_id"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       admin_ai_conversations: {
         Row: {
@@ -413,6 +370,48 @@ export type Database = {
           },
         ]
       }
+      ayn_accuracy_calibration: {
+        Row: {
+          asset: string
+          avg_claimed_confidence: number | null
+          calibration_factor: number | null
+          correct: number
+          id: string
+          last_updated: string | null
+          overconfidence_gap: number | null
+          real_accuracy_pct: number
+          reliability_tier: string | null
+          should_show_uncertainty: boolean | null
+          total_resolved: number
+        }
+        Insert: {
+          asset: string
+          avg_claimed_confidence?: number | null
+          calibration_factor?: number | null
+          correct?: number
+          id?: string
+          last_updated?: string | null
+          overconfidence_gap?: number | null
+          real_accuracy_pct: number
+          reliability_tier?: string | null
+          should_show_uncertainty?: boolean | null
+          total_resolved?: number
+        }
+        Update: {
+          asset?: string
+          avg_claimed_confidence?: number | null
+          calibration_factor?: number | null
+          correct?: number
+          id?: string
+          last_updated?: string | null
+          overconfidence_gap?: number | null
+          real_accuracy_pct?: number
+          reliability_tier?: string | null
+          should_show_uncertainty?: boolean | null
+          total_resolved?: number
+        }
+        Relationships: []
+      }
       ayn_activity_log: {
         Row: {
           action_type: string
@@ -443,6 +442,318 @@ export type Database = {
           target_id?: string | null
           target_type?: string | null
           triggered_by?: string
+        }
+        Relationships: []
+      }
+      ayn_agent_coalitions: {
+        Row: {
+          coalition_name: string
+          conversation_id: string | null
+          formed_at: string | null
+          id: string
+          member_agents: string[]
+          shared_position: string | null
+          topic_key: string
+        }
+        Insert: {
+          coalition_name: string
+          conversation_id?: string | null
+          formed_at?: string | null
+          id?: string
+          member_agents: string[]
+          shared_position?: string | null
+          topic_key: string
+        }
+        Update: {
+          coalition_name?: string
+          conversation_id?: string | null
+          formed_at?: string | null
+          id?: string
+          member_agents?: string[]
+          shared_position?: string | null
+          topic_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_agent_coalitions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ayn_agent_conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          simulation_run_id: string | null
+          status: string | null
+          topic: string
+          topic_summary: string | null
+          updated_at: string | null
+          world_event_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          simulation_run_id?: string | null
+          status?: string | null
+          topic: string
+          topic_summary?: string | null
+          updated_at?: string | null
+          world_event_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          simulation_run_id?: string | null
+          status?: string | null
+          topic?: string
+          topic_summary?: string | null
+          updated_at?: string | null
+          world_event_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_agent_conversations_simulation_run_id_fkey"
+            columns: ["simulation_run_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_world_simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ayn_agent_conversations_world_event_id_fkey"
+            columns: ["world_event_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_world_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ayn_agent_memory: {
+        Row: {
+          agent_id: string
+          content: string
+          decay_rate: number | null
+          formed_at: string | null
+          id: string
+          last_reinforced: string | null
+          memory_type: string
+          source_conversation_id: string | null
+          strength: number | null
+          subject: string
+          valence: string | null
+        }
+        Insert: {
+          agent_id: string
+          content: string
+          decay_rate?: number | null
+          formed_at?: string | null
+          id?: string
+          last_reinforced?: string | null
+          memory_type: string
+          source_conversation_id?: string | null
+          strength?: number | null
+          subject: string
+          valence?: string | null
+        }
+        Update: {
+          agent_id?: string
+          content?: string
+          decay_rate?: number | null
+          formed_at?: string | null
+          id?: string
+          last_reinforced?: string | null
+          memory_type?: string
+          source_conversation_id?: string | null
+          strength?: number | null
+          subject?: string
+          valence?: string | null
+        }
+        Relationships: []
+      }
+      ayn_agent_messages: {
+        Row: {
+          agent_flag: string | null
+          agent_id: string
+          agent_name: string
+          agent_role: string
+          confidence_level: number | null
+          conversation_id: string | null
+          created_at: string | null
+          emotion: string
+          emotion_intensity: number | null
+          id: string
+          internal_thought: string | null
+          market_action: Json | null
+          message: string
+          message_type: string | null
+          responding_to_agent: string | null
+          sequence_order: number
+        }
+        Insert: {
+          agent_flag?: string | null
+          agent_id: string
+          agent_name: string
+          agent_role: string
+          confidence_level?: number | null
+          conversation_id?: string | null
+          created_at?: string | null
+          emotion?: string
+          emotion_intensity?: number | null
+          id?: string
+          internal_thought?: string | null
+          market_action?: Json | null
+          message: string
+          message_type?: string | null
+          responding_to_agent?: string | null
+          sequence_order: number
+        }
+        Update: {
+          agent_flag?: string | null
+          agent_id?: string
+          agent_name?: string
+          agent_role?: string
+          confidence_level?: number | null
+          conversation_id?: string | null
+          created_at?: string | null
+          emotion?: string
+          emotion_intensity?: number | null
+          id?: string
+          internal_thought?: string | null
+          market_action?: Json | null
+          message?: string
+          message_type?: string | null
+          responding_to_agent?: string | null
+          sequence_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_agent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ayn_agent_relationships: {
+        Row: {
+          agent_id: string
+          alignment: string | null
+          id: string
+          interaction_count: number | null
+          last_interaction: string | null
+          notes: string | null
+          target_agent_id: string
+          trust_level: number | null
+        }
+        Insert: {
+          agent_id: string
+          alignment?: string | null
+          id?: string
+          interaction_count?: number | null
+          last_interaction?: string | null
+          notes?: string | null
+          target_agent_id: string
+          trust_level?: number | null
+        }
+        Update: {
+          agent_id?: string
+          alignment?: string | null
+          id?: string
+          interaction_count?: number | null
+          last_interaction?: string | null
+          notes?: string | null
+          target_agent_id?: string
+          trust_level?: number | null
+        }
+        Relationships: []
+      }
+      ayn_agent_run_state: {
+        Row: {
+          completed_at: string | null
+          conversation_id: string
+          current_node: string
+          error_message: string | null
+          error_node: string | null
+          id: string
+          node_data: Json | null
+          retry_count: number | null
+          started_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          conversation_id: string
+          current_node?: string
+          error_message?: string | null
+          error_node?: string | null
+          id?: string
+          node_data?: Json | null
+          retry_count?: number | null
+          started_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          conversation_id?: string
+          current_node?: string
+          error_message?: string | null
+          error_node?: string | null
+          id?: string
+          node_data?: Json | null
+          retry_count?: number | null
+          started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_agent_run_state_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ayn_agent_states: {
+        Row: {
+          agent_id: string
+          agent_name: string
+          confidence: number | null
+          current_emotion: string | null
+          emotion_intensity: number | null
+          id: string
+          key_concern: string | null
+          last_action: string | null
+          stance_summary: string | null
+          stress_level: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id: string
+          agent_name: string
+          confidence?: number | null
+          current_emotion?: string | null
+          emotion_intensity?: number | null
+          id?: string
+          key_concern?: string | null
+          last_action?: string | null
+          stance_summary?: string | null
+          stress_level?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string
+          agent_name?: string
+          confidence?: number | null
+          current_emotion?: string | null
+          emotion_intensity?: number | null
+          id?: string
+          key_concern?: string | null
+          last_action?: string | null
+          stance_summary?: string | null
+          stress_level?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -557,6 +868,117 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_consensus_predictions: {
+        Row: {
+          agreement: boolean | null
+          asset: string
+          asset_category: string | null
+          ayn_confidence: number | null
+          ayn_direction: string | null
+          ayn_key_drivers: Json | null
+          ayn_pct_change: number | null
+          ayn_reasoning: string | null
+          ayn_regime: string | null
+          ayn_regime_confidence: number | null
+          ayn_weight: number | null
+          baseline_date: string | null
+          baseline_value: number | null
+          boost_factor: string | null
+          consensus_confidence: number | null
+          consensus_direction: string | null
+          consensus_pct_change: number | null
+          consensus_strength: string | null
+          created_at: string | null
+          fusion_method: string | null
+          fusion_notes: string | null
+          generated_by: string | null
+          horizon: string
+          id: string
+          ml_confidence: number | null
+          ml_direction: string | null
+          ml_fear_greed: number | null
+          ml_pct_change: number | null
+          ml_rmse: number | null
+          ml_top_drivers: Json | null
+          ml_weight: number | null
+          status: string | null
+          target_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agreement?: boolean | null
+          asset: string
+          asset_category?: string | null
+          ayn_confidence?: number | null
+          ayn_direction?: string | null
+          ayn_key_drivers?: Json | null
+          ayn_pct_change?: number | null
+          ayn_reasoning?: string | null
+          ayn_regime?: string | null
+          ayn_regime_confidence?: number | null
+          ayn_weight?: number | null
+          baseline_date?: string | null
+          baseline_value?: number | null
+          boost_factor?: string | null
+          consensus_confidence?: number | null
+          consensus_direction?: string | null
+          consensus_pct_change?: number | null
+          consensus_strength?: string | null
+          created_at?: string | null
+          fusion_method?: string | null
+          fusion_notes?: string | null
+          generated_by?: string | null
+          horizon: string
+          id?: string
+          ml_confidence?: number | null
+          ml_direction?: string | null
+          ml_fear_greed?: number | null
+          ml_pct_change?: number | null
+          ml_rmse?: number | null
+          ml_top_drivers?: Json | null
+          ml_weight?: number | null
+          status?: string | null
+          target_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agreement?: boolean | null
+          asset?: string
+          asset_category?: string | null
+          ayn_confidence?: number | null
+          ayn_direction?: string | null
+          ayn_key_drivers?: Json | null
+          ayn_pct_change?: number | null
+          ayn_reasoning?: string | null
+          ayn_regime?: string | null
+          ayn_regime_confidence?: number | null
+          ayn_weight?: number | null
+          baseline_date?: string | null
+          baseline_value?: number | null
+          boost_factor?: string | null
+          consensus_confidence?: number | null
+          consensus_direction?: string | null
+          consensus_pct_change?: number | null
+          consensus_strength?: string | null
+          created_at?: string | null
+          fusion_method?: string | null
+          fusion_notes?: string | null
+          generated_by?: string | null
+          horizon?: string
+          id?: string
+          ml_confidence?: number | null
+          ml_direction?: string | null
+          ml_fear_greed?: number | null
+          ml_pct_change?: number | null
+          ml_rmse?: number | null
+          ml_top_drivers?: Json | null
+          ml_weight?: number | null
+          status?: string | null
+          target_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ayn_consumer_sentiment: {
         Row: {
           confidence_index: Json | null
@@ -653,6 +1075,30 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_daily_run_log: {
+        Row: {
+          created_at: string | null
+          id: string
+          predictions_written: number | null
+          run_date: string
+          run_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          predictions_written?: number | null
+          run_date: string
+          run_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          predictions_written?: number | null
+          run_date?: string
+          run_type?: string
+        }
+        Relationships: []
+      }
       ayn_decision_memory: {
         Row: {
           context: string | null
@@ -693,22 +1139,123 @@ export type Database = {
           user_id?: string
           world_conditions?: Json | null
         }
+        Relationships: []
+      }
+      ayn_dev_agent_memory: {
+        Row: {
+          category: string
+          created_at: string | null
+          id: string
+          key: string
+          source: string | null
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          id?: string
+          key: string
+          source?: string | null
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          key?: string
+          source?: string | null
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      ayn_dev_conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ayn_dev_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          role?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "ayn_decision_memory_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "ayn_dev_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
             isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ayn_decision_memory_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
+            referencedRelation: "ayn_dev_conversations"
             referencedColumns: ["id"]
           },
         ]
+      }
+      ayn_dev_skills: {
+        Row: {
+          category: string
+          content: string
+          created_at: string | null
+          description: string
+          enabled: boolean
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string | null
+          description: string
+          enabled?: boolean
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string | null
+          description?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       ayn_error_log: {
         Row: {
@@ -1507,20 +2054,6 @@ export type Database = {
             referencedRelation: "ayn_predictions"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ayn_prediction_votes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ayn_prediction_votes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ayn_predictions: {
@@ -2053,6 +2586,134 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_world_actors: {
+        Row: {
+          actor_name: string
+          actor_type: string
+          behavior_profile: Json | null
+          current_stance: Json | null
+          id: string
+          last_updated: string | null
+          region: string | null
+        }
+        Insert: {
+          actor_name: string
+          actor_type: string
+          behavior_profile?: Json | null
+          current_stance?: Json | null
+          id?: string
+          last_updated?: string | null
+          region?: string | null
+        }
+        Update: {
+          actor_name?: string
+          actor_type?: string
+          behavior_profile?: Json | null
+          current_stance?: Json | null
+          id?: string
+          last_updated?: string | null
+          region?: string | null
+        }
+        Relationships: []
+      }
+      ayn_world_events: {
+        Row: {
+          actor_reactions: Json | null
+          cascade_depth: number | null
+          category: string
+          caused_by_ids: string[] | null
+          confidence: number | null
+          countries_involved: string[] | null
+          created_at: string | null
+          event_date: string | null
+          event_type: string
+          historical_outcome: string | null
+          historical_parallel: string | null
+          id: string
+          market_impact: Json | null
+          predicted_date: string | null
+          probability: number | null
+          region: string | null
+          signal_type: string | null
+          simulation_run_id: string | null
+          source_signal_id: string | null
+          status: string | null
+          summary: string
+          time_layer: string
+          title: string
+          triggers_ids: string[] | null
+          updated_at: string | null
+          verified: boolean | null
+          will_cause_ids: string[] | null
+        }
+        Insert: {
+          actor_reactions?: Json | null
+          cascade_depth?: number | null
+          category: string
+          caused_by_ids?: string[] | null
+          confidence?: number | null
+          countries_involved?: string[] | null
+          created_at?: string | null
+          event_date?: string | null
+          event_type: string
+          historical_outcome?: string | null
+          historical_parallel?: string | null
+          id?: string
+          market_impact?: Json | null
+          predicted_date?: string | null
+          probability?: number | null
+          region?: string | null
+          signal_type?: string | null
+          simulation_run_id?: string | null
+          source_signal_id?: string | null
+          status?: string | null
+          summary: string
+          time_layer?: string
+          title: string
+          triggers_ids?: string[] | null
+          updated_at?: string | null
+          verified?: boolean | null
+          will_cause_ids?: string[] | null
+        }
+        Update: {
+          actor_reactions?: Json | null
+          cascade_depth?: number | null
+          category?: string
+          caused_by_ids?: string[] | null
+          confidence?: number | null
+          countries_involved?: string[] | null
+          created_at?: string | null
+          event_date?: string | null
+          event_type?: string
+          historical_outcome?: string | null
+          historical_parallel?: string | null
+          id?: string
+          market_impact?: Json | null
+          predicted_date?: string | null
+          probability?: number | null
+          region?: string | null
+          signal_type?: string | null
+          simulation_run_id?: string | null
+          source_signal_id?: string | null
+          status?: string | null
+          summary?: string
+          time_layer?: string
+          title?: string
+          triggers_ids?: string[] | null
+          updated_at?: string | null
+          verified?: boolean | null
+          will_cause_ids?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_world_events_source_signal_id_fkey"
+            columns: ["source_signal_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_world_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ayn_world_predictions: {
         Row: {
           actionable_move: string | null
@@ -2236,6 +2897,50 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_world_simulations: {
+        Row: {
+          actors_activated: string[] | null
+          cascade_depth_reached: number | null
+          created_at: string | null
+          id: string
+          market_scenarios: Json | null
+          simulation_summary: string | null
+          total_events_generated: number | null
+          trigger_event_id: string | null
+          trigger_title: string | null
+        }
+        Insert: {
+          actors_activated?: string[] | null
+          cascade_depth_reached?: number | null
+          created_at?: string | null
+          id?: string
+          market_scenarios?: Json | null
+          simulation_summary?: string | null
+          total_events_generated?: number | null
+          trigger_event_id?: string | null
+          trigger_title?: string | null
+        }
+        Update: {
+          actors_activated?: string[] | null
+          cascade_depth_reached?: number | null
+          created_at?: string | null
+          id?: string
+          market_scenarios?: Json | null
+          simulation_summary?: string | null
+          total_events_generated?: number | null
+          trigger_event_id?: string | null
+          trigger_title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_world_simulations_trigger_event_id_fkey"
+            columns: ["trigger_event_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_world_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       beta_feedback: {
         Row: {
           additional_comments: string | null
@@ -2273,22 +2978,7 @@ export type Database = {
           user_id?: string
           would_recommend?: boolean | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "beta_feedback_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "beta_feedback_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       brain_insights: {
         Row: {
@@ -2345,22 +3035,7 @@ export type Database = {
           tools_used?: string[] | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "brain_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "brain_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       building_codes: {
         Row: {
@@ -3130,36 +3805,7 @@ export type Database = {
           reason?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "credit_gifts_given_by_fkey"
-            columns: ["given_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_gifts_given_by_fkey"
-            columns: ["given_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_gifts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_gifts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       custom_orders: {
         Row: {
@@ -3318,22 +3964,7 @@ export type Database = {
           updated_at?: string
           warranty?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "custom_orders_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "custom_orders_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       device_fingerprints: {
         Row: {
@@ -3482,22 +4113,7 @@ export type Database = {
           status?: string | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "email_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       emergency_alerts: {
         Row: {
@@ -3877,22 +4493,7 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "error_group_resolutions_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "error_group_resolutions_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       error_logs: {
         Row: {
@@ -3937,22 +4538,7 @@ export type Database = {
           user_agent?: string | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "error_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "error_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       faq_items: {
         Row: {
@@ -4021,22 +4607,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "favorite_chats_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "favorite_chats_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       founder_context: {
         Row: {
@@ -4492,22 +5063,7 @@ export type Database = {
           session_id?: string | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "message_ratings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "message_ratings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       messages: {
         Row: {
@@ -4633,22 +5189,7 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "nda_agreements_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "nda_agreements_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       news_cache: {
         Row: {
@@ -4747,22 +5288,7 @@ export type Database = {
           session_id?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "pinned_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pinned_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -4810,36 +5336,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "fk_profiles_user_id"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_profiles_user_id"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       rate_limits: {
         Row: {
@@ -4869,22 +5366,7 @@ export type Database = {
           last_attempt?: string | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "rate_limits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rate_limits_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       saved_insights: {
         Row: {
@@ -4911,22 +5393,7 @@ export type Database = {
           tags?: string[] | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "saved_insights_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saved_insights_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       saved_responses: {
         Row: {
@@ -4995,22 +5462,7 @@ export type Database = {
           user_agent?: string | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "security_audit_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "security_audit_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       security_incidents: {
         Row: {
@@ -5088,22 +5540,7 @@ export type Database = {
           user_agent?: string | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "security_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "security_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       service_applications: {
         Row: {
@@ -5327,22 +5764,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "support_tickets_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "support_tickets_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       system_config: {
         Row: {
@@ -5369,22 +5791,7 @@ export type Database = {
           updated_by?: string | null
           value?: Json
         }
-        Relationships: [
-          {
-            foreignKeyName: "system_config_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "system_config_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       system_health_checks: {
         Row: {
@@ -5489,22 +5896,7 @@ export type Database = {
           shutdown_initiated_by?: string | null
           shutdown_reason?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "system_status_shutdown_initiated_by_fkey"
-            columns: ["shutdown_initiated_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "system_status_shutdown_initiated_by_fkey"
-            columns: ["shutdown_initiated_by"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       terms_consent_log: {
         Row: {
@@ -5537,22 +5929,7 @@ export type Database = {
           user_agent?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "terms_consent_log_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "terms_consent_log_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       test_results: {
         Row: {
@@ -5995,22 +6372,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_settings: {
         Row: {
@@ -6064,22 +6426,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_subscriptions: {
         Row: {
@@ -6115,22 +6462,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_overview"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "admin_users_view"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       visitor_analytics: {
         Row: {
@@ -6191,63 +6523,16 @@ export type Database = {
       }
     }
     Views: {
-      admin_users_overview: {
+      admin_visitor_analytics_summary: {
         Row: {
-          activity_status: string | null
-          auth_provider: string | null
-          avatar_url: string | null
-          company_name: string | null
-          contact_person: string | null
-          days_active: number | null
-          display_name: string | null
-          email: string | null
-          email_confirmed_at: string | null
-          email_verified: boolean | null
-          first_active: string | null
-          id: string | null
-          last_active: string | null
-          last_sign_in_at: string | null
-          messages_used: number | null
-          monthly_limit: number | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          sessions_per_day: number | null
-          signed_up_at: string | null
-          subscription_expires: string | null
-          subscription_status: string | null
-          subscription_tier: string | null
-          total_sessions: number | null
-        }
-        Relationships: []
-      }
-      admin_users_view: {
-        Row: {
-          active_days_total: number | null
-          auth_provider: string | null
-          avatar_url: string | null
-          bonus_credits: number | null
-          company_name: string | null
-          contact_person: string | null
-          current_month_usage: number | null
-          current_monthly_messages: number | null
-          days_since_last_use: number | null
-          display_name: string | null
-          email: string | null
-          email_confirmed_at: string | null
-          email_verified: boolean | null
-          id: string | null
-          is_active: boolean | null
-          is_unlimited: boolean | null
-          last_active_at: string | null
-          last_sign_in_at: string | null
-          messages_30d: number | null
-          messages_7d: number | null
-          monthly_limit: number | null
-          monthly_messages: number | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          signed_up_at: string | null
-          subscription_status: string | null
-          subscription_tier: string | null
-          total_messages: number | null
+          last_event_at: string | null
+          this_month_views: number | null
+          this_month_visitors: number | null
+          this_week_sessions: number | null
+          this_week_views: number | null
+          today_sessions: number | null
+          today_views: number | null
+          total_views: number | null
         }
         Relationships: []
       }
@@ -6326,14 +6611,35 @@ export type Database = {
         Args: { message_user_id: string }
         Returns: boolean
       }
+      admin_delete_custom_order: { Args: { p_id: string }; Returns: boolean }
+      admin_insert_ticket_message: {
+        Args: { p_content: string; p_sender?: string; p_ticket_id: string }
+        Returns: Json
+      }
       admin_unblock_user: {
         Args: { p_endpoint?: string; p_user_id: string }
         Returns: undefined
+      }
+      admin_update_ticket: {
+        Args: { p_data: Json; p_id: string }
+        Returns: boolean
+      }
+      admin_upsert_custom_order: {
+        Args: { p_data: Json; p_id?: string }
+        Returns: Json
+      }
+      admin_upsert_system_config: {
+        Args: { p_key: string; p_value: Json }
+        Returns: boolean
       }
       admin_view_contact_with_logging: { Args: never; Returns: boolean }
       apply_credit_topup: {
         Args: { _credits?: number; _user_id: string }
         Returns: Json
+      }
+      ayn_adjust_trust: {
+        Args: { p_agent_id: string; p_delta: number; p_target: string }
+        Returns: undefined
       }
       backfill_missing_session_titles: { Args: never; Returns: number }
       call_agent_if_not_debounced: {
@@ -6450,6 +6756,47 @@ export type Database = {
         Returns: boolean
       }
       generate_monthly_summaries: { Args: never; Returns: number }
+      get_admin_activity_log: { Args: { p_limit?: number }; Returns: Json }
+      get_admin_ai_cost_stats: { Args: never; Returns: Json }
+      get_admin_ai_limits: { Args: never; Returns: Json }
+      get_admin_applications: { Args: never; Returns: Json }
+      get_admin_beta_feedback: { Args: never; Returns: Json }
+      get_admin_churn_alerts: { Args: never; Returns: Json }
+      get_admin_contact_messages: { Args: { p_limit?: number }; Returns: Json }
+      get_admin_conversations: { Args: never; Returns: Json }
+      get_admin_credit_gifts: { Args: never; Returns: Json }
+      get_admin_custom_orders: { Args: never; Returns: Json }
+      get_admin_dashboard_stats: { Args: never; Returns: Json }
+      get_admin_email_broadcast_users: { Args: never; Returns: Json }
+      get_admin_error_logs: { Args: { p_limit?: number }; Returns: Json }
+      get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
+      get_admin_error_monitoring_data: { Args: never; Returns: Json }
+      get_admin_llm_management: { Args: never; Returns: Json }
+      get_admin_llm_stats: { Args: { p_hours?: number }; Returns: Json }
+      get_admin_message_ratings: { Args: never; Returns: Json }
+      get_admin_nda_agreements: { Args: never; Returns: Json }
+      get_admin_nda_list: { Args: never; Returns: Json }
+      get_admin_notification_log: { Args: never; Returns: Json }
+      get_admin_rate_limit_stats: { Args: never; Returns: Json }
+      get_admin_subscriptions: { Args: never; Returns: Json }
+      get_admin_support_data: { Args: never; Returns: Json }
+      get_admin_support_tickets: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: Json
+      }
+      get_admin_system_config: { Args: never; Returns: Json }
+      get_admin_system_metrics: { Args: never; Returns: Json }
+      get_admin_system_monitoring: { Args: never; Returns: Json }
+      get_admin_terms_consent: { Args: never; Returns: Json }
+      get_admin_test_results: { Args: never; Returns: Json }
+      get_admin_test_results_data: { Args: never; Returns: Json }
+      get_admin_user_growth: { Args: never; Returns: Json }
+      get_admin_user_messages: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: Json
+      }
+      get_admin_users: { Args: never; Returns: Json }
+      get_admin_visitor_analytics: { Args: { p_days?: number }; Returns: Json }
       get_alert_history_with_emails: {
         Args: { p_alert_id?: string; p_encryption_key?: string }
         Returns: {
@@ -6638,7 +6985,9 @@ export type Database = {
         }
         Returns: undefined
       }
-      mark_email_opened: { Args: { order_id: string }; Returns: undefined }
+      mark_email_opened:
+        | { Args: { order_id: string }; Returns: undefined }
+        | { Args: { p_tracking_id: string }; Returns: undefined }
       record_device_fingerprint: {
         Args: {
           _device_info: Json
@@ -6647,6 +6996,7 @@ export type Database = {
         }
         Returns: string
       }
+      refresh_accuracy_calibration: { Args: never; Returns: undefined }
       refresh_intelligence_brief: { Args: never; Returns: undefined }
       trigger_emergency_alert: {
         Args: {
