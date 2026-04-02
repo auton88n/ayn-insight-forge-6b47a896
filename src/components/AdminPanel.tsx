@@ -167,7 +167,7 @@ export const AdminPanel = ({
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
           {onBackClick && (
             <Button onClick={handleBackClick} variant="ghost" size="icon"

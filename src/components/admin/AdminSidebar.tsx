@@ -277,6 +277,6 @@ export const AdminSidebar = ({
           )}
         </Tooltip>
       </div>
-    </motion.aside>
+    </aside>
   );
 };
