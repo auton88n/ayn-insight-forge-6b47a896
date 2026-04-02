@@ -1,64 +1,70 @@
 
 
-# Fix Build Errors + Admin Panel Review
+# Admin Panel Production Fix Plan
 
-## Current State
+## Assessment
 
-The admin panel (`AdminPanel.tsx`) is already well-structured — lazy loading, React Query caching, sidebar navigation, error boundaries, and skeleton fallbacks are all in place. No architectural issues found there.
+The admin panel has a **solid architectural foundation**: separate Supabase client, Login → Role check → PIN verification flow via edge function, React.lazy for all 27 tabs, React Query for data fetching, and centralized query keys. The issues are specific and fixable.
 
-The **only blockers** are 4 TypeScript build errors in the World Intelligence files. Everything else compiles and runs.
+## What's Actually Wrong
 
----
+1. **Performance drag from Framer Motion + backdrop-blur**: `AdminDashboard.tsx` wraps every card in `motion.div` with stagger animations. `AdminSidebar.tsx` uses `motion.div` for collapse animation. Multiple `backdrop-blur-xl` layers on cards force GPU recompositing every frame.
 
-## Step 1: Fix `WorldSimulator.tsx` — line 122-124
+2. **Dashboard overview loads 3 RPC queries on mount regardless of active tab**: `useAdminDashboard()`, `useAdminApplications()`, and `useAdminSystemConfig()` all fire immediately in `AdminPanel.tsx` (lines 92-94), even when user is on a different tab.
 
-**Error**: `data[0].id` — TypeScript can't infer types for `ayn_world_simulations` (not in generated types).
+3. **AnimatedCounter causes continuous re-renders**: The counter component in `AdminDashboard.tsx` runs `requestAnimationFrame` loops that trigger `setState` on every frame (lines 53-75).
 
-**Fix**: Cast `data` to `any[]` immediately after the query:
-```typescript
-const results = (data || []) as any[];
-if (results.length) {
-  setSimulations(results);
-  setActiveSimId(results[0].id);
-}
-```
+4. **`backdrop-blur-xl` on card elements**: Lines 152 and 186 in `AdminDashboard.tsx` apply heavy blur effects on metric cards and activity cards.
 
 ---
 
-## Step 2: Fix `WorldIntelligence.tsx` — lines 78, 139 (remove `speed`)
+## Step 1: Remove Framer Motion from AdminDashboard
 
-**Error**: `speed` does not exist on `MapPoint`.
+**File**: `src/components/admin/AdminDashboard.tsx`
 
-**Fix**: Delete line 78 (`speed: i.speed,`) and line 139 (`speed: i.speed_knots ?? i.speed,`).
+- Remove `motion` import and all `motion.div` wrappers (lines 1, 77-92, 137-142, 148-151, 179, 185, 254, 258, 261)
+- Replace with plain `<div>` elements with CSS `animate-fade-in` class for subtle entry
+- Replace `AnimatedCounter` with a simple `{value}` render — the counter animation causes frame-by-frame re-renders for no real benefit
+- Remove all `backdrop-blur-xl` classes, replace with solid `bg-card`
+- Remove radial gradient overlays (line 157) — pure visual noise
+
+## Step 2: Optimize AdminSidebar animation
+
+**File**: `src/components/admin/AdminSidebar.tsx`
+
+- Replace `motion.div` sidebar collapse with CSS `transition-[width]` — Framer Motion is overkill for a width transition
+- Remove `framer-motion` import
+
+## Step 3: Defer parent-level queries to active tab
+
+**File**: `src/components/AdminPanel.tsx`
+
+- Move `useAdminDashboard()` call inside `AdminDashboard` component (it's the only consumer)
+- Move `useAdminApplications()` inside `ApplicationManagement` (pass query invalidation via callback)
+- Keep `useAdminSystemConfig()` in parent only if `SystemSettings` tab needs it from parent; otherwise move it too
+- This eliminates 2-3 RPC calls on every admin panel mount
+
+## Step 4: Remove backdrop-blur from header
+
+**File**: `src/components/AdminPanel.tsx` line 193
+
+- Change `bg-background/80 backdrop-blur-sm` to `bg-background` — the header doesn't scroll over content, blur is unnecessary
+
+## Step 5: Verify data flow is working
+
+The React Query hooks in `useAdminQuery.ts` are correctly structured with proper stale times. The data flow relies on Supabase RPC functions (`get_admin_dashboard_stats`, `get_admin_applications`, etc.). If these RPCs exist and return data, the stats will update. No code changes needed in the query layer — it's well built.
+
+- Add error display in `AdminDashboard` when `dashboardQuery.isError` is true (currently silently shows 0s)
+- Add loading skeleton when `dashboardQuery.isLoading`
 
 ---
 
-## Step 3: Fix `WorldIntelligence.tsx` — line 373 (calibration data)
+## Technical Details
 
-**Error**: `c.asset` fails because the query result type is `SelectQueryError`.
+**Files modified**:
+- `src/components/admin/AdminDashboard.tsx` — Remove framer-motion, AnimatedCounter, backdrop-blur; add error/loading states; receive data via React Query directly instead of props
+- `src/components/admin/AdminSidebar.tsx` — Replace motion.div with CSS transition
+- `src/components/AdminPanel.tsx` — Remove parent-level dashboard/applications queries, remove header backdrop-blur
 
-**Fix**: Cast the array:
-```typescript
-for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
-```
-
----
-
-## Step 4: Fix `WorldIntelligence.tsx` — line 153 (`generated_by` type)
-
-**Error**: `generated_by` returns `string | null` from DB but interface only accepts `string | undefined`.
-
-**Fix**: Change line 153 in the `Prediction` interface:
-```typescript
-generated_by?: string | null;
-```
-
----
-
-## Files Modified
-- `src/components/dashboard/world/WorldSimulator.tsx` — 1 change (cast data to `any[]`)
-- `src/pages/WorldIntelligence.tsx` — 4 changes (remove `speed` x2, cast calibData, fix `generated_by` type)
-
-## Admin Panel Assessment
-The admin panel code is solid — already uses lazy loading for all 27 tabs, React Query for data fetching, proper error boundaries, and skeleton loading states. No changes needed there.
+**No database or edge function changes needed.** The security layer (Login → Role check → PIN via edge function) is already properly implemented. The admin route is NOT publicly accessible — it requires authentication + admin role + PIN verification.
 
