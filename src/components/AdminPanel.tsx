@@ -10,7 +10,6 @@ import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import {
-  useAdminDashboard,
   useAdminApplications,
   useAdminSystemConfig,
   useAdminRefresh,
@@ -88,33 +87,9 @@ export const AdminPanel = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ── React Query hooks for shared parent data ──────────────
-  const dashboardQuery = useAdminDashboard();
+  // ── React Query hooks — only what the parent needs ─────────
   const applicationsQuery = useAdminApplications();
   const systemConfigQuery = useAdminSystemConfig();
-
-  // Derive metrics from query data
-  const dashStats = (dashboardQuery.data || {}) as any;
-  const systemMetrics = {
-    totalUsers: dashStats.total_users || 0,
-    activeUsers: dashStats.active_users || 0,
-    pendingUsers: 0,
-    todayMessages: dashStats.today_messages || 0,
-    weeklyGrowth: 0,
-  };
-
-  const recentUsers = (dashStats.recent_users || []).map((u: any) => ({
-    id: u.id,
-    user_id: u.id,
-    is_active: u.is_active ?? false,
-    granted_at: u.signed_up_at || null,
-    expires_at: null,
-    current_month_usage: null,
-    monthly_limit: null,
-    created_at: u.signed_up_at || new Date().toISOString(),
-    user_email: u.email,
-    profiles: { company_name: null, contact_person: u.display_name || u.email?.split('@')[0] || null, avatar_url: null },
-  }));
 
   const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
 
@@ -190,7 +165,7 @@ export const AdminPanel = ({
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
+      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
           {onBackClick && (
             <Button onClick={handleBackClick} variant="ghost" size="icon"
@@ -241,7 +216,7 @@ export const AdminPanel = ({
           <div className="flex-1 overflow-y-auto overscroll-contain">
             <div className="p-6 max-w-6xl mx-auto">
               <ErrorBoundary>
-                {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard systemMetrics={systemMetrics} allUsers={recentUsers} /></Suspense>}
+                {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard /></Suspense>}
                 {activeTab === 'google-analytics' && <Suspense fallback={<TabFallback />}><GoogleAnalytics /></Suspense>}
                 {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
                 {activeTab === 'support' && <Suspense fallback={<TabFallback />}><SupportManagement /></Suspense>}
