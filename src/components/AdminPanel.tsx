@@ -216,7 +216,7 @@ export const AdminPanel = ({
           <div className="flex-1 overflow-y-auto overscroll-contain">
             <div className="p-6 max-w-6xl mx-auto">
               <ErrorBoundary>
-                {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard systemMetrics={systemMetrics} allUsers={recentUsers} /></Suspense>}
+                {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard /></Suspense>}
                 {activeTab === 'google-analytics' && <Suspense fallback={<TabFallback />}><GoogleAnalytics /></Suspense>}
                 {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
                 {activeTab === 'support' && <Suspense fallback={<TabFallback />}><SupportManagement /></Suspense>}
