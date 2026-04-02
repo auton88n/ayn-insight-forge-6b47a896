@@ -10,7 +10,6 @@ import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import {
-  useAdminDashboard,
   useAdminApplications,
   useAdminSystemConfig,
   useAdminRefresh,
