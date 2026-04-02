@@ -88,8 +88,7 @@ export const AdminPanel = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ── React Query hooks for shared parent data ──────────────
-  const dashboardQuery = useAdminDashboard();
+  // ── React Query hooks — only what the parent needs ─────────
   const applicationsQuery = useAdminApplications();
   const systemConfigQuery = useAdminSystemConfig();
 

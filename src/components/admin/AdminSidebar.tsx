@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   DollarSign as DollarIcon,
