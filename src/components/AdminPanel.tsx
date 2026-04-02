@@ -91,28 +91,7 @@ export const AdminPanel = ({
   const applicationsQuery = useAdminApplications();
   const systemConfigQuery = useAdminSystemConfig();
 
-  // Derive metrics from query data
-  const dashStats = (dashboardQuery.data || {}) as any;
-  const systemMetrics = {
-    totalUsers: dashStats.total_users || 0,
-    activeUsers: dashStats.active_users || 0,
-    pendingUsers: 0,
-    todayMessages: dashStats.today_messages || 0,
-    weeklyGrowth: 0,
-  };
-
-  const recentUsers = (dashStats.recent_users || []).map((u: any) => ({
-    id: u.id,
-    user_id: u.id,
-    is_active: u.is_active ?? false,
-    granted_at: u.signed_up_at || null,
-    expires_at: null,
-    current_month_usage: null,
-    monthly_limit: null,
-    created_at: u.signed_up_at || new Date().toISOString(),
-    user_email: u.email,
-    profiles: { company_name: null, contact_person: u.display_name || u.email?.split('@')[0] || null, avatar_url: null },
-  }));
+  const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
 
   const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
 
