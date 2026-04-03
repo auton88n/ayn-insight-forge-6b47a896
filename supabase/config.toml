@@ -340,3 +340,12 @@ verify_jwt = false
 
 [functions.generate-nda-pdf]
 verify_jwt = false
+
+# === AYN v2 Phase 1 — Gateway + Router ===
+# Gateway does its own JWT validation internally (supports SSE streaming)
+[functions.ayn-gateway]
+verify_jwt = false
+
+# Router does its own JWT validation internally  
+[functions.ai-router]
+verify_jwt = false
