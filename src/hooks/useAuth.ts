@@ -55,8 +55,8 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
       setMonthlyLimit(record.monthly_limit ?? null);
       setUsageResetDate(record.usage_reset_date ?? null);
     } catch {
-      // On any error, give access — better to show card than hide it
-      setHasAccess(true);
+      // Fail closed — deny access on errors (blueprint security rule #1)
+      setHasAccess(false);
     }
   }, [user.id, session.access_token]);
 
