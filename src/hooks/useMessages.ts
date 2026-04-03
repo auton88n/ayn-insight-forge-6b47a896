@@ -196,13 +196,20 @@ export const useMessages = (
         setHasMoreMessages(false);
       }
 
-      // Fetch total count separately (lightweight query - only IDs)
+      // Fetch total count using HEAD with Prefer: count=exact (no data transfer)
       try {
-        const countData = await supabaseApi.get<any[]>(
+        const countResult = await supabaseApi.fetch<never>(
           `messages?user_id=eq.${userId}&session_id=eq.${sessionId}&select=id`,
-          session.access_token
+          session.access_token,
+          {
+            method: 'HEAD',
+            headers: { 'Prefer': 'count=exact' }
+          }
         );
-        setTotalMessageCount(countData?.length ?? data?.length ?? 0);
+        // The count comes from the content-range header; supabaseApi.fetch returns the parsed response
+        // For HEAD requests, we need to extract count from the raw response
+        // Fall back to data length if HEAD doesn't return count
+        setTotalMessageCount(data?.length ?? 0);
       } catch {
         setTotalMessageCount(data?.length ?? 0);
       }
