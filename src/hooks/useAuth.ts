@@ -55,8 +55,8 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
       setMonthlyLimit(record.monthly_limit ?? null);
       setUsageResetDate(record.usage_reset_date ?? null);
     } catch {
-      // On any error, give access — better to show card than hide it
-      setHasAccess(true);
+      // Fail closed — deny access on errors (blueprint security rule #1)
+      setHasAccess(false);
     }
   }, [user.id, session.access_token]);
 
@@ -178,28 +178,29 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         if (subData && subData.length > 0) {
           setHasAccess(true);
         } else {
-          // Fallback to access_grants for legacy users
-          try {
-            const accessData = await supabaseApi.get<any[]>(
-              `access_grants?user_id=eq.${user.id}&select=is_active,expires_at,current_month_usage,monthly_limit,usage_reset_date`,
-              session.access_token
-            );
-            if (accessData && accessData.length > 0) {
-              const record = accessData[0];
-              const isActive = record.is_active &&
-                (!record.expires_at || new Date(record.expires_at) > new Date());
-              setHasAccess(isActive);
-              setCurrentMonthUsage(record.current_month_usage ?? 0);
-              setMonthlyLimit(record.monthly_limit ?? null);
-              setUsageResetDate(record.usage_reset_date ?? null);
-            } else {
-              // Authenticated but no rows anywhere — give access
-              setHasAccess(true);
+            // Fallback to access_grants for legacy users
+            try {
+              const accessData = await supabaseApi.get<any[]>(
+                `access_grants?user_id=eq.${user.id}&select=is_active,expires_at,current_month_usage,monthly_limit,usage_reset_date`,
+                session.access_token
+              );
+              if (accessData && accessData.length > 0) {
+                const record = accessData[0];
+                const isActive = record.is_active &&
+                  (!record.expires_at || new Date(record.expires_at) > new Date());
+                setHasAccess(isActive);
+                setCurrentMonthUsage(record.current_month_usage ?? 0);
+                setMonthlyLimit(record.monthly_limit ?? null);
+                setUsageResetDate(record.usage_reset_date ?? null);
+              } else {
+                // Authenticated but no rows anywhere — give access (legitimate new user)
+                setHasAccess(true);
+              }
+            } catch {
+              // Fail closed — deny access on errors
+              setHasAccess(false);
             }
-          } catch {
-            setHasAccess(true);
           }
-        }
 
         // Admin/duty role
         if (roleData) {
