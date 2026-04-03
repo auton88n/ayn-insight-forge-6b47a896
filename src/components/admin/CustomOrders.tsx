@@ -2,7 +2,7 @@
 // Strips the standalone page's back button/navigation
 import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -172,9 +172,9 @@ export const CustomOrders = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('custom_orders').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.rpc('get_admin_custom_orders');
       if (error) throw error;
-      setOrders((data || []) as unknown as CustomOrder[]);
+      setOrders((Array.isArray(data) ? data : []) as unknown as CustomOrder[]);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {

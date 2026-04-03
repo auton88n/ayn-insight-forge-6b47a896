@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Lock, Delete, Loader2, ShieldAlert } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 
 interface AdminPinGateProps {
   open: boolean;

@@ -115,13 +115,14 @@ function WorldSimulator({ signals }: { signals: any[] }) {
     const load = async () => {
       try {
         const { data } = await supabase
-          .from('ayn_world_simulations')
+          .from('ayn_world_simulations' as any)
           .select('*')
           .order('created_at', { ascending: false })
           .limit(10);
-        if (data?.length) {
-          setSimulations(data);
-          setActiveSimId(data[0].id);
+        const results = (data || []) as any[];
+        if (results.length) {
+          setSimulations(results);
+          setActiveSimId(results[0].id);
         }
       } catch {}
     };
@@ -135,7 +136,7 @@ function WorldSimulator({ signals }: { signals: any[] }) {
       setLoadingCascade(true);
       try {
         const { data } = await supabase
-          .from('ayn_world_events')
+          .from('ayn_world_events' as any)
           .select('*')
           .eq('simulation_run_id', activeSimId)
           .order('cascade_depth', { ascending: true });
@@ -159,7 +160,7 @@ function WorldSimulator({ signals }: { signals: any[] }) {
         const result = await res.json();
         if (result.simulation_id) {
           // Reload simulations
-          const { data } = await supabase.from('ayn_world_simulations').select('*').order('created_at', { ascending: false }).limit(10);
+          const { data } = await supabase.from('ayn_world_simulations' as any).select('*').order('created_at', { ascending: false }).limit(10);
           setSimulations(data || []);
           setActiveSimId(result.simulation_id);
         }

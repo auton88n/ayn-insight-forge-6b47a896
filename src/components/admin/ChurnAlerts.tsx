@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AlertTriangle, RefreshCw, Clock, Mail, TrendingDown } from 'lucide-react';
 
 interface ChurnUser {
@@ -23,20 +23,9 @@ export const ChurnAlerts = () => {
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase.from('admin_users_view').select(
-        'id,display_name,email,auth_provider,subscription_tier,total_messages,messages_30d,last_active_at,signed_up_at'
-      );
-      const all = (data || []) as any[];
-      const atRisk = all
-        .map(u => ({
-          ...u,
-          days_inactive: u.last_active_at
-            ? Math.floor((Date.now() - new Date(u.last_active_at).getTime()) / 86400000)
-            : Math.floor((Date.now() - new Date(u.signed_up_at).getTime()) / 86400000),
-        }))
-        .filter(u => u.days_inactive >= threshold || u.total_messages === 0)
-        .sort((a, b) => b.days_inactive - a.days_inactive);
-      setUsers(atRisk as ChurnUser[]);
+      const { data, error } = await supabase.rpc('get_admin_churn_alerts');
+      const atRisk = (data || []) as unknown as ChurnUser[];
+      setUsers(atRisk);
     } finally { setLoading(false); }
   }, [threshold]);
 

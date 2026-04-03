@@ -14,7 +14,7 @@ import {
   Clock,
   RefreshCw
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Button } from '@/components/ui/button';
 import { format, subDays, startOfDay, startOfWeek, startOfMonth } from 'date-fns';
 
@@ -71,102 +71,35 @@ export const VisitorAnalytics = () => {
   const fetchAnalytics = async () => {
     setIsLoading(true);
     try {
-      const now = new Date();
-      const todayStart = startOfDay(now).toISOString();
-      const weekStart = startOfWeek(now).toISOString();
-      const monthStart = startOfMonth(now).toISOString();
-
-      // Fetch visitor counts
-      const [todayResult, weekResult, monthResult, totalResult] = await Promise.all([
-        supabase.from('visitor_analytics').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('visitor_analytics').select('id', { count: 'exact', head: true }).gte('created_at', weekStart),
-        supabase.from('visitor_analytics').select('id', { count: 'exact', head: true }).gte('created_at', monthStart),
-        supabase.from('visitor_analytics').select('id', { count: 'exact', head: true })
-      ]);
+      const { data, error } = await supabase.rpc('get_admin_visitor_analytics', { p_days: 30 });
+      if (error) throw error;
+      const d = data as any;
 
       setStats({
-        today: todayResult.count || 0,
-        thisWeek: weekResult.count || 0,
-        thisMonth: monthResult.count || 0,
-        total: totalResult.count || 0
+        today: d.today_views || 0,
+        thisWeek: d.week_views || 0,
+        thisMonth: d.month_views || 0,
+        total: d.total_views || 0,
       });
 
-      // Fetch country breakdown (last 30 days)
-      const thirtyDaysAgo = subDays(now, 30).toISOString();
-      const { data: countryData } = await supabase
-        .from('visitor_analytics')
-        .select('country, country_code')
-        .gte('created_at', thirtyDaysAgo);
+      // Countries
+      const countryList = (d.by_country || []).slice(0, 10);
+      const totalSessions = countryList.reduce((sum: number, c: any) => sum + c.sessions, 0) || 1;
+      setCountries(countryList.map((c: any) => ({
+        country: c.country,
+        country_code: c.country?.slice(0, 2).toUpperCase() || 'XX',
+        count: c.sessions,
+        percentage: Math.round((c.sessions / totalSessions) * 100),
+      })));
 
-      if (countryData) {
-        const countryCounts = countryData.reduce((acc: Record<string, { count: number; code: string }>, item) => {
-          const country = item.country || 'Unknown';
-          if (!acc[country]) {
-            acc[country] = { count: 0, code: item.country_code || 'XX' };
-          }
-          acc[country].count++;
-          return acc;
-        }, {});
+      // Top pages
+      setTopPages((d.top_pages || []).slice(0, 5).map((p: any) => ({
+        page_path: p.page_path,
+        count: p.views,
+      })));
 
-        const total = countryData.length;
-        const sortedCountries = Object.entries(countryCounts)
-          .map(([country, data]) => ({
-            country,
-            country_code: data.code,
-            count: data.count,
-            percentage: Math.round((data.count / total) * 100)
-          }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10);
-
-        setCountries(sortedCountries);
-      }
-
-      // Fetch device breakdown
-      const { data: deviceData } = await supabase
-        .from('visitor_analytics')
-        .select('device_type')
-        .gte('created_at', thirtyDaysAgo);
-
-      if (deviceData) {
-        const deviceCounts = deviceData.reduce((acc: Record<string, number>, item) => {
-          const device = item.device_type || 'Unknown';
-          acc[device] = (acc[device] || 0) + 1;
-          return acc;
-        }, {});
-
-        const total = deviceData.length;
-        const sortedDevices = Object.entries(deviceCounts)
-          .map(([device_type, count]) => ({
-            device_type,
-            count,
-            percentage: Math.round((count / total) * 100)
-          }))
-          .sort((a, b) => b.count - a.count);
-
-        setDevices(sortedDevices);
-      }
-
-      // Fetch top pages
-      const { data: pageData } = await supabase
-        .from('visitor_analytics')
-        .select('page_path')
-        .gte('created_at', thirtyDaysAgo);
-
-      if (pageData) {
-        const pageCounts = pageData.reduce((acc: Record<string, number>, item) => {
-          const page = item.page_path || '/';
-          acc[page] = (acc[page] || 0) + 1;
-          return acc;
-        }, {});
-
-        const sortedPages = Object.entries(pageCounts)
-          .map(([page_path, count]) => ({ page_path, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5);
-
-        setTopPages(sortedPages);
-      }
+      // Devices — not available from visitor_analytics via RPC, show empty
+      setDevices([]);
 
       setLastUpdated(new Date());
     } catch (error) {

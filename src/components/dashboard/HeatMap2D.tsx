@@ -102,6 +102,7 @@ export function HeatMap2D({
 }){
   const globeRef    = useRef<any>(null);
   const containerRef= useRef<HTMLDivElement>(null);
+  const [globeWidth, setGlobeWidth]   = useState(0);
   const [Globe, setGlobe]             = useState<any>(null);
   const [activeLayer, setActiveLayer] = useState<MapLayer>('all');
   const [viewMode, setViewMode]       = useState<ViewMode>('standard');
@@ -115,6 +116,22 @@ export function HeatMap2D({
   // Load Globe dynamically
   useEffect(()=>{
     import('react-globe.gl').then(m=>setGlobe(()=>m.default));
+  },[]);
+
+  // Keep globe width in sync with container size
+  useEffect(()=>{
+    if(!containerRef.current) return;
+    const node = containerRef.current;
+    const updateWidth = () => setGlobeWidth(node.clientWidth || 0);
+    updateWidth();
+
+    const observer = new ResizeObserver(entries=>{
+      const entry = entries[0];
+      if(entry) setGlobeWidth(entry.contentRect.width);
+    });
+
+    observer.observe(node);
+    return ()=>observer.disconnect();
   },[]);
 
   // Auto-rotate
@@ -257,7 +274,7 @@ export function HeatMap2D({
   );
 
   return(
-    <div style={{display:'flex',flexDirection:'column',width:'100%',borderRadius:14,overflow:'hidden',
+    <div style={{display:'flex',flexDirection:'column',width:'100%',maxWidth:'100%',minWidth:0,borderRadius:14,overflow:'hidden',
       background:'#020b18',border:'1px solid rgba(0,255,200,0.12)',boxShadow:'0 0 60px rgba(0,0,0,0.8)'}}>
 
       {/* ── Header */}
@@ -356,7 +373,7 @@ export function HeatMap2D({
       </div>
 
       {/* ── Globe + overlays */}
-      <div style={{position:'relative',height,background:'#020b18',overflow:'hidden'}} ref={containerRef}>
+      <div style={{position:'relative',width:'100%',height,background:'#020b18',overflow:'hidden'}} ref={containerRef}>
 
         {/* View mode wrapper — CSS filter only, zero GL cost */}
         <div style={{
@@ -382,7 +399,7 @@ export function HeatMap2D({
           {Globe&&(
             <Globe
               ref={globeRef}
-              width={containerRef.current?.clientWidth||1200}
+              width={Math.max(globeWidth || containerRef.current?.clientWidth || 0, 320)}
               height={height}
               backgroundColor="rgba(0,0,0,0)"
               atmosphereColor={viewMode==='nightvision'?'#00ff44':viewMode==='flir'?'#ff4400':'#1a4080'}

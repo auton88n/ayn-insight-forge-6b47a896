@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Star, RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Bug, Lightbulb, Users } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -30,52 +30,16 @@ export const BetaFeedbackViewer = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchFeedback = async () => {
+    setLoading(true);
     try {
-      // Fetch feedback
-      const { data: feedbackData, error: feedbackError } = await supabase
-        .from('beta_feedback')
-        .select('*')
-        .order('submitted_at', { ascending: false });
-
-      if (feedbackError) throw feedbackError;
-
-      // Get unique user IDs
-      const userIds = [...new Set((feedbackData || []).map(f => f.user_id))];
-
-      // Fetch profiles for these users
-      const { data: profilesData } = await supabase
-        .from('admin_users_view')
-        .select('id, display_name, email')
-        .in('id', userIds);
-
-      // Create a map of user_id to name
-      const userNameMap = new Map<string, string>();
-      (profilesData || []).forEach(p => {
-        userNameMap.set((p as any).id, (p as any).display_name || (p as any).email?.split('@')[0] || '');
-      });
-
-      // Merge feedback with user names
-      const enrichedFeedback: FeedbackEntry[] = (feedbackData || []).map(f => ({
-        ...f,
-        user_name: userNameMap.get(f.user_id) || undefined
-      }));
-
-      setFeedback(enrichedFeedback);
-      
-      // Security: Log admin access to beta feedback
-      if (feedbackData && feedbackData.length > 0) {
-        supabase.from('security_logs').insert({
-          action: 'beta_feedback_view',
-          details: { count: feedbackData.length, timestamp: new Date().toISOString() },
-          severity: 'medium'
-        });
-      }
+      const { data, error } = await supabase.rpc('get_admin_beta_feedback');
+      if (error) throw error;
+      setFeedback(data || []);
     } catch (err) {
       console.error('Error fetching feedback:', err);
       toast.error('Failed to load feedback');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 

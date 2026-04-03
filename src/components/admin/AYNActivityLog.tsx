@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -92,20 +92,12 @@ export const AYNActivityLog = () => {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
-    let query = supabase
-      .from('ayn_activity_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (filter !== 'all' && FILTER_GROUPS[filter]) {
-      query = query.in('action_type', FILTER_GROUPS[filter]);
-    }
-    if (employeeFilter !== 'all') {
-      query = query.eq('triggered_by', employeeFilter);
-    }
-
-    const { data, error } = await query;
+    const { data: rawData, error } = await supabase.rpc('get_admin_activity_log', { p_limit: 500 });
+    let data = (rawData || []).filter((r: any) => {
+      if (filter !== 'all' && FILTER_GROUPS[filter] && !FILTER_GROUPS[filter].includes(r.action_type)) return false;
+      if (employeeFilter !== 'all' && r.triggered_by !== employeeFilter) return false;
+      return true;
+    });
     if (!error && data) {
       setLogs(data as ActivityLog[]);
     }

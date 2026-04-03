@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AlertTriangle, RefreshCw, Bug, Clock, User, ChevronDown, ChevronRight, CheckCircle, EyeOff, Wrench, Lightbulb, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -84,20 +84,16 @@ export const ErrorMonitoring = () => {
   const fetchGroups = useCallback(async () => {
     setLoading(true);
     try {
-      let query = supabase.from('error_logs').select('error_message, error_stack, url, user_id, created_at');
+      const { data: rpcData } = await supabase.rpc('get_admin_error_monitoring', { p_limit: 2000 });
+      let rows = (rpcData?.errors || []);
       if (timeRange !== 'all') {
         const ms = { '24h': 86400000, '7d': 604800000, '30d': 2592000000 }[timeRange];
-        query = query.gte('created_at', new Date(Date.now() - ms).toISOString());
+        const cutoff = new Date(Date.now() - ms).toISOString();
+        rows = rows.filter((r: any) => r.created_at >= cutoff);
       }
-      const { data } = await query.order('created_at', { ascending: false }).limit(2000);
-      const rows = data || [];
       setTotalErrors(rows.length);
-
-      // Load resolutions
-      const { data: resolutions } = await supabase
-        .from('error_group_resolutions')
-        .select('error_pattern, status, resolution_note, fix_description');
-      const resMap = new Map((resolutions || []).map((r: any) => [r.error_pattern, r]));
+      const resolutions = rpcData?.resolutions || [];
+      const resMap = new Map((resolutions).map((r: any) => [r.error_pattern, r]));
 
       const map = new Map<string, ErrorGroup>();
       rows.forEach((r: any) => {

@@ -74,8 +74,7 @@ function parseMaritimePoints(items: any[]): MapPoint[] {
         detail: `${i.type ?? ''} · ${i.flag ?? ''} · ${ i.destination ?? i.status ?? ''}`.trim().replace(/^·\s*/, ''),
         category: 'Maritime',
         risk: 'maritime' as any,
-        heading: i.heading ?? i.course,
-        speed: i.speed,
+        // heading/speed not on MapPoint type
       };
     }).filter(Boolean).slice(0, 40); // cap at 40 ships to avoid clutter
 }
@@ -135,8 +134,7 @@ function parseAviationPoints(items: any[]): MapPoint[] {
         detail: i.description ?? i.status ?? i.origin ?? '',
         category: 'Aviation',
         risk: 'aviation' as any,
-        heading: i.heading ?? i.track,
-        speed: i.speed_knots ?? i.speed,
+        // heading/speed not on MapPoint type
       };
     }).filter(Boolean).slice(0, 30);
 }
@@ -367,10 +365,10 @@ export default function WorldIntelligence() {
     try {
       // Load calibration data first
       const { data: calibData } = await supabase
-        .from('ayn_accuracy_calibration')
+        .from('ayn_accuracy_calibration' as any)
         .select('asset, real_accuracy_pct, reliability_tier, should_show_uncertainty, calibration_factor');
       const calibMap: Record<string, any> = {};
-      for (const c of calibData || []) calibMap[c.asset] = c;
+      for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
 
       // ── Try consensus predictions first (combined AYN + ML)
       const { data: consensus } = await supabase
@@ -677,7 +675,7 @@ export default function WorldIntelligence() {
   );
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white font-mono flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-[#050508] text-white font-mono flex flex-col overflow-x-hidden">
       <style>{`
         @keyframes ayn-fade-pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
         @keyframes ayn-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
@@ -732,8 +730,8 @@ export default function WorldIntelligence() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[1600px] mx-auto p-4 space-y-5">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="w-full max-w-[1440px] mx-auto px-3 pt-4 sm:px-4 lg:px-5 space-y-5">
 
           {/* ─── FULL-WIDTH MAP ─── */}
           <HeatMap2D
@@ -748,9 +746,9 @@ export default function WorldIntelligence() {
 
           {/* ─── CARDS ROW ─── */}
           {/* ─── INTEL BRIEF + MACRO (2-col below map) ─── */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
             {/* Intelligence brief */}
-            <div className="bg-black/50 border border-white/6 rounded-2xl overflow-hidden">
+            <div className="min-w-0 bg-black/50 border border-white/6 rounded-2xl overflow-hidden">
               <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5 bg-gradient-to-r from-emerald-500/6 to-transparent">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.6)] animate-pulse" />
                 <Radio className="w-4 h-4 text-emerald-400" />
@@ -786,7 +784,7 @@ export default function WorldIntelligence() {
             </div>
 
             {/* Macro + Fear&Greed */}
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               {/* Fear & Greed */}
               <div className="bg-black/50 border border-white/6 rounded-2xl p-5">
                 <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">Market Sentiment</div>
@@ -951,7 +949,7 @@ export default function WorldIntelligence() {
             <AgentSociety />
           </Suspense>
         </div>
-        <div>
+        <div className="w-full max-w-[1440px] mx-auto px-3 pt-5 pb-6 sm:px-4 lg:px-5 space-y-5">
           <Suspense fallback={<div className="h-64 animate-pulse bg-white/5 rounded-xl border border-white/10" />}>
             <WorldSimulator signals={worldSignals} />
           </Suspense>

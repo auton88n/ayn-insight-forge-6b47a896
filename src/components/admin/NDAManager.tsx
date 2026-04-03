@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ContractAI } from './ContractAI';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -178,8 +178,8 @@ export const NDAManager = () => {
 
   const fetchNDAs = async () => {
     setLoading(true);
-    const { data } = await supabase.from('nda_agreements').select('*').order('created_at', { ascending: false });
-    setNdas((data || []) as unknown as NDA[]);
+    const { data, error } = await supabase.rpc('get_admin_nda_agreements');
+    if (!error) setNdas((Array.isArray(data) ? data : []) as unknown as NDA[]);
     setLoading(false);
   };
 

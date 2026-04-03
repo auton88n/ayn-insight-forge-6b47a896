@@ -59,16 +59,18 @@ const AdminCustomOrders = lazy(() => import("./pages/AdminCustomOrders"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
 
-// Admin route — accessible at /admin
-import AdminApp from './admin-app/AdminApp';
+// Admin — lazy loaded so 3D/globe/main app code never loads for admin users
+const AdminApp = lazy(() => import('./admin-app/AdminApp'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000,        // 1 minute - data stays fresh
-      gcTime: 5 * 60 * 1000,       // 5 minutes - keep in cache
-      refetchOnWindowFocus: false, // Don't refetch when tab regains focus
-      retry: 1,                    // Only retry once on failure
+      // Default freshness: 1 minute. Individual hooks override per CACHE_FRESHNESS class.
+      // See src/lib/cacheFreshness.ts for freshness tiers.
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
     },
   },
 });
@@ -124,6 +126,7 @@ const AnimatedRoutes = () => {
       <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
+      <Route path="/manage-bae76e99d97e188b" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/manage-bae76e99d97e188b/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
       <Route path="/admin" element={<Navigate to="/404" replace />} />
       <Route path="/admin/*" element={<Navigate to="/404" replace />} />

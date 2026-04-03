@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { Search, RefreshCw, Edit2, Mail, Shield, Chrome, Users, Crown, Zap, Infinity as InfinityIcon, User, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -80,10 +80,7 @@ export const SubscriptionManagement = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_users_view')
-        .select('*')
-        .order('signed_up_at', { ascending: false });
+      const { data, error } = await supabase.rpc('get_admin_subscriptions');
       if (error) throw error;
       setUsers((data || []) as UnifiedUser[]);
     } catch (e: any) {

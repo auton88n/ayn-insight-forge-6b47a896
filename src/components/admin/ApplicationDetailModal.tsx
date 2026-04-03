@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabaseApi } from '@/lib/supabaseApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import {
   Dialog,
   DialogContent,
@@ -79,10 +79,12 @@ export const ApplicationDetailModal = ({
   useEffect(() => {
     const fetchReplies = async () => {
       try {
-        const data = await supabaseApi.get<ApplicationReply[]>(
-          `application_replies?application_id=eq.${application.id}&order=created_at.desc`,
-          session.access_token
-        );
+        const { data, error } = await supabase
+          .from('application_replies')
+          .select('*')
+          .eq('application_id', application.id)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
         setReplies(data || []);
       } catch (error) {
         console.error('Error fetching replies:', error);

@@ -1,43 +1,15 @@
-import { motion, type Transition } from 'framer-motion';
 import { ReactNode } from 'react';
 
 interface PageTransitionProps {
   children: ReactNode;
 }
 
-const pageVariants = {
-  initial: {
-    opacity: 0,
-    y: 8,
-  },
-  animate: {
-    opacity: 1,
-    y: 0,
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-  },
-};
-
-const pageTransition: Transition = {
-  type: 'tween',
-  ease: 'easeOut',
-  duration: 0.25,
-};
-
+// No animation — instant render. Removed framer-motion slide which caused
+// the visible "sliding up" lag on every page navigation.
 export const PageTransition = ({ children }: PageTransitionProps) => {
   return (
     <div className="w-full min-h-screen bg-background">
-      <motion.div
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={pageVariants}
-        transition={pageTransition}
-      >
-        {children}
-      </motion.div>
+      {children}
     </div>
   );
 };

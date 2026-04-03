@@ -18,7 +18,7 @@ import {
   Lock,
   Zap
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 // SUPABASE_URL and SUPABASE_ANON_KEY imported from central config

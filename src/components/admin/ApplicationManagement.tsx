@@ -1,8 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Session } from '@supabase/supabase-js';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -183,18 +182,18 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
 
   const handleStatusChange = useCallback(async (appId: string, newStatus: string) => {
     try {
-      await supabaseApi.patch(
-        `service_applications?id=eq.${appId}`,
-        session.access_token,
-        { status: newStatus, updated_at: new Date().toISOString() }
-      );
+      const { error } = await supabase
+        .from('service_applications')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', appId);
+      if (error) throw error;
       toast.success(`Status updated to ${newStatus}`);
       onRefresh();
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Failed to update status');
     }
-  }, [session.access_token, onRefresh]);
+  }, [onRefresh]);
 
   const handleViewApplication = (app: ServiceApplication) => {
     if (app.status === 'new') {

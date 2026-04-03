@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { 
   CheckCircle, 
   XCircle, 
@@ -258,23 +258,20 @@ const TestResultsDashboard: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [runsRes, resultsRes, metricsRes] = await Promise.all([
-        supabase.from('test_runs').select('*').order('created_at', { ascending: false }).limit(20),
-        supabase.from('test_results').select('*').order('created_at', { ascending: false }).limit(500),
-        supabase.from('stress_test_metrics').select('*').order('created_at', { ascending: false }).limit(50),
-      ]);
-      
-      if (runsRes.data) setTestRuns(runsRes.data);
-      if (resultsRes.data) {
-        setTestResults(resultsRes.data);
-        // Calculate security score from results
-        const secTests = resultsRes.data.filter(t => t.test_suite === 'security');
+      const { data, error } = await supabase.rpc('get_admin_test_results_data');
+      if (error) throw error;
+      const d = data as any;
+
+      if (d?.test_runs) setTestRuns(d.test_runs);
+      if (d?.test_results) {
+        setTestResults(d.test_results);
+        const secTests = d.test_results.filter((t: any) => t.test_suite === 'security');
         if (secTests.length > 0) {
-          const passed = secTests.filter(t => t.status === 'passed').length;
+          const passed = secTests.filter((t: any) => t.status === 'passed').length;
           setSecurityScore(Math.round((passed / secTests.length) * 100));
         }
       }
-      if (metricsRes.data) setStressMetrics(metricsRes.data);
+      if (d?.stress_metrics) setStressMetrics(d.stress_metrics);
     } catch (error) {
       console.error('Failed to load test data:', error);
     } finally {

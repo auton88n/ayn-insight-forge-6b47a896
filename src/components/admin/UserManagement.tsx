@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -68,9 +68,7 @@ export const UserManagement = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('admin_users_view')
-        .select('*');
+      const { data, error } = await supabase.rpc('get_admin_users');
       if (error) throw error;
       setUsers((data || []) as unknown as AdminUser[]);
     } catch (err: any) {

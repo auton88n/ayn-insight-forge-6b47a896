@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 interface ContactMessage {
@@ -81,13 +81,9 @@ const ContactMessagesView: React.FC = () => {
   const fetchMessages = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('contact_messages')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_admin_contact_messages', { p_limit: 200 });
       if (error) throw error;
-      setMessages(data || []);
+      setMessages((Array.isArray(data) ? data : []) as ContactMessage[]);
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Error fetching contact messages:', error);

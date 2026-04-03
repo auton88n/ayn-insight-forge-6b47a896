@@ -22,7 +22,7 @@ import {
   Filter,
   TrendingUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -57,33 +57,13 @@ export const CreditGiftHistory = () => {
 
   const fetchGifts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('credit_gifts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_admin_credit_gifts');
       if (error) throw error;
-      const giftsData = data || [];
-      // Enrich with user names
-      const allIds = [...new Set([
-        ...giftsData.map((g: any) => g.user_id).filter(Boolean),
-        ...giftsData.map((g: any) => g.given_by).filter(Boolean)
-      ])];
-      if (allIds.length > 0) {
-        const { data: users } = await supabase
-          .from('admin_users_view')
-          .select('id, display_name, email')
-          .in('id', allIds);
-        const userMap = new Map((users || []).map((u: any) => [u.id, u]));
-        giftsData.forEach((g: any) => {
-          const u = userMap.get(g.user_id) as any;
-          if (u) { g.user_name = u.display_name; g.user_email = u.email; }
-          if (g.given_by) {
-            const giver = userMap.get(g.given_by) as any;
-            if (giver) g.given_by_name = giver.display_name;
-          }
-        });
-      }
+      const giftsData = (data || []).map((r: any) => ({
+        ...r,
+        user_name: r.display_name,
+        user_email: r.email,
+      }));
       setGifts(giftsData);
     } catch (err) {
       console.error('Error fetching credit gifts:', err);

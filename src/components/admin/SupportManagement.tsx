@@ -29,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import TicketDetailModal from './TicketDetailModal';
 import ContactMessagesView from './ContactMessagesView';
@@ -105,13 +105,10 @@ const SupportManagement: React.FC = () => {
   const fetchTickets = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('support_tickets')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_admin_support_tickets', { p_limit: 200, p_offset: 0 });
       if (error) throw error;
-      setTickets(data || []);
+      const result = data as any;
+      setTickets(result?.tickets || []);
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Error fetching tickets:', error);

@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { FileCheck, CheckCircle2, XCircle, Search, Users } from 'lucide-react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { format } from 'date-fns';
 
 interface ConsentRecord {
@@ -32,23 +31,21 @@ export const TermsConsentViewer = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const [consentData, profilesData] = await Promise.all([
-        supabaseApi.get<ConsentRecord[]>(
-          'terms_consent_log?select=*&order=accepted_at.desc',
-          session.access_token
-        ),
-        supabaseApi.get<ProfileInfo[]>(
-          'admin_users_view?select=id,display_name,email',
-          session.access_token
-        ),
-      ]);
-
-      setRecords(consentData || []);
+      const { data, error } = await supabase.rpc('get_admin_terms_consent');
+      if (error) throw error;
+      const rows = data || [];
+      setRecords(rows.map((r: any) => ({
+        id: r.id, user_id: r.user_id, terms_version: r.terms_version,
+        privacy_accepted: r.privacy_accepted, terms_accepted: r.terms_accepted,
+        ai_disclaimer_accepted: r.ai_disclaimer_accepted,
+        accepted_at: r.accepted_at, user_agent: r.user_agent,
+      })));
       const map = new Map<string, ProfileInfo>();
-      (profilesData || []).forEach((p: any) => map.set(p.id, { user_id: p.id, contact_person: p.display_name, company_name: p.email }));
+      rows.forEach((r: any) => map.set(r.user_id, {
+        user_id: r.user_id,
+        contact_person: r.display_name || null,
+        company_name: r.email || null,
+      }));
       setProfiles(map);
     } catch (err) {
       console.error('Failed to fetch consent logs:', err);

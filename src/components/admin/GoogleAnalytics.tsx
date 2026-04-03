@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { RefreshCw, Users, Eye, Globe, TrendingUp, Activity, Clock } from 'lucide-react';
 
 interface VisitorStats {
@@ -40,67 +40,20 @@ export const GoogleAnalytics = () => {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const now = new Date();
-      const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
-      const weekStart = new Date(Date.now() - 7 * 86400000).toISOString();
-      const monthStart = new Date(Date.now() - 30 * 86400000).toISOString();
-
-      const [todayRes, weekRes, monthRes, pagesRes, allTimeRes] = await Promise.all([
-        supabase.from('visitor_analytics').select('session_id, page_path, country', { count: 'exact' })
-          .gte('created_at', todayStart),
-        supabase.from('visitor_analytics').select('session_id, country', { count: 'exact' })
-          .gte('created_at', weekStart),
-        supabase.from('visitor_analytics').select('id', { count: 'exact' })
-          .gte('created_at', monthStart),
-        supabase.from('visitor_analytics').select('page_path')
-          .gte('created_at', weekStart)
-          .not('page_path', 'like', '/manage-%')
-          .not('page_path', 'like', '/nonexistent%')
-          .not('page_path', 'like', '/this-page%')
-          .limit(1000),
-        supabase.from('visitor_analytics').select('id', { count: 'exact' }),
-      ]);
-
-      const todayData = todayRes.data || [];
-      const weekData = weekRes.data || [];
-      const pagesData = pagesRes.data || [];
-
-      // Unique sessions
-      const uniqueToday = new Set(todayData.map((r: any) => r.session_id)).size;
-      const uniqueWeek = new Set(weekData.map((r: any) => r.session_id)).size;
-
-      // Top pages
-      const pageCounts: Record<string, number> = {};
-      pagesData.forEach((r: any) => {
-        const page = r.page_path || '/';
-        pageCounts[page] = (pageCounts[page] || 0) + 1;
-      });
-      const topPages = Object.entries(pageCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([page, views]) => ({ page, views }));
-
-      // Top countries (from today data)
-      const countryCounts: Record<string, number> = {};
-      todayData.forEach((r: any) => {
-        const country = r.country || 'Unknown';
-        countryCounts[country] = (countryCounts[country] || 0) + 1;
-      });
-      const topCountries = Object.entries(countryCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 6)
-        .map(([country, visits]) => ({ country, visits }));
+      const { data, error } = await supabase.rpc('get_admin_visitor_analytics', { p_days: 30 });
+      if (error) throw error;
+      const d = data as any;
 
       setStats({
-        today: todayRes.count || 0,
-        week: weekRes.count || 0,
-        month: monthRes.count || 0,
-        uniqueToday,
-        uniqueWeek,
-        topPages,
-        topCountries,
+        today: d.today_views || 0,
+        week: d.week_views || 0,
+        month: d.month_views || 0,
+        uniqueToday: d.today_sessions || 0,
+        uniqueWeek: d.week_sessions || 0,
+        topPages: (d.top_pages || []).slice(0, 8).map((p: any) => ({ page: p.page_path, views: p.views })),
+        topCountries: (d.by_country || []).slice(0, 6).map((c: any) => ({ country: c.country, visits: c.sessions })),
         byHour: [],
-        totalAllTime: allTimeRes.count || 0,
+        totalAllTime: d.total_views || 0,
       });
       setLastUpdated(new Date());
     } catch (err) {

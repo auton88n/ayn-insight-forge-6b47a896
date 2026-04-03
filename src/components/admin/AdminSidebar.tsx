@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import {
   AlertTriangle,
   DollarSign as DollarIcon,
@@ -29,7 +28,6 @@ import {
   Brain,
   FilePen,
   Notebook,
-  Code2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,8 +61,7 @@ export type AdminTabId =
   | 'email-broadcast'
   | 'custom-orders'
   | 'nda'
-  | 'document-studio'
-  | 'dev-agent';
+  | 'document-studio';
 
 interface AdminSection {
   id: AdminTabId;
@@ -136,7 +133,6 @@ const sidebarGroups: SidebarGroup[] = [
       { id: 'errors',        title: 'Error Monitor',  icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      adminOnly: true },
       { id: 'test-results',  title: 'Test Results',   icon: FlaskConical,  gradient: 'from-pink-500 to-rose-500',     adminOnly: true },
       { id: 'settings',      title: 'Settings',       icon: Settings,      gradient: 'from-slate-500 to-gray-500',    adminOnly: true },
-      { id: 'dev-agent',     title: 'Dev Agent',      icon: Code2,         gradient: 'from-cyan-500 to-teal-600',     adminOnly: true },
     ],
   },
 ];
@@ -231,11 +227,9 @@ export const AdminSidebar = ({
     .filter((group) => group.items.length > 0 && (isAdmin || !group.adminOnly));
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width: isCollapsed ? 60 : 240 }}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
-      className="relative z-30 shrink-0 min-h-0 border-r border-border bg-muted/30 backdrop-blur-sm flex flex-col"
+    <aside
+      style={{ width: isCollapsed ? 60 : 240, transition: 'width 0.25s ease-in-out' }}
+      className="relative z-30 shrink-0 min-h-0 border-r border-border bg-muted/30 flex flex-col"
     >
       <div className="flex-1 p-2 space-y-0.5 overflow-y-auto overscroll-contain min-h-0">
         {visibleGroups.map((group, groupIdx) => (
@@ -283,6 +277,6 @@ export const AdminSidebar = ({
           )}
         </Tooltip>
       </div>
-    </motion.aside>
+    </aside>
   );
 };
