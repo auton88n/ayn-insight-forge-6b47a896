@@ -65,10 +65,12 @@ const AdminApp = lazy(() => import('./admin-app/AdminApp'));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000,        // 1 minute - data stays fresh
-      gcTime: 5 * 60 * 1000,       // 5 minutes - keep in cache
-      refetchOnWindowFocus: false, // Don't refetch when tab regains focus
-      retry: 1,                    // Only retry once on failure
+      // Default freshness: 1 minute. Individual hooks override per CACHE_FRESHNESS class.
+      // See src/lib/cacheFreshness.ts for freshness tiers.
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
     },
   },
 });
