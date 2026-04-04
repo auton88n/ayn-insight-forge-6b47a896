@@ -3,6 +3,8 @@ import { searchWeb } from "../_shared/firecrawlHelper.ts";
 import { sanitizeForPrompt } from "../_shared/sanitizeFirecrawl.ts";
 import { INJECTION_GUARD } from "../_shared/sanitizePrompt.ts";
 import { uploadImageToStorage } from "../_shared/storageUpload.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
 import {
   getFullKnowledgeBase,
   getCompactKnowledge,
@@ -12,10 +14,8 @@ import {
   TRADING_PSYCHOLOGY,
 } from "./tradingKnowledge.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 const AI_GATEWAY = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 

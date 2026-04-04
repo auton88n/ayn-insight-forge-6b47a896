@@ -1,11 +1,10 @@
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
  import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
  import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
  
- const corsHeaders = {
-   'Access-Control-Allow-Origin': '*',
-   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
- };
+ // corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
  
  // Allowed endpoints that can be proxied (whitelist for security)
  const ALLOWED_ENDPOINTS = [

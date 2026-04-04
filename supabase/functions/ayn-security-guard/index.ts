@@ -5,13 +5,13 @@ import { sendTelegramMessage } from "../_shared/telegramHelper.ts";
 import { formatNatural } from "../_shared/aynBrand.ts";
 import { loadCompanyState, logReflection } from "../_shared/employeeState.ts";
 import { notifyFounder } from "../_shared/proactiveAlert.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
 
 const EMPLOYEE_ID = 'security_guard';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });

@@ -4,11 +4,11 @@ import { logAynActivity } from "../_shared/aynLogger.ts";
 import { sendTelegramMessage } from "../_shared/telegramHelper.ts";
 import { getEmployeeSystemPrompt, formatNatural, detectToneContext } from "../_shared/aynBrand.ts";
 import { loadCompanyState, loadActiveObjectives, loadServiceEconomics, logReflection, buildEmployeeContext } from "../_shared/employeeState.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 const EMPLOYEE_ID = 'advisor';
 
