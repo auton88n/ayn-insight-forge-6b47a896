@@ -178,7 +178,7 @@ export const ErrorMonitoring = () => {
             <button key={t} onClick={() => setTimeRange(t)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${timeRange === t ? 'bg-white text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>{t}</button>
           ))}
-          <button onClick={fetchGroups} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
+          <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() })} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>

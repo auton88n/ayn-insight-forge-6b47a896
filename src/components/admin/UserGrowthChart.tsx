@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { TrendingUp, RefreshCw } from 'lucide-react';
-import { useAdminUserGrowth } from '@/admin-app/hooks/useAdminQuery';
+import { useAdminUserGrowth, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface WeekData { week: string; signups: number; cumulative: number; }
 
 export const UserGrowthChart = () => {
+  const queryClient = useQueryClient();
   const { data: rawData, isLoading: loading } = useAdminUserGrowth();
   const [view, setView] = useState<'weekly' | 'cumulative'>('cumulative');
 
@@ -51,7 +53,7 @@ export const UserGrowthChart = () => {
             <button key={v} onClick={() => setView(v)}
               className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${view === v ? 'bg-white text-black' : 'bg-white/5 text-white/50'}`}>{v}</button>
           ))}
-          <button onClick={fetch} disabled={loading} className="p-1.5 rounded-lg bg-white/5 text-white/40">
+          <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.userGrowth() })} disabled={loading} className="p-1.5 rounded-lg bg-white/5 text-white/40">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>

@@ -46,7 +46,7 @@ export const MessageFeedbackViewer = () => {
           <h2 className="text-2xl font-bold">Message Feedback</h2>
           <p className="text-muted-foreground text-sm">User ratings on AI responses</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchRatings} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.messageFeedback() })} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>

@@ -24,7 +24,7 @@ interface ProfileInfo {
 }
 
 export const TermsConsentViewer = () => {
-  const { data: rawData, isLoading } = useAdminTermsConsent();
+  const { data: rawData, isLoading, isError, error } = useAdminTermsConsent();
   const [search, setSearch] = useState('');
 
   const { records, profiles } = useMemo(() => {
@@ -63,6 +63,10 @@ export const TermsConsentViewer = () => {
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading consent logs…</div>;
+  }
+
+  if (isError) {
+    return <div className="flex items-center justify-center py-20 text-destructive text-sm">Failed to load: {(error as Error)?.message || 'Unknown error'}</div>;
   }
 
   return (

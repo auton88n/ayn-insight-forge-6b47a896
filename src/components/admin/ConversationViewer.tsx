@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { MessageSquare, Search, RefreshCw, User, Bot, ChevronDown, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { useAdminConversations, useAdminUserMessages } from '@/admin-app/hooks/useAdminQuery';
+import { useAdminConversations, useAdminUserMessages, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UserConvo {
   user_id: string; display_name: string; email: string; auth_provider: string;
@@ -12,6 +13,7 @@ interface Message {
 }
 
 export const ConversationViewer = () => {
+  const queryClient = useQueryClient();
   const { data: rawData, isLoading: loading } = useAdminConversations();
   const users = useMemo(() => (rawData || []).map((r: any) => ({
     user_id: r.user_id,
@@ -45,7 +47,7 @@ export const ConversationViewer = () => {
           <h2 className="text-white font-semibold text-lg flex items-center gap-2"><MessageSquare className="w-5 h-5 text-blue-400" />Conversation Viewer</h2>
           <p className="text-white/30 text-sm">{users.length} users with conversations</p>
         </div>
-        <button onClick={fetchUsers} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
+        <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.conversations() })} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -65,7 +67,7 @@ export const ConversationViewer = () => {
                 className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors ${selectedUser?.user_id === u.user_id ? 'bg-white/10 border border-white/15' : 'bg-white/3 border border-white/6 hover:bg-white/6'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/50 text-xs flex-shrink-0">
-                    {(u.display_name)[0].toUpperCase()}
+                    {(u.display_name || '?')[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-white/80 text-xs font-medium truncate">{u.display_name}</div>
@@ -85,7 +87,7 @@ export const ConversationViewer = () => {
             <>
               <div className="px-4 py-3 border-b border-white/8 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 text-sm">
-                  {selectedUser.display_name[0].toUpperCase()}
+                  {(selectedUser.display_name || '?')[0].toUpperCase()}
                 </div>
                 <div>
                   <div className="text-white text-sm font-medium">{selectedUser.display_name}</div>

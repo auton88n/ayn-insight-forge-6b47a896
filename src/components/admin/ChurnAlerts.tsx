@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { AlertTriangle, RefreshCw, Clock, Mail, TrendingDown } from 'lucide-react';
-import { useAdminChurnAlerts } from '@/admin-app/hooks/useAdminQuery';
+import { useAdminChurnAlerts, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ChurnUser {
   id: string; display_name: string; email: string; auth_provider: string;
@@ -16,6 +17,7 @@ function riskLevel(u: ChurnUser): { label: string; color: string } {
 }
 
 export const ChurnAlerts = () => {
+  const queryClient = useQueryClient();
   const { data: rawData, isLoading: loading } = useAdminChurnAlerts();
   const users = useMemo(() => (Array.isArray(rawData) ? rawData : []) as unknown as ChurnUser[], [rawData]);
   const [threshold, setThreshold] = useState(14);
@@ -37,7 +39,7 @@ export const ChurnAlerts = () => {
             className="bg-white/5 border border-white/10 text-white/60 text-xs rounded-lg px-2 py-1">
             {[7,14,30,60].map(d => <option key={d} value={d}>{d}+ days</option>)}
           </select>
-          <button onClick={fetch} disabled={loading} className="p-1.5 rounded-lg bg-white/5 text-white/40">
+          <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.churnAlerts() })} disabled={loading} className="p-1.5 rounded-lg bg-white/5 text-white/40">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>

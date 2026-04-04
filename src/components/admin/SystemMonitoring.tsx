@@ -92,7 +92,7 @@ export const SystemMonitoring = () => {
           <h2 className="text-2xl font-bold">System Monitoring</h2>
           <p className="text-muted-foreground">Live data from your database</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.systemMonitoring() })} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
