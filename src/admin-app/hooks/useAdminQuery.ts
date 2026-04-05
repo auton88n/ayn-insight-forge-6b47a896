@@ -21,11 +21,21 @@ async function adminRpc<T = unknown>(
   fnName: RpcName,
   params?: Record<string, unknown>
 ): Promise<T> {
+  // Ensure we have a valid session — refresh if needed
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    throw new Error('Admin session expired. Please log in again.');
+  }
+
   const { data, error } = params
     ? await supabase.rpc(fnName, params)
     : await supabase.rpc(fnName);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Log the actual PostgREST error for debugging
+    console.error(`[adminRpc] ${fnName} failed:`, error.code, error.message, error.details);
+    throw new Error(error.message);
+  }
   return data as T;
 }
 
