@@ -21,21 +21,36 @@ async function adminRpc<T = unknown>(
   fnName: RpcName,
   params?: Record<string, unknown>
 ): Promise<T> {
-  // Ensure we have a valid session — refresh if needed
+  // Explicitly get the admin session and set the auth header
+  // This prevents the "Multiple GoTrueClient" issue where the main app's
+  // session could override the admin session at the PostgREST level
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) {
+  if (sessionError || !session?.access_token) {
     throw new Error('Admin session expired. Please log in again.');
   }
 
-  const { data, error } = params
-    ? await supabase.rpc(fnName, params)
-    : await supabase.rpc(fnName);
+  // Use fetch directly with explicit Authorization header to bypass GoTrueClient conflicts
+  const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
 
-  if (error) {
-    // Log the actual PostgREST error for debugging
-    console.error(`[adminRpc] ${fnName} failed:`, error.code, error.message, error.details);
-    throw new Error(error.message);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${session.access_token}`,
+      'Prefer': 'return=representation',
+    },
+    body: params ? JSON.stringify(params) : '{}',
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    console.error(`[adminRpc] ${fnName} failed (${response.status}):`, errorBody);
+    throw new Error(errorBody.message || `RPC ${fnName} failed with status ${response.status}`);
   }
+
+  const data = await response.json();
   return data as T;
 }
 
