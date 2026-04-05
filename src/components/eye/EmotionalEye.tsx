@@ -497,6 +497,7 @@ const EmotionalEyeComponent = ({
             <motion.circle 
               cx="50" 
               cy="50" 
+              r={irisRadius}
               fill="#000000"
               animate={{
                 r: performanceConfig.shouldReduceAnimations 

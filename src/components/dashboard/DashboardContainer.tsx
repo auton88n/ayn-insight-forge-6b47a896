@@ -84,12 +84,15 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
   // Get modes (English only)
   const modes = getModes();
 
-  // Load messages when session changes (only when we have a valid session ID)
+  // Load messages when sessionId changes — messagesHook intentionally excluded
+  // from deps to prevent re-triggering when the hook reference changes (which
+  // would abort the in-flight fetch and cause hundreds of AbortError logs).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (chatSession.currentSessionId) {
       messagesHook.loadMessages();
     }
-  }, [chatSession.currentSessionId, messagesHook]);
+  }, [chatSession.currentSessionId]);
 
 
   // Handle send message with pre-uploaded file attachment

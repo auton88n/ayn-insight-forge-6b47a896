@@ -17,9 +17,15 @@ const SUPABASE_ANON_KEY =
 // storageKey 'ayn-admin-auth' is completely separate from the main app's storage
 export const adminSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storageKey: 'ayn-admin-auth',
+    storageKey: 'ayn-admin-auth', // Separate from main app's 'sb-*' key
     autoRefreshToken: true,
     persistSession: true,
     storage: localStorage,
+  },
+  global: {
+    // Suppress "Multiple GoTrueClient instances" warning — expected since
+    // admin panel shares the browser context with the main app but uses
+    // a completely separate storageKey so sessions never interfere.
+    headers: { 'x-client-info': 'ayn-admin/1.0' },
   },
 });
