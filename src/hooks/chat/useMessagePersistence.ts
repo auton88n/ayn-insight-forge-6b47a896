@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import type { Message, FileAttachment } from '@/types/dashboard.types';
 import { supabaseApi } from '@/lib/supabaseApi';
@@ -6,7 +6,6 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
 const PAGE_SIZE = 20;
 
-/** Map raw DB rows to Message objects */
 const mapDbMessages = (data: Array<{
   id: string;
   content: string;
@@ -39,104 +38,121 @@ export function useMessagePersistence(
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [totalMessageCount, setTotalMessageCount] = useState(0);
 
-  /** Load the most recent PAGE_SIZE messages for current session */
+  // ── Stable refs so callbacks never need to list session/userId/sessionId
+  // as deps (session object changes reference on every render, causing
+  // loadMessages to be recreated → DashboardContainer effect fires again
+  // → previous fetch aborted → AbortError × hundreds)
+  const sessionRef = useRef(session);
+  const userIdRef = useRef(userId);
+  const sessionIdRef = useRef(sessionId);
+  const messagesRef = useRef(messages);
+  const hasMoreRef = useRef(hasMoreMessages);
+  const isLoadingMoreRef = useRef(isLoadingMore);
+
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { hasMoreRef.current = hasMoreMessages; }, [hasMoreMessages]);
+  useEffect(() => { isLoadingMoreRef.current = isLoadingMore; }, [isLoadingMore]);
+
+  // Stable — zero deps. Always reads latest values from refs.
   const loadMessages = useCallback(async () => {
-    if (!session || !sessionId) return;
+    const s = sessionRef.current;
+    const uid = userIdRef.current;
+    const sid = sessionIdRef.current;
+    if (!s || !sid) return;
 
     setIsLoadingFromHistory(true);
-
     try {
       const data = await supabaseApi.get<any[]>(
-        `messages?user_id=eq.${userId}&session_id=eq.${sessionId}&select=id,content,created_at,sender,attachment_url,attachment_name,attachment_type&order=created_at.desc&limit=${PAGE_SIZE}`,
-        session.access_token
+        `messages?user_id=eq.${uid}&session_id=eq.${sid}&select=id,content,created_at,sender,attachment_url,attachment_name,attachment_type&order=created_at.desc&limit=${PAGE_SIZE}`,
+        s.access_token
       );
 
       if (data && data.length > 0) {
         const chatMessages = mapDbMessages(data);
-        const uniqueMessages = Array.from(
-          new Map(chatMessages.map(m => [m.id, m])).values()
-        ).sort((a, b) => {
-          const timeDiff = a.timestamp.getTime() - b.timestamp.getTime();
-          if (timeDiff !== 0) return timeDiff;
-          if (a.sender === 'user' && b.sender === 'ayn') return -1;
-          if (a.sender === 'ayn' && b.sender === 'user') return 1;
-          return 0;
-        });
-        setMessages(uniqueMessages);
+        const unique = Array.from(new Map(chatMessages.map(m => [m.id, m])).values())
+          .sort((a, b) => {
+            const diff = a.timestamp.getTime() - b.timestamp.getTime();
+            if (diff !== 0) return diff;
+            if (a.sender === 'user' && b.sender === 'ayn') return -1;
+            if (a.sender === 'ayn' && b.sender === 'user') return 1;
+            return 0;
+          });
+        setMessages(unique);
         setHasMoreMessages(data.length >= PAGE_SIZE);
       } else {
         setMessages([]);
         setHasMoreMessages(false);
       }
 
-      // HEAD count — no row data transferred
-      let latestToken = session.access_token;
+      // Count query (HEAD — no row data)
       try {
-        const { supabase } = await import('@/integrations/supabase/client');
-        const { data: { session: freshSession } } = await supabase.auth.getSession();
-        if (freshSession?.access_token) latestToken = freshSession.access_token;
-      } catch { /* ignore */ }
+        let token = s.access_token;
+        try {
+          const { supabase } = await import('@/integrations/supabase/client');
+          const { data: { session: fresh } } = await supabase.auth.getSession();
+          if (fresh?.access_token) token = fresh.access_token;
+        } catch { /* ignore */ }
 
-      try {
-        const countResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/messages?user_id=eq.${userId}&session_id=eq.${sessionId}&select=id`,
+        const countRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/messages?user_id=eq.${uid}&session_id=eq.${sid}&select=id`,
           {
             method: 'HEAD',
-            headers: {
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${latestToken}`,
-              'Prefer': 'count=exact',
-            }
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Prefer': 'count=exact' }
           }
         );
-        const contentRange = countResponse.headers.get('content-range');
-        const total = contentRange ? parseInt(contentRange.split('/').pop() || '0', 10) : (data?.length ?? 0);
-        setTotalMessageCount(total);
+        const range = countRes.headers.get('content-range');
+        setTotalMessageCount(range ? parseInt(range.split('/').pop() || '0', 10) : (data?.length ?? 0));
       } catch {
         setTotalMessageCount(data?.length ?? 0);
       }
     } catch (error) {
-      console.error('[useMessagePersistence] Error loading messages:', error);
+      // Only log non-abort errors — AbortErrors are expected on fast session switches
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('[useMessagePersistence] Error loading messages:', error);
+      }
     } finally {
       setTimeout(() => setIsLoadingFromHistory(false), 100);
     }
-  }, [userId, sessionId, session]);
+  }, []); // ← stable: zero deps, reads from refs
 
-  /** Load older messages using cursor-based pagination */
   const loadMoreMessages = useCallback(async () => {
-    if (!session || !sessionId || isLoadingMore || !hasMoreMessages) return;
+    const s = sessionRef.current;
+    const uid = userIdRef.current;
+    const sid = sessionIdRef.current;
+    if (!s || !sid || isLoadingMoreRef.current || !hasMoreRef.current) return;
 
     setIsLoadingMore(true);
-
     try {
-      const oldestTimestamp = messages.length > 0
-        ? messages[0].timestamp.toISOString()
+      const oldest = messagesRef.current.length > 0
+        ? messagesRef.current[0].timestamp.toISOString()
         : new Date().toISOString();
 
       const data = await supabaseApi.get<any[]>(
-        `messages?user_id=eq.${userId}&session_id=eq.${sessionId}&created_at=lt.${oldestTimestamp}&select=id,content,created_at,sender,attachment_url,attachment_name,attachment_type&order=created_at.desc&limit=${PAGE_SIZE}`,
-        session.access_token
+        `messages?user_id=eq.${uid}&session_id=eq.${sid}&created_at=lt.${oldest}&select=id,content,created_at,sender,attachment_url,attachment_name,attachment_type&order=created_at.desc&limit=${PAGE_SIZE}`,
+        s.access_token
       );
 
       if (data && data.length > 0) {
-        const olderMessages = mapDbMessages(data);
-        const sorted = olderMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
+        const older = mapDbMessages(data).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
         setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newOlder = sorted.filter(m => !existingIds.has(m.id));
-          return [...newOlder, ...prev];
+          const ids = new Set(prev.map(m => m.id));
+          return [...older.filter(m => !ids.has(m.id)), ...prev];
         });
         setHasMoreMessages(data.length >= PAGE_SIZE);
       } else {
         setHasMoreMessages(false);
       }
     } catch (error) {
-      console.error('[useMessagePersistence] Error loading more:', error);
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('[useMessagePersistence] Error loading more:', error);
+      }
     } finally {
       setIsLoadingMore(false);
     }
-  }, [session, sessionId, userId, messages, isLoadingMore, hasMoreMessages]);
+  }, []); // ← stable: zero deps
 
   const saveMessages = useCallback(async (
     userMsg: { content: string; timestamp: Date; attachment?: FileAttachment | null },
@@ -144,65 +160,50 @@ export function useMessagePersistence(
     selectedMode: string,
     webhookData?: any
   ) => {
-    if (!session) return false;
+    const s = sessionRef.current;
+    const uid = userIdRef.current;
+    const sid = sessionIdRef.current;
+    if (!s) return false;
 
-    let latestToken = session.access_token;
+    let token = s.access_token;
     try {
       const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session: freshSession } } = await supabase.auth.getSession();
-      if (freshSession?.access_token) latestToken = freshSession.access_token;
+      const { data: { session: fresh } } = await supabase.auth.getSession();
+      if (fresh?.access_token) token = fresh.access_token;
     } catch { /* ignore */ }
 
-    // Save chat session title if new
+    // Save session title if new
     try {
-      const existingSession = await fetch(
-        `${SUPABASE_URL}/rest/v1/chat_sessions?session_id=eq.${sessionId}&user_id=eq.${userId}&select=id`,
-        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${latestToken}` } }
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/chat_sessions?session_id=eq.${sid}&user_id=eq.${uid}&select=id`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` } }
       );
-      const sessionData = await existingSession.json();
-
-      if (!sessionData || sessionData.length === 0) {
+      const existing = await res.json();
+      if (!existing || existing.length === 0) {
         const title = userMsg.content.length > 30 ? userMsg.content.substring(0, 30) + '...' : userMsg.content;
         await fetch(`${SUPABASE_URL}/rest/v1/chat_sessions`, {
           method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${latestToken}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify({ session_id: sessionId, user_id: userId, title })
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ session_id: sid, user_id: uid, title })
         });
       }
     } catch { /* non-critical */ }
 
-    // Save both messages
-    const saveResponse = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+    const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
       method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${latestToken}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      },
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify([
         {
-          user_id: userId,
-          session_id: sessionId,
-          content: userMsg.content,
-          sender: 'user',
-          mode_used: selectedMode,
-          created_at: userMsg.timestamp.toISOString(),
+          user_id: uid, session_id: sid, content: userMsg.content, sender: 'user',
+          mode_used: selectedMode, created_at: userMsg.timestamp.toISOString(),
           attachment_url: userMsg.attachment?.url || null,
           attachment_name: userMsg.attachment?.name || null,
           attachment_type: userMsg.attachment?.type || null
         },
         {
-          user_id: userId,
-          session_id: sessionId,
+          user_id: uid, session_id: sid,
           content: aynContent.replace(/!\[([^\]]*)\]\(data:image\/[^;]+;base64,[^)]+\)/g, '![$1](image-generated)'),
-          sender: 'ayn',
-          mode_used: selectedMode,
+          sender: 'ayn', mode_used: selectedMode,
           created_at: new Date(userMsg.timestamp.getTime() + 1).toISOString(),
           attachment_url: webhookData?.documentUrl || null,
           attachment_name: webhookData?.documentUrl
@@ -217,10 +218,9 @@ export function useMessagePersistence(
       ])
     });
 
-    return saveResponse.ok;
-  }, [session, sessionId, userId]);
+    return saveRes.ok;
+  }, []); // ← stable: zero deps
 
-  /** Set messages from history (e.g. switching sessions) */
   const setMessagesFromHistory = useCallback((newMessages: Message[]) => {
     setIsLoadingFromHistory(true);
     setMessages(newMessages);
@@ -229,16 +229,9 @@ export function useMessagePersistence(
   }, []);
 
   return {
-    messages,
-    setMessages,
-    setMessagesFromHistory,
-    loadMessages,
-    loadMoreMessages,
-    saveMessages,
-    isLoadingFromHistory,
-    hasMoreMessages,
-    isLoadingMore,
-    totalMessageCount,
-    setTotalMessageCount,
+    messages, setMessages, setMessagesFromHistory,
+    loadMessages, loadMoreMessages, saveMessages,
+    isLoadingFromHistory, hasMoreMessages, isLoadingMore,
+    totalMessageCount, setTotalMessageCount,
   };
 }
