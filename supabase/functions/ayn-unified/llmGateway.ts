@@ -74,7 +74,7 @@ export async function callLLM(
   let headers: Record<string, string>;
   
   if (model.provider === 'lovable') {
-    apiUrl = 'https://api.lovable.dev/v1/chat/completions';
+    apiUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
     headers = {
       'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',

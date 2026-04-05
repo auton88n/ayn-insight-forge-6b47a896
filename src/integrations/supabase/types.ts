@@ -1224,7 +1224,6 @@ export type Database = {
           },
         ]
       }
-
       ayn_dev_skills: {
         Row: {
           category: string
@@ -2952,6 +2951,7 @@ export type Database = {
           improvement_suggestions: string | null
           overall_rating: number | null
           submitted_at: string | null
+          updated_at: string | null
           user_id: string
           would_recommend: boolean | null
         }
@@ -2964,6 +2964,7 @@ export type Database = {
           improvement_suggestions?: string | null
           overall_rating?: number | null
           submitted_at?: string | null
+          updated_at?: string | null
           user_id: string
           would_recommend?: boolean | null
         }
@@ -2976,6 +2977,7 @@ export type Database = {
           improvement_suggestions?: string | null
           overall_rating?: number | null
           submitted_at?: string | null
+          updated_at?: string | null
           user_id?: string
           would_recommend?: boolean | null
         }
@@ -3786,6 +3788,7 @@ export type Database = {
           given_by: string | null
           id: string
           reason: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -3795,6 +3798,7 @@ export type Database = {
           given_by?: string | null
           id?: string
           reason: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -3804,6 +3808,7 @@ export type Database = {
           given_by?: string | null
           id?: string
           reason?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -4507,6 +4512,7 @@ export type Database = {
           resolved_at: string | null
           resolved_note: string | null
           status: string | null
+          updated_at: string | null
           url: string | null
           user_agent: string | null
           user_id: string | null
@@ -4521,6 +4527,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_note?: string | null
           status?: string | null
+          updated_at?: string | null
           url?: string | null
           user_agent?: string | null
           user_id?: string | null
@@ -4535,6 +4542,7 @@ export type Database = {
           resolved_at?: string | null
           resolved_note?: string | null
           status?: string | null
+          updated_at?: string | null
           url?: string | null
           user_agent?: string | null
           user_id?: string | null
@@ -4828,6 +4836,39 @@ export type Database = {
         }
         Relationships: []
       }
+      llm_cost_daily: {
+        Row: {
+          date: string
+          id: string
+          intent_breakdown: Json | null
+          model_breakdown: Json | null
+          total_cost_usd: number
+          total_requests: number
+          total_tokens: number
+          updated_at: string
+        }
+        Insert: {
+          date?: string
+          id?: string
+          intent_breakdown?: Json | null
+          model_breakdown?: Json | null
+          total_cost_usd?: number
+          total_requests?: number
+          total_tokens?: number
+          updated_at?: string
+        }
+        Update: {
+          date?: string
+          id?: string
+          intent_breakdown?: Json | null
+          model_breakdown?: Json | null
+          total_cost_usd?: number
+          total_requests?: number
+          total_tokens?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       llm_failures: {
         Row: {
           created_at: string | null
@@ -4929,6 +4970,7 @@ export type Database = {
           model_name: string | null
           output_tokens: number | null
           response_time_ms: number | null
+          updated_at: string | null
           user_id: string
           was_fallback: boolean | null
         }
@@ -4943,6 +4985,7 @@ export type Database = {
           model_name?: string | null
           output_tokens?: number | null
           response_time_ms?: number | null
+          updated_at?: string | null
           user_id: string
           was_fallback?: boolean | null
         }
@@ -4957,6 +5000,7 @@ export type Database = {
           model_name?: string | null
           output_tokens?: number | null
           response_time_ms?: number | null
+          updated_at?: string | null
           user_id?: string
           was_fallback?: boolean | null
         }
@@ -5046,6 +5090,7 @@ export type Database = {
           message_preview: string
           rating: string
           session_id: string | null
+          updated_at: string | null
           user_id: string | null
         }
         Insert: {
@@ -5054,6 +5099,7 @@ export type Database = {
           message_preview: string
           rating: string
           session_id?: string | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
@@ -5062,6 +5108,7 @@ export type Database = {
           message_preview?: string
           rating?: string
           session_id?: string | null
+          updated_at?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -5106,7 +5153,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
       }
       nda_agreements: {
         Row: {
@@ -5518,6 +5573,7 @@ export type Database = {
           id: string
           ip_address: unknown
           severity: string | null
+          updated_at: string | null
           user_agent: string | null
           user_id: string | null
         }
@@ -5528,6 +5584,7 @@ export type Database = {
           id?: string
           ip_address?: unknown
           severity?: string | null
+          updated_at?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -5538,6 +5595,7 @@ export type Database = {
           id?: string
           ip_address?: unknown
           severity?: string | null
+          updated_at?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -5821,6 +5879,45 @@ export type Database = {
           is_healthy?: boolean | null
           response_time_ms?: number | null
           status_code?: number | null
+        }
+        Relationships: []
+      }
+      system_logs: {
+        Row: {
+          created_at: string
+          endpoint: string
+          error: string | null
+          id: string
+          intent: string | null
+          latency_ms: number | null
+          metadata: Json | null
+          request_id: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          error?: string | null
+          id?: string
+          intent?: string | null
+          latency_ms?: number | null
+          metadata?: Json | null
+          request_id: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          error?: string | null
+          id?: string
+          intent?: string | null
+          latency_ms?: number | null
+          metadata?: Json | null
+          request_id?: string
+          status?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -6359,18 +6456,21 @@ export type Database = {
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          updated_at: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -6465,6 +6565,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_usage_daily: {
+        Row: {
+          date: string
+          engineering_count: number
+          id: string
+          intent_breakdown: Json | null
+          message_count: number
+          total_cost_usd: number
+          total_tokens: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          date?: string
+          engineering_count?: number
+          id?: string
+          intent_breakdown?: Json | null
+          message_count?: number
+          total_cost_usd?: number
+          total_tokens?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          date?: string
+          engineering_count?: number
+          id?: string
+          intent_breakdown?: Json | null
+          message_count?: number
+          total_cost_usd?: number
+          total_tokens?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       visitor_analytics: {
         Row: {
           browser: string | null
@@ -6479,6 +6615,7 @@ export type Database = {
           referrer: string | null
           region: string | null
           session_id: string | null
+          updated_at: string | null
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
@@ -6497,6 +6634,7 @@ export type Database = {
           referrer?: string | null
           region?: string | null
           session_id?: string | null
+          updated_at?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
@@ -6515,6 +6653,7 @@ export type Database = {
           referrer?: string | null
           region?: string | null
           session_id?: string | null
+          updated_at?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
@@ -6998,7 +7137,13 @@ export type Database = {
         Returns: string
       }
       refresh_accuracy_calibration: { Args: never; Returns: undefined }
+      refresh_daily_summaries: { Args: never; Returns: undefined }
       refresh_intelligence_brief: { Args: never; Returns: undefined }
+      refresh_llm_cost_daily: { Args: { p_date?: string }; Returns: undefined }
+      refresh_user_usage_daily: {
+        Args: { p_date?: string }
+        Returns: undefined
+      }
       trigger_emergency_alert: {
         Args: {
           _alert_level: string

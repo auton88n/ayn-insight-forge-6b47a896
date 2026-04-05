@@ -103,7 +103,7 @@ export const GoogleAnalytics = () => {
           <div className="space-y-2">
             {stats.topPages.length === 0 ? (
               <div className="text-white/30 text-sm">No data</div>
-            ) : stats.topPages.map(({ page, views }) => {
+            ) : stats.topPages.map(({ page, views }: { page: string; views: number }) => {
               const max = stats.topPages[0]?.views || 1;
               const pct = (views / max) * 100;
               return (
@@ -130,7 +130,7 @@ export const GoogleAnalytics = () => {
           <div className="space-y-2">
             {stats.topCountries.length === 0 ? (
               <div className="text-white/30 text-sm">No country data</div>
-            ) : stats.topCountries.map(({ country, visits }) => {
+            ) : stats.topCountries.map(({ country, visits }: { country: string; visits: number }) => {
               const max = stats.topCountries[0]?.visits || 1;
               const pct = (visits / max) * 100;
               return (

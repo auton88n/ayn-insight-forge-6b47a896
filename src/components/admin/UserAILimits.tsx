@@ -106,9 +106,7 @@ export function UserAILimits() {
 
       if (error) throw error;
 
-      setLimits(prev => prev.map(l => 
-        l.user_id === editingUser ? { ...l, ...editValues } : l
-      ));
+      queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits });
       setEditingUser(null);
       toast.success('Limits updated');
     } catch (error) {
@@ -144,9 +142,7 @@ export function UserAILimits() {
 
       // Update local state with verified value
       const confirmedValue = verifyData.is_unlimited;
-      setLimits(prev => prev.map(l =>
-        l.user_id === userId ? { ...l, is_unlimited: confirmedValue } : l
-      ));
+      queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits });
 
       toast.success(
         confirmedValue
@@ -217,7 +213,7 @@ export function UserAILimits() {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => { setIsLoading(true); fetchLimits(); }}
+          onClick={() => { queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits }); }}
           disabled={isLoading}
           className="border-border/50"
         >
