@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Menu, LogIn, LogOut, User } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { ThemeToggle } from '@/components/shared/theme-toggle';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -101,7 +100,6 @@ export const Header = () => {
           {/* Right side */}
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <ThemeToggle />
 
             {/* Auth button - desktop */}
             <div className="hidden md:block">

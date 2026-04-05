@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Brain, ArrowLeft, MessageSquare, FileText, HelpCircle, Clock, Ticket, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { ThemeToggle } from '@/components/shared/theme-toggle';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -172,7 +171,6 @@ const Support = () => {
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <ThemeToggle />
           </div>
         </div>
       </header>

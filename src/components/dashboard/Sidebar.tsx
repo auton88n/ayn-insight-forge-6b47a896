@@ -12,7 +12,6 @@ import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSidebar } from '@/components/ui/sidebar';
-import { ThemeToggle } from '@/components/shared/theme-toggle';
 import { CreditUpgradeCard } from './CreditUpgradeCard';
 import SupportWidget from '@/components/support/SupportWidget';
 import { useNavigate } from 'react-router-dom';
@@ -330,7 +329,6 @@ export const Sidebar = ({
               {soundContext && <Button onClick={() => soundContext.toggleEnabled()} variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-foreground hover:text-background transition-colors" title={soundContext.enabled ? 'Mute sounds' : 'Enable sounds'}>
                   {soundContext.enabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                 </Button>}
-              <ThemeToggle />
               <Button onClick={toggleSidebar} variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-foreground hover:text-background transition-colors">
                 <X className="h-4 w-4" />
               </Button>

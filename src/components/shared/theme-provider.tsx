@@ -14,7 +14,7 @@ type ThemeProviderState = {
 }
 
 const initialState: ThemeProviderState = {
-  theme: "system",
+  theme: "dark",
   setTheme: () => null,
 }
 
@@ -22,33 +22,24 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
-  storageKey = "vite-ui-theme",
+  defaultTheme = "dark",
+  storageKey = "ayn-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  )
+  // Always use "dark" theme
+  const theme = "dark" as Theme
 
   useEffect(() => {
     const root = window.document.documentElement
-    const resolvedTheme = theme === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-      : theme
-
-    // Skip if the correct class is already set (e.g., by the inline head script)
-    if (root.classList.contains(resolvedTheme)) return
-
-    root.classList.remove("light", "dark")
-    root.classList.add(resolvedTheme)
-  }, [theme])
+    
+    // Always clear light, ensure dark is fully persistent
+    root.classList.remove("light")
+    root.classList.add("dark")
+  }, [])
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
-    },
+    setTheme: () => null, // Disable toggling
   }
 
   return (
@@ -57,7 +48,6 @@ export function ThemeProvider({
     </ThemeProviderContext.Provider>
   )
 }
-
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext)
 

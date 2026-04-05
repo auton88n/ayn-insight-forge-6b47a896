@@ -22,8 +22,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Don't cache API calls, Supabase, analytics, or edge functions
+  // Don't cache API calls, Supabase, analytics, edge functions, or non-HTTP schemes like chrome-extension
   if (
+    !url.protocol.startsWith('http') ||
     url.hostname.includes('supabase') ||
     url.hostname.includes('googleapis') ||
     url.hostname.includes('google-analytics') ||

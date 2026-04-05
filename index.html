@@ -126,18 +126,14 @@
   <script>
     (function() {
       try {
-        var theme = localStorage.getItem('ayn-theme');
-        var isDark = theme === 'dark' || 
-          ((!theme || theme === 'system') && 
-           window.matchMedia('(prefers-color-scheme: dark)').matches);
-        var bgColor = isDark ? 'hsl(0 0% 4%)' : 'hsl(0 0% 100%)';
-        document.documentElement.classList.add(isDark ? 'dark' : 'light');
-        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+        var bgColor = 'hsl(0 0% 4%)';
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
         // Set background on html immediately (body may not exist yet in head script)
         document.documentElement.style.backgroundColor = bgColor;
         if (document.body) document.body.style.backgroundColor = bgColor;
       } catch (e) {
-        document.documentElement.classList.add('light');
+        document.documentElement.classList.add('dark');
       }
     })();
   </script>
@@ -165,8 +161,7 @@
 
   <body>
     <script>
-      var isDark = document.documentElement.classList.contains('dark');
-      document.body.style.backgroundColor = isDark ? 'hsl(0 0% 4%)' : 'hsl(0 0% 100%)';
+      document.body.style.backgroundColor = 'hsl(0 0% 4%)';
       requestAnimationFrame(function() {
         document.documentElement.setAttribute('data-ready', '');
       });
