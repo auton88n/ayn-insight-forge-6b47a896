@@ -48,7 +48,6 @@ export const CreditUpgradeCard = ({
 }: CreditUpgradeCardProps) => {
   const navigate = useNavigate();
   const [hasSubmittedFeedback, setHasSubmittedFeedback] = useState<boolean | null>(null);
-  const [displayCount, setDisplayCount] = useState(0);
 
   // Live credit state fetched directly from Supabase
   const [credits, setCredits] = useState<CreditState>({
@@ -161,22 +160,7 @@ export const CreditUpgradeCard = ({
     check();
   }, [userId]);
 
-  // Animate count changes
-  useEffect(() => {
-    const target = credits.remaining;
-    if (target === displayCount) return;
-    const start = displayCount;
-    const duration = 300;
-    const startTime = performance.now();
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayCount(Math.round(start + (target - start) * eased));
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [credits.remaining, displayCount]);
+  // displayCount and its animation effect have been removed to prevent rendering flashes
 
   // Format reset time
   const formattedResetTime = useMemo(() => {
@@ -221,8 +205,8 @@ export const CreditUpgradeCard = ({
     );
   }
 
-  // Don't render while loading to avoid flash of wrong data
-  if (!credits.loaded && !userId) return null;
+  // Don't render while loading to avoid flash of wrong default data
+  if (!credits.loaded) return null;
 
   // Limit reached
   if (!allowed) {
@@ -312,14 +296,9 @@ export const CreditUpgradeCard = ({
           </span>
         </div>
         <div className="flex items-baseline gap-1">
-          <motion.span
-            key={displayCount}
-            initial={{ scale: 1.1, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-lg font-bold tabular-nums text-foreground"
-          >
-            {String(displayCount)}
-          </motion.span>
+          <span className="text-lg font-bold tabular-nums text-foreground">
+            {String(remaining)}
+          </span>
           <span className="text-xs text-muted-foreground">left</span>
         </div>
       </div>
