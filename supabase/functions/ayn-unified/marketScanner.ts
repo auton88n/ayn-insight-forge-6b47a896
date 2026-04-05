@@ -393,3 +393,110 @@ export async function fetchKlines(
 
   return klines;
 }
+
+// ── Full Market Scanner (called by ayn-unified for autonomous trading) ──────
+export async function scanMarketOpportunities(): Promise<{ opportunities: any[]; scannedPairs: number } | null> {
+  console.log('[SCANNER] scanMarketOpportunities started');
+  const apiKey = Deno.env.get('PIONEX_API_KEY');
+  const apiSecret = Deno.env.get('PIONEX_API_SECRET');
+  if (!apiKey || !apiSecret) {
+    console.warn('[SCAN] Pionex credentials not configured');
+    return null;
+  }
+
+  try {
+    const enc = new TextEncoder();
+    async function signReq(method: string, path: string, params: Record<string, string>): Promise<{ signature: string; queryString: string }> {
+      const sortedKeys = Object.keys(params).sort();
+      const queryString = sortedKeys.map(k => `${k}=${params[k]}`).join('&');
+      const message = `${method}${path}?${queryString}`;
+      const key = await crypto.subtle.importKey('raw', enc.encode(apiSecret!), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+      const signature = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+      return { signature, queryString };
+    }
+
+    const ts = Date.now().toString();
+    const { signature: tickerSig, queryString: tickerQs } = await signReq('GET', '/api/v1/market/tickers', { timestamp: ts });
+
+    const res = await fetch(`https://api.pionex.com/api/v1/market/tickers?${tickerQs}`, {
+      headers: { 'PIONEX-KEY': apiKey, 'PIONEX-SIGNATURE': tickerSig },
+    });
+
+    if (!res.ok) {
+      console.error('[SCAN] Pionex tickers fetch failed:', res.status);
+      return null;
+    }
+
+    const data = await res.json();
+    const tickers = data?.data?.tickers || [];
+    console.log(`[SCAN] Fetched ${tickers.length} tickers from Pionex`);
+
+    // Phase 1: basic momentum filter
+    const phase1Candidates: any[] = [];
+    for (const t of tickers) {
+      const symbol = t.symbol || '';
+      if (!symbol.endsWith('_USDT')) continue;
+      if (symbol.startsWith('USDC_') || symbol.startsWith('USDT_') || symbol.startsWith('DAI_') || symbol.startsWith('TUSD_')) continue;
+      const volume = parseFloat(t.amount || '0');
+      if (volume < 100000) continue;
+      const open = parseFloat(t.open || '0');
+      const price = parseFloat(t.close || t.last || '0');
+      const priceChange = open > 0 ? ((price - open) / open) * 100 : 0;
+      let basicScore = 50;
+      if (priceChange > 0 && priceChange <= 5) basicScore += 10;
+      else if (priceChange > 5 && priceChange <= 15) basicScore += 15;
+      if (volume > 1000000) basicScore += 8;
+      if (Math.abs(priceChange) < 2) basicScore += 5;
+      if (priceChange < -15) basicScore += 10;
+      if (priceChange > 20) basicScore -= 15;
+      if (basicScore >= 55) phase1Candidates.push({ symbol, price, volume, priceChange, t });
+    }
+
+    console.log(`[SCANNER] Scanning ${phase1Candidates.length} tickers`);
+
+    // Phase 2: fetch klines and score with technical indicators
+    const opportunities: any[] = [];
+    const getKlineTime = (k: any) => (k && typeof k === 'object' && 'time' in k ? k.time : k?.[0]);
+
+    for (const candidate of phase1Candidates) {
+      const klines = await fetchKlines(candidate.symbol, '15M', 100, apiKey, apiSecret);
+      let score: number;
+      let signals: string[];
+      let lastCandleTimeMs: number | null = null;
+
+      if (!klines || klines.length < 20) {
+        score = 50 + (candidate.priceChange > 0 && candidate.priceChange <= 15 ? 15 : 0) + (candidate.volume > 1000000 ? 8 : 0);
+        signals = [`Momentum ${candidate.priceChange.toFixed(1)}%`, candidate.volume > 1000000 ? 'High liquidity' : ''];
+        if (klines?.length) {
+          const sorted = [...klines].sort((a, b) => getKlineTime(a) - getKlineTime(b));
+          const t = getKlineTime(sorted[sorted.length - 1]);
+          if (typeof t === 'number') lastCandleTimeMs = t;
+        }
+      } else {
+        const technicals = analyzeKlines(klines, candidate.price, []);
+        score = calculateEnhancedScore(candidate.priceChange, candidate.volume, technicals);
+        signals = technicals.summary;
+        const sorted = [...klines].sort((a, b) => getKlineTime(a) - getKlineTime(b));
+        const t = getKlineTime(sorted[sorted.length - 1]);
+        if (typeof t === 'number') lastCandleTimeMs = t;
+      }
+
+      if (score >= 70) {
+        opportunities.push({
+          ticker: candidate.symbol, score, price: candidate.price,
+          volume24h: candidate.volume, priceChange24h: candidate.priceChange,
+          signals, lastCandleTimeMs,
+        });
+      }
+    }
+
+    opportunities.sort((a, b) => b.score - a.score);
+    const top = opportunities.slice(0, 3);
+    console.log(`[SCAN] Phase 2: ${opportunities.length} qualified (score≥70), returning top ${top.length}`);
+    return { opportunities: top, scannedPairs: tickers.length };
+  } catch (err) {
+    console.error('[SCAN] Market scan error:', err);
+    return null;
+  }
+}

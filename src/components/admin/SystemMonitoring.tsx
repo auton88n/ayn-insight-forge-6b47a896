@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -9,7 +9,8 @@ import {
   Clock, Network, TrendingUp, Eye, RefreshCw
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useAdminSystemMonitoring, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 
 interface RealMetrics {
@@ -41,51 +42,39 @@ interface RecentEvent {
 
 export const SystemMonitoring = () => {
   const { language } = useLanguage();
-  const [metrics, setMetrics] = useState<RealMetrics | null>(null);
-  const [events, setEvents] = useState<RecentEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading } = useAdminSystemMonitoring();
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_system_monitoring');
-      if (error) throw error;
-      const d = data as any;
+  const { metrics, events } = useMemo(() => {
+    if (!rawData) return { metrics: null, events: [] as RecentEvent[] };
+    const d = rawData as any;
+    const totalUsers = d.total_users || 0;
+    const activeUsers = d.active_users_30d || 0;
+    const msgToday = d.messages_today || 0;
+    const msgTotal = d.messages_total || 0;
+    const recentErrors = d.errors_24h || 0;
+    const openTickets = d.open_tickets || 0;
+    const llmUsage = d.llm_usage_24h || 0;
+    const llmFallbacks = d.llm_fallbacks_24h || 0;
+    const fallbackRate = llmUsage > 0 ? Math.round((llmFallbacks / llmUsage) * 1000) / 10 : 0;
+    const blockedUsers = d.blocked_users || 0;
+    const healthTotal = d.health_checks_24h || 0;
+    const healthPass = d.health_checks_ok || 0;
 
-      const totalUsers = d.total_users || 0;
-      const activeUsers = d.active_users_30d || 0;
-      const msgToday = d.messages_today || 0;
-      const msgTotal = d.messages_total || 0;
-      const recentErrors = d.errors_24h || 0;
-      const openTickets = d.open_tickets || 0;
-      const llmUsage = d.llm_usage_24h || 0;
-      const llmFallbacks = d.llm_fallbacks_24h || 0;
-      const fallbackRate = llmUsage > 0 ? Math.round((llmFallbacks / llmUsage) * 1000) / 10 : 0;
-      const blockedUsers = d.blocked_users || 0;
-      const healthTotal = d.health_checks_24h || 0;
-      const healthPass = d.health_checks_ok || 0;
+    let health = 100;
+    if (fallbackRate > 5) health -= (fallbackRate - 5) * 2;
+    if (blockedUsers > 0) health -= blockedUsers * 2;
+    if (healthTotal > 0) health -= ((healthTotal - healthPass) / healthTotal) * 20;
+    health = Math.max(0, Math.min(100, Math.round(health)));
 
-      let health = 100;
-      if (fallbackRate > 5) health -= (fallbackRate - 5) * 2;
-      if (blockedUsers > 0) health -= blockedUsers * 2;
-      if (healthTotal > 0) health -= ((healthTotal - healthPass) / healthTotal) * 20;
-      health = Math.max(0, Math.min(100, Math.round(health)));
+    const m: RealMetrics = { totalUsers, activeUsers, messagesToday: msgToday, messagesTotal: msgTotal, avgResponseMs: 0, errorRate: msgToday > 0 ? Math.round(recentErrors * 100 / msgToday * 100)/100 : 0, fallbackRate, systemHealth: health, openTickets, blockedUsers, recentErrors, recentSecurityEvents: 0, healthChecksPass: healthPass, healthChecksTotal: healthTotal, uptime: '99.9%' };
 
-      setMetrics({ totalUsers, activeUsers, messagesToday: msgToday, messagesTotal: msgTotal, avgResponseMs: 0, errorRate: msgToday > 0 ? Math.round(recentErrors * 100 / msgToday * 100)/100 : 0, fallbackRate, systemHealth: health, openTickets, blockedUsers, recentErrors, recentSecurityEvents: 0, healthChecksPass: healthPass, healthChecksTotal: healthTotal, uptime: '99.9%' });
-
-      const combined: RecentEvent[] = [];
-      (d.recent_health || []).forEach((h: any) => combined.push({ id: h.id, type: 'health', label: h.check_name || 'Health check', detail: h.message || (h.status === 'ok' ? 'Passed' : 'Failed'), severity: h.status, created_at: h.created_at }));
-      (d.recent_errors || []).forEach((e: any) => combined.push({ id: e.id, type: 'error', label: e.error_type || 'Error', detail: e.message || 'Application error', severity: e.severity || 'medium', created_at: e.created_at }));
-      combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setEvents(combined.slice(0, 12));
-    } catch (err) {
-      console.error('SystemMonitoring fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+    const combined: RecentEvent[] = [];
+    (d.recent_health || []).forEach((h: any) => combined.push({ id: h.id, type: 'health', label: h.check_name || 'Health check', detail: h.message || (h.status === 'ok' ? 'Passed' : 'Failed'), severity: h.status, created_at: h.created_at }));
+    (d.recent_errors || []).forEach((e: any) => combined.push({ id: e.id, type: 'error', label: e.error_type || 'Error', detail: e.message || 'Application error', severity: e.severity || 'medium', created_at: e.created_at }));
+    combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { metrics: m, events: combined.slice(0, 12) };
+  }, [rawData]);
 
   const getHealthStatus = (h: number) => {
     if (h >= 98) return { label: 'Excellent', color: 'bg-green-600', variant: 'default' as const };
@@ -103,7 +92,7 @@ export const SystemMonitoring = () => {
           <h2 className="text-2xl font-bold">System Monitoring</h2>
           <p className="text-muted-foreground">Live data from your database</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.systemMonitoring() })} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>

@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useMemo } from 'react';
 import { RefreshCw, Users, Eye, Globe, TrendingUp, Activity, Clock } from 'lucide-react';
+import { useAdminAnalytics, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
+import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 
 interface VisitorStats {
   today: number;
@@ -33,46 +35,29 @@ function StatCard({ label, value, sub, icon: Icon, color }: {
 }
 
 export const GoogleAnalytics = () => {
-  const [stats, setStats] = useState<VisitorStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading, dataUpdatedAt } = useAdminAnalytics(30);
 
-  const fetchStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_visitor_analytics', { p_days: 30 });
-      if (error) throw error;
-      const d = data as any;
+  const stats = useMemo(() => {
+    if (!rawData) return null;
+    const d = rawData as any;
+    return {
+      today: d.today_views || 0,
+      week: d.week_views || 0,
+      month: d.month_views || 0,
+      uniqueToday: d.today_sessions || 0,
+      uniqueWeek: d.week_sessions || 0,
+      topPages: (d.top_pages || []).slice(0, 8).map((p: any) => ({ page: p.page_path, views: p.views })),
+      topCountries: (d.by_country || []).slice(0, 6).map((c: any) => ({ country: c.country, visits: c.sessions })),
+      byHour: [] as any[],
+      totalAllTime: d.total_views || 0,
+    };
+  }, [rawData]);
 
-      setStats({
-        today: d.today_views || 0,
-        week: d.week_views || 0,
-        month: d.month_views || 0,
-        uniqueToday: d.today_sessions || 0,
-        uniqueWeek: d.week_sessions || 0,
-        topPages: (d.top_pages || []).slice(0, 8).map((p: any) => ({ page: p.page_path, views: p.views })),
-        topCountries: (d.by_country || []).slice(0, 6).map((c: any) => ({ country: c.country, visits: c.sessions })),
-        byHour: [],
-        totalAllTime: d.total_views || 0,
-      });
-      setLastUpdated(new Date());
-    } catch (err) {
-      console.error('Analytics error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
-
-  if (loading) return (
-    <div className="p-6 space-y-4">
-      <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white/3 border border-white/8 rounded-xl p-5 h-24 animate-pulse" />
-        ))}
-      </div>
-    </div>
+  if (loading && !stats) return (
+    <div className="p-6"><AdminSkeleton variant="stats" /></div>
   );
 
   if (!stats) return (
@@ -89,7 +74,7 @@ export const GoogleAnalytics = () => {
             {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Live data from aynn.io'}
           </p>
         </div>
-        <button onClick={fetchStats} disabled={loading}
+        <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.analytics(30) })} disabled={loading}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/8 text-white/60 text-sm transition-colors">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh

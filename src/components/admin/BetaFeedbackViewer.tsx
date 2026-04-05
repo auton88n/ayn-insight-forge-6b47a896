@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Star, RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Bug, Lightbulb, Users } from 'lucide-react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
-import { toast } from 'sonner';
+import { useAdminBetaFeedback, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -25,31 +25,12 @@ interface FeedbackEntry {
 }
 
 export const BetaFeedbackViewer = () => {
-  const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchFeedback = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_beta_feedback');
-      if (error) throw error;
-      setFeedback(data || []);
-    } catch (err) {
-      console.error('Error fetching feedback:', err);
-      toast.error('Failed to load feedback');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFeedback();
-  }, []);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading, isFetching: refreshing } = useAdminBetaFeedback();
+  const feedback = useMemo(() => (Array.isArray(rawData) ? rawData : []) as FeedbackEntry[], [rawData]);
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchFeedback();
+    queryClient.invalidateQueries({ queryKey: adminKeys.betaFeedback() });
   };
 
   // Calculate stats

@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 // Fee/slippage model: 0.05% entry + 0.05% exit + 0.05% slippage = ~0.15% total round-trip
 function calculateCosts(positionSizeDollars: number, shares: number, exitPrice: number) {

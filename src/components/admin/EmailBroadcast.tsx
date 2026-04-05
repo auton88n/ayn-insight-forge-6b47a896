@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Send, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAdminEmailBroadcast } from '@/admin-app/hooks/useAdminQuery';
 
 type Segment = 'all' | 'active' | 'inactive' | 'paid' | 'free';
 
@@ -20,34 +21,23 @@ export const EmailBroadcast = () => {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [segment, setSegment] = useState<Segment>('all');
-  const [recipients, setRecipients] = useState<{ email: string; name: string }[]>([]);
-  const [loadingRecipients, setLoadingRecipients] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const loadRecipients = useCallback(async (seg: Segment) => {
-    setLoadingRecipients(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_email_broadcast_users');
-      if (error) throw error;
-      const all = (Array.isArray(data) ? data : []) as any[];
-      let filtered = all;
-      if (seg === 'active') filtered = all.filter(u => (u.messages_7d ?? 0) > 0);
-      else if (seg === 'inactive') filtered = all.filter(u => (u.total_messages ?? 0) > 0 && (u.messages_30d ?? 0) === 0);
-      else if (seg === 'paid') filtered = all.filter(u => u.subscription_tier !== 'free');
-      else if (seg === 'free') filtered = all.filter(u => u.subscription_tier === 'free');
-      setRecipients(filtered.filter((u: any) => u.email).map((u: any) => ({
-        email: u.email,
-        name: u.display_name || u.email.split('@')[0],
-      })));
-    } catch (e: any) {
-      toast.error('Failed to load recipients: ' + e.message);
-    } finally {
-      setLoadingRecipients(false);
-    }
-  }, []);
+  const { data: rawData, isLoading: loadingRecipients } = useAdminEmailBroadcast();
 
-  useEffect(() => { loadRecipients('all'); }, [loadRecipients]);
+  const recipients = useMemo(() => {
+    const all = (Array.isArray(rawData) ? rawData : []) as any[];
+    let filtered = all;
+    if (segment === 'active') filtered = all.filter(u => (u.messages_7d ?? 0) > 0);
+    else if (segment === 'inactive') filtered = all.filter(u => (u.total_messages ?? 0) > 0 && (u.messages_30d ?? 0) === 0);
+    else if (segment === 'paid') filtered = all.filter(u => u.subscription_tier !== 'free');
+    else if (segment === 'free') filtered = all.filter(u => u.subscription_tier === 'free');
+    return filtered.filter((u: any) => u.email).map((u: any) => ({
+      email: u.email,
+      name: u.display_name || u.email.split('@')[0],
+    }));
+  }, [rawData, segment]);
 
   const handleSend = async () => {
     if (!subject.trim() || !body.trim()) { toast.error('Subject and body required'); return; }
@@ -86,7 +76,7 @@ export const EmailBroadcast = () => {
         <Label className="text-white/40 text-xs mb-2 block">Audience Segment</Label>
         <div className="flex gap-2 flex-wrap">
           {SEGMENTS.map(s => (
-            <button key={s.id} onClick={() => { setSegment(s.id); loadRecipients(s.id); }}
+            <button key={s.id} onClick={() => { setSegment(s.id); }}
               className={`px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${segment === s.id ? 'bg-white text-black border-white' : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'}`}>
               <div>{s.label}</div><div className="font-normal opacity-60">{s.desc}</div>
             </button>
@@ -97,7 +87,7 @@ export const EmailBroadcast = () => {
       <div>
         <div className="flex items-center justify-between mb-2">
           <Label className="text-white/40 text-xs">{loadingRecipients ? 'Loading...' : `${recipients.length} recipients`}</Label>
-          <button onClick={() => loadRecipients(segment)} disabled={loadingRecipients} className="text-white/40 hover:text-white/70 text-xs">Refresh</button>
+          <button onClick={() => {}} disabled={loadingRecipients} className="text-white/40 hover:text-white/70 text-xs">Refresh</button>
         </div>
         {recipients.length > 0 && (
           <div className="bg-white/3 border border-white/8 rounded-xl p-3 max-h-24 overflow-y-auto">

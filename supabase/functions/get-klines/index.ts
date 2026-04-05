@@ -1,7 +1,7 @@
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 // Interval mapping: frontend short-hand → Pionex API format
 const INTERVAL_MAP: Record<string, string> = {

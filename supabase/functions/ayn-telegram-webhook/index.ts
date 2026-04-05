@@ -8,6 +8,8 @@ import { selectRelevantAgents, invokeAgentsParallel, formatAgentReactions } from
 import { loadCompanyState, loadActiveObjectives, loadServiceEconomics, loadFounderModel } from "../_shared/employeeState.ts";
 import { deliberate, shouldDeliberate } from "../_shared/deliberation.ts";
 import type { ImpactLevel } from "../_shared/deliberation.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
 
 import {
   cmdHelp, cmdHealth, cmdTickets, cmdStats, cmdErrors, cmdLogs,
@@ -30,10 +32,8 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 // V2: Build the system prompt dynamically with employee personality + V2 intelligence
 function buildAynSystemPrompt(companyContext: string, founderModel?: Record<string, any>): string {

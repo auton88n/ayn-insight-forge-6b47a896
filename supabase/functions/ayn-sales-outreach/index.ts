@@ -8,13 +8,13 @@ import { scrapeUrl } from "../_shared/firecrawlHelper.ts";
 import { sanitizeForPrompt, FIRECRAWL_CONTENT_GUARD } from "../_shared/sanitizeFirecrawl.ts";
 import { sanitizeUserPrompt, INJECTION_GUARD } from "../_shared/sanitizePrompt.ts";
 import { notifyFounder } from "../_shared/proactiveAlert.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
 
 const EMPLOYEE_ID = 'sales';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 const SERVICES = AYN_BRAND.services;
 

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
-import { toast } from 'sonner';
+import { useAdminAICosts, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
+import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -34,55 +35,25 @@ interface UsageStats {
 }
 
 export function AICostDashboard() {
-  const [stats, setStats] = useState<UsageStats>({
-    today: 0,
-    week: 0,
-    month: 0,
-    byIntent: {},
-    byModel: {},
-    avgResponseTime: null,
-    successRate: null,
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading } = useAdminAICosts();
+
+  const d = (rawData || {}) as any;
+  const stats = useMemo(() => ({
+    today: Number(d.today_count || 0),
+    week: Number(d.week_count || 0),
+    month: Number(d.month_count || 0),
+    byIntent: {} as Record<string, number>,
+    byModel: d.by_model ? Object.fromEntries((d.by_model).map((m: any) => [m.model, m.count])) : {} as Record<string, any>,
+    avgResponseTime: null as number | null,
+    successRate: d.today_count > 0 ? Math.round(((d.today_count - d.today_failures) / d.today_count) * 100) : 100,
     totalCost: 0,
     totalInputTokens: 0,
-    totalOutputTokens: 0
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [fallbackRate, setFallbackRate] = useState<number | null>(null);
-
-  const fetchStats = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_admin_ai_cost_stats');
-      if (error) throw error;
-      const d = data || {};
-      setStats({
-        today: Number(d.today_count || 0),
-        week: Number(d.week_count || 0),
-        month: Number(d.month_count || 0),
-        byIntent: {},
-        byModel: d.by_model ? Object.fromEntries((d.by_model).map((m: any) => [m.model, m.count])) : {},
-        avgResponseTime: null,
-        successRate: d.today_count > 0 ? Math.round(((d.today_count - d.today_failures) / d.today_count) * 100) : 100,
-        totalCost: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-      });
-      setFallbackRate(d.today_count > 0 ? Math.round((d.fallback_today / d.today_count) * 100) : 0);
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Error fetching stats:', error);
-      }
-      toast.error('Failed to load cost data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
+    totalOutputTokens: 0,
+  }), [d]);
+  const fallbackRate = d.today_count > 0 ? Math.round((d.fallback_today / d.today_count) * 100) : 0;
 
   // Estimated costs based on AI gateway billing
-  // This is a rough estimate - adjust based on actual billing
   const ESTIMATED_COST_PER_MSG = 0.0174;
   const estimatedCostToday = stats.today * ESTIMATED_COST_PER_MSG;
   const estimatedCostWeek = stats.week * ESTIMATED_COST_PER_MSG;
@@ -120,7 +91,7 @@ export function AICostDashboard() {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => { setIsLoading(true); fetchStats(); }}
+          onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.aiCosts() })}
           disabled={isLoading}
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />

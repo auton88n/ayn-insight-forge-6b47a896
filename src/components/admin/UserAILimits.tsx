@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { CreditGiftModal } from './CreditGiftModal';
+import { useAdminAILimits, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   Users, 
   RefreshCw, 
@@ -67,30 +69,16 @@ const itemVariants = {
 };
 
 export function UserAILimits() {
-  const [limits, setLimits] = useState<UserLimit[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading } = useAdminAILimits();
+  const limits = useMemo(() => (Array.isArray(rawData) ? rawData : []) as UserLimit[], [rawData]);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<UserLimit>>({});
   const [giftModalOpen, setGiftModalOpen] = useState(false);
   const [selectedUserForGift, setSelectedUserForGift] = useState<UserLimit | null>(null);
 
-  const fetchLimits = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_admin_ai_limits');
-      if (error) throw error;
-      setLimits((Array.isArray(data) ? data : []) as any[]);
-    } catch (error) {
-      console.error('Error fetching limits:', error);
-      toast.error(getErrorMessage(ErrorCodes.DATA_LOAD_FAILED).description);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchLimits();
-  }, []);
+  const fetchLimits = () => queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits() });
 
   const startEditing = (user: UserLimit) => {
     setEditingUser(user.user_id);

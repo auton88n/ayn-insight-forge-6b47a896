@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { Search, RefreshCw, Edit2, Mail, Shield, Chrome, Users, Crown, Zap, Infinity as InfinityIcon, User, CheckCircle, XCircle } from 'lucide-react';
@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { SUBSCRIPTION_TIERS, type TierKey } from '@/contexts/SubscriptionContext';
+import { useAdminSubscriptions, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 // The one true user record — everything in one place
 interface UnifiedUser {
@@ -66,8 +68,9 @@ function timeAgo(date: string | null) {
 }
 
 export const SubscriptionManagement = () => {
-  const [users, setUsers] = useState<UnifiedUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading } = useAdminSubscriptions();
+  const users = useMemo(() => (Array.isArray(rawData) ? rawData : []) as UnifiedUser[], [rawData]);
   const [search, setSearch] = useState('');
   const [filterTier, setFilterTier] = useState('all');
   const [filterProvider, setFilterProvider] = useState('all');
@@ -77,20 +80,7 @@ export const SubscriptionManagement = () => {
   const [useCustom, setUseCustom] = useState(false);
   const [updating, setUpdating] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_subscriptions');
-      if (error) throw error;
-      setUsers((data || []) as UnifiedUser[]);
-    } catch (e: any) {
-      toast.error('Failed to load users: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  const fetchUsers = () => queryClient.invalidateQueries({ queryKey: adminKeys.subscriptions() });
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();

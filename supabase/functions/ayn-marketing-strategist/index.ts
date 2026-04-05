@@ -5,11 +5,11 @@ import { sanitizeForPrompt, FIRECRAWL_CONTENT_GUARD } from "../_shared/sanitizeF
 import { sanitizeUserPrompt, INJECTION_GUARD } from "../_shared/sanitizePrompt.ts";
 import { logAynActivity } from "../_shared/aynLogger.ts";
 import { notifyFounder } from "../_shared/proactiveAlert.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

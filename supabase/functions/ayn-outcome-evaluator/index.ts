@@ -3,11 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
 import { logAynActivity } from "../_shared/aynLogger.ts";
 import { loadEmployeeState, updateEmployeeState } from "../_shared/employeeState.ts";
 import { adjustReputation, updatePeerTrust, boostInitiative } from "../_shared/politicalIntelligence.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });

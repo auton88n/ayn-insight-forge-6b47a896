@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +22,8 @@ import {
   Filter,
   TrendingUp
 } from 'lucide-react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
-import { toast } from 'sonner';
+import { useAdminCreditGifts, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, parseISO } from 'date-fns';
@@ -45,44 +45,21 @@ type DateFilter = 'all' | 'today' | 'week' | 'month';
 type TypeFilter = 'all' | 'manual' | 'feedback_reward' | 'promotion' | 'compensation';
 
 export const CreditGiftHistory = () => {
-  const [gifts, setGifts] = useState<CreditGift[]>([]);
-  const [filteredGifts, setFilteredGifts] = useState<CreditGift[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading, isFetching: refreshing } = useAdminCreditGifts();
+  const gifts = useMemo(() => (Array.isArray(rawData) ? rawData : []).map((r: any) => ({
+    ...r, user_name: r.display_name, user_email: r.email,
+  })) as CreditGift[], [rawData]);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
 
-  const fetchGifts = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_admin_credit_gifts');
-      if (error) throw error;
-      const giftsData = (data || []).map((r: any) => ({
-        ...r,
-        user_name: r.display_name,
-        user_email: r.email,
-      }));
-      setGifts(giftsData);
-    } catch (err) {
-      console.error('Error fetching credit gifts:', err);
-      toast.error("Couldn't load credit gift history. Please try again.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGifts();
-  }, []);
-
-  // Apply filters
-  useEffect(() => {
+  // Apply filters (computed from cached data)
+  const filteredGifts = useMemo(() => {
     let result = [...gifts];
 
-    // Search filter (by user_id or reason)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(g => 
@@ -91,25 +68,15 @@ export const CreditGiftHistory = () => {
       );
     }
 
-    // Date filter
     if (dateFilter !== 'all') {
       const now = new Date();
       let startDate: Date;
-      
       switch (dateFilter) {
-        case 'today':
-          startDate = startOfDay(now);
-          break;
-        case 'week':
-          startDate = subDays(now, 7);
-          break;
-        case 'month':
-          startDate = subDays(now, 30);
-          break;
-        default:
-          startDate = new Date(0);
+        case 'today': startDate = startOfDay(now); break;
+        case 'week': startDate = subDays(now, 7); break;
+        case 'month': startDate = subDays(now, 30); break;
+        default: startDate = new Date(0);
       }
-
       result = result.filter(g => {
         if (!g.created_at) return false;
         const giftDate = parseISO(g.created_at);
@@ -117,17 +84,14 @@ export const CreditGiftHistory = () => {
       });
     }
 
-    // Type filter
     if (typeFilter !== 'all') {
       result = result.filter(g => g.gift_type === typeFilter);
     }
-
-    setFilteredGifts(result);
+    return result;
   }, [gifts, searchQuery, dateFilter, typeFilter]);
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchGifts();
+    queryClient.invalidateQueries({ queryKey: adminKeys.creditGifts() });
   };
 
   const exportToCSV = () => {

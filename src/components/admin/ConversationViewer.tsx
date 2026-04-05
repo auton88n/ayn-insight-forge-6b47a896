@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { useState, useMemo } from 'react';
 import { MessageSquare, Search, RefreshCw, User, Bot, ChevronDown, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useAdminConversations, useAdminUserMessages, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface UserConvo {
   user_id: string; display_name: string; email: string; auth_provider: string;
@@ -12,41 +13,23 @@ interface Message {
 }
 
 export const ConversationViewer = () => {
-  const [users, setUsers] = useState<UserConvo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: rawData, isLoading: loading } = useAdminConversations();
+  const users = useMemo(() => (rawData || []).map((r: any) => ({
+    user_id: r.user_id,
+    display_name: r.display_name || r.email?.split('@')[0] || r.user_id?.slice(0,8),
+    email: r.email || '',
+    auth_provider: r.auth_provider || 'email',
+    message_count: Number(r.message_count),
+    last_message: r.last_message_at,
+    first_message: r.last_message_at,
+  })) as UserConvo[], [rawData]);
+
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserConvo | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_admin_conversations');
-      if (error) throw error;
-      const convos: UserConvo[] = (data || []).map((r: any) => ({
-        user_id: r.user_id,
-        display_name: r.display_name || r.email?.split('@')[0] || r.user_id.slice(0,8),
-        email: r.email || '',
-        auth_provider: r.auth_provider || 'email',
-        message_count: Number(r.message_count),
-        last_message: r.last_message_at,
-        first_message: r.last_message_at,
-      }));
-      setUsers(convos);
-    } finally { setLoading(false); }
-  }, []);
-
-  const fetchMessages = useCallback(async (userId: string) => {
-    setLoadingMsgs(true);
-    try {
-      const { data } = await supabase.rpc('get_admin_user_messages', { p_user_id: userId, p_limit: 200 });
-      setMessages((Array.isArray(data) ? data : []) as Message[]);
-    } finally { setLoadingMsgs(false); }
-  }, []);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-  useEffect(() => { if (selectedUser) fetchMessages(selectedUser.user_id); }, [selectedUser, fetchMessages]);
+  const { data: rawMessages, isLoading: loadingMsgs } = useAdminUserMessages(selectedUser?.user_id || null);
+  const messages = useMemo(() => (Array.isArray(rawMessages) ? rawMessages : []) as Message[], [rawMessages]);
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
@@ -64,7 +47,7 @@ export const ConversationViewer = () => {
           <h2 className="text-white font-semibold text-lg flex items-center gap-2"><MessageSquare className="w-5 h-5 text-blue-400" />Conversation Viewer</h2>
           <p className="text-white/30 text-sm">{users.length} users with conversations</p>
         </div>
-        <button onClick={fetchUsers} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
+        <button onClick={() => queryClient.invalidateQueries({ queryKey: adminKeys.conversations() })} disabled={loading} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -84,7 +67,7 @@ export const ConversationViewer = () => {
                 className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors ${selectedUser?.user_id === u.user_id ? 'bg-white/10 border border-white/15' : 'bg-white/3 border border-white/6 hover:bg-white/6'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/50 text-xs flex-shrink-0">
-                    {(u.display_name)[0].toUpperCase()}
+                    {(u.display_name || '?')[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-white/80 text-xs font-medium truncate">{u.display_name}</div>
@@ -104,7 +87,7 @@ export const ConversationViewer = () => {
             <>
               <div className="px-4 py-3 border-b border-white/8 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 text-sm">
-                  {selectedUser.display_name[0].toUpperCase()}
+                  {(selectedUser.display_name || '?')[0].toUpperCase()}
                 </div>
                 <div>
                   <div className="text-white text-sm font-medium">{selectedUser.display_name}</div>

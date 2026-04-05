@@ -7,13 +7,13 @@ import { scrapeUrl, mapWebsite } from "../_shared/firecrawlHelper.ts";
 import { sanitizeForPrompt, FIRECRAWL_CONTENT_GUARD } from "../_shared/sanitizeFirecrawl.ts";
 import { sanitizeUserPrompt, INJECTION_GUARD } from "../_shared/sanitizePrompt.ts";
 import { notifyFounder } from "../_shared/proactiveAlert.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
+
 
 const EMPLOYEE_ID = 'investigator';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -208,6 +208,6 @@ Respond in JSON:
 function jsonRes(data: any, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }

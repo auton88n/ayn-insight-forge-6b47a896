@@ -2,11 +2,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
 import { sanitizeUserPrompt, detectInjectionAttempt, INJECTION_GUARD } from "../_shared/sanitizePrompt.ts";
 import { getEmployeePersonality, getAgentDisplayName, getAgentEmoji } from "../_shared/aynBrand.ts";
+import { corsHeaders as getCorsHeadersFn } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
+// corsHeaders: static fallback using primary origin (from _shared/cors.ts)
+const corsHeaders = getCorsHeadersFn({ headers: new Headers() } as Request);
 
 // Admin AI system prompt with security boundaries
 const ADMIN_SYSTEM_PROMPT = `You are AYN, the admin's teammate. Talk like a real person in a group chat -- casual, direct, helpful.
