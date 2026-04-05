@@ -4,6 +4,7 @@
  */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FetchOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -49,10 +50,17 @@ export const supabaseApi = {
    * Call an RPC function via REST API
    */
   async rpc<T = unknown>(functionName: string, token: string, params: Record<string, unknown> = {}): Promise<T> {
+    // Get freshest token
+    let activeToken = token;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) activeToken = session.access_token;
+    } catch { /* ignore */ }
+
     const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${activeToken}`,
         'apikey': SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
       },
@@ -60,6 +68,27 @@ export const supabaseApi = {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        // Force refresh if 401
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (!error && data.session?.access_token) {
+            const retryResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${data.session.access_token}`,
+                'apikey': SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(params),
+            });
+            if (retryResponse.ok) {
+              const text = await retryResponse.text();
+              return (text ? JSON.parse(text) : null) as T;
+            }
+          }
+        } catch { /* ignore refresh error */ }
+      }
       const errorText = await response.text();
       throw new Error(`RPC error ${response.status}: ${errorText}`);
     }
@@ -75,9 +104,9 @@ export const supabaseApi = {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         return await this.get<T>(endpoint, token);
-      } catch {
+      } catch (err) {
         if (attempt === retries) return null;
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 600));
       }
     }
     return null;
@@ -89,16 +118,22 @@ export const supabaseApi = {
   async fetch<T = unknown>(endpoint: string, token: string, options: FetchOptions = {}): Promise<T> {
     const { method = 'GET', body, headers = {}, timeout = 15000, signal } = options;
 
-    // Only create internal controller if no external signal provided
     const internalController = signal ? null : new AbortController();
     const timeoutId = internalController ? setTimeout(() => internalController.abort(), timeout) : null;
     const effectiveSignal = signal || internalController?.signal;
 
+    // Get freshest token
+    let activeToken = token;
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) activeToken = session.access_token;
+    } catch { /* ignore */ }
+
+    const makeRequest = async (tokenToUse: string) => {
+      return await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
         method,
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${tokenToUse}`,
           'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
           'Prefer': method === 'GET' ? 'return=representation' : method === 'POST' ? 'return=representation' : 'return=minimal',
@@ -107,6 +142,20 @@ export const supabaseApi = {
         body: body ? JSON.stringify(body) : undefined,
         signal: effectiveSignal,
       });
+    };
+
+    try {
+      let response = await makeRequest(activeToken);
+
+      if (response.status === 401) {
+        // Force refresh and retry on 401 Unauthorized
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (!error && data.session?.access_token) {
+            response = await makeRequest(data.session.access_token);
+          }
+        } catch { /* ignore refresh error */ }
+      }
 
       if (timeoutId) clearTimeout(timeoutId);
 
@@ -120,7 +169,6 @@ export const supabaseApi = {
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        // Re-throw AbortError so callers can handle it
         throw error;
       }
       throw error;

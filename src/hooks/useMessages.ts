@@ -82,13 +82,20 @@ export const useMessages = (
     }
 
     // Usage check (skip for unlimited)
+    let latestToken = session.access_token;
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      if (freshSession?.access_token) latestToken = freshSession.access_token;
+    } catch { /* ignore */ }
+
     if (!isUnlimited) {
       try {
         const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${latestToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ _user_id: userId, _action_type: 'message', _count: 1 })
@@ -156,7 +163,7 @@ export const useMessages = (
         signal: controller.signal,
         headers: {
           'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${latestToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: !requiresNonStreaming, sessionId })
