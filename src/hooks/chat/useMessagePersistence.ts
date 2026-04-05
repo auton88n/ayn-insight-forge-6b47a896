@@ -70,6 +70,13 @@ export function useMessagePersistence(
       }
 
       // HEAD count — no row data transferred
+      let latestToken = session.access_token;
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data: { session: freshSession } } = await supabase.auth.getSession();
+        if (freshSession?.access_token) latestToken = freshSession.access_token;
+      } catch { /* ignore */ }
+
       try {
         const countResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/messages?user_id=eq.${userId}&session_id=eq.${sessionId}&select=id`,
@@ -77,7 +84,7 @@ export function useMessagePersistence(
             method: 'HEAD',
             headers: {
               'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${session.access_token}`,
+              'Authorization': `Bearer ${latestToken}`,
               'Prefer': 'count=exact',
             }
           }
@@ -131,7 +138,6 @@ export function useMessagePersistence(
     }
   }, [session, sessionId, userId, messages, isLoadingMore, hasMoreMessages]);
 
-  /** Save user + AYN messages to DB */
   const saveMessages = useCallback(async (
     userMsg: { content: string; timestamp: Date; attachment?: FileAttachment | null },
     aynContent: string,
@@ -140,11 +146,18 @@ export function useMessagePersistence(
   ) => {
     if (!session) return false;
 
+    let latestToken = session.access_token;
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      if (freshSession?.access_token) latestToken = freshSession.access_token;
+    } catch { /* ignore */ }
+
     // Save chat session title if new
     try {
       const existingSession = await fetch(
         `${SUPABASE_URL}/rest/v1/chat_sessions?session_id=eq.${sessionId}&user_id=eq.${userId}&select=id`,
-        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${session.access_token}` } }
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${latestToken}` } }
       );
       const sessionData = await existingSession.json();
 
@@ -154,7 +167,7 @@ export function useMessagePersistence(
           method: 'POST',
           headers: {
             'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${latestToken}`,
             'Content-Type': 'application/json',
             'Prefer': 'return=minimal',
           },
@@ -168,7 +181,7 @@ export function useMessagePersistence(
       method: 'POST',
       headers: {
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${latestToken}`,
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal',
       },
