@@ -142,9 +142,7 @@ export function UserAILimits() {
 
       // Update local state with verified value
       const confirmedValue = verifyData.is_unlimited;
-      setLimits(prev => prev.map(l =>
-        l.user_id === userId ? { ...l, is_unlimited: confirmedValue } : l
-      ));
+      queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits });
 
       toast.success(
         confirmedValue
