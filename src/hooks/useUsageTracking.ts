@@ -81,7 +81,7 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
         const dailyResetAt = limits.daily_reset_at ? new Date(limits.daily_reset_at) : null;
         const isExpired = !dailyResetAt || dailyResetAt <= new Date();
         const used = isExpired ? 0 : (limits.current_daily_messages || 0);
-        const limit = limits.daily_messages || 5;
+        const limit = (limits.daily_messages || 5) + (limits.bonus_credits || 0);
         remaining = Math.max(0, limit - used);
         totalLimit = limit;
         resetsAt = isExpired

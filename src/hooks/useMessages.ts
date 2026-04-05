@@ -91,19 +91,19 @@ export const useMessages = (
 
     if (!isUnlimited) {
       try {
-        const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
+        const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/check_user_ai_limit`, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${latestToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ _user_id: userId, _action_type: 'message', _count: 1 })
+          body: JSON.stringify({ _user_id: userId, _intent_type: 'chat' })
         });
         if (!rpcResponse.ok) { setIsTyping(false); toast({ title: 'Usage Check Failed', description: 'Please try again.', variant: 'destructive' }); return; }
-        const canUse = await rpcResponse.json();
+        const limitResult = await rpcResponse.json();
         onUsageUpdated?.();
-        if (!canUse) { setIsTyping(false); toast({ title: 'Usage Limit Reached', description: 'Upgrade for more messages.', variant: 'destructive' }); return; }
+        if (!limitResult || !limitResult.allowed) { setIsTyping(false); toast({ title: 'Usage Limit Reached', description: 'Upgrade for more messages.', variant: 'destructive' }); return; }
       } catch {
         setIsTyping(false);
         toast({ title: 'Something Went Wrong', description: 'An unexpected error occurred.', variant: 'destructive' });
