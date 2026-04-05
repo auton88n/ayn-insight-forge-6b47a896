@@ -106,9 +106,7 @@ export function UserAILimits() {
 
       if (error) throw error;
 
-      setLimits(prev => prev.map(l => 
-        l.user_id === editingUser ? { ...l, ...editValues } : l
-      ));
+      queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits });
       setEditingUser(null);
       toast.success('Limits updated');
     } catch (error) {
