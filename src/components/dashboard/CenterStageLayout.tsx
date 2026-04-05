@@ -758,13 +758,18 @@ export const CenterStageLayout = ({
           sidebarOpen && "md:left-[20rem]",
         )}
       >
-        <SystemNotificationBanner
-          maintenanceConfig={maintenanceConfig}
-          remaining={remaining}
-          totalLimit={totalLimit}
-          isUnlimited={isUnlimited ?? false}
-          resetsAt={resetsAt ?? null}
-        />
+        {/* Banner constrained to same max-w as ChatInput */}
+        <div className="px-2 sm:px-4">
+          <div className="mx-auto max-w-4xl">
+            <SystemNotificationBanner
+              maintenanceConfig={maintenanceConfig}
+              remaining={remaining}
+              totalLimit={totalLimit}
+              isUnlimited={isUnlimited ?? false}
+              resetsAt={resetsAt ?? null}
+            />
+          </div>
+        </div>
 
         <ChatInput
           ref={inputRef}

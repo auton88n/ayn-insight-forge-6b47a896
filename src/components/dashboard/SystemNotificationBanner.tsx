@@ -58,7 +58,7 @@ export const SystemNotificationBanner = ({
         initial={{ opacity: 0, y: 10, height: 0 }}
         animate={{ opacity: 1, y: 0, height: 'auto' }}
         className={cn(
-          "flex items-center justify-center gap-3 px-4 py-3 mx-4 mb-2",
+          "flex items-center justify-center gap-3 px-4 py-3 mb-2",
           "rounded-xl border backdrop-blur-sm",
           "text-sm font-medium",
           "bg-orange-500/15 border-orange-500/40 text-orange-600 dark:text-orange-400",
@@ -96,7 +96,7 @@ export const SystemNotificationBanner = ({
           exit={{ opacity: 0, y: 10, height: 0 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
           className={cn(
-            "flex items-center justify-center gap-3 px-4 py-2.5 mx-4 mb-2",
+            "flex items-center justify-center gap-3 px-4 py-2.5 mb-2",
             "rounded-xl border backdrop-blur-sm",
             "text-sm font-medium",
             "bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-400",
@@ -153,7 +153,7 @@ export const SystemNotificationBanner = ({
           exit={{ opacity: 0, y: 10, height: 0 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
           className={cn(
-            "flex items-center justify-center gap-2 px-4 py-2.5 mx-4 mb-2",
+            "flex items-center justify-center gap-2 px-4 py-2.5 mb-2",
             "rounded-xl border backdrop-blur-sm",
             "text-sm font-medium",
             isUrgent && "bg-muted/60 border-border text-muted-foreground",
