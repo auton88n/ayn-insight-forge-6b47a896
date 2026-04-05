@@ -4,7 +4,7 @@ import { useTheme } from 'next-themes';
 import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';
+import { LogOut, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
@@ -167,12 +167,11 @@ export const AdminPanel = ({
       {/* Header */}
       <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
-          {onBackClick && (
-            <Button onClick={handleBackClick} variant="ghost" size="icon"
-              className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          )}
+          <Button onClick={() => supabase.auth.signOut()} variant="ghost" size="icon"
+            className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50"
+            title="Sign Out">
+            <LogOut className="w-5 h-5" />
+          </Button>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
