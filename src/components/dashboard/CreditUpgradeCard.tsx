@@ -61,88 +61,27 @@ export const CreditUpgradeCard = ({
     loaded: false,
   });
 
-  // Fetch live credit data directly — never trust props alone
+  // Sync from props — props come from useUsageTracking which has a realtime
+  // Supabase channel. When user_ai_limits changes, the channel fires, 
+  // useUsageTracking updates, new props flow here instantly.
   useEffect(() => {
-    if (!userId) return;
+    if (
+      propRemaining === undefined ||
+      propTotalLimit === undefined ||
+      propAllowed === undefined
+    ) return;
 
-    const fetchCredits = async () => {
-      try {
-        const { data: limitsData, error } = await supabase
-          .from('user_ai_limits')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        const { data: subData } = await supabase
-          .from('user_subscriptions')
-          .select('subscription_tier')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (error || !limitsData) return;
-
-        const tier = subData?.subscription_tier || 'free';
-        const isFree = tier === 'free';
-        const isUnlimited = limitsData.is_unlimited === true;
-
-        if (isUnlimited) {
-          setCredits(prev => ({ ...prev, isUnlimited: true, loaded: true }));
-          return;
-        }
-
-        let remaining: number;
-        let totalLimit: number;
-        let resetsAt: string | null;
-        let allowed: boolean;
-
-        if (isFree) {
-          // Free users: daily limit, check if daily reset has expired
-          const dailyResetAt = limitsData.daily_reset_at ? new Date(limitsData.daily_reset_at) : null;
-          const isExpired = !dailyResetAt || dailyResetAt <= new Date();
-
-          const used = isExpired ? 0 : (limitsData.current_daily_messages || 0);
-          const limit = limitsData.daily_messages || 5;
-          remaining = Math.max(0, limit - used);
-          totalLimit = limit;
-          resetsAt = isExpired
-            ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-            : limitsData.daily_reset_at;
-          allowed = remaining > 0;
-        } else {
-          // Paid users: monthly limit
-          const monthlyResetAt = limitsData.monthly_reset_at ? new Date(limitsData.monthly_reset_at) : null;
-          const isExpired = !monthlyResetAt || monthlyResetAt <= new Date();
-
-          const used = isExpired ? 0 : (limitsData.current_monthly_messages || 0);
-          const limit = (limitsData.monthly_messages || 1000) + (limitsData.bonus_credits || 0);
-          remaining = Math.max(0, limit - used);
-          totalLimit = limit;
-          resetsAt = limitsData.monthly_reset_at;
-          allowed = remaining > 0;
-        }
-
-        setCredits({
-          remaining,
-          totalLimit,
-          allowed,
-          resetsAt,
-          tier,
-          isFree,
-          isUnlimited: false,
-          loaded: true,
-        });
-      } catch {
-        // Silent failure — keep defaults
-        setCredits(prev => ({ ...prev, loaded: true }));
-      }
-    };
-
-    fetchCredits();
-
-    // Re-fetch every 60 seconds to stay current
-    const interval = setInterval(fetchCredits, 60000);
-    return () => clearInterval(interval);
-  }, [userId]);
+    setCredits({
+      remaining: propRemaining,
+      totalLimit: propTotalLimit,
+      allowed: propAllowed ?? true,
+      resetsAt: propResetsAt ?? null,
+      tier: propTier ?? 'free',
+      isFree: propIsFree ?? true,
+      isUnlimited: propIsUnlimited ?? false,
+      loaded: true,
+    });
+  }, [propRemaining, propTotalLimit, propAllowed, propResetsAt, propTier, propIsFree, propIsUnlimited]);
 
   // Check if user has already submitted feedback
   useEffect(() => {
@@ -240,6 +179,24 @@ export const CreditUpgradeCard = ({
             <Clock className="w-3 h-3" />
             <span>Resets in {formattedResetTime}</span>
           </div>
+        )}
+
+        {/* Earn credits button in limit-reached state */}
+        {showEarnButton && (
+          <Button
+            onClick={onOpenFeedback}
+            size="sm"
+            className={cn(
+              "w-full mb-2 h-9 rounded-lg gap-2",
+              "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500",
+              "hover:from-purple-600 hover:via-fuchsia-600 hover:to-pink-600",
+              "text-white font-medium shadow-sm"
+            )}
+          >
+            <Gift className="w-4 h-4" />
+            <span>Earn +{rewardAmount} Credits</span>
+            <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
+          </Button>
         )}
 
         {isFree ? (

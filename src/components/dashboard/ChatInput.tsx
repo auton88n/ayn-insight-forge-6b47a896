@@ -434,14 +434,14 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
         }} exit={{
           opacity: 0
         }} className="absolute inset-0 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20 rounded-2xl px-4">
-              <div className="flex items-center gap-2 text-amber-500">
+              <div className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="w-5 h-5" />
-                <span className="font-medium">Credits Exhausted</span>
+                <span className="font-medium">Daily Limit Reached</span>
               </div>
               <p className="text-sm text-muted-foreground text-center">
-                You've used all your credits for this period.
+                You've used all your messages for today. Come back tomorrow or upgrade for more.
               </p>
-              <Button onClick={() => navigate('/pricing')} size="sm" className="gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0">
+              <Button onClick={() => navigate('/dashboard/pricing')} size="sm" className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:opacity-90 text-white border-0">
                 <Sparkles className="w-4 h-4" />
                 Upgrade Plan
               </Button>
