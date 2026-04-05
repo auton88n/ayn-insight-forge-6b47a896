@@ -15,7 +15,7 @@ interface Message {
 export const ConversationViewer = () => {
   const queryClient = useQueryClient();
   const { data: rawData, isLoading: loading } = useAdminConversations();
-  const users = useMemo(() => (rawData || []).map((r: any) => ({
+  const users = useMemo(() => (Array.isArray(rawData) ? rawData : []).map((r: any) => ({
     user_id: r.user_id,
     display_name: r.display_name || r.email?.split('@')[0] || r.user_id?.slice(0,8),
     email: r.email || '',

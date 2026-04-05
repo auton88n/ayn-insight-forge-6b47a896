@@ -213,7 +213,7 @@ export function UserAILimits() {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => { setIsLoading(true); fetchLimits(); }}
+          onClick={() => { queryClient.invalidateQueries({ queryKey: adminKeys.aiLimits }); }}
           disabled={isLoading}
           className="border-border/50"
         >

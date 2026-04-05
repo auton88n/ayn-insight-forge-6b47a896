@@ -25,7 +25,7 @@ export const MessageFeedbackViewer = () => {
   const { data: rawData, isLoading: loading } = useAdminMessageFeedback();
   const [filter, setFilter] = useState<'all' | 'positive' | 'negative'>('all');
 
-  const allRatings = useMemo(() => (rawData || []).map((r: any) => ({
+  const allRatings = useMemo(() => (Array.isArray(rawData) ? rawData : []).map((r: any) => ({
     ...r,
     user_name: r.display_name,
     user_email: r.email,
