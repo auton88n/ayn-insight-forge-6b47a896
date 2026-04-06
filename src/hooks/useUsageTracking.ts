@@ -119,6 +119,35 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
     fetchUsage();
   }, [fetchUsage]);
 
+  // Client-side reset trigger: if daily_reset_at has passed, reset via RPC
+  // This fixes the deadlock where allowed=false prevents sending which prevents the DB reset
+  useEffect(() => {
+    if (!userId) return;
+    const checkAndReset = async () => {
+      const { data: limits } = await supabase
+        .from('user_ai_limits')
+        .select('daily_reset_at, current_daily_messages')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!limits) return;
+      const resetAt = limits.daily_reset_at ? new Date(limits.daily_reset_at) : null;
+      const isExpired = !resetAt || resetAt <= new Date();
+      // Only trigger reset if expired AND there are messages to reset
+      if (isExpired && (limits.current_daily_messages || 0) > 0) {
+        await supabase.from('user_ai_limits').update({
+          current_daily_messages: 0,
+          current_daily_engineering: 0,
+          current_daily_files: 0,
+          current_daily_search: 0,
+          daily_reset_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('user_id', userId);
+        // fetchUsage is triggered automatically by the realtime channel
+      }
+    };
+    checkAndReset();
+  }, [userId]);
+
   // Real-time updates when user_ai_limits changes
   useEffect(() => {
     if (!userId) return;

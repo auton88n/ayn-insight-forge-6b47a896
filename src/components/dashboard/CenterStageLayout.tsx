@@ -73,6 +73,7 @@ interface CenterStageLayoutProps {
   isFree?: boolean;
   isUnlimited?: boolean;
   resetsAt?: string | null;
+  isUsageLoading?: boolean;
   tier?: string;
   isLoadingFromHistory?: boolean;
   currentSessionId?: string;
@@ -136,6 +137,7 @@ export const CenterStageLayout = ({
   isFree = true,
   isUnlimited,
   resetsAt,
+  isUsageLoading = false,
   tier,
   isLoadingFromHistory,
   currentSessionId,
@@ -173,8 +175,9 @@ export const CenterStageLayout = ({
   const isMobile = useIsMobile();
 
   const creditsExhausted = useMemo(() => {
+    if (isUsageLoading) return false;
     return !allowed;
-  }, [allowed]);
+  }, [allowed, isUsageLoading]);
 
   const {
     setEmotion,
