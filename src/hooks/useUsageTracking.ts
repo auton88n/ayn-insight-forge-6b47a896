@@ -81,9 +81,11 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
         const dailyResetAt = limits.daily_reset_at ? new Date(limits.daily_reset_at) : null;
         const isExpired = !dailyResetAt || dailyResetAt <= new Date();
         const used = isExpired ? 0 : (limits.current_daily_messages || 0);
-        const limit = (limits.daily_messages || 5) + (limits.bonus_credits || 0);
-        remaining = Math.max(0, limit - used);
-        totalLimit = limit;
+        const dailyLimit = limits.daily_messages || 5;
+        const bonusRemaining = Math.max(0, limits.bonus_credits || 0);
+        // Remaining = daily messages left + bonus credits (bonus used first by RPC)
+        remaining = Math.max(0, dailyLimit - used) + bonusRemaining;
+        totalLimit = dailyLimit + bonusRemaining;
         resetsAt = isExpired
           ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           : limits.daily_reset_at;
