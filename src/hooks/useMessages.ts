@@ -89,27 +89,10 @@ export const useMessages = (
       if (freshSession?.access_token) latestToken = freshSession.access_token;
     } catch { /* ignore */ }
 
-    if (!isUnlimited) {
-      try {
-        const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/check_user_ai_limit`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${latestToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ _user_id: userId, _intent_type: 'chat' })
-        });
-        if (!rpcResponse.ok) { setIsTyping(false); toast({ title: 'Usage Check Failed', description: 'Please try again.', variant: 'destructive' }); return; }
-        const limitResult = await rpcResponse.json();
-        onUsageUpdated?.();
-        if (!limitResult || !limitResult.allowed) { setIsTyping(false); toast({ title: 'Usage Limit Reached', description: 'Upgrade for more messages.', variant: 'destructive' }); return; }
-      } catch {
-        setIsTyping(false);
-        toast({ title: 'Something Went Wrong', description: 'An unexpected error occurred.', variant: 'destructive' });
-        return;
-      }
-    }
+    // NOTE: No pre-flight limit check here.
+    // check_user_ai_limit RPC is called atomically inside the ayn-unified edge function.
+    // Calling it here AND in the edge function causes double-counting.
+    // The edge function returns 429 if limit is reached — handled below.
 
     // Add user message immediately
     const userMessage: Message = {
