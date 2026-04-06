@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
+import ParticleCanvas from '@/components/dashboard/world/ParticleCanvas';
 import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
 
 const AccuracyScoreboard = lazy(() => import('@/components/dashboard/world/AccuracyScoreboard'));
@@ -722,15 +723,24 @@ export default function WorldIntelligence() {
       <div className="flex-1 overflow-x-hidden overflow-y-auto">
         <div className="w-full max-w-[1440px] mx-auto px-3 pt-4 sm:px-4 lg:px-5 space-y-8 pb-10">
 
-          {/* ── 1. MAP ───────────────────────────────────────────────────── */}
-          <HeatMap2D
-            points={mapPoints}
-            height={460}
-            onPointClick={handleMapClick}
-            showLayerToggle={true}
-            isLive={true}
-            ticker={THREAT_TICKER}
-          />
+          {/* ── 1. PARTICLE CANVAS + MAP ─────────────────────────────── */}
+          <ParticleCanvas
+            particleCount={60000}
+            className="rounded-2xl"
+            style={{ height: 460 }}
+          >
+            {/* Map sits on top of particle field */}
+            <div className="w-full h-full" style={{ background: 'rgba(0,0,0,0.45)' }}>
+              <HeatMap2D
+                points={mapPoints}
+                height={460}
+                onPointClick={handleMapClick}
+                showLayerToggle={true}
+                isLive={true}
+                ticker={THREAT_TICKER}
+              />
+            </div>
+          </ParticleCanvas>
 
           {/* ── 2. INTELLIGENCE BRIEF + SENTIMENT ───────────────────────── */}
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
