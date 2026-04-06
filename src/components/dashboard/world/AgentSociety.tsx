@@ -609,43 +609,7 @@ function AgentNodeGraph({ states, messages, onSelectAgent, selectedAgent }: {
 }
 
 
-function AgentMoodBoard({ states }: { states: any[] }) {
-  if (!states?.length) return null;
-  return (
-    <div className="grid grid-cols-5 gap-2 mb-4">
-      {states.map(s => {
-        const em = EMOTION_CONFIG[s.current_emotion] || EMOTION_CONFIG.neutral;
-        const intensity = s.emotion_intensity || 50;
-        return (
-          <div key={s.agent_id} className="relative rounded-xl p-2.5 text-center transition-all group cursor-default"
-            style={{
-              background: `linear-gradient(135deg, ${em.bg}, rgba(0,0,0,0.5))`,
-              border: `1px solid ${em.border}`,
-              boxShadow: intensity >= 75 ? `0 0 16px ${em.color}22` : 'none',
-            }}>
-            <div className="text-xl mb-1">{em.emoji}</div>
-            <div className="text-[7px] font-mono font-bold truncate" style={{ color: em.color }}>
-              {s.agent_name.split(' ')[0].toUpperCase()}
-            </div>
-            <div className="text-[6px] font-mono opacity-60 mt-0.5">{em.label}</div>
-            <div className="h-0.5 mt-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <div className="h-full rounded-full transition-all duration-1000"
-                style={{ width: `${intensity}%`, background: em.color, boxShadow: `0 0 4px ${em.color}` }} />
-            </div>
-            {s.key_concern && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 whitespace-nowrap">
-                <div className="text-[7px] font-mono rounded-lg px-2 py-1"
-                  style={{ background: 'rgba(0,0,0,0.95)', border: `1px solid ${em.border}`, color: em.color }}>
-                  {s.key_concern.slice(0, 60)}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+
 
 function AgentSociety() {
   const [canvasVisible, setCanvasVisible] = useState(false);
@@ -779,8 +743,7 @@ function AgentSociety() {
         </div>
       )}
 
-      {/* ── Mood board (compact row) */}
-      {agentStates.length > 0 && <AgentMoodBoard states={agentStates} />}
+
 
       {/* ── Conversation tabs */}
       {conversations.length > 0 && (

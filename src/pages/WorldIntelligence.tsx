@@ -14,6 +14,7 @@ import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
 
 const AccuracyScoreboard = lazy(() => import('@/components/dashboard/world/AccuracyScoreboard'));
 const PredictionCard     = lazy(() => import('@/components/dashboard/world/PredictionCard'));
+const AgentSociety       = lazy(() => import('@/components/dashboard/world/AgentSociety'));
 const WorldSimulator     = lazy(() => import('@/components/dashboard/world/WorldSimulator'));
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1001,6 +1002,11 @@ export default function WorldIntelligence() {
               </div>
             </div>
           )}
+
+          {/* ── 7. AGENT SOCIETY ────────────────────────────────────────── */}
+          <Suspense fallback={<div className="h-64 animate-pulse bg-white/5 rounded-xl border border-white/10" />}>
+            <AgentSociety />
+          </Suspense>
 
           {/* Footer */}
           <div className="text-center pb-4 pt-2">
