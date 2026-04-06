@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
 import ParticleCanvas from '@/components/dashboard/world/ParticleCanvas';
 import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
+import { PremiumCard, ShimmerButton, PulsatingButton, GlassCard, BorderBeam, SpotlightCard } from '@/components/ui/premium';
 
 const AccuracyScoreboard = lazy(() => import('@/components/dashboard/world/AccuracyScoreboard'));
 const PredictionCard     = lazy(() => import('@/components/dashboard/world/PredictionCard'));
@@ -686,17 +687,22 @@ export default function WorldIntelligence() {
             {snapshot?.fetched_at && (
               <span className="hidden md:block text-[9px] text-white/15">Updated {timeAgo(snapshot.fetched_at)}</span>
             )}
-            <div className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/8 border border-emerald-500/15">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <PulsatingButton
+              pulseColor="rgba(16,185,129,0.5)"
+              pulseDuration={2.5}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/8 border border-emerald-500/15 cursor-default"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               <span className="text-[9px] font-bold text-emerald-400">LIVE</span>
-            </div>
-            <button
+            </PulsatingButton>
+            <ShimmerButton
               onClick={() => { setRefreshing(true); Promise.all([fetchSnapshot(), fetchSignals(), fetchWorldPreds(), fetchPredictions()]).finally(() => setRefreshing(false)); }}
               disabled={refreshing}
+              shimmerColor="rgba(0,255,200,0.12)"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] text-white/35 hover:text-cyan-400 hover:bg-white/4 border border-white/8 transition-all"
             >
               <RefreshCw className={cn('w-3 h-3', refreshing && 'animate-spin')} /> SWEEP
-            </button>
+            </ShimmerButton>
           </div>
         </div>
       </header>
@@ -745,7 +751,7 @@ export default function WorldIntelligence() {
           {/* ── 2. INTELLIGENCE BRIEF + SENTIMENT ───────────────────────── */}
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
             {/* Brief */}
-            <div className="bg-black/50 border border-white/6 rounded-2xl overflow-hidden">
+            <GlassCard className="overflow-hidden p-0">
               <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5 bg-gradient-to-r from-emerald-500/6 to-transparent">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
                 <Radio className="w-4 h-4 text-emerald-400" />
@@ -761,11 +767,11 @@ export default function WorldIntelligence() {
                   </div>
                 ))}
               </div>
-            </div>
+            </GlassCard>
 
             {/* Sentiment + Macro */}
             <div className="space-y-4">
-              <div className="bg-black/50 border border-white/6 rounded-2xl p-5">
+              <GlassCard className="p-5">
                 <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">Market Sentiment</div>
                 <div className={cn('text-5xl font-mono font-bold mb-1',
                   (sentiment.value || 0) <= 25 ? 'text-red-400' : (sentiment.value || 0) <= 45 ? 'text-orange-400' : 'text-emerald-400')}>
@@ -777,8 +783,8 @@ export default function WorldIntelligence() {
                     (sentiment.value || 0) <= 25 ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-gradient-to-r from-emerald-600 to-emerald-400')}
                     style={{ width: `${sentiment.value || 0}%` }} />
                 </div>
-              </div>
-              <div className="bg-black/50 border border-white/6 rounded-2xl p-5">
+              </GlassCard>
+              <GlassCard className="p-5">
                 <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">US Macro</div>
                 <div className="space-y-2.5">
                   {[
@@ -798,7 +804,7 @@ export default function WorldIntelligence() {
                     );
                   })}
                 </div>
-              </div>
+              </GlassCard>
             </div>
           </div>
 
@@ -808,8 +814,12 @@ export default function WorldIntelligence() {
               <SectionHeader icon={AlertTriangle} label="Live World Signals" color="text-red-400" count={signals.length} />
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {signals.slice(0, 9).map(s => (
-                  <div key={s.id} className={cn('bg-black/50 border rounded-xl p-4',
+                  <SpotlightCard key={s.id} spotlightColor="rgba(255,255,255,0.05)" spotlightSize={200}
+                    className={cn('bg-black/50 border rounded-xl p-4 relative overflow-hidden',
                     s.severity === 'critical' ? 'border-red-500/20' : s.severity === 'high' ? 'border-orange-500/15' : 'border-white/6')}>
+                    <BorderBeam
+                      colorFrom={s.severity === 'critical' ? 'rgba(239,68,68,0.7)' : s.severity === 'high' ? 'rgba(251,146,60,0.6)' : 'rgba(255,255,255,0.15)'}
+                      colorTo="transparent" duration={s.severity === 'critical' ? 3 : 5} size={60} />
                     <div className="flex items-center justify-between mb-2">
                       <span className={cn('text-[8px] font-mono font-bold px-2 py-0.5 rounded-full border uppercase',
                         SEVERITY_COLOR[s.severity] || SEVERITY_COLOR.low)}>
@@ -829,7 +839,7 @@ export default function WorldIntelligence() {
                         <span className="text-white/20 ml-auto">{s.countries_involved.slice(0, 2).join(' · ')}</span>
                       )}
                     </div>
-                  </div>
+                  </SpotlightCard>
                 ))}
               </div>
             </div>
@@ -858,13 +868,16 @@ export default function WorldIntelligence() {
                   const domainColor = DOMAIN_COLORS[p.domain.toLowerCase()] || 'text-white/40';
                   const isConflict = p.domain === 'conflicts' && p.escalation_risk;
                   return (
-                    <motion.button key={p.id}
-                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                      onClick={() => setSelectedPred(p)}
-                      className={cn('text-left bg-black/50 border rounded-xl overflow-hidden hover:bg-black/70 transition-all group',
-                        isConflict && p.escalation_risk === 'critical' ? 'border-red-500/20 hover:border-red-500/35'
-                          : isConflict ? 'border-orange-500/15 hover:border-orange-500/25'
-                          : 'border-white/6 hover:border-white/12')}>
+                    <PremiumCard key={p.id} showBeam={true}
+                      beamColor={isConflict && p.escalation_risk === 'critical' ? 'rgba(239,68,68,0.6)' : isConflict ? 'rgba(251,146,60,0.5)' : 'rgba(0,255,200,0.4)'}
+                      beamDuration={isConflict ? 4 : 7}
+                      spotlightColor="rgba(255,255,255,0.06)" spotlightSize={220}
+                      onClick={() => setSelectedPred(p)} role="button" tabIndex={0}
+                      onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && setSelectedPred(p)}
+                      className={cn('cursor-pointer group',
+                        isConflict && p.escalation_risk === 'critical' ? '!border-red-500/20'
+                          : isConflict ? '!border-orange-500/15'
+                          : '')} style={{}}>
                       {/* Domain badge row */}
                       <div className={cn('flex items-center justify-between px-4 py-2 border-b border-white/5',
                         isConflict ? 'bg-red-500/4' : 'bg-white/2')}>
@@ -907,7 +920,7 @@ export default function WorldIntelligence() {
                         </div>
                         <span className="text-[8px] font-mono text-white/18 group-hover:text-white/40 transition-colors">Full analysis →</span>
                       </div>
-                    </motion.button>
+                    </PremiumCard>
                   );
                 })}
               </div>
@@ -968,13 +981,13 @@ export default function WorldIntelligence() {
                 {countryIntel.map(ci => {
                   const econ = ci.economy || {};
                   return (
-                    <button key={ci.country_code}
+                    <SpotlightCard key={ci.country_code} spotlightColor="rgba(0,255,200,0.05)" spotlightSize={160}
                       onClick={() => {
                         const ISO2: Record<string, string> = { US: 'USA', CN: 'CHN', DE: 'EU', GB: 'GBR', SA: 'SAU', AE: 'ARE', JP: 'JPN', IN: 'IND', BR: 'BRA', RU: 'RUS', KR: 'KOR', ZA: 'ZAF', CA: 'CAN', AU: 'AUS' };
                         const sicKey = ISO2[ci.country_code] || ci.country_code;
                         setSelectedCountry({ intel: ci, sic: sicIntel[sicKey] || {} });
                       }}
-                      className="text-left bg-black/50 border border-white/6 rounded-xl p-4 hover:border-cyan-500/20 hover:bg-black/65 transition-all group">
+                      className="text-left bg-black/50 border border-white/6 rounded-xl p-4 hover:border-cyan-500/20 hover:bg-black/65 transition-all group cursor-pointer">
                       <div className="flex items-start justify-between mb-3">
                         <div>
                           <div className="text-[11px] font-mono font-bold text-white/75 group-hover:text-white transition-colors">{ci.country_name}</div>
@@ -1006,7 +1019,7 @@ export default function WorldIntelligence() {
                           </div>
                         )}
                       </div>
-                    </button>
+                    </SpotlightCard>
                   );
                 })}
               </div>
