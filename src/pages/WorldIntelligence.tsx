@@ -56,6 +56,7 @@ interface CountryIntel {
     income_per_person?: { formatted: string };
   };
   hot_sectors?: string[];
+  opportunities?: { snippet?: string; title?: string }[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -353,9 +354,10 @@ export default function WorldIntelligence() {
 
   const fetchCountryIntel = useCallback(async () => {
     try {
-      const { data } = await supabase.from('ayn_country_intelligence').select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities').limit(20);
+      const { data, error } = await supabase.from('ayn_country_intelligence').select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities').limit(20);
+      if (error) console.warn('Country intel fetch error:', error.message);
       if (data) setCountryIntel(data as CountryIntel[]);
-    } catch {}
+    } catch (e) { console.warn('Country intel fetch exception:', e); }
   }, []);
 
   useEffect(() => {
@@ -441,7 +443,7 @@ export default function WorldIntelligence() {
   }, [sicIntel]);
 
   const handleMapClick = (pt: MapPoint) => {
-    const ISO2: Record<string, string> = { US:'USA',CN:'CHN',DE:'EU',GB:'GBR',SA:'SAU',AE:'ARE',JP:'JPN',IN:'IND',BR:'BRA',RU:'RUS',KR:'KOR',ZA:'ZAF',CA:'CAN',AU:'AUS',FR:'EU' };
+    const ISO2: Record<string, string> = { US:'USA',CN:'CHN',DE:'DEU',GB:'GBR',SA:'SAU',AE:'ARE',JP:'JPN',IN:'IND',BR:'BRA',RU:'RUS',KR:'KOR',ZA:'ZAF',CA:'CAN',AU:'AUS',FR:'FRA',QA:'QAT',SG:'SGP',EG:'EGY',NG:'NGA',MX:'MEX',ID:'IDN',TR:'TUR',PK:'PAK',TH:'THA',MY:'MYS' };
     if (!pt.id) return;
     const intel = countryIntel.find(c => ISO2[c.country_code] === pt.id || c.country_code === pt.id);
     if (intel) setSelectedCountry(intel);
@@ -846,7 +848,7 @@ export default function WorldIntelligence() {
                 </section>
 
                 {/* ── COUNTRY ECONOMIC INTELLIGENCE ──────────────────────────── */}
-                {countryIntel.length > 0 && (
+                {(
                   <section>
                     <div className="flex items-center gap-2.5 mb-4">
                       <div className="w-1 h-5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,255,200,0.4)]" />
