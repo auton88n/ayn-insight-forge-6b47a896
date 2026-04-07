@@ -74,18 +74,21 @@ function hexRgb(hex:string):[number,number,number]{
   return[(n>>16)&255,(n>>8)&255,n&255];
 }
 
-// Ticker
+// Ticker – pure CSS animation, no React re-renders
 function ThreatTicker({items}:{items:string[]}){
-  const [off,setOff]=useState(0);
-  useEffect(()=>{const t=setInterval(()=>setOff(o=>o+0.35),16);return()=>clearInterval(t);},[]);
   if(!items.length)return null;
   const txt=items.join('   ·   ');
+  const duration = Math.max(items.length * 4, 20);
   return(
     <div style={{overflow:'hidden',whiteSpace:'nowrap',flex:1}}>
-      <span style={{display:'inline-block',fontSize:8,fontFamily:'monospace',color:'rgba(255,255,255,0.35)',
-        letterSpacing:'0.06em',transform:`translateX(-${off%(txt.length*5.6)}px)`,transition:'none'}}>
+      <span style={{
+        display:'inline-block',fontSize:8,fontFamily:'monospace',color:'rgba(255,255,255,0.35)',
+        letterSpacing:'0.06em',
+        animation:`tickerScroll ${duration}s linear infinite`,
+      }}>
         {txt+'   ·   '+txt}
       </span>
+      <style>{`@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
     </div>
   );
 }
