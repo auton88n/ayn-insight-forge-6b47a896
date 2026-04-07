@@ -347,7 +347,7 @@ function AgentScene({ agentStateMap, messages, selectedAgent, hoveredAgent, onSe
 }
 
 // ─── Agent card ───────────────────────────────────────────────────────────────
-function AgentCard({ state, isSelected, onClick }: { state:any; isSelected:boolean; onClick:()=>void }) {
+function AgentCard({ state, isSelected, onClick, onChat }: { state:any; isSelected:boolean; onClick:()=>void; onChat?:()=>void }) {
   const em=EM[state.current_emotion||'neutral']||EM.neutral;
   const catCol=CAT_COLOR[state.agent_category||'government']||'#9ca3af';
   const intense=(state.emotion_intensity||0)>=75;
@@ -378,6 +378,13 @@ function AgentCard({ state, isSelected, onClick }: { state:any; isSelected:boole
       </div>
       {isSelected&&state.key_concern&&(
         <div className="mt-2 text-[8.5px] font-mono text-white/40 leading-snug line-clamp-2 pt-2 border-t border-white/6">{state.key_concern}</div>
+      )}
+      {isSelected && onChat && (
+        <button onClick={(e)=>{e.stopPropagation();onChat();}}
+          className="mt-2 w-full text-[7.5px] font-black py-1.5 rounded-lg uppercase tracking-wider transition-all"
+          style={{color:'#a855f7',background:'rgba(168,85,247,0.1)',border:'1px solid rgba(168,85,247,0.25)'}}>
+          💬 Chat with {state.agent_name.split(' ')[0]}
+        </button>
       )}
       {isSelected&&(state.wins_from||state.loses_from)&&(
         <div className="mt-1.5 space-y-0.5">
@@ -468,6 +475,12 @@ export default function AgentSociety() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [generating, setGenerating]       = useState(false);
   const [loadingMsgs, setLoadingMsgs]     = useState(false);
+  const [godEyeInput, setGodEyeInput]     = useState('');
+  const [showGodEye, setShowGodEye]       = useState(false);
+  const [chatAgent, setChatAgent]         = useState<any|null>(null);
+  const [chatHistory, setChatHistory]     = useState<{role:string;content:string}[]>([]);
+  const [chatInput, setChatInput]         = useState('');
+  const [chatLoading, setChatLoading]     = useState(false);
 
   useEffect(()=>{
     const el=canvasRef.current; if(!el)return;
@@ -522,6 +535,7 @@ export default function AgentSociety() {
   const avgTension=messages.length?Math.round(messages.reduce((s,m)=>s+(m.emotion_intensity||50),0)/messages.length):0;
 
   return (
+    <>
     <div style={{ height:'calc(100vh - 130px)', minHeight:600, display:'flex', flexDirection:'column' }}>
       <style>{`
         @keyframes as-pulse{0%,100%{opacity:0.45;transform:scale(1)}50%{opacity:1;transform:scale(1.25)}}
@@ -542,6 +556,11 @@ export default function AgentSociety() {
         </div>}
         {hasPanic&&<div className="text-[8px] font-black px-2.5 py-0.5 rounded-full" style={{color:'#f87171',background:'rgba(248,113,113,0.12)',border:'1px solid rgba(248,113,113,0.3)',animation:'as-pulse 0.8s ease-in-out infinite'}}>🚨 PANIC</div>}
         <div className="flex-1"/>
+        <button onClick={()=>setShowGodEye(!showGodEye)}
+          className="flex items-center gap-1.5 text-[8px] font-black px-3 py-2 rounded-lg transition-all uppercase tracking-wider"
+          style={{color:showGodEye?'#fbbf24':'rgba(255,255,255,0.35)',background:showGodEye?'rgba(251,191,36,0.12)':'rgba(255,255,255,0.04)',border:`1px solid ${showGodEye?'rgba(251,191,36,0.3)':'rgba(255,255,255,0.1)'}`}}>
+          👁 God's Eye
+        </button>
         <button onClick={generate} disabled={generating}
           className="flex items-center gap-1.5 text-[8px] font-black px-4 py-2 rounded-lg transition-all disabled:opacity-40 uppercase tracking-wider"
           style={{color:'#a855f7',background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.3)'}}>
@@ -644,7 +663,8 @@ export default function AgentSociety() {
             )}
             {filteredAgents.map(s=>(
               <AgentCard key={s.agent_id} state={s} isSelected={selectedAgent===s.agent_id}
-                onClick={()=>setSelectedAgent(selectedAgent===s.agent_id?null:s.agent_id)}/>
+                onClick={()=>setSelectedAgent(selectedAgent===s.agent_id?null:s.agent_id)}
+                onChat={()=>{ setChatAgent(s); setChatHistory([]); }}/>
             ))}
           </div>
 
@@ -705,7 +725,27 @@ export default function AgentSociety() {
               <div ref={msgsEnd}/>
             </div>
 
-            {/* Footer */}
+            {/* God's Eye input bar */}
+            {showGodEye && (
+              <div className="shrink-0 px-4 py-3 border-t border-purple-500/20" style={{background:'rgba(168,85,247,0.06)'}}>
+                <div className="text-[7.5px] font-black text-purple-400/70 uppercase tracking-widest mb-2">👁 GOD'S EYE — Inject a world event</div>
+                <div className="flex gap-2">
+                  <input value={godEyeInput} onChange={e=>setGodEyeInput(e.target.value)}
+                    onKeyDown={e=>e.key==='Enter'&&injectGodEye()}
+                    placeholder="e.g. Fed cuts 75bps in emergency meeting..."
+                    className="flex-1 bg-transparent text-[10px] font-mono text-white/80 placeholder-white/20 outline-none px-3 py-1.5 rounded-lg"
+                    style={{border:'1px solid rgba(168,85,247,0.3)'}}/>
+                  <button onClick={injectGodEye} disabled={generating||!godEyeInput.trim()}
+                    className="text-[8px] font-black px-3 py-1.5 rounded-lg disabled:opacity-40 transition-all"
+                    style={{color:'#a855f7',background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.35)'}}>
+                    INJECT
+                  </button>
+                  <button onClick={()=>setShowGodEye(false)} className="text-white/30 hover:text-white/60 text-sm font-mono px-1">✕</button>
+                </div>
+              </div>
+            )}
+
+          {/* Footer */}
             {messages.length>0&&(
               <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-t border-white/4" style={{background:'rgba(0,0,0,0.6)'}}>
                 <span className="text-[7px] font-mono text-white/18">{messages.length} messages</span>
@@ -718,5 +758,74 @@ export default function AgentSociety() {
         </div>
       </div>
     </div>
+
+      {/* Agent Chat Modal */}
+      <AnimatePresence>
+        {chatAgent && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4"
+            style={{background:'rgba(0,0,0,0.75)',backdropFilter:'blur(4px)'}}>
+            <motion.div initial={{y:40,opacity:0}} animate={{y:0,opacity:1}} exit={{y:40,opacity:0}}
+              className="w-full max-w-[520px] rounded-2xl overflow-hidden flex flex-col"
+              style={{background:'rgba(3,0,18,0.98)',border:'1px solid rgba(168,85,247,0.3)',borderTop:'1px solid rgba(168,85,247,0.5)',maxHeight:'80vh'}}>
+              {/* Chat header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-white/6"
+                style={{background:'linear-gradient(90deg,rgba(168,85,247,0.08),transparent)'}}>
+                <div className="text-2xl">{chatAgent.agent_flag||'🌐'}</div>
+                <div className="flex-1">
+                  <div className="text-[12px] font-black text-white/90">{chatAgent.agent_name}</div>
+                  <div className="text-[8px] font-mono text-purple-400/60 uppercase tracking-wider">{chatAgent.agent_category} · Direct Interview</div>
+                </div>
+                <button onClick={()=>{setChatAgent(null);setChatHistory([]);}}
+                  className="text-white/30 hover:text-white/70 text-lg font-mono transition-colors">✕</button>
+              </div>
+              {/* Messages */}
+              <div className="flex-1 min-h-0 overflow-y-auto as-scroll px-4 py-3 space-y-3">
+                {chatHistory.length === 0 && (
+                  <div className="text-center py-6">
+                    <div className="text-[10px] font-mono text-white/25">Ask {chatAgent.agent_name} anything.</div>
+                    <div className="text-[8px] font-mono text-white/15 mt-1">They will answer from memory and personality.</div>
+                  </div>
+                )}
+                {chatHistory.map((msg, i) => (
+                  <div key={i} className={`flex gap-2 ${msg.role==='user'?'justify-end':''}`}>
+                    {msg.role==='assistant' && <div className="text-lg shrink-0 mt-0.5">{chatAgent.agent_flag||'🌐'}</div>}
+                    <div className="max-w-[85%] rounded-xl px-3 py-2 text-[10px] font-mono leading-relaxed"
+                      style={{
+                        background:msg.role==='user'?'rgba(168,85,247,0.15)':'rgba(255,255,255,0.04)',
+                        border:`1px solid ${msg.role==='user'?'rgba(168,85,247,0.3)':'rgba(255,255,255,0.07)'}`,
+                        color:msg.role==='user'?'rgba(196,181,253,0.9)':'rgba(255,255,255,0.72)',
+                      }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex gap-2 items-center">
+                    <div className="text-lg">{chatAgent.agent_flag||'🌐'}</div>
+                    <div className="flex gap-1 px-3 py-2 rounded-xl" style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)'}}>
+                      {[0,1,2].map(i=><div key={i} className="w-1.5 h-1.5 rounded-full bg-purple-400/60" style={{animation:`as-pulse ${0.6+i*0.15}s ease-in-out infinite`}}/>)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Input */}
+              <div className="shrink-0 flex gap-2 px-3 py-3 border-t border-white/6">
+                <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&chatWithAgent()}
+                  placeholder={`Ask ${chatAgent.agent_name.split(' ')[0]}...`}
+                  className="flex-1 bg-transparent text-[10px] font-mono text-white/80 placeholder-white/20 outline-none px-3 py-2 rounded-lg"
+                  style={{border:'1px solid rgba(255,255,255,0.1)'}}/>
+                <button onClick={chatWithAgent} disabled={chatLoading||!chatInput.trim()}
+                  className="text-[8px] font-black px-3 py-2 rounded-lg disabled:opacity-40 transition-all"
+                  style={{color:'#a855f7',background:'rgba(168,85,247,0.15)',border:'1px solid rgba(168,85,247,0.3)'}}>
+                  SEND
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
