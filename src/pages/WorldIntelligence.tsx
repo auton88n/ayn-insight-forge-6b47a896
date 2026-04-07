@@ -907,7 +907,7 @@ export default function WorldIntelligence() {
                 <span className="text-[8px] font-mono text-white/20">// Live AI agents · World reaction simulation</span>
                 <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(168,85,247,0.2), transparent)' }} />
               </div>
-              <div className="p-4">
+               <div className="p-2 sm:p-4">
                 <Suspense fallback={
                   <div className="flex items-center justify-center h-80">
                     <div className="text-center space-y-3">
