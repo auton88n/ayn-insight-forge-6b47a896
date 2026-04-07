@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
   ArrowLeft, RefreshCw, Globe2, Radio, Activity,
-  ChevronRight, Shield, Building2, Flame, Zap, Target,
-  TrendingUp, AlertTriangle, BarChart3, Clock
+  ChevronRight, Shield, Building2, Flame, Target,
+  AlertTriangle, Users, Zap, TrendingUp, BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -17,9 +17,8 @@ import { PremiumCard, ShimmerButton, PulsatingButton, GlassCard, BorderBeam, Spo
 const AccuracyScoreboard = lazy(() => import('@/components/dashboard/world/AccuracyScoreboard'));
 const PredictionCard     = lazy(() => import('@/components/dashboard/world/PredictionCard'));
 const AgentSociety       = lazy(() => import('@/components/dashboard/world/AgentSociety'));
-const WorldSimulator     = lazy(() => import('@/components/dashboard/world/WorldSimulator'));
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface Prediction {
   id: string; asset: string; horizon: string; target_date: string;
   baseline_value: number; predicted_value: number;
@@ -31,14 +30,12 @@ interface Prediction {
   consensus_strength?: string; agreement?: boolean | null;
   fusion_method?: string; boost_factor?: string | null; generated_by?: string | null;
 }
-
 interface WorldSignal {
   id: string; signal_type: string; severity: string; headline: string;
   summary?: string; region: string; countries_involved: string[];
   impact_on_oil: string; impact_on_gold: string; impact_on_btc: string;
   created_at: string;
 }
-
 interface WorldPrediction {
   id: string; domain: string; region: string; title: string;
   confidence: number; probability: string;
@@ -46,11 +43,9 @@ interface WorldPrediction {
   who_wins: string; who_gets_hurt: string;
   historical_parallel: string; what_to_do_now: string;
   actionable_move?: string; financial_trigger?: string;
-  escalation_risk?: string;
-  conflict_signals?: Record<string, string>;
+  escalation_risk?: string; conflict_signals?: Record<string, string>;
   key_drivers: string[]; main_risks: string[];
 }
-
 interface CountryIntel {
   country_code: string; country_name: string;
   intelligence_brief: string[];
@@ -62,10 +57,9 @@ interface CountryIntel {
     income_per_person?: { formatted: string };
   };
   hot_sectors?: string[];
-  opportunities?: string[];
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function safeArr(v: any): any[] { return Array.isArray(v) ? v : []; }
 function safeObj(v: any): Record<string, any> {
   return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
@@ -75,189 +69,119 @@ function timeAgo(d: string | null): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return format(new Date(d), 'MMM d');
+  return `${Math.floor(m / 60)}h ago`;
 }
 
-const DOMAIN_LABELS: Record<string, string> = {
-  regions: 'Regional Intelligence', jobs: 'Jobs & Labor', technology: 'Technology',
-  warnings: 'Early Warnings', economy: 'Economy', conflicts: 'Conflicts',
-  geopolitics: 'Geopolitics', business: 'Business',
+const SEVERITY_RING: Record<string, string> = {
+  critical: 'ring-red-500/40 bg-red-500/8',
+  high:     'ring-orange-500/30 bg-orange-500/6',
+  medium:   'ring-amber-500/25 bg-amber-500/5',
+  low:      'ring-white/8 bg-white/3',
 };
-const DOMAIN_COLORS: Record<string, string> = {
-  regions: 'text-cyan-400', jobs: 'text-blue-400', technology: 'text-purple-400',
-  warnings: 'text-red-400', economy: 'text-amber-400', conflicts: 'text-red-400',
-  geopolitics: 'text-orange-400', business: 'text-emerald-400',
+const SEVERITY_DOT: Record<string, string> = {
+  critical: 'bg-red-400 shadow-[0_0_8px_#f87171]',
+  high:     'bg-orange-400 shadow-[0_0_8px_#fb923c]',
+  medium:   'bg-amber-400 shadow-[0_0_6px_#fbbf24]',
+  low:      'bg-slate-400',
 };
-const SEVERITY_COLOR: Record<string, string> = {
-  critical: 'text-red-400 border-red-500/30 bg-red-500/8',
-  high: 'text-orange-400 border-orange-500/25 bg-orange-500/6',
-  medium: 'text-amber-400 border-amber-500/20 bg-amber-500/5',
-  low: 'text-slate-400 border-slate-500/20 bg-slate-500/4',
+const DOMAIN_COLOR: Record<string, string> = {
+  warnings: '#ef4444', conflicts: '#ef4444', geopolitics: '#f97316',
+  economy: '#f59e0b', technology: '#a78bfa', jobs: '#60a5fa',
+  regions: '#06b6d4', business: '#34d399',
 };
-const IMPACT_ICON: Record<string, string> = {
-  spike: '↑', drop: '↓', volatile: '~', stable: '→',
+const ASSET_META: Record<string, { label: string; icon: string }> = {
+  gold:    { label: 'Gold',    icon: '🥇' },
+  silver:  { label: 'Silver',  icon: '🥈' },
+  oil:     { label: 'Brent',   icon: '🛢️' },
+  btc:     { label: 'Bitcoin', icon: '₿'  },
+  eth:     { label: 'ETH',     icon: 'Ξ'  },
+  copper:  { label: 'Copper',  icon: '🔶' },
+  wheat:   { label: 'Wheat',   icon: '🌾' },
+  usd_jpy: { label: 'USD/JPY', icon: '¥'  },
 };
-const IMPACT_COLOR: Record<string, string> = {
-  spike: 'text-red-400', drop: 'text-emerald-400',
-  volatile: 'text-amber-400', stable: 'text-white/30',
-};
-
-const ASSET_META: Record<string, { label: string; unit: string; icon: string }> = {
-  gold: { label: 'Gold', unit: '/oz', icon: '🥇' },
-  silver: { label: 'Silver', unit: '/oz', icon: '🥈' },
-  oil: { label: 'Brent', unit: '/bbl', icon: '🛢️' },
-  btc: { label: 'Bitcoin', unit: '', icon: '₿' },
-  eth: { label: 'Ethereum', unit: '', icon: 'Ξ' },
-  copper: { label: 'Copper', unit: '/mt', icon: '🔶' },
-  wheat: { label: 'Wheat', unit: '/mt', icon: '🌾' },
-  usd_jpy: { label: 'USD/JPY', unit: '', icon: '¥' },
-};
-
 const SIC_COORDS: Record<string, [number, number]> = {
-  USA: [-95.7, 37.0], CHN: [104.1, 35.8], EU: [10.4, 51.1], GBR: [-3.4, 55.3],
-  SAU: [45.0, 23.8], ARE: [53.8, 23.4], JPN: [138.2, 36.2], IND: [78.9, 20.5],
-  BRA: [-51.9, -14.2], RUS: [105.3, 61.5], IRQ: [43.6, 33.2], KOR: [127.7, 35.9],
-  ZAF: [22.9, -30.5], CAN: [-106.3, 56.1], AUS: [133.7, -25.2],
+  USA:[-95.7,37.0],CHN:[104.1,35.8],EU:[10.4,51.1],GBR:[-3.4,55.3],
+  SAU:[45.0,23.8],ARE:[53.8,23.4],JPN:[138.2,36.2],IND:[78.9,20.5],
+  BRA:[-51.9,-14.2],RUS:[105.3,61.5],KOR:[127.7,35.9],
+  ZAF:[22.9,-30.5],CAN:[-106.3,56.1],AUS:[133.7,-25.2],
 };
 
-// ─── Side panel: World Prediction Detail ─────────────────────────────────────
+// ─── Side panel: World Prediction detail ─────────────────────────────────────
 function PredictionDetail({ pred, onClose }: { pred: WorldPrediction; onClose: () => void }) {
-  const isConflict = pred.domain === 'conflicts' || pred.escalation_risk;
+  const col = DOMAIN_COLOR[pred.domain?.toLowerCase()] || '#06b6d4';
   return (
     <motion.div
-      initial={{ opacity: 0, x: 440 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 440 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-      className="fixed top-0 right-0 bottom-0 w-full sm:w-[500px] bg-[#06060a]/98 backdrop-blur-2xl border-l border-white/10 z-[100] flex flex-col"
+      initial={{ opacity: 0, x: 460 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 460 }}
+      transition={{ type: 'spring', damping: 30, stiffness: 240 }}
+      className="fixed top-0 right-0 bottom-0 w-full sm:w-[480px] z-[100] flex flex-col"
+      style={{ background: 'rgba(4,5,22,0.97)', backdropFilter: 'saturate(180%) blur(24px)', borderLeft: `1px solid ${col}25`, borderTopColor: `${col}50` }}
     >
-      {/* Header */}
-      <div className="p-5 border-b border-white/8 shrink-0">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 pr-4">
+      <div className="p-5 border-b border-white/6 shrink-0">
+        <div className="flex items-start gap-3 justify-between">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={cn('text-[8px] font-mono font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider',
-                DOMAIN_COLORS[pred.domain] || 'text-white/40',
-                'border-current/30 bg-current/5'
-              )}>
-                {DOMAIN_LABELS[pred.domain] || pred.domain}
+              <span className="text-[8px] font-mono font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-full" style={{ color: col, background: `${col}18`, border: `1px solid ${col}35` }}>
+                {pred.domain}
               </span>
-              <span className="text-[8px] font-mono text-white/25 uppercase">{pred.region}</span>
+              <span className="text-[8px] font-mono text-white/30 uppercase">{pred.region}</span>
               {pred.escalation_risk && (
-                <span className={cn('text-[8px] font-mono font-bold px-2 py-0.5 rounded-full border uppercase',
-                  SEVERITY_COLOR[pred.escalation_risk] || SEVERITY_COLOR.low)}>
+                <span className={cn("text-[7px] font-mono font-black px-1.5 py-0.5 rounded-full border uppercase", SEVERITY_RING[pred.escalation_risk] || SEVERITY_RING.low, "ring-1")}>
                   {pred.escalation_risk}
                 </span>
               )}
             </div>
-            <h2 className="text-base font-mono font-bold text-white leading-snug">{pred.title}</h2>
+            <h2 className="text-[15px] font-mono font-black text-white/90 leading-snug">{pred.title}</h2>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-[9px] font-mono text-white/50 font-bold">{pred.confidence}% confidence</span>
-              <span className="text-[9px] font-mono text-white/25">·</span>
-              <span className="text-[9px] font-mono text-white/25">{pred.probability}</span>
+              <div className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: col, boxShadow: `0 0 6px ${col}` }} />
+                <span className="text-[9px] font-mono font-black" style={{ color: col }}>{pred.confidence}% confidence</span>
+              </div>
+              {pred.probability && <span className="text-[8px] font-mono text-white/25">· {pred.probability}</span>}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/6 text-white/35 hover:text-white transition-colors text-xl font-mono shrink-0">×</button>
+          <button onClick={onClose} className="p-2 rounded-lg bg-white/5 border border-white/8 hover:bg-white/10 text-white/40 hover:text-white transition-all text-[13px] font-mono shrink-0">✕</button>
         </div>
       </div>
-
-      <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-thin">
-        {/* Financial trigger (conflicts) */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin">
         {pred.financial_trigger && (
-          <div className="bg-red-500/8 border border-red-500/20 rounded-xl p-4">
-            <div className="text-[8px] font-mono text-red-400/70 uppercase tracking-wider mb-2">💰 Financial Signal</div>
-            <p className="text-[11px] font-mono text-red-200/75 leading-relaxed font-bold">{pred.financial_trigger}</p>
+          <div className="rounded-xl p-4" style={{ background: `${col}0d`, border: `1px solid ${col}28`, borderTop: `1px solid ${col}55` }}>
+            <div className="text-[8px] font-mono uppercase tracking-wider mb-1.5" style={{ color: col, opacity: 0.7 }}>💰 Financial Signal</div>
+            <p className="text-[11px] font-mono font-black leading-relaxed" style={{ color: col }}>{pred.financial_trigger}</p>
           </div>
         )}
-
-        {/* Conflict signals */}
-        {pred.conflict_signals && Object.keys(pred.conflict_signals).length > 0 && (
-          <div>
-            <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3">Market Signals</div>
-            <div className="space-y-2">
-              {[
-                { key: 'oil_signal', label: '🛢️ Oil', color: 'text-orange-300/70 bg-orange-500/5 border-orange-500/15' },
-                { key: 'gold_signal', label: '🥇 Gold', color: 'text-amber-300/70 bg-amber-500/5 border-amber-500/15' },
-                { key: 'currency_signal', label: '¥ Currency', color: 'text-cyan-300/70 bg-cyan-500/5 border-cyan-500/15' },
-                { key: 'sanctions_signal', label: '⚖️ Sanctions', color: 'text-purple-300/70 bg-purple-500/5 border-purple-500/15' },
-              ].filter(s => pred.conflict_signals?.[s.key]).map(s => (
-                <div key={s.key} className={cn('px-3 py-2.5 rounded-lg border', s.color)}>
-                  <div className="text-[8px] font-mono font-bold mb-1 opacity-70">{s.label}</div>
-                  <p className="text-[10px] font-mono leading-relaxed">{pred.conflict_signals?.[s.key]}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+        {pred.what_is_happening && (
+          <div><div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-2">What's Happening</div>
+          <p className="text-[11px] font-mono text-white/60 leading-[1.8]">{pred.what_is_happening}</p></div>
         )}
-
-        {/* What's happening */}
-        <div>
-          <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-2">What's Happening</div>
-          <p className="text-[11px] font-mono text-white/60 leading-relaxed">{pred.what_is_happening}</p>
-        </div>
-
-        {/* What it means */}
-        <div>
-          <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-2">What This Leads To</div>
-          <p className="text-[11px] font-mono text-white/60 leading-relaxed">{pred.what_it_means}</p>
-        </div>
-
-        {/* Historical parallel */}
+        {pred.what_it_means && (
+          <div><div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-2">What This Leads To</div>
+          <p className="text-[11px] font-mono text-white/60 leading-[1.8]">{pred.what_it_means}</p></div>
+        )}
         {pred.historical_parallel && (
-          <div className="bg-purple-500/5 border border-purple-500/12 rounded-xl p-4">
-            <div className="text-[8px] font-mono text-purple-400/60 uppercase tracking-wider mb-2">📖 Historical Parallel</div>
+          <div className="rounded-xl p-4 bg-purple-500/5 border border-purple-500/15">
+            <div className="text-[8px] font-mono text-purple-400/60 uppercase tracking-wider mb-1.5">📖 Historical Parallel</div>
             <p className="text-[10px] font-mono text-purple-200/55 leading-relaxed">{pred.historical_parallel}</p>
           </div>
         )}
-
-        {/* Who wins / loses */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-emerald-500/5 border border-emerald-500/12 rounded-xl p-3">
-            <div className="text-[8px] font-mono text-emerald-400/60 uppercase tracking-wider mb-2">✅ Who Wins</div>
-            <p className="text-[10px] font-mono text-emerald-200/55 leading-relaxed">{pred.who_wins}</p>
-          </div>
-          <div className="bg-red-500/5 border border-red-500/12 rounded-xl p-3">
-            <div className="text-[8px] font-mono text-red-400/60 uppercase tracking-wider mb-2">❌ Who Gets Hurt</div>
-            <p className="text-[10px] font-mono text-red-200/55 leading-relaxed">{pred.who_gets_hurt}</p>
-          </div>
+          {pred.who_wins && (
+            <div className="rounded-xl p-3 bg-emerald-500/5 border border-emerald-500/15">
+              <div className="text-[8px] font-mono text-emerald-400/60 uppercase mb-1.5">✅ Winners</div>
+              <p className="text-[10px] font-mono text-emerald-200/60 leading-relaxed">{pred.who_wins}</p>
+            </div>
+          )}
+          {pred.who_gets_hurt && (
+            <div className="rounded-xl p-3 bg-red-500/5 border border-red-500/15">
+              <div className="text-[8px] font-mono text-red-400/60 uppercase mb-1.5">❌ Losers</div>
+              <p className="text-[10px] font-mono text-red-200/55 leading-relaxed">{pred.who_gets_hurt}</p>
+            </div>
+          )}
         </div>
-
-        {/* Action */}
         {(pred.actionable_move || pred.what_to_do_now) && (
-          <div className="bg-cyan-500/6 border border-cyan-500/18 rounded-xl p-4">
+          <div className="rounded-xl p-4" style={{ background: 'rgba(0,255,200,0.04)', border: '1px solid rgba(0,255,200,0.15)' }}>
             <div className="text-[8px] font-mono text-cyan-400/60 uppercase tracking-wider mb-2">⚡ Your Move Now</div>
-            {pred.actionable_move && (
-              <p className="text-[11px] font-mono text-cyan-200/80 font-bold leading-relaxed mb-2">{pred.actionable_move}</p>
-            )}
-            {pred.what_to_do_now && (
-              <p className="text-[10px] font-mono text-cyan-200/50 leading-relaxed">{pred.what_to_do_now}</p>
-            )}
-          </div>
-        )}
-
-        {/* Drivers & risks */}
-        {(safeArr(pred.key_drivers).length > 0 || safeArr(pred.main_risks).length > 0) && (
-          <div className="grid grid-cols-2 gap-3">
-            {safeArr(pred.key_drivers).length > 0 && (
-              <div>
-                <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-2">Key Drivers</div>
-                {safeArr(pred.key_drivers).map((d, i) => (
-                  <div key={i} className="flex gap-1.5 text-[9px] font-mono text-white/40 mb-1">
-                    <span className="text-white/20 shrink-0">›</span>{d}
-                  </div>
-                ))}
-              </div>
-            )}
-            {safeArr(pred.main_risks).length > 0 && (
-              <div>
-                <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-2">What Would Prove This Wrong</div>
-                {safeArr(pred.main_risks).map((r, i) => (
-                  <div key={i} className="flex gap-1.5 text-[9px] font-mono text-white/40 mb-1">
-                    <span className="text-red-400/40 shrink-0">!</span>{r}
-                  </div>
-                ))}
-              </div>
-            )}
+            {pred.actionable_move && <p className="text-[11px] font-mono font-black text-cyan-200/85 leading-relaxed mb-1.5">{pred.actionable_move}</p>}
+            {pred.what_to_do_now && <p className="text-[10px] font-mono text-cyan-200/50 leading-relaxed">{pred.what_to_do_now}</p>}
           </div>
         )}
       </div>
@@ -266,93 +190,58 @@ function PredictionDetail({ pred, onClose }: { pred: WorldPrediction; onClose: (
 }
 
 // ─── Side panel: Country Dossier ─────────────────────────────────────────────
-function CountryDossier({ intel, sic, onClose }: { intel: CountryIntel; sic: any; onClose: () => void }) {
+function CountryDossier({ intel, onClose }: { intel: CountryIntel; onClose: () => void }) {
   const econ = intel.economy || {};
   return (
     <motion.div
-      initial={{ opacity: 0, x: 440 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 440 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-      className="fixed top-0 right-0 bottom-0 w-full sm:w-[460px] bg-[#060609]/97 backdrop-blur-2xl border-l border-cyan-500/20 z-[100] flex flex-col"
+      initial={{ opacity: 0, x: 460 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 460 }}
+      transition={{ type: 'spring', damping: 30, stiffness: 240 }}
+      className="fixed top-0 right-0 bottom-0 w-full sm:w-[440px] z-[100] flex flex-col"
+      style={{ background: 'rgba(4,5,22,0.97)', backdropFilter: 'saturate(180%) blur(24px)', borderLeft: '1px solid rgba(0,255,200,0.15)' }}
     >
-      <div className="p-5 border-b border-white/8 shrink-0">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-[9px] font-mono text-cyan-400/50 uppercase tracking-[0.2em] mb-1">Country Dossier</div>
-            <h2 className="text-2xl font-mono font-bold text-white">{intel.country_name}</h2>
-            <div className="flex items-center gap-3 mt-1.5">
-              {econ.gdp?.formatted && <span className="text-[10px] font-mono text-white/35">GDP {econ.gdp.formatted}</span>}
-              {econ.gdp_growth?.value != null && (
-                <span className={cn('text-[10px] font-mono font-bold',
-                  econ.gdp_growth.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400')}>
-                  {econ.gdp_growth.trend === 'rising' ? '▲' : '▼'} {Math.abs(econ.gdp_growth.value).toFixed(1)}% GDP
-                </span>
-              )}
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/6 text-white/35 hover:text-white transition-colors text-xl font-mono">×</button>
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
-        {/* Key indicators */}
+      <div className="p-5 border-b border-white/6 shrink-0 flex items-start justify-between">
         <div>
-          <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3">Key Indicators</div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Inflation', value: econ.inflation?.value != null ? `${econ.inflation.value.toFixed(1)}%` : null, good: (econ.inflation?.value || 0) < 3 },
-              { label: 'Unemployment', value: econ.unemployment?.value != null ? `${econ.unemployment.value.toFixed(1)}%` : null, good: (econ.unemployment?.value || 0) < 5 },
-              { label: 'Income/Person', value: econ.income_per_person?.formatted || null, good: true },
-              { label: 'GDP Growth', value: econ.gdp_growth?.value != null ? `${econ.gdp_growth.value > 0 ? '+' : ''}${econ.gdp_growth.value.toFixed(1)}%` : null, good: (econ.gdp_growth?.value || 0) > 0 },
-            ].filter(s => s.value).map(s => (
-              <div key={s.label} className="bg-white/3 border border-white/5 rounded-lg p-3">
-                <div className="text-[8px] font-mono text-white/25 uppercase mb-1">{s.label}</div>
-                <div className={cn('text-sm font-mono font-bold', s.good ? 'text-white/75' : 'text-amber-400')}>{s.value}</div>
-              </div>
-            ))}
-          </div>
+          <div className="text-[8px] font-mono text-cyan-400/50 uppercase tracking-[0.2em] mb-1">Country Dossier</div>
+          <h2 className="text-2xl font-mono font-black text-white">{intel.country_name}</h2>
+          {econ.gdp?.formatted && <div className="text-[9px] font-mono text-white/30 mt-1">GDP {econ.gdp.formatted}</div>}
         </div>
-
-        {/* Intelligence brief */}
+        <button onClick={onClose} className="p-2 rounded-lg bg-white/5 border border-white/8 hover:bg-white/10 text-white/40 hover:text-white transition-all text-[13px] font-mono">✕</button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-thin">
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: 'GDP Growth', value: econ.gdp_growth?.value != null ? `${econ.gdp_growth.value > 0 ? '+' : ''}${econ.gdp_growth.value.toFixed(1)}%` : null, good: (econ.gdp_growth?.value || 0) > 0 },
+            { label: 'Inflation',  value: econ.inflation?.value != null ? `${econ.inflation.value.toFixed(1)}%` : null, good: (econ.inflation?.value || 0) < 3 },
+            { label: 'Unemployment', value: econ.unemployment?.value != null ? `${econ.unemployment.value.toFixed(1)}%` : null, good: (econ.unemployment?.value || 0) < 5 },
+            { label: 'Income/Person', value: econ.income_per_person?.formatted || null, good: true },
+          ].filter(s => s.value).map(s => (
+            <div key={s.label} className="bg-white/3 border border-white/6 rounded-xl p-3">
+              <div className="text-[7px] font-mono text-white/25 uppercase mb-1">{s.label}</div>
+              <div className={cn('text-sm font-mono font-black', s.good ? 'text-white/80' : 'text-amber-400')}>{s.value}</div>
+            </div>
+          ))}
+        </div>
         {intel.intelligence_brief?.length > 0 && (
           <div>
-            <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Activity className="w-3 h-3 text-emerald-400" /> Economic Snapshot
-            </div>
+            <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3">Economic Snapshot</div>
             <div className="space-y-1">
               {intel.intelligence_brief.map((line, i) => (
-                <div key={i} className="flex items-start gap-2 py-1.5 border-b border-white/4 last:border-0">
-                  <span className="text-white/15 shrink-0 font-mono text-[10px]">›</span>
-                  <span className="text-[10px] font-mono text-white/45 leading-relaxed">{line}</span>
+                <div key={i} className="flex gap-2 py-1.5 border-b border-white/4 last:border-0">
+                  <span className="text-white/15 font-mono text-[10px] shrink-0">›</span>
+                  <span className="text-[10px] font-mono text-white/50 leading-relaxed">{line}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
-
-        {/* Hot sectors */}
-        {intel.hot_sectors && intel.hot_sectors.filter(Boolean).length > 0 && (
+        {intel.hot_sectors?.filter(Boolean).length! > 0 && (
           <div>
             <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Flame className="w-3 h-3 text-orange-400" /> Hot Sectors
             </div>
             <div className="flex flex-wrap gap-2">
-              {intel.hot_sectors.filter(Boolean).map((s, i) => (
+              {intel.hot_sectors!.filter(Boolean).map((s, i) => (
                 <span key={i} className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-orange-500/8 border border-orange-500/18 text-orange-300/70">{s}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Live news */}
-        {safeArr(sic?.news).filter((n: any) => n?.title?.length > 5).length > 0 && (
-          <div>
-            <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Radio className="w-3 h-3 text-cyan-400" /> Live Intelligence
-            </div>
-            <div className="space-y-2">
-              {safeArr(sic.news).filter((n: any) => n?.title?.length > 5).slice(0, 5).map((item: any, i: number) => (
-                <div key={i} className="bg-black/40 border border-white/5 p-3 rounded-lg">
-                  <p className="text-[10px] font-mono text-white/60 leading-relaxed">{item.title}</p>
-                </div>
               ))}
             </div>
           </div>
@@ -362,182 +251,114 @@ function CountryDossier({ intel, sic, onClose }: { intel: CountryIntel; sic: any
   );
 }
 
-// ─── Section header ───────────────────────────────────────────────────────────
-function SectionHeader({ icon: Icon, label, color, count }: {
-  icon: any; label: string; color: string; count?: number
-}) {
-  return (
-    <div className="flex items-center gap-2 mb-4">
-      <Icon className={cn('w-4 h-4', color)} />
-      <span className={cn('text-[10px] font-mono font-bold tracking-[0.15em] uppercase', color)}>{label}</span>
-      <div className={cn('flex-1 h-px bg-gradient-to-r from-current to-transparent opacity-20', color)} />
-      {count !== undefined && <span className="text-[8px] text-white/18 font-mono">{count} active</span>}
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function WorldIntelligence() {
   const navigate = useNavigate();
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const currentTime = useRef(new Date()).current;
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRef   = useRef<HTMLDivElement>(null);
+
+  // ── View mode: WORLD vs AGENTS ────────────────────────────────────────────
+  const [activeView, setActiveView] = useState<'world' | 'agents'>('world');
 
   // Data
-  const [snapshot, setSnapshot]           = useState<any>(null);
-  const [predictions, setPredictions]     = useState<Prediction[]>([]);
-  const [signals, setSignals]             = useState<WorldSignal[]>([]);
-  const [worldPreds, setWorldPreds]       = useState<WorldPrediction[]>([]);
-  const [countryIntel, setCountryIntel]   = useState<CountryIntel[]>([]);
-  const [userId, setUserId]               = useState<string | undefined>();
+  const [snapshot, setSnapshot]         = useState<any>(null);
+  const [predictions, setPredictions]   = useState<Prediction[]>([]);
+  const [signals, setSignals]           = useState<WorldSignal[]>([]);
+  const [worldPreds, setWorldPreds]     = useState<WorldPrediction[]>([]);
+  const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
+  const [userId, setUserId]             = useState<string | undefined>();
 
-  // UI state
+  // UI
   const [activeHorizon, setActiveHorizon] = useState<'1_week' | '1_month' | '1_year'>('1_week');
   const [assetFilter, setAssetFilter]     = useState('all');
   const [activeDomain, setActiveDomain]   = useState('all');
   const [votingId, setVotingId]           = useState<string | null>(null);
   const [selectedPred, setSelectedPred]   = useState<WorldPrediction | null>(null);
-  const [selectedCountry, setSelectedCountry] = useState<{ intel: CountryIntel; sic: any } | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<CountryIntel | null>(null);
 
-  // Auth
-  // Scroll to top on mount — must target the inner overflow-y-auto container, not window
-  useEffect(() => {
-    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    window.scrollTo(0, 0);
-  }, []);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; window.scrollTo(0, 0); }, []);
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
-  }, []);
-
-  // Fetch: market snapshot
   const fetchSnapshot = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from('ayn_market_snapshot')
-        .select('snapshot, fetched_at')
-        .eq('singleton_key', 1)
-        .single();
+      const { data } = await supabase.from('ayn_market_snapshot').select('snapshot,fetched_at').eq('singleton_key', 1).single();
       if (data) setSnapshot(data);
     } catch {}
   }, []);
 
-  // Fetch: price predictions
   const fetchPredictions = useCallback(async () => {
     try {
-      const { data: calibData } = await supabase
-        .from('ayn_accuracy_calibration' as any)
-        .select('asset, real_accuracy_pct, reliability_tier, should_show_uncertainty, calibration_factor');
+      const { data: calibData } = await supabase.from('ayn_accuracy_calibration' as any).select('asset,real_accuracy_pct,reliability_tier,should_show_uncertainty,calibration_factor');
       const calibMap: Record<string, any> = {};
       for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
-
-      const { data: consensus } = await supabase
-        .from('ayn_consensus_predictions' as any)
+      const { data: consensus } = await supabase.from('ayn_consensus_predictions' as any)
         .select('id,asset,horizon,target_date,baseline_value,consensus_direction,consensus_pct_change,consensus_confidence,consensus_strength,ayn_reasoning,agreement,fusion_method,boost_factor')
-        .eq('status', 'active')
-        .order('consensus_confidence', { ascending: false })
-        .limit(60);
-
-      const { data: aynPreds } = await supabase
-        .from('ayn_predictions')
+        .eq('status', 'active').order('consensus_confidence', { ascending: false }).limit(60);
+      const { data: aynPreds } = await supabase.from('ayn_predictions')
         .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning,generated_by')
-        .eq('status', 'active')
-        .in('generated_by', ['ayn_prediction_engine_v10', 'ayn_prediction_engine_v9'])
-        .order('confidence', { ascending: false })
-        .limit(60);
-
+        .eq('status', 'active').in('generated_by', ['ayn_prediction_engine_v10', 'ayn_prediction_engine_v9'])
+        .order('confidence', { ascending: false }).limit(60);
       const preds = (consensus && consensus.length > 0)
         ? (consensus as any[]).map(c => ({
-          id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
-          baseline_value: Number(c.baseline_value),
-          predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
-          predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
-          predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
-          predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
-          predicted_pct_change: Number(c.consensus_pct_change),
-          confidence: Number(c.consensus_confidence || 50),
-          calibration: calibMap[c.asset] || null,
-          reasoning: c.ayn_reasoning || '',
-          generated_by: 'consensus', consensus_strength: c.consensus_strength,
-          agreement: c.agreement, fusion_method: c.fusion_method, boost_factor: c.boost_factor,
-          agree_count: 0, disagree_count: 0, user_vote: null,
-        }))
+            id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
+            baseline_value: Number(c.baseline_value),
+            predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
+            predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
+            predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
+            predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
+            predicted_pct_change: Number(c.consensus_pct_change),
+            confidence: Number(c.consensus_confidence || 50),
+            calibration: calibMap[c.asset] || null,
+            reasoning: c.ayn_reasoning || '',
+            generated_by: 'consensus', consensus_strength: c.consensus_strength,
+            agreement: c.agreement, fusion_method: c.fusion_method, boost_factor: c.boost_factor,
+            agree_count: 0, disagree_count: 0, user_vote: null,
+          }))
         : (aynPreds || []).map(p => ({
-          ...p,
-          baseline_value: Number(p.baseline_value),
-          predicted_value: Number(p.predicted_value),
-          predicted_low: Number(p.predicted_low),
-          predicted_high: Number(p.predicted_high),
-          predicted_pct_change: Number(p.predicted_pct_change),
-          predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
-          confidence: Number(p.confidence || 50),
-          calibration: calibMap[p.asset] || null,
-          agree_count: 0, disagree_count: 0, user_vote: null,
-        }));
-
+            ...p, baseline_value: Number(p.baseline_value), predicted_value: Number(p.predicted_value),
+            predicted_low: Number(p.predicted_low), predicted_high: Number(p.predicted_high),
+            predicted_pct_change: Number(p.predicted_pct_change),
+            predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
+            confidence: Number(p.confidence || 50), calibration: calibMap[p.asset] || null,
+            agree_count: 0, disagree_count: 0, user_vote: null,
+          }));
       if (!preds.length) return;
-
-      const { data: voteCounts } = await supabase
-        .from('ayn_prediction_vote_counts' as any)
-        .select('prediction_id,agree_count,disagree_count');
-
+      const { data: voteCounts } = await supabase.from('ayn_prediction_vote_counts' as any).select('prediction_id,agree_count,disagree_count');
       let userVoteMap: Record<string, 'agree' | 'disagree'> = {};
       if (userId) {
-        const { data: uv } = await supabase.from('ayn_prediction_votes')
-          .select('prediction_id,vote').eq('user_id', userId)
-          .in('prediction_id', preds.map(p => p.id));
+        const { data: uv } = await supabase.from('ayn_prediction_votes').select('prediction_id,vote').eq('user_id', userId).in('prediction_id', preds.map(p => p.id));
         if (uv) userVoteMap = Object.fromEntries(uv.map(v => [v.prediction_id, v.vote as 'agree' | 'disagree']));
       }
       const vMap = Object.fromEntries((voteCounts || []).map((v: any) => [v.prediction_id, v]));
-      setPredictions(preds.map(p => ({
-        ...p,
-        agree_count: vMap[p.id]?.agree_count || 0,
-        disagree_count: vMap[p.id]?.disagree_count || 0,
-        user_vote: (userVoteMap[p.id] || null) as 'agree' | 'disagree' | null,
-      })));
+      setPredictions(preds.map(p => ({ ...p, agree_count: vMap[p.id]?.agree_count || 0, disagree_count: vMap[p.id]?.disagree_count || 0, user_vote: (userVoteMap[p.id] || null) as any })));
     } catch (e) { console.error('predictions:', e); }
   }, [userId]);
 
-  // Fetch: world signals
   const fetchSignals = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from('ayn_world_signals')
-        .select('*')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(30);
+      const { data } = await supabase.from('ayn_world_signals').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(30);
       if (data) setSignals(data as WorldSignal[]);
     } catch {}
   }, []);
 
-  // Fetch: world predictions (all domains)
   const fetchWorldPreds = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from('ayn_world_predictions')
+      const { data } = await supabase.from('ayn_world_predictions')
         .select('id,domain,region,title,confidence,probability,what_is_happening,what_it_means,who_wins,who_gets_hurt,historical_parallel,what_to_do_now,actionable_move,financial_trigger,escalation_risk,conflict_signals,key_drivers,main_risks,tags')
-        .eq('status', 'active')
-        .order('confidence', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .eq('status', 'active').order('confidence', { ascending: false }).order('created_at', { ascending: false }).limit(100);
       if (data) setWorldPreds(data as WorldPrediction[]);
     } catch {}
   }, []);
 
-  // Fetch: country intel
   const fetchCountryIntel = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from('ayn_country_intelligence')
-        .select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities')
-        .limit(20);
+      const { data } = await supabase.from('ayn_country_intelligence').select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities').limit(20);
       if (data) setCountryIntel(data as CountryIntel[]);
     } catch {}
   }, []);
 
-  // Boot
   useEffect(() => {
     fetchSnapshot().finally(() => setLoading(false));
     setTimeout(() => fetchSignals(), 200);
@@ -562,19 +383,19 @@ export default function WorldIntelligence() {
     } finally { setVotingId(null); }
   };
 
-  // Derived data
-  const snap       = useMemo(() => safeObj(snapshot?.snapshot), [snapshot]);
-  const macro      = useMemo(() => safeObj(snap.macro), [snap]);
-  const sentiment  = useMemo(() => safeObj(safeObj(snap.markets)?.sentiment), [snap]);
+  // Derived
+  const snap         = useMemo(() => safeObj(snapshot?.snapshot), [snapshot]);
+  const macro        = useMemo(() => safeObj(snap.macro), [snap]);
+  const sentiment    = useMemo(() => safeObj(safeObj(snap.markets)?.sentiment), [snap]);
   const cryptoPrices = useMemo(() => safeObj(safeObj(safeObj(snap.markets)?.crypto)?.crypto_prices), [snap]);
-  const sicIntel   = useMemo(() => safeObj(snap.sic_intel), [snap]);
-  const briefItems = useMemo(() => {
+  const sicIntel     = useMemo(() => safeObj(snap.sic_intel), [snap]);
+  const briefItems   = useMemo(() => {
     const fromDB = safeArr(snap.intelligence_brief);
     if (fromDB.length) return fromDB;
     const items: string[] = [];
-    if (sentiment.value != null) items.push(`📊 Fear & Greed at ${sentiment.value} — ${sentiment.classification || 'monitoring markets'}.`);
+    if (sentiment.value != null) items.push(`📊 Fear & Greed at ${sentiment.value} — ${sentiment.classification || 'monitoring'}.`);
     const fed = safeObj(macro.fed_funds_rate);
-    if (fed.value) items.push(`⚡ Fed Rate at ${fed.value}% — central bank policy dominant macro driver.`);
+    if (fed.value) items.push(`⚡ Fed Rate at ${fed.value}% — policy dominant macro driver.`);
     return items.length ? items : ['⏳ Intelligence brief populates on next data sweep.'];
   }, [snap, sentiment, macro]);
 
@@ -586,144 +407,157 @@ export default function WorldIntelligence() {
     const t10 = safeObj(macro.treasury_10yr);
     if (fed.value) items.push({ label: 'FED', value: `${fed.value}%` });
     if (t10.value) items.push({ label: '10Y', value: `${t10.value}%` });
-    if (sentiment.value) items.push({ label: 'F&G', value: `${sentiment.value} · ${sentiment.classification || ''}` });
+    if (sentiment.value) items.push({ label: 'F&G', value: `${sentiment.value}` });
     return items;
   }, [cryptoPrices, macro, sentiment]);
 
-  // Filtered predictions
   const filteredPreds = useMemo(() => {
     const seen = new Set<string>();
+    const ORDER = ['btc', 'eth', 'gold', 'silver', 'oil', 'copper', 'wheat', 'usd_jpy'];
     return predictions
       .filter(p => p.horizon === activeHorizon && (assetFilter === 'all' || p.asset === assetFilter))
-      .filter(p => {
-        const key = `${p.asset}-${p.horizon}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a, b) => {
-        const ORDER = ['btc', 'eth', 'gold', 'silver', 'oil', 'copper', 'wheat', 'usd_jpy'];
-        const ai = ORDER.indexOf(a.asset); const bi = ORDER.indexOf(b.asset);
-        if (ai === -1 && bi === -1) return a.asset.localeCompare(b.asset);
-        if (ai === -1) return 1; if (bi === -1) return -1;
-        return ai - bi;
-      });
+      .filter(p => { const k = `${p.asset}-${p.horizon}`; if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a, b) => { const ai = ORDER.indexOf(a.asset); const bi = ORDER.indexOf(b.asset); if (ai === -1 && bi === -1) return 0; if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; });
   }, [predictions, activeHorizon, assetFilter]);
 
-  // Available domains in world predictions
   const domains = useMemo(() => {
     const CORE = ['all', 'warnings', 'conflicts', 'geopolitics', 'economy', 'technology', 'jobs', 'regions', 'business'];
     const inDB = [...new Set(worldPreds.map(p => p.domain.toLowerCase()))];
     return CORE.filter(d => d === 'all' || inDB.includes(d));
   }, [worldPreds]);
 
-  // Normalise domain matching
-  const filteredWorldPreds = useMemo(() => {
-    return worldPreds
-      .filter(p => activeDomain === 'all' || p.domain.toLowerCase() === activeDomain)
-      .slice(0, 24);
-  }, [worldPreds, activeDomain]);
+  const filteredWorldPreds = useMemo(() =>
+    worldPreds.filter(p => activeDomain === 'all' || p.domain.toLowerCase() === activeDomain).slice(0, 24),
+  [worldPreds, activeDomain]);
 
-  // Map points
   const mapPoints: MapPoint[] = useMemo(() => {
     const pts: MapPoint[] = [...INTELLIGENCE_SEEDS];
     Object.entries(sicIntel).forEach(([code, d]) => {
-      const coords = SIC_COORDS[code];
-      if (!coords) return;
+      const coords = SIC_COORDS[code]; if (!coords) return;
       const data = d as any;
-      const alreadyCovered = pts.some(p =>
-        Math.abs(p.coordinates[0] - coords[0]) < 3 &&
-        Math.abs(p.coordinates[1] - coords[1]) < 3
-      );
-      if (!alreadyCovered) pts.push({
-        id: code, coordinates: coords,
-        label: data.name || code,
-        risk: data.risk_level === 'CRITICAL' ? 'critical' : 'stable',
-        category: 'S.I.C.',
-        detail: 'Click for dossier →',
-      });
+      if (!pts.some(p => Math.abs(p.coordinates[0] - coords[0]) < 3 && Math.abs(p.coordinates[1] - coords[1]) < 3))
+        pts.push({ id: code, coordinates: coords, label: data.name || code, risk: data.risk_level === 'CRITICAL' ? 'critical' : 'stable', category: 'S.I.C.', detail: 'Click for dossier →' });
     });
     return pts;
   }, [sicIntel]);
 
   const handleMapClick = (pt: MapPoint) => {
-    const ISO2: Record<string, string> = {
-      US: 'USA', CN: 'CHN', DE: 'EU', GB: 'GBR', SA: 'SAU', AE: 'ARE',
-      JP: 'JPN', IN: 'IND', BR: 'BRA', RU: 'RUS', KR: 'KOR', ZA: 'ZAF',
-      CA: 'CAN', AU: 'AUS', FR: 'EU',
-    };
+    const ISO2: Record<string, string> = { US:'USA',CN:'CHN',DE:'EU',GB:'GBR',SA:'SAU',AE:'ARE',JP:'JPN',IN:'IND',BR:'BRA',RU:'RUS',KR:'KOR',ZA:'ZAF',CA:'CAN',AU:'AUS',FR:'EU' };
     if (!pt.id) return;
     const intel = countryIntel.find(c => ISO2[c.country_code] === pt.id || c.country_code === pt.id);
-    if (intel) setSelectedCountry({ intel, sic: sicIntel[pt.id] || {} });
+    if (intel) setSelectedCountry(intel);
   };
 
+  // ── Signal counts ─────────────────────────────────────────────────────────
+  const criticalCount = signals.filter(s => s.severity === 'critical').length;
+  const highCount     = signals.filter(s => s.severity === 'high').length;
+
   if (loading) return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center">
-      <div className="text-center space-y-3">
-        <Globe2 className="w-10 h-10 text-cyan-400 animate-pulse mx-auto" />
-        <p className="text-cyan-400 text-[10px] font-mono tracking-[0.3em]">LOADING INTELLIGENCE</p>
+    <div className="min-h-screen bg-[#030610] flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="relative w-16 h-16 mx-auto">
+          <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin" />
+          <Globe2 className="w-7 h-7 text-cyan-400/60 absolute inset-0 m-auto" />
+        </div>
+        <p className="text-cyan-400/70 text-[10px] font-mono tracking-[0.4em] uppercase">Initializing Intelligence</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white font-mono flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#030610] text-white font-mono flex flex-col overflow-x-hidden">
       <style>{`
-        @keyframes ticker { 0% { transform: translateX(0) } 100% { transform: translateX(-50%) } }
-        .scrollbar-thin::-webkit-scrollbar { width: 3px }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 99px }
+        @keyframes wi-ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+        @keyframes wi-scanline { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+        @keyframes wi-pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+        @keyframes wi-glow-in { from{opacity:0;transform:scale(0.97) translateY(6px)} to{opacity:1;transform:scale(1) translateY(0)} }
+        .wi-scrollbar::-webkit-scrollbar{width:2px} .wi-scrollbar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.06);border-radius:99px}
       `}</style>
 
+      {/* ── Scanline atmosphere overlay ─────────────────────────────────────── */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(0,255,200,0.03) 0%, transparent 60%), radial-gradient(ellipse at 100% 100%, rgba(0,100,255,0.03) 0%, transparent 50%)' }} />
+      </div>
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="shrink-0 border-b border-white/6 bg-black/80 backdrop-blur-xl z-50 h-12 flex items-center">
-        <div className="flex items-center justify-between px-4 w-full">
+      <header className="shrink-0 z-50 h-13 flex items-center" style={{ background: 'rgba(3,6,16,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center justify-between px-4 w-full h-full">
+          {/* Left */}
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-1.5 rounded hover:bg-white/5 transition-colors">
+            <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg hover:bg-white/6 transition-colors">
               <ArrowLeft className="w-4 h-4 text-white/40" />
             </button>
+            <div className="w-px h-5 bg-white/8" />
             <div className="flex items-center gap-2">
-              <div className="relative w-2 h-2">
-                <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,255,200,0.6)]" />
-                <div className="absolute inset-0 rounded-full bg-cyan-400 animate-ping opacity-25" />
-              </div>
-              <span className="text-[11px] text-cyan-400 tracking-[0.18em] font-bold">AYN WORLD INTELLIGENCE</span>
+              <PulsatingButton pulseColor="rgba(0,255,200,0.45)" pulseDuration={3} className="w-2 h-2 rounded-full bg-cyan-400 cursor-default p-0 border-0 min-w-0 min-h-0" style={{ padding: 0, width: 8, height: 8 }}><span /></PulsatingButton>
+              <span className="text-[11px] font-black tracking-[0.2em] text-cyan-400">AYN // WORLD INTELLIGENCE</span>
+            </div>
+
+            {/* ── VIEW TABS ─────────────────────────────────────────────── */}
+            <div className="hidden sm:flex items-center gap-0.5 ml-4 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              {([
+                { id: 'world',  icon: Globe2, label: 'WORLD MAP' },
+                { id: 'agents', icon: Users,  label: 'AGENT SOCIETY' },
+              ] as const).map(tab => (
+                <button key={tab.id} onClick={() => setActiveView(tab.id)}
+                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black tracking-[0.12em] transition-all duration-200 uppercase',
+                    activeView === tab.id
+                      ? 'text-cyan-400 bg-cyan-500/12 border border-cyan-500/25 shadow-[0_0_12px_rgba(0,255,200,0.08)]'
+                      : 'text-white/30 hover:text-white/60 hover:bg-white/4')}>
+                  <tab.icon className="w-3 h-3" />
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-[9px] text-white/18 tabular-nums">{format(currentTime, 'HH:mm')} UTC</span>
-            {snapshot?.fetched_at && (
-              <span className="hidden md:block text-[9px] text-white/15">Updated {timeAgo(snapshot.fetched_at)}</span>
+
+          {/* Right */}
+          <div className="flex items-center gap-2">
+            {/* Signal status */}
+            {criticalCount > 0 && (
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/25">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                <span className="text-[8px] font-black text-red-400 tracking-wider">{criticalCount} CRITICAL</span>
+              </div>
             )}
-            <PulsatingButton
-              pulseColor="rgba(16,185,129,0.5)"
-              pulseDuration={2.5}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/8 border border-emerald-500/15 cursor-default"
-            >
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span className="text-[9px] font-bold text-emerald-400">LIVE</span>
-            </PulsatingButton>
-            <ShimmerButton
-              onClick={() => { setRefreshing(true); Promise.all([fetchSnapshot(), fetchSignals(), fetchWorldPreds(), fetchPredictions()]).finally(() => setRefreshing(false)); }}
-              disabled={refreshing}
-              shimmerColor="rgba(0,255,200,0.12)"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] text-white/35 hover:text-cyan-400 hover:bg-white/4 border border-white/8 transition-all"
-            >
-              <RefreshCw className={cn('w-3 h-3', refreshing && 'animate-spin')} /> SWEEP
+            <span className="hidden lg:block text-[8px] text-white/15 tabular-nums">{format(currentTime, 'HH:mm')} UTC</span>
+            {snapshot?.fetched_at && <span className="hidden xl:block text-[8px] text-white/12">Updated {timeAgo(snapshot.fetched_at)}</span>}
+
+            <ShimmerButton onClick={() => { setRefreshing(true); Promise.all([fetchSnapshot(), fetchSignals(), fetchWorldPreds(), fetchPredictions()]).finally(() => setRefreshing(false)); }}
+              disabled={refreshing} shimmerColor="rgba(0,255,200,0.1)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black text-white/35 hover:text-cyan-400 border border-white/8 hover:border-cyan-500/25 transition-all">
+              <RefreshCw className={cn('w-3 h-3', refreshing && 'animate-spin')} />
+              SWEEP
             </ShimmerButton>
           </div>
         </div>
       </header>
 
-      {/* ── Ticker ─────────────────────────────────────────────────────────── */}
+      {/* ── Mobile view tabs ─────────────────────────────────────────────────── */}
+      <div className="sm:hidden flex items-center gap-1 p-2 border-b border-white/6" style={{ background: 'rgba(3,6,16,0.9)' }}>
+        {([
+          { id: 'world', icon: Globe2, label: 'WORLD MAP' },
+          { id: 'agents', icon: Users, label: 'AGENT SOCIETY' },
+        ] as const).map(tab => (
+          <button key={tab.id} onClick={() => setActiveView(tab.id)}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[9px] font-black tracking-wider transition-all',
+              activeView === tab.id ? 'text-cyan-400 bg-cyan-500/12 border border-cyan-500/25' : 'text-white/30')}>
+            <tab.icon className="w-3 h-3" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Live price ticker ─────────────────────────────────────────────────── */}
       {tickerItems.length > 0 && (
-        <div className="shrink-0 overflow-hidden border-b border-white/5 bg-black/60 h-7">
-          <div className="flex animate-[ticker_90s_linear_infinite] gap-10 items-center h-full px-4 whitespace-nowrap">
+        <div className="shrink-0 overflow-hidden h-7 border-b border-white/4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="flex animate-[wi-ticker_80s_linear_infinite] gap-10 items-center h-full px-4 whitespace-nowrap">
             {[...tickerItems, ...tickerItems].map((item, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 text-[10px] font-mono">
-                <span className="text-white/25">{item.label}</span>
-                <span className="text-white/65 font-semibold">{item.value}</span>
+              <span key={i} className="inline-flex items-center gap-1.5 text-[9px] font-mono">
+                <span className="text-white/20 font-black tracking-wider">{item.label}</span>
+                <span className="text-white/60 font-black">{item.value}</span>
                 {item.change !== undefined && (
-                  <span className={cn('font-bold', item.change > 0 ? 'text-emerald-400' : item.change < 0 ? 'text-red-400' : 'text-white/20')}>
+                  <span className={cn('font-black text-[8px]', item.change > 0 ? 'text-emerald-400' : item.change < 0 ? 'text-red-400' : 'text-white/15')}>
                     {item.change > 0 ? '▲' : '▼'}{Math.abs(item.change).toFixed(2)}%
                   </span>
                 )}
@@ -733,330 +567,370 @@ export default function WorldIntelligence() {
         </div>
       )}
 
-      <div className="flex-1 overflow-x-hidden overflow-y-auto" ref={scrollContainerRef}>
-        <div className="w-full max-w-[1440px] mx-auto px-3 pt-4 sm:px-4 lg:px-5 space-y-8 pb-10">
+      {/* ── Main content ───────────────────────────────────────────────────────── */}
+      <div ref={scrollRef} className="flex-1 overflow-x-hidden overflow-y-auto wi-scrollbar relative z-10">
+        <AnimatePresence mode="wait">
 
-          {/* ── 1. PARTICLE CANVAS + MAP ─────────────────────────────── */}
-          <ParticleCanvas
-            particleCount={60000}
-            className="rounded-2xl"
-            style={{ height: 460 }}
-          >
-            {/* Map sits on top of particle field */}
-            <div className="w-full h-full" style={{ background: 'rgba(0,0,0,0.45)' }}>
-              <HeatMap2D
-                points={mapPoints}
-                height={460}
-                onPointClick={handleMapClick}
-                showLayerToggle={true}
-                isLive={true}
-                ticker={THREAT_TICKER}
-              />
-            </div>
-          </ParticleCanvas>
+          {/* ════════════════════════════════════════════════════════════════
+              WORLD VIEW
+          ════════════════════════════════════════════════════════════════ */}
+          {activeView === 'world' && (
+            <motion.div key="world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
-          {/* ── 2. INTELLIGENCE BRIEF + SENTIMENT ───────────────────────── */}
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5">
-            {/* Brief */}
-            <GlassCard className="overflow-hidden p-0">
-              <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5 bg-gradient-to-r from-emerald-500/6 to-transparent">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
-                <Radio className="w-4 h-4 text-emerald-400" />
-                <span className="text-[11px] font-mono font-bold text-emerald-400 tracking-widest uppercase">Intelligence Brief</span>
-              </div>
-              <div className="p-4 space-y-2">
-                {briefItems.map((item, i) => (
-                  <div key={i} className={cn('text-[11px] font-mono leading-relaxed py-2.5 px-4 border-l-2 rounded-r-lg',
-                    String(item).toLowerCase().includes('fear') || String(item).includes('⚠')
-                      ? 'border-l-red-500/50 text-red-200/60 bg-red-500/4'
-                      : 'border-l-emerald-400/30 text-white/55 bg-white/2')}>
-                    {String(item)}
+              {/* ── HERO: Particle field + Globe (full width, tall) ──────── */}
+              <ParticleCanvas particleCount={80000} className="w-full relative" style={{ height: 560 }}>
+                {/* Dark vignette so globe pops */}
+                <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 30%, rgba(3,6,16,0.7) 100%)' }} />
+                <div className="w-full h-full" style={{ background: 'rgba(0,0,0,0.15)' }}>
+                  <HeatMap2D
+                    points={mapPoints}
+                    height={560}
+                    onPointClick={handleMapClick}
+                    showLayerToggle={true}
+                    isLive={true}
+                    ticker={THREAT_TICKER}
+                  />
+                </div>
+                {/* Stat overlay: top-right corner of globe */}
+                <div className="absolute top-16 right-4 flex flex-col gap-2 pointer-events-none">
+                  {signals.length > 0 && (
+                    <GlassCard className="px-3 py-2 pointer-events-none">
+                      <div className="text-[7px] text-white/25 uppercase tracking-wider mb-1">Live Signals</div>
+                      <div className="text-xl font-black text-white/90">{signals.length}</div>
+                      {criticalCount > 0 && <div className="text-[8px] text-red-400 font-black">{criticalCount} critical</div>}
+                    </GlassCard>
+                  )}
+                  {worldPreds.length > 0 && (
+                    <GlassCard className="px-3 py-2 pointer-events-none">
+                      <div className="text-[7px] text-white/25 uppercase tracking-wider mb-1">Predictions</div>
+                      <div className="text-xl font-black text-white/90">{worldPreds.length}</div>
+                    </GlassCard>
+                  )}
+                </div>
+              </ParticleCanvas>
+
+              <div className="max-w-[1440px] mx-auto px-3 sm:px-4 lg:px-5 py-6 space-y-8">
+
+                {/* ── INTEL BRIEF + MARKET SNAPSHOT ──────────────────────── */}
+                <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
+                  {/* Brief */}
+                  <GlassCard className="overflow-hidden p-0">
+                    <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.05), transparent)' }}>
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
+                      <Radio className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] font-black text-emerald-400 tracking-[0.2em] uppercase">Intelligence Brief</span>
+                      <div className="flex-1" />
+                      <span className="text-[7px] text-white/15">AYN GLOBAL · LIVE</span>
+                    </div>
+                    <div className="p-4 space-y-1.5">
+                      {briefItems.map((item, i) => (
+                        <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                          className={cn('text-[11px] font-mono leading-relaxed py-2.5 px-4 rounded-r-lg border-l-2',
+                            String(item).includes('⚠') || String(item).toLowerCase().includes('fear')
+                              ? 'border-l-red-500/60 text-red-200/65 bg-red-500/5'
+                              : 'border-l-emerald-400/35 text-white/52 bg-white/[0.02]')}>
+                          {String(item)}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </GlassCard>
+
+                  {/* Market snapshot */}
+                  <div className="space-y-3">
+                    <GlassCard className="p-4">
+                      <div className="text-[8px] text-white/25 uppercase tracking-[0.2em] mb-3 font-black">Sentiment</div>
+                      <div className={cn('text-5xl font-black mb-1 tabular-nums',
+                        (sentiment.value||0) <= 25 ? 'text-red-400' : (sentiment.value||0) <= 45 ? 'text-orange-400' : (sentiment.value||0) <= 55 ? 'text-amber-400' : 'text-emerald-400')}>
+                        {sentiment.value ?? '—'}
+                      </div>
+                      <div className="text-[9px] text-white/30 mb-3">{sentiment.classification || 'Fear & Greed'}</div>
+                      <div className="h-1.5 bg-white/6 rounded-full overflow-hidden">
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${sentiment.value || 0}%` }} transition={{ duration: 1, ease: 'easeOut' }}
+                          className={cn('h-full rounded-full', (sentiment.value||0) <= 45 ? 'bg-gradient-to-r from-red-600 to-orange-400' : 'bg-gradient-to-r from-emerald-600 to-emerald-400')} />
+                      </div>
+                    </GlassCard>
+                    <GlassCard className="p-4">
+                      <div className="text-[8px] text-white/25 uppercase tracking-[0.2em] mb-3 font-black">US Macro</div>
+                      {[
+                        { k: 'fed_funds_rate', label: 'Fed Rate', suffix: '%' },
+                        { k: 'treasury_10yr', label: '10Y Yield', suffix: '%' },
+                        { k: 'yield_curve', label: 'Yield Curve', field: 'signal' },
+                      ].map(({ k, label, suffix, field }) => {
+                        const d = safeObj(macro[k]); const val = field ? d[field as keyof typeof d] : d.value;
+                        if (!val) return null;
+                        return (
+                          <div key={k} className="flex justify-between items-center py-2 border-b border-white/4 last:border-0">
+                            <span className="text-[10px] text-white/40">{label}</span>
+                            <span className="text-[13px] text-white/85 font-black">{String(val)}{suffix||''}</span>
+                          </div>
+                        );
+                      })}
+                    </GlassCard>
                   </div>
-                ))}
-              </div>
-            </GlassCard>
+                </div>
 
-            {/* Sentiment + Macro */}
-            <div className="space-y-4">
-              <GlassCard className="p-5">
-                <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">Market Sentiment</div>
-                <div className={cn('text-5xl font-mono font-bold mb-1',
-                  (sentiment.value || 0) <= 25 ? 'text-red-400' : (sentiment.value || 0) <= 45 ? 'text-orange-400' : 'text-emerald-400')}>
-                  {sentiment.value ?? '—'}
-                </div>
-                <div className="text-[10px] text-white/30 mb-3 font-mono">{sentiment.classification || 'Fear & Greed Index'}</div>
-                <div className="h-2 bg-white/6 rounded-full overflow-hidden">
-                  <div className={cn('h-full rounded-full transition-all duration-1000',
-                    (sentiment.value || 0) <= 25 ? 'bg-gradient-to-r from-red-600 to-red-400' : 'bg-gradient-to-r from-emerald-600 to-emerald-400')}
-                    style={{ width: `${sentiment.value || 0}%` }} />
-                </div>
-              </GlassCard>
-              <GlassCard className="p-5">
-                <div className="text-[9px] text-white/30 uppercase tracking-widest mb-3 font-mono font-bold">US Macro</div>
-                <div className="space-y-2.5">
-                  {[
-                    { k: 'fed_funds_rate', label: 'Fed Rate', suffix: '%' },
-                    { k: 'treasury_10yr', label: '10Y Yield', suffix: '%' },
-                    { k: 'unemployment_rate', label: 'Unemployment', suffix: '%' },
-                    { k: 'yield_curve', label: 'Yield Curve', field: 'signal' },
-                  ].map(({ k, label, suffix, field }) => {
-                    const d = safeObj(macro[k]);
-                    const val = field ? d[field as keyof typeof d] : d.value;
-                    if (!val) return null;
-                    return (
-                      <div key={k} className="flex justify-between items-center py-2 border-b border-white/4 last:border-0">
-                        <span className="text-[11px] text-white/40 font-mono">{label}</span>
-                        <span className="text-[13px] text-white/80 font-mono font-bold">{String(val)}{suffix || ''}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </GlassCard>
-            </div>
-          </div>
-
-          {/* ── 3. LIVE SIGNALS ─────────────────────────────────────────── */}
-          {signals.length > 0 && (
-            <div>
-              <SectionHeader icon={AlertTriangle} label="Live World Signals" color="text-red-400" count={signals.length} />
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {signals.slice(0, 9).map(s => (
-                  <SpotlightCard key={s.id} spotlightColor="rgba(255,255,255,0.05)" spotlightSize={200}
-                    className={cn('bg-black/50 border rounded-xl p-4 relative overflow-hidden',
-                    s.severity === 'critical' ? 'border-red-500/20' : s.severity === 'high' ? 'border-orange-500/15' : 'border-white/6')}>
-                    <BorderBeam
-                      colorFrom={s.severity === 'critical' ? 'rgba(239,68,68,0.7)' : s.severity === 'high' ? 'rgba(251,146,60,0.6)' : 'rgba(255,255,255,0.15)'}
-                      colorTo="transparent" duration={s.severity === 'critical' ? 3 : 5} size={60} />
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={cn('text-[8px] font-mono font-bold px-2 py-0.5 rounded-full border uppercase',
-                        SEVERITY_COLOR[s.severity] || SEVERITY_COLOR.low)}>
-                        {s.severity}
-                      </span>
-                      <span className="text-[8px] font-mono text-white/20 uppercase">{s.region?.replace('_', ' ')}</span>
+                {/* ── LIVE SIGNALS ─────────────────────────────────────────── */}
+                {signals.length > 0 && (
+                  <section>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-1 h-5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                      <AlertTriangle className="w-4 h-4 text-red-400" />
+                      <span className="text-[10px] font-black text-red-400 tracking-[0.18em] uppercase">Live World Signals</span>
+                      <span className="text-[8px] font-mono text-white/18">{signals.length} active</span>
+                      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(239,68,68,0.3), transparent)' }} />
                     </div>
-                    <p className="text-[11px] font-mono text-white/70 leading-snug mb-3">{s.headline}</p>
-                    <div className="flex items-center gap-3 text-[9px] font-mono">
-                      <span className={cn(IMPACT_COLOR[s.impact_on_oil] || 'text-white/30')}>
-                        🛢️ Oil {IMPACT_ICON[s.impact_on_oil] || ''}
-                      </span>
-                      <span className={cn(IMPACT_COLOR[s.impact_on_gold] || 'text-white/30')}>
-                        🥇 Gold {IMPACT_ICON[s.impact_on_gold] || ''}
-                      </span>
-                      {s.countries_involved?.length > 0 && (
-                        <span className="text-white/20 ml-auto">{s.countries_involved.slice(0, 2).join(' · ')}</span>
-                      )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {signals.slice(0, 9).map((s, idx) => (
+                        <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
+                          <SpotlightCard spotlightColor="rgba(255,255,255,0.04)" spotlightSize={220}
+                            className={cn('rounded-xl p-4 border relative overflow-hidden h-full',
+                              s.severity === 'critical' ? 'border-red-500/25 bg-red-500/5'
+                              : s.severity === 'high' ? 'border-orange-500/18 bg-orange-500/4'
+                              : 'border-white/7 bg-white/[0.02]')}>
+                            <BorderBeam
+                              colorFrom={s.severity === 'critical' ? 'rgba(239,68,68,0.8)' : s.severity === 'high' ? 'rgba(251,146,60,0.6)' : 'rgba(255,255,255,0.12)'}
+                              colorTo="transparent" duration={s.severity === 'critical' ? 2.5 : 5} size={50} />
+                            <div className="flex items-center gap-2 mb-2.5">
+                              <div className={cn('w-2 h-2 rounded-full shrink-0', SEVERITY_DOT[s.severity] || SEVERITY_DOT.low)} style={{ animation: s.severity === 'critical' ? 'wi-pulse-dot 1s ease-in-out infinite' : undefined }} />
+                              <span className={cn('text-[7px] font-black uppercase tracking-[0.18em] px-2 py-0.5 rounded-full border',
+                                s.severity === 'critical' ? 'text-red-400 border-red-500/35 bg-red-500/10'
+                                : s.severity === 'high' ? 'text-orange-400 border-orange-500/30 bg-orange-500/8'
+                                : 'text-white/35 border-white/10 bg-white/4')}>
+                                {s.severity}
+                              </span>
+                              <span className="text-[7px] font-mono text-white/20 uppercase ml-auto">{s.region?.replace('_', ' ')}</span>
+                            </div>
+                            <p className="text-[11px] font-mono text-white/80 leading-snug mb-3 font-bold">{s.headline}</p>
+                            <div className="flex items-center gap-3 pt-2 border-t border-white/5">
+                              {[
+                                { label: '🛢️', val: s.impact_on_oil },
+                                { label: '🥇', val: s.impact_on_gold },
+                              ].map(({ label, val }) => val && val !== 'stable' && (
+                                <span key={label} className={cn('text-[8px] font-mono font-black flex items-center gap-1',
+                                  val === 'spike' ? 'text-red-400' : val === 'drop' ? 'text-emerald-400' : 'text-amber-400')}>
+                                  {label} {val === 'spike' ? '↑' : val === 'drop' ? '↓' : '~'}
+                                </span>
+                              ))}
+                              {s.countries_involved?.length > 0 && (
+                                <span className="text-[7px] font-mono text-white/20 ml-auto">{s.countries_involved.slice(0, 2).join(' · ')}</span>
+                              )}
+                            </div>
+                          </SpotlightCard>
+                        </motion.div>
+                      ))}
                     </div>
-                  </SpotlightCard>
-                ))}
-              </div>
-            </div>
-          )}
+                  </section>
+                )}
 
-          {/* ── 4. WORLD PREDICTIONS (all domains) ──────────────────────── */}
-          {worldPreds.length > 0 && (
-            <div>
-              <SectionHeader icon={Globe2} label="Global Intelligence Predictions" color="text-cyan-400" count={worldPreds.length} />
+                {/* ── GLOBAL INTELLIGENCE PREDICTIONS ──────────────────────── */}
+                {worldPreds.length > 0 && (
+                  <section>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-1 h-5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,255,200,0.5)]" />
+                      <Globe2 className="w-4 h-4 text-cyan-400" />
+                      <span className="text-[10px] font-black text-cyan-400 tracking-[0.18em] uppercase">Global Intelligence</span>
+                      <span className="text-[8px] font-mono text-white/18">{worldPreds.length} predictions</span>
+                      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.25), transparent)' }} />
+                    </div>
 
-              {/* Domain filter tabs */}
-              <div className="flex flex-wrap gap-1.5 mb-4 bg-black/40 border border-white/8 rounded-xl p-2">
-                {domains.map(d => (
-                  <button key={d} onClick={() => setActiveDomain(d)}
-                    className={cn('px-3 py-1.5 rounded-lg text-[9px] font-mono font-bold transition-all capitalize',
-                      activeDomain === d
-                        ? cn('bg-white/10 border border-white/15', DOMAIN_COLORS[d] || 'text-white')
-                        : 'text-white/30 hover:text-white/60 hover:bg-white/4')}>
-                    {d === 'all' ? 'ALL DOMAINS' : (DOMAIN_LABELS[d] || d).toUpperCase()}
-                  </button>
-                ))}
-              </div>
+                    {/* Domain filter */}
+                    <div className="flex flex-wrap gap-1 mb-4 p-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      {domains.map(d => {
+                        const col = d === 'all' ? '#06b6d4' : (DOMAIN_COLOR[d] || '#9ca3af');
+                        return (
+                          <button key={d} onClick={() => setActiveDomain(d)}
+                            className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all"
+                            style={{
+                              color: activeDomain === d ? col : 'rgba(255,255,255,0.3)',
+                              background: activeDomain === d ? `${col}14` : 'transparent',
+                              border: activeDomain === d ? `1px solid ${col}35` : '1px solid transparent',
+                            }}>
+                            {d === 'all' ? 'ALL' : d.toUpperCase()}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredWorldPreds.map(p => {
-                  const domainColor = DOMAIN_COLORS[p.domain.toLowerCase()] || 'text-white/40';
-                  const isConflict = p.domain === 'conflicts' && p.escalation_risk;
-                  return (
-                    <PremiumCard key={p.id} showBeam={true}
-                      beamColor={isConflict && p.escalation_risk === 'critical' ? 'rgba(239,68,68,0.6)' : isConflict ? 'rgba(251,146,60,0.5)' : 'rgba(0,255,200,0.4)'}
-                      beamDuration={isConflict ? 4 : 7}
-                      spotlightColor="rgba(255,255,255,0.06)" spotlightSize={220}
-                      onClick={() => setSelectedPred(p)} role="button" tabIndex={0}
-                      onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && setSelectedPred(p)}
-                      className={cn('cursor-pointer group',
-                        isConflict && p.escalation_risk === 'critical' ? '!border-red-500/20'
-                          : isConflict ? '!border-orange-500/15'
-                          : '')} style={{}}>
-                      {/* Domain badge row */}
-                      <div className={cn('flex items-center justify-between px-4 py-2 border-b border-white/5',
-                        isConflict ? 'bg-red-500/4' : 'bg-white/2')}>
-                        <span className={cn('text-[8px] font-mono font-bold uppercase tracking-wider', domainColor)}>
-                          {DOMAIN_LABELS[p.domain.toLowerCase()] || p.domain}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {p.escalation_risk && (
-                            <span className={cn('text-[7px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase',
-                              SEVERITY_COLOR[p.escalation_risk] || SEVERITY_COLOR.low)}>
-                              {p.escalation_risk}
-                            </span>
-                          )}
-                          <span className="text-[8px] font-mono text-white/25">{p.confidence}%</span>
-                        </div>
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {filteredWorldPreds.map((p, idx) => {
+                        const col = DOMAIN_COLOR[p.domain?.toLowerCase()] || '#9ca3af';
+                        const isConflict = ['conflicts', 'warnings'].includes(p.domain?.toLowerCase());
+                        return (
+                          <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
+                            <PremiumCard
+                              showBeam beamColor={isConflict ? 'rgba(239,68,68,0.55)' : `${col}70`}
+                              beamDuration={isConflict ? 3.5 : 6}
+                              spotlightColor="rgba(255,255,255,0.05)" spotlightSize={200}
+                              onClick={() => setSelectedPred(p)} role="button" tabIndex={0}
+                              onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && setSelectedPred(p)}
+                              className={cn('cursor-pointer group h-full', isConflict && p.escalation_risk === 'critical' ? '!border-red-500/22' : isConflict ? '!border-orange-500/18' : '')}
+                              style={{}}>
+                              <div className="p-4">
+                                {/* Domain + region + confidence */}
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-[7px] font-black uppercase tracking-[0.18em] px-2 py-0.5 rounded-full" style={{ color: col, background: `${col}16`, border: `1px solid ${col}30` }}>
+                                    {p.domain}
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    {p.escalation_risk && (
+                                      <div className={cn('w-1.5 h-1.5 rounded-full', SEVERITY_DOT[p.escalation_risk] || 'bg-white/20')} />
+                                    )}
+                                    <span className="text-[8px] font-black text-white/35">{p.confidence}%</span>
+                                  </div>
+                                </div>
+                                <div className="text-[7px] font-mono text-white/25 uppercase tracking-wider mb-1.5">{p.region}</div>
+                                <h3 className="text-[12px] font-black text-white/85 leading-snug mb-2.5 group-hover:text-white transition-colors line-clamp-2">{p.title}</h3>
+                                <p className="text-[10px] font-mono text-white/40 leading-relaxed line-clamp-2 mb-3">{p.what_is_happening}</p>
+                                <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
+                                  <div className="flex gap-1.5">
+                                    {p.financial_trigger && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400/70">$ SIGNAL</span>}
+                                    {p.who_wins && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/18 text-emerald-400/70">WINNERS</span>}
+                                  </div>
+                                  <span className="text-[7px] font-mono text-white/18 group-hover:text-white/40 transition-colors">Analyse →</span>
+                                </div>
+                              </div>
+                            </PremiumCard>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
 
-                      {/* Content */}
-                      <div className="px-4 pt-3 pb-2">
-                        <div className="text-[8px] font-mono text-white/25 uppercase mb-1">{p.region}</div>
-                        <h3 className="text-[12px] font-mono font-bold text-white/85 leading-snug group-hover:text-white transition-colors line-clamp-2">
-                          {p.title}
-                        </h3>
-                      </div>
+                {/* ── PRICE PREDICTION ENGINE ───────────────────────────────── */}
+                <section>
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className="w-1 h-5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]" />
+                    <Target className="w-4 h-4 text-purple-400" />
+                    <span className="text-[10px] font-black text-purple-400 tracking-[0.18em] uppercase">Price Prediction Engine</span>
+                    <span className="text-[8px] font-mono text-white/18">{filteredPreds.length} active</span>
+                    <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(167,139,250,0.3), transparent)' }} />
+                  </div>
 
-                      <div className="px-4 pb-3">
-                        <p className="text-[10px] font-mono text-white/40 leading-relaxed line-clamp-2">
-                          {p.what_is_happening}
-                        </p>
-                      </div>
-
-                      <div className="px-4 pb-3 flex items-center justify-between">
-                        <div className="flex gap-1.5">
-                          {p.financial_trigger && (
-                            <span className="text-[7px] font-mono px-1.5 py-0.5 rounded bg-amber-500/8 border border-amber-500/15 text-amber-300/60">$ Signal</span>
-                          )}
-                          {p.who_wins && (
-                            <span className="text-[7px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/8 border border-emerald-500/15 text-emerald-300/60">Winners</span>
-                          )}
-                        </div>
-                        <span className="text-[8px] font-mono text-white/18 group-hover:text-white/40 transition-colors">Full analysis →</span>
-                      </div>
-                    </PremiumCard>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── 5. PRICE PREDICTIONS ────────────────────────────────────── */}
-          <div>
-            <SectionHeader icon={Target} label="AYN Price Prediction Engine" color="text-purple-400" count={filteredPreds.length} />
-
-            <Suspense fallback={<div className="h-32 animate-pulse bg-white/5 rounded-xl border border-white/10 mb-4" />}>
-              <AccuracyScoreboard />
-            </Suspense>
-
-            {/* Filters */}
-            <div className="flex flex-wrap gap-2 mb-4 mt-4">
-              <div className="flex gap-1 bg-black/40 border border-white/8 rounded-lg p-1">
-                {(['1_week', '1_month', '1_year'] as const).map(h => (
-                  <button key={h} onClick={() => setActiveHorizon(h)}
-                    className={cn('px-3 py-1.5 rounded text-[9px] font-mono font-bold transition-all',
-                      activeHorizon === h ? 'bg-purple-500/18 text-purple-400 border border-purple-500/25' : 'text-white/25 hover:text-white/50')}>
-                    {h === '1_week' ? '1W' : h === '1_month' ? '1M' : '1Y'}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-1 bg-black/40 border border-white/8 rounded-lg p-1 flex-wrap">
-                <button onClick={() => setAssetFilter('all')}
-                  className={cn('px-2.5 py-1.5 rounded text-[9px] font-mono transition-all',
-                    assetFilter === 'all' ? 'bg-white/8 text-white' : 'text-white/25 hover:text-white/50')}>ALL</button>
-                {Object.entries(ASSET_META).map(([a, m]) => (
-                  <button key={a} onClick={() => setAssetFilter(a)} title={m.label}
-                    className={cn('px-2.5 py-1.5 rounded text-[11px] transition-all',
-                      assetFilter === a ? 'bg-white/8' : 'text-white/40 hover:text-white/70')}>
-                    {m.icon}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {filteredPreds.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredPreds.map(p => (
-                  <Suspense key={p.id} fallback={<div className="h-32 animate-pulse bg-white/5 rounded-xl border border-white/10" />}>
-                    <PredictionCard pred={p} onVote={handleVote} userId={userId} voting={votingId === p.id} />
+                  <Suspense fallback={<div className="h-24 animate-pulse rounded-xl bg-white/3 border border-white/6 mb-4" />}>
+                    <AccuracyScoreboard />
                   </Suspense>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center py-12 text-white/18 text-[11px] font-mono">No predictions for this filter.</p>
-            )}
-          </div>
 
-          {/* ── 6. COUNTRY ECONOMIC INTELLIGENCE ────────────────────────── */}
-          {countryIntel.length > 0 && (
-            <div>
-              <SectionHeader icon={Building2} label="Country Economic Intelligence" color="text-cyan-400" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {countryIntel.map(ci => {
-                  const econ = ci.economy || {};
-                  return (
-                    <SpotlightCard key={ci.country_code} spotlightColor="rgba(0,255,200,0.05)" spotlightSize={160}
-                      onClick={() => {
-                        const ISO2: Record<string, string> = { US: 'USA', CN: 'CHN', DE: 'EU', GB: 'GBR', SA: 'SAU', AE: 'ARE', JP: 'JPN', IN: 'IND', BR: 'BRA', RU: 'RUS', KR: 'KOR', ZA: 'ZAF', CA: 'CAN', AU: 'AUS' };
-                        const sicKey = ISO2[ci.country_code] || ci.country_code;
-                        setSelectedCountry({ intel: ci, sic: sicIntel[sicKey] || {} });
-                      }}
-                      className="text-left bg-black/50 border border-white/6 rounded-xl p-4 hover:border-cyan-500/20 hover:bg-black/65 transition-all group cursor-pointer">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="text-[11px] font-mono font-bold text-white/75 group-hover:text-white transition-colors">{ci.country_name}</div>
-                          <div className="text-[8px] text-white/22 font-mono">{econ.gdp?.formatted || ''}</div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-white/18 group-hover:text-cyan-400 transition-colors" />
-                      </div>
-                      <div className="space-y-1.5">
-                        {econ.gdp_growth?.value != null && (
-                          <div className="flex justify-between text-[9px] font-mono">
-                            <span className="text-white/28">GDP Growth</span>
-                            <span className={cn('font-bold', econ.gdp_growth.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400')}>
-                              {econ.gdp_growth.value > 0 ? '+' : ''}{econ.gdp_growth.value.toFixed(1)}%
-                            </span>
-                          </div>
-                        )}
-                        {econ.inflation?.value != null && (
-                          <div className="flex justify-between text-[9px] font-mono">
-                            <span className="text-white/28">Inflation</span>
-                            <span className={cn('font-bold', econ.inflation.value > 5 ? 'text-red-400' : econ.inflation.value > 3 ? 'text-amber-400' : 'text-emerald-400')}>
-                              {econ.inflation.value.toFixed(1)}%
-                            </span>
-                          </div>
-                        )}
-                        {econ.unemployment?.value != null && (
-                          <div className="flex justify-between text-[9px] font-mono">
-                            <span className="text-white/28">Unemployment</span>
-                            <span className="text-white/55 font-bold">{econ.unemployment.value.toFixed(1)}%</span>
-                          </div>
-                        )}
-                      </div>
-                    </SpotlightCard>
-                  );
-                })}
+                  {/* Horizon + asset filters */}
+                  <div className="flex flex-wrap gap-2 my-4">
+                    <div className="flex gap-0.5 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      {(['1_week', '1_month', '1_year'] as const).map(h => (
+                        <button key={h} onClick={() => setActiveHorizon(h)}
+                          className={cn('px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all',
+                            activeHorizon === h ? 'bg-purple-500/18 text-purple-400 border border-purple-500/30' : 'text-white/25 hover:text-white/50')}>
+                          {h === '1_week' ? '1W' : h === '1_month' ? '1M' : '1Y'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-0.5 p-1 rounded-lg flex-wrap" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <button onClick={() => setAssetFilter('all')} className={cn('px-2.5 py-1.5 rounded-md text-[8px] font-black transition-all', assetFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/25 hover:text-white/50')}>ALL</button>
+                      {Object.entries(ASSET_META).map(([a, m]) => (
+                        <button key={a} onClick={() => setAssetFilter(a)} title={m.label} className={cn('px-2.5 py-1.5 rounded-md text-[12px] transition-all', assetFilter === a ? 'bg-white/10' : 'text-white/40 hover:text-white/70')}>{m.icon}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {filteredPreds.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {filteredPreds.map(p => (
+                        <Suspense key={p.id} fallback={<div className="h-28 animate-pulse rounded-xl bg-white/3 border border-white/6" />}>
+                          <PredictionCard pred={p} onVote={handleVote} userId={userId} voting={votingId === p.id} />
+                        </Suspense>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 text-white/18 text-[10px] font-mono">No predictions for this filter.</div>
+                  )}
+                </section>
+
+                {/* ── COUNTRY ECONOMIC INTELLIGENCE ──────────────────────────── */}
+                {countryIntel.length > 0 && (
+                  <section>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-1 h-5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,255,200,0.4)]" />
+                      <Building2 className="w-4 h-4 text-cyan-400" />
+                      <span className="text-[10px] font-black text-cyan-400 tracking-[0.18em] uppercase">Country Intelligence</span>
+                      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.2), transparent)' }} />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                      {countryIntel.map(ci => {
+                        const econ = ci.economy || {};
+                        const gdpGrowth = econ.gdp_growth?.value;
+                        const infl = econ.inflation?.value;
+                        return (
+                          <SpotlightCard key={ci.country_code} spotlightColor="rgba(0,255,200,0.05)" spotlightSize={150}
+                            onClick={() => setSelectedCountry(ci)}
+                            className="bg-white/[0.025] border border-white/7 rounded-xl p-3.5 hover:border-cyan-500/22 transition-all group cursor-pointer [border-top-color:rgba(255,255,255,0.1)]">
+                            <div className="flex items-start justify-between mb-2.5">
+                              <div className="text-[11px] font-black text-white/80 group-hover:text-white transition-colors leading-tight">{ci.country_name}</div>
+                              <ChevronRight className="w-3 h-3 text-white/15 group-hover:text-cyan-400 transition-colors shrink-0" />
+                            </div>
+                            {econ.gdp?.formatted && <div className="text-[8px] text-white/20 mb-2">{econ.gdp.formatted}</div>}
+                            <div className="space-y-1">
+                              {gdpGrowth != null && (
+                                <div className="flex justify-between text-[8px]">
+                                  <span className="text-white/25">GDP</span>
+                                  <span className={cn('font-black', econ.gdp_growth?.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400')}>{gdpGrowth > 0 ? '+' : ''}{gdpGrowth.toFixed(1)}%</span>
+                                </div>
+                              )}
+                              {infl != null && (
+                                <div className="flex justify-between text-[8px]">
+                                  <span className="text-white/25">CPI</span>
+                                  <span className={cn('font-black', infl > 5 ? 'text-red-400' : infl > 3 ? 'text-amber-400' : 'text-emerald-400')}>{infl.toFixed(1)}%</span>
+                                </div>
+                              )}
+                            </div>
+                          </SpotlightCard>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
+                <div className="text-center py-4 text-[7px] font-mono text-white/8 uppercase tracking-wider">
+                  Sources: FRED · Yahoo Finance · CoinGecko · Fear&Greed · AYN Prediction Engine · World Bank
+                </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
-          {/* ── 7. AGENT SOCIETY ────────────────────────────────────────── */}
-          <Suspense fallback={<div className="h-64 animate-pulse bg-white/5 rounded-xl border border-white/10" />}>
-            <AgentSociety />
-          </Suspense>
+          {/* ════════════════════════════════════════════════════════════════
+              AGENT SOCIETY VIEW
+          ════════════════════════════════════════════════════════════════ */}
+          {activeView === 'agents' && (
+            <motion.div key="agents" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+              className="min-h-full">
+              {/* Agent Society header bar */}
+              <div className="border-b border-purple-500/15 px-5 py-3 flex items-center gap-3" style={{ background: 'linear-gradient(90deg, rgba(168,85,247,0.06), transparent)' }}>
+                <div className="w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.7)] animate-pulse" />
+                <span className="text-[10px] font-black text-purple-400 tracking-[0.18em] uppercase">Agent Society</span>
+                <span className="text-[8px] font-mono text-white/20">// Live AI agents · World reaction simulation</span>
+                <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(168,85,247,0.2), transparent)' }} />
+              </div>
+              <div className="p-4">
+                <Suspense fallback={
+                  <div className="flex items-center justify-center h-80">
+                    <div className="text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full border-2 border-purple-500/20 border-t-purple-400 animate-spin mx-auto" />
+                      <p className="text-[9px] font-mono text-purple-400/50 tracking-widest">LOADING AGENT NETWORK</p>
+                    </div>
+                  </div>
+                }>
+                  <AgentSociety />
+                </Suspense>
+              </div>
+            </motion.div>
+          )}
 
-          {/* Footer */}
-          <div className="text-center pb-4 pt-2">
-            <div className="text-[7px] font-mono text-white/10 uppercase tracking-wider">
-              Sources: FRED · Yahoo Finance · CoinGecko · Fear&Greed Index · AYN Prediction Engine · World Bank · AYN Global Intelligence
-            </div>
-          </div>
-        </div>
+        </AnimatePresence>
       </div>
 
-      {/* ── Side panels ─────────────────────────────────────────────────────── */}
+      {/* ── Side panels ───────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {selectedPred && (
-          <PredictionDetail pred={selectedPred} onClose={() => setSelectedPred(null)} />
-        )}
+        {selectedPred && <PredictionDetail pred={selectedPred} onClose={() => setSelectedPred(null)} />}
       </AnimatePresence>
       <AnimatePresence>
-        {selectedCountry && (
-          <CountryDossier intel={selectedCountry.intel} sic={selectedCountry.sic} onClose={() => setSelectedCountry(null)} />
-        )}
+        {selectedCountry && <CountryDossier intel={selectedCountry} onClose={() => setSelectedCountry(null)} />}
       </AnimatePresence>
     </div>
   );
