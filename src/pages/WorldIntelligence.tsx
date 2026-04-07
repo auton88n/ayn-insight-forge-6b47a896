@@ -612,7 +612,7 @@ export default function WorldIntelligence() {
               <div className="max-w-[1440px] mx-auto px-2 sm:px-4 lg:px-5 py-4 sm:py-6 space-y-5 sm:space-y-8">
 
                 {/* ── INTEL BRIEF + MARKET SNAPSHOT ──────────────────────── */}
-                <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px] gap-3 sm:gap-5">
                   {/* Brief */}
                   <GlassCard className="overflow-hidden p-0">
                     <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-white/5" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.05), transparent)' }}>
@@ -625,7 +625,7 @@ export default function WorldIntelligence() {
                     <div className="p-4 space-y-1.5">
                       {briefItems.map((item, i) => (
                         <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                          className={cn('text-[11px] font-mono leading-relaxed py-2.5 px-4 rounded-r-lg border-l-2',
+                          className={cn('text-[12px] sm:text-[11px] font-mono leading-relaxed py-2 sm:py-2.5 px-3 sm:px-4 rounded-r-lg border-l-2',
                             String(item).includes('⚠') || String(item).toLowerCase().includes('fear')
                               ? 'border-l-red-500/60 text-red-200/65 bg-red-500/5'
                               : 'border-l-emerald-400/35 text-white/52 bg-white/[0.02]')}>
@@ -639,7 +639,7 @@ export default function WorldIntelligence() {
                   <div className="space-y-3">
                     <GlassCard className="p-4">
                       <div className="text-[8px] text-white/25 uppercase tracking-[0.2em] mb-3 font-black">Sentiment</div>
-                      <div className={cn('text-5xl font-black mb-1 tabular-nums',
+                      <div className={cn('text-3xl md:text-4xl xl:text-5xl font-black mb-1 tabular-nums',
                         (sentiment.value||0) <= 25 ? 'text-red-400' : (sentiment.value||0) <= 45 ? 'text-orange-400' : (sentiment.value||0) <= 55 ? 'text-amber-400' : 'text-emerald-400')}>
                         {sentiment.value ?? '—'}
                       </div>
