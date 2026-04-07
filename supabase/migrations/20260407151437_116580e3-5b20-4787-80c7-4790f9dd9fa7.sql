@@ -1,0 +1,1 @@
+CREATE POLICY "Allow anon read access to country intelligence" ON public.ayn_country_intelligence FOR SELECT TO anon USING (true);
