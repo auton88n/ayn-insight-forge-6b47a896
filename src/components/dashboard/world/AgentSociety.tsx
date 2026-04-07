@@ -29,19 +29,23 @@ const EM: Record<string, { emoji: string; color: string; bg: string; border: str
 const CAT_COLOR: Record<string, string> = {
   government:   '#06b6d4',
   central_bank: '#fbbf24',
-  institution:  '#a78bfa',
+  stock_market: '#f472b6',
+  bank:         '#a78bfa',
   company:      '#34d399',
   social_class: '#fb923c',
+  institution:  '#8b5cf6',
   market:       '#f472b6',
 };
 
 const CAT_ICON: Record<string, string> = {
   government:   '🏛',
   central_bank: '🏦',
-  institution:  '🏢',
+  stock_market: '📈',
+  bank:         '🏢',
   company:      '💼',
   social_class: '👥',
-  market:       '📈',
+  institution:  '🌐',
+  market:       '📊',
 };
 
 // ─── 3D Neural Globe ──────────────────────────────────────────────────────────
