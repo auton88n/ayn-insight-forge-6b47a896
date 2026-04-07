@@ -679,7 +679,7 @@ export default function WorldIntelligence() {
                       <span className="text-[8px] font-mono text-white/18">{signals.length} active</span>
                       <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(239,68,68,0.3), transparent)' }} />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                       {signals.slice(0, 9).map((s, idx) => (
                         <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}>
                           <SpotlightCard spotlightColor="rgba(255,255,255,0.04)" spotlightSize={220}
@@ -751,7 +751,7 @@ export default function WorldIntelligence() {
                       })}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
                       {filteredWorldPreds.map((p, idx) => {
                         const col = DOMAIN_COLOR[p.domain?.toLowerCase()] || '#9ca3af';
                         const isConflict = ['conflicts', 'warnings'].includes(p.domain?.toLowerCase());
@@ -831,7 +831,7 @@ export default function WorldIntelligence() {
                   </div>
 
                   {filteredPreds.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
                       {filteredPreds.map(p => (
                         <Suspense key={p.id} fallback={<div className="h-28 animate-pulse rounded-xl bg-white/3 border border-white/6" />}>
                           <PredictionCard pred={p} onVote={handleVote} userId={userId} voting={votingId === p.id} />
