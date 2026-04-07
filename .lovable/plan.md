@@ -1,45 +1,56 @@
 
 
-# Fix Agent Society — Create Missing Edge Function
+# Redesign Agent Society — Better Design, Mobile/Tablet Support, Auto-Activate
 
 ## Problem
-The Agent Society feature calls `ayn-agent-society` edge function, but **this function does not exist**. Every button (Activate, New Conversation, God's Eye, Chat) silently fails because the endpoint returns 404.
+1. The current layout is desktop-only (side-by-side globe + panel), broken on mobile/tablet
+2. The 3D globe doesn't render on mobile (blocked by `MobileBlockScreen`)
+3. Users must manually click "Activate" — no auto-generation on first load
+4. Text is extremely small (7-9px), low contrast, hard to read
+5. Inline styles everywhere make it hard to maintain
 
-## Solution
-Create the `ayn-agent-society` edge function that uses the Lovable AI Gateway to power the agent simulation. The function handles 5 modes:
+## Design Direction
+CIA operations center aesthetic (matching the rest of World Intelligence), with cleaner typography, better spacing, and a stacked layout for smaller screens.
 
-1. **get_conversations** — Returns list of past simulation conversations from DB
-2. **get_messages** — Returns messages for a specific conversation
-3. **generate_conversation** — Creates a new multi-agent conversation using LLM
-4. **inject_event** — God's Eye: injects a world event and generates agent reactions
-5. **chat** — Direct chat with a specific agent
+## Plan
 
-## Technical Plan
+### 1. Auto-activate on first load
+- In the `loadData` callback, if `conversations` comes back empty, automatically call `generate()` — no manual "Activate" button needed
+- Show a premium loading state during first generation ("INITIALIZING AGENT NETWORK...")
 
-### Step 1: Create database tables
-Create two tables via migration:
-- `agent_conversations` — id, title, category, created_at, status
-- `agent_messages` — id, conversation_id (FK), agent_id, agent_name, agent_category, message, emotion, emotion_intensity, responding_to_agent, created_at
+### 2. Responsive layout — mobile & tablet support
+- **Mobile (<768px)**: Hide the 3D globe entirely. Show a compact agent grid + conversation feed in a single column. Use a bottom sheet for agent chat
+- **Tablet (768-1024px)**: Show a smaller globe (40% width) + panel, or allow toggling between globe view and conversation view via tabs
+- **Desktop (1024+)**: Keep current side-by-side layout but with better proportions
+- Replace `grid-cols-1 lg:grid-cols-[1fr_400px]` with proper responsive breakpoints
+- Remove the `MobileBlockScreen` dependency for this component
 
-### Step 2: Create the edge function `supabase/functions/ayn-agent-society/index.ts`
-- Route by `mode` parameter
-- Use the Lovable AI Gateway (`google/gemini-3-flash-preview`) for generation
-- For `generate_conversation`: pick 4-6 agents from the 80+ hardcoded agent roster, generate a multi-turn discussion about a current world topic, parse structured output (agent_id, message, emotion, intensity), save to DB
-- For `inject_event`: create a new conversation where agents react to the injected event
-- For `chat`: send user message + agent persona to LLM, return response
-- For `get_*` modes: simple DB reads
-- Handle 429/402 rate limit errors properly
+### 3. Improve typography and readability
+- Increase base font sizes: agent names 12→14px, messages 10.5→13px, labels 7-8→10px
+- Use `font-mono` (JetBrains Mono) consistently for the CIA feel
+- Improve contrast ratios — text opacity from 0.2-0.3 → 0.5-0.7 minimum
+- Add proper spacing between message bubbles
 
-### Step 3: Define agent roster in the function
-Use the same agent IDs from the frontend (usa, china, fed, sp500, jpmorgan, etc.) with personas matching their real-world roles. Group by category (government, central_bank, stock_market, bank, company, social_class).
+### 4. Better visual hierarchy and design polish
+- Add a status bar at top showing: Active Agents count, Tension Level gauge, Panic alerts
+- Redesign category filter pills — larger touch targets (min 40px height for mobile)
+- Message bubbles: increase padding, add left accent border by agent category color
+- Agent cards: increase height, show flag emoji larger, better emotion intensity bars
+- God's Eye input: make it a proper modal on mobile instead of inline
+- Conversation tabs: larger, scrollable horizontally with clear active state
 
-### Step 4: Register in config.toml
-Add the function entry with `verify_jwt = false` (public endpoint matching current frontend calls without auth headers).
+### 5. Mobile-specific optimizations
+- Agent list becomes a horizontally scrollable avatar strip on mobile
+- Tap agent avatar to filter messages + show detail card
+- Swipe-friendly conversation navigation
+- Full-screen chat modal on mobile (already partly done)
 
-### Files to Create/Edit
-- `supabase/migrations/XXXX_create_agent_society_tables.sql` — new
-- `supabase/functions/ayn-agent-society/index.ts` — new
-- `supabase/config.toml` — add function entry
+## Files to Edit
+- `src/components/dashboard/world/AgentSociety.tsx` — main redesign (layout, typography, responsiveness, auto-activate)
 
-No frontend changes needed — the component already calls the correct endpoint and handles the response format.
+## Technical Notes
+- Use Tailwind responsive prefixes (`sm:`, `md:`, `lg:`) instead of inline styles where possible
+- Use `useIsMobile()` hook for conditional rendering (globe vs no-globe)
+- Keep 3D globe code intact but conditionally render only on lg+ screens
+- Auto-activate triggers once via a `useRef` flag to prevent repeated calls
 
