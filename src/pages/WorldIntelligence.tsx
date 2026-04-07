@@ -856,38 +856,42 @@ export default function WorldIntelligence() {
                       <span className="text-[10px] font-black text-cyan-400 tracking-[0.18em] uppercase">Country Intelligence</span>
                       <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.2), transparent)' }} />
                     </div>
-                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-                      {countryIntel.map(ci => {
-                        const econ = ci.economy || {};
-                        const gdpGrowth = econ.gdp_growth?.value;
-                        const infl = econ.inflation?.value;
-                        return (
-                          <SpotlightCard key={ci.country_code} spotlightColor="rgba(0,255,200,0.05)" spotlightSize={150}
-                            onClick={() => setSelectedCountry(ci)}
-                            className="bg-white/[0.025] border border-white/7 rounded-xl p-3.5 hover:border-cyan-500/22 transition-all group cursor-pointer [border-top-color:rgba(255,255,255,0.1)]">
-                            <div className="flex items-start justify-between mb-2.5">
-                              <div className="text-[11px] font-black text-white/80 group-hover:text-white transition-colors leading-tight">{ci.country_name}</div>
-                              <ChevronRight className="w-3 h-3 text-white/15 group-hover:text-cyan-400 transition-colors shrink-0" />
-                            </div>
-                            {econ.gdp?.formatted && <div className="text-[8px] text-white/20 mb-2">{econ.gdp.formatted}</div>}
-                            <div className="space-y-1">
-                              {gdpGrowth != null && (
-                                <div className="flex justify-between text-[8px]">
-                                  <span className="text-white/25">GDP</span>
-                                  <span className={cn('font-black', econ.gdp_growth?.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400')}>{gdpGrowth > 0 ? '+' : ''}{gdpGrowth.toFixed(1)}%</span>
-                                </div>
-                              )}
-                              {infl != null && (
-                                <div className="flex justify-between text-[8px]">
-                                  <span className="text-white/25">CPI</span>
-                                  <span className={cn('font-black', infl > 5 ? 'text-red-400' : infl > 3 ? 'text-amber-400' : 'text-emerald-400')}>{infl.toFixed(1)}%</span>
-                                </div>
-                              )}
-                            </div>
-                          </SpotlightCard>
-                        );
-                      })}
-                    </div>
+                    {countryIntel.length > 0 ? (
+                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                        {countryIntel.map(ci => {
+                          const econ = ci.economy || {};
+                          const gdpGrowth = econ.gdp_growth?.value;
+                          const infl = econ.inflation?.value;
+                          return (
+                            <SpotlightCard key={ci.country_code} spotlightColor="rgba(0,255,200,0.05)" spotlightSize={150}
+                              onClick={() => setSelectedCountry(ci)}
+                              className="bg-white/[0.025] border border-white/7 rounded-xl p-3.5 hover:border-cyan-500/22 transition-all group cursor-pointer [border-top-color:rgba(255,255,255,0.1)]">
+                              <div className="flex items-start justify-between mb-2.5">
+                                <div className="text-[11px] font-black text-white/80 group-hover:text-white transition-colors leading-tight">{ci.country_name}</div>
+                                <ChevronRight className="w-3 h-3 text-white/15 group-hover:text-cyan-400 transition-colors shrink-0" />
+                              </div>
+                              {econ.gdp?.formatted && <div className="text-[8px] text-white/20 mb-2">{econ.gdp.formatted}</div>}
+                              <div className="space-y-1">
+                                {gdpGrowth != null && (
+                                  <div className="flex justify-between text-[8px]">
+                                    <span className="text-white/25">GDP</span>
+                                    <span className={cn('font-black', econ.gdp_growth?.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400')}>{gdpGrowth > 0 ? '+' : ''}{gdpGrowth.toFixed(1)}%</span>
+                                  </div>
+                                )}
+                                {infl != null && (
+                                  <div className="flex justify-between text-[8px]">
+                                    <span className="text-white/25">CPI</span>
+                                    <span className={cn('font-black', infl > 5 ? 'text-red-400' : infl > 3 ? 'text-amber-400' : 'text-emerald-400')}>{infl.toFixed(1)}%</span>
+                                  </div>
+                                )}
+                              </div>
+                            </SpotlightCard>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-white/25 text-[10px] font-mono tracking-wider">No country data available</div>
+                    )}
                   </section>
                 )}
 
