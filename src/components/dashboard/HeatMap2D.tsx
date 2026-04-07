@@ -107,6 +107,7 @@ export function HeatMap2D({
   const [activeLayer, setActiveLayer] = useState<MapLayer>('all');
   const [viewMode, setViewMode]       = useState<ViewMode>('standard');
   const [selected, setSelected]       = useState<MapPoint|null>(null);
+  const [clickPos, setClickPos]       = useState<{x:number;y:number}>({x:0,y:0});
   const [showJam, setShowJam]         = useState(false);
   const [jamCells, setJamCells]       = useState<GpsHexCell[]>([]);
   const [jamLoading, setJamLoading]   = useState(false);
@@ -252,6 +253,11 @@ export function HeatMap2D({
     globeRef.current?.pointOfView({lat:pt.lat,lng:pt.lng,altitude:1.2},800);
   },[onPointClick]);
 
+  // Capture raw mouse position for fixed-position popup
+  const handleGlobeMouseDown=useCallback((e:React.MouseEvent)=>{
+    setClickPos({x:e.clientX,y:e.clientY});
+  },[]);
+
   const viewBtnStyle=(mode:ViewMode)=>({
     display:'flex' as const, alignItems:'center' as const, gap:5,
     padding:'4px 10px', borderRadius:99, cursor:'pointer' as const,
@@ -373,7 +379,7 @@ export function HeatMap2D({
       </div>
 
       {/* ── Globe + overlays */}
-      <div style={{position:'relative',width:'100%',height,background:'#020b18',overflow:'hidden'}} ref={containerRef}>
+      <div style={{position:'relative',width:'100%',height,background:'#020b18',overflow:'hidden'}} ref={containerRef} onMouseDown={handleGlobeMouseDown}>
 
         {/* View mode wrapper — CSS filter only, zero GL cost */}
         <div style={{
@@ -481,7 +487,7 @@ export function HeatMap2D({
               color:viewMode==='nightvision'?'#4ade80':'#fb923c'}}>
               {viewMode==='nightvision'?'NIGHT VISION':'FLIR THERMAL'}
             </span>
-            <style>{`@keyframes ayn-globe-pulse{0%,100%{opacity:1}50%{opacity:0.3}} @keyframes ayn-beam-slide{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}} @keyframes ayn-fade-pulse{0%,100%{opacity:0.6}50%{opacity:1}}`}</style>
+            <style>{`@keyframes ayn-globe-pulse{0%,100%{opacity:1}50%{opacity:0.3}} @keyframes ayn-beam-slide{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}} @keyframes ayn-card-in{from{opacity:0;transform:scale(0.96) translateY(4px)}to{opacity:1;transform:scale(1) translateY(0)}} @keyframes ayn-fade-pulse{0%,100%{opacity:0.6}50%{opacity:1}}`}</style>
           </div>
         )}
 
@@ -515,120 +521,124 @@ export function HeatMap2D({
           )}
         </div>
 
-        {/* Selected point detail — premium GlinUI-style card, always in view */}
-        {selected&&(
+        {/* Selected point — rendered via fixed so overflow:hidden never clips it */}
+        {selected&&(()=>{
+          const COL = riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4';
+          const CARD_W = 340;
+          const CARD_H = 140;
+          // Smart viewport positioning: prefer below+right of click, flip if too close to edges
+          const vpW = window.innerWidth;
+          const vpH = window.innerHeight;
+          let left = clickPos.x + 16;
+          let top  = clickPos.y + 16;
+          if (left + CARD_W > vpW - 12) left = clickPos.x - CARD_W - 16;
+          if (top  + CARD_H > vpH - 12) top  = clickPos.y - CARD_H - 16;
+          left = Math.max(12, Math.min(left, vpW - CARD_W - 12));
+          top  = Math.max(12, Math.min(top,  vpH - CARD_H - 12));
+          return (
           <div style={{
-            position:'absolute',
-            // Anchor to bottom-center but ensure it never clips
-            bottom: 'clamp(12px, 5%, 24px)',
-            left:'50%',
-            transform:'translateX(-50%)',
-            zIndex:30,
-            // Glass surface (GlinUI GlassCard spec)
-            background:'rgba(2,4,18,0.92)',
-            backdropFilter:'saturate(180%) blur(24px)',
-            WebkitBackdropFilter:'saturate(180%) blur(24px)',
-            // Top-edge refraction (brighter top border per GlinUI)
-            border:`1px solid ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}30`,
-            borderTop:`1px solid ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}60`,
+            position:'fixed',
+            left, top,
+            zIndex:9999,
+            width:CARD_W,
+            // Glass surface — GlinUI Apple Liquid Glass
+            background:'rgba(3,5,20,0.94)',
+            backdropFilter:'saturate(180%) blur(28px)',
+            WebkitBackdropFilter:'saturate(180%) blur(28px)',
+            // Top-edge refraction brighter than sides
+            border:`1px solid ${COL}28`,
+            borderTop:`1px solid ${COL}70`,
             borderRadius:16,
-            padding:'0',
-            width: 'min(360px, calc(100vw - 32px))',
-            boxShadow:`0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 40px ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}12`,
+            padding:0,
             overflow:'hidden',
+            boxShadow:`0 32px 80px rgba(0,0,0,0.9),
+                       0 0 0 1px rgba(255,255,255,0.04) inset,
+                       0 0 60px ${COL}18`,
+            animation:'ayn-card-in 0.18s cubic-bezier(0.16,1,0.3,1)',
           }}>
-            {/* Animated border beam along top */}
-            <div style={{
-              position:'absolute',top:0,left:0,right:0,height:1,
-              background:`linear-gradient(90deg, transparent, ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}cc, transparent)`,
-              animation:'ayn-beam-slide 2.5s ease-in-out infinite',
-            }}/>
-            {/* Spotlight overlay */}
-            <div style={{
-              position:'absolute',inset:0,pointerEvents:'none',
-              background:`radial-gradient(200px circle at 50% 0%, ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}10, transparent 70%)`,
-            }}/>
+            {/* ── Beam sweep on top edge */}
+            <div style={{position:'absolute',top:0,left:0,right:0,height:1,
+              background:`linear-gradient(90deg,transparent,${COL}dd,transparent)`,
+              animation:'ayn-beam-slide 2.8s ease-in-out infinite',pointerEvents:'none'}}/>
+            {/* ── Top spotlight glow */}
+            <div style={{position:'absolute',inset:0,pointerEvents:'none',
+              background:`radial-gradient(180px circle at 50% -20px,${COL}18,transparent 70%)`}}/>
 
-            {/* Header */}
+            {/* ── STATUS STRIP */}
             <div style={{
-              display:'flex',alignItems:'center',justifyContent:'space-between',
-              padding:'14px 16px 12px',
-              borderBottom:`1px solid rgba(255,255,255,0.05)`,
-              background:'rgba(255,255,255,0.02)',
+              display:'flex',alignItems:'center',gap:8,
+              padding:'7px 14px 6px',
+              borderBottom:'1px solid rgba(255,255,255,0.05)',
+              background:`linear-gradient(90deg,${COL}0d,transparent)`,
             }}>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                {/* Risk indicator dot */}
-                <div style={{
-                  width:8,height:8,borderRadius:'50%',flexShrink:0,
-                  background:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
-                  boxShadow:`0 0 8px ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}`,
-                  animation:'ayn-fade-pulse 2s ease-in-out infinite',
-                }}/>
-                <div>
-                  <div style={{
-                    fontSize:13,fontWeight:800,
-                    color:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
-                    fontFamily:'monospace',letterSpacing:'0.08em',lineHeight:1.2,
-                  }}>{selected.label}</div>
-                  <div style={{
-                    fontSize:8,color:'rgba(255,255,255,0.35)',fontFamily:'monospace',
-                    letterSpacing:'0.18em',marginTop:3,textTransform:'uppercase',
-                  }}>
-                    {riskConfig[selected.risk as RiskKey]?.label??'INTEL'}
-                    {selected.category?` · ${selected.category}`:''}
-                  </div>
-                </div>
+              <div style={{position:'relative',width:8,height:8,flexShrink:0}}>
+                <div style={{position:'absolute',inset:0,borderRadius:'50%',
+                  background:COL,boxShadow:`0 0 6px ${COL}`}}/>
+                <div style={{position:'absolute',inset:0,borderRadius:'50%',
+                  background:COL,opacity:0.35,
+                  animation:'ayn-fade-pulse 1.8s ease-in-out infinite'}}/>
               </div>
-              <button onClick={()=>setSelected(null)} style={{
-                background:'rgba(255,255,255,0.05)',
-                border:'1px solid rgba(255,255,255,0.08)',
-                borderTop:'1px solid rgba(255,255,255,0.14)',
-                borderRadius:8,color:'rgba(255,255,255,0.45)',
-                fontSize:13,width:28,height:28,
-                display:'flex',alignItems:'center',justifyContent:'center',
-                cursor:'pointer',fontFamily:'monospace',
-                transition:'all 0.15s ease',
-                flexShrink:0,
-              }}
-                onMouseEnter={e=>{(e.target as HTMLButtonElement).style.background='rgba(255,255,255,0.1)';(e.target as HTMLButtonElement).style.color='rgba(255,255,255,0.8)';}}
-                onMouseLeave={e=>{(e.target as HTMLButtonElement).style.background='rgba(255,255,255,0.05)';(e.target as HTMLButtonElement).style.color='rgba(255,255,255,0.45)';}}
+              <span style={{fontSize:7,fontFamily:'monospace',fontWeight:900,
+                color:COL,letterSpacing:'0.2em',textTransform:'uppercase',flex:1}}>
+                {riskConfig[selected.risk as RiskKey]?.label??'INTEL SIGNAL'}
+                {selected.category?` · ${selected.category.toUpperCase()}`:''}
+              </span>
+              <button onClick={()=>setSelected(null)}
+                style={{width:22,height:22,borderRadius:6,
+                  border:'1px solid rgba(255,255,255,0.1)',
+                  borderTop:'1px solid rgba(255,255,255,0.2)',
+                  background:'rgba(255,255,255,0.05)',color:'rgba(255,255,255,0.45)',
+                  fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',
+                  justifyContent:'center',flexShrink:0,fontFamily:'monospace',
+                  transition:'all 0.15s'}}
+                onMouseEnter={e=>{const b=e.currentTarget;b.style.background='rgba(255,255,255,0.12)';b.style.color='#fff';}}
+                onMouseLeave={e=>{const b=e.currentTarget;b.style.background='rgba(255,255,255,0.05)';b.style.color='rgba(255,255,255,0.45)';}}
               >✕</button>
             </div>
 
-            {/* Body */}
-            {(selected.detail||(selected.coordinates)) && (
-              <div style={{padding:'12px 16px 14px'}}>
-                {selected.detail&&(
-                  <div style={{
-                    fontSize:10,color:'rgba(255,255,255,0.65)',lineHeight:1.75,
-                    fontFamily:'monospace',marginBottom:10,
-                  }}>
-                    {selected.detail}
-                  </div>
-                )}
-                {/* Coordinates row */}
-                <div style={{
-                  display:'flex',alignItems:'center',justifyContent:'space-between',
-                  paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.05)',
-                }}>
-                  <div style={{
-                    fontSize:8,color:'rgba(255,255,255,0.25)',fontFamily:'monospace',
-                    letterSpacing:'0.1em',
-                  }}>
-                    {Math.abs(selected.coordinates[1]).toFixed(2)}°{selected.coordinates[1]>=0?'N':'S'} · {Math.abs(selected.coordinates[0]).toFixed(2)}°{selected.coordinates[0]>=0?'E':'W'}
-                  </div>
-                  <div style={{
-                    fontSize:7,fontFamily:'monospace',letterSpacing:'0.15em',
-                    color:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
-                    opacity:0.6,textTransform:'uppercase',
-                  }}>AYN SIGNAL</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            {/* ── MAIN CONTENT */}
+            <div style={{padding:'13px 14px 12px'}}>
+              <div style={{
+                fontSize:20,fontWeight:900,color:'rgba(255,255,255,0.92)',
+                fontFamily:'monospace',letterSpacing:'0.03em',lineHeight:1.1,
+                marginBottom:6,
+                textShadow:`0 0 24px ${COL}50`,
+              }}>{selected.label}</div>
 
-        {/* Loading */}
+              {selected.detail&&(
+                <div style={{
+                  fontSize:10,color:'rgba(255,255,255,0.52)',lineHeight:1.7,
+                  fontFamily:'monospace',marginBottom:10,
+                  borderLeft:`2px solid ${COL}45`,paddingLeft:9,
+                }}>
+                  {selected.detail}
+                </div>
+              )}
+
+              <div style={{
+                display:'flex',alignItems:'center',justifyContent:'space-between',
+                paddingTop:8,marginTop:2,
+                borderTop:'1px solid rgba(255,255,255,0.06)',
+              }}>
+                <div style={{display:'flex',alignItems:'center',gap:5}}>
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                    <circle cx="4.5" cy="4.5" r="2" stroke={COL} strokeOpacity="0.6" strokeWidth="0.8"/>
+                    <line x1="4.5" y1="0" x2="4.5" y2="2" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
+                    <line x1="4.5" y1="7" x2="4.5" y2="9" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
+                    <line x1="0" y1="4.5" x2="2" y2="4.5" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
+                    <line x1="7" y1="4.5" x2="9" y2="4.5" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
+                  </svg>
+                  <span style={{fontSize:8,color:'rgba(255,255,255,0.28)',fontFamily:'monospace',letterSpacing:'0.06em'}}>
+                    {Math.abs(selected.coordinates[1]).toFixed(2)}°{selected.coordinates[1]>=0?'N':'S'}{' '}
+                    {Math.abs(selected.coordinates[0]).toFixed(2)}°{selected.coordinates[0]>=0?'E':'W'}
+                  </span>
+                </div>
+                <div style={{fontSize:6.5,fontFamily:'monospace',fontWeight:900,letterSpacing:'0.2em',
+                  color:COL,opacity:0.5,textTransform:'uppercase'}}>AYN · LIVE</div>
+              </div>
+            </div>
+          </div>);})()}
+
         {!Globe&&(
           <div style={{position:'absolute',inset:0,zIndex:20,background:'#020b18',
             display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14}}>
