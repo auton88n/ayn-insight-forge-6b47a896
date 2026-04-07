@@ -481,7 +481,7 @@ export function HeatMap2D({
               color:viewMode==='nightvision'?'#4ade80':'#fb923c'}}>
               {viewMode==='nightvision'?'NIGHT VISION':'FLIR THERMAL'}
             </span>
-            <style>{`@keyframes ayn-globe-pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
+            <style>{`@keyframes ayn-globe-pulse{0%,100%{opacity:1}50%{opacity:0.3}} @keyframes ayn-beam-slide{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}} @keyframes ayn-fade-pulse{0%,100%{opacity:0.6}50%{opacity:1}}`}</style>
           </div>
         )}
 
@@ -515,36 +515,116 @@ export function HeatMap2D({
           )}
         </div>
 
-        {/* Selected point detail */}
+        {/* Selected point detail — premium GlinUI-style card, always in view */}
         {selected&&(
-          <div style={{position:'absolute',bottom:12,left:'50%',transform:'translateX(-50%)',
-            zIndex:20,background:'rgba(0,3,14,0.97)',
-            border:`1px solid ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}44`,
-            borderRadius:12,padding:'12px 16px',maxWidth:340,backdropFilter:'blur(16px)',
-            boxShadow:'0 8px 40px rgba(0,0,0,0.9)'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-              <div>
-                <div style={{fontSize:12,fontWeight:900,color:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
-                  fontFamily:'monospace',letterSpacing:'0.1em'}}>{selected.label}</div>
-                <div style={{fontSize:7,color:'rgba(255,255,255,0.3)',fontFamily:'monospace',letterSpacing:'0.15em',marginTop:2}}>
-                  {riskConfig[selected.risk as RiskKey]?.label??'INTEL'}
-                  {selected.category?` · ${selected.category.toUpperCase()}`:''}
+          <div style={{
+            position:'absolute',
+            // Anchor to bottom-center but ensure it never clips
+            bottom: 'clamp(12px, 5%, 24px)',
+            left:'50%',
+            transform:'translateX(-50%)',
+            zIndex:30,
+            // Glass surface (GlinUI GlassCard spec)
+            background:'rgba(2,4,18,0.92)',
+            backdropFilter:'saturate(180%) blur(24px)',
+            WebkitBackdropFilter:'saturate(180%) blur(24px)',
+            // Top-edge refraction (brighter top border per GlinUI)
+            border:`1px solid ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}30`,
+            borderTop:`1px solid ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}60`,
+            borderRadius:16,
+            padding:'0',
+            width: 'min(360px, calc(100vw - 32px))',
+            boxShadow:`0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 40px ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}12`,
+            overflow:'hidden',
+          }}>
+            {/* Animated border beam along top */}
+            <div style={{
+              position:'absolute',top:0,left:0,right:0,height:1,
+              background:`linear-gradient(90deg, transparent, ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}cc, transparent)`,
+              animation:'ayn-beam-slide 2.5s ease-in-out infinite',
+            }}/>
+            {/* Spotlight overlay */}
+            <div style={{
+              position:'absolute',inset:0,pointerEvents:'none',
+              background:`radial-gradient(200px circle at 50% 0%, ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}10, transparent 70%)`,
+            }}/>
+
+            {/* Header */}
+            <div style={{
+              display:'flex',alignItems:'center',justifyContent:'space-between',
+              padding:'14px 16px 12px',
+              borderBottom:`1px solid rgba(255,255,255,0.05)`,
+              background:'rgba(255,255,255,0.02)',
+            }}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                {/* Risk indicator dot */}
+                <div style={{
+                  width:8,height:8,borderRadius:'50%',flexShrink:0,
+                  background:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
+                  boxShadow:`0 0 8px ${riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4'}`,
+                  animation:'ayn-fade-pulse 2s ease-in-out infinite',
+                }}/>
+                <div>
+                  <div style={{
+                    fontSize:13,fontWeight:800,
+                    color:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
+                    fontFamily:'monospace',letterSpacing:'0.08em',lineHeight:1.2,
+                  }}>{selected.label}</div>
+                  <div style={{
+                    fontSize:8,color:'rgba(255,255,255,0.35)',fontFamily:'monospace',
+                    letterSpacing:'0.18em',marginTop:3,textTransform:'uppercase',
+                  }}>
+                    {riskConfig[selected.risk as RiskKey]?.label??'INTEL'}
+                    {selected.category?` · ${selected.category}`:''}
+                  </div>
                 </div>
               </div>
               <button onClick={()=>setSelected(null)} style={{
-                background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',
-                borderRadius:6,color:'rgba(255,255,255,0.4)',fontSize:14,padding:'2px 8px',
-                cursor:'pointer',fontFamily:'monospace'}}>✕</button>
+                background:'rgba(255,255,255,0.05)',
+                border:'1px solid rgba(255,255,255,0.08)',
+                borderTop:'1px solid rgba(255,255,255,0.14)',
+                borderRadius:8,color:'rgba(255,255,255,0.45)',
+                fontSize:13,width:28,height:28,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                cursor:'pointer',fontFamily:'monospace',
+                transition:'all 0.15s ease',
+                flexShrink:0,
+              }}
+                onMouseEnter={e=>{(e.target as HTMLButtonElement).style.background='rgba(255,255,255,0.1)';(e.target as HTMLButtonElement).style.color='rgba(255,255,255,0.8)';}}
+                onMouseLeave={e=>{(e.target as HTMLButtonElement).style.background='rgba(255,255,255,0.05)';(e.target as HTMLButtonElement).style.color='rgba(255,255,255,0.45)';}}
+              >✕</button>
             </div>
-            {selected.detail&&(
-              <div style={{fontSize:9,color:'rgba(255,255,255,0.6)',lineHeight:1.7,fontFamily:'monospace',
-                borderTop:'1px solid rgba(255,255,255,0.06)',paddingTop:8}}>
-                {selected.detail}
+
+            {/* Body */}
+            {(selected.detail||(selected.coordinates)) && (
+              <div style={{padding:'12px 16px 14px'}}>
+                {selected.detail&&(
+                  <div style={{
+                    fontSize:10,color:'rgba(255,255,255,0.65)',lineHeight:1.75,
+                    fontFamily:'monospace',marginBottom:10,
+                  }}>
+                    {selected.detail}
+                  </div>
+                )}
+                {/* Coordinates row */}
+                <div style={{
+                  display:'flex',alignItems:'center',justifyContent:'space-between',
+                  paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div style={{
+                    fontSize:8,color:'rgba(255,255,255,0.25)',fontFamily:'monospace',
+                    letterSpacing:'0.1em',
+                  }}>
+                    {Math.abs(selected.coordinates[1]).toFixed(2)}°{selected.coordinates[1]>=0?'N':'S'} · {Math.abs(selected.coordinates[0]).toFixed(2)}°{selected.coordinates[0]>=0?'E':'W'}
+                  </div>
+                  <div style={{
+                    fontSize:7,fontFamily:'monospace',letterSpacing:'0.15em',
+                    color:riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4',
+                    opacity:0.6,textTransform:'uppercase',
+                  }}>AYN SIGNAL</div>
+                </div>
               </div>
             )}
-            <div style={{fontSize:7,color:'rgba(255,255,255,0.2)',fontFamily:'monospace',marginTop:6}}>
-              {selected.coordinates[1].toFixed(2)}°N · {selected.coordinates[0].toFixed(2)}°E
-            </div>
           </div>
         )}
 
