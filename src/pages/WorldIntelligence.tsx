@@ -889,9 +889,6 @@ export default function WorldIntelligence() {
                   </section>
                 )}
 
-                <div className="text-center py-4 text-[7px] font-mono text-white/8 uppercase tracking-wider">
-                  Sources: FRED · Yahoo Finance · CoinGecko · Fear&Greed · AYN Prediction Engine · World Bank
-                </div>
               </div>
             </motion.div>
           )}
