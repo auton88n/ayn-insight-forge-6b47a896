@@ -47,7 +47,7 @@ interface WorldPrediction {
 }
 interface CountryIntel {
   country_code: string; country_name: string;
-  intelligence_brief: string[];
+  intelligence_brief: any[];
   economy: {
     gdp?: { formatted: string };
     gdp_growth?: { value: number; trend: string };
@@ -55,8 +55,8 @@ interface CountryIntel {
     unemployment?: { value: number; trend: string };
     income_per_person?: { formatted: string };
   };
-  hot_sectors?: string[];
-  opportunities?: { snippet?: string; title?: string }[];
+  hot_sectors?: any[];
+  opportunities?: any[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -225,12 +225,15 @@ function CountryDossier({ intel, onClose }: { intel: CountryIntel; onClose: () =
           <div>
             <div className="text-[8px] font-mono text-white/25 uppercase tracking-wider mb-3">Economic Snapshot</div>
             <div className="space-y-1">
-              {intel.intelligence_brief.map((line, i) => (
-                <div key={i} className="flex gap-2 py-1.5 border-b border-white/4 last:border-0">
-                  <span className="text-white/15 font-mono text-[10px] shrink-0">›</span>
-                  <span className="text-[10px] font-mono text-white/50 leading-relaxed">{line}</span>
-                </div>
-              ))}
+              {intel.intelligence_brief.map((line, i) => {
+                const text = typeof line === 'string' ? line : (line?.title || line?.snippet || JSON.stringify(line));
+                return (
+                  <div key={i} className="flex gap-2 py-1.5 border-b border-white/4 last:border-0">
+                    <span className="text-white/15 font-mono text-[10px] shrink-0">›</span>
+                    <span className="text-[10px] font-mono text-white/50 leading-relaxed">{text}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -240,9 +243,10 @@ function CountryDossier({ intel, onClose }: { intel: CountryIntel; onClose: () =
               <Flame className="w-3 h-3 text-orange-400" /> Hot Sectors
             </div>
             <div className="flex flex-wrap gap-2">
-              {intel.hot_sectors!.filter(Boolean).map((s, i) => (
-                <span key={i} className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-orange-500/8 border border-orange-500/18 text-orange-300/70">{s}</span>
-              ))}
+              {intel.hot_sectors!.filter(Boolean).map((s, i) => {
+                const label = typeof s === 'string' ? s : (s?.name || s?.title || JSON.stringify(s));
+                return <span key={i} className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-orange-500/8 border border-orange-500/18 text-orange-300/70">{label}</span>;
+              })}
             </div>
           </div>
         )}
