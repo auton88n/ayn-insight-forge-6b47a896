@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 
+const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 // Edge Function: ayn-agent-society
 // Modes: get_conversations, get_messages, generate_conversation, inject_event, chat
 
@@ -502,10 +503,13 @@ export default function AgentSociety() {
 
   const loadData=useCallback(async()=>{
     try{
-      const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
-        body: { mode: 'get_conversations' }
+      const res=await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({mode:'get_conversations'})
       });
-      if (error || !data) return;
+      if(!res.ok)return;
+      const data=await res.json();
       setConversations(data.conversations||[]);
       setAgentStates(data.agent_states||[]);
       setCategories(data.categories||[]);
@@ -520,10 +524,15 @@ export default function AgentSociety() {
     const fetchMsgs = async () => {
       setLoadingMsgs(true);
       try {
-        const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
-          body: { mode: 'get_messages', conversation_id: activeConvId }
+        const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({mode:'get_messages',conversation_id:activeConvId})
         });
-        if (!error && data) setMessages(data.messages || []);
+        if (res.ok) {
+          const data = await res.json();
+          setMessages(data.messages || []);
+        }
       } catch {
       } finally {
         setLoadingMsgs(false);
@@ -537,8 +546,13 @@ export default function AgentSociety() {
     try{
       const body:any={mode:'generate_conversation'};
       if(activeCategory!=='all')body.category=activeCategory;
-      const { data, error } = await supabase.functions.invoke('ayn-agent-society', { body });
-      if (error || !data) return;
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      if (!res.ok) return;
+      const data = await res.json();
       await loadData();
       if(data.conversation_id){
         setActiveConvId(data.conversation_id);
@@ -553,13 +567,16 @@ export default function AgentSociety() {
     if (!godEyeInput.trim()) return;
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
-        body: { mode: 'inject_event', event: godEyeInput }
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ mode: 'inject_event', event: godEyeInput })
       });
-      if (error || !data) {
+      if (!res.ok) {
         toast({ title: "Snag!", description: "God's Eye injection failed.", variant: "destructive" });
         return;
       }
+      const data = await res.json();
       setGodEyeInput('');
       setShowGodEye(false);
       await loadData();
@@ -579,18 +596,21 @@ export default function AgentSociety() {
     setChatInput('');
     setChatLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
-        body: { 
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ 
           mode: 'chat', 
           agent_id: chatAgent.agent_id, 
           message: chatInput,
           history: chatHistory 
-        }
+        })
       });
-      if (error || !data) {
+      if (!res.ok) {
         toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" });
         return;
       }
+      const data = await res.json();
       if (data.response) {
         setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
       }
@@ -598,6 +618,7 @@ export default function AgentSociety() {
       setChatLoading(false);
     }
   };
+
 
 
   const agentStateMap=useMemo(()=>{const m:Record<string,any>={};agentStates.forEach(s=>m[s.agent_id]=s);return m;},[agentStates]);
