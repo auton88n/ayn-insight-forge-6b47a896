@@ -120,7 +120,7 @@ export const CreditUpgradeCard = ({
   }
 
   // Don't render while loading to avoid flash of wrong default data
-  if (usageIsLoading) return null;
+  if (isUsageLoading) return null;
 
   // Limit reached
   if (!allowed) {
