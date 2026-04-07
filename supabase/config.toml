@@ -346,3 +346,6 @@ verify_jwt = false
 # Router does its own JWT validation internally  
 [functions.ai-router]
 verify_jwt = false
+
+[functions.ayn-agent-society]
+verify_jwt = false
