@@ -9,7 +9,6 @@ import { differenceInDays, differenceInHours } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 
 interface CreditUpgradeCardProps {
-  // All props are now optional — component fetches its own data
   remaining?: number;
   totalLimit?: number;
   allowed?: boolean;
@@ -20,6 +19,7 @@ interface CreditUpgradeCardProps {
   userId?: string;
   onOpenFeedback?: () => void;
   rewardAmount?: number;
+  isUsageLoading?: boolean;
 }
 
 interface CreditState {
@@ -37,6 +37,7 @@ export const CreditUpgradeCard = ({
   userId,
   onOpenFeedback,
   rewardAmount = 5,
+  isUsageLoading,
   // These are fallback props — component will override with live data
   remaining: propRemaining,
   totalLimit: propTotalLimit,
@@ -49,40 +50,7 @@ export const CreditUpgradeCard = ({
   const navigate = useNavigate();
   const [hasSubmittedFeedback, setHasSubmittedFeedback] = useState<boolean | null>(null);
 
-  // Live credit state fetched directly from Supabase
-  const [credits, setCredits] = useState<CreditState>({
-    remaining: propRemaining ?? 0,
-    totalLimit: propTotalLimit ?? 5,
-    allowed: propAllowed ?? true,
-    resetsAt: propResetsAt ?? null,
-    tier: propTier ?? 'free',
-    isFree: propIsFree ?? true,
-    isUnlimited: propIsUnlimited ?? false,
-    loaded: false,
-  });
-
-  // Sync from props — props come from useUsageTracking which has a realtime
-  // Supabase channel. When user_ai_limits changes, the channel fires, 
-  // useUsageTracking updates, new props flow here instantly.
-  useEffect(() => {
-    if (
-      propRemaining === undefined ||
-      propTotalLimit === undefined ||
-      propAllowed === undefined
-    ) return;
-
-    setCredits({
-      remaining: propRemaining,
-      totalLimit: propTotalLimit,
-      allowed: propAllowed ?? true,
-      resetsAt: propResetsAt ?? null,
-      tier: propTier ?? 'free',
-      isFree: propIsFree ?? true,
-      isUnlimited: propIsUnlimited ?? false,
-      loaded: true,
-    });
-  }, [propRemaining, propTotalLimit, propAllowed, propResetsAt, propTier, propIsFree, propIsUnlimited]);
-
+  // Conflicts resolved: Internal state sync removed in favor of direct prop rendering for speed.
   // Check if user has already submitted feedback
   useEffect(() => {
     if (!userId) return;
@@ -99,19 +67,26 @@ export const CreditUpgradeCard = ({
     check();
   }, [userId]);
 
+  const remaining = propRemaining ?? 0;
+  const totalLimit = propTotalLimit ?? 5;
+  const allowed = propAllowed ?? true;
+  const resetsAt = propResetsAt ?? null;
+  const tier = propTier ?? 'free';
+  const isFree = propIsFree ?? true;
+  const isUnlimited = propIsUnlimited ?? false;
+
   // displayCount and its animation effect have been removed to prevent rendering flashes
 
   // Format reset time
   const formattedResetTime = useMemo(() => {
-    if (!credits.resetsAt) return null;
-    const reset = new Date(credits.resetsAt);
+    if (!resetsAt) return null;
+    const reset = new Date(resetsAt);
     const days = differenceInDays(reset, new Date());
     if (days > 0) return `${days}d`;
     const hours = differenceInHours(reset, new Date());
     return hours > 0 ? `${hours}h` : 'Soon';
-  }, [credits.resetsAt]);
+  }, [resetsAt]);
 
-  const { remaining, totalLimit, allowed, isFree, isUnlimited, tier } = credits;
   const percentage = totalLimit > 0 ? Math.min(((totalLimit - remaining) / totalLimit) * 100, 100) : 0;
   const isLow = remaining < totalLimit * 0.2 && remaining > 0;
   const showEarnButton = userId && onOpenFeedback && hasSubmittedFeedback === false;
@@ -145,7 +120,7 @@ export const CreditUpgradeCard = ({
   }
 
   // Don't render while loading to avoid flash of wrong default data
-  if (!credits.loaded) return null;
+  if (usageIsLoading) return null;
 
   // Limit reached
   if (!allowed) {

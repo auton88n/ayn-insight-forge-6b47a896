@@ -587,7 +587,7 @@ export default function WorldIntelligence() {
                 </div>
 
                 {/* ── Agent Society pill — bottom right, clear of signal key ── */}
-                <div className="absolute bottom-16 right-4 z-20">
+                <div className="absolute bottom-24 right-4 z-20">
                   <button
                     onClick={() => setActiveView('agents')}
                     className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all group"

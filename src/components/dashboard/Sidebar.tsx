@@ -123,6 +123,8 @@ export const Sidebar = ({
   isTutorialProfileStep,
   onOpenFeedback,
   betaFeedbackReward = 5,
+  isUsageLoading = false,
+  onCreditsUpdated,
 }: SidebarProps) => {
   const {
     toggleSidebar
@@ -142,7 +144,6 @@ export const Sidebar = ({
   const { pinnedChats, togglePin } = usePinnedChats(userId, accessToken);
   
   // Use props from DashboardContainer (single source of truth)
-  const isUsageLoading = false;
   
   // Fetch user subscription tier
   const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
@@ -354,6 +355,7 @@ export const Sidebar = ({
                 userId={userId}
                 onOpenFeedback={onOpenFeedback}
                 rewardAmount={betaFeedbackReward}
+                isUsageLoading={isUsageLoading}
               />
             </SidebarGroupContent>
           </SidebarGroup>

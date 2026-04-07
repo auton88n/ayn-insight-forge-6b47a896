@@ -326,6 +326,7 @@ export interface SidebarProps {
   resetsAt?: string | null;
   tier?: string;
   isUsageLoading?: boolean;
+  onCreditsUpdated?: () => void;
   onModeSelect: (mode: AIMode) => void;
   onNewChat: () => void;
   onLoadChat: (chat: ChatHistory) => void;

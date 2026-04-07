@@ -167,6 +167,7 @@ export const useMessages = (
             : "You're sending messages too quickly. Please wait.";
         setMessages(prev => [...prev.filter(m => m.id !== userMessage.id), { id: crypto.randomUUID(), content: errorContent, sender: 'ayn', timestamp: new Date(), status: 'error' }]);
         toast({ title: isChatLimit ? 'Chat Limit' : isDailyLimit ? 'Daily Limit' : 'Rate Limit', description: errorContent, variant: 'destructive' });
+        onUsageUpdated?.();
         return;
       }
 
@@ -178,6 +179,7 @@ export const useMessages = (
           content: upgradeData?.content || 'This feature requires a paid subscription.',
           sender: 'ayn', timestamp: new Date(), status: 'sent'
         }]);
+        onUsageUpdated?.();
         return;
       }
 
@@ -204,6 +206,7 @@ export const useMessages = (
             ))
           );
           resetGenerationState();
+          onUsageUpdated?.();
 
           // Emotion detection
           const { analyzeResponseEmotion, analyzeUserEmotion } = await import('@/lib/emotionMapping');
@@ -235,6 +238,7 @@ export const useMessages = (
         if (backendUserEmotion && ['angry', 'frustrated'].includes(backendUserEmotion) && ['calm', 'happy'].includes(finalEmotion)) finalEmotion = 'comfort';
         else if (backendUserEmotion === 'sad' && finalEmotion === 'calm') finalEmotion = 'supportive';
         setLastSuggestedEmotion(finalEmotion);
+        onUsageUpdated?.();
 
         // Image/document handling
         if (webhookData?.imageUrl) response = `![Generated Image](${webhookData.imageUrl})\n\n` + response;
