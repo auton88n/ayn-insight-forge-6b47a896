@@ -667,8 +667,16 @@ function AgentSociety() {
     load();
   }, [activeConvId]);
 
+  const isMounted = useRef(false);
+  const prevMsgCount = useRef(0);
   useEffect(() => {
-    msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll into view when new messages are ADDED after initial load
+    // (prevents pulling the whole page down on first render)
+    if (!isMounted.current) { isMounted.current = true; prevMsgCount.current = messages.length; return; }
+    if (messages.length > prevMsgCount.current) {
+      prevMsgCount.current = messages.length;
+      msgsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [messages]);
 
   const generate = async () => {

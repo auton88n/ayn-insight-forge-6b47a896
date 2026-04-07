@@ -382,6 +382,7 @@ export default function WorldIntelligence() {
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const currentTime = useRef(new Date()).current;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Data
   const [snapshot, setSnapshot]           = useState<any>(null);
@@ -400,8 +401,11 @@ export default function WorldIntelligence() {
   const [selectedCountry, setSelectedCountry] = useState<{ intel: CountryIntel; sic: any } | null>(null);
 
   // Auth
-  // Scroll to top on mount — page was restoring scroll position from previous route
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  // Scroll to top on mount — must target the inner overflow-y-auto container, not window
+  useEffect(() => {
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
@@ -729,7 +733,7 @@ export default function WorldIntelligence() {
         </div>
       )}
 
-      <div className="flex-1 overflow-x-hidden overflow-y-auto">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto" ref={scrollContainerRef}>
         <div className="w-full max-w-[1440px] mx-auto px-3 pt-4 sm:px-4 lg:px-5 space-y-8 pb-10">
 
           {/* ── 1. PARTICLE CANVAS + MAP ─────────────────────────────── */}
