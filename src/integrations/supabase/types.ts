@@ -979,6 +979,47 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_consequence_chains: {
+        Row: {
+          chain_status: string | null
+          consequences: Json
+          created_at: string | null
+          id: string
+          prediction_id: string | null
+          trigger_confirmed_at: string | null
+          trigger_event: string
+          trigger_threshold: string | null
+        }
+        Insert: {
+          chain_status?: string | null
+          consequences?: Json
+          created_at?: string | null
+          id?: string
+          prediction_id?: string | null
+          trigger_confirmed_at?: string | null
+          trigger_event: string
+          trigger_threshold?: string | null
+        }
+        Update: {
+          chain_status?: string | null
+          consequences?: Json
+          created_at?: string | null
+          id?: string
+          prediction_id?: string | null
+          trigger_confirmed_at?: string | null
+          trigger_event?: string
+          trigger_threshold?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_consequence_chains_prediction_id_fkey"
+            columns: ["prediction_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_global_predictions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ayn_consumer_sentiment: {
         Row: {
           confidence_index: Json | null
@@ -1072,6 +1113,72 @@ export type Database = {
           job_market?: Json | null
           opportunities?: Json | null
           region?: string
+        }
+        Relationships: []
+      }
+      ayn_country_risk_scores: {
+        Row: {
+          conflict_risk: number | null
+          country: string
+          country_code: string | null
+          created_at: string | null
+          currency_risk: number | null
+          debt_risk: number | null
+          economic_risk: number | null
+          energy_dependency_risk: number | null
+          id: string
+          key_opportunities: string[] | null
+          key_risks: string[] | null
+          overall_risk: number | null
+          political_risk: number | null
+          risk_trend: string | null
+          score_date: string | null
+          scored_at: string | null
+          social_instability_risk: number | null
+          supply_chain_risk: number | null
+          verdict: string | null
+        }
+        Insert: {
+          conflict_risk?: number | null
+          country: string
+          country_code?: string | null
+          created_at?: string | null
+          currency_risk?: number | null
+          debt_risk?: number | null
+          economic_risk?: number | null
+          energy_dependency_risk?: number | null
+          id?: string
+          key_opportunities?: string[] | null
+          key_risks?: string[] | null
+          overall_risk?: number | null
+          political_risk?: number | null
+          risk_trend?: string | null
+          score_date?: string | null
+          scored_at?: string | null
+          social_instability_risk?: number | null
+          supply_chain_risk?: number | null
+          verdict?: string | null
+        }
+        Update: {
+          conflict_risk?: number | null
+          country?: string
+          country_code?: string | null
+          created_at?: string | null
+          currency_risk?: number | null
+          debt_risk?: number | null
+          economic_risk?: number | null
+          energy_dependency_risk?: number | null
+          id?: string
+          key_opportunities?: string[] | null
+          key_risks?: string[] | null
+          overall_risk?: number | null
+          political_risk?: number | null
+          risk_trend?: string | null
+          score_date?: string | null
+          scored_at?: string | null
+          social_instability_risk?: number | null
+          supply_chain_risk?: number | null
+          verdict?: string | null
         }
         Relationships: []
       }
@@ -1257,6 +1364,75 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_early_warnings: {
+        Row: {
+          affected_assets: string[] | null
+          affected_regions: string[] | null
+          confirmed_mainstream_at: string | null
+          created_at: string | null
+          data_point: string | null
+          data_value: string | null
+          days_ahead_actual: number | null
+          days_ahead_estimate: number | null
+          description: string
+          detected_at: string
+          id: string
+          long_term_implication: string | null
+          mainstream_awareness: string | null
+          medium_term_implication: string | null
+          short_term_implication: string | null
+          signal_date: string
+          signal_type: string
+          status: string | null
+          threshold_crossed: string | null
+          title: string
+        }
+        Insert: {
+          affected_assets?: string[] | null
+          affected_regions?: string[] | null
+          confirmed_mainstream_at?: string | null
+          created_at?: string | null
+          data_point?: string | null
+          data_value?: string | null
+          days_ahead_actual?: number | null
+          days_ahead_estimate?: number | null
+          description: string
+          detected_at?: string
+          id?: string
+          long_term_implication?: string | null
+          mainstream_awareness?: string | null
+          medium_term_implication?: string | null
+          short_term_implication?: string | null
+          signal_date?: string
+          signal_type: string
+          status?: string | null
+          threshold_crossed?: string | null
+          title: string
+        }
+        Update: {
+          affected_assets?: string[] | null
+          affected_regions?: string[] | null
+          confirmed_mainstream_at?: string | null
+          created_at?: string | null
+          data_point?: string | null
+          data_value?: string | null
+          days_ahead_actual?: number | null
+          days_ahead_estimate?: number | null
+          description?: string
+          detected_at?: string
+          id?: string
+          long_term_implication?: string | null
+          mainstream_awareness?: string | null
+          medium_term_implication?: string | null
+          short_term_implication?: string | null
+          signal_date?: string
+          signal_type?: string
+          status?: string | null
+          threshold_crossed?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       ayn_error_log: {
         Row: {
           component: string
@@ -1326,6 +1502,138 @@ export type Database = {
           sanctions?: Json | null
           singleton_key?: number | null
           trade_tensions?: Json | null
+        }
+        Relationships: []
+      }
+      ayn_global_predictions: {
+        Row: {
+          accuracy_score: number | null
+          confidence: number
+          consequence_chain: Json | null
+          conviction: string
+          countries: string[] | null
+          created_at: string | null
+          data_sources: Json | null
+          domain: string
+          expires_at: string | null
+          generated_by: string | null
+          headline: string
+          historical_parallel: string | null
+          horizon: string
+          id: string
+          impact_bonds: string | null
+          impact_btc: string | null
+          impact_equities: string | null
+          impact_gold: string | null
+          impact_oil: string | null
+          impact_usd: string | null
+          leading_indicators: string[] | null
+          news_signals: string[] | null
+          predicted_at: string
+          predicted_date: string
+          region: string
+          resolution_correct: boolean | null
+          resolution_evidence: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          signal_strength: number | null
+          status: string
+          subdomain: string | null
+          target_date: string | null
+          title: string
+          uniqueness_score: number | null
+          updated_at: string | null
+          what_happens: string
+          what_would_invalidate: string | null
+          who_benefits: string[] | null
+          who_suffers: string[] | null
+          why_it_happens: string
+        }
+        Insert: {
+          accuracy_score?: number | null
+          confidence: number
+          consequence_chain?: Json | null
+          conviction: string
+          countries?: string[] | null
+          created_at?: string | null
+          data_sources?: Json | null
+          domain: string
+          expires_at?: string | null
+          generated_by?: string | null
+          headline: string
+          historical_parallel?: string | null
+          horizon: string
+          id?: string
+          impact_bonds?: string | null
+          impact_btc?: string | null
+          impact_equities?: string | null
+          impact_gold?: string | null
+          impact_oil?: string | null
+          impact_usd?: string | null
+          leading_indicators?: string[] | null
+          news_signals?: string[] | null
+          predicted_at?: string
+          predicted_date?: string
+          region?: string
+          resolution_correct?: boolean | null
+          resolution_evidence?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          signal_strength?: number | null
+          status?: string
+          subdomain?: string | null
+          target_date?: string | null
+          title: string
+          uniqueness_score?: number | null
+          updated_at?: string | null
+          what_happens: string
+          what_would_invalidate?: string | null
+          who_benefits?: string[] | null
+          who_suffers?: string[] | null
+          why_it_happens: string
+        }
+        Update: {
+          accuracy_score?: number | null
+          confidence?: number
+          consequence_chain?: Json | null
+          conviction?: string
+          countries?: string[] | null
+          created_at?: string | null
+          data_sources?: Json | null
+          domain?: string
+          expires_at?: string | null
+          generated_by?: string | null
+          headline?: string
+          historical_parallel?: string | null
+          horizon?: string
+          id?: string
+          impact_bonds?: string | null
+          impact_btc?: string | null
+          impact_equities?: string | null
+          impact_gold?: string | null
+          impact_oil?: string | null
+          impact_usd?: string | null
+          leading_indicators?: string[] | null
+          news_signals?: string[] | null
+          predicted_at?: string
+          predicted_date?: string
+          region?: string
+          resolution_correct?: boolean | null
+          resolution_evidence?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          signal_strength?: number | null
+          status?: string
+          subdomain?: string | null
+          target_date?: string | null
+          title?: string
+          uniqueness_score?: number | null
+          updated_at?: string | null
+          what_happens?: string
+          what_would_invalidate?: string | null
+          who_benefits?: string[] | null
+          who_suffers?: string[] | null
+          why_it_happens?: string
         }
         Relationships: []
       }
@@ -1799,6 +2107,71 @@ export type Database = {
           world_verified_wrong?: number | null
         }
         Relationships: []
+      }
+      ayn_prediction_ledger: {
+        Row: {
+          accuracy_score: number | null
+          confidence_at_prediction: number
+          created_at: string | null
+          days_before_mainstream: number | null
+          days_to_resolution: number | null
+          horizon: string
+          id: string
+          market_data_snapshot: Json | null
+          prediction_domain: string
+          prediction_id: string | null
+          prediction_region: string
+          prediction_title: string
+          resolved_at: string | null
+          snapshot_at: string
+          was_contrarian: boolean | null
+          was_correct: boolean | null
+        }
+        Insert: {
+          accuracy_score?: number | null
+          confidence_at_prediction: number
+          created_at?: string | null
+          days_before_mainstream?: number | null
+          days_to_resolution?: number | null
+          horizon: string
+          id?: string
+          market_data_snapshot?: Json | null
+          prediction_domain: string
+          prediction_id?: string | null
+          prediction_region: string
+          prediction_title: string
+          resolved_at?: string | null
+          snapshot_at?: string
+          was_contrarian?: boolean | null
+          was_correct?: boolean | null
+        }
+        Update: {
+          accuracy_score?: number | null
+          confidence_at_prediction?: number
+          created_at?: string | null
+          days_before_mainstream?: number | null
+          days_to_resolution?: number | null
+          horizon?: string
+          id?: string
+          market_data_snapshot?: Json | null
+          prediction_domain?: string
+          prediction_id?: string | null
+          prediction_region?: string
+          prediction_title?: string
+          resolved_at?: string | null
+          snapshot_at?: string
+          was_contrarian?: boolean | null
+          was_correct?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_prediction_ledger_prediction_id_fkey"
+            columns: ["prediction_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_global_predictions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ayn_prediction_lessons: {
         Row: {
@@ -2285,6 +2658,59 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ayn_scenarios: {
+        Row: {
+          confirmation_signals: string[] | null
+          could_happen_by: string | null
+          created_at: string | null
+          economic_outcomes: Json | null
+          geopolitical_outcomes: Json | null
+          id: string
+          market_outcomes: Json | null
+          name: string
+          parent_prediction_id: string | null
+          probability: number
+          status: string | null
+          trigger: string
+        }
+        Insert: {
+          confirmation_signals?: string[] | null
+          could_happen_by?: string | null
+          created_at?: string | null
+          economic_outcomes?: Json | null
+          geopolitical_outcomes?: Json | null
+          id?: string
+          market_outcomes?: Json | null
+          name: string
+          parent_prediction_id?: string | null
+          probability: number
+          status?: string | null
+          trigger: string
+        }
+        Update: {
+          confirmation_signals?: string[] | null
+          could_happen_by?: string | null
+          created_at?: string | null
+          economic_outcomes?: Json | null
+          geopolitical_outcomes?: Json | null
+          id?: string
+          market_outcomes?: Json | null
+          name?: string
+          parent_prediction_id?: string | null
+          probability?: number
+          status?: string | null
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_scenarios_parent_prediction_id_fkey"
+            columns: ["parent_prediction_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_global_predictions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ayn_sector_intel: {
         Row: {
@@ -6961,6 +7387,11 @@ export type Database = {
           schema_name: string
           security_risk: string
         }[]
+      }
+      get_global_intelligence_dashboard: { Args: never; Returns: Json }
+      get_predictions_by_domain: {
+        Args: { p_domain?: string; p_region?: string }
+        Returns: Json
       }
       get_profile_business_context: {
         Args: { _user_id: string; p_encryption_key?: string }
