@@ -247,7 +247,6 @@ function CountryDossier({ intel, onClose }: { intel: CountryIntel; onClose: () =
                 const label = typeof s === 'string' ? s : (s?.name || s?.title || JSON.stringify(s));
                 return <span key={i} className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-orange-500/8 border border-orange-500/18 text-orange-300/70">{label}</span>;
               })}
-              ))}
             </div>
           </div>
         )}
