@@ -10,7 +10,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
-import ParticleCanvas from '@/components/dashboard/world/ParticleCanvas';
 import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
 import { PremiumCard, ShimmerButton, PulsatingButton, GlassCard, BorderBeam, SpotlightCard } from '@/components/ui/premium';
 
@@ -468,16 +467,12 @@ export default function WorldIntelligence() {
     <div className="min-h-screen bg-[#030610] text-white font-mono flex flex-col overflow-x-hidden">
       <style>{`
         @keyframes wi-ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-        @keyframes wi-scanline { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
         @keyframes wi-pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
         @keyframes wi-glow-in { from{opacity:0;transform:scale(0.97) translateY(6px)} to{opacity:1;transform:scale(1) translateY(0)} }
         .wi-scrollbar::-webkit-scrollbar{width:2px} .wi-scrollbar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.06);border-radius:99px}
       `}</style>
 
-      {/* ── Scanline atmosphere overlay ─────────────────────────────────────── */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(0,255,200,0.03) 0%, transparent 60%), radial-gradient(ellipse at 100% 100%, rgba(0,100,255,0.03) 0%, transparent 50%)' }} />
-      </div>
+
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="shrink-0 z-50 h-13 flex items-center" style={{ background: 'rgba(3,6,16,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -577,65 +572,40 @@ export default function WorldIntelligence() {
           {activeView === 'world' && (
             <motion.div key="world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
-              {/* ── HERO: Full-height globe with floating side tab ─────── */}
+              {/* ── HERO: Full-height globe ───────────────────────────── */}
               <div className="relative w-full" style={{ height: 'calc(100vh - 96px)', minHeight: 520 }}>
-                <ParticleCanvas particleCount={80000} className="absolute inset-0 w-full h-full">
-                  <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 25%, rgba(3,6,16,0.55) 100%)' }} />
-                  <div className="w-full h-full">
-                    <HeatMap2D
-                      points={mapPoints}
-                      height={undefined as any}
-                      onPointClick={handleMapClick}
-                      showLayerToggle={true}
-                      isLive={true}
-                      ticker={THREAT_TICKER}
-                    />
-                  </div>
-                </ParticleCanvas>
-
-                {/* ── Floating stat cards — top right ─────────────────── */}
-                <div className="absolute top-4 right-4 flex flex-col gap-2 pointer-events-none z-10">
-                  {signals.length > 0 && (
-                    <GlassCard className="px-3 py-2">
-                      <div className="text-[7px] text-white/25 uppercase tracking-wider mb-1">Live Signals</div>
-                      <div className="text-2xl font-black text-white/90 leading-none">{signals.length}</div>
-                      {criticalCount > 0 && <div className="text-[8px] text-red-400 font-black mt-0.5">{criticalCount} critical</div>}
-                    </GlassCard>
-                  )}
-                  {worldPreds.length > 0 && (
-                    <GlassCard className="px-3 py-2">
-                      <div className="text-[7px] text-white/25 uppercase tracking-wider mb-1">Predictions</div>
-                      <div className="text-2xl font-black text-white/90 leading-none">{worldPreds.length}</div>
-                    </GlassCard>
-                  )}
+                {/* Globe fills the container */}
+                <div className="absolute inset-0">
+                  <HeatMap2D
+                    points={mapPoints}
+                    height={undefined as any}
+                    onPointClick={handleMapClick}
+                    showLayerToggle={true}
+                    isLive={true}
+                    ticker={THREAT_TICKER}
+                  />
                 </div>
 
-                {/* ── Floating AGENT SOCIETY tab — left side of globe ──── */}
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20">
+                {/* ── Agent Society pill — bottom right, clear of signal key ── */}
+                <div className="absolute bottom-16 right-4 z-20">
                   <button
                     onClick={() => setActiveView('agents')}
-                    className="flex flex-col items-center gap-2 px-3 py-4 rounded-2xl transition-all group"
+                    className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all group"
                     style={{
-                      background: 'rgba(168,85,247,0.12)',
-                      backdropFilter: 'saturate(180%) blur(12px)',
-                      border: '1px solid rgba(168,85,247,0.3)',
-                      borderTop: '1px solid rgba(168,85,247,0.5)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(168,85,247,0.15)',
+                      background: 'rgba(168,85,247,0.14)',
+                      backdropFilter: 'saturate(180%) blur(16px)',
+                      WebkitBackdropFilter: 'saturate(180%) blur(16px)',
+                      border: '1px solid rgba(168,85,247,0.28)',
+                      borderTop: '1px solid rgba(168,85,247,0.48)',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 16px rgba(168,85,247,0.12)',
                     }}>
-                    <Users className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
-                    <div className="text-[7px] font-black text-purple-400 tracking-[0.15em] uppercase" style={{ writingMode:'vertical-rl', textOrientation:'mixed', transform:'rotate(180deg)' }}>
-                      Agent Society
+                    <Users className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform shrink-0" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-[9px] font-black text-purple-400 tracking-[0.14em] uppercase leading-none">Agent Society</span>
+                      <span className="text-[7px] font-mono text-purple-400/50 leading-none mt-0.5">80+ live agents</span>
                     </div>
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" style={{ boxShadow:'0 0 6px rgba(168,85,247,0.7)' }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" style={{ boxShadow:'0 0 6px rgba(168,85,247,0.8)', animation:'wi-pulse-dot 2s ease-in-out infinite' }} />
                   </button>
-                </div>
-
-                {/* ── Scroll down arrow ──────────────────────────────────── */}
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-                  <div className="flex flex-col items-center gap-1 opacity-40">
-                    <div className="text-[7px] font-mono text-white/50 uppercase tracking-[0.2em]">Scroll for Intelligence</div>
-                    <div className="w-px h-6 bg-gradient-to-b from-white/30 to-transparent" />
-                  </div>
                 </div>
               </div>
 
