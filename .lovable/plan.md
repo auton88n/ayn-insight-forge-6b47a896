@@ -1,56 +1,31 @@
 
+Fix the overlap by adding real vertical separation below the map hero, not just padding inside the cards section.
 
-# Redesign Agent Society — Better Design, Mobile/Tablet Support, Auto-Activate
+1. Update the world hero wrapper in `src/pages/WorldIntelligence.tsx`
+- Add responsive bottom margin to the map section itself, so the next cards start clearly lower.
+- Use a larger gap on tablet/mobile where the overlap is happening most, for example `mb-8 sm:mb-10 md:mb-12`.
 
-## Problem
-1. The current layout is desktop-only (side-by-side globe + panel), broken on mobile/tablet
-2. The 3D globe doesn't render on mobile (blocked by `MobileBlockScreen`)
-3. Users must manually click "Activate" — no auto-generation on first load
-4. Text is extremely small (7-9px), low contrast, hard to read
-5. Inline styles everywhere make it hard to maintain
+2. Keep the cards grid out of the map’s visual zone
+- Reduce/remove the current reliance on `pt-6 sm:pt-8` for separation.
+- Let the spacing come primarily from the hero container’s bottom margin so the cards are physically pushed down.
 
-## Design Direction
-CIA operations center aesthetic (matching the rest of World Intelligence), with cleaner typography, better spacing, and a stacked layout for smaller screens.
+3. Tune the floating overlays around the map
+- Slightly raise or tighten the Agent Society pill so it does not compete with the lower edge of the globe.
+- If needed, adjust the HeatMap legend position on smaller screens so it sits a bit higher inside the map and leaves a cleaner boundary above the cards.
 
-## Plan
+4. Preserve tablet layout quality
+- Keep the current `md` side-by-side card layout, but ensure the first card row begins after the map section ends.
+- Verify the fix specifically at the current tablet viewport (~768px wide), where the screenshot shows the issue.
 
-### 1. Auto-activate on first load
-- In the `loadData` callback, if `conversations` comes back empty, automatically call `generate()` — no manual "Activate" button needed
-- Show a premium loading state during first generation ("INITIALIZING AGENT NETWORK...")
-
-### 2. Responsive layout — mobile & tablet support
-- **Mobile (<768px)**: Hide the 3D globe entirely. Show a compact agent grid + conversation feed in a single column. Use a bottom sheet for agent chat
-- **Tablet (768-1024px)**: Show a smaller globe (40% width) + panel, or allow toggling between globe view and conversation view via tabs
-- **Desktop (1024+)**: Keep current side-by-side layout but with better proportions
-- Replace `grid-cols-1 lg:grid-cols-[1fr_400px]` with proper responsive breakpoints
-- Remove the `MobileBlockScreen` dependency for this component
-
-### 3. Improve typography and readability
-- Increase base font sizes: agent names 12→14px, messages 10.5→13px, labels 7-8→10px
-- Use `font-mono` (JetBrains Mono) consistently for the CIA feel
-- Improve contrast ratios — text opacity from 0.2-0.3 → 0.5-0.7 minimum
-- Add proper spacing between message bubbles
-
-### 4. Better visual hierarchy and design polish
-- Add a status bar at top showing: Active Agents count, Tension Level gauge, Panic alerts
-- Redesign category filter pills — larger touch targets (min 40px height for mobile)
-- Message bubbles: increase padding, add left accent border by agent category color
-- Agent cards: increase height, show flag emoji larger, better emotion intensity bars
-- God's Eye input: make it a proper modal on mobile instead of inline
-- Conversation tabs: larger, scrollable horizontally with clear active state
-
-### 5. Mobile-specific optimizations
-- Agent list becomes a horizontally scrollable avatar strip on mobile
-- Tap agent avatar to filter messages + show detail card
-- Swipe-friendly conversation navigation
-- Full-screen chat modal on mobile (already partly done)
-
-## Files to Edit
-- `src/components/dashboard/world/AgentSociety.tsx` — main redesign (layout, typography, responsiveness, auto-activate)
-
-## Technical Notes
-- Use Tailwind responsive prefixes (`sm:`, `md:`, `lg:`) instead of inline styles where possible
-- Use `useIsMobile()` hook for conditional rendering (globe vs no-globe)
-- Keep 3D globe code intact but conditionally render only on lg+ screens
-- Auto-activate triggers once via a `useRef` flag to prevent repeated calls
-
+Technical details
+- Primary file: `src/pages/WorldIntelligence.tsx`
+- Secondary file if needed: `src/components/dashboard/HeatMap2D.tsx`
+- Most likely change:
+```text
+<Map hero container className/style>
+  add bottom spacing here
+↓
+<cards wrapper>
+  reduce compensating top padding if it becomes redundant
+```
+- Root cause: the map’s internal bottom overlays (like the Signal Key) visually extend to the lower edge, while the next section begins too close beneath it.
