@@ -609,7 +609,7 @@ export default function WorldIntelligence() {
                 </div>
               </div>
 
-              <div className="max-w-[1440px] mx-auto px-2 sm:px-4 lg:px-5 py-4 sm:py-6 space-y-5 sm:space-y-8">
+              <div className="max-w-[1440px] mx-auto px-2 sm:px-4 lg:px-5 pt-6 sm:pt-8 pb-4 sm:pb-6 space-y-5 sm:space-y-8">
 
                 {/* ── INTEL BRIEF + MARKET SNAPSHOT ──────────────────────── */}
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px] gap-3 sm:gap-5">
