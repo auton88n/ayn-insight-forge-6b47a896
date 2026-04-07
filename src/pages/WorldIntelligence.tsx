@@ -464,7 +464,7 @@ export default function WorldIntelligence() {
   );
 
   return (
-    <div className="min-h-screen bg-[#030610] text-white font-mono flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#030610] text-white font-mono flex flex-col overflow-x-hidden text-[13px] sm:text-[11px]">
       <style>{`
         @keyframes wi-ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
         @keyframes wi-pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
@@ -475,17 +475,17 @@ export default function WorldIntelligence() {
 
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="shrink-0 z-50 h-13 flex items-center" style={{ background: 'rgba(3,6,16,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="flex items-center justify-between px-4 w-full h-full">
+      <header className="shrink-0 z-50 h-12 sm:h-13 flex items-center" style={{ background: 'rgba(3,6,16,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center justify-between px-2 sm:px-4 w-full h-full">
           {/* Left */}
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg hover:bg-white/6 transition-colors">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg hover:bg-white/6 transition-colors shrink-0">
               <ArrowLeft className="w-4 h-4 text-white/40" />
             </button>
-            <div className="w-px h-5 bg-white/8" />
-            <div className="flex items-center gap-2">
-              <PulsatingButton pulseColor="rgba(0,255,200,0.45)" pulseDuration={3} className="w-2 h-2 rounded-full bg-cyan-400 cursor-default p-0 border-0 min-w-0 min-h-0" style={{ padding: 0, width: 8, height: 8 }}><span /></PulsatingButton>
-              <span className="text-[11px] font-black tracking-[0.2em] text-cyan-400">AYN // WORLD INTELLIGENCE</span>
+            <div className="w-px h-5 bg-white/8 hidden sm:block" />
+            <div className="flex items-center gap-2 min-w-0">
+              <PulsatingButton pulseColor="rgba(0,255,200,0.45)" pulseDuration={3} className="w-2 h-2 rounded-full bg-cyan-400 cursor-default p-0 border-0 min-w-0 min-h-0 shrink-0" style={{ padding: 0, width: 8, height: 8 }}><span /></PulsatingButton>
+              <span className="text-[10px] sm:text-[11px] font-black tracking-[0.15em] sm:tracking-[0.2em] text-cyan-400 truncate">AYN // WORLD INTELLIGENCE</span>
             </div>
 
             {/* ── VIEW TABS ─────────────────────────────────────────────── */}
@@ -573,7 +573,7 @@ export default function WorldIntelligence() {
             <motion.div key="world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
               {/* ── HERO: Full-height globe ───────────────────────────── */}
-              <div className="relative w-full" style={{ height: 'calc(100vh - 96px)', minHeight: 520 }}>
+              <div className="relative w-full" style={{ height: 'clamp(320px, calc(100vh - 140px), calc(100vh - 96px))', minHeight: 320 }}>
                 {/* Globe fills the container */}
                 <div className="absolute inset-0">
                   <HeatMap2D
@@ -587,10 +587,10 @@ export default function WorldIntelligence() {
                 </div>
 
                 {/* ── Agent Society pill — bottom right, clear of signal key ── */}
-                <div className="absolute bottom-40 right-4 z-20">
+                <div className="absolute bottom-20 sm:bottom-40 right-2 sm:right-4 z-20">
                   <button
                     onClick={() => setActiveView('agents')}
-                    className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all group"
+                    className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all group"
                     style={{
                       background: 'rgba(168,85,247,0.14)',
                       backdropFilter: 'saturate(180%) blur(16px)',
@@ -601,15 +601,15 @@ export default function WorldIntelligence() {
                     }}>
                     <Users className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform shrink-0" />
                     <div className="flex flex-col items-start">
-                      <span className="text-[9px] font-black text-purple-400 tracking-[0.14em] uppercase leading-none">Agent Society</span>
-                      <span className="text-[7px] font-mono text-purple-400/50 leading-none mt-0.5">80+ live agents</span>
+                      <span className="text-[9px] sm:text-[9px] font-black text-purple-400 tracking-[0.14em] uppercase leading-none">Agent Society</span>
+                      <span className="text-[7px] font-mono text-purple-400/50 leading-none mt-0.5 hidden sm:block">80+ live agents</span>
                     </div>
                     <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" style={{ boxShadow:'0 0 6px rgba(168,85,247,0.8)', animation:'wi-pulse-dot 2s ease-in-out infinite' }} />
                   </button>
                 </div>
               </div>
 
-              <div className="max-w-[1440px] mx-auto px-3 sm:px-4 lg:px-5 py-6 space-y-8">
+              <div className="max-w-[1440px] mx-auto px-2 sm:px-4 lg:px-5 py-4 sm:py-6 space-y-5 sm:space-y-8">
 
                 {/* ── INTEL BRIEF + MARKET SNAPSHOT ──────────────────────── */}
                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
@@ -852,7 +852,7 @@ export default function WorldIntelligence() {
                       <span className="text-[10px] font-black text-cyan-400 tracking-[0.18em] uppercase">Country Intelligence</span>
                       <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.2), transparent)' }} />
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
                       {countryIntel.map(ci => {
                         const econ = ci.economy || {};
                         const gdpGrowth = econ.gdp_growth?.value;
