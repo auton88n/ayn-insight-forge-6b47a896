@@ -186,7 +186,7 @@ export const Sidebar = ({
       <div className="p-2 space-y-0.5">
         {subscriptionTier === 'free' && (
           <Button 
-            onClick={() => { setMenuOpen(false); navigate('/pricing'); }} 
+            onClick={() => { setMenuOpen(false); navigate('/dashboard/pricing'); }} 
             variant="ghost" 
             className="w-full justify-start h-11 px-3 gap-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-purple-600/10 hover:from-purple-500/20 hover:to-purple-600/20 border border-purple-500/20 transition-colors duration-150"
           >
