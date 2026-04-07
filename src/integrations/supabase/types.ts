@@ -717,43 +717,67 @@ export type Database = {
       }
       ayn_agent_states: {
         Row: {
+          agent_category: string | null
+          agent_flag: string | null
           agent_id: string
           agent_name: string
+          agent_role: string | null
           confidence: number | null
+          country: string | null
           current_emotion: string | null
           emotion_intensity: number | null
           id: string
           key_concern: string | null
           last_action: string | null
+          loses_from: string | null
+          personality_summary: string | null
+          social_class: string | null
           stance_summary: string | null
           stress_level: number | null
           updated_at: string | null
+          wins_from: string | null
         }
         Insert: {
+          agent_category?: string | null
+          agent_flag?: string | null
           agent_id: string
           agent_name: string
+          agent_role?: string | null
           confidence?: number | null
+          country?: string | null
           current_emotion?: string | null
           emotion_intensity?: number | null
           id?: string
           key_concern?: string | null
           last_action?: string | null
+          loses_from?: string | null
+          personality_summary?: string | null
+          social_class?: string | null
           stance_summary?: string | null
           stress_level?: number | null
           updated_at?: string | null
+          wins_from?: string | null
         }
         Update: {
+          agent_category?: string | null
+          agent_flag?: string | null
           agent_id?: string
           agent_name?: string
+          agent_role?: string | null
           confidence?: number | null
+          country?: string | null
           current_emotion?: string | null
           emotion_intensity?: number | null
           id?: string
           key_concern?: string | null
           last_action?: string | null
+          loses_from?: string | null
+          personality_summary?: string | null
+          social_class?: string | null
           stance_summary?: string | null
           stress_level?: number | null
           updated_at?: string | null
+          wins_from?: string | null
         }
         Relationships: []
       }
