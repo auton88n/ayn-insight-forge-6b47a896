@@ -11,8 +11,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Billboard, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
-const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+
+// Edge Function: ayn-agent-society
+// Modes: get_conversations, get_messages, generate_conversation, inject_event, chat
+
 
 // ─── Emotion / category config ────────────────────────────────────────────────
 const EM: Record<string, { emoji:string; color:string; bg:string; border:string; label:string }> = {
@@ -464,6 +469,8 @@ export default function AgentSociety() {
   const msgsEnd    = useRef<HTMLDivElement>(null);
   const isMounted  = useRef(false);
   const prevCount  = useRef(0);
+  const { toast }  = useToast();
+
 
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConvId, setActiveConvId]   = useState<string|null>(null);
@@ -495,23 +502,34 @@ export default function AgentSociety() {
 
   const loadData=useCallback(async()=>{
     try{
-      const res=await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'get_conversations'})});
-      if(!res.ok)return;
-      const d=await res.json();
-      setConversations(d.conversations||[]);
-      setAgentStates(d.agent_states||[]);
-      setCategories(d.categories||[]);
-      if(d.conversations?.length&&!activeConvId)setActiveConvId(d.conversations[0].id);
+      const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
+        body: { mode: 'get_conversations' }
+      });
+      if (error || !data) return;
+      setConversations(data.conversations||[]);
+      setAgentStates(data.agent_states||[]);
+      setCategories(data.categories||[]);
+      if(data.conversations?.length&&!activeConvId)setActiveConvId(data.conversations[0].id);
     }catch{}
   },[activeConvId]);
 
-  useEffect(()=>{loadData();},[]);
+  useEffect(()=>{loadData();},[loadData]);
 
   useEffect(()=>{
-    if(!activeConvId)return;
-    setLoadingMsgs(true);
-    fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'get_messages',conversation_id:activeConvId})})
-      .then(r=>r.json()).then(d=>setMessages(d.messages||[])).catch(()=>{}).finally(()=>setLoadingMsgs(false));
+    if(!activeConvId) return;
+    const fetchMsgs = async () => {
+      setLoadingMsgs(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
+          body: { mode: 'get_messages', conversation_id: activeConvId }
+        });
+        if (!error && data) setMessages(data.messages || []);
+      } catch {
+      } finally {
+        setLoadingMsgs(false);
+      }
+    };
+    fetchMsgs();
   },[activeConvId]);
 
   const generate=async()=>{
@@ -519,13 +537,68 @@ export default function AgentSociety() {
     try{
       const body:any={mode:'generate_conversation'};
       if(activeCategory!=='all')body.category=activeCategory;
-      const res=await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(!res.ok)return;
-      const d=await res.json();
+      const { data, error } = await supabase.functions.invoke('ayn-agent-society', { body });
+      if (error || !data) return;
       await loadData();
-      if(d.conversation_id){setActiveConvId(d.conversation_id);setMessages(d.messages||[]);}
-    }finally{setGenerating(false);}
+      if(data.conversation_id){
+        setActiveConvId(data.conversation_id);
+        setMessages(data.messages||[]);
+      }
+    } finally {
+      setGenerating(false);
+    }
   };
+
+  const injectGodEye = async () => {
+    if (!godEyeInput.trim()) return;
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
+        body: { mode: 'inject_event', event: godEyeInput }
+      });
+      if (error || !data) {
+        toast({ title: "Snag!", description: "God's Eye injection failed.", variant: "destructive" });
+        return;
+      }
+      setGodEyeInput('');
+      setShowGodEye(false);
+      await loadData();
+      if (data.conversation_id) {
+        setActiveConvId(data.conversation_id);
+        setMessages(data.messages || []);
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const chatWithAgent = async () => {
+    if (!chatInput.trim() || !chatAgent) return;
+    const userMsg = { role: 'user', content: chatInput };
+    setChatHistory(prev => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
+        body: { 
+          mode: 'chat', 
+          agent_id: chatAgent.agent_id, 
+          message: chatInput,
+          history: chatHistory 
+        }
+      });
+      if (error || !data) {
+        toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" });
+        return;
+      }
+      if (data.response) {
+        setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+      }
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
 
   const agentStateMap=useMemo(()=>{const m:Record<string,any>={};agentStates.forEach(s=>m[s.agent_id]=s);return m;},[agentStates]);
   const filteredAgents=useMemo(()=>activeCategory==='all'?agentStates:agentStates.filter(s=>s.agent_category===activeCategory),[agentStates,activeCategory]);
