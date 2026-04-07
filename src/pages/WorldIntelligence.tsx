@@ -400,6 +400,9 @@ export default function WorldIntelligence() {
   const [selectedCountry, setSelectedCountry] = useState<{ intel: CountryIntel; sic: any } | null>(null);
 
   // Auth
+  // Scroll to top on mount — page was restoring scroll position from previous route
+  useEffect(() => { window.scrollTo(0, 0); }, []);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
   }, []);
