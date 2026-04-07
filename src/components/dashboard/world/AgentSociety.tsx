@@ -667,16 +667,18 @@ function AgentSociety() {
     load();
   }, [activeConvId]);
 
-  const isMounted = useRef(false);
   const prevMsgCount = useRef(0);
   useEffect(() => {
-    // Only scroll into view when new messages are ADDED after initial load
-    // (prevents pulling the whole page down on first render)
-    if (!isMounted.current) { isMounted.current = true; prevMsgCount.current = messages.length; return; }
-    if (messages.length > prevMsgCount.current) {
-      prevMsgCount.current = messages.length;
-      msgsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Only auto-scroll within the messages container when the user triggers new messages
+    // Never use scrollIntoView — it moves the entire page scroll position
+    if (messages.length > prevMsgCount.current && prevMsgCount.current > 0) {
+      const el = msgsEndRef.current;
+      if (el) {
+        const container = el.closest('[class*="overflow-y"]') || el.parentElement;
+        if (container) container.scrollTop = container.scrollHeight;
+      }
     }
+    prevMsgCount.current = messages.length;
   }, [messages]);
 
   const generate = async () => {

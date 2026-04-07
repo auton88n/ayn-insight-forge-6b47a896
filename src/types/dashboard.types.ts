@@ -325,6 +325,7 @@ export interface SidebarProps {
   isUnlimited?: boolean;
   resetsAt?: string | null;
   tier?: string;
+  isUsageLoading?: boolean;
   onModeSelect: (mode: AIMode) => void;
   onNewChat: () => void;
   onLoadChat: (chat: ChatHistory) => void;
