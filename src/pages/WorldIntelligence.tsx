@@ -609,7 +609,7 @@ export default function WorldIntelligence() {
                 </div>
               </div>
 
-              <div className="mb-8 sm:mb-10 md:mb-12" />
+              <div className="mb-14 sm:mb-16 md:mb-20" />
 
               <div className="max-w-[1440px] mx-auto px-2 sm:px-4 lg:px-5 pb-4 sm:pb-6 space-y-5 sm:space-y-8">
 
