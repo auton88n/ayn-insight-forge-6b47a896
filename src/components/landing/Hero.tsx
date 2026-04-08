@@ -1,7 +1,7 @@
-import { useRef, useState, memo, useCallback } from 'react';
+import { useEffect, useRef, useState, memo, useCallback } from 'react';
 import { Brain } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { LandingChatInput } from '@/components/landing/LandingChatInput';
 import { useDebugStore } from '@/stores/debugStore';
@@ -22,6 +22,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
     debugRef.current.incrementRenderCount('Hero');
   }
 
+  // Blink callback — called by LandingChatInput when placeholder rotates
   const handlePlaceholderChange = useCallback(() => {
     setIsBlinking(true);
     setTimeout(() => setIsBlinking(false), 150);
@@ -39,7 +40,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
-          className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-shimmer"
+          className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
         >
           {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
         </motion.h1>
@@ -57,29 +58,26 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
         </motion.p>
       </div>
 
-      {/* Central eye — glass container */}
+      {/* Central eye — clean, no floating cards */}
       <motion.div
         className="relative w-full max-w-5xl flex-1 flex items-center justify-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
       >
-        {/* Pulsing radial glow behind eye */}
-        <div className="absolute w-[220px] h-[220px] sm:w-[300px] sm:h-[300px] md:w-[380px] md:h-[380px] lg:w-[500px] lg:h-[500px] rounded-full -z-10 pointer-events-none bg-gradient-to-b from-transparent via-muted/30 to-transparent animate-pulse-slow" />
+        {/* Subtle light behind the eye */}
+        <div className="absolute w-[200px] h-[200px] sm:w-[280px] sm:h-[280px] md:w-[360px] md:h-[360px] lg:w-[480px] lg:h-[480px] rounded-full -z-10 pointer-events-none bg-gradient-to-b from-transparent via-muted/30 to-transparent" />
 
-        {/* Eye with glass surface */}
+        {/* Eye */}
         <div
           className="relative z-10 flex items-center justify-center group cursor-pointer"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          {/* Soft ambient glow */}
-          <div className="absolute -inset-10 rounded-full blur-3xl pointer-events-none bg-[radial-gradient(circle,_hsl(var(--foreground)/0.06)_0%,_transparent_70%)]" />
+          <div className="absolute -inset-8 rounded-full blur-2xl pointer-events-none bg-[radial-gradient(circle,_rgba(229,229,229,0.3)_0%,_transparent_70%)] dark:bg-[radial-gradient(circle,_rgba(38,38,38,0.15)_0%,_transparent_70%)]" />
 
-          {/* Glass eye container */}
-          <div className="relative w-[120px] h-[120px] sm:w-[160px] sm:h-[160px] md:w-[200px] md:h-[200px] lg:w-[240px] lg:h-[240px] rounded-full glass-surface flex items-center justify-center overflow-hidden shadow-xl">
-            {/* Inner shadow for depth */}
-            <div className="absolute inset-2 rounded-full shadow-[inset_0_4px_20px_hsl(0_0%_0%/0.08)] dark:shadow-[inset_0_4px_20px_hsl(0_0%_0%/0.3)]" />
+          <div className="relative w-[120px] h-[120px] sm:w-[160px] sm:h-[160px] md:w-[200px] md:h-[200px] lg:w-[240px] lg:h-[240px] rounded-full bg-card flex items-center justify-center overflow-hidden shadow-xl">
+            <div className="absolute inset-2 rounded-full shadow-[inset_0_4px_16px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_4px_16px_rgba(0,0,0,0.25)]" />
             <div className="absolute inset-[15%] rounded-full bg-muted" />
 
             <motion.svg
@@ -120,17 +118,6 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
                 </div>
               </foreignObject>
             </motion.svg>
-
-            {/* Orbiting border beam */}
-            <div
-              className="absolute inset-0 rounded-full pointer-events-none"
-              style={{
-                background: 'conic-gradient(from 0deg, transparent 0%, transparent 85%, hsl(var(--foreground) / 0.25) 92%, transparent 100%)',
-                animation: 'spin 8s linear infinite',
-                maskImage: 'radial-gradient(circle, transparent 46%, black 47%, black 50%, transparent 51%)',
-                WebkitMaskImage: 'radial-gradient(circle, transparent 46%, black 47%, black 50%, transparent 51%)',
-              }}
-            />
           </div>
         </div>
       </motion.div>

@@ -19,9 +19,7 @@ export const Footer = () => {
   const { language } = useLanguage();
 
   return (
-    <footer className="relative py-12 px-6">
-      {/* Glass gradient separator */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+    <footer className="border-t border-border/50 py-12 px-6">
       <div className="container max-w-6xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
           {/* Brand + Social Icons */}
