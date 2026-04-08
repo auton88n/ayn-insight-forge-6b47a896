@@ -54,6 +54,9 @@ export default function Dashboard({ user, session }: DashboardProps) {
 
   // Load maintenance config from database (reading separate keys)
   useEffect(() => {
+    // Gate on valid session to prevent RLS errors during navigation transitions
+    if (!session?.access_token) return;
+
     const loadMaintenanceConfig = async () => {
       try {
         const { data, error } = await supabase
@@ -123,7 +126,7 @@ export default function Dashboard({ user, session }: DashboardProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [session?.access_token]);
 
   // Handle admin panel access with PIN
   const handleAdminPanelClick = () => {
