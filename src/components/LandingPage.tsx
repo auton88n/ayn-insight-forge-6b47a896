@@ -211,7 +211,7 @@ const LandingPage = memo(() => {
           {/* Feature 1: Business Intelligence */}
           <ScrollReveal>
             <motion.div 
-              className="grid md:grid-cols-2 gap-0 mb-16 md:mb-24 rounded-3xl overflow-hidden bg-card shadow-[0_4px_40px_-12px_hsl(var(--foreground)/0.1)] border border-border/30"
+              className="grid md:grid-cols-2 gap-0 mb-16 md:mb-24 rounded-3xl overflow-hidden glass-surface shadow-[0_4px_40px_-12px_hsl(var(--foreground)/0.1)]"
               whileHover={{ y: -4 }}
               transition={{ duration: 0.5 }}
             >
@@ -241,7 +241,7 @@ const LandingPage = memo(() => {
           {/* Feature 2: Market Intelligence */}
           <ScrollReveal>
             <motion.div 
-              className="grid md:grid-cols-2 gap-0 mb-16 md:mb-24 rounded-3xl overflow-hidden bg-card shadow-[0_4px_40px_-12px_hsl(var(--foreground)/0.1)] border border-border/30"
+              className="grid md:grid-cols-2 gap-0 mb-16 md:mb-24 rounded-3xl overflow-hidden glass-surface shadow-[0_4px_40px_-12px_hsl(var(--foreground)/0.1)]"
               whileHover={{ y: -4 }}
               transition={{ duration: 0.5 }}
             >
@@ -271,7 +271,7 @@ const LandingPage = memo(() => {
           {/* Feature 3: Predictive Intelligence */}
           <ScrollReveal>
             <motion.div 
-              className="grid md:grid-cols-2 gap-0 rounded-3xl overflow-hidden bg-card shadow-[0_4px_40px_-12px_hsl(var(--foreground)/0.1)] border border-border/30"
+              className="grid md:grid-cols-2 gap-0 rounded-3xl overflow-hidden glass-surface shadow-[0_4px_40px_-12px_hsl(var(--foreground)/0.1)]"
               whileHover={{ y: -4 }}
               transition={{ duration: 0.5 }}
             >
