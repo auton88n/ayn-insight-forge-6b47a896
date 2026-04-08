@@ -16,9 +16,6 @@ import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, crea
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { SpotlightCard } from '@/components/ui/premium';
-import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, createFAQSchema } from '@/components/shared/SEO';
-import { Header } from '@/components/shared/Header';
-import { Footer } from '@/components/shared/Footer';
 
 // ScrollReveal component - defined outside to prevent recreation on re-renders
 const ScrollReveal = ({
