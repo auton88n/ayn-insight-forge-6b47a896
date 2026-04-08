@@ -126,7 +126,7 @@ export default function Dashboard({ user, session }: DashboardProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [session?.access_token]);
 
   // Handle admin panel access with PIN
   const handleAdminPanelClick = () => {
