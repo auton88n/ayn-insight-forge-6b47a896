@@ -103,7 +103,7 @@ const LandingPage = memo(() => {
             {/* Row 1: AI Capabilities */}
             <ScrollReveal delay={0.1}>
               <div className="text-center space-y-3 md:space-y-4">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-muted/50 mx-auto flex items-center justify-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl glass-surface mx-auto flex items-center justify-center">
                   <Brain className="w-7 h-7 md:w-8 md:h-8 text-foreground" />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold">
@@ -117,7 +117,7 @@ const LandingPage = memo(() => {
 
             <ScrollReveal delay={0.2}>
               <div className="text-center space-y-3 md:space-y-4">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-muted/50 mx-auto flex items-center justify-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl glass-surface mx-auto flex items-center justify-center">
                   <Sparkles className="w-7 h-7 md:w-8 md:h-8 text-foreground" />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold">
@@ -131,7 +131,7 @@ const LandingPage = memo(() => {
 
             <ScrollReveal delay={0.3}>
               <div className="text-center space-y-3 md:space-y-4">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-muted/50 mx-auto flex items-center justify-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl glass-surface mx-auto flex items-center justify-center">
                   <Shield className="w-7 h-7 md:w-8 md:h-8 text-foreground" />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold">
@@ -146,7 +146,7 @@ const LandingPage = memo(() => {
             {/* Row 2: Business Tools */}
             <ScrollReveal delay={0.4}>
               <div className="text-center space-y-3 md:space-y-4">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-muted/50 mx-auto flex items-center justify-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl glass-surface mx-auto flex items-center justify-center">
                   <Zap className="w-7 h-7 md:w-8 md:h-8 text-foreground" />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold">
@@ -160,7 +160,7 @@ const LandingPage = memo(() => {
 
             <ScrollReveal delay={0.5}>
               <div className="text-center space-y-3 md:space-y-4">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-muted/50 mx-auto flex items-center justify-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl glass-surface mx-auto flex items-center justify-center">
                   <Bot className="w-7 h-7 md:w-8 md:h-8 text-foreground" />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold">
@@ -174,7 +174,7 @@ const LandingPage = memo(() => {
 
             <ScrollReveal delay={0.6}>
               <div className="text-center space-y-3 md:space-y-4">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-muted/50 mx-auto flex items-center justify-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl glass-surface mx-auto flex items-center justify-center">
                   <BarChart3 className="w-7 h-7 md:w-8 md:h-8 text-foreground" />
                 </div>
                 <h3 className="text-lg md:text-xl font-bold">
