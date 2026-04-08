@@ -22,6 +22,7 @@ export const Footer = () => {
     <footer className="relative py-12 px-6">
       {/* Glass gradient separator */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+      <div className="container max-w-6xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
           {/* Brand + Social Icons */}
           <div className="col-span-2 md:col-span-1">
