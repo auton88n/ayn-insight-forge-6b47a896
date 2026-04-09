@@ -1,46 +1,70 @@
 
 
-## Make the Dashboard EmotionalEye Match the Landing Page Eye Design
+## Redesign AYN Portfolio — Website-Accurate Branding
 
-The landing page Hero eye has concentric rings creating a layered "tunnel" depth effect, while the dashboard's EmotionalEye uses a flat gradient background. You want them to look the same.
+### The Problem
+The v1 slides used navy blue (#0A0E1A) backgrounds and blue (#2563EB) accents. The actual AYN website uses a **monochromatic black & white** palette — pure black backgrounds, white text, gray accents, no color. The content was also inaccurate.
 
-### What Changes
+### Brand Identity (from CSS + Landing Page)
 
-**File: `src/components/eye/EmotionalEye.tsx`**
+**Colors — Pure B&W, no blue:**
+- Background: `#0A0A0A` (near black, `0 0% 4%`)
+- Card: `#0F0F0F` (dark card, `0 0% 6%`)
+- Muted: `#1F1F1F` (`0 0% 12%`)
+- Foreground: `#FAFAFA` (off-white, `0 0% 98%`)
+- Muted foreground: `#999999` (`0 0% 60%`)
+- Border: `#262626` (`0 0% 15%`)
+- Accent dots/shapes: white or light gray — **no color at all**
 
-Replace the current simple background container (the `rounded-full bg-gradient-to-b from-white to-neutral-100 dark:from-neutral-900 dark:to-neutral-950` div around line 440-452) with concentric ring layers matching the Hero design:
+**Typography:**
+- Display/Headers: **Syne** (font-display / font-serif in config)
+- Body: **Inter** (font-sans)
+- Mono accents: **JetBrains Mono** (used for labels like "About AYN", "AYN Capabilities")
 
-- Add the same layered ring structure from the Hero: outer ring with inner shadow, then rings at `inset-[8%]`, `inset-[16%]`, `inset-[24%]`, and `inset-[32%]` with progressively deeper background shades
-- Keep the existing emotional color ring (`inset-[15%]`) — it will sit on top of the concentric rings, blending the emotional glow with the depth effect
-- Keep all existing SVG/Brain icon, animation logic, particles, breathing, and gaze tracking unchanged
-- Adapt the ring colors so they work in both light and dark mode, matching the Hero's approach (`bg-[hsl(var(--muted)/0.3)]` through to `bg-muted`)
+**Visual motifs:**
+- Concentric ring "eye" tunnel (five layers)
+- Rounded 2xl icon containers with `bg-muted/50`
+- Minimal, spacious layouts with lots of breathing room
+- No accent lines under titles
+- Small dots (`w-1.5 h-1.5 rounded-full`) as bullet markers
 
-This is a visual-only change to the container layers — no behavioral or animation logic is modified.
+### Accurate Content (from LandingPage.tsx)
 
-### Technical Detail
+- **Tagline**: "Real business intelligence — markets, risks, and decisions that matter."
+- **About**: "Business Intelligence That Never Sleeps" — monitors markets, analyzes risks, gives instant answers
+- **6 Value Props**: Adaptive Understanding, Always Available, Privacy Protected, Smart Automation, Custom AI Agents, Advanced Analytics
+- **3 Pillars**: Build & Study Business, Market Shifts & Intelligence, World Event Predictions
+- **Company**: Canadian-based, global reach, no Arabic text per user request
 
-In `EmotionalEye.tsx` around lines 440-454, the current structure is:
-```
-<div className="relative rounded-full bg-gradient-to-b from-white to-neutral-100 dark:from-... flex items-center justify-center overflow-hidden">
-  <div className="absolute inset-2 rounded-full shadow-[inset_...]" />  <!-- inner shadow -->
-  <motion.div className="absolute inset-[15%] ..." />  <!-- emotional color ring -->
-  <motion.svg ... />  <!-- pupil + brain -->
-</div>
-```
+### Slide Structure (10 slides, full dark B&W theme)
 
-It will become:
-```
-<div className="relative rounded-full flex items-center justify-center overflow-hidden">
-  <!-- Concentric rings (same as Hero) -->
-  <div className="absolute inset-0 rounded-full bg-[hsl(var(--muted)/0.3)] shadow-[inset_0_4px_24px_rgba(0,0,0,0.15)] dark:bg-[hsl(0,0%,12%)] ..." />
-  <div className="absolute inset-[8%] rounded-full bg-[hsl(var(--muted)/0.5)] dark:bg-[hsl(0,0%,14%)]" />
-  <div className="absolute inset-[16%] rounded-full bg-[hsl(var(--muted)/0.7)] dark:bg-[hsl(0,0%,16%)]" />
-  <div className="absolute inset-[24%] rounded-full bg-card shadow-[inset_0_4px_16px_rgba(0,0,0,0.06)] ..." />
-  <div className="absolute inset-[32%] rounded-full bg-muted" />
-  <!-- Emotional color ring (kept) -->
-  <motion.div className="absolute inset-[15%] ..." />
-  <!-- SVG pupil + brain (unchanged) -->
-  <motion.svg ... />
-</div>
-```
+1. **Title** — Large "AYN" in Syne-like bold, concentric eye circles in grays/whites, tagline below, aynn.io
+2. **Who We Are** — "Business Intelligence That Never Sleeps", Canadian AI company, global, team of engineers & AI specialists
+3. **The Problem** — Three pain points with large stat callouts: 60%+ wasted time, cold leads overnight, missed market shifts
+4. **Our Technology** — Proprietary multi-agent architecture, adaptive learning, real-time processing, bilingual, privacy-first (no secrets revealed)
+5. **Three Pillars Overview** — Build & Study Business / Market Shifts / World Predictions — icon + title + brief text in 3-column layout
+6. **Build & Study Business** — Deep dive: competitor analysis, data-driven strategies, performance reports
+7. **Market Shifts & Intelligence** — Deep dive: real-time tracking, sector analysis, investment alerts
+8. **World Event Predictions** — Deep dive: geopolitical risks, supply chain alerts, business impact scenarios
+9. **Why AYN** — 2x3 grid of value props with icon circles: Adaptive Understanding, Always Available, Privacy Protected, Smart Automation, Custom AI Agents, Advanced Analytics
+10. **Let's Talk** — "Ready to Transform Your Business?" + info@aynn.io + aynn.io
+
+### Design Approach
+
+- **All slides**: `#0A0A0A` background, `#FAFAFA` white text, `#999999` secondary text
+- **Cards/containers**: `#0F0F0F` or `#1F1F1F` rounded rectangles
+- **Icon circles**: `#1F1F1F` fill with white icons inside
+- **Bullet dots**: small white circles, matching landing page style
+- **Headers**: Georgia or Arial Black (closest to Syne available in PPTX), large 40-44pt
+- **Body**: Calibri 14-16pt
+- **Mono labels**: Consolas 10-12pt for section labels (e.g., "ABOUT AYN", "CAPABILITIES")
+- **No blue, no color accents** — purely monochromatic
+- **Concentric eye on title slide**: 5 layered circles from dark gray to light gray, matching the tunnel effect
+- **Varied layouts**: hero text, two-column, 3-column grid, stat callouts, 2x3 grid
+
+### Technical
+- Generate with `pptxgenjs` in Node.js
+- Build concentric eye as layered circles on title slide
+- Convert to PDF then images for QA inspection
+- Output: `/mnt/documents/AYN_Portfolio_v2.pptx`
 
