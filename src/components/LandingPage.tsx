@@ -56,16 +56,16 @@ const LandingPage = memo(() => {
     answer: "AYN (عين) is a business intelligence AI that monitors global markets, analyzes geopolitical risks, tracks supply chains, and delivers real-time insights to help you make better decisions."
   }, {
     question: "What can I ask AYN?",
-    answer: "You can ask AYN about commodity prices, market trends, country risk profiles, supply chain disruptions, trading signals, geopolitical events, and business strategy — it synthesizes live intelligence and gives you direct answers."
+    answer: "You can ask AYN about commodity prices, market trends, country risk profiles, supply chain disruptions, trading signals, geopolitical events, and business strategy. It synthesizes live intelligence and gives you direct answers."
   }, {
     question: "Does AYN support Arabic?",
-    answer: "Yes. AYN (عين — Arabic for 'eye') is fully bilingual in Arabic and English, built for the MENA market and beyond."
+    answer: "Yes. AYN (عين, Arabic for 'eye') is fully bilingual in Arabic and English, built for the MENA market and beyond."
   }, {
     question: "Is AYN free to try?",
-    answer: "Yes — AYN has a free tier that lets you start immediately with no credit card required."
+    answer: "Absolutely. AYN has a free tier that lets you start immediately with no credit card required."
   }]);
   return <>
-    <SEO title="AYN AI — Business Intelligence & Market Analysis | Real-Time AI" description="AYN monitors global markets, analyzes geopolitical risks, and delivers instant business intelligence. AI-powered insights for smarter decisions." canonical="/" keywords="AYN AI, business intelligence AI, market analysis AI, geopolitical risk analysis, AI market monitor, real-time market intelligence, AYN artificial intelligence, عين AI, Arabic AI assistant, supply chain intelligence, trading intelligence AI" jsonLd={{
+    <SEO title="AYN AI | Business Intelligence & Market Analysis | Real-Time AI" description="AYN monitors global markets, analyzes geopolitical risks, and delivers instant business intelligence. AI-powered insights for smarter decisions." canonical="/" keywords="AYN AI, business intelligence AI, market analysis AI, geopolitical risk analysis, AI market monitor, real-time market intelligence, AYN artificial intelligence, عين AI, Arabic AI assistant, supply chain intelligence, trading intelligence AI" jsonLd={{
       '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema]
     }} />
     <div dir={direction} className="min-h-screen bg-background scroll-smooth">
@@ -93,7 +93,7 @@ const LandingPage = memo(() => {
             </h2>
 
             <p className="text-base md:text-xl text-muted-foreground max-w-3xl mx-auto mb-10 md:mb-16">
-              {language === 'ar' ? 'AYN يراقب الأسواق ويحلل المخاطر ويقدم لك الأجوبة التي تحتاجها — على الفور.' : language === 'fr' ? 'AYN surveille les marchés, analyse les risques et vous donne les réponses dont vous avez besoin — immédiatement.' : 'AYN monitors markets, analyzes risks, and gives you the answers you need — instantly.'}
+              {language === 'ar' ? 'AYN يراقب الأسواق ويحلل المخاطر ويقدم لك الأجوبة التي تحتاجها فوراً.' : language === 'fr' ? 'AYN surveille les marchés, analyse les risques et vous donne les réponses dont vous avez besoin. Immédiatement.' : 'AYN monitors markets, analyzes risks, and gives you the answers you need. Instantly.'}
             </p>
           </ScrollReveal>
 

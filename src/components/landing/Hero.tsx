@@ -51,10 +51,10 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
           className="text-base md:text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto"
         >
           {language === 'ar'
-            ? 'ذكاء أعمال حقيقي — يتابع الأسواق، يحلل المخاطر، ويساعدك على القرار الصحيح.'
+            ? 'ذكاء أعمال حقيقي يتابع الأسواق، يحلل المخاطر، ويساعدك على القرار الصحيح.'
             : language === 'fr'
-            ? 'Intelligence d\'affaires réelle — marchés, risques et décisions stratégiques.'
-            : 'Real business intelligence — markets, risks, and decisions that matter.'}
+            ? 'Intelligence d\'affaires réelle. Marchés, risques et décisions stratégiques.'
+            : 'Real business intelligence. Markets, risks, and decisions that matter.'}
         </motion.p>
       </div>
 
