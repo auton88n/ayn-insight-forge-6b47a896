@@ -439,19 +439,21 @@ const EmotionalEyeComponent = ({
         
         <div 
           className={cn(
-            "relative rounded-full bg-gradient-to-b from-white to-neutral-100 dark:from-neutral-900 dark:to-neutral-950 flex items-center justify-center overflow-hidden will-change-transform",
+            "relative rounded-full flex items-center justify-center overflow-hidden will-change-transform",
             sizeClasses[size],
-            // Always animate breathing unless reduced motion preference
             !performanceConfig.shouldReduceAnimations && "animate-eye-breathe"
           )}
           style={{
-            // CSS custom property for dynamic breathing speed based on emotion
             '--breathing-duration': `${breathingDuration}s`,
             animationDuration: `${breathingDuration}s`
           } as React.CSSProperties}
         >
-          {/* Inner shadow ring - matching landing page dark mode */}
-          <div className="absolute inset-2 rounded-full shadow-[inset_0_4px_16px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_4px_16px_rgba(0,0,0,0.3)]" />
+          {/* Concentric rings — matching Hero landing page eye */}
+          <div className="absolute inset-0 rounded-full bg-[hsl(var(--muted)/0.3)] shadow-[inset_0_4px_24px_rgba(0,0,0,0.15)] dark:bg-[hsl(0,0%,12%)] dark:shadow-[inset_0_4px_24px_rgba(0,0,0,0.5)]" />
+          <div className="absolute inset-[8%] rounded-full bg-[hsl(var(--muted)/0.5)] dark:bg-[hsl(0,0%,14%)]" />
+          <div className="absolute inset-[16%] rounded-full bg-[hsl(var(--muted)/0.7)] dark:bg-[hsl(0,0%,16%)]" />
+          <div className="absolute inset-[24%] rounded-full bg-card shadow-[inset_0_4px_16px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_4px_16px_rgba(0,0,0,0.3)]" />
+          <div className="absolute inset-[32%] rounded-full bg-muted" />
 
           {/* Emotional color ring - always visible with emotion color for engagement */}
           <motion.div 
