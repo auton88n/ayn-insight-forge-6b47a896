@@ -1,70 +1,61 @@
 
 
-## Redesign AYN Portfolio — Website-Accurate Branding
+## Redesign AYN Portfolio v3
 
-### The Problem
-The v1 slides used navy blue (#0A0E1A) backgrounds and blue (#2563EB) accents. The actual AYN website uses a **monochromatic black & white** palette — pure black backgrounds, white text, gray accents, no color. The content was also inaccurate.
+### Issues to Fix
 
-### Brand Identity (from CSS + Landing Page)
+1. **Eye motif doesn't match landing page** — The current PPTX eye uses simple layered circles. The real eye has 5 concentric rings at inset 0%, 8%, 16%, 24%, 32% with progressive gray shading, then a black pupil circle with a Brain icon center. Need to replicate this exact structure with proper proportions and shading.
 
-**Colors — Pure B&W, no blue:**
-- Background: `#0A0A0A` (near black, `0 0% 4%`)
-- Card: `#0F0F0F` (dark card, `0 0% 6%`)
-- Muted: `#1F1F1F` (`0 0% 12%`)
-- Foreground: `#FAFAFA` (off-white, `0 0% 98%`)
-- Muted foreground: `#999999` (`0 0% 60%`)
-- Border: `#262626` (`0 0% 15%`)
-- Accent dots/shapes: white or light gray — **no color at all**
+2. **Remove all dashes (—)** — Replace em dashes and hyphens used as punctuation throughout. Rewrite sentences to flow naturally without them.
 
-**Typography:**
-- Display/Headers: **Syne** (font-display / font-serif in config)
-- Body: **Inter** (font-sans)
-- Mono accents: **JetBrains Mono** (used for labels like "About AYN", "AYN Capabilities")
+3. **Remove "Privacy-First Design"** — User confirms AYN uses third-party LLMs (Gemini), so claiming privacy-first is misleading. Remove from slide 4 (Technology) and slide 9 (Why AYN grid). Also remove "Your Privacy, Protected" from the value props.
 
-**Visual motifs:**
-- Concentric ring "eye" tunnel (five layers)
-- Rounded 2xl icon containers with `bg-muted/50`
-- Minimal, spacious layouts with lots of breathing room
-- No accent lines under titles
-- Small dots (`w-1.5 h-1.5 rounded-full`) as bullet markers
+4. **Remove "Smart Automation" and "Custom AI Agents"** — These are services, not value props. Remove from the Why AYN grid (slide 9).
 
-### Accurate Content (from LandingPage.tsx)
+5. **Remove almufaijer.com** — Only keep aynn.io on the contact slide.
 
-- **Tagline**: "Real business intelligence — markets, risks, and decisions that matter."
-- **About**: "Business Intelligence That Never Sleeps" — monitors markets, analyzes risks, gives instant answers
-- **6 Value Props**: Adaptive Understanding, Always Available, Privacy Protected, Smart Automation, Custom AI Agents, Advanced Analytics
-- **3 Pillars**: Build & Study Business, Market Shifts & Intelligence, World Event Predictions
-- **Company**: Canadian-based, global reach, no Arabic text per user request
+6. **Natural human writing** — Rewrite all copy to sound conversational and human, not like marketing bullet points.
 
-### Slide Structure (10 slides, full dark B&W theme)
+### Updated "Why AYN" Grid (4 items instead of 6)
 
-1. **Title** — Large "AYN" in Syne-like bold, concentric eye circles in grays/whites, tagline below, aynn.io
-2. **Who We Are** — "Business Intelligence That Never Sleeps", Canadian AI company, global, team of engineers & AI specialists
-3. **The Problem** — Three pain points with large stat callouts: 60%+ wasted time, cold leads overnight, missed market shifts
-4. **Our Technology** — Proprietary multi-agent architecture, adaptive learning, real-time processing, bilingual, privacy-first (no secrets revealed)
-5. **Three Pillars Overview** — Build & Study Business / Market Shifts / World Predictions — icon + title + brief text in 3-column layout
-6. **Build & Study Business** — Deep dive: competitor analysis, data-driven strategies, performance reports
-7. **Market Shifts & Intelligence** — Deep dive: real-time tracking, sector analysis, investment alerts
-8. **World Event Predictions** — Deep dive: geopolitical risks, supply chain alerts, business impact scenarios
-9. **Why AYN** — 2x3 grid of value props with icon circles: Adaptive Understanding, Always Available, Privacy Protected, Smart Automation, Custom AI Agents, Advanced Analytics
-10. **Let's Talk** — "Ready to Transform Your Business?" + info@aynn.io + aynn.io
+Keep only:
+- Adaptive Understanding
+- Always Available
+- Advanced Analytics
+- Add a 4th: something like "Global Reach" or "Built for Scale" (non-service, non-privacy)
 
-### Design Approach
+Use a 2x2 grid layout instead of 2x3.
 
-- **All slides**: `#0A0A0A` background, `#FAFAFA` white text, `#999999` secondary text
-- **Cards/containers**: `#0F0F0F` or `#1F1F1F` rounded rectangles
-- **Icon circles**: `#1F1F1F` fill with white icons inside
-- **Bullet dots**: small white circles, matching landing page style
-- **Headers**: Georgia or Arial Black (closest to Syne available in PPTX), large 40-44pt
-- **Body**: Calibri 14-16pt
-- **Mono labels**: Consolas 10-12pt for section labels (e.g., "ABOUT AYN", "CAPABILITIES")
-- **No blue, no color accents** — purely monochromatic
-- **Concentric eye on title slide**: 5 layered circles from dark gray to light gray, matching the tunnel effect
-- **Varied layouts**: hero text, two-column, 3-column grid, stat callouts, 2x3 grid
+### Eye Motif Rebuild
+
+Match the Hero exactly:
+- Ring 1 (outermost): dark gray ~`#1F1F1F` with inner shadow
+- Ring 2 (inset 8%): slightly lighter ~`#242424`
+- Ring 3 (inset 16%): ~`#2A2A2A`
+- Ring 4 (inset 24%): ~`#1A1A1A` (card-like)
+- Ring 5 (inset 32%): ~`#1F1F1F` (muted)
+- Center: black circle pupil with white "brain" shape or white dot
+
+Build using pptxgenjs layered OVAL shapes, each progressively smaller and centered, matching the concentric tunnel depth effect from the screenshot.
+
+### Slide Structure (10 slides, same content but rewritten)
+
+1. **Title** — AYN + rebuilt eye motif + tagline (no dashes) + aynn.io
+2. **Who We Are** — Rewritten naturally, no dashes
+3. **The Problem** — Same stats, human tone
+4. **Our Technology** — Remove Privacy-First. Keep: Multi-Agent Architecture, Adaptive Intelligence, Real-Time Processing. Add a 4th like "Bilingual Intelligence" or "Continuous Learning"
+5. **Three Pillars Overview** — Same content, no dashes
+6. **Pillar 1: Build & Study Business** — No dashes, natural writing
+7. **Pillar 2: Market Shifts & Intelligence** — No dashes, natural writing
+8. **Pillar 3: World Event Predictions** — No dashes, natural writing
+9. **Why AYN** — 2x2 grid: Adaptive Understanding, Always Available, Advanced Analytics, + one more (e.g. "Continuous Learning" or "Global Intelligence")
+10. **Let's Talk** — Remove almufaijer.com, keep only info@aynn.io + aynn.io
 
 ### Technical
-- Generate with `pptxgenjs` in Node.js
-- Build concentric eye as layered circles on title slide
-- Convert to PDF then images for QA inspection
-- Output: `/mnt/documents/AYN_Portfolio_v2.pptx`
+
+- Regenerate with pptxgenjs
+- Rebuild eye as layered OVALs matching Hero proportions
+- Remove all `—` and `-` used as punctuation from every string
+- Output: `/mnt/documents/AYN_Portfolio_v3.pptx`
+- QA: convert to images, inspect every slide
 
