@@ -1,30 +1,46 @@
 
 
-## Fix: Country Intelligence Cards Not Showing + Error on Open
+## Make the Dashboard EmotionalEye Match the Landing Page Eye Design
 
-### Root Cause
+The landing page Hero eye has concentric rings creating a layered "tunnel" depth effect, while the dashboard's EmotionalEye uses a flat gradient background. You want them to look the same.
 
-1. **Cards not visible**: The `ayn_country_intelligence` table has RLS enabled with only an `authenticated` policy. If the user is browsing without being logged in, the Supabase query returns empty data, so the section is hidden (`countryIntel.length > 0` evaluates to false).
+### What Changes
 
-2. **Error on click**: The `handleMapClick` function has an incomplete ISO2 mapping (e.g., `DE` maps to `'EU'`, `FR` maps to `'EU'`), which means clicking Germany or France on the map tries to match the wrong ID. Additionally, the `CountryIntel` interface is missing the `opportunities` field that's being selected in the query — this extra data is harmless but the interface should be complete.
+**File: `src/components/eye/EmotionalEye.tsx`**
 
-### Plan
+Replace the current simple background container (the `rounded-full bg-gradient-to-b from-white to-neutral-100 dark:from-neutral-900 dark:to-neutral-950` div around line 440-452) with concentric ring layers matching the Hero design:
 
-**Step 1 — Add anon read policy for country intelligence**
-- Create a migration adding a `SELECT` policy for `anon` on `ayn_country_intelligence`, so the data loads for all visitors (this is public economic data, not sensitive).
+- Add the same layered ring structure from the Hero: outer ring with inner shadow, then rings at `inset-[8%]`, `inset-[16%]`, `inset-[24%]`, and `inset-[32%]` with progressively deeper background shades
+- Keep the existing emotional color ring (`inset-[15%]`) — it will sit on top of the concentric rings, blending the emotional glow with the depth effect
+- Keep all existing SVG/Brain icon, animation logic, particles, breathing, and gaze tracking unchanged
+- Adapt the ring colors so they work in both light and dark mode, matching the Hero's approach (`bg-[hsl(var(--muted)/0.3)]` through to `bg-muted`)
 
-**Step 2 — Fix silent fetch failures**
-- Add a console.warn in the `fetchCountryIntel` catch block so errors aren't silently swallowed.
-- Add a fallback: if data is empty after fetch, show a "No country data available" placeholder instead of hiding the entire section.
+This is a visual-only change to the container layers — no behavioral or animation logic is modified.
 
-**Step 3 — Fix ISO2 country code mapping**
-- Correct the mapping: `DE` should map to `'DEU'` (not `'EU'`), `FR` to `'FRA'` (not `'EU'`).
-- Add missing country codes that exist in the database (SA, QA, SG, CA, etc.).
+### Technical Detail
 
-**Step 4 — Add `opportunities` to the interface**
-- Add `opportunities?: { snippet?: string; title?: string }[]` to the `CountryIntel` interface for type safety.
+In `EmotionalEye.tsx` around lines 440-454, the current structure is:
+```
+<div className="relative rounded-full bg-gradient-to-b from-white to-neutral-100 dark:from-... flex items-center justify-center overflow-hidden">
+  <div className="absolute inset-2 rounded-full shadow-[inset_...]" />  <!-- inner shadow -->
+  <motion.div className="absolute inset-[15%] ..." />  <!-- emotional color ring -->
+  <motion.svg ... />  <!-- pupil + brain -->
+</div>
+```
 
-### Files to change
-- **New migration**: Add anon read policy for `ayn_country_intelligence`
-- **`src/pages/WorldIntelligence.tsx`**: Fix ISO2 mapping, add error logging, update interface, show fallback when empty
+It will become:
+```
+<div className="relative rounded-full flex items-center justify-center overflow-hidden">
+  <!-- Concentric rings (same as Hero) -->
+  <div className="absolute inset-0 rounded-full bg-[hsl(var(--muted)/0.3)] shadow-[inset_0_4px_24px_rgba(0,0,0,0.15)] dark:bg-[hsl(0,0%,12%)] ..." />
+  <div className="absolute inset-[8%] rounded-full bg-[hsl(var(--muted)/0.5)] dark:bg-[hsl(0,0%,14%)]" />
+  <div className="absolute inset-[16%] rounded-full bg-[hsl(var(--muted)/0.7)] dark:bg-[hsl(0,0%,16%)]" />
+  <div className="absolute inset-[24%] rounded-full bg-card shadow-[inset_0_4px_16px_rgba(0,0,0,0.06)] ..." />
+  <div className="absolute inset-[32%] rounded-full bg-muted" />
+  <!-- Emotional color ring (kept) -->
+  <motion.div className="absolute inset-[15%] ..." />
+  <!-- SVG pupil + brain (unchanged) -->
+  <motion.svg ... />
+</div>
+```
 
