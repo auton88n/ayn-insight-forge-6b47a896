@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { Plus, LogOut, Trash2, Settings, X, MessageSquare, Search, Star, Shield, Brain, ChevronDown, GraduationCap, Loader2, Volume2, VolumeX, Headphones, Sparkles, AlertTriangle, Calculator, Monitor, ClipboardCheck, BarChart3, Activity, FileText } from 'lucide-react';
+import { Plus, LogOut, Trash2, Settings, X, MessageSquare, Search, Star, Shield, Brain, ChevronDown, GraduationCap, Loader2, Volume2, VolumeX, Headphones, Sparkles, AlertTriangle, Calculator, Monitor, ClipboardCheck, BarChart3, Activity, FileText, Network } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
@@ -363,7 +363,7 @@ export const Sidebar = ({
 
         
         {/* World Intelligence Button */}
-        <SidebarGroup className="flex-shrink-0 px-4 pb-3">
+        <SidebarGroup className="flex-shrink-0 px-4 pb-2">
           <SidebarGroupContent>
             <button
               onClick={() => navigate('/world-intelligence')}
@@ -383,6 +383,31 @@ export const Sidebar = ({
                 <p className="text-[10px] text-muted-foreground">Live global insights</p>
               </div>
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </button>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Prediction Graph Button */}
+        <SidebarGroup className="flex-shrink-0 px-4 pb-3">
+          <SidebarGroupContent>
+            <button
+              onClick={() => navigate('/prediction-graph')}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl",
+                "bg-gradient-to-r from-purple-500/10 to-blue-500/10",
+                "border border-purple-500/20 hover:border-purple-500/40",
+                "hover:from-purple-500/15 hover:to-blue-500/15",
+                "transition-all duration-300 group"
+              )}
+            >
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-md shadow-purple-500/20">
+                <Network className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-xs font-semibold text-foreground">Prediction Graph</p>
+                <p className="text-[10px] text-muted-foreground">Clusters · bridges · quality</p>
+              </div>
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
             </button>
           </SidebarGroupContent>
         </SidebarGroup>
