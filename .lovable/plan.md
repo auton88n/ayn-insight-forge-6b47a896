@@ -1,42 +1,37 @@
 
 
-## Fix AYN Portfolio v3: Layout + Eye + Content
+## Replace Feature Images with Premium UI Mockups
 
-### Problem
-V3 has correct content (no dashes, no privacy claims, no almufaijer.com) but broken layout with misaligned elements, cut-off text, and a poor eye motif. V2 had clean layout but wrong content.
+### What
+Replace the three low-quality AI-generated feature images (`feature-business.jpg`, `feature-market.jpg`, `feature-predict.jpg`) with clean, premium UI mockup screenshots that accurately represent what AYN actually does.
 
 ### Approach
-Rebuild the generation script using V2's proven layout structure as the base, but with V3's corrected content. Fix the eye to properly match the landing page's concentric tunnel.
+Use AI image generation (Gemini 3 Pro Image Preview via Lovable AI Gateway) to create three polished, realistic UI mockups matching AYN's dark monochromatic aesthetic. Each image will be generated via a temporary script, uploaded to `src/assets/`, and replace the existing files.
 
-### Changes
+### Three Images to Generate
 
-**1. Eye Motif (Title + CTA slides)**
-Use the Hero.tsx exact structure: 5 concentric rings at inset 0%, 8%, 16%, 24%, 32%. Make rings large enough to be visually impactful (4" diameter outer). Use proper grayscale progression matching dark theme:
-- Ring 1: `#1A1A1A` (outermost, with shadow effect via slightly darker border)
-- Ring 2: `#222222`  
-- Ring 3: `#2D2D2D`
-- Ring 4: `#1A1A1A`
-- Ring 5: `#222222`
-- Pupil: `#000000` with white dot center
+**1. Business Intelligence (`feature-business.jpg`)**
+Clean dark-themed dashboard mockup showing: competitor analysis cards, a market positioning chart, business performance metrics. Monochrome dark UI with subtle blue accents matching AYN's `#0EA5E9` brand color. Professional, minimal, no fake text or blurry elements.
 
-**2. Layout fixes (use V2 spacing patterns)**
-- All text boxes: proper margins (0.7" left, 0.5" right minimum)
-- Stat callouts on slide 3: evenly spaced 3-column with adequate width
-- Technology slide 4: 2x2 grid cards with consistent sizing and padding
-- Pillar slides 6-8: two-column layout (text left, bullet list right) with proper spacing
-- Why AYN slide 9: 2x2 grid (not 2x3), removing Privacy/Smart Automation/Custom Agents
-- All text left-aligned (not centered) for body copy
+**2. Market Intelligence (`feature-market.jpg`)**
+Dark-themed market monitoring interface showing: real-time price tickers, clean line charts for market trends, sector heat indicators. Same dark aesthetic, blue accent highlights on key data points. Feels like a Bloomberg-level terminal but cleaner and more modern.
 
-**3. Content (keep V3 corrections)**
-- No dashes anywhere
-- No "Privacy-First Design"
-- No "Smart Automation" or "Custom AI Agents" in value props
-- No almufaijer.com
-- 2x2 Why AYN grid: Adaptive Understanding, Always Available, Advanced Analytics, Global Intelligence
-- Natural human writing throughout
+**3. World Predictions (`feature-predict.jpg`)**
+Dark-themed geopolitical intelligence dashboard showing: a clean world map with highlighted regions, risk assessment indicators, supply chain flow visualization. Amber/red accent colors for alerts alongside the blue brand color. Professional operations-center feel.
 
-**4. Technical**
-- Regenerate with pptxgenjs
-- Output: `/mnt/documents/AYN_Portfolio_v3.pptx` (overwrite)
-- QA: convert to images, inspect all 10 slides, fix issues, re-verify
+### Technical Steps
+1. Write a Deno/Node script that calls the Gemini 3 Pro image generation API with carefully crafted prompts for each image
+2. Extract the base64 images and save as JPG files
+3. Copy the three generated images to `src/assets/` replacing the existing files
+4. No code changes needed in `LandingPage.tsx` since the imports and filenames stay the same
+
+### Image Specs
+- Resolution: 1024x1024 (will be cropped by `object-cover` in the 16/10 aspect ratio containers)
+- Style: Dark UI, clean typography, minimal, premium feel matching AYN's monochrome + blue accent aesthetic
+- No fake blurry text or gibberish characters
+
+### QA
+- Visually inspect each generated image before replacing
+- If quality is insufficient, regenerate with refined prompts
+- Check landing page preview after replacement to verify images look correct in context
 
