@@ -1,25 +1,41 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowUp, Plus, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface LandingChatInputProps {
   onSendAttempt: (message: string) => void;
   onPlaceholderChange?: () => void;
 }
 
-const placeholders = [
-  "What's happening with oil prices?",
-  "Analyze this market for me...",
-  "What are the risks for my business?"
-];
+const placeholdersByLang: Record<string, string[]> = {
+  en: [
+    "What's happening with oil prices?",
+    "Analyze this market for me...",
+    "What are the risks for my business?"
+  ],
+  ar: [
+    "ماذا يحدث مع أسعار النفط؟",
+    "حلل لي هذا السوق...",
+    "ما المخاطر التي تواجه أعمالي؟"
+  ],
+  fr: [
+    "Que se passe-t-il avec le prix du pétrole ?",
+    "Analysez ce marché pour moi...",
+    "Quels sont les risques pour mon entreprise ?"
+  ],
+};
 
 export const LandingChatInput: React.FC<LandingChatInputProps> = ({ onSendAttempt, onPlaceholderChange }) => {
+  const { language } = useLanguage();
   const [inputMessage, setInputMessage] = useState('');
   const [currentPlaceholder, setCurrentPlaceholder] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const placeholders = useMemo(() => placeholdersByLang[language] || placeholdersByLang.en, [language]);
 
   // Rotate placeholders and notify parent (eye blinks)
   useEffect(() => {

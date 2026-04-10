@@ -654,7 +654,7 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
                   {modes.map((mode) => (
                     <DropdownMenuItem
                       key={mode.name}
-                      onClick={() => onModeChange(mode.name)}
+                      onClick={() => onModeChange(mode.name as AIMode)}
                       className={cn(
                         "flex flex-col items-start gap-0.5 px-3 py-2.5 cursor-pointer",
                         selectedMode === mode.name && "bg-muted"

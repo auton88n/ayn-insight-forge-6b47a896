@@ -366,10 +366,10 @@ export default function WorldIntelligence() {
 
   const fetchMasterPreds = useCallback(async () => {
     try {
-      const { data } = await supabase.from('ayn_master_predictions')
+      const { data } = await (supabase.from('ayn_master_predictions' as any)
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(8);
+        .limit(8) as any);
       if (data) setMasterPreds(data as MasterPrediction[]);
     } catch {}
   }, []);
