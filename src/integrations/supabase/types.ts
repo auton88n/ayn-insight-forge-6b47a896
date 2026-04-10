@@ -487,34 +487,59 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          signal_headline: string | null
+          signal_id: string | null
+          signal_region: string | null
+          signal_severity: string | null
+          signal_type: string | null
           simulation_run_id: string | null
           status: string | null
           topic: string
           topic_summary: string | null
+          triggered_by: string | null
           updated_at: string | null
           world_event_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
+          signal_headline?: string | null
+          signal_id?: string | null
+          signal_region?: string | null
+          signal_severity?: string | null
+          signal_type?: string | null
           simulation_run_id?: string | null
           status?: string | null
           topic: string
           topic_summary?: string | null
+          triggered_by?: string | null
           updated_at?: string | null
           world_event_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
+          signal_headline?: string | null
+          signal_id?: string | null
+          signal_region?: string | null
+          signal_severity?: string | null
+          signal_type?: string | null
           simulation_run_id?: string | null
           status?: string | null
           topic?: string
           topic_summary?: string | null
+          triggered_by?: string | null
           updated_at?: string | null
           world_event_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ayn_agent_conversations_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_world_signals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ayn_agent_conversations_simulation_run_id_fkey"
             columns: ["simulation_run_id"]
@@ -1700,6 +1725,81 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_graph_engine_runs: {
+        Row: {
+          avg_graph_coherence: number | null
+          connections_found: number | null
+          created_at: string | null
+          duration_ms: number | null
+          id: string
+          model_used: string | null
+          notes: string | null
+          predictions_written: number | null
+          signals_ingested: number | null
+          status: string | null
+        }
+        Insert: {
+          avg_graph_coherence?: number | null
+          connections_found?: number | null
+          created_at?: string | null
+          duration_ms?: number | null
+          id: string
+          model_used?: string | null
+          notes?: string | null
+          predictions_written?: number | null
+          signals_ingested?: number | null
+          status?: string | null
+        }
+        Update: {
+          avg_graph_coherence?: number | null
+          connections_found?: number | null
+          created_at?: string | null
+          duration_ms?: number | null
+          id?: string
+          model_used?: string | null
+          notes?: string | null
+          predictions_written?: number | null
+          signals_ingested?: number | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      ayn_graph_runs: {
+        Row: {
+          bridge_nodes: number | null
+          clusters_out: number | null
+          created_at: string | null
+          duration_ms: number | null
+          edges_out: number | null
+          id: string
+          notes: string | null
+          predictions_in: number | null
+          status: string | null
+        }
+        Insert: {
+          bridge_nodes?: number | null
+          clusters_out?: number | null
+          created_at?: string | null
+          duration_ms?: number | null
+          edges_out?: number | null
+          id: string
+          notes?: string | null
+          predictions_in?: number | null
+          status?: string | null
+        }
+        Update: {
+          bridge_nodes?: number | null
+          clusters_out?: number | null
+          created_at?: string | null
+          duration_ms?: number | null
+          edges_out?: number | null
+          id?: string
+          notes?: string | null
+          predictions_in?: number | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       ayn_health_intel: {
         Row: {
           country_code: string
@@ -1850,6 +1950,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_intelligence_lessons: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          domain: string | null
+          id: string
+          is_active: boolean | null
+          lesson_detail: string
+          lesson_title: string
+          lesson_type: string
+          region: string | null
+          rule_adjustment: string | null
+          times_validated: number | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          lesson_detail: string
+          lesson_title: string
+          lesson_type: string
+          region?: string | null
+          rule_adjustment?: string | null
+          times_validated?: number | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          lesson_detail?: string
+          lesson_title?: string
+          lesson_type?: string
+          region?: string | null
+          rule_adjustment?: string | null
+          times_validated?: number | null
+        }
+        Relationships: []
+      }
       ayn_job_market: {
         Row: {
           country_code: string
@@ -1979,6 +2121,123 @@ export type Database = {
           singleton_key?: number | null
           snapshot?: Json
           sources_used?: string[] | null
+        }
+        Relationships: []
+      }
+      ayn_master_predictions: {
+        Row: {
+          accuracy_score: number | null
+          actionable_move: string
+          admin_notes: string | null
+          admin_override: boolean | null
+          check_status: string | null
+          checked_at: string | null
+          confidence: number
+          contradicting: Json | null
+          created_at: string | null
+          domain: string | null
+          driving_signals: Json | null
+          evidence_found: string | null
+          evidence_url: string | null
+          expires_at: string | null
+          graph_coherence: number | null
+          historical_anchor: string | null
+          horizon: string
+          id: string
+          is_happening_now: boolean | null
+          probability_pct: number
+          region: string | null
+          run_id: string
+          signal_quality: number | null
+          tags: Json | null
+          target_date: string | null
+          thesis: string
+          title: string
+          verified_at: string | null
+          verified_correct: boolean | null
+          what_happened: string | null
+          what_to_watch: string | null
+          who_loses: string
+          who_loses_detail: string | null
+          who_wins: string
+          who_wins_detail: string | null
+          wisdom_applied: string | null
+        }
+        Insert: {
+          accuracy_score?: number | null
+          actionable_move: string
+          admin_notes?: string | null
+          admin_override?: boolean | null
+          check_status?: string | null
+          checked_at?: string | null
+          confidence: number
+          contradicting?: Json | null
+          created_at?: string | null
+          domain?: string | null
+          driving_signals?: Json | null
+          evidence_found?: string | null
+          evidence_url?: string | null
+          expires_at?: string | null
+          graph_coherence?: number | null
+          historical_anchor?: string | null
+          horizon: string
+          id?: string
+          is_happening_now?: boolean | null
+          probability_pct: number
+          region?: string | null
+          run_id: string
+          signal_quality?: number | null
+          tags?: Json | null
+          target_date?: string | null
+          thesis: string
+          title: string
+          verified_at?: string | null
+          verified_correct?: boolean | null
+          what_happened?: string | null
+          what_to_watch?: string | null
+          who_loses: string
+          who_loses_detail?: string | null
+          who_wins: string
+          who_wins_detail?: string | null
+          wisdom_applied?: string | null
+        }
+        Update: {
+          accuracy_score?: number | null
+          actionable_move?: string
+          admin_notes?: string | null
+          admin_override?: boolean | null
+          check_status?: string | null
+          checked_at?: string | null
+          confidence?: number
+          contradicting?: Json | null
+          created_at?: string | null
+          domain?: string | null
+          driving_signals?: Json | null
+          evidence_found?: string | null
+          evidence_url?: string | null
+          expires_at?: string | null
+          graph_coherence?: number | null
+          historical_anchor?: string | null
+          horizon?: string
+          id?: string
+          is_happening_now?: boolean | null
+          probability_pct?: number
+          region?: string | null
+          run_id?: string
+          signal_quality?: number | null
+          tags?: Json | null
+          target_date?: string | null
+          thesis?: string
+          title?: string
+          verified_at?: string | null
+          verified_correct?: boolean | null
+          what_happened?: string | null
+          what_to_watch?: string | null
+          who_loses?: string
+          who_loses_detail?: string | null
+          who_wins?: string
+          who_wins_detail?: string | null
+          wisdom_applied?: string | null
         }
         Relationships: []
       }
@@ -2129,6 +2388,154 @@ export type Database = {
           world_pending_review?: number | null
           world_verified_correct?: number | null
           world_verified_wrong?: number | null
+        }
+        Relationships: []
+      }
+      ayn_prediction_cluster_members: {
+        Row: {
+          centrality_score: number | null
+          cluster_id: string
+          confidence_label: string
+          created_at: string | null
+          is_bridge: boolean | null
+          prediction_id: string
+        }
+        Insert: {
+          centrality_score?: number | null
+          cluster_id: string
+          confidence_label: string
+          created_at?: string | null
+          is_bridge?: boolean | null
+          prediction_id: string
+        }
+        Update: {
+          centrality_score?: number | null
+          cluster_id?: string
+          confidence_label?: string
+          created_at?: string | null
+          is_bridge?: boolean | null
+          prediction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_prediction_cluster_members_cluster_id_fkey"
+            columns: ["cluster_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_prediction_clusters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ayn_prediction_clusters: {
+        Row: {
+          bridge_factor: number | null
+          canonical_domain: string | null
+          cohesion_score: number | null
+          created_at: string | null
+          id: string
+          label: string
+          prediction_count: number | null
+          run_id: string | null
+          shared_drivers: Json | null
+          top_regions: Json | null
+          top_tags: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          bridge_factor?: number | null
+          canonical_domain?: string | null
+          cohesion_score?: number | null
+          created_at?: string | null
+          id?: string
+          label: string
+          prediction_count?: number | null
+          run_id?: string | null
+          shared_drivers?: Json | null
+          top_regions?: Json | null
+          top_tags?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          bridge_factor?: number | null
+          canonical_domain?: string | null
+          cohesion_score?: number | null
+          created_at?: string | null
+          id?: string
+          label?: string
+          prediction_count?: number | null
+          run_id?: string | null
+          shared_drivers?: Json | null
+          top_regions?: Json | null
+          top_tags?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_prediction_clusters_canonical_domain_fkey"
+            columns: ["canonical_domain"]
+            isOneToOne: false
+            referencedRelation: "ayn_prediction_domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ayn_prediction_domains: {
+        Row: {
+          color: string | null
+          description: string | null
+          id: string
+          label: string
+        }
+        Insert: {
+          color?: string | null
+          description?: string | null
+          id: string
+          label: string
+        }
+        Update: {
+          color?: string | null
+          description?: string | null
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      ayn_prediction_graph_edges: {
+        Row: {
+          confidence_label: string
+          created_at: string | null
+          id: string
+          relation: string
+          run_id: string | null
+          shared_signals: Json | null
+          source_id: string
+          surprise_score: number | null
+          target_id: string
+          why: string | null
+        }
+        Insert: {
+          confidence_label: string
+          created_at?: string | null
+          id?: string
+          relation: string
+          run_id?: string | null
+          shared_signals?: Json | null
+          source_id: string
+          surprise_score?: number | null
+          target_id: string
+          why?: string | null
+        }
+        Update: {
+          confidence_label?: string
+          created_at?: string | null
+          id?: string
+          relation?: string
+          run_id?: string | null
+          shared_signals?: Json | null
+          source_id?: string
+          surprise_score?: number | null
+          target_id?: string
+          why?: string | null
         }
         Relationships: []
       }
@@ -2988,6 +3395,86 @@ export type Database = {
         }
         Relationships: []
       }
+      ayn_truth_log: {
+        Row: {
+          accuracy_score: number | null
+          checked_at: string | null
+          correction_notes: string | null
+          created_at: string | null
+          evidence_url: string | null
+          fed_back_to_model: boolean | null
+          horizon: string | null
+          id: string
+          is_correct: boolean | null
+          is_happening: boolean | null
+          lesson_extracted: string | null
+          prediction_domain: string | null
+          prediction_id: string | null
+          prediction_region: string | null
+          prediction_title: string
+          probability_predicted: number | null
+          target_date: string | null
+          what_actually_happened: string | null
+          what_was_predicted: string | null
+          who_loses_predicted: string | null
+          who_wins_predicted: string | null
+        }
+        Insert: {
+          accuracy_score?: number | null
+          checked_at?: string | null
+          correction_notes?: string | null
+          created_at?: string | null
+          evidence_url?: string | null
+          fed_back_to_model?: boolean | null
+          horizon?: string | null
+          id?: string
+          is_correct?: boolean | null
+          is_happening?: boolean | null
+          lesson_extracted?: string | null
+          prediction_domain?: string | null
+          prediction_id?: string | null
+          prediction_region?: string | null
+          prediction_title: string
+          probability_predicted?: number | null
+          target_date?: string | null
+          what_actually_happened?: string | null
+          what_was_predicted?: string | null
+          who_loses_predicted?: string | null
+          who_wins_predicted?: string | null
+        }
+        Update: {
+          accuracy_score?: number | null
+          checked_at?: string | null
+          correction_notes?: string | null
+          created_at?: string | null
+          evidence_url?: string | null
+          fed_back_to_model?: boolean | null
+          horizon?: string | null
+          id?: string
+          is_correct?: boolean | null
+          is_happening?: boolean | null
+          lesson_extracted?: string | null
+          prediction_domain?: string | null
+          prediction_id?: string | null
+          prediction_region?: string | null
+          prediction_title?: string
+          probability_predicted?: number | null
+          target_date?: string | null
+          what_actually_happened?: string | null
+          what_was_predicted?: string | null
+          who_loses_predicted?: string | null
+          who_wins_predicted?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ayn_truth_log_prediction_id_fkey"
+            columns: ["prediction_id"]
+            isOneToOne: false
+            referencedRelation: "ayn_world_predictions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ayn_wisdom_frameworks: {
         Row: {
           active: boolean | null
@@ -3167,22 +3654,27 @@ export type Database = {
       ayn_world_predictions: {
         Row: {
           actionable_move: string | null
+          agent_reports: Json | null
           confidence: number | null
           conflict_signals: Json | null
           created_at: string
           data_sources: Json | null
           domain: string
           escalation_risk: string | null
+          evidence_sources: Json | null
           expires_at: string | null
           financial_trigger: string | null
+          generated_method: string | null
           historical_parallel: string
           horizon: string
           id: string
           key_drivers: Json | null
+          loser_analysis: string | null
           main_risks: Json | null
           outcome_notes: string | null
           prediction_date: string
           probability: string | null
+          probability_pct: number | null
           region: string
           resolution_correct: boolean | null
           resolution_notes: string | null
@@ -3193,31 +3685,41 @@ export type Database = {
           tags: Json | null
           target_period: string | null
           title: string
+          verification_notes: string | null
+          verification_source: string | null
+          verified_at: string | null
           verified_by: string | null
+          verified_correct: boolean | null
           what_is_happening: string
           what_it_means: string
           what_to_do_now: string
           who_gets_hurt: string
           who_wins: string
+          winner_analysis: string | null
         }
         Insert: {
           actionable_move?: string | null
+          agent_reports?: Json | null
           confidence?: number | null
           conflict_signals?: Json | null
           created_at?: string
           data_sources?: Json | null
           domain: string
           escalation_risk?: string | null
+          evidence_sources?: Json | null
           expires_at?: string | null
           financial_trigger?: string | null
+          generated_method?: string | null
           historical_parallel: string
           horizon: string
           id?: string
           key_drivers?: Json | null
+          loser_analysis?: string | null
           main_risks?: Json | null
           outcome_notes?: string | null
           prediction_date?: string
           probability?: string | null
+          probability_pct?: number | null
           region?: string
           resolution_correct?: boolean | null
           resolution_notes?: string | null
@@ -3228,31 +3730,41 @@ export type Database = {
           tags?: Json | null
           target_period?: string | null
           title: string
+          verification_notes?: string | null
+          verification_source?: string | null
+          verified_at?: string | null
           verified_by?: string | null
+          verified_correct?: boolean | null
           what_is_happening: string
           what_it_means: string
           what_to_do_now: string
           who_gets_hurt: string
           who_wins: string
+          winner_analysis?: string | null
         }
         Update: {
           actionable_move?: string | null
+          agent_reports?: Json | null
           confidence?: number | null
           conflict_signals?: Json | null
           created_at?: string
           data_sources?: Json | null
           domain?: string
           escalation_risk?: string | null
+          evidence_sources?: Json | null
           expires_at?: string | null
           financial_trigger?: string | null
+          generated_method?: string | null
           historical_parallel?: string
           horizon?: string
           id?: string
           key_drivers?: Json | null
+          loser_analysis?: string | null
           main_risks?: Json | null
           outcome_notes?: string | null
           prediction_date?: string
           probability?: string | null
+          probability_pct?: number | null
           region?: string
           resolution_correct?: boolean | null
           resolution_notes?: string | null
@@ -3263,12 +3775,17 @@ export type Database = {
           tags?: Json | null
           target_period?: string | null
           title?: string
+          verification_notes?: string | null
+          verification_source?: string | null
+          verified_at?: string | null
           verified_by?: string | null
+          verified_correct?: boolean | null
           what_is_happening?: string
           what_it_means?: string
           what_to_do_now?: string
           who_gets_hurt?: string
           who_wins?: string
+          winner_analysis?: string | null
         }
         Relationships: []
       }
@@ -7152,6 +7669,22 @@ export type Database = {
           recent_signals: Json | null
           track_record: Json | null
           wisdom_frameworks: Json | null
+        }
+        Relationships: []
+      }
+      ayn_prediction_scorecard: {
+        Row: {
+          accuracy_pct: number | null
+          avg_accuracy_score: number | null
+          avg_coherence: number | null
+          correct: number | null
+          happening_now: number | null
+          last_verified_at: string | null
+          partial: number | null
+          pending: number | null
+          total_checked: number | null
+          total_predictions: number | null
+          wrong: number | null
         }
         Relationships: []
       }
