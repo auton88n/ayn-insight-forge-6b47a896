@@ -1,37 +1,25 @@
 
 
-## Replace Feature Images with Premium UI Mockups
+## Translate Landing Page Fully to Arabic and French
 
-### What
-Replace the three low-quality AI-generated feature images (`feature-business.jpg`, `feature-market.jpg`, `feature-predict.jpg`) with clean, premium UI mockup screenshots that accurately represent what AYN actually does.
+### Problem
+The `LandingChatInput.tsx` component has English-only placeholder texts. The rest of the landing page (Hero, LandingPage, Header, Footer) already has inline AR/FR translations.
 
-### Approach
-Use AI image generation (Gemini 3 Pro Image Preview via Lovable AI Gateway) to create three polished, realistic UI mockups matching AYN's dark monochromatic aesthetic. Each image will be generated via a temporary script, uploaded to `src/assets/`, and replace the existing files.
+### Changes
 
-### Three Images to Generate
+**1. `src/components/landing/LandingChatInput.tsx`**
+- Accept `language` from `useLanguage()` context
+- Replace the hardcoded English `placeholders` array with language-aware placeholders:
+  - EN: "What's happening with oil prices?", "Analyze this market for me...", "What are the risks for my business?"
+  - AR: "ماذا يحدث مع أسعار النفط؟", "حلل لي هذا السوق...", "ما المخاطر التي تواجه أعمالي؟"
+  - FR: "Que se passe-t-il avec le prix du pétrole?", "Analysez ce marché pour moi...", "Quels sont les risques pour mon entreprise?"
 
-**1. Business Intelligence (`feature-business.jpg`)**
-Clean dark-themed dashboard mockup showing: competitor analysis cards, a market positioning chart, business performance metrics. Monochrome dark UI with subtle blue accents matching AYN's `#0EA5E9` brand color. Professional, minimal, no fake text or blurry elements.
+**2. Fix pre-existing build errors** (unrelated but blocking)
+- `ChatInput.tsx(657)`: Cast string to `AIMode` type
+- `AgentSociety.tsx(909)`: Add missing `cn` import
+- `usePredictionGraph.ts` & `PredictionControlPanel.tsx` & `WorldIntelligence.tsx`: Add `as any` casts for table names not yet in Supabase types
 
-**2. Market Intelligence (`feature-market.jpg`)**
-Dark-themed market monitoring interface showing: real-time price tickers, clean line charts for market trends, sector heat indicators. Same dark aesthetic, blue accent highlights on key data points. Feels like a Bloomberg-level terminal but cleaner and more modern.
-
-**3. World Predictions (`feature-predict.jpg`)**
-Dark-themed geopolitical intelligence dashboard showing: a clean world map with highlighted regions, risk assessment indicators, supply chain flow visualization. Amber/red accent colors for alerts alongside the blue brand color. Professional operations-center feel.
-
-### Technical Steps
-1. Write a Deno/Node script that calls the Gemini 3 Pro image generation API with carefully crafted prompts for each image
-2. Extract the base64 images and save as JPG files
-3. Copy the three generated images to `src/assets/` replacing the existing files
-4. No code changes needed in `LandingPage.tsx` since the imports and filenames stay the same
-
-### Image Specs
-- Resolution: 1024x1024 (will be cropped by `object-cover` in the 16/10 aspect ratio containers)
-- Style: Dark UI, clean typography, minimal, premium feel matching AYN's monochrome + blue accent aesthetic
-- No fake blurry text or gibberish characters
-
-### QA
-- Visually inspect each generated image before replacing
-- If quality is insufficient, regenerate with refined prompts
-- Check landing page preview after replacement to verify images look correct in context
+### Technical Details
+- Use `useMemo` to derive the correct placeholder array based on `language`, so it updates reactively when the user switches language
+- No changes needed to the i18n translation files since the landing page uses inline translations (consistent with existing pattern)
 
