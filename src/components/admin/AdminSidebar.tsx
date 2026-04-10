@@ -61,7 +61,8 @@ export type AdminTabId =
   | 'email-broadcast'
   | 'custom-orders'
   | 'nda'
-  | 'document-studio';
+  | 'document-studio'
+  | 'prediction-control';
 
 interface AdminSection {
   id: AdminTabId;
@@ -125,14 +126,15 @@ const sidebarGroups: SidebarGroup[] = [
     label: 'System',
     adminOnly: true,
     items: [
-      { id: 'ai-costs',      title: 'AI Costs',       icon: DollarSign,    gradient: 'from-emerald-500 to-teal-500',  adminOnly: true },
-      { id: 'ai-limits',     title: 'AI Limits',      icon: Gauge,         gradient: 'from-yellow-500 to-amber-500',  adminOnly: true },
-      { id: 'ai-assistant',  title: 'AI Assistant',   icon: Bot,           gradient: 'from-cyan-500 to-blue-500',     adminOnly: true },
-      { id: 'ayn-logs',      title: 'AYN Logs',       icon: Activity,      gradient: 'from-orange-500 to-red-500',    adminOnly: true },
-      { id: 'ayn-mind',      title: 'AYN Mind',       icon: Brain,         gradient: 'from-violet-500 to-purple-600', adminOnly: true },
-      { id: 'errors',        title: 'Error Monitor',  icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      adminOnly: true },
-      { id: 'test-results',  title: 'Test Results',   icon: FlaskConical,  gradient: 'from-pink-500 to-rose-500',     adminOnly: true },
-      { id: 'settings',      title: 'Settings',       icon: Settings,      gradient: 'from-slate-500 to-gray-500',    adminOnly: true },
+      { id: 'ai-costs',           title: 'AI Costs',            icon: DollarSign,    gradient: 'from-emerald-500 to-teal-500',  adminOnly: true },
+      { id: 'ai-limits',          title: 'AI Limits',           icon: Gauge,         gradient: 'from-yellow-500 to-amber-500',  adminOnly: true },
+      { id: 'ai-assistant',       title: 'AI Assistant',        icon: Bot,           gradient: 'from-cyan-500 to-blue-500',     adminOnly: true },
+      { id: 'ayn-logs',           title: 'AYN Logs',            icon: Activity,      gradient: 'from-orange-500 to-red-500',    adminOnly: true },
+      { id: 'ayn-mind',           title: 'AYN Mind',            icon: Brain,         gradient: 'from-violet-500 to-purple-600', adminOnly: true },
+      { id: 'prediction-control', title: 'Prediction Control',  icon: Shield,        gradient: 'from-emerald-500 to-teal-600', adminOnly: true },
+      { id: 'errors',             title: 'Error Monitor',       icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      adminOnly: true },
+      { id: 'test-results',       title: 'Test Results',        icon: FlaskConical,  gradient: 'from-pink-500 to-rose-500',     adminOnly: true },
+      { id: 'settings',           title: 'Settings',            icon: Settings,      gradient: 'from-slate-500 to-gray-500',    adminOnly: true },
     ],
   },
 ];

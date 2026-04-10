@@ -387,55 +387,6 @@ export const Sidebar = ({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Prediction Graph Button */}
-        <SidebarGroup className="flex-shrink-0 px-4 pb-2">
-          <SidebarGroupContent>
-            <button
-              onClick={() => navigate('/prediction-graph')}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl",
-                "bg-gradient-to-r from-purple-500/10 to-blue-500/10",
-                "border border-purple-500/20 hover:border-purple-500/40",
-                "hover:from-purple-500/15 hover:to-blue-500/15",
-                "transition-all duration-300 group"
-              )}
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-md shadow-purple-500/20">
-                <Network className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-semibold text-foreground">Prediction Graph</p>
-                <p className="text-[10px] text-muted-foreground">Clusters · bridges · quality</p>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-            </button>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Prediction Control Panel */}
-        <SidebarGroup className="flex-shrink-0 px-4 pb-3">
-          <SidebarGroupContent>
-            <button
-              onClick={() => navigate('/prediction-control')}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl",
-                "bg-gradient-to-r from-emerald-500/10 to-teal-500/10",
-                "border border-emerald-500/20 hover:border-emerald-500/40",
-                "hover:from-emerald-500/15 hover:to-teal-500/15",
-                "transition-all duration-300 group"
-              )}
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-500/20">
-                <Shield className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-semibold text-foreground">Prediction Control</p>
-                <p className="text-[10px] text-muted-foreground">Verify · override · track</p>
-              </div>
-            </button>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
 
 
         {/* Search Input */}

@@ -46,6 +46,7 @@ const NDAManager = lazy(() => import('@/components/admin/NDAManager').then(m => 
 const DocumentStudio = lazy(() => import('@/components/admin/DocumentStudio').then(m => ({ default: m.DocumentStudio })));
 const TermsConsentViewer = lazy(() => import('@/components/admin/TermsConsentViewer').then(m => ({ default: m.TermsConsentViewer })));
 const CommandCenterPanel = lazy(() => import('@/components/admin/workforce/CommandCenterPanel').then(m => ({ default: m.CommandCenterPanel })));
+const PredictionControlPanel = lazy(() => import('@/pages/PredictionControlPanel'));
 
 // ── Suspense fallback with proper skeleton ──────────────────
 const TabFallback = () => <div className="py-8"><AdminSkeleton variant="table" /></div>;
@@ -242,6 +243,7 @@ export const AdminPanel = ({
                 {activeTab === 'nda' && <Suspense fallback={<TabFallback />}><NDAManager /></Suspense>}
                 {activeTab === 'custom-orders' && <Suspense fallback={<TabFallback />}><CustomOrders /></Suspense>}
                 {activeTab === 'document-studio' && <Suspense fallback={<TabFallback />}><DocumentStudio /></Suspense>}
+                {activeTab === 'prediction-control' && <Suspense fallback={<TabFallback />}><PredictionControlPanel /></Suspense>}
               </ErrorBoundary>
             </div>
           </div>
