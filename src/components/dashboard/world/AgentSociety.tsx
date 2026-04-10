@@ -7,6 +7,7 @@
  */
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Billboard, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
