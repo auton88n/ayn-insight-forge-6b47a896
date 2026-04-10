@@ -4,13 +4,16 @@ import type { AIMode, FileAttachment } from '@/types/dashboard.types';
  * Intent detection logic extracted from useMessages.
  * Determines the AI intent based on mode, content, and attachment.
  */
-export type ChatIntent = 'chat' | 'image' | 'document' | 'search' | 'files' | 'chart_analysis' | 'floor_plan';
+export type ChatIntent = 'chat' | 'image' | 'document' | 'search' | 'files' | 'chart_analysis' | 'floor_plan' | 'business-intelligence' | 'trading-coach';
 
 export function detectIntent(
   selectedMode: AIMode,
   messageContent: string,
   attachment: FileAttachment | null
 ): ChatIntent {
+  // Mode-locked intents — user explicitly chose these modes
+  if (selectedMode === 'Business') return 'business-intelligence';
+  if (selectedMode === 'Trading') return 'trading-coach';
   if (selectedMode === 'LAB' || selectedMode === 'Vision Lab') return 'image';
   if (selectedMode === 'Research Pro') return 'search';
   if (selectedMode === 'PDF Analyst') return 'files';

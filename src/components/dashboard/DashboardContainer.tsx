@@ -28,7 +28,7 @@ import { analyzeResponseEmotion } from '@/lib/emotionMapping';
 import { hapticFeedback } from '@/lib/haptics';
 
 // Import icons for modes
-import { Menu, Brain, FlaskConical, MessageSquare } from 'lucide-react';
+import { Menu, Brain, FlaskConical, MessageSquare, Sparkles } from 'lucide-react';
 
 interface DashboardContainerProps {
   user: User;
@@ -41,14 +41,30 @@ interface DashboardContainerProps {
   betaConfig?: BetaConfig;
 }
 
-// Single unified mode - ayn-unified auto-detects intent
+// Three core modes — ayn-unified auto-detects intent within each
 const getModes = (): AIModeConfig[] => [
   { 
     name: 'General', 
     translatedName: 'AYN',
-    description: 'Your AI assistant',
+    description: 'Intelligence on markets, world events, and anything you need',
     icon: Brain,
     color: 'text-primary',
+    webhookUrl: ''
+  },
+  {
+    name: 'Business',
+    translatedName: 'Business',
+    description: 'Deep business analysis — ideas, growth, problems, market entry',
+    icon: Sparkles,
+    color: 'text-emerald-400',
+    webhookUrl: ''
+  },
+  {
+    name: 'Trading',
+    translatedName: 'Trading',
+    description: 'Market analysis, signals, and trading decisions',
+    icon: Brain,
+    color: 'text-amber-400',
     webhookUrl: ''
   },
 ];

@@ -75,6 +75,8 @@ export interface ChatHistory {
 
 export type AIMode = 
   | 'General' 
+  | 'Business'
+  | 'Trading'
   | 'Nen Mode ⚡' 
   | 'Research Pro' 
   | 'PDF Analyst' 
