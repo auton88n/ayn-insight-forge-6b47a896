@@ -56,6 +56,7 @@ const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const PredictionGraphPage = lazy(() => import("./pages/PredictionGraphPage"));
+const PredictionControlPanel = lazy(() => import("./pages/PredictionControlPanel"));
 const AdminCustomOrders = lazy(() => import("./pages/AdminCustomOrders"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
@@ -125,6 +126,7 @@ const AnimatedRoutes = () => {
       <Route path="/privacy" element={<PageTransition><Privacy /></PageTransition>} />
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/prediction-graph" element={<Suspense fallback={<PageLoader />}><PredictionGraphPage /></Suspense>} />
+      <Route path="/prediction-control" element={<Suspense fallback={<PageLoader />}><PredictionControlPanel /></Suspense>} />
       <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
