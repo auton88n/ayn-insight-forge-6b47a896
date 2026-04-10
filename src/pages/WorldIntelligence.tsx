@@ -102,6 +102,8 @@ const DOMAIN_COLOR: Record<string, string> = {
   warnings: '#ef4444', conflicts: '#ef4444', geopolitics: '#f97316',
   economy: '#f59e0b', technology: '#a78bfa', jobs: '#60a5fa',
   regions: '#06b6d4', business: '#34d399',
+  markets: '#60a5fa', energy: '#34d399', society: '#f472b6',
+  demographics: '#94a3b8', opportunities: '#4ade80',
 };
 const ASSET_META: Record<string, { label: string; icon: string }> = {
   gold:    { label: 'Gold',    icon: '🥇' },
@@ -286,6 +288,7 @@ export default function WorldIntelligence() {
   const [signals, setSignals]           = useState<WorldSignal[]>([]);
   const [masterPreds, setMasterPreds]   = useState<MasterPrediction[]>([]);
   const [selectedMaster, setSelectedMaster] = useState<MasterPrediction | null>(null);
+  const [masterFilter, setMasterFilter]  = useState<string>('all');
   const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
   const [userId, setUserId]             = useState<string | undefined>();
 
@@ -746,6 +749,7 @@ export default function WorldIntelligence() {
                     <span className="text-[8px] font-mono text-white/18">{masterPreds.length > 0 ? `${masterPreds.length} high-conviction signals` : 'awaiting graph run'}</span>
                     <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(167,139,250,0.3), transparent)' }} />
                   </div>
+
                   {masterPreds.length === 0 ? (
                     <div className="rounded-2xl border border-purple-500/15 bg-purple-500/5 p-6 text-center">
                       <Network className="w-8 h-8 text-purple-400/40 mx-auto mb-3" />
@@ -753,11 +757,53 @@ export default function WorldIntelligence() {
                       <p className="text-[10px] font-mono text-white/20">Runs every 4h automatically. Trigger <span className="text-purple-400/60">ayn-graph-engine</span> from Supabase for first run.</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {masterPreds.map((mp, idx) => {
-                        const coherenceColor = mp.graph_coherence >= 80 ? '#34d399' : mp.graph_coherence >= 60 ? '#f59e0b' : '#f87171';
-                        const domainCol = DOMAIN_COLOR[mp.domain?.toLowerCase()] || '#a78bfa';
-                        const isSelected = selectedMaster?.id === mp.id;
+                    <>
+                      {/* ── Category filter bar ── */}
+                      {(() => {
+                        const CATS: { id: string; label: string; emoji: string; color: string }[] = [
+                          { id: 'all',         label: 'All',        emoji: '◈',  color: '#a78bfa' },
+                          { id: 'markets',     label: 'Markets',    emoji: '📊', color: '#60a5fa' },
+                          { id: 'geopolitics', label: 'Geopolitics',emoji: '🌐', color: '#f97316' },
+                          { id: 'conflicts',   label: 'Conflicts',  emoji: '⚔️', color: '#ef4444' },
+                          { id: 'economy',     label: 'Economy',    emoji: '📈', color: '#f59e0b' },
+                          { id: 'energy',      label: 'Energy',     emoji: '⚡', color: '#34d399' },
+                          { id: 'technology',  label: 'Technology', emoji: '💡', color: '#a78bfa' },
+                          { id: 'society',     label: 'Society',    emoji: '👥', color: '#f472b6' },
+                        ];
+                        // Only show cats that have predictions
+                        const activeDomains = new Set(masterPreds.map(p => p.domain?.toLowerCase()));
+                        const visible = CATS.filter(c => c.id === 'all' || activeDomains.has(c.id));
+                        return (
+                          <div className="flex gap-1.5 flex-wrap mb-4 p-2 rounded-2xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            {visible.map(cat => {
+                              const count = cat.id === 'all' ? masterPreds.length : masterPreds.filter(p => p.domain?.toLowerCase() === cat.id).length;
+                              const isActive = masterFilter === cat.id;
+                              return (
+                                <button key={cat.id} onClick={() => setMasterFilter(cat.id)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all"
+                                  style={{
+                                    color: isActive ? cat.color : 'rgba(255,255,255,0.28)',
+                                    background: isActive ? `${cat.color}15` : 'transparent',
+                                    border: isActive ? `1px solid ${cat.color}35` : '1px solid transparent',
+                                  }}>
+                                  <span style={{ fontSize: 11 }}>{cat.emoji}</span>
+                                  {cat.label}
+                                  <span className="opacity-50 font-normal ml-0.5">{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+
+                      {/* ── Predictions list ── */}
+                      <div className="space-y-3">
+                        {masterPreds
+                          .filter(mp => masterFilter === 'all' || mp.domain?.toLowerCase() === masterFilter)
+                          .map((mp, idx) => {
+                          const coherenceColor = mp.graph_coherence >= 80 ? '#34d399' : mp.graph_coherence >= 60 ? '#f59e0b' : '#f87171';
+                          const domainCol = DOMAIN_COLOR[mp.domain?.toLowerCase()] || '#a78bfa';
+                          const isSelected = selectedMaster?.id === mp.id;
                         return (
                           <motion.div key={mp.id}
                             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
@@ -832,7 +878,13 @@ export default function WorldIntelligence() {
                           </motion.div>
                         );
                       })}
+                      {masterPreds.filter(mp => masterFilter === 'all' || mp.domain?.toLowerCase() === masterFilter).length === 0 && (
+                        <div className="text-center py-8 text-white/25 text-[10px] font-mono">
+                          No predictions in this category yet
+                        </div>
+                      )}
                     </div>
+                  </>
                   )}
                 </section>
 
