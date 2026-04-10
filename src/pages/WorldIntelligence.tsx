@@ -284,7 +284,6 @@ export default function WorldIntelligence() {
   const [snapshot, setSnapshot]         = useState<any>(null);
   const [predictions, setPredictions]   = useState<Prediction[]>([]);
   const [signals, setSignals]           = useState<WorldSignal[]>([]);
-  const [worldPreds, setWorldPreds]     = useState<WorldPrediction[]>([]);
   const [masterPreds, setMasterPreds]   = useState<MasterPrediction[]>([]);
   const [selectedMaster, setSelectedMaster] = useState<MasterPrediction | null>(null);
   const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
@@ -293,9 +292,7 @@ export default function WorldIntelligence() {
   // UI
   const [activeHorizon, setActiveHorizon] = useState<'1_week' | '1_month' | '1_year'>('1_week');
   const [assetFilter, setAssetFilter]     = useState('all');
-  const [activeDomain, setActiveDomain]   = useState('all');
   const [votingId, setVotingId]           = useState<string | null>(null);
-  const [selectedPred, setSelectedPred]   = useState<WorldPrediction | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<CountryIntel | null>(null);
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; window.scrollTo(0, 0); }, []);
@@ -363,14 +360,6 @@ export default function WorldIntelligence() {
     } catch {}
   }, []);
 
-  const fetchWorldPreds = useCallback(async () => {
-    try {
-      const { data } = await supabase.from('ayn_world_predictions')
-        .select('id,domain,region,title,confidence,probability,what_is_happening,what_it_means,who_wins,who_gets_hurt,historical_parallel,what_to_do_now,actionable_move,financial_trigger,escalation_risk,conflict_signals,key_drivers,main_risks,tags')
-        .eq('status', 'active').order('confidence', { ascending: false }).order('created_at', { ascending: false }).limit(100);
-      if (data) setWorldPreds(data as WorldPrediction[]);
-    } catch {}
-  }, []);
 
   const fetchMasterPreds = useCallback(async () => {
     try {
@@ -393,13 +382,12 @@ export default function WorldIntelligence() {
   useEffect(() => {
     fetchSnapshot().finally(() => setLoading(false));
     setTimeout(() => fetchSignals(), 200);
-    setTimeout(() => fetchWorldPreds(), 400);
     setTimeout(() => fetchMasterPreds(), 600);
     setTimeout(() => fetchPredictions(), 600);
     setTimeout(() => fetchCountryIntel(), 900);
     const poll = setInterval(fetchSnapshot, 5 * 60 * 1000);
     return () => clearInterval(poll);
-  }, [fetchSnapshot, fetchSignals, fetchWorldPreds, fetchPredictions, fetchCountryIntel]);
+  }, [fetchSnapshot, fetchSignals, fetchPredictions, fetchCountryIntel]);
 
   const handleVote = async (predId: string, vote: 'agree' | 'disagree') => {
     if (!userId || votingId) return;
@@ -452,15 +440,6 @@ export default function WorldIntelligence() {
       .sort((a, b) => { const ai = ORDER.indexOf(a.asset); const bi = ORDER.indexOf(b.asset); if (ai === -1 && bi === -1) return 0; if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; });
   }, [predictions, activeHorizon, assetFilter]);
 
-  const domains = useMemo(() => {
-    const CORE = ['all', 'warnings', 'conflicts', 'geopolitics', 'economy', 'technology', 'jobs', 'regions', 'business'];
-    const inDB = [...new Set(worldPreds.map(p => p.domain.toLowerCase()))];
-    return CORE.filter(d => d === 'all' || inDB.includes(d));
-  }, [worldPreds]);
-
-  const filteredWorldPreds = useMemo(() =>
-    worldPreds.filter(p => activeDomain === 'all' || p.domain.toLowerCase() === activeDomain).slice(0, 24),
-  [worldPreds, activeDomain]);
 
   const mapPoints: MapPoint[] = useMemo(() => {
     const pts: MapPoint[] = [...INTELLIGENCE_SEEDS];
@@ -551,7 +530,7 @@ export default function WorldIntelligence() {
             <span className="hidden lg:block text-[8px] text-white/15 tabular-nums">{format(currentTime, 'HH:mm')} UTC</span>
             {snapshot?.fetched_at && <span className="hidden xl:block text-[8px] text-white/12">Updated {timeAgo(snapshot.fetched_at)}</span>}
 
-            <ShimmerButton onClick={() => { setRefreshing(true); Promise.all([fetchSnapshot(), fetchSignals(), fetchWorldPreds(), fetchPredictions()]).finally(() => setRefreshing(false)); }}
+            <ShimmerButton onClick={() => { setRefreshing(true); Promise.all([fetchSnapshot(), fetchSignals(), fetchPredictions()]).finally(() => setRefreshing(false)); }}
               disabled={refreshing} shimmerColor="rgba(0,255,200,0.1)"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black text-white/35 hover:text-cyan-400 border border-white/8 hover:border-cyan-500/25 transition-all">
               <RefreshCw className={cn('w-3 h-3', refreshing && 'animate-spin')} />
@@ -857,79 +836,6 @@ export default function WorldIntelligence() {
                   )}
                 </section>
 
-                {worldPreds.length > 0 && (
-                  <section>
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <div className="w-1 h-5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,255,200,0.5)]" />
-                      <Globe2 className="w-4 h-4 text-cyan-400" />
-                      <span className="text-[10px] font-black text-cyan-400 tracking-[0.18em] uppercase">Global Intelligence</span>
-                      <span className="text-[8px] font-mono text-white/18">{worldPreds.length} predictions</span>
-                      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(0,255,200,0.25), transparent)' }} />
-                    </div>
-
-                    {/* Domain filter */}
-                    <div className="flex flex-wrap gap-1 mb-4 p-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      {domains.map(d => {
-                        const col = d === 'all' ? '#06b6d4' : (DOMAIN_COLOR[d] || '#9ca3af');
-                        return (
-                          <button key={d} onClick={() => setActiveDomain(d)}
-                            className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all"
-                            style={{
-                              color: activeDomain === d ? col : 'rgba(255,255,255,0.3)',
-                              background: activeDomain === d ? `${col}14` : 'transparent',
-                              border: activeDomain === d ? `1px solid ${col}35` : '1px solid transparent',
-                            }}>
-                            {d === 'all' ? 'ALL' : d.toUpperCase()}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-                      {filteredWorldPreds.map((p, idx) => {
-                        const col = DOMAIN_COLOR[p.domain?.toLowerCase()] || '#9ca3af';
-                        const isConflict = ['conflicts', 'warnings'].includes(p.domain?.toLowerCase());
-                        return (
-                          <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
-                            <PremiumCard
-                              showBeam beamColor={isConflict ? 'rgba(239,68,68,0.55)' : `${col}70`}
-                              beamDuration={isConflict ? 3.5 : 6}
-                              spotlightColor="rgba(255,255,255,0.05)" spotlightSize={200}
-                              onClick={() => setSelectedPred(p)} role="button" tabIndex={0}
-                              onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && setSelectedPred(p)}
-                              className={cn('cursor-pointer group h-full', isConflict && p.escalation_risk === 'critical' ? '!border-red-500/22' : isConflict ? '!border-orange-500/18' : '')}
-                              style={{}}>
-                              <div className="p-4">
-                                {/* Domain + region + confidence */}
-                                <div className="flex items-center justify-between mb-3">
-                                  <span className="text-[7px] font-black uppercase tracking-[0.18em] px-2 py-0.5 rounded-full" style={{ color: col, background: `${col}16`, border: `1px solid ${col}30` }}>
-                                    {p.domain}
-                                  </span>
-                                  <div className="flex items-center gap-1.5">
-                                    {p.escalation_risk && (
-                                      <div className={cn('w-1.5 h-1.5 rounded-full', SEVERITY_DOT[p.escalation_risk] || 'bg-white/20')} />
-                                    )}
-                                    <span className="text-[8px] font-black text-white/35">{p.confidence}%</span>
-                                  </div>
-                                </div>
-                                <div className="text-[7px] font-mono text-white/25 uppercase tracking-wider mb-1.5">{p.region}</div>
-                                <h3 className="text-[12px] font-black text-white/85 leading-snug mb-2.5 group-hover:text-white transition-colors line-clamp-2">{p.title}</h3>
-                                <p className="text-[10px] font-mono text-white/40 leading-relaxed line-clamp-2 mb-3">{p.what_is_happening}</p>
-                                <div className="flex items-center justify-between pt-2.5 border-t border-white/5">
-                                  <div className="flex gap-1.5">
-                                    {p.financial_trigger && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400/70">$ SIGNAL</span>}
-                                    {p.who_wins && <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/18 text-emerald-400/70">WINNERS</span>}
-                                  </div>
-                                  <span className="text-[7px] font-mono text-white/18 group-hover:text-white/40 transition-colors">Analyse →</span>
-                                </div>
-                              </div>
-                            </PremiumCard>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                )}
 
                 {/* ── PRICE PREDICTION ENGINE ───────────────────────────────── */}
                 <section>
@@ -1062,7 +968,6 @@ export default function WorldIntelligence() {
 
       {/* ── Side panels ───────────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {selectedPred && <PredictionDetail pred={selectedPred} onClose={() => setSelectedPred(null)} />}
       </AnimatePresence>
       <AnimatePresence>
         {selectedCountry && <CountryDossier intel={selectedCountry} onClose={() => setSelectedCountry(null)} />}
