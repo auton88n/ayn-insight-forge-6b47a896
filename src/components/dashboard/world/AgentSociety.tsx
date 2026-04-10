@@ -616,37 +616,34 @@ export default function AgentSociety() {
         .as-scroll::-webkit-scrollbar{width:4px}.as-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:99px}
       `}</style>
 
-      <div className="flex flex-col gap-4" style={{ minHeight: isMobile ? 'auto' : 'calc(100vh - 130px)' }}>
+      <div className="flex flex-col gap-3">
 
         {/* ── Header ── */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-purple-400" style={{boxShadow:'0 0 10px rgba(168,85,247,0.8)',animation:'as-pulse 2s ease-in-out infinite'}}/>
-            <span className="text-xs font-bold text-purple-400 tracking-[0.18em] uppercase font-mono">Agent Society</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-purple-400" style={{boxShadow:'0 0 8px rgba(168,85,247,0.8)',animation:'as-pulse 2s ease-in-out infinite'}}/>
+            <span className="text-[10px] font-bold text-purple-400 tracking-[0.18em] uppercase font-mono">Agent Society</span>
           </div>
           <div className="flex-1"/>
-
-          {/* Globe toggle - only show on desktop */}
           {!isMobile && (
             <button onClick={()=>setShowGlobe(!showGlobe)}
-              className="text-[10px] font-mono font-bold px-3 py-2 rounded-lg transition-all uppercase tracking-wider"
+              className="text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-all uppercase tracking-wider"
               style={{
-                color: showGlobe ? '#a855f7' : 'rgba(255,255,255,0.4)',
+                color: showGlobe ? '#a855f7' : 'rgba(255,255,255,0.35)',
                 background: showGlobe ? 'rgba(168,85,247,0.1)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${showGlobe ? 'rgba(168,85,247,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                border: `1px solid ${showGlobe ? 'rgba(168,85,247,0.3)' : 'rgba(255,255,255,0.07)'}`,
               }}>
               🌐 3D
             </button>
           )}
-
           <button onClick={()=>setGodEyeOpen(true)}
-            className="text-[10px] font-mono font-bold px-3 py-2 rounded-lg transition-all uppercase tracking-wider"
-            style={{color:'rgba(251,191,36,0.8)',background:'rgba(251,191,36,0.08)',border:'1px solid rgba(251,191,36,0.25)'}}>
+            className="text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-all uppercase tracking-wider"
+            style={{color:'rgba(251,191,36,0.75)',background:'rgba(251,191,36,0.07)',border:'1px solid rgba(251,191,36,0.22)'}}>
             👁 God's Eye
           </button>
           <button onClick={generate} disabled={generating}
-            className="text-[10px] font-mono font-bold px-4 py-2 rounded-lg transition-all disabled:opacity-40 uppercase tracking-wider"
-            style={{color:'#a855f7',background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.3)'}}>
+            className="text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 uppercase tracking-wider"
+            style={{color:'#a855f7',background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.28)'}}>
             {generating?'⟳ Generating...':'⚡ New'}
           </button>
         </div>
@@ -654,38 +651,33 @@ export default function AgentSociety() {
         {/* ── Status Bar ── */}
         <StatusBar agentCount={agentStates.length} avgTension={avgTension} hasPanic={hasPanic} messageCount={messages.length} />
 
-        {/* ── Category Filter ── */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 as-scroll" style={{ scrollbarWidth: 'none' }}>
+        {/* ── Category Filter — horizontal scroll, no height clip ── */}
+        <div className="flex gap-1.5 overflow-x-auto as-scroll" style={{ scrollbarWidth:'none', paddingBottom:2 }}>
           {categories.map((cat:any)=>{
             const col=cat.id==='all'?'#a855f7':CAT_COLOR[cat.id]||'#9ca3af';
             const count=cat.id==='all'?agentStates.length:agentStates.filter((s:any)=>s.agent_category===cat.id).length;
             return (
               <button key={cat.id} onClick={()=>setActiveCategory(cat.id)}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-[10px] font-bold font-mono transition-all uppercase tracking-wider shrink-0"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-bold font-mono transition-all uppercase tracking-wider shrink-0"
                 style={{
-                  color: activeCategory===cat.id ? col : 'rgba(255,255,255,0.4)',
-                  background: activeCategory===cat.id ? `${col}14` : 'rgba(255,255,255,0.03)',
-                  border: activeCategory===cat.id ? `1px solid ${col}40` : '1px solid rgba(255,255,255,0.06)',
-                  minHeight: 40,
+                  color: activeCategory===cat.id ? col : 'rgba(255,255,255,0.35)',
+                  background: activeCategory===cat.id ? `${col}12` : 'rgba(255,255,255,0.02)',
+                  border: activeCategory===cat.id ? `1px solid ${col}38` : '1px solid rgba(255,255,255,0.06)',
                 }}>
                 {CAT_ICON[cat.id]||'🌐'} {cat.label}
-                {count>0&&<span className="opacity-50 font-mono">({count})</span>}
+                {count>0&&<span className="ml-0.5 opacity-45">{count}</span>}
               </button>
             );
           })}
         </div>
 
-        {/* ── Main Content ── */}
-        <div className={`flex-1 min-h-0 grid gap-4 ${
-          !isMobile && showGlobe
-            ? 'lg:grid-cols-[1fr_480px] xl:grid-cols-[1fr_520px]'
-            : ''
-        }`} style={{ minHeight: isMobile ? undefined : 500 }}>
+        {/* ── Main Content — globe left, panel right ── */}
+        <div className={`grid gap-3 ${!isMobile && showGlobe ? 'md:grid-cols-[1fr_440px] lg:grid-cols-[1fr_500px]' : 'grid-cols-1'}`}>
 
           {/* 3D Globe — desktop only */}
           {!isMobile && showGlobe && (
-            <div ref={canvasRef} className="relative rounded-2xl overflow-hidden hidden md:block"
-              style={{background:'#010008',border:'1px solid rgba(168,85,247,0.18)',minHeight:400}}>
+            <div ref={canvasRef} className="relative rounded-2xl overflow-hidden"
+              style={{background:'#010008',border:'1px solid rgba(168,85,247,0.18)',height:520}}>
               <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3"
                 style={{background:'linear-gradient(180deg,rgba(1,0,8,0.92),transparent)'}}>
                 <div className="flex items-center gap-2">
@@ -744,14 +736,14 @@ export default function AgentSociety() {
             </div>
           )}
 
-          {/* Right panel (or full width on mobile) */}
-          <div className="flex flex-col gap-3 min-h-0 overflow-hidden">
+          {/* Right panel — agents + conversation */}
+          <div className="flex flex-col gap-3" style={{ height: (!isMobile && showGlobe) ? 520 : 'auto' }}>
 
-            {/* Agent roster — horizontal scroll on mobile, vertical list on desktop */}
+            {/* Agent roster — grid on desktop, horizontal scroll on mobile */}
             {isMobile ? (
-              <div className="flex gap-2 overflow-x-auto pb-2 as-scroll shrink-0" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex gap-2 overflow-x-auto pb-1 as-scroll shrink-0" style={{ scrollbarWidth:'none' }}>
                 {filteredAgents.length === 0 && (
-                  <div className="text-center py-4 text-xs font-mono text-white/30 w-full">
+                  <div className="text-center py-4 text-[10px] font-mono text-white/30 w-full">
                     {agentStates.length===0 ? 'Initializing agents...' : 'No agents in this category'}
                   </div>
                 )}
@@ -762,17 +754,21 @@ export default function AgentSociety() {
                 ))}
               </div>
             ) : (
-              <div className="as-scroll overflow-y-auto shrink-0" style={{maxHeight: showGlobe ? '38%' : '30%', minHeight:140}}>
-                {filteredAgents.length===0&&(
-                  <div className="text-center py-8 text-xs font-mono text-white/30">
+              <div className="as-scroll overflow-y-auto shrink-0 rounded-xl"
+                style={{ maxHeight: showGlobe ? 195 : 260, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(0,0,0,0.3)' }}>
+                {filteredAgents.length===0 ? (
+                  <div className="text-center py-6 text-[10px] font-mono text-white/30">
                     {agentStates.length===0?'Initializing agents...':'No agents in this category'}
                   </div>
+                ) : (
+                  <div className="p-1">
+                    {filteredAgents.map(s=>(
+                      <AgentCard key={s.agent_id} state={s} isSelected={selectedAgent===s.agent_id}
+                        onClick={()=>setSelectedAgent(selectedAgent===s.agent_id?null:s.agent_id)}
+                        onChat={()=>{ setChatAgent(s); setChatHistory([]); }}/>
+                    ))}
+                  </div>
                 )}
-                {filteredAgents.map(s=>(
-                  <AgentCard key={s.agent_id} state={s} isSelected={selectedAgent===s.agent_id}
-                    onClick={()=>setSelectedAgent(selectedAgent===s.agent_id?null:s.agent_id)}
-                    onChat={()=>{ setChatAgent(s); setChatHistory([]); }}/>
-                ))}
               </div>
             )}
 
@@ -797,10 +793,14 @@ export default function AgentSociety() {
               </motion.div>
             )}
 
-            {/* Conversation feed */}
-            <div className="flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden"
-              style={{border:'1px solid rgba(168,85,247,0.15)',background:'linear-gradient(180deg,rgba(5,0,15,0.96),rgba(0,0,0,0.99))',
-                minHeight: isMobile ? 350 : undefined }}>
+            {/* Conversation feed — fills remaining space */}
+            <div className="flex flex-col rounded-2xl overflow-hidden"
+              style={{
+                flex: 1,
+                minHeight: isMobile ? 380 : 0,
+                border:'1px solid rgba(168,85,247,0.15)',
+                background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))',
+              }}>
 
               {/* Topic bar */}
               <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]"
