@@ -52,8 +52,69 @@ export function detectIntent(message: string, hasImageFile = false): string {
   if (fileKeywords.some(kw => lower.includes(kw))) return 'files';
   if (hasImageFile) return 'chat'; // attached image handled as chat, model sees it
 
+  // BUSINESS INTELLIGENCE MODE — structured business analysis and advisory
+  const businessPatterns = [
+    // Starting / idea
+    /i have (a |an )?business idea/,
+    /start(ing)? a business/,
+    /launch(ing)? a (business|startup|company|brand|product|service)/,
+    /open(ing)? a (business|shop|store|restaurant|company)/,
+    /new (business|startup|venture|idea)/,
+    /my (business )?idea is/,
+    /want to (start|build|create|launch) (a |my )?(business|startup|company)/,
+    /thinking (about|of) (starting|launching|building)/,
+    // Existing business problems
+    /my business (is|has|isn't|doesn't|struggling|failing|losing|growing)/,
+    /business (problem|issue|challenge|struggle|crisis)/,
+    /business (is )?slow/,
+    /not (making|getting) (enough )?(money|revenue|sales|customers)/,
+    /losing (money|customers|clients)/,
+    /business (plan|model|strategy)/,
+    /grow(ing)? my business/,
+    /scale (my |the )?business/,
+    /improve (my |the )?business/,
+    /fix (my |the )?business/,
+    /save (my |the )?business/,
+    // Marketing / customers
+    /get (more )?(customers|clients|sales|revenue)/,
+    /find (customers|clients)/,
+    /marketing (plan|strategy|help)/,
+    /how (do i |to )?(market|sell|promote|advertise)/,
+    /no (customers|clients|sales)/,
+    /first (customers|clients|sales)/,
+    // Pricing / revenue
+    /how (should i |to )?pric(e|ing)/,
+    /what (should i |to )?charg(e|ing)/,
+    /revenue model/,
+    /monetiz/,
+    /business model/,
+    /unit economics/,
+    // Market / competition
+    /market (entry|analysis|research|opportunity)/,
+    /enter (the |a )?market/,
+    /competitor(s)? analysis/,
+    /is there (a )?market/,
+    /market size/,
+    /industry (analysis|trends|outlook)/,
+    // Investment / funding
+    /raise (money|capital|funding|investment)/,
+    /investor(s)?/,
+    /pitch (deck|to investors)/,
+    /funding (round|stage)/,
+    /valuation/,
+    // Arabic patterns
+    /عندي فكرة|مشروع|تجارة|أعمال|بزنس|شركة|أبدأ|أبغى أبدأ|عندي مشروع/,
+    /مشكلة في|خسارة|مبيعات|زبائن|تسويق|خطة عمل|نمو/,
+    // Generic business help
+    /help (me )?(with )?(my )?(business|startup|company|idea|plan)/,
+    /business (advice|help|guidance|tips)/,
+    /what (business|industry) should/,
+    /which (business|market|industry)/,
+    /should i (start|launch|open|build)/,
+    /is (it|this) (a )?(good|bad) (business|idea|time)/,
+  ];
+  if (businessPatterns.some(rx => rx.test(lower))) return 'business-intelligence';
+
   // Everything else — let the model decide naturally
-  // The system prompt in ayn-unified already instructs the model to search
-  // when it needs current information it doesn't have
   return 'chat';
 }
