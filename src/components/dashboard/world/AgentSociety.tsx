@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
 
 const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
@@ -483,6 +484,8 @@ export default function AgentSociety() {
   const [messages, setMessages]           = useState<any[]>([]);
   const [agentStates, setAgentStates]     = useState<any[]>([]);
   const [categories, setCategories]       = useState<any[]>([]);
+  const [liveSignals, setLiveSignals]     = useState<any[]>([]);
+  const [signalLoading, setSignalLoading] = useState<string|null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string|null>(null);
   const [hoveredAgent, setHoveredAgent]   = useState<string|null>(null);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -553,6 +556,48 @@ export default function AgentSociety() {
   },[activeConvId, generate]);
 
   useEffect(()=>{loadData();},[loadData]);
+
+  // Fetch live critical/high signals for the signal trigger panel
+  useEffect(()=>{
+    const fetchSignals = async () => {
+      try {
+        const { data } = await supabase
+          .from('ayn_world_signals')
+          .select('id,signal_type,severity,headline,region,impact_on_oil,impact_on_gold,impact_on_btc,created_at')
+          .in('severity', ['critical', 'high'])
+          .order('created_at', { ascending: false })
+          .limit(8);
+        if (data) setLiveSignals(data);
+      } catch {}
+    };
+    fetchSignals();
+  }, []);
+
+  const triggerFromSignal = useCallback(async (signal: any) => {
+    if (signalLoading) return;
+    // Check if conversation already exists for this signal
+    const existing = conversations.find((c: any) => c.signal_id === signal.id);
+    if (existing) { setActiveConvId(existing.id); return; }
+    setSignalLoading(signal.id);
+    setGenerating(true);
+    try {
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'generate_from_signal', signal_id: signal.id })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      await loadData();
+      if (data.conversation_id) {
+        setActiveConvId(data.conversation_id);
+        setMessages(data.messages || []);
+      }
+    } finally {
+      setSignalLoading(null);
+      setGenerating(false);
+    }
+  }, [signalLoading, conversations, loadData]);
 
   useEffect(()=>{
     if(!activeConvId) return;
@@ -804,6 +849,43 @@ export default function AgentSociety() {
               </motion.div>
             )}
 
+            {/* Live Signals — click any to instantly generate a conversation */}
+            {liveSignals.length > 0 && (
+              <div className="shrink-0 rounded-xl overflow-hidden" style={{border:'1px solid rgba(255,255,255,0.07)',background:'rgba(0,0,0,0.35)'}}>
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.05]" style={{background:'rgba(255,255,255,0.02)'}}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" style={{boxShadow:'0 0 4px rgba(248,113,113,0.7)'}}/>
+                  <span className="text-[9px] font-bold font-mono text-white/40 uppercase tracking-widest">Live Signals</span>
+                  <span className="text-[9px] font-mono text-white/20 ml-0.5">— click to react</span>
+                </div>
+                <div className="flex flex-col divide-y divide-white/[0.04]">
+                  {liveSignals.slice(0, 5).map(signal => {
+                    const hasConv = conversations.some((c: any) => c.signal_id === signal.id);
+                    const isLoading = signalLoading === signal.id;
+                    const isCritical = signal.severity === 'critical';
+                    return (
+                      <button key={signal.id}
+                        onClick={() => triggerFromSignal(signal)}
+                        disabled={!!signalLoading || generating}
+                        className="w-full text-left px-3 py-2 transition-all hover:bg-white/3 disabled:opacity-50 flex items-start gap-2">
+                        <span className="text-[10px] shrink-0 mt-0.5">{isCritical ? '🔴' : '🟡'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] font-mono text-white/60 leading-snug truncate">{signal.headline}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[8px] font-mono text-white/20 uppercase">{signal.region}</span>
+                            {signal.impact_on_gold !== 'stable' && <span className="text-[8px] text-amber-400/50">Gold:{signal.impact_on_gold}</span>}
+                            {signal.impact_on_oil !== 'stable' && <span className="text-[8px] text-orange-400/50">Oil:{signal.impact_on_oil}</span>}
+                          </div>
+                        </div>
+                        <span className="text-[8px] font-mono shrink-0 mt-0.5" style={{color: hasConv ? '#34d399' : isCritical ? '#f87171' : '#f59e0b'}}>
+                          {isLoading ? '⟳' : hasConv ? '✓' : '→'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Conversation feed — fills all remaining height */}
             <div className="flex flex-col rounded-2xl overflow-hidden min-h-0" style={{
               flex: 1,
@@ -812,29 +894,53 @@ export default function AgentSociety() {
               background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))',
             }}>
 
-              {/* Topic bar */}
-              <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]"
+              {/* Topic bar — shows signal that triggered this conversation */}
+              <div className="shrink-0 flex flex-col border-b border-white/[0.06]"
                 style={{background:'linear-gradient(90deg,rgba(168,85,247,0.07),transparent)'}}>
-                <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shrink-0"/>
-                <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest shrink-0">Discussion</span>
-                <span className="text-xs font-mono text-white/70 font-bold flex-1 truncate">{activeConv?.topic||'Awaiting activation...'}</span>
-                {selectedAgent&&<button onClick={()=>setSelectedAgent(null)} className="text-[10px] font-mono text-purple-400/60 hover:text-purple-400 shrink-0 transition-colors">✕ All</button>}
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shrink-0"/>
+                  <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest shrink-0">Discussion</span>
+                  <span className="text-[11px] font-mono text-white/75 font-bold flex-1 truncate">{activeConv?.topic||'Awaiting activation...'}</span>
+                  {selectedAgent&&<button onClick={()=>setSelectedAgent(null)} className="text-[10px] font-mono text-purple-400/60 hover:text-purple-400 shrink-0 transition-colors">✕ All</button>}
+                </div>
+                {/* Signal badge — shows what triggered this conversation */}
+                {activeConv?.signal_headline && (
+                  <div className="flex items-center gap-2 px-4 pb-2.5">
+                    <span className={cn(
+                      'text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider',
+                      activeConv.signal_severity === 'critical'
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
+                    )}>
+                      {activeConv.signal_severity === 'critical' ? '🔴' : '🟡'} {activeConv.signal_severity} signal
+                    </span>
+                    <span className="text-[9px] font-mono text-white/35 truncate">
+                      triggered by: {activeConv.signal_headline}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Conv tabs */}
               {conversations.length>0&&(
-                <div className="shrink-0 flex gap-1.5 px-3 py-2.5 overflow-x-auto border-b border-white/[0.05] as-scroll" style={{scrollbarWidth:'none'}}>
-                  {conversations.slice(0,6).map(conv=>(
-                    <button key={conv.id} onClick={()=>setActiveConvId(conv.id)}
-                      className="text-[10px] font-mono px-3 py-1.5 rounded-full border transition-all shrink-0 max-w-[180px] truncate"
-                      style={{
-                        background:activeConvId===conv.id?'rgba(168,85,247,0.14)':'rgba(255,255,255,0.02)',
-                        borderColor:activeConvId===conv.id?'rgba(168,85,247,0.4)':'rgba(255,255,255,0.06)',
-                        color:activeConvId===conv.id?'#a855f7':'rgba(255,255,255,0.35)',
-                      }}>
-                      {conv.topic?.slice(0,40)||'Conv'}
-                    </button>
-                  ))}
+                <div className="shrink-0 flex gap-1.5 px-3 py-2 overflow-x-auto border-b border-white/[0.05] as-scroll" style={{scrollbarWidth:'none'}}>
+                  {conversations.slice(0,8).map(conv=>{
+                    const isActive = activeConvId===conv.id;
+                    const isSignal = !!conv.signal_id;
+                    const isCritical = conv.signal_severity === 'critical';
+                    return (
+                      <button key={conv.id} onClick={()=>setActiveConvId(conv.id)}
+                        className="flex items-center gap-1 text-[9px] font-mono px-2.5 py-1.5 rounded-full border transition-all shrink-0 max-w-[200px]"
+                        style={{
+                          background: isActive ? 'rgba(168,85,247,0.14)' : 'rgba(255,255,255,0.02)',
+                          borderColor: isActive ? 'rgba(168,85,247,0.4)' : isSignal ? (isCritical ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.2)') : 'rgba(255,255,255,0.06)',
+                          color: isActive ? '#a855f7' : 'rgba(255,255,255,0.35)',
+                        }}>
+                        {isSignal && <span className="shrink-0">{isCritical ? '🔴' : '🟡'}</span>}
+                        <span className="truncate">{conv.topic?.slice(0,35)||'Conv'}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
