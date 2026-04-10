@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ArrowLeft, RefreshCw, Globe2, Radio, Activity,
   ChevronRight, Shield, Building2, Flame, Target,
-  AlertTriangle, Users, Zap, TrendingUp, BarChart3
+  AlertTriangle, Users, Zap, TrendingUp, BarChart3,
+  Network, TrendingDown, Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,19 @@ interface WorldPrediction {
   actionable_move?: string; financial_trigger?: string;
   escalation_risk?: string; conflict_signals?: Record<string, string>;
   key_drivers: string[]; main_risks: string[];
+}
+interface MasterPrediction {
+  id: string; run_id: string; created_at: string;
+  title: string; thesis: string; horizon: string;
+  probability_pct: number; confidence: number;
+  who_wins: string; who_wins_detail: string;
+  who_loses: string; who_loses_detail: string;
+  actionable_move: string; what_to_watch: string;
+  driving_signals: Array<{signal: string; value: string; direction: string}>;
+  contradicting: Array<{signal: string; reason: string}>;
+  historical_anchor: string; wisdom_applied: string;
+  domain: string; region: string; tags: string[];
+  graph_coherence: number; signal_quality: number;
 }
 interface CountryIntel {
   country_code: string; country_name: string;
@@ -271,6 +285,8 @@ export default function WorldIntelligence() {
   const [predictions, setPredictions]   = useState<Prediction[]>([]);
   const [signals, setSignals]           = useState<WorldSignal[]>([]);
   const [worldPreds, setWorldPreds]     = useState<WorldPrediction[]>([]);
+  const [masterPreds, setMasterPreds]   = useState<MasterPrediction[]>([]);
+  const [selectedMaster, setSelectedMaster] = useState<MasterPrediction | null>(null);
   const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
   const [userId, setUserId]             = useState<string | undefined>();
 
@@ -356,6 +372,16 @@ export default function WorldIntelligence() {
     } catch {}
   }, []);
 
+  const fetchMasterPreds = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('ayn_master_predictions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(8);
+      if (data) setMasterPreds(data as MasterPrediction[]);
+    } catch {}
+  }, []);
+
   const fetchCountryIntel = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('ayn_country_intelligence').select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities').limit(20);
@@ -368,6 +394,7 @@ export default function WorldIntelligence() {
     fetchSnapshot().finally(() => setLoading(false));
     setTimeout(() => fetchSignals(), 200);
     setTimeout(() => fetchWorldPreds(), 400);
+    setTimeout(() => fetchMasterPreds(), 600);
     setTimeout(() => fetchPredictions(), 600);
     setTimeout(() => fetchCountryIntel(), 900);
     const poll = setInterval(fetchSnapshot, 5 * 60 * 1000);
@@ -731,6 +758,105 @@ export default function WorldIntelligence() {
                 )}
 
                 {/* ── GLOBAL INTELLIGENCE PREDICTIONS ──────────────────────── */}
+                {/* ── AYN GRAPH ENGINE PREDICTIONS ─────────────────────────── */}
+                <section>
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className="w-1 h-5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]" />
+                    <Network className="w-4 h-4 text-purple-400" />
+                    <span className="text-[10px] font-black text-purple-400 tracking-[0.18em] uppercase">AYN Graph Intelligence</span>
+                    <span className="text-[8px] font-mono text-white/18">{masterPreds.length > 0 ? `${masterPreds.length} high-conviction signals` : 'awaiting graph run'}</span>
+                    <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(167,139,250,0.3), transparent)' }} />
+                  </div>
+                  {masterPreds.length === 0 ? (
+                    <div className="rounded-2xl border border-purple-500/15 bg-purple-500/5 p-6 text-center">
+                      <Network className="w-8 h-8 text-purple-400/40 mx-auto mb-3" />
+                      <p className="text-[11px] font-mono text-white/30 mb-1">Graph engine sees everything — prices, signals, patterns, wisdom — and produces the best predictions</p>
+                      <p className="text-[10px] font-mono text-white/20">Runs every 4h automatically. Trigger <span className="text-purple-400/60">ayn-graph-engine</span> from Supabase for first run.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {masterPreds.map((mp, idx) => {
+                        const coherenceColor = mp.graph_coherence >= 80 ? '#34d399' : mp.graph_coherence >= 60 ? '#f59e0b' : '#f87171';
+                        const domainCol = DOMAIN_COLOR[mp.domain?.toLowerCase()] || '#a78bfa';
+                        const isSelected = selectedMaster?.id === mp.id;
+                        return (
+                          <motion.div key={mp.id}
+                            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}
+                            className="rounded-2xl border border-white/8 bg-black/50 overflow-hidden cursor-pointer hover:border-purple-500/25 transition-all"
+                            onClick={() => setSelectedMaster(isSelected ? null : mp)}>
+                            <div className="p-4">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[7px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-full"
+                                    style={{ color: domainCol, background: `${domainCol}18`, border: `1px solid ${domainCol}30` }}>
+                                    {mp.domain}
+                                  </span>
+                                  <span className="text-[7px] font-mono text-white/25 uppercase">{mp.region}</span>
+                                  <span className="text-[7px] font-mono text-white/20">{mp.horizon?.replace(/_/g, ' ')}</span>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <div className="text-right">
+                                    <div className="text-[8px] font-black" style={{ color: coherenceColor }}>{mp.graph_coherence}%</div>
+                                    <div className="text-[6px] font-mono text-white/20">coherence</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-[11px] font-black text-white/80">{mp.probability_pct}%</div>
+                                    <div className="text-[6px] font-mono text-white/20">probability</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <h3 className="text-[13px] font-black text-white/90 leading-snug mb-2">{mp.title}</h3>
+                              <p className="text-[10px] font-mono text-white/45 leading-relaxed line-clamp-2 mb-3">{mp.thesis}</p>
+                              <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div className="rounded-lg p-2.5 bg-emerald-500/5 border border-emerald-500/15">
+                                  <div className="flex items-center gap-1 mb-1"><TrendingUp className="w-2.5 h-2.5 text-emerald-400" /><span className="text-[7px] font-black text-emerald-400/70 uppercase">Winners</span></div>
+                                  <p className="text-[9px] font-mono text-emerald-200/70 leading-snug">{mp.who_wins}</p>
+                                </div>
+                                <div className="rounded-lg p-2.5 bg-red-500/5 border border-red-500/15">
+                                  <div className="flex items-center gap-1 mb-1"><TrendingDown className="w-2.5 h-2.5 text-red-400" /><span className="text-[7px] font-black text-red-400/70 uppercase">Losers</span></div>
+                                  <p className="text-[9px] font-mono text-red-200/65 leading-snug">{mp.who_loses}</p>
+                                </div>
+                              </div>
+                              <div className="rounded-lg p-2.5 bg-cyan-500/5 border border-cyan-500/15 mb-2">
+                                <div className="flex items-center gap-1 mb-1"><Zap className="w-2.5 h-2.5 text-cyan-400" /><span className="text-[7px] font-black text-cyan-400/70 uppercase">Move</span></div>
+                                <p className="text-[9px] font-mono font-black text-cyan-200/80">{mp.actionable_move}</p>
+                              </div>
+                              {(mp.driving_signals?.length > 0) && (
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {mp.driving_signals.slice(0, 4).map((s: any, i: number) => (
+                                    <span key={i} className={cn('text-[7px] font-mono px-1.5 py-0.5 rounded border',
+                                      s.direction === 'bullish' ? 'bg-emerald-500/8 border-emerald-500/20 text-emerald-400/70' :
+                                      s.direction === 'bearish' ? 'bg-red-500/8 border-red-500/20 text-red-400/70' :
+                                      'bg-white/4 border-white/10 text-white/40')}>{s.signal}</span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                <span className="text-[7px] font-mono text-white/20">{mp.contradicting?.length > 0 ? `${mp.contradicting.length} contradicting signal${mp.contradicting.length > 1 ? 's' : ''}` : 'no contradictions'}</span>
+                                <span className="text-[7px] font-mono text-purple-400/50">{isSelected ? 'collapse ↑' : 'full analysis →'}</span>
+                              </div>
+                            </div>
+                            <AnimatePresence>
+                              {isSelected && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="border-t border-white/6 bg-white/2 overflow-hidden">
+                                  <div className="p-4 space-y-3">
+                                    {mp.who_wins_detail && (<div><div className="text-[7px] font-mono text-emerald-400/50 uppercase mb-1">Why they win</div><p className="text-[10px] font-mono text-white/50 leading-relaxed">{mp.who_wins_detail}</p></div>)}
+                                    {mp.who_loses_detail && (<div><div className="text-[7px] font-mono text-red-400/50 uppercase mb-1">Why they lose</div><p className="text-[10px] font-mono text-white/50 leading-relaxed">{mp.who_loses_detail}</p></div>)}
+                                    {mp.what_to_watch && (<div className="rounded-lg p-3 bg-amber-500/5 border border-amber-500/15"><div className="flex items-center gap-1 mb-1.5"><Eye className="w-2.5 h-2.5 text-amber-400" /><span className="text-[7px] font-black text-amber-400/70 uppercase">Watch for</span></div><p className="text-[9px] font-mono text-amber-200/70">{mp.what_to_watch}</p></div>)}
+                                    {mp.historical_anchor && (<div className="rounded-lg p-3 bg-purple-500/5 border border-purple-500/15"><div className="text-[7px] font-mono text-purple-400/50 uppercase mb-1">Historical pattern</div><p className="text-[9px] font-mono text-purple-200/60">{mp.historical_anchor}</p></div>)}
+                                    {mp.wisdom_applied && (<div><div className="text-[7px] font-mono text-white/25 uppercase mb-1">Framework</div><p className="text-[9px] font-mono text-white/40">{mp.wisdom_applied}</p></div>)}
+                                    {mp.contradicting?.length > 0 && (<div><div className="text-[7px] font-mono text-amber-400/50 uppercase mb-1.5">Risks to this thesis</div><div className="space-y-1">{mp.contradicting.map((c: any, i: number) => (<div key={i} className="text-[9px] font-mono text-white/35"><span className="text-amber-400/60">{c.signal}</span> — {c.reason}</div>))}</div></div>)}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
                 {worldPreds.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2.5 mb-4">
