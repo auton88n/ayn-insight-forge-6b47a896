@@ -672,24 +672,26 @@ export default function AgentSociety() {
         </div>
 
         {/* ── Main Content — globe left, panel right ── */}
-        <div className={`grid gap-3 ${!isMobile && showGlobe ? 'md:grid-cols-[1fr_440px] lg:grid-cols-[1fr_500px]' : 'grid-cols-1'}`}>
+        <div className={`grid gap-3 ${!isMobile && showGlobe ? 'md:grid-cols-[1fr_420px]' : 'grid-cols-1'}`}
+          style={{ height: (!isMobile && showGlobe) ? 560 : 'auto' }}>
 
           {/* 3D Globe — desktop only */}
           {!isMobile && showGlobe && (
             <div ref={canvasRef} className="relative rounded-2xl overflow-hidden"
-              style={{background:'#010008',border:'1px solid rgba(168,85,247,0.18)',height:520}}>
-              <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3"
-                style={{background:'linear-gradient(180deg,rgba(1,0,8,0.92),transparent)'}}>
+              style={{background:'#010008',border:'1px solid rgba(168,85,247,0.18)',minHeight:0}}>
+              {/* Globe header */}
+              <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 pointer-events-none"
+                style={{background:'linear-gradient(180deg,rgba(1,0,8,0.92) 0%,transparent 100%)'}}>
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" style={{boxShadow:'0 0 5px rgba(168,85,247,0.8)'}}/>
                   <span className="text-[10px] font-bold text-purple-400 tracking-[0.16em] font-mono">AGENT NETWORK</span>
                   <span className="text-[9px] font-mono text-white/25">{Object.keys(agentStateMap).length} nodes</span>
                 </div>
-                <span className="text-[9px] font-mono text-white/25">DRAG · SCROLL · CLICK</span>
+                <span className="text-[9px] font-mono text-white/20">DRAG · SCROLL · CLICK</span>
               </div>
 
-              {ready?(
-                <Canvas camera={{position:[0,0,13],fov:52}} className="w-full h-full">
+              {ready ? (
+                <Canvas camera={{position:[0,0,13],fov:52}} style={{width:'100%',height:'100%'}}>
                   <AgentScene
                     agentStateMap={agentStateMap} messages={messages}
                     selectedAgent={selectedAgent} hoveredAgent={hoveredAgent}
@@ -697,16 +699,16 @@ export default function AgentSociety() {
                     onHover={setHoveredAgent}
                   />
                 </Canvas>
-              ):(
-                <div className="flex items-center justify-center h-full">
+              ) : (
+                <div className="flex items-center justify-center" style={{height:'100%'}}>
                   <div className="text-center space-y-3">
-                    <div className="w-12 h-12 rounded-full border-2 border-purple-500/20 border-t-purple-400 animate-spin mx-auto"/>
+                    <div className="w-10 h-10 rounded-full border-2 border-purple-500/20 border-t-purple-400 animate-spin mx-auto"/>
                     <p className="text-[10px] font-mono text-purple-400/50 tracking-[0.2em]">LOADING NETWORK</p>
                   </div>
                 </div>
               )}
 
-              {/* Selected agent overlay on globe */}
+              {/* Selected agent overlay */}
               <AnimatePresence>
                 {selectedAgent&&agentStateMap[selectedAgent]&&(()=>{
                   const s=agentStateMap[selectedAgent];
@@ -737,9 +739,9 @@ export default function AgentSociety() {
           )}
 
           {/* Right panel — agents + conversation */}
-          <div className="flex flex-col gap-3" style={{ height: (!isMobile && showGlobe) ? 520 : 'auto' }}>
+          <div className="flex flex-col gap-2 overflow-hidden" style={{ height: (!isMobile && showGlobe) ? 560 : 'auto' }}>
 
-            {/* Agent roster — grid on desktop, horizontal scroll on mobile */}
+            {/* Agent roster */}
             {isMobile ? (
               <div className="flex gap-2 overflow-x-auto pb-1 as-scroll shrink-0" style={{ scrollbarWidth:'none' }}>
                 {filteredAgents.length === 0 && (
@@ -754,21 +756,30 @@ export default function AgentSociety() {
                 ))}
               </div>
             ) : (
-              <div className="as-scroll overflow-y-auto shrink-0 rounded-xl"
-                style={{ maxHeight: showGlobe ? 195 : 260, border:'1px solid rgba(255,255,255,0.06)', background:'rgba(0,0,0,0.3)' }}>
-                {filteredAgents.length===0 ? (
-                  <div className="text-center py-6 text-[10px] font-mono text-white/30">
-                    {agentStates.length===0?'Initializing agents...':'No agents in this category'}
-                  </div>
-                ) : (
-                  <div className="p-1">
-                    {filteredAgents.map(s=>(
-                      <AgentCard key={s.agent_id} state={s} isSelected={selectedAgent===s.agent_id}
-                        onClick={()=>setSelectedAgent(selectedAgent===s.agent_id?null:s.agent_id)}
-                        onChat={()=>{ setChatAgent(s); setChatHistory([]); }}/>
-                    ))}
-                  </div>
-                )}
+              <div className="shrink-0 rounded-xl overflow-hidden"
+                style={{border:'1px solid rgba(255,255,255,0.07)',background:'rgba(0,0,0,0.4)', maxHeight: 200}}>
+                {/* Agents header */}
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]"
+                  style={{background:'rgba(255,255,255,0.02)'}}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{boxShadow:'0 0 4px rgba(52,211,153,0.6)'}}/>
+                  <span className="text-[9px] font-bold font-mono text-white/40 uppercase tracking-widest">Agents</span>
+                  <span className="text-[9px] font-mono text-white/20 ml-1">{filteredAgents.length}</span>
+                </div>
+                <div className="overflow-y-auto as-scroll" style={{maxHeight:158}}>
+                  {filteredAgents.length===0 ? (
+                    <div className="text-center py-5 text-[10px] font-mono text-white/25">
+                      {agentStates.length===0?'Initializing...':'No agents in this category'}
+                    </div>
+                  ) : (
+                    <div className="p-1">
+                      {filteredAgents.map(s=>(
+                        <AgentCard key={s.agent_id} state={s} isSelected={selectedAgent===s.agent_id}
+                          onClick={()=>setSelectedAgent(selectedAgent===s.agent_id?null:s.agent_id)}
+                          onChat={()=>{ setChatAgent(s); setChatHistory([]); }}/>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -793,14 +804,13 @@ export default function AgentSociety() {
               </motion.div>
             )}
 
-            {/* Conversation feed — fills remaining space */}
-            <div className="flex flex-col rounded-2xl overflow-hidden"
-              style={{
-                flex: 1,
-                minHeight: isMobile ? 380 : 0,
-                border:'1px solid rgba(168,85,247,0.15)',
-                background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))',
-              }}>
+            {/* Conversation feed — fills all remaining height */}
+            <div className="flex flex-col rounded-2xl overflow-hidden min-h-0" style={{
+              flex: 1,
+              minHeight: isMobile ? 380 : 0,
+              border:'1px solid rgba(168,85,247,0.15)',
+              background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))',
+            }}>
 
               {/* Topic bar */}
               <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]"
