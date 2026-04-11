@@ -111,9 +111,9 @@ export const liquidButtonVariants = cva(
     // The actual glass look — transparent dark tint + blur
     "bg-black/20 backdrop-blur-md",
     // Rim: thin white border top, transparent bottom for depth
-    "border border-white/20",
+    "border border-white/50",
     // Outer glow + inner top rim + inner bottom shadow
-    "shadow-[0_2px_8px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(0,0,0,0.2)]",
+    "shadow-[0_2px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-1px_0_rgba(0,0,0,0.3),0_0_0_1px_rgba(255,255,255,0.08)]",
     "text-white",
   ].join(" "),
   {
@@ -149,7 +149,7 @@ export const LiquidButton = React.forwardRef<HTMLButtonElement, LiquidButtonProp
           aria-hidden
           className="pointer-events-none absolute inset-x-[10%] top-0 h-[40%] rounded-b-full"
           style={{
-            background: "linear-gradient(to bottom, rgba(255,255,255,0.18), transparent)",
+            background: "linear-gradient(to bottom, rgba(255,255,255,0.32), transparent)",
           }}
         />
         {/* Content */}
