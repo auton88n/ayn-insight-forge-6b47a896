@@ -366,8 +366,8 @@ function AgentMessage({ msg, idx }: { msg:any; idx:number }) {
   const intense=(msg.emotion_intensity||0)>=80;
   return (
     <motion.div initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:idx*0.03,duration:0.25}}
-      className="flex gap-3 pb-5 mb-1 border-b border-white/[0.06] last:border-0">
-      <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xl relative"
+      className="flex gap-3 pb-6 mb-2 border-b border-white/[0.06] last:border-0">
+      <div className="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-xl relative"
         style={{ background:em.bg, border:`1px solid ${em.border}`, boxShadow:intense?`0 0 18px ${em.color}30`:undefined }}>
         {msg.agent_flag||'🌐'}
         <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
@@ -375,7 +375,7 @@ function AgentMessage({ msg, idx }: { msg:any; idx:number }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className="text-sm font-bold" style={{ color:em.color }}>{msg.agent_name}</span>
+          <span className="text-[15px] font-bold" style={{ color:em.color }}>{msg.agent_name}</span>
           <span className="text-[9px] font-bold px-2 py-1 rounded-full uppercase tracking-wider"
             style={{ color:em.color, background:em.bg, border:`1px solid ${em.border}` }}>
             {em.emoji} {em.label}{intense?` · ${msg.emotion_intensity}%`:''}
@@ -385,7 +385,7 @@ function AgentMessage({ msg, idx }: { msg:any; idx:number }) {
             <span className="text-[9px] font-mono text-white/25 uppercase ml-auto">[{msg.message_type}]</span>
           )}
         </div>
-        <div className="rounded-xl px-4 py-3.5 text-[13px] font-mono text-white/80 leading-[1.85]"
+        <div className="rounded-xl px-4 py-4 text-sm text-white/85 leading-[1.9]"
           style={{
             background:`linear-gradient(135deg,${em.bg},rgba(0,0,0,0.45))`,
             border:`1px solid ${em.border}`,
@@ -718,8 +718,8 @@ export default function AgentSociety() {
         </div>
 
         {/* ── Main Content — globe left, panel right ── */}
-        <div className={`grid gap-3 ${!isMobile && showGlobe ? 'md:grid-cols-[1fr_420px]' : 'grid-cols-1'}`}
-          style={{ height: (!isMobile && showGlobe) ? 560 : 'auto' }}>
+        <div className={`grid gap-4 ${!isMobile && showGlobe ? 'md:grid-cols-[1fr_440px]' : 'grid-cols-1'}`}
+          style={{ height: (!isMobile && showGlobe) ? 680 : 'auto' }}>
 
           {/* 3D Globe — desktop only */}
           {!isMobile && showGlobe && (
@@ -785,7 +785,7 @@ export default function AgentSociety() {
           )}
 
           {/* Right panel — agents + conversation */}
-          <div className="flex flex-col gap-2 overflow-hidden" style={{ height: (!isMobile && showGlobe) ? 560 : 'auto' }}>
+          <div className="flex flex-col gap-3 overflow-hidden" style={{ height: (!isMobile && showGlobe) ? 680 : 'auto' }}>
 
             {/* Agent roster */}
             {isMobile ? (
@@ -803,7 +803,7 @@ export default function AgentSociety() {
               </div>
             ) : (
               <div className="shrink-0 rounded-xl overflow-hidden"
-                style={{border:'1px solid rgba(255,255,255,0.07)',background:'rgba(0,0,0,0.4)', maxHeight: 200}}>
+                style={{border:'1px solid rgba(255,255,255,0.07)',background:'rgba(0,0,0,0.4)', maxHeight: 220}}>
                 {/* Agents header */}
                 <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]"
                   style={{background:'rgba(255,255,255,0.02)'}}>
@@ -811,7 +811,7 @@ export default function AgentSociety() {
                   <span className="text-[9px] font-bold font-mono text-white/40 uppercase tracking-widest">Agents</span>
                   <span className="text-[9px] font-mono text-white/20 ml-1">{filteredAgents.length}</span>
                 </div>
-                <div className="overflow-y-auto as-scroll" style={{maxHeight:158}}>
+                <div className="overflow-y-auto as-scroll" style={{maxHeight:178}}>
                   {filteredAgents.length===0 ? (
                     <div className="text-center py-5 text-[10px] font-mono text-white/25">
                       {agentStates.length===0?'Initializing...':'No agents in this category'}
@@ -867,7 +867,7 @@ export default function AgentSociety() {
                       <button key={signal.id}
                         onClick={() => triggerFromSignal(signal)}
                         disabled={!!signalLoading || generating}
-                        className="w-full text-left px-3 py-2 transition-all hover:bg-white/3 disabled:opacity-50 flex items-start gap-2">
+                        className="w-full text-left px-3 py-2.5 transition-all hover:bg-white/3 disabled:opacity-50 flex items-start gap-2">
                         <span className="text-[10px] shrink-0 mt-0.5">{isCritical ? '🔴' : '🟡'}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] font-mono text-white/60 leading-snug truncate">{signal.headline}</p>
@@ -890,7 +890,7 @@ export default function AgentSociety() {
             {/* Conversation feed — fills all remaining height */}
             <div className="flex flex-col rounded-2xl overflow-hidden min-h-0" style={{
               flex: 1,
-              minHeight: isMobile ? 380 : 0,
+              minHeight: isMobile ? 420 : 0,
               border:'1px solid rgba(168,85,247,0.15)',
               background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))',
             }}>
@@ -973,7 +973,7 @@ export default function AgentSociety() {
 
               {/* Messages */}
               {!generating && (
-                <div className="flex-1 min-h-0 overflow-y-auto as-scroll px-4 py-4 space-y-0">
+                <div className="flex-1 min-h-0 overflow-y-auto as-scroll px-5 py-5 space-y-1">
                   {loadingMsgs&&<div className="text-center py-6 text-xs font-mono text-white/25">Loading messages...</div>}
                   <AnimatePresence initial={false}>
                     {visibleMessages.map((msg,i)=><AgentMessage key={msg.id} msg={msg} idx={i}/>)}
