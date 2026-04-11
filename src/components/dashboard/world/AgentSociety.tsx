@@ -470,13 +470,31 @@ function StatusBar({ agentCount, avgTension, hasPanic, messageCount }: {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function AgentSociety() {
+export default function AgentSociety({ 
+  onConversationsChange, 
+  onActiveConvChange,
+  externalActiveConvId,
+}: { 
+  onConversationsChange?: (convs: any[]) => void;
+  onActiveConvChange?: (id: string | null) => void;
+  externalActiveConvId?: string | null;
+} = {}) {
   const canvasRef  = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const msgsEnd    = useRef<HTMLDivElement>(null);
   const isMounted  = useRef(false);
   const prevCount  = useRef(0);
   const autoActivated = useRef(false);
+
+  // Sync external active conv id (from parent tab bar)
+  useEffect(()=>{
+    if(externalActiveConvId !== undefined && externalActiveConvId !== null) {
+      setActiveConvId(externalActiveConvId);
+    }
+  },[externalActiveConvId]);
+
+  // Notify parent when active conv changes
+  useEffect(()=>{ onActiveConvChange?.(activeConvId); },[activeConvId, onActiveConvChange]);
   const { toast }  = useToast();
   const isMobile   = useIsMobile();
 
@@ -543,7 +561,9 @@ export default function AgentSociety() {
       });
       if(!res.ok)return;
       const data=await res.json();
-      setConversations(data.conversations||[]);
+      const convs = data.conversations||[];
+      setConversations(convs);
+      onConversationsChange?.(convs);
       setAgentStates(data.agent_states||[]);
       setCategories(data.categories||[]);
       if(data.conversations?.length&&!activeConvId)setActiveConvId(data.conversations[0].id);
@@ -972,50 +992,7 @@ export default function AgentSociety() {
           </div>
         </div>
 
-        {/* ── Conversation Tabs — full width below globe + panel ── */}
-        {conversations.length > 0 && (
-          <div className="rounded-xl overflow-hidden mt-3"
-            style={{border:'1px solid rgba(168,85,247,0.15)',background:'rgba(0,0,0,0.5)'}}>
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.05]">
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"
-                style={{boxShadow:'0 0 4px rgba(168,85,247,0.8)'}}/>
-              <span className="text-[9px] font-bold font-mono text-white/35 uppercase tracking-widest">
-                Discussions
-              </span>
-              <span className="text-[9px] font-mono text-white/20">{conversations.length}</span>
-            </div>
-            <div className="flex gap-2 px-3 py-2.5 overflow-x-auto as-scroll flex-wrap"
-              style={{scrollbarWidth:'none'}}>
-              {conversations.slice(0,10).map(conv=>{
-                const isActive = activeConvId===conv.id;
-                const isSignal = !!conv.signal_id;
-                const isCritical = conv.signal_severity === 'critical';
-                return (
-                  <button key={conv.id} onClick={()=>setActiveConvId(conv.id)}
-                    className="flex items-center gap-1.5 font-mono transition-all shrink-0"
-                    style={{
-                      fontSize:'10px',
-                      padding:'5px 12px',
-                      borderRadius:8,
-                      border: isActive ? '1px solid rgba(168,85,247,0.5)' :
-                              isSignal && isCritical ? '1px solid rgba(239,68,68,0.2)' :
-                              isSignal ? '1px solid rgba(245,158,11,0.18)' :
-                              '1px solid rgba(255,255,255,0.07)',
-                      background: isActive ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.03)',
-                      color: isActive ? '#a855f7' : 'rgba(255,255,255,0.4)',
-                      maxWidth: 220,
-                    }}>
-                    {isSignal && <span style={{fontSize:9}}>{isCritical ? '🔴' : '🟡'}</span>}
-                    <span style={{
-                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
-                      maxWidth:180,display:'block'
-                    }}>{conv.topic?.slice(0,40)||'Conversation'}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* ── God's Eye Dialog ── */}

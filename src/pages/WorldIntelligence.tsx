@@ -254,6 +254,8 @@ export default function WorldIntelligence() {
   const [signalFilter, setSignalFilter] = useState<string>('all');
   const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
   const [userId, setUserId] = useState<string | undefined>();
+  const [agentConversations, setAgentConversations] = useState<any[]>([]);
+  const [agentActiveConvId, setAgentActiveConvId] = useState<string | null>(null);
 
   // UI
   const [activeHorizon, setActiveHorizon] = useState<'1_week' | '1_month' | '1_year'>('1_week');
@@ -1045,13 +1047,15 @@ export default function WorldIntelligence() {
             {/* ════════ AGENTS ════════ */}
             {activeSection === 'agents' && (
               <motion.div key="agents" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="pb-16">
-                <div className="border-b border-white/[0.04] px-6 sm:px-8 py-5 flex items-center gap-3">
+                className="flex flex-col pb-16">
+                {/* Header */}
+                <div className="border-b border-white/[0.04] px-6 sm:px-8 py-5 flex items-center gap-3 shrink-0">
                   <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
                   <h2 className="text-sm font-display font-semibold">Agent Society</h2>
                   <span className="text-xs text-muted-foreground/40">Live AI agents · World reaction simulation</span>
                 </div>
-                <div className="p-4 sm:p-6 lg:p-8 pb-16">
+                {/* Agent Society — padded content */}
+                <div className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
                   <Suspense fallback={
                     <div className="flex items-center justify-center h-80">
                       <div className="text-center space-y-3">
@@ -1060,9 +1064,65 @@ export default function WorldIntelligence() {
                       </div>
                     </div>
                   }>
-                    <AgentSociety />
+                    <AgentSociety
+                      onConversationsChange={setAgentConversations}
+                      onActiveConvChange={setAgentActiveConvId}
+                      externalActiveConvId={agentActiveConvId}
+                    />
                   </Suspense>
                 </div>
+
+                {/* ── Discussion tabs — FULL WIDTH of the entire section ── */}
+                {agentConversations.length > 0 && (
+                  <div className="mx-4 sm:mx-6 lg:mx-8 mt-4 mb-6 rounded-xl overflow-hidden"
+                    style={{border:'1px solid rgba(168,85,247,0.18)',background:'rgba(0,0,0,0.5)'}}>
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.05]"
+                      style={{background:'rgba(168,85,247,0.05)'}}>
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"
+                        style={{boxShadow:'0 0 4px rgba(168,85,247,0.7)'}} />
+                      <span className="text-[10px] font-semibold font-mono text-white/40 uppercase tracking-widest">
+                        Discussions
+                      </span>
+                      <span className="text-[10px] font-mono text-white/20 ml-1">{agentConversations.length}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 px-4 py-3"
+                      style={{scrollbarWidth:'none'}}>
+                      {agentConversations.slice(0,12).map((conv: any) => {
+                        const isActive = agentActiveConvId === conv.id;
+                        const isCritical = conv.signal_severity === 'critical';
+                        const isSignal = !!conv.signal_id;
+                        return (
+                          <button key={conv.id}
+                            onClick={() => setAgentActiveConvId(conv.id)}
+                            className="flex items-center gap-1.5 font-mono transition-all"
+                            style={{
+                              fontSize: 11,
+                              padding: '6px 14px',
+                              borderRadius: 8,
+                              border: isActive
+                                ? '1px solid rgba(168,85,247,0.55)'
+                                : isSignal && isCritical
+                                ? '1px solid rgba(239,68,68,0.22)'
+                                : isSignal
+                                ? '1px solid rgba(245,158,11,0.2)'
+                                : '1px solid rgba(255,255,255,0.08)',
+                              background: isActive ? 'rgba(168,85,247,0.16)' : 'rgba(255,255,255,0.03)',
+                              color: isActive ? '#a855f7' : 'rgba(255,255,255,0.45)',
+                              maxWidth: 260,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}>
+                            {isSignal && <span style={{fontSize:10}}>{isCritical ? '🔴' : '🟡'}</span>}
+                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {conv.topic?.slice(0, 45) || 'Conversation'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
