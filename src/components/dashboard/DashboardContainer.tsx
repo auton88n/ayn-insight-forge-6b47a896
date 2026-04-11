@@ -259,6 +259,7 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
       maintenanceConfig={maintenanceConfig}
       betaConfig={betaConfig}
       isTransitioningToChat={isTransitioningToChat}
+      modeLocked={modeLocked}
     />
   );
 };
@@ -288,6 +289,7 @@ const DashboardContent = ({
   maintenanceConfig,
   betaConfig,
   isTransitioningToChat,
+  modeLocked,
 }: {
   user: User;
   session: Session;
@@ -312,6 +314,7 @@ const DashboardContent = ({
   maintenanceConfig?: MaintenanceConfig;
   betaConfig?: BetaConfig;
   isTransitioningToChat?: boolean;
+  modeLocked: boolean;
 }) => {
   const { open, setOpen, openMobile, setOpenMobile, isMobile, toggleSidebar } = useSidebar();
   const [transcriptOpen, setTranscriptOpen] = useState(false);

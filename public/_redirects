@@ -1,8 +1,13 @@
-# Serve static files directly (before SPA catch-all)
+# Serve static assets directly — must come BEFORE the SPA catch-all
+# Without these, the /* rule intercepts missing chunks and returns HTML,
+# causing "text/html is not a valid JavaScript MIME type" errors
+/assets/*   /assets/:splat  200
 /sitemap.xml    /sitemap.xml    200
 /robots.txt     /robots.txt     200
 /favicon.ico    /favicon.ico    200
 /favicon.png    /favicon.png    200
+/apple-touch-icon.png   /apple-touch-icon.png   200
+/og-image.*     /og-image.:splat    200
 
 # SPA catch-all - serve index.html for all other routes
 /*    /index.html   200
