@@ -92,42 +92,30 @@ export { Button, buttonVariants }
 
 
 // ─── Liquid Glass Button ──────────────────────────────────────────────────────
-// A glossy dark pill button with glass-like specular highlights.
-// Works on any background — light, dark, or gradient.
+// True glass effect: transparent with SVG distortion + specular highlight.
+// Requires a non-white background behind it to read properly.
 
 export const liquidButtonVariants = cva(
   [
     "relative inline-flex items-center justify-center cursor-pointer gap-2",
-    "whitespace-nowrap rounded-full font-medium",
-    "transition-all duration-200 ease-out",
+    "whitespace-nowrap rounded-full font-medium text-sm",
+    "transition-all duration-700 overflow-hidden",
     "disabled:pointer-events-none disabled:opacity-40",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-    "outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground/50",
-    "overflow-hidden select-none",
-    // Dark pill base — works on any background
-    "bg-[#0f0f0f] dark:bg-[#f5f5f5]",
-    "text-[#f5f5f5] dark:text-[#0f0f0f]",
-    // Border: thin dark edge + inner light rim via box-shadow
-    "border border-black/20 dark:border-white/20",
-    "shadow-[0_1px_2px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(0,0,0,0.3)]",
-    "dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-1px_0_rgba(0,0,0,0.1)]",
-    // Hover & active
-    "hover:scale-[1.03] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-1px_0_rgba(0,0,0,0.3)]",
-    "dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-1px_0_rgba(0,0,0,0.08)]",
-    "active:scale-[0.97]",
+    "outline-none",
+    // Hover scale with bouncy easing via CSS
+    "hover:scale-105 active:scale-[0.97]",
   ].join(" "),
   {
     variants: {
       size: {
-        sm:      "h-8 px-4 text-xs",
-        default: "h-10 px-5 text-sm",
-        lg:      "h-11 px-7 text-sm",
-        xl:      "h-12 px-8 text-base",
+        sm:      "h-8 px-5 text-xs",
+        default: "h-10 px-6 text-sm",
+        lg:      "h-11 px-8 text-sm",
+        xl:      "h-13 px-10 text-base",
       },
     },
-    defaultVariants: {
-      size: "default",
-    },
+    defaultVariants: { size: "default" },
   }
 )
 
@@ -138,25 +126,100 @@ export interface LiquidButtonProps
 }
 
 export const LiquidButton = React.forwardRef<HTMLButtonElement, LiquidButtonProps>(
-  ({ className, size, asChild = false, children, ...props }, ref) => {
+  ({ className, size, asChild = false, children, style, ...props }, ref) => {
     const Comp = (asChild ? Slot : "button") as React.ElementType
     return (
       <Comp
         ref={ref}
         className={cn(liquidButtonVariants({ size, className }))}
+        style={{
+          boxShadow: "0 6px 6px rgba(0,0,0,0.2), 0 0 20px rgba(0,0,0,0.1)",
+          transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 2.2)",
+          color: "inherit",
+          ...style,
+        }}
         {...props}
       >
-        {/* Top gloss streak — the "glass" shine */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-[12%] top-0 h-[45%] rounded-b-full bg-gradient-to-b from-white/20 to-transparent"
+        {/* Layer 1: backdrop blur + SVG glass distortion */}
+        <div
+          className="absolute inset-0 z-0 overflow-hidden rounded-full"
+          style={{
+            backdropFilter: "blur(3px)",
+            filter: "url(#glass-distortion)",
+            isolation: "isolate",
+          }}
         />
-        {/* Content sits above the gloss */}
-        <span className="relative z-10 flex items-center gap-2">
+        {/* Layer 2: white tint */}
+        <div
+          className="absolute inset-0 z-10 rounded-full"
+          style={{ background: "rgba(255,255,255,0.25)" }}
+        />
+        {/* Layer 3: inner rim highlight */}
+        <div
+          className="absolute inset-0 z-20 rounded-full"
+          style={{
+            boxShadow:
+              "inset 2px 2px 1px 0 rgba(255,255,255,0.5), inset -1px -1px 1px 1px rgba(255,255,255,0.5)",
+          }}
+        />
+        {/* Content */}
+        <span className="relative z-30 flex items-center gap-2">
           {children}
         </span>
+
+        {/* SVG filter — inline so it's scoped per button */}
+        <GlassDistortionFilter />
       </Comp>
     )
   }
 )
 LiquidButton.displayName = "LiquidButton"
+
+function GlassDistortionFilter() {
+  return (
+    <svg style={{ display: "none" }} aria-hidden>
+      <filter
+        id="glass-distortion"
+        x="0%" y="0%" width="100%" height="100%"
+        filterUnits="objectBoundingBox"
+      >
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.001 0.005"
+          numOctaves="1"
+          seed="17"
+          result="turbulence"
+        />
+        <feComponentTransfer in="turbulence" result="mapped">
+          <feFuncR type="gamma" amplitude="1" exponent="10" offset="0.5" />
+          <feFuncG type="gamma" amplitude="0" exponent="1" offset="0" />
+          <feFuncB type="gamma" amplitude="0" exponent="1" offset="0.5" />
+        </feComponentTransfer>
+        <feGaussianBlur in="turbulence" stdDeviation="3" result="softMap" />
+        <feSpecularLighting
+          in="softMap"
+          surfaceScale="5"
+          specularConstant="1"
+          specularExponent="100"
+          lightingColor="white"
+          result="specLight"
+        >
+          <fePointLight x="-200" y="-200" z="300" />
+        </feSpecularLighting>
+        <feComposite
+          in="specLight"
+          operator="arithmetic"
+          k1="0" k2="1" k3="1" k4="0"
+          result="litImage"
+        />
+        <feDisplacementMap
+          in="SourceGraphic"
+          in2="softMap"
+          scale="200"
+          xChannelSelector="R"
+          yChannelSelector="G"
+        />
+      </filter>
+    </svg>
+  )
+}
