@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { CheckCircle, Send, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, LiquidButton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -214,11 +214,11 @@ const Contact = () => {
                   {contactErrors.message && <p className="text-sm text-destructive animate-slide-down-fade">{contactErrors.message}</p>}
                 </div>
 
-                <Button
+                <LiquidButton
                   type="submit"
                   size="lg"
                   disabled={isSubmitting}
-                  className={cn('w-full h-14 rounded-none font-mono uppercase tracking-wider transition-all duration-300', 'hover:shadow-2xl')}
+                  className="w-full"
                 >
                   {isSubmitting ? (
                     <>
@@ -231,7 +231,7 @@ const Contact = () => {
                       <Send className="ml-2 h-5 w-5" />
                     </>
                   )}
-                </Button>
+                </LiquidButton>
               </form>
             )}
           </div>
