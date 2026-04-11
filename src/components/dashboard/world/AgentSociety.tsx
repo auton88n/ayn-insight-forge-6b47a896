@@ -486,15 +486,18 @@ export default function AgentSociety({
   const prevCount  = useRef(0);
   const autoActivated = useRef(false);
 
-  // Sync external active conv id (from parent tab bar)
+  // Sync external active conv id (from parent tab bar) — only update if different
+  const prevExternalRef = useRef<string|null|undefined>(undefined);
   useEffect(()=>{
-    if(externalActiveConvId !== undefined && externalActiveConvId !== null) {
+    if(externalActiveConvId !== undefined && 
+       externalActiveConvId !== null && 
+       externalActiveConvId !== prevExternalRef.current) {
+      prevExternalRef.current = externalActiveConvId;
       setActiveConvId(externalActiveConvId);
     }
   },[externalActiveConvId]);
 
-  // Notify parent when active conv changes
-  useEffect(()=>{ onActiveConvChange?.(activeConvId); },[activeConvId, onActiveConvChange]);
+  // Note: onActiveConvChange deliberately NOT used to prevent circular updates
   const { toast }  = useToast();
   const isMobile   = useIsMobile();
 

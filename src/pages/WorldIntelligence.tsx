@@ -1066,7 +1066,6 @@ export default function WorldIntelligence() {
                   }>
                     <AgentSociety
                       onConversationsChange={setAgentConversations}
-                      onActiveConvChange={setAgentActiveConvId}
                       externalActiveConvId={agentActiveConvId}
                     />
                   </Suspense>
