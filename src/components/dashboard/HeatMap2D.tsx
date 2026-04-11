@@ -182,8 +182,8 @@ export function HeatMap2D({
       ...pt, lat:pt.coordinates[1], lng:pt.coordinates[0],
       color:`rgba(${r},${g},${b},0.8)`,
       ringColor:`rgba(${r},${g},${b},0.3)`,
-      size:pt.risk==='critical'?0.45:pt.risk==='high'?0.38:pt.risk==='cyber'||pt.risk==='nuclear'?0.35:0.28,
-      altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.04:0.025,
+      size:pt.risk==='critical'?0.85:pt.risk==='high'?0.72:pt.risk==='cyber'||pt.risk==='nuclear'?0.65:0.55,
+      altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.08:0.05,
     };
   }),[filtered]);
 
