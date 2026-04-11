@@ -512,6 +512,7 @@ export default function AgentSociety({
   const [hoveredAgent, setHoveredAgent]   = useState<string|null>(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [generating, setGenerating]       = useState(false);
+  const [generateStep, setGenerateStep]   = useState('');
   const [loadingMsgs, setLoadingMsgs]     = useState(false);
   const [godEyeOpen, setGodEyeOpen]       = useState(false);
   const [godEyeInput, setGodEyeInput]     = useState('');
@@ -538,12 +539,29 @@ export default function AgentSociety({
 
   const generate=useCallback(async()=>{
     setGenerating(true);
+    setGenerateStep('🌐 Scanning world signals...');
+    // Animate steps while backend runs
+    const steps = [
+      '🌐 Scanning world signals...',
+      '🧠 Loading agent memories...',
+      '⚡ Round 1 — Primary actors reacting...',
+      '🔗 Round 2 — Transmission effects spreading...',
+      '👥 Round 3 — Human behavioral shifts...',
+      '📊 Generating cascade summary...',
+    ];
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+      stepIdx = Math.min(stepIdx + 1, steps.length - 1);
+      setGenerateStep(steps[stepIdx]);
+    }, 7000);
     try{
       const body:any={mode:'generate_conversation'};
       if(activeCategory!=='all')body.category=activeCategory;
       const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
       });
+      clearInterval(stepTimer);
+      setGenerateStep('✅ Complete!');
       if (!res.ok) return;
       const data = await res.json();
       await loadData();
@@ -551,8 +569,11 @@ export default function AgentSociety({
         setActiveConvId(data.conversation_id);
         setMessages(data.messages||[]);
       }
+    } catch(e) {
+      clearInterval(stepTimer);
+      setGenerateStep('❌ Error — try again');
     } finally {
-      setGenerating(false);
+      setTimeout(()=>{ setGenerating(false); setGenerateStep(''); }, 800);
     }
   },[activeCategory]);
 
@@ -641,17 +662,38 @@ export default function AgentSociety({
   const injectGodEye = async () => {
     if (!godEyeInput.trim()) return;
     setGenerating(true);
+    setGodEyeOpen(false);
+    const steps = [
+      '🌐 Injecting event into world simulation...',
+      '⚡ Round 1 — Primary actors reacting...',
+      '🔗 Round 2 — Transmission effects spreading...',
+      '👥 Round 3 — Human behavioral shifts...',
+      '📊 Generating cascade summary...',
+    ];
+    let stepIdx = 0;
+    setGenerateStep(steps[0]);
+    const stepTimer = setInterval(() => {
+      stepIdx = Math.min(stepIdx + 1, steps.length - 1);
+      setGenerateStep(steps[stepIdx]);
+    }, 8000);
     try {
       const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ mode: 'inject_event', event: godEyeInput })
       });
+      clearInterval(stepTimer);
+      setGenerateStep('✅ Cascade complete!');
       if (!res.ok) { toast({ title: "Snag!", description: "God's Eye injection failed.", variant: "destructive" }); return; }
       const data = await res.json();
-      setGodEyeInput(''); setGodEyeOpen(false);
+      setGodEyeInput('');
       await loadData();
       if (data.conversation_id) { setActiveConvId(data.conversation_id); setMessages(data.messages || []); }
-    } finally { setGenerating(false); }
+    } catch {
+      clearInterval(stepTimer);
+      setGenerateStep('❌ Error — try again');
+    } finally {
+      setTimeout(() => { setGenerating(false); setGenerateStep(''); }, 800);
+    }
   };
 
   const chatWithAgent = async () => {
@@ -713,9 +755,34 @@ export default function AgentSociety({
           <button onClick={generate} disabled={generating}
             className="text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 uppercase tracking-wider"
             style={{color:'#a855f7',background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.28)'}}>
-            {generating?'⟳ Generating...':'⚡ New'}
+            {generating?'⟳':'⚡ New'}
           </button>
         </div>
+
+        {/* ── Generation Progress Bar ── */}
+        {generating && generateStep && (
+          <div style={{
+            margin: '0 0 8px 0',
+            padding: '8px 12px',
+            background: 'rgba(168,85,247,0.08)',
+            border: '1px solid rgba(168,85,247,0.25)',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <span style={{fontSize:11,color:'rgba(168,85,247,0.9)',fontFamily:'monospace',flex:1}}>{generateStep}</span>
+            <span style={{display:'flex',gap:3}}>
+              {[0,1,2].map(i=>(
+                <span key={i} style={{
+                  width:4,height:4,borderRadius:'50%',
+                  background:'rgba(168,85,247,0.7)',
+                  animation:`pulse 1.2s ease-in-out ${i*0.3}s infinite`,
+                }}/>
+              ))}
+            </span>
+          </div>
+        )}
 
         {/* ── Status Bar ── */}
         <StatusBar agentCount={agentStates.length} avgTension={avgTension} hasPanic={hasPanic} messageCount={messages.length} />
@@ -928,9 +995,30 @@ export default function AgentSociety({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* Quick suggestions */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Fed cuts rates by 75bps in emergency meeting',
+                'China invades Taiwan — war begins',
+                'Oil spikes to $150 after Iran blocks Strait of Hormuz',
+                'Bitcoin ETF inflows hit $5B in one day',
+                'US imposes 100% tariffs on all Chinese goods',
+                'Gold hits $4,000 as dollar collapses',
+              ].map(s => (
+                <button key={s} onClick={()=>setGodEyeInput(s)}
+                  className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all text-left"
+                  style={{
+                    color: godEyeInput===s ? '#fbbf24' : 'rgba(251,191,36,0.5)',
+                    background: godEyeInput===s ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.05)',
+                    border: `1px solid ${godEyeInput===s ? 'rgba(251,191,36,0.4)' : 'rgba(251,191,36,0.15)'}`,
+                  }}>
+                  {s.length > 38 ? s.slice(0,38)+'…' : s}
+                </button>
+              ))}
+            </div>
             <textarea
               value={godEyeInput} onChange={e=>setGodEyeInput(e.target.value)}
-              placeholder="e.g. Fed cuts 75bps in emergency meeting..."
+              placeholder="or type your own event..."
               rows={3}
               className="w-full bg-transparent text-sm font-mono text-white/80 placeholder-white/25 outline-none p-4 rounded-xl resize-none"
               style={{border:'1px solid rgba(251,191,36,0.25)'}}
@@ -943,7 +1031,7 @@ export default function AgentSociety({
               <button onClick={injectGodEye} disabled={generating||!godEyeInput.trim()}
                 className="text-xs font-mono font-bold px-5 py-2.5 rounded-lg disabled:opacity-40 transition-all"
                 style={{color:'#fbbf24',background:'rgba(251,191,36,0.15)',border:'1px solid rgba(251,191,36,0.35)'}}>
-                ⚡ INJECT EVENT
+                {generating ? '⟳ Simulating...' : '⚡ INJECT EVENT'}
               </button>
             </div>
           </div>
