@@ -73,6 +73,8 @@ interface ChatInputProps {
   creditsExhausted?: boolean;
   // AYN is generating a response
   isTyping?: boolean;
+  // Mode locked for this session — can't switch until new chat
+  modeLocked?: boolean;
 }
 // Default modes - only used as fallback
 const defaultModes = [{
@@ -192,7 +194,8 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
   onRetryUpload,
   maintenanceActive = false,
   creditsExhausted = false,
-  isTyping = false
+  isTyping = false,
+  modeLocked = false
 }, ref) => {
   const navigate = useNavigate();
   const [inputMessage, setInputMessage] = useState('');
@@ -628,61 +631,93 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
 
             {/* Mode Switcher */}
             {modes && modes.length > 1 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className={cn(
-                    "h-8 sm:h-9 px-2 sm:px-3 rounded-xl flex items-center gap-1.5",
-                    "border border-border/40 hover:border-border/80",
-                    "transition-all duration-200 hover:bg-muted/40",
-                    "text-xs sm:text-sm font-medium"
-                  )}>
-                    <span className={cn(
-                      "w-2 h-2 rounded-full shrink-0",
-                      selectedMode === 'Business' ? "bg-emerald-400" :
-                      selectedMode === 'Trading' ? "bg-amber-400" :
-                      "bg-foreground"
-                    )} />
-                    <span className="hidden sm:inline">
-                      {selectedMode === 'Business' ? 'Business' :
-                       selectedMode === 'Trading' ? 'Trading' : 'AYN'}
-                    </span>
-                    <Brain className="w-4 h-4 sm:hidden text-foreground" />
-                    <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60 mb-1">
-                  {modes.map((mode) => (
-                    <DropdownMenuItem
-                      key={mode.name}
-                      onClick={() => onModeChange(mode.name as AIMode)}
-                      className={cn(
-                        "flex flex-col items-start gap-0.5 px-3 py-2.5 cursor-pointer",
-                        selectedMode === mode.name && "bg-muted"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        <span className={cn(
-                          "w-2 h-2 rounded-full shrink-0",
-                          mode.name === 'Business' ? "bg-emerald-400" :
-                          mode.name === 'Trading' ? "bg-amber-400" :
-                          "bg-foreground"
-                        )} />
-                        <span className="font-medium text-sm">
-                          {mode.name === 'General' ? 'AYN' : mode.name}
-                        </span>
-                        {selectedMode === mode.name && (
-                          <Check className="w-3.5 h-3.5 ml-auto text-primary" />
+              modeLocked ? (
+                /* LOCKED — show current mode with lock icon, tooltip explains */
+                <div
+                  className={cn(
+                    "relative group h-8 sm:h-9 px-2 sm:px-3 rounded-xl flex items-center gap-1.5",
+                    "border border-border/25 text-xs sm:text-sm font-medium cursor-not-allowed opacity-60"
+                  )}
+                  title="Mode locked — start a new chat to switch"
+                >
+                  <span className={cn(
+                    "w-2 h-2 rounded-full shrink-0",
+                    selectedMode === 'Business' ? "bg-emerald-400" : "bg-foreground"
+                  )} />
+                  <span className="hidden sm:inline text-muted-foreground">
+                    {selectedMode === 'Business' ? 'Business' : 'AYN'}
+                  </span>
+                  <Brain className="w-4 h-4 sm:hidden text-muted-foreground" />
+                  <svg className="w-3 h-3 text-muted-foreground/50 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                  {/* Tooltip on hover */}
+                  <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 pointer-events-none">
+                    <div className="bg-popover border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground shadow-lg whitespace-nowrap">
+                      Mode locked for this chat
+                      <br />
+                      <span className="text-foreground/60">Tap <strong>+ New</strong> to switch mode</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* UNLOCKED — full switcher, pick before first message */
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className={cn(
+                      "h-8 sm:h-9 px-2 sm:px-3 rounded-xl flex items-center gap-1.5",
+                      "border border-border/40 hover:border-border/80",
+                      "transition-all duration-200 hover:bg-muted/40",
+                      "text-xs sm:text-sm font-medium"
+                    )}>
+                      <span className={cn(
+                        "w-2 h-2 rounded-full shrink-0",
+                        selectedMode === 'Business' ? "bg-emerald-400" : "bg-foreground"
+                      )} />
+                      <span className="hidden sm:inline">
+                        {selectedMode === 'Business' ? 'Business' : 'AYN'}
+                      </span>
+                      <Brain className="w-4 h-4 sm:hidden text-foreground" />
+                      <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64 mb-1">
+                    <div className="px-3 py-2 border-b border-border/40">
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        Choose mode before your first message — locks for this chat
+                      </p>
+                    </div>
+                    {modes.map((mode) => (
+                      <DropdownMenuItem
+                        key={mode.name}
+                        onClick={() => onModeChange(mode.name as AIMode)}
+                        className={cn(
+                          "flex flex-col items-start gap-0.5 px-3 py-2.5 cursor-pointer",
+                          selectedMode === mode.name && "bg-muted"
                         )}
-                      </div>
-                      {mode.description && (
-                        <span className="text-[11px] text-muted-foreground pl-4 leading-snug">
-                          {mode.description}
-                        </span>
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <span className={cn(
+                            "w-2 h-2 rounded-full shrink-0",
+                            mode.name === 'Business' ? "bg-emerald-400" : "bg-foreground"
+                          )} />
+                          <span className="font-medium text-sm">
+                            {mode.name === 'General' ? 'AYN' : mode.name}
+                          </span>
+                          {selectedMode === mode.name && (
+                            <Check className="w-3.5 h-3.5 ml-auto text-primary" />
+                          )}
+                        </div>
+                        {mode.description && (
+                          <span className="text-[11px] text-muted-foreground pl-4 leading-snug">
+                            {mode.description}
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
             ) : (
               <div className="h-8 sm:h-9 px-2 sm:px-3 rounded-xl flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
                 <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-foreground" />

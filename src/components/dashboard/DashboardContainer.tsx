@@ -41,12 +41,12 @@ interface DashboardContainerProps {
   betaConfig?: BetaConfig;
 }
 
-// Three core modes — ayn-unified auto-detects intent within each
+// Two modes — Trading hidden until ready for users
 const getModes = (): AIModeConfig[] => [
   { 
     name: 'General', 
     translatedName: 'AYN',
-    description: 'Intelligence on markets, world events, and anything you need',
+    description: 'Intelligence on markets, world events, and anything',
     icon: Brain,
     color: 'text-primary',
     webhookUrl: ''
@@ -57,14 +57,6 @@ const getModes = (): AIModeConfig[] => [
     description: 'Deep business analysis — ideas, growth, problems, market entry',
     icon: Sparkles,
     color: 'text-emerald-400',
-    webhookUrl: ''
-  },
-  {
-    name: 'Trading',
-    translatedName: 'Trading',
-    description: 'Market analysis, signals, and trading decisions',
-    icon: Brain,
-    color: 'text-amber-400',
     webhookUrl: ''
   },
 ];
@@ -81,6 +73,7 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
   
   // State
   const [selectedMode, setSelectedMode] = React.useState<AIMode>('General');
+  const [modeLocked, setModeLocked] = React.useState(false); // locks after first message
   const [allowPersonalization, setAllowPersonalization] = React.useState(false);
   const [isTransitioningToChat, setIsTransitioningToChat] = React.useState(false);
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,6 +136,9 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
       // Send message with attachment
       await messagesHook.sendMessage(content, attachment);
       
+      // Lock the mode after first message — can't switch within this session
+      if (!modeLocked) setModeLocked(true);
+
       // Refresh chat history - title is guaranteed to exist now (saved before messages)
       await chatSession.loadRecentChats();
       
@@ -166,6 +162,7 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
     messagesHook,
     chatSession,
     fileUpload,
+    modeLocked,
     toast
   ]);
 
@@ -207,10 +204,12 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
     }, 280);
   }, [chatSession, messagesHook]);
 
-  // Handle new chat
+  // Handle new chat — reset mode lock so user can pick mode fresh
   const handleNewChat = useCallback(() => {
     chatSession.startNewChat();
     messagesHook.setMessages([]);
+    setModeLocked(false);
+    setSelectedMode('General');
   }, [chatSession, messagesHook]);
 
   // Handle logout with timeout to prevent hanging
@@ -598,6 +597,7 @@ const DashboardContent = ({
           onReply={handleReply}
           modes={modes}
           onModeChange={setSelectedMode}
+          modeLocked={modeLocked}
           prefillValue={replyPrefill}
           onPrefillConsumed={handlePrefillConsumed}
           onLanguageChange={onLanguageChange}

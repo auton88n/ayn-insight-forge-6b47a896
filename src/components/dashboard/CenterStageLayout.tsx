@@ -57,6 +57,7 @@ interface CenterStageLayoutProps {
   onReply?: (content: string) => void;
   modes: AIModeConfig[];
   onModeChange: (mode: AIMode) => void;
+  modeLocked?: boolean;
   prefillValue?: string;
   onPrefillConsumed?: () => void;
   onLanguageChange?: (language: { code: string; flag: string; name: string }) => void;
@@ -121,6 +122,7 @@ export const CenterStageLayout = ({
   onReply,
   modes,
   onModeChange,
+  modeLocked = false,
   prefillValue,
   onPrefillConsumed,
   onLanguageChange,
@@ -801,6 +803,7 @@ export const CenterStageLayout = ({
           transcriptMessages={messages}
           modes={modes}
           onModeChange={onModeChange}
+          modeLocked={modeLocked}
           prefillValue={prefillValue}
           onPrefillConsumed={onPrefillConsumed}
           onLanguageChange={onLanguageChange}
