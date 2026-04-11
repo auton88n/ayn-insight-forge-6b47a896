@@ -494,8 +494,8 @@ export function HeatMap2D({
           </div>
         )}
 
-        {/* Legend — bottom right */}
-        <div style={{position:'absolute',bottom:12,right:12,zIndex:10,pointerEvents:'none',
+        {/* Legend — bottom right, raised above mobile nav */}
+        <div style={{position:'absolute',bottom:80,right:12,zIndex:10,pointerEvents:'none',
           background:'rgba(0,2,14,0.93)',border:'1px solid rgba(255,255,255,0.08)',
           borderRadius:9,padding:'8px 12px',backdropFilter:'blur(10px)'}}>
           <div style={{fontSize:6,fontFamily:'monospace',color:'rgba(255,255,255,0.2)',letterSpacing:'0.18em',marginBottom:6}}>SIGNAL KEY</div>
