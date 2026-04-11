@@ -112,14 +112,15 @@ const SIC_COORDS: Record<string, [number, number]> = {
   ZAF:[22.9,-30.5],CAN:[-106.3,56.1],AUS:[133.7,-25.2],
 };
 
-type ViewSection = 'overview' | 'signals' | 'predictions' | 'countries' | 'agents';
+type ViewSection = 'overview' | 'signals' | 'ayn-predictions' | 'market-forecasts' | 'countries' | 'agents';
 
 const NAV_ITEMS: { id: ViewSection; icon: typeof LayoutDashboard; label: string }[] = [
-  { id: 'overview',    icon: LayoutDashboard, label: 'Overview' },
-  { id: 'signals',     icon: Signal,          label: 'Signals' },
-  { id: 'predictions', icon: Target,          label: 'Predictions' },
-  { id: 'countries',   icon: MapPin,          label: 'Countries' },
-  { id: 'agents',      icon: Users,           label: 'Agents' },
+  { id: 'overview',         icon: LayoutDashboard, label: 'Overview' },
+  { id: 'signals',          icon: Signal,          label: 'Signals' },
+  { id: 'ayn-predictions',  icon: Network,         label: 'AYN Predictions' },
+  { id: 'market-forecasts', icon: BarChart3,       label: 'Market Forecasts' },
+  { id: 'countries',        icon: MapPin,          label: 'Countries' },
+  { id: 'agents',           icon: Users,           label: 'Agents' },
 ];
 
 // ─── Premium Glass Card ──────────────────────────────────────────────────────
@@ -519,7 +520,7 @@ export default function WorldIntelligence() {
           <nav className="flex-1 py-3 px-3 space-y-0.5">
             {NAV_ITEMS.map(item => {
               const isActive = activeSection === item.id;
-              const count = item.id === 'signals' ? signals.length : item.id === 'predictions' ? masterPreds.length + filteredPreds.length : item.id === 'countries' ? countryIntel.length : undefined;
+              const count = item.id === 'signals' ? signals.length : item.id === 'ayn-predictions' ? masterPreds.length : item.id === 'market-forecasts' ? filteredPreds.length : item.id === 'countries' ? countryIntel.length : undefined;
               return (
                 <button key={item.id} onClick={() => setActiveSection(item.id)}
                   title={sidebarCollapsed ? item.label : undefined}
@@ -782,9 +783,9 @@ export default function WorldIntelligence() {
               </motion.div>
             )}
 
-            {/* ════════ PREDICTIONS ════════ */}
-            {activeSection === 'predictions' && (
-              <motion.div key="predictions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+            {/* ════════ AYN PREDICTIONS ════════ */}
+            {activeSection === 'ayn-predictions' && (
+              <motion.div key="ayn-predictions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
                 className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
 
                 {/* Graph Intelligence */}
@@ -947,9 +948,13 @@ export default function WorldIntelligence() {
                     </>
                   )}
                 </section>
+              </motion.div>
+            )}
 
-                {/* Separator */}
-                <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+            {/* ════════ MARKET FORECASTS ════════ */}
+            {activeSection === 'market-forecasts' && (
+              <motion.div key="market-forecasts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
 
                 {/* Price Predictions */}
                 <section>
