@@ -265,6 +265,13 @@ export default function WorldIntelligence() {
   const [selectedCountry, setSelectedCountry] = useState<CountryIntel | null>(null);
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
+
+  // Auto-select first conversation when agent conversations load
+  useEffect(() => {
+    if (agentConversations.length > 0 && !agentActiveConvId) {
+      setAgentActiveConvId(agentConversations[0].id);
+    }
+  }, [agentConversations, agentActiveConvId]);
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
 
   const fetchSnapshot = useCallback(async () => {
@@ -1129,8 +1136,9 @@ export default function WorldIntelligence() {
                   <div className="mx-4 sm:mx-6 lg:mx-8 mb-6 rounded-2xl overflow-hidden"
                     style={{border:'1px solid rgba(168,85,247,0.2)',background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))'}}>
                     {/* Active topic header */}
-                    {agentConversations.find((c:any)=>c.id===agentActiveConvId) && (() => {
+                    {(() => {
                       const conv = agentConversations.find((c:any)=>c.id===agentActiveConvId);
+                      if (!conv) return null;
                       return (
                         <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]"
                           style={{background:'rgba(168,85,247,0.05)'}}>

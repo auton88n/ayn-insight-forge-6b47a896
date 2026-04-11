@@ -742,7 +742,7 @@ export default function AgentSociety({
 
         {/* ── Main Content — globe left, panel right ── */}
         <div className={`grid gap-4 ${!isMobile && showGlobe ? 'md:grid-cols-[1fr_440px]' : 'grid-cols-1'}`}
-          style={{ height: (!isMobile && showGlobe) ? 680 : 'auto' }}>
+          style={{ minHeight: (!isMobile && showGlobe) ? 400 : 'auto' }}>
 
           {/* 3D Globe — desktop only */}
           {!isMobile && showGlobe && (
@@ -808,7 +808,7 @@ export default function AgentSociety({
           )}
 
           {/* Right panel — agents + conversation */}
-          <div className="flex flex-col gap-3 overflow-hidden" style={{ height: (!isMobile && showGlobe) ? 680 : 'auto' }}>
+          <div className="flex flex-col gap-3">
 
             {/* Agent roster */}
             {isMobile ? (
@@ -826,7 +826,7 @@ export default function AgentSociety({
               </div>
             ) : (
               <div className="shrink-0 rounded-xl overflow-hidden"
-                style={{border:'1px solid rgba(255,255,255,0.07)',background:'rgba(0,0,0,0.4)', maxHeight: 220}}>
+                style={{border:'1px solid rgba(255,255,255,0.07)',background:'rgba(0,0,0,0.4)'}}>
                 {/* Agents header */}
                 <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]"
                   style={{background:'rgba(255,255,255,0.02)'}}>
@@ -834,7 +834,7 @@ export default function AgentSociety({
                   <span className="text-[9px] font-bold font-mono text-white/40 uppercase tracking-widest">Agents</span>
                   <span className="text-[9px] font-mono text-white/20 ml-1">{filteredAgents.length}</span>
                 </div>
-                <div className="overflow-y-auto as-scroll" style={{maxHeight:178}}>
+                <div className="overflow-y-auto as-scroll" style={{maxHeight:320}}>
                   {filteredAgents.length===0 ? (
                     <div className="text-center py-5 text-[10px] font-mono text-white/25">
                       {agentStates.length===0?'Initializing...':'No agents in this category'}

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
 const EM: Record<string, {color:string;bg:string;border:string;emoji:string;label:string}> = {
   neutral:    {color:'#94a3b8',bg:'rgba(148,163,184,0.08)',border:'rgba(148,163,184,0.2)',emoji:'😐',label:'Neutral'},
@@ -19,8 +19,6 @@ const CAT_COLOR: Record<string,string> = {
   government:'#60a5fa',central_bank:'#34d399',stock_market:'#fbbf24',
   bank:'#a78bfa',company:'#f472b6',social_class:'#94a3b8',
 };
-
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
 function Message({ msg, idx }: { msg: any; idx: number }) {
   const [showThought, setShowThought] = useState(false);
@@ -76,58 +74,65 @@ function Message({ msg, idx }: { msg: any; idx: number }) {
 export default function AgentConvViewer({ convId }: { convId: string }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string|null>(null);
   const msgsEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!convId) return;
     setLoading(true);
-    const fetchMsgs = async () => {
-      try {
-        const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'get_messages', conversation_id: convId })
-        });
-        const data = await res.json();
-        setMessages(data.messages || []);
-      } catch {} finally {
-        setLoading(false);
-      }
-    };
-    fetchMsgs();
+    setError(null);
+    setMessages([]);
+
+    fetch(`${SUPABASE_URL}/functions/v1/ayn-agent-society`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ mode: 'get_messages', conversation_id: convId })
+    })
+      .then(r => r.json())
+      .then(data => { setMessages(data.messages || []); })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
   }, [convId]);
 
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => msgsEnd.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    }
+    if (messages.length > 0) msgsEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   if (loading) return (
-    <div className="flex items-center justify-center py-12">
+    <div className="flex items-center justify-center py-16">
       <div className="text-center space-y-3">
         <div className="w-10 h-10 rounded-full border-2 border-purple-500/20 border-t-purple-400 animate-spin mx-auto"/>
-        <p className="text-xs font-mono text-white/25">Loading messages...</p>
+        <p className="text-xs font-mono text-white/25 tracking-widest">LOADING MESSAGES</p>
       </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="flex items-center justify-center py-12">
+      <p className="text-xs font-mono text-red-400/50">Failed to load messages</p>
     </div>
   );
 
   if (!messages.length) return (
     <div className="flex items-center justify-center py-12">
-      <p className="text-sm font-mono text-white/25">No messages yet</p>
+      <p className="text-sm font-mono text-white/25">No messages in this discussion yet</p>
     </div>
   );
 
   return (
-    <div className="px-6 py-5 space-y-1 max-h-[600px] overflow-y-auto" style={{scrollbarWidth:'thin',scrollbarColor:'rgba(168,85,247,0.2) transparent'}}>
+    <div className="px-6 py-5" style={{maxHeight:600,overflowY:'auto',scrollbarWidth:'thin',scrollbarColor:'rgba(168,85,247,0.2) transparent'}}>
       <AnimatePresence initial={false}>
-        {messages.map((msg, i) => <Message key={msg.id} msg={msg} idx={i} />)}
+        {messages.map((msg, i) => <Message key={msg.id||i} msg={msg} idx={i} />)}
       </AnimatePresence>
       <div className="flex items-center gap-3 pt-4 border-t border-white/[0.05]">
         <span className="text-[10px] font-mono text-white/20">{messages.length} messages</span>
         <span className="text-white/10">·</span>
-        <span className="text-[10px] font-mono text-white/20">{messages.filter(m=>m.internal_thought).length} hidden thoughts</span>
-        {messages.some(m=>(m.emotion_intensity||0)>=80) && (
+        <span className="text-[10px] font-mono text-white/20">{messages.filter((m:any)=>m.internal_thought).length} hidden thoughts</span>
+        {messages.some((m:any)=>(m.emotion_intensity||0)>=80) && (
           <span className="ml-auto text-[10px] font-mono text-red-400/60">⚠ extreme emotions</span>
         )}
       </div>
