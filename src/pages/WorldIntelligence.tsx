@@ -18,6 +18,7 @@ import { SpotlightCard, BorderBeam } from '@/components/ui/premium';
 const AccuracyScoreboard = lazy(() => import('@/components/dashboard/world/AccuracyScoreboard'));
 const PredictionCard     = lazy(() => import('@/components/dashboard/world/PredictionCard'));
 const AgentSociety       = lazy(() => import('@/components/dashboard/world/AgentSociety'));
+const AgentConvViewer    = lazy(() => import('@/components/dashboard/world/AgentConvViewer'));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Prediction {
@@ -1120,6 +1121,33 @@ export default function WorldIntelligence() {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* ── Conversation feed — full width under tabs ── */}
+                {agentActiveConvId && (
+                  <div className="mx-4 sm:mx-6 lg:mx-8 mb-6 rounded-2xl overflow-hidden"
+                    style={{border:'1px solid rgba(168,85,247,0.2)',background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))'}}>
+                    {/* Active topic header */}
+                    {agentConversations.find((c:any)=>c.id===agentActiveConvId) && (() => {
+                      const conv = agentConversations.find((c:any)=>c.id===agentActiveConvId);
+                      return (
+                        <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]"
+                          style={{background:'rgba(168,85,247,0.05)'}}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0"/>
+                          {conv.signal_severity==='critical'&&<span className="text-[10px]">🔴</span>}
+                          {conv.signal_severity==='high'&&<span className="text-[10px]">🟡</span>}
+                          <span className="text-sm font-mono text-white/70 font-semibold flex-1 truncate">{conv.topic}</span>
+                          {conv.signal_headline && (
+                            <span className="text-[9px] font-mono text-white/30 truncate hidden lg:block max-w-xs">triggered by: {conv.signal_headline}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Lazy-load the message viewer from AgentSociety */}
+                    <Suspense fallback={<div className="h-24 flex items-center justify-center text-xs font-mono text-white/20">Loading messages...</div>}>
+                      <AgentConvViewer convId={agentActiveConvId} />
+                    </Suspense>
                   </div>
                 )}
               </motion.div>
