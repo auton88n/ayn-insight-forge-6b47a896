@@ -92,19 +92,29 @@ export { Button, buttonVariants }
 
 
 // ─── Liquid Glass Button ──────────────────────────────────────────────────────
-// True glass effect: transparent with SVG distortion + specular highlight.
-// Requires a non-white background behind it to read properly.
+// Transparent pill with:
+// - backdrop-blur for frosted base
+// - rgba(0,0,0,0.25) dark tint so it reads on any bg
+// - white inner rim via inset box-shadow
+// - top specular gloss streak
+// - no white fill — fully see-through
 
 export const liquidButtonVariants = cva(
   [
     "relative inline-flex items-center justify-center cursor-pointer gap-2",
     "whitespace-nowrap rounded-full font-medium text-sm",
-    "transition-all duration-700 overflow-hidden",
     "disabled:pointer-events-none disabled:opacity-40",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-    "outline-none",
-    // Hover scale with bouncy easing via CSS
+    "outline-none select-none",
+    "transition-transform duration-300",
     "hover:scale-105 active:scale-[0.97]",
+    // The actual glass look — transparent dark tint + blur
+    "bg-black/20 backdrop-blur-md",
+    // Rim: thin white border top, transparent bottom for depth
+    "border border-white/20",
+    // Outer glow + inner top rim + inner bottom shadow
+    "shadow-[0_2px_8px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(0,0,0,0.2)]",
+    "text-white",
   ].join(" "),
   {
     variants: {
@@ -112,7 +122,7 @@ export const liquidButtonVariants = cva(
         sm:      "h-8 px-5 text-xs",
         default: "h-10 px-6 text-sm",
         lg:      "h-11 px-8 text-sm",
-        xl:      "h-13 px-10 text-base",
+        xl:      "h-12 px-10 text-base",
       },
     },
     defaultVariants: { size: "default" },
@@ -126,44 +136,24 @@ export interface LiquidButtonProps
 }
 
 export const LiquidButton = React.forwardRef<HTMLButtonElement, LiquidButtonProps>(
-  ({ className, size, asChild = false, children, style, ...props }, ref) => {
+  ({ className, size, asChild = false, children, ...props }, ref) => {
     const Comp = (asChild ? Slot : "button") as React.ElementType
     return (
       <Comp
         ref={ref}
         className={cn(liquidButtonVariants({ size, className }))}
-        style={{
-          boxShadow: "0 6px 6px rgba(0,0,0,0.2), 0 0 20px rgba(0,0,0,0.1)",
-          transitionTimingFunction: "cubic-bezier(0.175, 0.885, 0.32, 2.2)",
-          color: "inherit",
-          ...style,
-        }}
         {...props}
       >
-        {/* Layer 1: backdrop blur + SVG glass distortion */}
-        <div
-          className="absolute inset-0 z-0 overflow-hidden rounded-full"
+        {/* Gloss streak — top quarter only, fades out */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-[10%] top-0 h-[40%] rounded-b-full"
           style={{
-            backdropFilter: "blur(3px)",
-            filter: "url(#glass-distortion)",
-            isolation: "isolate",
-          }}
-        />
-        {/* Layer 2: white tint */}
-        <div
-          className="absolute inset-0 z-10 rounded-full"
-          style={{ background: "rgba(255,255,255,0.25)" }}
-        />
-        {/* Layer 3: inner rim highlight */}
-        <div
-          className="absolute inset-0 z-20 rounded-full"
-          style={{
-            boxShadow:
-              "inset 2px 2px 1px 0 rgba(255,255,255,0.5), inset -1px -1px 1px 1px rgba(255,255,255,0.5)",
+            background: "linear-gradient(to bottom, rgba(255,255,255,0.18), transparent)",
           }}
         />
         {/* Content */}
-        <span className="relative z-30 flex items-center gap-2">
+        <span className="relative z-10 flex items-center gap-2">
           {children}
         </span>
       </Comp>
