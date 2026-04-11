@@ -426,7 +426,7 @@ export default function WorldIntelligence() {
 
   // ─── Loading state ──────────────────────────────────────────────────────────
   if (loading) return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="h-screen bg-background flex items-center justify-center">
       <div className="text-center space-y-4">
         <div className="relative w-16 h-16 mx-auto">
           <div className="absolute inset-0 rounded-full border-2 border-white/[0.06] border-t-primary animate-spin" />
@@ -439,7 +439,7 @@ export default function WorldIntelligence() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* ── Top Header ──────────────────────────────────────────────────────── */}
       <header className="shrink-0 z-50 h-14 flex items-center border-b border-white/[0.06] bg-background/80 backdrop-blur-2xl px-5">
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -499,7 +499,7 @@ export default function WorldIntelligence() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
         <aside className={cn(
-          "shrink-0 border-r border-white/[0.04] hidden md:flex flex-col min-h-0 transition-all duration-300",
+          "shrink-0 border-r border-white/[0.04] hidden md:flex flex-col overflow-hidden transition-all duration-300",
           "bg-gradient-to-b from-card to-background",
           sidebarCollapsed ? "w-[68px]" : "w-60"
         )}>
