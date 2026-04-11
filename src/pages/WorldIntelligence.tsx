@@ -496,10 +496,10 @@ export default function WorldIntelligence() {
 
       <style>{`@keyframes wi-ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }`}</style>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
         <aside className={cn(
-          "shrink-0 border-r border-white/[0.04] hidden md:flex flex-col transition-all duration-300",
+          "shrink-0 border-r border-white/[0.04] hidden md:flex flex-col min-h-0 transition-all duration-300",
           "bg-gradient-to-b from-card to-background",
           sidebarCollapsed ? "w-[68px]" : "w-60"
         )}>
@@ -569,7 +569,7 @@ export default function WorldIntelligence() {
         </AnimatePresence>
 
         {/* ── Main Content ──────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto scroll-smooth" style={{ overscrollBehavior: 'contain' }}>
+        <main className="flex-1 min-h-0 overflow-y-auto scroll-smooth" style={{ overscrollBehavior: 'contain' }}>
           <AnimatePresence mode="wait">
 
             {/* ════════ OVERVIEW ════════ */}
@@ -865,7 +865,7 @@ export default function WorldIntelligence() {
                                   {isSelected && (
                                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}
                                       className="border-t border-white/[0.04] bg-white/[0.02] overflow-hidden">
-                                      <div className="p-6 space-y-5">
+                                      <div className="p-6 pb-10 space-y-5">
                                         {mp.who_wins_detail && (<div><p className="text-[10px] text-emerald-400 uppercase font-semibold mb-1.5 tracking-wider">Why they win</p><p className="text-sm text-muted-foreground/70 leading-relaxed">{mp.who_wins_detail}</p></div>)}
                                         {mp.who_loses_detail && (<div><p className="text-[10px] text-red-400 uppercase font-semibold mb-1.5 tracking-wider">Why they lose</p><p className="text-sm text-muted-foreground/70 leading-relaxed">{mp.who_loses_detail}</p></div>)}
                                         {mp.what_to_watch && (
