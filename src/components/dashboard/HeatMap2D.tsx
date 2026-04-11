@@ -524,127 +524,6 @@ export function HeatMap2D({
           )}
         </div>
 
-        {/* Selected point — rendered via fixed so overflow:hidden never clips it */}
-        {selected&&(()=>{
-          const COL = riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4';
-          const CARD_W = 380;
-          const CARD_H = 140;
-          // Smart viewport positioning: prefer below+right of click, flip if too close to edges
-          const vpW = window.innerWidth;
-          const vpH = window.innerHeight;
-          let left = clickPos.x + 16;
-          let top  = clickPos.y + 16;
-          if (left + CARD_W > vpW - 12) left = clickPos.x - CARD_W - 16;
-          if (top  + CARD_H > vpH - 12) top  = clickPos.y - CARD_H - 16;
-          left = Math.max(12, Math.min(left, vpW - CARD_W - 12));
-          top  = Math.max(12, Math.min(top,  vpH - CARD_H - 12));
-          return (
-          <div 
-            onClick={e=>e.stopPropagation()}
-            style={{
-            position:'fixed',
-            left, top,
-            zIndex:9999,
-            width:CARD_W,
-            pointerEvents:'all',
-            // Glass surface — GlinUI Apple Liquid Glass
-            background:'rgba(3,5,20,0.94)',
-            backdropFilter:'saturate(180%) blur(28px)',
-            WebkitBackdropFilter:'saturate(180%) blur(28px)',
-            // Top-edge refraction brighter than sides
-            border:`1px solid ${COL}28`,
-            borderTop:`1px solid ${COL}70`,
-            borderRadius:16,
-            padding:0,
-            overflow:'hidden',
-            boxShadow:`0 32px 80px rgba(0,0,0,0.9),
-                       0 0 0 1px rgba(255,255,255,0.04) inset,
-                       0 0 60px ${COL}18`,
-            animation:'ayn-card-in 0.18s cubic-bezier(0.16,1,0.3,1)',
-          }}>
-            {/* ── Beam sweep on top edge */}
-            <div style={{position:'absolute',top:0,left:0,right:0,height:1,
-              background:`linear-gradient(90deg,transparent,${COL}dd,transparent)`,
-              animation:'ayn-beam-slide 2.8s ease-in-out infinite',pointerEvents:'none'}}/>
-            {/* ── Top spotlight glow */}
-            <div style={{position:'absolute',inset:0,pointerEvents:'none',
-              background:`radial-gradient(180px circle at 50% -20px,${COL}18,transparent 70%)`}}/>
-
-            {/* ── STATUS STRIP */}
-            <div style={{
-              display:'flex',alignItems:'center',gap:8,
-              padding:'7px 14px 6px',
-              borderBottom:'1px solid rgba(255,255,255,0.05)',
-              background:`linear-gradient(90deg,${COL}0d,transparent)`,
-            }}>
-              <div style={{position:'relative',width:8,height:8,flexShrink:0}}>
-                <div style={{position:'absolute',inset:0,borderRadius:'50%',
-                  background:COL,boxShadow:`0 0 6px ${COL}`}}/>
-                <div style={{position:'absolute',inset:0,borderRadius:'50%',
-                  background:COL,opacity:0.35,
-                  animation:'ayn-fade-pulse 1.8s ease-in-out infinite'}}/>
-              </div>
-              <span style={{fontSize:7,fontFamily:'monospace',fontWeight:900,
-                color:COL,letterSpacing:'0.2em',textTransform:'uppercase',flex:1}}>
-                {riskConfig[selected.risk as RiskKey]?.label??'INTEL SIGNAL'}
-                {selected.category?` · ${selected.category.toUpperCase()}`:''}
-              </span>
-              <button 
-                onClick={(e)=>{e.stopPropagation();setSelected(null);}}
-                style={{width:28,height:28,borderRadius:8,
-                  border:'1px solid rgba(255,255,255,0.15)',
-                  borderTop:'1px solid rgba(255,255,255,0.25)',
-                  background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.6)',
-                  fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',
-                  justifyContent:'center',flexShrink:0,fontFamily:'monospace',
-                  transition:'all 0.15s',pointerEvents:'all'}}
-                onMouseEnter={e=>{const b=e.currentTarget;b.style.background='rgba(239,68,68,0.2)';b.style.color='#ef4444';b.style.borderColor='rgba(239,68,68,0.4)';}}
-                onMouseLeave={e=>{const b=e.currentTarget;b.style.background='rgba(255,255,255,0.08)';b.style.color='rgba(255,255,255,0.6)';b.style.borderColor='rgba(255,255,255,0.15)';}}
-              >✕</button>
-            </div>
-
-            {/* ── MAIN CONTENT */}
-            <div style={{padding:'13px 14px 12px'}}>
-              <div style={{
-                fontSize:20,fontWeight:900,color:'rgba(255,255,255,0.92)',
-                fontFamily:'monospace',letterSpacing:'0.03em',lineHeight:1.1,
-                marginBottom:6,
-                textShadow:`0 0 24px ${COL}50`,
-              }}>{selected.label}</div>
-
-              {selected.detail&&(
-                <div style={{
-                  fontSize:10,color:'rgba(255,255,255,0.52)',lineHeight:1.7,
-                  fontFamily:'monospace',marginBottom:10,
-                  borderLeft:`2px solid ${COL}45`,paddingLeft:9,
-                }}>
-                  {selected.detail}
-                </div>
-              )}
-
-              <div style={{
-                display:'flex',alignItems:'center',justifyContent:'space-between',
-                paddingTop:8,marginTop:2,
-                borderTop:'1px solid rgba(255,255,255,0.06)',
-              }}>
-                <div style={{display:'flex',alignItems:'center',gap:5}}>
-                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                    <circle cx="4.5" cy="4.5" r="2" stroke={COL} strokeOpacity="0.6" strokeWidth="0.8"/>
-                    <line x1="4.5" y1="0" x2="4.5" y2="2" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
-                    <line x1="4.5" y1="7" x2="4.5" y2="9" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
-                    <line x1="0" y1="4.5" x2="2" y2="4.5" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
-                    <line x1="7" y1="4.5" x2="9" y2="4.5" stroke={COL} strokeOpacity="0.4" strokeWidth="0.8"/>
-                  </svg>
-                  <span style={{fontSize:8,color:'rgba(255,255,255,0.28)',fontFamily:'monospace',letterSpacing:'0.06em'}}>
-                    {Math.abs(selected.coordinates[1]).toFixed(2)}°{selected.coordinates[1]>=0?'N':'S'}{' '}
-                    {Math.abs(selected.coordinates[0]).toFixed(2)}°{selected.coordinates[0]>=0?'E':'W'}
-                  </span>
-                </div>
-                <div style={{fontSize:6.5,fontFamily:'monospace',fontWeight:900,letterSpacing:'0.2em',
-                  color:COL,opacity:0.5,textTransform:'uppercase'}}>AYN · LIVE</div>
-              </div>
-            </div>
-          </div>);})()}
 
         {!Globe&&(
           <div style={{position:'absolute',inset:0,zIndex:20,background:'#020b18',
@@ -659,6 +538,101 @@ export function HeatMap2D({
           </div>
         )}
       </div>
+
+      {/* ── Signal card — outside globe canvas so X button works ── */}
+      {selected&&(()=>{
+        const COL = riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4';
+        const CARD_W = 380;
+        const vpW = typeof window!=='undefined'?window.innerWidth:1200;
+        const vpH = typeof window!=='undefined'?window.innerHeight:800;
+        let left = clickPos.x + 16;
+        let top  = clickPos.y + 16;
+        if (left + CARD_W > vpW - 12) left = clickPos.x - CARD_W - 16;
+        if (top  + 200 > vpH - 12) top  = clickPos.y - 200 - 16;
+        left = Math.max(12, Math.min(left, vpW - CARD_W - 12));
+        top  = Math.max(12, Math.min(top,  vpH - 220));
+        return (
+          <>
+            {/* Backdrop — click anywhere outside to close */}
+            <div style={{position:'fixed',inset:0,zIndex:9998}} onClick={()=>setSelected(null)} />
+            {/* Card */}
+            <div style={{
+              position:'fixed', left, top, zIndex:9999, width:CARD_W,
+              background:'rgba(3,5,20,0.96)',
+              backdropFilter:'saturate(180%) blur(28px)',
+              WebkitBackdropFilter:'saturate(180%) blur(28px)',
+              border:`1px solid ${COL}35`, borderTop:`1px solid ${COL}80`,
+              borderRadius:16, overflow:'hidden',
+              boxShadow:`0 32px 80px rgba(0,0,0,0.9), 0 0 60px ${COL}18`,
+              animation:'ayn-card-in 0.18s cubic-bezier(0.16,1,0.3,1)',
+            }}>
+              {/* Beam */}
+              <div style={{position:'absolute',top:0,left:0,right:0,height:1,
+                background:`linear-gradient(90deg,transparent,${COL}dd,transparent)`,
+                animation:'ayn-beam-slide 2.8s ease-in-out infinite',pointerEvents:'none'}}/>
+              {/* Glow */}
+              <div style={{position:'absolute',inset:0,pointerEvents:'none',
+                background:`radial-gradient(180px circle at 50% -20px,${COL}20,transparent 70%)`}}/>
+              {/* Header strip */}
+              <div style={{display:'flex',alignItems:'center',gap:8,
+                padding:'10px 14px', borderBottom:'1px solid rgba(255,255,255,0.06)',
+                background:`linear-gradient(90deg,${COL}12,transparent)`}}>
+                <div style={{width:8,height:8,borderRadius:'50%',flexShrink:0,
+                  background:COL, boxShadow:`0 0 8px ${COL}`,
+                  animation:'ayn-fade-pulse 1.8s ease-in-out infinite'}}/>
+                <span style={{fontSize:8,fontFamily:'monospace',fontWeight:900,
+                  color:COL,letterSpacing:'0.2em',textTransform:'uppercase',flex:1}}>
+                  {riskConfig[selected.risk as RiskKey]?.label??'INTEL SIGNAL'}
+                  {selected.category?` · ${selected.category.toUpperCase()}`:''}
+                </span>
+                {/* CLOSE BUTTON — outside canvas, always clickable */}
+                <button
+                  onClick={()=>setSelected(null)}
+                  style={{width:32,height:32,borderRadius:8,cursor:'pointer',
+                    border:'1px solid rgba(255,255,255,0.18)',
+                    background:'rgba(255,255,255,0.08)',
+                    color:'rgba(255,255,255,0.75)',
+                    fontSize:18,fontWeight:700,
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    flexShrink:0,transition:'all 0.15s',lineHeight:1}}
+                  onMouseEnter={e=>{const b=e.currentTarget;
+                    b.style.background='rgba(239,68,68,0.3)';
+                    b.style.color='#fff';
+                    b.style.borderColor='rgba(239,68,68,0.6)';}}
+                  onMouseLeave={e=>{const b=e.currentTarget;
+                    b.style.background='rgba(255,255,255,0.08)';
+                    b.style.color='rgba(255,255,255,0.75)';
+                    b.style.borderColor='rgba(255,255,255,0.18)';}}
+                >✕</button>
+              </div>
+              {/* Body */}
+              <div style={{padding:'14px 16px 13px'}}>
+                <div style={{fontSize:22,fontWeight:900,color:'rgba(255,255,255,0.93)',
+                  fontFamily:'monospace',letterSpacing:'0.03em',lineHeight:1.15,
+                  marginBottom:8,textShadow:`0 0 24px ${COL}50`}}>
+                  {selected.label}
+                </div>
+                {selected.detail&&(
+                  <div style={{fontSize:11,color:'rgba(255,255,255,0.55)',lineHeight:1.75,
+                    fontFamily:'monospace',marginBottom:12,
+                    borderLeft:`2px solid ${COL}50`,paddingLeft:10}}>
+                    {selected.detail.slice(0,200)}
+                  </div>
+                )}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+                  borderTop:'1px solid rgba(255,255,255,0.05)',paddingTop:10}}>
+                  <span style={{fontSize:9,fontFamily:'monospace',color:'rgba(255,255,255,0.3)',letterSpacing:'0.1em'}}>
+                    ◎ {selected.coordinates?.[1]?.toFixed(2)}°N {selected.coordinates?.[0]?.toFixed(2)}°E
+                  </span>
+                  <span style={{fontSize:8,fontFamily:'monospace',color:COL,letterSpacing:'0.15em',fontWeight:900}}>
+                    AYN · LIVE
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Ticker */}
       {ticker.length>0&&(

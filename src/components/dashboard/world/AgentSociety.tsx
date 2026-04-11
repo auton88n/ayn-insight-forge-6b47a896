@@ -959,31 +959,6 @@ export default function AgentSociety() {
                 </div>
               )}
 
-              {/* Conv tabs — bottom navigation, full width */}
-              {conversations.length > 0 && (
-                <div className="shrink-0 border-t border-white/[0.05]" style={{background:'rgba(0,0,0,0.5)'}}>
-                  <div className="flex gap-1.5 px-3 py-2.5 overflow-x-auto as-scroll" style={{scrollbarWidth:'none'}}>
-                    {conversations.slice(0,8).map(conv=>{
-                      const isActive = activeConvId===conv.id;
-                      const isSignal = !!conv.signal_id;
-                      const isCritical = conv.signal_severity === 'critical';
-                      return (
-                        <button key={conv.id} onClick={()=>setActiveConvId(conv.id)}
-                          className="flex items-center gap-1.5 text-[9px] font-mono px-3 py-1.5 rounded-lg border transition-all shrink-0 max-w-[180px]"
-                          style={{
-                            background: isActive ? 'rgba(168,85,247,0.18)' : 'rgba(255,255,255,0.03)',
-                            borderColor: isActive ? 'rgba(168,85,247,0.5)' : isSignal ? (isCritical ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.15)') : 'rgba(255,255,255,0.06)',
-                            color: isActive ? '#a855f7' : 'rgba(255,255,255,0.3)',
-                          }}>
-                          {isSignal && <span className="shrink-0 text-[8px]">{isCritical ? '🔴' : '🟡'}</span>}
-                          <span className="truncate">{conv.topic?.slice(0,28)||'Conv'}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Footer */}
               {messages.length>0&&!generating&&(
                 <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-t border-white/[0.04]" style={{background:'rgba(0,0,0,0.6)'}}>
@@ -996,6 +971,51 @@ export default function AgentSociety() {
             </div>
           </div>
         </div>
+
+        {/* ── Conversation Tabs — full width below globe + panel ── */}
+        {conversations.length > 0 && (
+          <div className="rounded-xl overflow-hidden mt-3"
+            style={{border:'1px solid rgba(168,85,247,0.15)',background:'rgba(0,0,0,0.5)'}}>
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.05]">
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"
+                style={{boxShadow:'0 0 4px rgba(168,85,247,0.8)'}}/>
+              <span className="text-[9px] font-bold font-mono text-white/35 uppercase tracking-widest">
+                Discussions
+              </span>
+              <span className="text-[9px] font-mono text-white/20">{conversations.length}</span>
+            </div>
+            <div className="flex gap-2 px-3 py-2.5 overflow-x-auto as-scroll flex-wrap"
+              style={{scrollbarWidth:'none'}}>
+              {conversations.slice(0,10).map(conv=>{
+                const isActive = activeConvId===conv.id;
+                const isSignal = !!conv.signal_id;
+                const isCritical = conv.signal_severity === 'critical';
+                return (
+                  <button key={conv.id} onClick={()=>setActiveConvId(conv.id)}
+                    className="flex items-center gap-1.5 font-mono transition-all shrink-0"
+                    style={{
+                      fontSize:'10px',
+                      padding:'5px 12px',
+                      borderRadius:8,
+                      border: isActive ? '1px solid rgba(168,85,247,0.5)' :
+                              isSignal && isCritical ? '1px solid rgba(239,68,68,0.2)' :
+                              isSignal ? '1px solid rgba(245,158,11,0.18)' :
+                              '1px solid rgba(255,255,255,0.07)',
+                      background: isActive ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.03)',
+                      color: isActive ? '#a855f7' : 'rgba(255,255,255,0.4)',
+                      maxWidth: 220,
+                    }}>
+                    {isSignal && <span style={{fontSize:9}}>{isCritical ? '🔴' : '🟡'}</span>}
+                    <span style={{
+                      overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',
+                      maxWidth:180,display:'block'
+                    }}>{conv.topic?.slice(0,40)||'Conversation'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── God's Eye Dialog ── */}
