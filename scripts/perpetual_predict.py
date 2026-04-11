@@ -341,7 +341,30 @@ def write_prediction(sb, asset_cfg: dict, horizon: dict,
     pred_value = current_price * (1 + pred_pct)
     pred_high  = current_price * (1 + pred_pct + rmse)
     pred_low   = current_price * (1 + pred_pct - rmse)
-    direction  = "up" if pred_pct > 0.005 else ("down" if pred_pct < -0.005 else "sideways")
+
+    # Asset-aware sideways threshold — based on each asset's typical weekly volatility.
+    # Too tight (0.5%) means the model calls sideways for moves that clearly have direction.
+    # Crypto moves avg 4%/week, commodities 3-5%, forex 0.5-1%.
+    SIDEWAYS_THRESHOLDS = {
+        "btc":     0.025,   # 2.5% — BTC is very volatile
+        "eth":     0.025,   # 2.5%
+        "sol":     0.030,   # 3.0%
+        "gold":    0.015,   # 1.5%
+        "silver":  0.020,   # 2.0%
+        "oil":     0.020,   # 2.0%
+        "copper":  0.010,   # 1.0%
+        "usd_jpy": 0.005,   # 0.5% — forex is tighter
+        "wheat":   0.015,   # 1.5%
+    }
+    sideways_thresh = SIDEWAYS_THRESHOLDS.get(asset_cfg["label"], 0.015)
+
+    # Scale threshold by horizon — longer horizons need wider bands
+    if horizon["days"] >= 30:
+        sideways_thresh *= 3.0
+    elif horizon["days"] >= 7:
+        sideways_thresh *= 1.5
+
+    direction  = "up" if pred_pct > sideways_thresh else ("down" if pred_pct < -sideways_thresh else "sideways")
     pct_str    = f"{pred_pct * 100:+.1f}%"
 
     # AYN context that influenced this prediction
