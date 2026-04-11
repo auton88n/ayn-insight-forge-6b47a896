@@ -503,7 +503,7 @@ export default function WorldIntelligence() {
           "bg-gradient-to-b from-card to-background",
           sidebarCollapsed ? "w-[68px]" : "w-60"
         )}>
-          <nav className="flex-1 py-4 px-3 space-y-1.5">
+          <nav className="flex-1 py-3 px-3 space-y-0.5">
             {NAV_ITEMS.map(item => {
               const isActive = activeSection === item.id;
               const count = item.id === 'signals' ? signals.length : item.id === 'predictions' ? masterPreds.length + filteredPreds.length : item.id === 'countries' ? countryIntel.length : undefined;
@@ -512,7 +512,7 @@ export default function WorldIntelligence() {
                   title={sidebarCollapsed ? item.label : undefined}
                   className={cn(
                     "w-full flex items-center gap-3 rounded-xl transition-all duration-200 group relative",
-                    sidebarCollapsed ? "px-3 py-3.5 justify-center" : "px-4 py-3",
+                    sidebarCollapsed ? "px-3 py-2 justify-center" : "px-3 py-2",
                     isActive
                       ? "bg-primary/10 text-primary shadow-[0_0_12px_rgba(14,165,233,0.15)] border border-primary/20"
                       : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04] border border-transparent"
@@ -575,10 +575,10 @@ export default function WorldIntelligence() {
             {/* ════════ OVERVIEW ════════ */}
             {activeSection === 'overview' && (
               <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 space-y-8 max-w-[1400px] mx-auto">
+                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
 
                 {/* Map — hero focal point */}
-                <div className="rounded-3xl overflow-hidden border border-white/[0.06] shadow-[0_16px_48px_rgba(0,0,0,0.4)]" style={{ height: 'clamp(400px, 60vh, 640px)' }}>
+                <div className="rounded-3xl overflow-hidden border border-white/[0.06] shadow-[0_16px_48px_rgba(0,0,0,0.4)]" style={{ height: 'clamp(300px, 42vh, 520px)' }}>
                   <HeatMap2D
                     points={mapPoints}
                     height={undefined as any}
@@ -696,7 +696,7 @@ export default function WorldIntelligence() {
             {/* ════════ SIGNALS ════════ */}
             {activeSection === 'signals' && (
               <motion.div key="signals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 space-y-8 max-w-[1400px] mx-auto">
+                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
                 <SectionHeader icon={AlertTriangle} label="Intelligence" title="Live World Signals" description="Real-time geopolitical, economic, and market signals from global sources." count={signals.length} />
                 {signals.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -743,7 +743,7 @@ export default function WorldIntelligence() {
             {/* ════════ PREDICTIONS ════════ */}
             {activeSection === 'predictions' && (
               <motion.div key="predictions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 space-y-8 max-w-[1400px] mx-auto">
+                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
 
                 {/* Graph Intelligence */}
                 <section>
@@ -954,7 +954,7 @@ export default function WorldIntelligence() {
             {/* ════════ COUNTRIES ════════ */}
             {activeSection === 'countries' && (
               <motion.div key="countries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 space-y-8 max-w-[1400px] mx-auto">
+                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
                 <SectionHeader icon={Building2} label="Dossiers" title="Country Intelligence" description="Economic profiles, hot sectors, and opportunity maps for monitored countries." count={countryIntel.length} />
                 {countryIntel.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -1013,13 +1013,13 @@ export default function WorldIntelligence() {
             {/* ════════ AGENTS ════════ */}
             {activeSection === 'agents' && (
               <motion.div key="agents" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="min-h-full">
+                className="pb-16">
                 <div className="border-b border-white/[0.04] px-6 sm:px-8 py-5 flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
                   <h2 className="text-sm font-display font-semibold">Agent Society</h2>
                   <span className="text-xs text-muted-foreground/40">Live AI agents · World reaction simulation</span>
                 </div>
-                <div className="p-4 sm:p-6 lg:p-8">
+                <div className="p-4 sm:p-6 lg:p-8 pb-16">
                   <Suspense fallback={
                     <div className="flex items-center justify-center h-80">
                       <div className="text-center space-y-3">
