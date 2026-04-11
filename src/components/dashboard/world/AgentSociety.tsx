@@ -918,32 +918,17 @@ export default function AgentSociety({
               background:'linear-gradient(180deg,rgba(5,0,15,0.97),rgba(0,0,0,0.99))',
             }}>
 
-              {/* Topic bar — shows signal that triggered this conversation */}
-              <div className="shrink-0 flex flex-col border-b border-white/[0.06]"
-                style={{background:'linear-gradient(90deg,rgba(168,85,247,0.07),transparent)'}}>
-                <div className="flex items-center gap-3 px-4 py-2.5">
-                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shrink-0"/>
-                  <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest shrink-0">Discussion</span>
-                  <span className="text-[11px] font-mono text-white/75 font-bold flex-1 truncate">{activeConv?.topic||'Awaiting activation...'}</span>
-                  {selectedAgent&&<button onClick={()=>setSelectedAgent(null)} className="text-[10px] font-mono text-purple-400/60 hover:text-purple-400 shrink-0 transition-colors">✕ All</button>}
+              {/* Minimal header — just active topic title, no duplicate "Discussion" label */}
+              {activeConv && (
+                <div className="shrink-0 flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.05]"
+                  style={{background:'rgba(168,85,247,0.04)'}}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0"/>
+                  {activeConv.signal_severity === 'critical' && <span className="text-[9px] shrink-0">🔴</span>}
+                  {activeConv.signal_severity === 'high' && <span className="text-[9px] shrink-0">🟡</span>}
+                  <span className="text-[10px] font-mono text-white/60 font-semibold flex-1 truncate">{activeConv.topic}</span>
+                  {selectedAgent&&<button onClick={()=>setSelectedAgent(null)} className="text-[9px] font-mono text-white/30 hover:text-white/60 shrink-0 transition-colors">✕</button>}
                 </div>
-                {/* Signal badge — shows what triggered this conversation */}
-                {activeConv?.signal_headline && (
-                  <div className="flex items-center gap-2 px-4 pb-2.5">
-                    <span className={cn(
-                      'text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider',
-                      activeConv.signal_severity === 'critical'
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
-                    )}>
-                      {activeConv.signal_severity === 'critical' ? '🔴' : '🟡'} {activeConv.signal_severity} signal
-                    </span>
-                    <span className="text-[9px] font-mono text-white/35 truncate">
-                      triggered by: {activeConv.signal_headline}
-                    </span>
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* Generating state */}
               {generating && (
