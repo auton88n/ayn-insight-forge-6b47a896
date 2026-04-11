@@ -182,8 +182,8 @@ export function HeatMap2D({
       ...pt, lat:pt.coordinates[1], lng:pt.coordinates[0],
       color:`rgba(${r},${g},${b},0.8)`,
       ringColor:`rgba(${r},${g},${b},0.3)`,
-      size:pt.risk==='critical'?0.18:pt.risk==='high'?0.15:pt.risk==='cyber'||pt.risk==='nuclear'?0.15:0.1,
-      altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.015:0.008,
+      size:pt.risk==='critical'?0.45:pt.risk==='high'?0.38:pt.risk==='cyber'||pt.risk==='nuclear'?0.35:0.28,
+      altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.04:0.025,
     };
   }),[filtered]);
 
@@ -431,7 +431,7 @@ export function HeatMap2D({
               // Pulse rings
               ringsData={globePoints.filter((p:any)=>riskConfig[p.risk as RiskKey]?.pulse)}
               ringLat="lat" ringLng="lng" ringColor="ringColor"
-              ringMaxRadius={1.5} ringPropagationSpeed={1.5}
+              ringMaxRadius={3} ringPropagationSpeed={2}
               ringRepeatPeriod={800} ringAltitude={0.005}
 
               // Threat arcs
@@ -494,8 +494,8 @@ export function HeatMap2D({
           </div>
         )}
 
-        {/* Legend — bottom left */}
-        <div style={{position:'absolute',bottom:12,left:12,zIndex:10,pointerEvents:'none',
+        {/* Legend — bottom right */}
+        <div style={{position:'absolute',bottom:12,right:12,zIndex:10,pointerEvents:'none',
           background:'rgba(0,2,14,0.93)',border:'1px solid rgba(255,255,255,0.08)',
           borderRadius:9,padding:'8px 12px',backdropFilter:'blur(10px)'}}>
           <div style={{fontSize:6,fontFamily:'monospace',color:'rgba(255,255,255,0.2)',letterSpacing:'0.18em',marginBottom:6}}>SIGNAL KEY</div>
@@ -527,7 +527,7 @@ export function HeatMap2D({
         {/* Selected point — rendered via fixed so overflow:hidden never clips it */}
         {selected&&(()=>{
           const COL = riskConfig[selected.risk as RiskKey]?.hex??'#06b6d4';
-          const CARD_W = 340;
+          const CARD_W = 380;
           const CARD_H = 140;
           // Smart viewport positioning: prefer below+right of click, flip if too close to edges
           const vpW = window.innerWidth;
@@ -539,11 +539,14 @@ export function HeatMap2D({
           left = Math.max(12, Math.min(left, vpW - CARD_W - 12));
           top  = Math.max(12, Math.min(top,  vpH - CARD_H - 12));
           return (
-          <div style={{
+          <div 
+            onClick={e=>e.stopPropagation()}
+            style={{
             position:'fixed',
             left, top,
             zIndex:9999,
             width:CARD_W,
+            pointerEvents:'all',
             // Glass surface — GlinUI Apple Liquid Glass
             background:'rgba(3,5,20,0.94)',
             backdropFilter:'saturate(180%) blur(28px)',
@@ -586,16 +589,17 @@ export function HeatMap2D({
                 {riskConfig[selected.risk as RiskKey]?.label??'INTEL SIGNAL'}
                 {selected.category?` · ${selected.category.toUpperCase()}`:''}
               </span>
-              <button onClick={()=>setSelected(null)}
-                style={{width:22,height:22,borderRadius:6,
-                  border:'1px solid rgba(255,255,255,0.1)',
-                  borderTop:'1px solid rgba(255,255,255,0.2)',
-                  background:'rgba(255,255,255,0.05)',color:'rgba(255,255,255,0.45)',
-                  fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',
+              <button 
+                onClick={(e)=>{e.stopPropagation();setSelected(null);}}
+                style={{width:28,height:28,borderRadius:8,
+                  border:'1px solid rgba(255,255,255,0.15)',
+                  borderTop:'1px solid rgba(255,255,255,0.25)',
+                  background:'rgba(255,255,255,0.08)',color:'rgba(255,255,255,0.6)',
+                  fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',
                   justifyContent:'center',flexShrink:0,fontFamily:'monospace',
-                  transition:'all 0.15s'}}
-                onMouseEnter={e=>{const b=e.currentTarget;b.style.background='rgba(255,255,255,0.12)';b.style.color='#fff';}}
-                onMouseLeave={e=>{const b=e.currentTarget;b.style.background='rgba(255,255,255,0.05)';b.style.color='rgba(255,255,255,0.45)';}}
+                  transition:'all 0.15s',pointerEvents:'all'}}
+                onMouseEnter={e=>{const b=e.currentTarget;b.style.background='rgba(239,68,68,0.2)';b.style.color='#ef4444';b.style.borderColor='rgba(239,68,68,0.4)';}}
+                onMouseLeave={e=>{const b=e.currentTarget;b.style.background='rgba(255,255,255,0.08)';b.style.color='rgba(255,255,255,0.6)';b.style.borderColor='rgba(255,255,255,0.15)';}}
               >✕</button>
             </div>
 
