@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Button, LiquidButton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -518,15 +518,14 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                 />
               </div>
 
-              <Button
+              <LiquidButton
                 type="submit"
-                variant="default"
                 className="w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('auth.signIn')}
-              </Button>
+              </LiquidButton>
               
             </form>
           </TabsContent>
@@ -648,15 +647,14 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                 </label>
               </div>
 
-              <Button
+              <LiquidButton
                 type="submit"
-                variant="default"
                 className="w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('auth.signUp')}
-              </Button>
+              </LiquidButton>
             </form>
           </TabsContent>
         </Tabs>

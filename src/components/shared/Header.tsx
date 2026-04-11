@@ -4,7 +4,7 @@ import { Brain, Menu, LogIn, LogOut, User } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
+import { Button, LiquidButton } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { supabase } from '@/integrations/supabase/client';
@@ -116,9 +116,9 @@ export const Header = () => {
                   </Button>
                 </div> :
 
-              <Button variant="default" size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5">
+              <LiquidButton size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5">
                   {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
-                </Button>
+                </LiquidButton>
               }
             </div>
 
@@ -172,10 +172,10 @@ export const Header = () => {
                       </div> :
 
                     <div className="px-3">
-                        <Button className="w-full" onClick={() => setShowAuthModal(true)}>
+                        <LiquidButton className="w-full" onClick={() => setShowAuthModal(true)}>
                           <LogIn className="h-4 w-4 mr-2" />
                           {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
-                        </Button>
+                        </LiquidButton>
                       </div>
                     }
                   </div>

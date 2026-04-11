@@ -88,3 +88,75 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button"
 
 export { Button, buttonVariants }
+
+
+
+// ─── Liquid Glass Button ──────────────────────────────────────────────────────
+// A glossy dark pill button with glass-like specular highlights.
+// Works on any background — light, dark, or gradient.
+
+export const liquidButtonVariants = cva(
+  [
+    "relative inline-flex items-center justify-center cursor-pointer gap-2",
+    "whitespace-nowrap rounded-full font-medium",
+    "transition-all duration-200 ease-out",
+    "disabled:pointer-events-none disabled:opacity-40",
+    "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+    "outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground/50",
+    "overflow-hidden select-none",
+    // Dark pill base — works on any background
+    "bg-[#0f0f0f] dark:bg-[#f5f5f5]",
+    "text-[#f5f5f5] dark:text-[#0f0f0f]",
+    // Border: thin dark edge + inner light rim via box-shadow
+    "border border-black/20 dark:border-white/20",
+    "shadow-[0_1px_2px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(0,0,0,0.3)]",
+    "dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-1px_0_rgba(0,0,0,0.1)]",
+    // Hover & active
+    "hover:scale-[1.03] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-1px_0_rgba(0,0,0,0.3)]",
+    "dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.7),inset_0_-1px_0_rgba(0,0,0,0.08)]",
+    "active:scale-[0.97]",
+  ].join(" "),
+  {
+    variants: {
+      size: {
+        sm:      "h-8 px-4 text-xs",
+        default: "h-10 px-5 text-sm",
+        lg:      "h-11 px-7 text-sm",
+        xl:      "h-12 px-8 text-base",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  }
+)
+
+export interface LiquidButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof liquidButtonVariants> {
+  asChild?: boolean
+}
+
+export const LiquidButton = React.forwardRef<HTMLButtonElement, LiquidButtonProps>(
+  ({ className, size, asChild = false, children, ...props }, ref) => {
+    const Comp = (asChild ? Slot : "button") as React.ElementType
+    return (
+      <Comp
+        ref={ref}
+        className={cn(liquidButtonVariants({ size, className }))}
+        {...props}
+      >
+        {/* Top gloss streak — the "glass" shine */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-[12%] top-0 h-[45%] rounded-b-full bg-gradient-to-b from-white/20 to-transparent"
+        />
+        {/* Content sits above the gloss */}
+        <span className="relative z-10 flex items-center gap-2">
+          {children}
+        </span>
+      </Comp>
+    )
+  }
+)
+LiquidButton.displayName = "LiquidButton"

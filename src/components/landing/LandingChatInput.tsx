@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { LiquidButton } from '@/components/ui/button';
 import { ArrowUp, Plus, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -108,23 +109,20 @@ export const LandingChatInput: React.FC<LandingChatInputProps> = ({ onSendAttemp
 
           <AnimatePresence>
             {inputMessage.trim() && (
-              <motion.button
+              <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.15 }}
-                onClick={handleSend}
-                className={cn(
-                  "flex-shrink-0 w-9 h-9 rounded-xl",
-                  "flex items-center justify-center",
-                  "bg-foreground text-background",
-                  "transition-all duration-200",
-                  "hover:scale-105 hover:shadow-lg",
-                  "active:scale-95"
-                )}
               >
-                <ArrowUp className="w-5 h-5" strokeWidth={2.5} />
-              </motion.button>
+                <LiquidButton
+                  size="sm"
+                  onClick={handleSend}
+                  className="w-9 h-9 px-0"
+                >
+                  <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
+                </LiquidButton>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
