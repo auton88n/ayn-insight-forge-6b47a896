@@ -590,7 +590,7 @@ export default function AgentSociety({
       onConversationsChange?.(convs);
       setAgentStates(data.agent_states||[]);
       setCategories(data.categories||[]);
-      if(data.conversations?.length&&!activeConvId)setActiveConvId(data.conversations[0].id);
+      if(data.conversations?.length){ if(!activeConvId) setActiveConvId(data.conversations[0].id); }
       // Auto-activate if no conversations exist
       if ((!data.conversations || data.conversations.length === 0) && !autoActivated.current) {
         autoActivated.current = true;

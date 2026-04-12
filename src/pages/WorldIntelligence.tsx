@@ -267,12 +267,17 @@ export default function WorldIntelligence() {
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  // Auto-select first conversation when agent conversations load
+  // Auto-select first conversation — always pick newest
   useEffect(() => {
-    if (agentConversations.length > 0 && !agentActiveConvId) {
-      setAgentActiveConvId(agentConversations[0].id);
+    if (agentConversations.length > 0) {
+      if (!agentActiveConvId) {
+        setAgentActiveConvId(agentConversations[0].id);
+        return;
+      }
+      const exists = agentConversations.find((c: any) => c.id === agentActiveConvId);
+      if (!exists) setAgentActiveConvId(agentConversations[0].id);
     }
-  }, [agentConversations, agentActiveConvId]);
+  }, [agentConversations]);
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
 
   const fetchSnapshot = useCallback(async () => {
