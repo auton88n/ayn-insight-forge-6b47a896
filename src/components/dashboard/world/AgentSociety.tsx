@@ -585,17 +585,31 @@ export default function AgentSociety({
         .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
-      // Fetch agent states from engine
-      const agentRes = await fetch(`${ENGINE_URL}/agents`);
-      const agentData = agentRes.ok ? await agentRes.json() : { agents: [] };
+      // Fetch agent states — try engine first, fall back to Supabase ayn_agent_states
+      let agentStatesList: any[] = [];
+      try {
+        const agentRes = await fetch(`${ENGINE_URL}/agents`);
+        if (agentRes.ok) {
+          const agentData = await agentRes.json();
+          agentStatesList = (agentData.agents || []).map((a: any) => ({
+            agent_id: a.id, agent_name: a.name, agent_flag: a.flag,
+            agent_category: a.category, agent_role: a.category,
+            current_emotion: 'neutral', emotion_intensity: 50,
+            belief_score: a.belief_score || 0
+          }));
+        }
+      } catch {}
+      // Fallback: load from Supabase ayn_agent_states if engine returned nothing
+      if (agentStatesList.length === 0) {
+        const { data: statesData } = await supabase
+          .from('ayn_agent_states')
+          .select('*')
+          .limit(100);
+        agentStatesList = statesData || [];
+      }
       const data: any = {
         conversations: convData || [],
-        agent_states: (agentData.agents || []).map((a: any) => ({
-          agent_id: a.id, agent_name: a.name, agent_flag: a.flag,
-          agent_category: a.category, agent_role: a.category,
-          current_emotion: 'neutral', emotion_intensity: 50,
-          belief_score: a.belief_score || 0
-        })),
+        agent_states: agentStatesList,
         categories: [
           { id:'all',label:'All' },
           { id:'government',label:'Governments',icon:'🏛' },
