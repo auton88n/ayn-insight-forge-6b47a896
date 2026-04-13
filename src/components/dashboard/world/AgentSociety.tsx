@@ -556,10 +556,14 @@ export default function AgentSociety({
       setGenerateStep(steps[stepIdx]);
     }, 7000);
     try{
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 300000); // 5 min timeout
       const res = await fetch(`${ENGINE_URL}/simulate`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({event:'Current global macro environment: US-China trade war, gold at record highs, Fed holding rates, geopolitical fragmentation accelerating'})
+        body:JSON.stringify({event:'Current global macro environment: US-China trade war, gold at record highs, Fed holding rates, geopolitical fragmentation accelerating'}),
+        signal: ctrl.signal
       });
+      clearTimeout(t);
       clearInterval(stepTimer);
       setGenerateStep('✅ Complete!');
       if (!res.ok) return;
@@ -661,11 +665,15 @@ export default function AgentSociety({
     setSignalLoading(signal.id);
     setGenerating(true);
     try {
+      const ctrl2 = new AbortController();
+      const t2 = setTimeout(() => ctrl2.abort(), 300000);
       const res = await fetch(`${ENGINE_URL}/simulate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: `${signal.headline}. Region: ${signal.region}. Severity: ${signal.severity}.`, signal_id: signal.id })
+        body: JSON.stringify({ event: `${signal.headline}. Region: ${signal.region}. Severity: ${signal.severity}.`, signal_id: signal.id }),
+        signal: ctrl2.signal
       });
+      clearTimeout(t2);
       if (!res.ok) return;
       const data = await res.json();
       await loadData();
@@ -713,10 +721,14 @@ export default function AgentSociety({
       setGenerateStep(steps[stepIdx]);
     }, 8000);
     try {
+      const ctrl3 = new AbortController();
+      const t3 = setTimeout(() => ctrl3.abort(), 300000);
       const res = await fetch(`${ENGINE_URL}/simulate`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ event: godEyeInput })
+        body:JSON.stringify({ event: godEyeInput }),
+        signal: ctrl3.signal
       });
+      clearTimeout(t3);
       clearInterval(stepTimer);
       setGenerateStep('✅ Cascade complete!');
       if (!res.ok) { toast({ title: "Snag!", description: "God's Eye injection failed.", variant: "destructive" }); return; }
