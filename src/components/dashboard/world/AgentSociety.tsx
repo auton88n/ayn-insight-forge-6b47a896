@@ -517,6 +517,8 @@ export default function AgentSociety({
   const [loadingMsgs, setLoadingMsgs]     = useState(false);
   const [godEyeOpen, setGodEyeOpen]       = useState(false);
   const [godEyeInput, setGodEyeInput]     = useState('');
+  const [useReflection, setUseReflection] = useState(false);
+  const [useAynData, setUseAynData]       = useState(true);
   const [chatAgent, setChatAgent]         = useState<any|null>(null);
   const [chatHistory, setChatHistory]     = useState<{role:string;content:string}[]>([]);
   const [chatInput, setChatInput]         = useState('');
@@ -725,7 +727,7 @@ export default function AgentSociety({
       const t3 = setTimeout(() => ctrl3.abort(), 300000);
       const res = await fetch(`${ENGINE_URL}/simulate`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ event: godEyeInput }),
+        body:JSON.stringify({ event: godEyeInput, use_reflection: useReflection, use_ayn_data: useAynData }),
         signal: ctrl3.signal
       });
       clearTimeout(t3);
@@ -1071,6 +1073,29 @@ export default function AgentSociety({
               className="w-full bg-transparent text-sm font-mono text-white/80 placeholder-white/25 outline-none p-4 rounded-xl resize-none"
               style={{border:'1px solid rgba(251,191,36,0.25)'}}
             />
+            {/* Power options */}
+            <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={() => setUseAynData(!useAynData)}
+                className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  color: useAynData ? '#34d399' : 'rgba(52,211,153,0.4)',
+                  background: useAynData ? 'rgba(52,211,153,0.1)' : 'transparent',
+                  border: `1px solid ${useAynData ? 'rgba(52,211,153,0.4)' : 'rgba(52,211,153,0.15)'}`,
+                }}>
+                {useAynData ? '✅' : '○'} AYN Live Data
+              </button>
+              <button
+                onClick={() => setUseReflection(!useReflection)}
+                className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  color: useReflection ? '#a78bfa' : 'rgba(167,139,250,0.4)',
+                  background: useReflection ? 'rgba(167,139,250,0.1)' : 'transparent',
+                  border: `1px solid ${useReflection ? 'rgba(167,139,250,0.4)' : 'rgba(167,139,250,0.15)'}`,
+                }}>
+                {useReflection ? '✅' : '○'} Reflection Pass (+30s)
+              </button>
+            </div>
             <div className="flex gap-2 justify-end">
               <button onClick={()=>setGodEyeOpen(false)}
                 className="text-xs font-mono font-bold px-4 py-2.5 rounded-lg text-white/40 hover:text-white/60 transition-colors">
