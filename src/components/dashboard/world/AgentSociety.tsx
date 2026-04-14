@@ -517,6 +517,7 @@ export default function AgentSociety({
   const [loadingMsgs, setLoadingMsgs]     = useState(false);
   const [godEyeOpen, setGodEyeOpen]       = useState(false);
   const [godEyeInput, setGodEyeInput]     = useState('');
+  const [focusCategories, setFocusCategories] = useState<string[]>([]);
   const [useReflection, setUseReflection] = useState(false);
   const [useAynData, setUseAynData]       = useState(true);
   const [chatAgent, setChatAgent]         = useState<any|null>(null);
@@ -727,7 +728,7 @@ export default function AgentSociety({
       const t3 = setTimeout(() => ctrl3.abort(), 300000);
       const res = await fetch(`${ENGINE_URL}/simulate`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ event: godEyeInput, use_reflection: useReflection, use_ayn_data: useAynData }),
+        body:JSON.stringify({ event: godEyeInput, use_reflection: useReflection, use_ayn_data: useAynData, focus_categories: focusCategories }),
         signal: ctrl3.signal
       });
       clearTimeout(t3);
@@ -1073,6 +1074,50 @@ export default function AgentSociety({
               className="w-full bg-transparent text-sm font-mono text-white/80 placeholder-white/25 outline-none p-4 rounded-xl resize-none"
               style={{border:'1px solid rgba(251,191,36,0.25)'}}
             />
+            {/* Focus category buttons */}
+            <div>
+              <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">Focus on specific categories (optional)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'government', label: '🏛 Governments', color: '#60a5fa' },
+                  { id: 'central_bank', label: '🏦 Central Banks', color: '#34d399' },
+                  { id: 'market', label: '📈 Markets', color: '#fbbf24' },
+                  { id: 'company', label: '🏢 Companies', color: '#f472b6' },
+                  { id: 'social_class', label: '👥 People', color: '#a78bfa' },
+                  { id: 'media', label: '📡 Media', color: '#fb923c' },
+                  { id: 'bank', label: '💰 Banks', color: '#4ade80' },
+                ].map(cat => {
+                  const active = focusCategories.includes(cat.id);
+                  return (
+                    <button key={cat.id}
+                      onClick={() => setFocusCategories(prev =>
+                        prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]
+                      )}
+                      className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all"
+                      style={{
+                        color: active ? cat.color : `${cat.color}60`,
+                        background: active ? `${cat.color}20` : 'transparent',
+                        border: `1px solid ${active ? `${cat.color}60` : `${cat.color}25`}`,
+                      }}>
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {focusCategories.length > 0 && (
+                <p className="text-[9px] font-mono mt-1.5" style={{color:'rgba(251,191,36,0.5)'}}>
+                  ⚡ Focusing on {focusCategories.join(', ')} agents — other categories in background
+                </p>
+              )}
+              {focusCategories.length > 0 && (
+                <button onClick={() => setFocusCategories([])}
+                  className="text-[9px] font-mono mt-1 underline"
+                  style={{color:'rgba(255,255,255,0.3)'}}>
+                  clear focus
+                </button>
+              )}
+            </div>
+
             {/* Power options */}
             <div className="flex gap-3 flex-wrap">
               <button
