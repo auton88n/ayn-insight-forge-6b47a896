@@ -180,11 +180,9 @@ export default function AgentConvViewer({convId}:{convId:string}) {
   useEffect(()=>{
     if(!convId)return;
     setLoading(true);setError(null);setMessages([]);setConvMeta(null);
-    fetch(`${SUPABASE_URL}/functions/v1/ayn-agent-society`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_ANON_KEY}`,'apikey':SUPABASE_ANON_KEY},
-      body:JSON.stringify({mode:'get_messages',conversation_id:convId})
-    }).then(r=>r.json()).then(d=>setMessages(d.messages||[])).catch(e=>setError(String(e))).finally(()=>setLoading(false));
+    fetch(`${SUPABASE_URL}/rest/v1/ayn_agent_messages?conversation_id=eq.${convId}&select=*&order=sequence_order.asc`,{
+      headers:{'Authorization':`Bearer ${SUPABASE_ANON_KEY}`,'apikey':SUPABASE_ANON_KEY}
+    }).then(r=>r.json()).then(d=>setMessages(Array.isArray(d)?d:[])).catch(e=>setError(String(e))).finally(()=>setLoading(false));
 
     fetch(`${SUPABASE_URL}/rest/v1/ayn_agent_conversations?id=eq.${convId}&select=*`,{
       headers:{'Authorization':`Bearer ${SUPABASE_ANON_KEY}`,'apikey':SUPABASE_ANON_KEY}
