@@ -518,6 +518,12 @@ export default function AgentSociety({
   const [godEyeOpen, setGodEyeOpen]       = useState(false);
   const [godEyeInput, setGodEyeInput]     = useState('');
   const [focusCategories, setFocusCategories] = useState<string[]>([]);
+  const [focusRaces, setFocusRaces]           = useState<string[]>([]);
+  const [focusCountries, setFocusCountries]   = useState<string[]>([]);
+  const [focusClasses, setFocusClasses]       = useState<string[]>([]);
+  const [focusGenders, setFocusGenders]       = useState<string[]>([]);
+  const [crowdSize, setCrowdSize]             = useState<number>(15);
+  const [showDemoFilters, setShowDemoFilters] = useState(false);
   const [useReflection, setUseReflection] = useState(false);
   const [useAynData, setUseAynData]       = useState(true);
   const [chatAgent, setChatAgent]         = useState<any|null>(null);
@@ -728,7 +734,17 @@ export default function AgentSociety({
       const t3 = setTimeout(() => ctrl3.abort(), 300000);
       const res = await fetch(`${ENGINE_URL}/simulate`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ event: godEyeInput, use_reflection: useReflection, use_ayn_data: useAynData, focus_categories: focusCategories }),
+        body:JSON.stringify({
+          event: godEyeInput,
+          use_reflection: useReflection,
+          use_ayn_data: useAynData,
+          focus_categories: focusCategories,
+          focus_races: focusRaces,
+          focus_countries: focusCountries,
+          focus_classes: focusClasses,
+          focus_genders: focusGenders,
+          crowd_size: crowdSize
+        }),
         signal: ctrl3.signal
       });
       clearTimeout(t3);
@@ -1074,47 +1090,224 @@ export default function AgentSociety({
               className="w-full bg-transparent text-sm font-mono text-white/80 placeholder-white/25 outline-none p-4 rounded-xl resize-none"
               style={{border:'1px solid rgba(251,191,36,0.25)'}}
             />
-            {/* Focus category buttons */}
-            <div>
-              <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">Focus on specific categories (optional)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { id: 'government', label: '🏛 Governments', color: '#60a5fa' },
-                  { id: 'central_bank', label: '🏦 Central Banks', color: '#34d399' },
-                  { id: 'market', label: '📈 Markets', color: '#fbbf24' },
-                  { id: 'company', label: '🏢 Companies', color: '#f472b6' },
-                  { id: 'social_class', label: '👥 People', color: '#a78bfa' },
-                  { id: 'media', label: '📡 Media', color: '#fb923c' },
-                  { id: 'bank', label: '💰 Banks', color: '#4ade80' },
-                ].map(cat => {
-                  const active = focusCategories.includes(cat.id);
-                  return (
-                    <button key={cat.id}
-                      onClick={() => setFocusCategories(prev =>
-                        prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]
-                      )}
-                      className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all"
-                      style={{
-                        color: active ? cat.color : `${cat.color}60`,
-                        background: active ? `${cat.color}20` : 'transparent',
-                        border: `1px solid ${active ? `${cat.color}60` : `${cat.color}25`}`,
-                      }}>
-                      {cat.label}
-                    </button>
-                  );
-                })}
+            {/* Focus system */}
+            <div className="space-y-3">
+              {/* Agent category focus */}
+              <div>
+                <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-1.5">Agent categories</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'government', label: '🏛 Govts', color: '#60a5fa' },
+                    { id: 'central_bank', label: '🏦 Central Banks', color: '#34d399' },
+                    { id: 'market', label: '📈 Markets', color: '#fbbf24' },
+                    { id: 'company', label: '🏢 Companies', color: '#f472b6' },
+                    { id: 'social_class', label: '👥 People', color: '#a78bfa' },
+                    { id: 'media', label: '📡 Media', color: '#fb923c' },
+                    { id: 'bank', label: '💰 Banks', color: '#4ade80' },
+                  ].map(cat => {
+                    const active = focusCategories.includes(cat.id);
+                    return (
+                      <button key={cat.id}
+                        onClick={() => setFocusCategories(prev =>
+                          prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]
+                        )}
+                        className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all"
+                        style={{
+                          color: active ? cat.color : `${cat.color}55`,
+                          background: active ? `${cat.color}18` : 'transparent',
+                          border: `1px solid ${active ? `${cat.color}55` : `${cat.color}20`}`,
+                        }}>
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              {focusCategories.length > 0 && (
-                <p className="text-[9px] font-mono mt-1.5" style={{color:'rgba(251,191,36,0.5)'}}>
-                  ⚡ Focusing on {focusCategories.join(', ')} agents — other categories in background
-                </p>
-              )}
-              {focusCategories.length > 0 && (
-                <button onClick={() => setFocusCategories([])}
-                  className="text-[9px] font-mono mt-1 underline"
-                  style={{color:'rgba(255,255,255,0.3)'}}>
-                  clear focus
+
+              {/* Demographic / Sampling focus toggle */}
+              <div>
+                <button
+                  onClick={() => setShowDemoFilters(!showDemoFilters)}
+                  className="text-[9px] font-mono uppercase tracking-widest flex items-center gap-1.5 transition-colors"
+                  style={{color: showDemoFilters ? 'rgba(167,139,250,0.8)' : 'rgba(255,255,255,0.3)'}}>
+                  {showDemoFilters ? '▼' : '▶'} Demographic & Geographic Sampling
+                  {(focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length) > 0 && (
+                    <span style={{color:'#a78bfa',background:'rgba(167,139,250,0.15)',padding:'1px 6px',borderRadius:4,fontSize:9}}>
+                      {focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length} active
+                    </span>
+                  )}
                 </button>
+
+                {showDemoFilters && (
+                  <div className="mt-2 space-y-2.5 pl-3" style={{borderLeft:'1px solid rgba(167,139,250,0.2)'}}>
+
+                    {/* Race / Ethnicity */}
+                    <div>
+                      <p className="text-[9px] font-mono text-white/25 mb-1">Race / Ethnicity</p>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          {id:'arab', label:'Arab'},
+                          {id:'black', label:'Black'},
+                          {id:'white', label:'White'},
+                          {id:'east_asian', label:'East Asian'},
+                          {id:'south_asian', label:'South Asian'},
+                          {id:'latino', label:'Latino'},
+                          {id:'southeast_asian', label:'SE Asian'},
+                          {id:'indigenous', label:'Indigenous'},
+                          {id:'mixed', label:'Mixed'},
+                        ].map(r => {
+                          const active = focusRaces.includes(r.id);
+                          return (
+                            <button key={r.id}
+                              onClick={() => setFocusRaces(prev => prev.includes(r.id) ? prev.filter(x=>x!==r.id) : [...prev, r.id])}
+                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
+                              style={{
+                                color: active ? '#c4b5fd' : 'rgba(196,181,253,0.4)',
+                                background: active ? 'rgba(167,139,250,0.15)' : 'transparent',
+                                border: `1px solid ${active ? 'rgba(167,139,250,0.4)' : 'rgba(167,139,250,0.15)'}`,
+                              }}>
+                              {r.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Gender */}
+                    <div>
+                      <p className="text-[9px] font-mono text-white/25 mb-1">Gender</p>
+                      <div className="flex flex-wrap gap-1">
+                        {[{id:'female',label:'Female'},{id:'male',label:'Male'},{id:'nonbinary',label:'Non-binary'}].map(g => {
+                          const active = focusGenders.includes(g.id);
+                          return (
+                            <button key={g.id}
+                              onClick={() => setFocusGenders(prev => prev.includes(g.id) ? prev.filter(x=>x!==g.id) : [...prev, g.id])}
+                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
+                              style={{
+                                color: active ? '#f9a8d4' : 'rgba(249,168,212,0.4)',
+                                background: active ? 'rgba(244,114,182,0.12)' : 'transparent',
+                                border: `1px solid ${active ? 'rgba(244,114,182,0.35)' : 'rgba(244,114,182,0.15)'}`,
+                              }}>
+                              {g.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Social Class */}
+                    <div>
+                      <p className="text-[9px] font-mono text-white/25 mb-1">Economic class</p>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          {id:'poor',label:'Poor'},
+                          {id:'working',label:'Working'},
+                          {id:'lower_middle',label:'Lower Middle'},
+                          {id:'middle',label:'Middle'},
+                          {id:'upper_middle',label:'Upper Middle'},
+                          {id:'wealthy',label:'Wealthy'},
+                        ].map(c => {
+                          const active = focusClasses.includes(c.id);
+                          return (
+                            <button key={c.id}
+                              onClick={() => setFocusClasses(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
+                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
+                              style={{
+                                color: active ? '#6ee7b7' : 'rgba(110,231,183,0.4)',
+                                background: active ? 'rgba(52,211,153,0.12)' : 'transparent',
+                                border: `1px solid ${active ? 'rgba(52,211,153,0.35)' : 'rgba(52,211,153,0.15)'}`,
+                              }}>
+                              {c.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Countries */}
+                    <div>
+                      <p className="text-[9px] font-mono text-white/25 mb-1">Countries / Regions</p>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          {id:'Saudi Arabia',label:'🇸🇦 Saudi'},
+                          {id:'UAE',label:'🇦🇪 UAE'},
+                          {id:'Egypt',label:'🇪🇬 Egypt'},
+                          {id:'Nigeria',label:'🇳🇬 Nigeria'},
+                          {id:'South Africa',label:'🇿🇦 S.Africa'},
+                          {id:'Kenya',label:'🇰🇪 Kenya'},
+                          {id:'USA',label:'🇺🇸 USA'},
+                          {id:'UK',label:'🇬🇧 UK'},
+                          {id:'Germany',label:'🇩🇪 Germany'},
+                          {id:'India',label:'🇮🇳 India'},
+                          {id:'China',label:'🇨🇳 China'},
+                          {id:'Brazil',label:'🇧🇷 Brazil'},
+                          {id:'Indonesia',label:'🇮🇩 Indonesia'},
+                          {id:'Turkey',label:'🇹🇷 Turkey'},
+                          {id:'Russia',label:'🇷🇺 Russia'},
+                          {id:'Japan',label:'🇯🇵 Japan'},
+                          {id:'Pakistan',label:'🇵🇰 Pakistan'},
+                          {id:'Mexico',label:'🇲🇽 Mexico'},
+                        ].map(co => {
+                          const active = focusCountries.includes(co.id);
+                          return (
+                            <button key={co.id}
+                              onClick={() => setFocusCountries(prev => prev.includes(co.id) ? prev.filter(x=>x!==co.id) : [...prev, co.id])}
+                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
+                              style={{
+                                color: active ? '#fcd34d' : 'rgba(252,211,77,0.4)',
+                                background: active ? 'rgba(251,191,36,0.12)' : 'transparent',
+                                border: `1px solid ${active ? 'rgba(251,191,36,0.35)' : 'rgba(251,191,36,0.15)'}`,
+                              }}>
+                              {co.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Crowd size slider */}
+                    <div>
+                      <p className="text-[9px] font-mono text-white/25 mb-1">
+                        Crowd panel size — {crowdSize} personas sampled
+                      </p>
+                      <input type="range" min={5} max={50} step={5} value={crowdSize}
+                        onChange={e => setCrowdSize(Number(e.target.value))}
+                        className="w-full"
+                        style={{accentColor:'#a78bfa'}}
+                      />
+                      <div className="flex justify-between text-[9px] font-mono text-white/20 mt-0.5">
+                        <span>5 (fast)</span><span>25 (balanced)</span><span>50 (deep)</span>
+                      </div>
+                    </div>
+
+                    {/* Clear all */}
+                    {(focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length) > 0 && (
+                      <button
+                        onClick={() => { setFocusRaces([]); setFocusCountries([]); setFocusClasses([]); setFocusGenders([]); }}
+                        className="text-[9px] font-mono underline"
+                        style={{color:'rgba(255,255,255,0.25)'}}>
+                        clear demographic filters
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Active focus summary */}
+              {(focusCategories.length + focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length) > 0 && (
+                <div className="text-[9px] font-mono px-2.5 py-1.5 rounded-lg" style={{background:'rgba(251,191,36,0.06)',border:'1px solid rgba(251,191,36,0.15)',color:'rgba(251,191,36,0.6)'}}>
+                  ⚡ Focus active: {[
+                    focusCategories.length > 0 && `${focusCategories.length} categories`,
+                    focusRaces.length > 0 && `${focusRaces.join(', ')}`,
+                    focusCountries.length > 0 && focusCountries.join(', '),
+                    focusClasses.length > 0 && focusClasses.join(', '),
+                    focusGenders.length > 0 && focusGenders.join(', '),
+                  ].filter(Boolean).join(' · ')}
+                  <button onClick={() => {
+                    setFocusCategories([]); setFocusRaces([]); setFocusCountries([]);
+                    setFocusClasses([]); setFocusGenders([]); setCrowdSize(15);
+                  }} className="ml-2 underline" style={{color:'rgba(255,255,255,0.3)'}}>clear all</button>
+                </div>
               )}
             </div>
 
