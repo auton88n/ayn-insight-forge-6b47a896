@@ -30,3 +30,7 @@ dist-ssr
 # Environment files
 *.env
 *.env.*
+ayn-backend/__pycache__/
+ayn-backend/**/__pycache__/
+*.pyc
+*.bak
