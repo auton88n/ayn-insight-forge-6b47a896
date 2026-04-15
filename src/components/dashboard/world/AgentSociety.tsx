@@ -1270,13 +1270,13 @@ export default function AgentSociety({
                       <p className="text-[9px] font-mono text-white/25 mb-1">
                         Crowd panel size — {crowdSize} personas sampled
                       </p>
-                      <input type="range" min={5} max={50} step={5} value={crowdSize}
+                      <input type="range" min={5} max={100} step={5} value={crowdSize}
                         onChange={e => setCrowdSize(Number(e.target.value))}
                         className="w-full"
                         style={{accentColor:'#a78bfa'}}
                       />
                       <div className="flex justify-between text-[9px] font-mono text-white/20 mt-0.5">
-                        <span>5 (fast)</span><span>25 (balanced)</span><span>50 (deep)</span>
+                        <span>5 (fast)</span><span>50 (balanced)</span><span>100 (deep)</span>
                       </div>
                     </div>
 
