@@ -524,6 +524,8 @@ export default function AgentSociety({
   const [focusGenders, setFocusGenders]       = useState<string[]>([]);
   const [crowdSize, setCrowdSize]             = useState<number>(15);
   const [showDemoFilters, setShowDemoFilters] = useState(false);
+  const [currentUserId, setCurrentUserId]   = useState<string|null>(null);
+  const [simVisibility, setSimVisibility]   = useState<'private'|'public'>('private');
   const [useReflection, setUseReflection] = useState(false);
   const [useAynData, setUseAynData]       = useState(true);
   const [chatAgent, setChatAgent]         = useState<any|null>(null);
@@ -743,7 +745,9 @@ export default function AgentSociety({
           focus_countries: focusCountries,
           focus_classes: focusClasses,
           focus_genders: focusGenders,
-          crowd_size: crowdSize
+          crowd_size: crowdSize,
+          user_id: currentUserId,
+          visibility: simVisibility
         }),
         signal: ctrl3.signal
       });
@@ -1313,6 +1317,16 @@ export default function AgentSociety({
 
             {/* Power options */}
             <div className="flex gap-3 flex-wrap">
+              <button
+                onClick={() => setSimVisibility(v => v === 'private' ? 'public' : 'private')}
+                className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  color: simVisibility === 'public' ? '#60a5fa' : 'rgba(255,255,255,0.3)',
+                  background: simVisibility === 'public' ? 'rgba(96,165,250,0.1)' : 'transparent',
+                  border: `1px solid ${simVisibility === 'public' ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                }}>
+                {simVisibility === 'public' ? '🌐 Public' : '🔒 Private'}
+              </button>
               <button
                 onClick={() => setUseAynData(!useAynData)}
                 className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
