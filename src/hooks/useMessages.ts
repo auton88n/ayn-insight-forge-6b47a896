@@ -14,7 +14,7 @@ import type {
   LABResponse
 } from '@/types/dashboard.types';
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, AYN_BACKEND_URL } from '@/config';
 import { detectIntent } from '@/hooks/chat/useIntentDetection';
 import { parseSSEStream, fetchWithRetry } from '@/hooks/chat/useSSEStream';
 import { useMessagePersistence } from '@/hooks/chat/useMessagePersistence';
@@ -141,14 +141,26 @@ export const useMessages = (
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-      const webhookResponse = await fetchWithRetry(`${SUPABASE_URL}/functions/v1/ayn-unified`, {
+      // Route to Python backend if configured, otherwise Supabase edge function
+      const chatUrl = AYN_BACKEND_URL
+        ? `${AYN_BACKEND_URL}/chat`
+        : `${SUPABASE_URL}/functions/v1/ayn-unified`;
+
+      const chatHeaders: Record<string, string> = AYN_BACKEND_URL
+        ? {
+            'Authorization': `Bearer ${latestToken}`,
+            'Content-Type': 'application/json',
+          }
+        : {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${latestToken}`,
+            'Content-Type': 'application/json',
+          };
+
+      const webhookResponse = await fetchWithRetry(chatUrl, {
         method: 'POST',
         signal: controller.signal,
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${latestToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: chatHeaders,
         body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: !requiresNonStreaming, sessionId })
       });
 
