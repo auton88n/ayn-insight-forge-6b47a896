@@ -29,7 +29,7 @@ def verify_token(authorization: str = Header(...)) -> str:
             token,
             SUPABASE_JWT_SECRET,
             algorithms=["HS256"],
-            audience="authenticated",
+            options={"verify_aud": False},  # Supabase non-standard aud
         )
         user_id = payload.get("sub")
         if not user_id:

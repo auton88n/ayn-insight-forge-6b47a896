@@ -39,4 +39,4 @@ OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "")
 
 # ── Server ────────────────────────────────────────────────────────────────────
 PORT            = int(os.getenv("PORT", 8080))
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://aynn.io,https://www.aynn.io,https://ayn-insight-forge.lovable.app,http://localhost:5173,http://localhost:8080").split(",") if o.strip()]
