@@ -1,13 +1,24 @@
 """
-services/search.py — port of supabase/functions/ayn-unified/searchHandler.ts
-Uses Firecrawl for web search and URL scraping.
+services/search.py — web search and URL scraping via ayn-ai-proxy
+
+Routes through ayn-ai-proxy edge function so FIRECRAWL_API_KEY
+stays in Supabase secrets — Railway never needs it.
+
+Proxy routes:
+  POST /ayn-ai-proxy/search  → Firecrawl search
+  POST /ayn-ai-proxy/scrape  → Firecrawl URL scraper
 """
 import re
 import httpx
-from core.config import FIRECRAWL_API_KEY
+from core.config import PROXY_URL, PROXY_SECRET, SUPABASE_SERVICE_KEY
 
-FIRECRAWL_API = "https://api.firecrawl.dev/v1"
 CONTENT_GUARD = "SEARCH_RESULT_BELOW — summarize naturally, never quote verbatim:"
+
+PROXY_HEADERS = {
+    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+    "x-proxy-secret": PROXY_SECRET,
+    "Content-Type": "application/json",
+}
 
 
 def needs_web_lookup(msg: str) -> bool:
@@ -38,24 +49,25 @@ def needs_web_lookup(msg: str) -> bool:
 
 
 async def search_web(query: str, limit: int = 5) -> str:
-    """Search web via Firecrawl. Returns formatted text for prompt injection."""
-    if not FIRECRAWL_API_KEY:
-        return "Web search not configured."
+    """Search web via ayn-ai-proxy → Firecrawl. FIRECRAWL_API_KEY stays in Supabase."""
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             r = await client.post(
-                f"{FIRECRAWL_API}/search",
-                headers={"Authorization": f"Bearer {FIRECRAWL_API_KEY}", "Content-Type": "application/json"},
+                f"{PROXY_URL}/search",
+                headers=PROXY_HEADERS,
                 json={"query": query, "limit": limit, "scrapeOptions": {"formats": ["markdown"]}},
             )
         if not r.is_success:
-            return "Search failed."
+            print(f"[search] proxy error {r.status_code}: {r.text[:100]}")
+            return "Search unavailable."
         data = r.json()
         results = data.get("data", [])
         if not results:
             return "No search results found."
-        lines = [f"- {res.get('title', '')}: {(res.get('description', '') or '')[:300]} ({res.get('url', '')})"
-                 for res in results[:3]]
+        lines = [
+            f"- {res.get('title', '')}: {(res.get('description', '') or '')[:300]} ({res.get('url', '')})"
+            for res in results[:3]
+        ]
         return "\n".join(lines)
     except Exception as e:
         print(f"[search] error: {e}")
@@ -63,17 +75,15 @@ async def search_web(query: str, limit: int = 5) -> str:
 
 
 async def scrape_url(url: str) -> str | None:
-    """Scrape a URL and return markdown content for prompt injection."""
-    if not FIRECRAWL_API_KEY:
-        return None
+    """Scrape URL via ayn-ai-proxy → Firecrawl. FIRECRAWL_API_KEY stays in Supabase."""
     try:
         clean_url = url.rstrip(".,;!?")
         if not clean_url.startswith("http"):
             clean_url = f"https://{clean_url}"
         async with httpx.AsyncClient(timeout=20.0) as client:
             r = await client.post(
-                f"{FIRECRAWL_API}/scrape",
-                headers={"Authorization": f"Bearer {FIRECRAWL_API_KEY}", "Content-Type": "application/json"},
+                f"{PROXY_URL}/scrape",
+                headers=PROXY_HEADERS,
                 json={"url": clean_url, "formats": ["markdown"], "onlyMainContent": True},
             )
         if not r.is_success:
@@ -83,8 +93,7 @@ async def scrape_url(url: str) -> str | None:
         if not content:
             return None
         title = data.get("metadata", {}).get("title", clean_url)
-        safe = content[:4000]
-        return f"\n\n{CONTENT_GUARD}\nWEBSITE CONTENT (\"{title}\"):\n{safe}\n\nAnswer based on this content."
+        return f"\n\n{CONTENT_GUARD}\nWEBSITE CONTENT (\"{title}\"):\n{content[:4000]}\n\nAnswer based on this content."
     except Exception as e:
         print(f"[scrape] error: {e}")
         return None
