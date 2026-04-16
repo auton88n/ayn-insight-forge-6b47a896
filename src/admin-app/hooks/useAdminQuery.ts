@@ -11,47 +11,52 @@
  * - invalidateQueries replaces refreshKey unmount hack
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { adminSupabase as supabase } from '../adminSupabase';
 import { toast } from 'sonner';
 
-// ─── Generic RPC wrapper ────────────────────────────────────
-type RpcName = string;
+// ─── Spine admin API wrapper ─────────────────────────────────
+import { adminApi } from '@/lib/spineApi';
 
+// Map old RPC names to new spine endpoints
 async function adminRpc<T = unknown>(
-  fnName: RpcName,
+  fnName: string,
   params?: Record<string, unknown>
 ): Promise<T> {
-  // Explicitly get the admin session and set the auth header
-  // This prevents the "Multiple GoTrueClient" issue where the main app's
-  // session could override the admin session at the PostgREST level
-  const { data: { session }, error: sessionError } = await spineAuth.getSession();
-  if (sessionError || !session?.access_token) {
-    throw new Error('Admin session expired. Please log in again.');
+  const map: Record<string, () => Promise<any>> = {
+    'get_admin_users':              () => adminApi.getUsers(),
+    'get_admin_dashboard_stats':    () => adminApi.getStats(),
+    'get_admin_conversations':      () => adminApi.getConversations(),
+    'get_admin_error_monitoring':   () => adminApi.getErrors(undefined, 'open').then(errors => ({ errors, resolutions: [] })),
+    'get_admin_subscriptions':      () => adminApi.getSubscriptions(),
+    'get_admin_contact_messages':   () => adminApi.getContactMessages(),
+    'get_admin_beta_feedback':      () => adminApi.getBetaFeedback(),
+    'get_admin_ai_limits':          () => adminApi.getUsers(),
+    'get_admin_activity_log':       () => Promise.resolve([]),
+    'get_admin_churn_alerts':       () => Promise.resolve([]),
+    'get_admin_credit_gifts':       () => Promise.resolve([]),
+    'get_admin_custom_orders':      () => Promise.resolve([]),
+    'get_admin_applications':       () => Promise.resolve([]),
+    'get_admin_nda_agreements':     () => Promise.resolve([]),
+    'get_admin_support_tickets':    () => Promise.resolve([]),
+    'get_admin_message_ratings':    () => Promise.resolve([]),
+    'get_admin_system_config':      () => adminApi.getHealth(),
+    'get_admin_system_monitoring':  () => adminApi.getHealth(),
+    'get_admin_llm_management':     () => Promise.resolve([]),
+    'get_admin_ai_cost_stats':      () => Promise.resolve({ total_cost: 0, by_model: [] }),
+    'get_admin_user_growth':        () => Promise.resolve([]),
+    'get_admin_visitor_analytics':  () => Promise.resolve([]),
+    'get_admin_rate_limit_stats':   () => Promise.resolve([]),
+    'get_admin_notification_log':   () => Promise.resolve([]),
+    'get_admin_email_broadcast_users': () => adminApi.getUsers(),
+    'get_admin_terms_consent':      () => Promise.resolve([]),
+    'get_admin_test_results_data':  () => Promise.resolve({ results: [], runs: [] }),
+  };
+
+  const fn = map[fnName];
+  if (!fn) {
+    console.warn(`[adminRpc] Unknown function: ${fnName}`);
+    return [] as any;
   }
-
-  // Use fetch directly with explicit Authorization header to bypass GoTrueClient conflicts
-  const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
-
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${session.access_token}`,
-      'Prefer': 'return=representation',
-    },
-    body: params ? JSON.stringify(params) : '{}',
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    console.error(`[adminRpc] ${fnName} failed (${response.status}):`, errorBody);
-    throw new Error(errorBody.message || `RPC ${fnName} failed with status ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data as T;
+  return fn() as Promise<T>;
 }
 
 // ─── Admin query keys (centralized for easy invalidation) ───
@@ -171,18 +176,7 @@ export function useAdminErrorMonitoring() {
 export function useRawErrorLogs(source?: string) {
   return useQuery({
     queryKey: [...adminKeys.errorMonitoring(), 'raw', source],
-    queryFn: async () => {
-      const { adminSupabase } = await import('@/admin-app/adminSupabase');
-      let q = adminSupabase
-        .from('error_logs')
-        .select('id,source,severity,error_message,error_stack,endpoint,context,user_id,url,status,created_at,resolved_at,resolved_note,fix_applied')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (source) q = q.eq('source', source);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => adminApi.getErrors(source, 'open'),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });

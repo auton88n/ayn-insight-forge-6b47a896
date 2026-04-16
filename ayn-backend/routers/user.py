@@ -82,3 +82,79 @@ async def accept_terms(req: TermsRequest, user_id: str = Depends(get_user_id)):
             updated_at = NOW()
     """, user_id)
     return {"ok": True}
+
+
+# ── Pinned Chats ──────────────────────────────────────────────────────────────
+
+@router.get("/pinned-chats")
+async def get_pinned_chats(user_id: str = Depends(get_user_id)):
+    rows = await fetch("""
+        SELECT p.session_id, COALESCE(p.title, cs.title, 'Chat') as title, p.pinned_at
+        FROM pinned_chats p
+        LEFT JOIN chat_sessions cs ON cs.session_id = p.session_id
+        WHERE p.user_id = $1
+        ORDER BY p.pinned_at DESC
+    """, user_id)
+    return rows or []
+
+
+class PinChatRequest(BaseModel):
+    session_id: str
+    title: str = ""
+
+@router.post("/pinned-chats")
+async def pin_chat(req: PinChatRequest, user_id: str = Depends(get_user_id)):
+    await execute("""
+        INSERT INTO pinned_chats (user_id, session_id, title, pinned_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (user_id, session_id) DO NOTHING
+    """, user_id, req.session_id, req.title)
+    return {"ok": True}
+
+
+@router.delete("/pinned-chats/{session_id}")
+async def unpin_chat(session_id: str, user_id: str = Depends(get_user_id)):
+    await execute(
+        "DELETE FROM pinned_chats WHERE user_id = $1 AND session_id = $2",
+        user_id, session_id
+    )
+    return {"ok": True}
+
+
+# ── Avatar Upload ─────────────────────────────────────────────────────────────
+import os, uuid, base64
+from fastapi import UploadFile, File as FastAPIFile
+
+AVATAR_DIR = "/tmp/avatars"
+os.makedirs(AVATAR_DIR, exist_ok=True)
+
+@router.post("/avatar")
+async def upload_avatar(file: UploadFile = FastAPIFile(...), user_id: str = Depends(get_user_id)):
+    # Save file
+    ext = file.filename.split('.')[-1] if '.' in (file.filename or '') else 'jpg'
+    filename = f"{user_id}.{ext}"
+    path = f"{AVATAR_DIR}/{filename}"
+    content = await file.read()
+    with open(path, 'wb') as f:
+        f.write(content)
+    
+    # Store as base64 data URL in user record
+    b64 = base64.b64encode(content).decode()
+    mime = file.content_type or 'image/jpeg'
+    avatar_url = f"data:{mime};base64,{b64[:100]}..."  # truncated for DB
+    
+    # Just store a reference - in production use R2/S3
+    await execute(
+        "UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2",
+        f"/avatars/{filename}", user_id
+    )
+    return {"avatar_url": f"/avatars/{filename}", "ok": True}
+
+
+@router.get("/avatar/{filename}")
+async def get_avatar(filename: str):
+    from fastapi.responses import FileResponse
+    path = f"{AVATAR_DIR}/{filename}"
+    if not os.path.exists(path):
+        raise HTTPException(404, "Avatar not found")
+    return FileResponse(path)

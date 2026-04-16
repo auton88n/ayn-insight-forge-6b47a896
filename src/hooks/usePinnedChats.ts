@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useEffect } from 'react';
 
 interface UsePinnedChatsReturn {
