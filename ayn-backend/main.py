@@ -18,6 +18,7 @@ Endpoints:
 
 import logging
 from core.database import get_pool, close_pool
+from core.migrate import run_migrations
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,6 +55,13 @@ async def lifespan(app: FastAPI):
         log.info("✅ Gemini client ready")
     except Exception as e:
         log.warning(f"⚠️  Gemini client issue: {e}")
+
+    # Run database migrations
+    try:
+        pool = await get_pool()
+        await run_migrations(pool)
+    except Exception as e:
+        log.warning(f"Migration warning: {e}")
 
     log.info("✅ AYN Backend ready")
     yield
