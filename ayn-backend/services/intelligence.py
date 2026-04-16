@@ -240,6 +240,7 @@ Return JSON array:
         for pred in predictions[:3]:
             db.table("ayn_world_predictions").insert({
                 **pred,
+                "horizon": pred.get("horizon", "3_months"),
                 "status": "active",
                 "signal_quality": 70,
                 "created_at": now,

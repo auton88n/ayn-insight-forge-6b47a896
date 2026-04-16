@@ -76,6 +76,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Global exception handler — log everything ────────────────────────────────
+from fastapi import Request as FastAPIRequest
+from fastapi.responses import JSONResponse as FJSONResponse
+from fastapi.exceptions import RequestValidationError
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: FastAPIRequest, exc: RequestValidationError):
+    log.error(f"[VALIDATION] {request.url.path} — {exc.errors()}")
+    return FJSONResponse({"error": "Validation error", "detail": str(exc.errors())}, status_code=422)
+
+@app.exception_handler(Exception)
+async def global_error_handler(request: FastAPIRequest, exc: Exception):
+    log.error(f"[ERROR] {request.url.path} — {type(exc).__name__}: {exc}")
+    return FJSONResponse({"error": str(exc)}, status_code=500)
+
 # ── Register routers ──────────────────────────────────────────────────────────
 from routers.chat import router as chat_router
 from routers.intelligence import router as intel_router

@@ -27,12 +27,13 @@ router = APIRouter()
 
 
 class ChatBody(BaseModel):
-    messages: list[dict]
+    model_config = {"extra": "allow"}  # accept any extra fields React sends
+
+    messages: list[dict] = []
     intent: Optional[str] = None
     context: dict = {}
     stream: bool = True
     sessionId: Optional[str] = None
-    _internal_warm: bool = False
 
 
 # ── AYN tool definitions (same as toolHandler.ts) ─────────────────────────────
@@ -141,7 +142,7 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
     log = logging.getLogger("ayn.chat")
 
     # Warm ping
-    if body._internal_warm:
+    if getattr(body, "_internal_warm", False) or getattr(body, "model_extra", {}).get("_internal_warm"):
         return {"status": "warm"}
 
     db = get_db()
