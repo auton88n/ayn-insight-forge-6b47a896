@@ -246,3 +246,54 @@ async def reset_password(req: ResetPasswordRequest):
     await execute("DELETE FROM user_sessions WHERE user_id = $1", record["user_id"])
 
     return {"ok": True, "message": "Password reset successfully — please log in"}
+
+
+class UpdatePasswordRequest(BaseModel):
+    password: str
+
+@router.post("/update-password")
+async def update_password(req: UpdatePasswordRequest, user_id: str = Depends(get_user_id)):
+    if len(req.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    await execute(
+        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+        hash_password(req.password), user_id
+    )
+    return {"ok": True}
+
+
+class MigrateRequest(BaseModel):
+    email: str
+    user_id: str  # Supabase user ID to preserve
+    first_name: str = ""
+    last_name: str = ""
+
+@router.post("/migrate")
+async def migrate_user(req: MigrateRequest):
+    """Auto-migrate a Supabase user into Railway DB (no password needed).
+    Called when existing users first hit the new system."""
+    existing = await fetchval("SELECT id FROM users WHERE id = $1::uuid OR email = $2", req.user_id, req.email.lower())
+    if existing:
+        # Already exists - return token
+        user = await fetchrow("SELECT id, email, first_name, last_name FROM users WHERE email = $1", req.email.lower())
+    else:
+        # Create user with random password (they'll use forgot-password to set one)
+        import secrets
+        user_id = await fetchval("""
+            INSERT INTO users (id, email, password_hash, first_name, last_name, created_at, updated_at)
+            VALUES ($1::uuid, $2, $3, $4, $5, NOW(), NOW())
+            RETURNING id
+        """, req.user_id, req.email.lower(), hash_password(secrets.token_hex(32)), req.first_name, req.last_name)
+        await _init_user_limits(str(user_id))
+        await _init_user_subscription(str(user_id))
+        user = await fetchrow("SELECT id, email, first_name, last_name FROM users WHERE id = $1::uuid", req.user_id)
+
+    access_token = create_access_token(str(user["id"]), user["email"])
+    refresh_token = await create_refresh_token(str(user["id"]))
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {"id": str(user["id"]), "email": user["email"],
+                 "first_name": user["first_name"] or "", "last_name": user["last_name"] or ""}
+    }

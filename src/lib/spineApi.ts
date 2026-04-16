@@ -1,6 +1,6 @@
 /**
- * spineApi.ts — API client for spine.aynn.io
- * Replaces all direct Supabase REST calls for chats, messages, user data
+ * spineApi.ts — single API client for all spine.aynn.io calls
+ * Replaces ALL supabase.from() and supabaseApi calls
  */
 import { AYN_BACKEND_URL } from '@/config';
 import { tokenStore } from './spineAuth';
@@ -19,33 +19,29 @@ async function req<T>(method: string, path: string, body?: object): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || err.error || `Request failed: ${res.status}`);
+    throw new Error(err.detail || err.error || `${res.status}`);
   }
   return res.json();
 }
 
 export const spineApi = {
-  // ── Chats ────────────────────────────────────────────────────────────────
-  listChats: () => req<Array<{ session_id: string; title: string; updated_at: string }>>('GET', '/chats'),
-  
-  getMessages: (sessionId: string) => req<Array<any>>('GET', `/chats/${sessionId}`),
-  
-  saveMessage: (sessionId: string, data: { role: string; content: string; title?: string; intent_type?: string; model_used?: string }) =>
-    req('POST', `/chats/${sessionId}`, data),
-  
-  deleteSession: (sessionId: string) => req('DELETE', `/chats/${sessionId}`),
-  
-  getLatestSessionId: () => req<{ session_id: string | null }>('GET', '/chats/latest/session-id'),
+  // Auth/User
+  getMe:       () => req<any>('GET', '/auth/me'),
+  getLimits:   () => req<any>('GET', '/user/limits'),
+  getProfile:  () => req<any>('GET', '/user/profile'),
+  acceptTerms: (d: any) => req('POST', '/user/terms', d),
 
-  // ── User ─────────────────────────────────────────────────────────────────
-  getMe: () => req<any>('GET', '/auth/me'),
+  // Chats
+  listChats:        () => req<any[]>('GET', '/chats'),
+  getMessages:      (sid: string) => req<any[]>('GET', `/chats/${sid}`),
+  saveMessage:      (sid: string, d: any) => req('POST', `/chats/${sid}`, d),
+  deleteSession:    (sid: string) => req('DELETE', `/chats/${sid}`),
+  getLatestSession: () => req<{ session_id: string | null }>('GET', '/chats/latest/session-id'),
 
-  // ── User ─────────────────────────────────────────────────────────────────
-  getLimits: () => req<any>('GET', '/user/limits'),
-  getProfile: () => req<any>('GET', '/user/profile'),
-  acceptTerms: (data: { privacy: boolean; terms: boolean; ai_disclaimer: boolean }) =>
-    req('POST', '/user/terms', data),
-
-  // ── Intelligence ─────────────────────────────────────────────────────────
+  // World Intelligence
   getAllIntelligence: () => req<any>('GET', '/intelligence/all'),
+
+  // Predictions (vote)
+  votePrediction: (predId: string, vote: string, userId: string) =>
+    req('POST', `/intelligence/vote`, { pred_id: predId, vote, user_id: userId }),
 };

@@ -220,9 +220,9 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
       try {
         // PARALLEL QUERIES - lightweight: session ID + chat_sessions metadata only
         const [latestSessionData, sessionsData] = await Promise.all([
-          // Query 1: Get latest session_id from spine
-          spineApi.getLatestSessionId(),
-          // Query 2: Get chat sessions from spine
+          // Query 1: Get latest session_id
+          spineApi.getLatestSession(),
+          // Query 2: Get chat sessions
           spineApi.listChats()
         ]);
         
@@ -230,8 +230,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         
         // Set current session ID - ONLY if not already set
         if (!currentSessionId) {
-          const latestId = (latestSessionData as any)?.session_id || 
-                          (Array.isArray(latestSessionData) && latestSessionData[0]?.session_id);
+          const latestId = (latestSessionData as any)?.session_id || null;
           if (latestId) {
             setCurrentSessionId(latestId);
           } else {
