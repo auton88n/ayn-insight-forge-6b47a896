@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { API_ENDPOINTS } from '@/constants/apiEndpoints';
 import type { ChartAnalysisResult, ChartAnalyzerStep } from '@/types/chartAnalyzer.types';
 
@@ -32,7 +33,7 @@ export function useChartAnalyzer() {
       const base64 = await fileToBase64(file);
 
       setStep('analyzing');
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (!session?.access_token) throw new Error('Please log in to use Chart Analyzer');
 
       const res = await supabase.functions.invoke(API_ENDPOINTS.ANALYZE_TRADING_CHART, {

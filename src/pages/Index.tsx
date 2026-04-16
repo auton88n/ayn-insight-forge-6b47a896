@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import type { User, Session } from '@supabase/supabase-js';
 import { AYNLoader, DashboardLoader } from '@/components/ui/page-loader';
 import { lazy, Suspense } from 'react';
@@ -31,7 +32,7 @@ const Index = () => {
 
     const initializeAuth = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data } = await spineAuth.getSession();
         if (mounted && data.session) {
           setSession(data.session);
           setUser(data.session.user);
@@ -49,7 +50,7 @@ const Index = () => {
     initializeAuth();
 
     // Listen for auth changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = spineAuth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
 

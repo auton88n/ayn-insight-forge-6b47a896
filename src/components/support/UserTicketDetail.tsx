@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -115,7 +116,7 @@ export function UserTicketDetail({ ticketId, onBack }: UserTicketDetailProps) {
 
     setSending(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       const { error } = await supabase

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { cn } from '@/lib/utils';
 
 
@@ -149,7 +150,7 @@ function WorldSimulator({ signals }: { signals: any[] }) {
   const runSim = async (signalId?: string) => {
     setSimulating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       const token = session?.access_token || '';
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/ayn-world-simulator`, {
         method: 'POST',

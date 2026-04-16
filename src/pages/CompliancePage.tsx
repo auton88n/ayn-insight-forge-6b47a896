@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ClipboardCheck, HardHat } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { SEO } from '@/components/shared/SEO';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,13 +27,13 @@ const CompliancePage = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
       if (user) setUserId(user.id);
       setIsCheckingAuth(false);
     };
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = spineAuth.onAuthStateChange((event, session) => {
       setUserId(session?.user?.id);
     });
 

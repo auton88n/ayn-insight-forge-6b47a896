@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { Lock, Loader2, Eye, EyeOff, AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { SEO } from '@/components/shared/SEO';
@@ -57,7 +58,7 @@ const ResetPassword = () => {
 
     // Set up auth state listener FIRST — this catches the PASSWORD_RECOVERY
     // event fired by Supabase's auto detectSessionInUrl (PKCE) or hash detection.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = spineAuth.onAuthStateChange(
       (event, currentSession) => {
         console.log('[ResetPassword] Auth event:', event);
         if (!isMounted) return;
@@ -95,7 +96,7 @@ const ResetPassword = () => {
     // the code was already exchanged by detectSessionInUrl)
     const checkExistingSession = async () => {
       try {
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        const { data: { session: existingSession } } = await spineAuth.getSession();
         if (!isMounted) return;
 
         if (existingSession) {
@@ -151,7 +152,7 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await spineAuth.updateUser({ password: newPassword });
       if (error) throw error;
 
       toast({ title: 'Success', description: 'Your password has been updated successfully' });
@@ -181,7 +182,7 @@ const ResetPassword = () => {
 
     setRequestingLink(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      const { error } = await spineAuth.resetPasswordForEmail(normalizedEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;

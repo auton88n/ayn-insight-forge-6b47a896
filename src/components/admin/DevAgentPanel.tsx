@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -80,7 +81,7 @@ export function DevAgentPanel() {
   useEffect(() => { loadConversations(); loadSkills(); }, []);
 
   const serviceHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     return {
       Authorization: `Bearer ${session?.access_token ?? ''}`,
       apikey: session?.access_token ?? '',
@@ -89,7 +90,7 @@ export function DevAgentPanel() {
   };
 
   const loadConversations = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?order=updated_at.desc&limit=50`, {
       headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
     });
@@ -97,7 +98,7 @@ export function DevAgentPanel() {
   };
 
   const loadSkills = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_skills?order=category`, {
       headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
     });
@@ -105,7 +106,7 @@ export function DevAgentPanel() {
   };
 
   const loadConversation = async (id: string, title: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_messages?conversation_id=eq.${id}&order=created_at`, {
       headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
     });
@@ -119,7 +120,7 @@ export function DevAgentPanel() {
   };
 
   const createConversation = async (firstMsg: string): Promise<string> => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     const title = firstMsg.slice(0, 60) + (firstMsg.length > 60 ? '...' : '');
     const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations`, {
       method: 'POST',
@@ -131,7 +132,7 @@ export function DevAgentPanel() {
   };
 
   const saveMessage = async (cid: string, role: string, content: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     await fetch(`${SUPA_URL}/rest/v1/ayn_dev_messages`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
@@ -146,7 +147,7 @@ export function DevAgentPanel() {
   };
 
   const toggleSkill = async (id: string, enabled: boolean) => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     await fetch(`${SUPA_URL}/rest/v1/ayn_dev_skills?id=eq.${id}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
@@ -156,7 +157,7 @@ export function DevAgentPanel() {
   };
 
   const deleteConversation = async (id: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?id=eq.${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
@@ -216,7 +217,7 @@ export function DevAgentPanel() {
     const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       const token = session?.access_token ?? '';
 
       // Get enabled skill contents to inject

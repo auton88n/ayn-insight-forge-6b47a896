@@ -11,6 +11,7 @@ import AISupportChat from '@/components/support/AISupportChat';
 import TicketForm from '@/components/support/TicketForm';
 import FAQBrowser from '@/components/support/FAQBrowser';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { SEO, createBreadcrumbSchema, createFAQSchema } from '@/components/shared/SEO';
@@ -57,7 +58,7 @@ const Support = () => {
   const fetchTickets = async () => {
     setIsLoadingTickets(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase

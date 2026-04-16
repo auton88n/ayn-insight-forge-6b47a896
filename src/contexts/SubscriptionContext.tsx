@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 
@@ -116,7 +117,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
 
     const verifySubscription = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await spineAuth.getSession();
         if (!session) {
           setState(prev => ({
             ...prev,
@@ -265,7 +266,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
   useEffect(() => {
     checkSubscription();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = spineAuth.onAuthStateChange(() => {
       checkSubscription();
     });
 
@@ -279,7 +280,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupRealtime = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (!session?.user?.id) return;
 
       channel = supabase

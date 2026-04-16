@@ -24,7 +24,7 @@ async function adminRpc<T = unknown>(
   // Explicitly get the admin session and set the auth header
   // This prevents the "Multiple GoTrueClient" issue where the main app's
   // session could override the admin session at the PostgREST level
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  const { data: { session }, error: sessionError } = await spineAuth.getSession();
   if (sessionError || !session?.access_token) {
     throw new Error('Admin session expired. Please log in again.');
   }

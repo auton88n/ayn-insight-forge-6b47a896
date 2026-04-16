@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 import { getHandlingMessage, RATE_LIMIT_MESSAGE } from '@/lib/errorMessages';
 
@@ -76,7 +77,7 @@ export const useEngineeringAIAgent = ({
   // Get current user
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
       setUserId(user?.id || null);
     };
     getUser();

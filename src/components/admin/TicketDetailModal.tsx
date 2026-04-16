@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { spineAuth } from '@/lib/spineAuth';
 import { motion } from 'framer-motion';
 import { 
   X, 
@@ -101,7 +102,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
     setIsSending(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
 
       const { error } = await supabase
         .from('ticket_messages')

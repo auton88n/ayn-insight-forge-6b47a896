@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { Loader2, Building, User, KeyRound, CheckCircle2, ArrowLeft, Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -121,7 +121,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
       // Call Supabase's built-in reset (required - contains the actual reset link)
       localStorage.setItem('password_reset_email', email.trim().toLowerCase());
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await spineAuth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
@@ -185,7 +185,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   };
 
   const handleGoogleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await spineAuth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
@@ -213,7 +213,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await spineAuth.signInWithPassword({
         email,
         password,
       });
@@ -223,7 +223,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         const code = (error as { code?: string }).code;
         if (code === 'email_not_confirmed' || /email not confirmed/i.test(error.message)) {
           try {
-            const { error: resendError } = await supabase.auth.resend({
+            const { error: resendError } = await spineAuth.resend({
               type: 'signup',
               email,
               options: { emailRedirectTo: `${window.location.origin}/` }
@@ -316,7 +316,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await spineAuth.signUp({
         email,
         password,
         options: {

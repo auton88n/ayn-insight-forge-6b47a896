@@ -1,5 +1,6 @@
 // Thin wrapper that embeds AdminCustomOrders into the admin panel tab
 // Strips the standalone page's back button/navigation
+import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
@@ -233,7 +234,7 @@ export const CustomOrders = () => {
   const handleSendEmail = async (order: CustomOrder) => {
     setSendingEmail(order.id);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       const token = session?.access_token || SUPABASE_ANON_KEY;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
         method: 'POST',
@@ -255,7 +256,7 @@ export const CustomOrders = () => {
   const handleGeneratePdf = async (order: CustomOrder) => {
     setGeneratingPdf(order.id);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       const token = session?.access_token || SUPABASE_ANON_KEY;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-contract-pdf`, {
         method: 'POST',
@@ -291,7 +292,7 @@ export const CustomOrders = () => {
   const handleSendPdf = async (order: CustomOrder) => {
     setSendingPdf(order.id);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       const token = session?.access_token || SUPABASE_ANON_KEY;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-pdf`, {
         method: 'POST',

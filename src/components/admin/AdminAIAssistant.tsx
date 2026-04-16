@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { spineAuth } from '@/lib/spineAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -211,7 +212,7 @@ export function AdminAIAssistant() {
     setIsLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (!session) {
         toast.error('Not authenticated');
         setIsLoading(false);
@@ -261,7 +262,7 @@ export function AdminAIAssistant() {
 
   const executeAction = async (action: { type: string; params: string }) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (!session) {
         toast.error('Not authenticated');
         return;

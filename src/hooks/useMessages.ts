@@ -85,7 +85,7 @@ export const useMessages = (
     let latestToken = session.access_token;
     try {
       const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      const { data: { session: freshSession } } = await spineAuth.getSession();
       if (freshSession?.access_token) latestToken = freshSession.access_token;
     } catch { /* ignore */ }
 

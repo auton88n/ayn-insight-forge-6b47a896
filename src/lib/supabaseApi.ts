@@ -5,6 +5,7 @@
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 
 interface FetchOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -53,7 +54,7 @@ export const supabaseApi = {
     // Get freshest token
     let activeToken = token;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (session?.access_token) activeToken = session.access_token;
     } catch { /* ignore */ }
 
@@ -71,7 +72,7 @@ export const supabaseApi = {
       if (response.status === 401) {
         // Force refresh if 401
         try {
-          const { data, error } = await supabase.auth.refreshSession();
+          const { data, error } = await spineAuth.refreshSession();
           if (!error && data.session?.access_token) {
             const retryResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
               method: 'POST',
@@ -125,7 +126,7 @@ export const supabaseApi = {
     // Get freshest token
     let activeToken = token;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (session?.access_token) activeToken = session.access_token;
     } catch { /* ignore */ }
 
@@ -150,7 +151,7 @@ export const supabaseApi = {
       if (response.status === 401) {
         // Force refresh and retry on 401 Unauthorized
         try {
-          const { data, error } = await supabase.auth.refreshSession();
+          const { data, error } = await spineAuth.refreshSession();
           if (!error && data.session?.access_token) {
             response = await makeRequest(data.session.access_token);
           }

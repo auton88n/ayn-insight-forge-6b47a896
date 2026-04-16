@@ -213,7 +213,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
 
       // Import supabase client only for signOut
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.auth.signOut();
+      await spineAuth.signOut();
       
       toast({
         title: 'Success',

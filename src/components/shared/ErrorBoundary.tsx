@@ -56,7 +56,7 @@ export class ErrorBoundary extends Component<Props, State> {
     try {
       const { supabase } = await import('@/integrations/supabase/client');
       const { SUPABASE_URL } = await import('@/config');
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
 
       // Write directly to error_logs table
       await (supabase as any).from('error_logs').insert({

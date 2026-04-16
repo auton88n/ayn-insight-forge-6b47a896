@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { supabaseApi } from '@/lib/supabaseApi';
 
 import { useToast } from '@/hooks/use-toast';
@@ -69,7 +70,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
       }
 
       // Sign out locally and redirect
-      await supabase.auth.signOut();
+      await spineAuth.signOut();
       
       toast({
         title: t('common.success'),

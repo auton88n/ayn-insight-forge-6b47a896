@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { spineAuth } from '@/lib/spineAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +53,7 @@ export const CreditGiftModal = ({ isOpen, onClose, user, onSuccess }: CreditGift
 
     setIsSubmitting(true);
     try {
-      const currentUser = await supabase.auth.getUser();
+      const currentUser = await spineAuth.getUser();
       const { error } = await supabase.rpc('add_bonus_credits', {
         p_user_id: user.user_id,
         p_amount: amount,

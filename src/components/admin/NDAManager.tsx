@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
@@ -230,7 +231,7 @@ export const NDAManager = () => {
   const handleSend = async (nda: NDA) => {
     setSending(nda.id);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       const token = session?.access_token || SUPABASE_ANON_KEY;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-email`, {
         method: 'POST',
@@ -498,7 +499,7 @@ export const NDAManager = () => {
                   </Button>
                   {viewingNda.admin_signature_url && viewingNda.client_signature_url && (
                     <Button onClick={async () => {
-                      const { data: { session } } = await supabase.auth.getSession();
+                      const { data: { session } } = await spineAuth.getSession();
                       const token = session?.access_token || SUPABASE_ANON_KEY;
                       const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-completion`, {
                         method: 'POST',

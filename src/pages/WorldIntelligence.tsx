@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import {
   ArrowLeft, RefreshCw, Globe2, Radio, Activity,
   ChevronRight, Shield, Building2, Flame, Target,
@@ -278,7 +279,7 @@ export default function WorldIntelligence() {
       if (!exists) setAgentActiveConvId(agentConversations[0].id);
     }
   }, [agentConversations]);
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
+  useEffect(() => { spineAuth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
 
   const fetchSnapshot = useCallback(async () => {
     try {

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
 import { validateFile as validateFileSecurity } from '@/lib/fileValidation';
@@ -92,7 +93,7 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
       setUploadProgress(5);
 
       // CRITICAL: Refresh session if token is expiring soon
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await spineAuth.getSession();
       setUploadProgress(10);
       
       if (sessionData?.session) {
@@ -100,7 +101,7 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
         const fiveMinutesFromNow = Math.floor(Date.now() / 1000) + 300;
         
         if (expiresAt && expiresAt < fiveMinutesFromNow) {
-          await supabase.auth.refreshSession();
+          await spineAuth.refreshSession();
         }
       }
       setUploadProgress(15);

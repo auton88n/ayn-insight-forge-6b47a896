@@ -214,7 +214,7 @@ const ResponseCardComponent = ({
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await spineAuth.getUser();
         const rating = type === "up" ? "positive" : "negative";
         const preview = combinedContent.slice(0, 200) + (combinedContent.length > 200 ? "..." : "");
         const { error } = await supabase.from("message_ratings").insert({

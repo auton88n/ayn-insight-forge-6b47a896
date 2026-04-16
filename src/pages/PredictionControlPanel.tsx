@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import {
   ArrowLeft, RefreshCw, CheckCircle2, XCircle, AlertTriangle,
   Clock, TrendingUp, TrendingDown, Eye, Zap, Shield,
@@ -77,7 +78,7 @@ export default function PredictionControlPanel() {
     // Trigger via net.http_post equivalent — use edge function directly
     await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/ayn-prediction-checker`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await spineAuth.getSession()).data.session?.access_token}` },
       body: JSON.stringify({ source: 'admin_manual' })
     }).catch(() => {});
     setTimeout(() => { load(); setRunning(false); }, 45000);

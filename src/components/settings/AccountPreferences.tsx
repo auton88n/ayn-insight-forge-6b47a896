@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
 import { ProfileAvatarUpload } from '@/components/dashboard/ProfileAvatarUpload';
 import { UsageCard } from '@/components/dashboard/UsageCard';
@@ -346,7 +347,7 @@ export const AccountPreferences = ({ userId, userEmail, accessToken }: AccountPr
                   setChangingPassword(true);
                   if (!userEmail) throw new Error('No email found');
                   localStorage.setItem('password_reset_email', userEmail.trim().toLowerCase());
-                  const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+                  const { error } = await spineAuth.resetPasswordForEmail(userEmail, {
                     redirectTo: `${window.location.origin}/reset-password`,
                   });
                   if (error) throw error;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -137,7 +138,7 @@ export default function AdminCustomOrders() {
     setSaving(true);
     try {
       const { subtotal, total } = calc(form.services, form.discount_percent, form.tax_percent);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
       const payload = {
         company_name: form.company_name, company_email: form.company_email,
         contact_person: form.contact_person, company_phone: form.company_phone || null,

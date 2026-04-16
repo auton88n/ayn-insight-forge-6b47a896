@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import type { ChartHistoryItem, ChartHistoryFilter, ChartAnalysisResult } from '@/types/chartAnalyzer.types';
 
 const PAGE_SIZE = 10;
@@ -62,7 +63,7 @@ export function useChartHistory() {
   const fetchHistory = useCallback(async (offset = 0, append = false) => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await spineAuth.getSession();
       if (!session?.user) return;
 
       let query = supabase

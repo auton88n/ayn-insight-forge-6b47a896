@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import { AccountPreferences } from '@/components/settings/AccountPreferences';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
@@ -18,7 +19,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    spineAuth.getSession().then(({ data: { session: currentSession } }) => {
       if (!currentSession?.user) {
         navigate('/');
         return;
@@ -28,7 +29,7 @@ const Settings = () => {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = spineAuth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session?.user) {
         navigate('/');
       }

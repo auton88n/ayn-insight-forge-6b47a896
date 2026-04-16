@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { SUPABASE_URL } from '@/config';
 
 interface AYNMessage {
@@ -133,7 +134,7 @@ export function useAYN(options: UseAYNOptions = {}) {
       const messages: AYNMessage[] = context?.conversationHistory || [];
       messages.push({ role: 'user', content: message });
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await spineAuth.getSession();
       const token = sessionData?.session?.access_token;
 
       if (!token) {

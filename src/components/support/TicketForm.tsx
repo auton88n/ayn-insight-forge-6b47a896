@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 
 interface TicketFormProps {
@@ -38,7 +39,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
 
     try {
       // Get current user if logged in
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await spineAuth.getUser();
 
       // Create ticket
       const ticketData: Record<string, unknown> = {

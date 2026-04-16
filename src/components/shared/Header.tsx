@@ -8,6 +8,7 @@ import { Button, LiquidButton } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navLinks = [
@@ -27,11 +28,11 @@ export const Header = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = spineAuth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    spineAuth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
 
@@ -39,7 +40,7 @@ export const Header = () => {
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await spineAuth.signOut();
     setUser(null);
   };
 

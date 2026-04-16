@@ -92,7 +92,7 @@ export function useMessagePersistence(
         let token = s.access_token;
         try {
           const { supabase } = await import('@/integrations/supabase/client');
-          const { data: { session: fresh } } = await supabase.auth.getSession();
+          const { data: { session: fresh } } = await spineAuth.getSession();
           if (fresh?.access_token) token = fresh.access_token;
         } catch { /* ignore */ }
 
@@ -168,7 +168,7 @@ export function useMessagePersistence(
     let token = s.access_token;
     try {
       const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session: fresh } } = await supabase.auth.getSession();
+      const { data: { session: fresh } } = await spineAuth.getSession();
       if (fresh?.access_token) token = fresh.access_token;
     } catch { /* ignore */ }
 

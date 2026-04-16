@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, lazy, Suspense, useCallback } from 'react';
+import { spineAuth } from '@/lib/spineAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { Session } from '@supabase/supabase-js';
@@ -168,7 +169,7 @@ export const AdminPanel = ({
       {/* Header */}
       <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
-          <Button onClick={() => supabase.auth.signOut()} variant="ghost" size="icon"
+          <Button onClick={() => spineAuth.signOut()} variant="ghost" size="icon"
             className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50"
             title="Sign Out">
             <LogOut className="w-5 h-5" />

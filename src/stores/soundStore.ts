@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { getSoundGenerator, SoundType } from '@/lib/soundGenerator';
 import { supabase } from '@/integrations/supabase/client';
+import { spineAuth } from '@/lib/spineAuth';
 import { supabaseApi } from '@/lib/supabaseApi';
 
 const VOLUME_STORAGE_KEY = 'ayn-sound-volume';
@@ -104,7 +105,7 @@ const loadSoundSettings = async (userId: string, token: string) => {
 // Initial session check + auth listener
 (async () => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await spineAuth.getSession();
     if (session?.user) {
       _userId = session.user.id;
       _accessToken = session.access_token;
@@ -120,7 +121,7 @@ const _authHolder: { sub: { unsubscribe: () => void } | null } = { sub: null };
 // Clean up previous subscription on HMR re-import
 _authHolder.sub?.unsubscribe();
 
-const { data: { subscription: _newAuthSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+const { data: { subscription: _newAuthSub } } = spineAuth.onAuthStateChange(async (event, session) => {
   if (event === 'SIGNED_IN' && session?.user) {
     _userId = session.user.id;
     _accessToken = session.access_token;
