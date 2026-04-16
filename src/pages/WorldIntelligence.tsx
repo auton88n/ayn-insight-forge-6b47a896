@@ -357,15 +357,32 @@ export default function WorldIntelligence() {
     } catch {}
   }, []);
 
+  // Fetch all world intelligence data in one parallel request via spine.aynn.io
+  const fetchAllIntelligence = useCallback(async () => {
+    try {
+      if (AYN_BACKEND_URL) {
+        const r = await fetch(`${AYN_BACKEND_URL}/intelligence/all`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d.snapshot) setSnapshot(d.snapshot);
+          if (d.signals?.length) setSignals(d.signals);
+          if (d.master_predictions?.length) setMasterPreds(d.master_predictions);
+          if (d.country_intel?.length) setCountryIntel(d.country_intel);
+          // consensus_predictions handled by fetchPredictions for now (needs vote data)
+          return;
+        }
+      }
+    } catch {}
+    // Fallback to individual Supabase queries
+    await Promise.all([fetchSnapshot(), fetchSignals(), fetchMasterPreds(), fetchCountryIntel()]);
+  }, [fetchSnapshot, fetchSignals, fetchMasterPreds, fetchCountryIntel]);
+
   useEffect(() => {
-    fetchSnapshot().finally(() => setLoading(false));
-    setTimeout(() => fetchSignals(), 200);
-    setTimeout(() => fetchMasterPreds(), 600);
-    setTimeout(() => fetchPredictions(), 600);
-    setTimeout(() => fetchCountryIntel(), 900);
-    const poll = setInterval(fetchSnapshot, 5 * 60 * 1000);
+    fetchAllIntelligence().finally(() => setLoading(false));
+    fetchPredictions();
+    const poll = setInterval(fetchAllIntelligence, 5 * 60 * 1000);
     return () => clearInterval(poll);
-  }, [fetchSnapshot, fetchSignals, fetchPredictions, fetchCountryIntel]);
+  }, [fetchAllIntelligence, fetchPredictions]);
 
   const handleVote = async (predId: string, vote: 'agree' | 'disagree') => {
     if (!userId || votingId) return;
@@ -440,7 +457,7 @@ export default function WorldIntelligence() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    Promise.all([fetchSnapshot(), fetchSignals(), fetchPredictions(), fetchMasterPreds()]).finally(() => setRefreshing(false));
+    Promise.all([fetchAllIntelligence(), fetchPredictions()]).finally(() => setRefreshing(false));
   };
 
   // ─── Loading state ──────────────────────────────────────────────────────────
