@@ -9,7 +9,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
   const [recentChats, setRecentChats] = useState<ChatHistory[]>([]);
   const [selectedChats, setSelectedChats] = useState<Set<number>>(new Set());
   const [showChatSelection, setShowChatSelection] = useState(false);
-  const [isLoadingChats, setIsLoadingChats] = useState(true);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
   const lastInitializedUserId = useRef<string | null>(null);
   const { toast } = useToast();
 
@@ -220,6 +220,8 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
       }
       
       setIsLoadingChats(true);
+      // Safety timeout — never spin forever
+      const safetyTimer = setTimeout(() => setIsLoadingChats(false), 5000);
       
       try {
         // PARALLEL QUERIES - lightweight: session ID + chat_sessions metadata only
@@ -277,6 +279,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         }
         setRecentChats([]);
       } finally {
+        clearTimeout(safetyTimer);
         if (!controller.signal.aborted) {
           setIsLoadingChats(false);
         }
@@ -286,7 +289,8 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     initializeSession();
     
     return () => controller.abort();
-  }, [userId, session, currentSessionId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, session]);
 
   return {
     currentSessionId,

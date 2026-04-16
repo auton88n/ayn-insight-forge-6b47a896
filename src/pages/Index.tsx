@@ -35,7 +35,7 @@ const Index = () => {
         if (mounted && data.session) {
           setSession(data.session);
           setUser(data.session.user);
-          setLoading(true);
+          // Don't set loading=true — session already known, go straight to dashboard
         }
       } catch {
         // Silent failure - show landing page
@@ -56,7 +56,6 @@ const Index = () => {
         if (event === 'SIGNED_IN' && session) {
           setSession(session);
           setUser(session.user);
-          setLoading(true);
           setIsInitialized(true);
         } else if (event === 'SIGNED_OUT') {
           setSession(null);
