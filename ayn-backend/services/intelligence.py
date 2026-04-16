@@ -192,7 +192,6 @@ Focus on REAL current events that matter for business and investment decisions."
                 **signal,
                 "status": "active",
                 "created_at": now,
-                "source": "python_intelligence",
             }).execute()
 
         log.info(f"✅ World signals: {len(signals)} signals generated")
@@ -245,7 +244,6 @@ Return JSON array:
                 "signal_quality": 70,
                 "created_at": now,
                 "expires_at": None,
-                "source": "python_intelligence",
             }).execute()
 
         log.info(f"✅ World intelligence [{domain}]: {len(predictions)} predictions")
