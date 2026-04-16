@@ -7,7 +7,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
-import { supabaseApi } from '@/lib/supabaseApi';
+import { spineApi } from '@/lib/spineApi';
 
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -32,7 +32,9 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
     if (!userId) return;
 
     try {
-      await supabaseApi.delete(`messages?user_id=eq.${userId}`, token);
+      // Delete all sessions via spine — get list first then delete each
+const sessions = await spineApi.listChats();
+await Promise.all(sessions.map((s: any) => spineApi.deleteSession(s.session_id)));
 
       toast({
         title: t('common.success'),
