@@ -122,8 +122,8 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
 
 
-@app.post("/chat-test")
-async def chat_test(request: dict = None):
+@app.get("/chat-test")
+async def chat_test():
     """No-auth test endpoint — confirm LLM is working."""
     from core.llm import call_with_fallback
     result = await call_with_fallback(
