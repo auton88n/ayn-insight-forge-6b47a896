@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { supabaseApi } from '@/lib/supabaseApi';
 import { toast } from 'sonner';
 import imageCompression from 'browser-image-compression';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';

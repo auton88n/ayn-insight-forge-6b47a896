@@ -104,10 +104,7 @@ export function useMessagePersistence(
         ? messagesRef.current[0].timestamp.toISOString()
         : new Date().toISOString();
 
-      const data = await supabaseApi.get<any[]>(
-        `messages?user_id=eq.${uid}&session_id=eq.${sid}&created_at=lt.${oldest}&select=id,content,created_at,sender,attachment_url,attachment_name,attachment_type&order=created_at.desc&limit=${PAGE_SIZE}`,
-        s.access_token
-      );
+      const data = await spineApi.getMessages(sid);
 
       if (data && data.length > 0) {
         const older = mapDbMessages(data).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());

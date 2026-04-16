@@ -1,4 +1,3 @@
-import { supabaseApi } from '@/lib/supabaseApi';
 
 /**
  * Generate a simple device fingerprint from browser data

@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
 
 interface UsePinnedChatsReturn {
   pinnedChats: Set<string>;

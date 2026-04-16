@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 

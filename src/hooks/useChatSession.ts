@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabaseApi } from '@/lib/supabaseApi';
 import { spineApi } from '@/lib/spineApi';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatHistory, Message, UseChatSessionReturn } from '@/types/dashboard.types';
@@ -99,22 +98,9 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
 
       if (session) {
         // Delete messages and chat_sessions records in parallel
-        await Promise.all([
-          // Delete messages
-          ...messageIdsToDelete.map(id =>
-            supabaseApi.delete(
-              `messages?id=eq.${id}&user_id=eq.${userId}`,
-              session.access_token
-            )
-          ),
-          // Delete chat_sessions records
-          ...sessionIdsToDelete.map(sessionId =>
-            supabaseApi.delete(
-              `chat_sessions?session_id=eq.${sessionId}&user_id=eq.${userId}`,
-              session.access_token
-            )
-          )
-        ]);
+        await Promise.all(
+          sessionIdsToDelete.map(sessionId => spineApi.deleteSession(sessionId))
+        );
       }
 
       // Clear local state first
@@ -164,16 +150,8 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     
     try {
       // Delete both messages and chat_sessions in parallel
-      await Promise.all([
-        supabaseApi.delete(
-          `messages?user_id=eq.${userId}`,
-          session.access_token
-        ),
-        supabaseApi.delete(
-          `chat_sessions?user_id=eq.${userId}`,
-          session.access_token
-        )
-      ]);
+      const allChats = await spineApi.listChats();
+      await Promise.all(allChats.map((ch: any) => spineApi.deleteSession(ch.session_id)));
 
       // Clear local state
       setRecentChats([]);

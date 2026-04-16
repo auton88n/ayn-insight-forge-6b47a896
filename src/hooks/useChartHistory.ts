@@ -109,7 +109,7 @@ export function useChartHistory() {
 
   const deleteItem = useCallback(async (id: string) => {
     try {
-      const { error } = await supabase.from('chart_analyses').delete().eq('id', id);
+      const { error } = await null;
       if (error) throw error;
       setItems(prev => prev.filter(item => item.id !== id));
       if (selectedItem?.id === id) setSelectedItem(null);

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 import {
   ArrowLeft, RefreshCw, Globe2, Radio, Activity,
@@ -283,78 +282,59 @@ export default function WorldIntelligence() {
 
   const fetchSnapshot = useCallback(async () => {
     try {
-      const { data } = await supabase.from('ayn_market_snapshot').select('snapshot,fetched_at').eq('singleton_key', 1).single();
-      if (data) setSnapshot(data);
+      const d = await spineApi.getAllIntelligence();
+      if (d.snapshot) setSnapshot(d.snapshot);
     } catch {}
   }, []);
 
   const fetchPredictions = useCallback(async () => {
     try {
-      const { data: calibData } = await supabase.from('ayn_accuracy_calibration' as any).select('asset,real_accuracy_pct,reliability_tier,should_show_uncertainty,calibration_factor');
+      const d = await spineApi.getAllIntelligence();
+      const consensus = d.consensus_predictions || [];
+      const calibration = d.calibration || [];
       const calibMap: Record<string, any> = {};
-      for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
-      const { data: consensus } = await supabase.from('ayn_consensus_predictions' as any)
-        .select('id,asset,horizon,target_date,baseline_value,consensus_direction,consensus_pct_change,consensus_confidence,consensus_strength,ayn_reasoning,agreement,fusion_method,boost_factor')
-        .eq('status', 'active').order('consensus_confidence', { ascending: false }).limit(60);
-      const { data: aynPreds } = await supabase.from('ayn_predictions')
-        .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning,generated_by')
-        .eq('status', 'active').in('generated_by', ['ayn_prediction_engine_v10', 'ayn_prediction_engine_v9'])
-        .order('confidence', { ascending: false }).limit(60);
-      const preds = (consensus && consensus.length > 0)
-        ? (consensus as any[]).map(c => ({
-            id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
-            baseline_value: Number(c.baseline_value),
-            predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
-            predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
-            predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
-            predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
-            predicted_pct_change: Number(c.consensus_pct_change),
-            confidence: Number(c.consensus_confidence || 50),
-            calibration: calibMap[c.asset] || null,
-            reasoning: c.ayn_reasoning || '',
-            generated_by: 'consensus', consensus_strength: c.consensus_strength,
-            agreement: c.agreement, fusion_method: c.fusion_method, boost_factor: c.boost_factor,
-            agree_count: 0, disagree_count: 0, user_vote: null,
-          }))
-        : (aynPreds || []).map(p => ({
-            ...p, baseline_value: Number(p.baseline_value), predicted_value: Number(p.predicted_value),
-            predicted_low: Number(p.predicted_low), predicted_high: Number(p.predicted_high),
-            predicted_pct_change: Number(p.predicted_pct_change),
-            predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
-            confidence: Number(p.confidence || 50), calibration: calibMap[p.asset] || null,
-            agree_count: 0, disagree_count: 0, user_vote: null,
-          }));
-      if (!preds.length) return;
-      const { data: voteCounts } = await supabase.from('ayn_prediction_vote_counts' as any).select('prediction_id,agree_count,disagree_count');
-      let userVoteMap: Record<string, 'agree' | 'disagree'> = {};
-      if (userId) {
-        const { data: uv } = await supabase.from('ayn_prediction_votes').select('prediction_id,vote').eq('user_id', userId).in('prediction_id', preds.map(p => p.id));
-        if (uv) userVoteMap = Object.fromEntries(uv.map(v => [v.prediction_id, v.vote as 'agree' | 'disagree']));
-      }
-      const vMap = Object.fromEntries((voteCounts || []).map((v: any) => [v.prediction_id, v]));
-      setPredictions(preds.map(p => ({ ...p, agree_count: vMap[p.id]?.agree_count || 0, disagree_count: vMap[p.id]?.disagree_count || 0, user_vote: (userVoteMap[p.id] || null) as any })));
+      for (const cal of calibration) calibMap[cal.asset] = cal;
+      if (!consensus.length) return;
+      const voteCounts = d.vote_counts || [];
+      const vMap = Object.fromEntries((voteCounts).map((v: any) => [v.prediction_id, v]));
+      const preds = consensus.map((c: any) => ({
+        id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
+        baseline_value: Number(c.baseline_value),
+        predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
+        predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
+        predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
+        predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
+        predicted_pct_change: Number(c.consensus_pct_change),
+        confidence: Number(c.consensus_confidence || 50),
+        calibration: calibMap[c.asset] || null,
+        reasoning: c.ayn_reasoning || '',
+        generated_by: 'consensus',
+        agree_count: vMap[c.id]?.agree_count || 0,
+        disagree_count: vMap[c.id]?.disagree_count || 0,
+        user_vote: null,
+      }));
+      setPredictions(preds);
     } catch (e) { console.error('predictions:', e); }
-  }, [userId]);
+  }, []);
 
   const fetchSignals = useCallback(async () => {
     try {
-      const { data } = await supabase.from('ayn_world_signals').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(30);
-      if (data) setSignals(data as WorldSignal[]);
+      const d = await spineApi.getAllIntelligence();
+      if (d.signals?.length) setSignals(d.signals);
     } catch {}
   }, []);
 
   const fetchMasterPreds = useCallback(async () => {
     try {
-      const { data } = await (supabase.from('ayn_master_predictions' as any)
-        .select('*').order('created_at', { ascending: false }).limit(8) as any);
-      if (data) setMasterPreds(data as MasterPrediction[]);
+      const d = await spineApi.getAllIntelligence();
+      if (d.master_predictions?.length) setMasterPreds(d.master_predictions);
     } catch {}
   }, []);
 
   const fetchCountryIntel = useCallback(async () => {
     try {
-      const { data } = await supabase.from('ayn_country_intelligence').select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities').limit(20);
-      if (data) setCountryIntel(data as CountryIntel[]);
+      const d = await spineApi.getAllIntelligence();
+      if (d.country_intel?.length) setCountryIntel(d.country_intel);
     } catch {}
   }, []);
 
@@ -384,9 +364,9 @@ export default function WorldIntelligence() {
     try {
       const existing = predictions.find(p => p.id === predId);
       if (existing?.user_vote === vote) {
-        await supabase.from('ayn_prediction_votes').delete().eq('prediction_id', predId).eq('user_id', userId);
+        await spineApi.votePrediction(predId, 'remove', userId);
       } else {
-        await supabase.from('ayn_prediction_votes').upsert({ prediction_id: predId, user_id: userId, vote }, { onConflict: 'prediction_id,user_id' });
+        await spineApi.votePrediction(predId, vote, userId);
       }
       await fetchPredictions();
     } finally { setVotingId(null); }
