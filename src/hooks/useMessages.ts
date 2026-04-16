@@ -161,7 +161,7 @@ export const useMessages = (
         method: 'POST',
         signal: controller.signal,
         headers: chatHeaders,
-        body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: !requiresNonStreaming, sessionId })
+        body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: AYN_BACKEND_URL ? false : !requiresNonStreaming, sessionId })
       });
 
       clearTimeout(timeoutId);

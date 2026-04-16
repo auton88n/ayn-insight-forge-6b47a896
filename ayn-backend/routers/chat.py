@@ -275,20 +275,15 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
         except Exception:
             pass
 
-    # Streaming response — return full content as single SSE event
-    # React's parseSSEStream handles both chunked and single-event SSE
-    if body.stream:
-        def stream_sync():
-            payload = json.dumps({"choices": [{"delta": {"content": clean_content}}]})
-            yield f"data: {payload}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(
-            stream_sync(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
-                     "X-Accel-Buffering": "no", "X-Intent": intent}
-        )
+    # Return as plain JSON — React's useMessages handles both streaming and non-streaming
+    # StreamingResponse causes ExceptionGroup crashes in Python 3.12 + Starlette
+    return {
+        "content": clean_content,
+        "model": "AYN",
+        "intent": intent,
+        "provider": first_result.get("provider", "lovable"),
+        "was_fallback": first_result.get("was_fallback", False),
+    }
     # Non-streaming
     return {
         "content": clean_content,
