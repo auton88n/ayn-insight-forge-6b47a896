@@ -137,13 +137,19 @@ def build_system_prompt(intent: str, language: str, user_context: dict, intel_co
 
 @router.post("/chat")
 async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_token)):
+    import logging
+    log = logging.getLogger("ayn.chat")
+
     # Warm ping
     if body._internal_warm:
         return {"status": "warm"}
 
     db = get_db()
     messages = body.messages or []
+    log.info(f"[CHAT] user={user_id[:8] if user_id else '?'} msgs={len(messages)} stream={body.stream}")
+
     if not messages:
+        log.warning("[CHAT] No messages in request")
         return JSONResponse({"error": "No messages"}, status_code=400)
 
     last_message = ""
@@ -203,14 +209,20 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
     tools = AYN_TOOLS if supports_tools else None
 
     # First LLM call (non-streaming if tools enabled)
-    first_result = await call_with_fallback(
-        intent,
-        llm_messages,
-        max_tokens=2000,
-        tools=tools,
-        db=db,
-        user_id=user_id,
-    )
+    log.info(f"[CHAT] calling LLM intent={intent} tools={tools is not None} msgs={len(llm_messages)}")
+    try:
+        first_result = await call_with_fallback(
+            intent,
+            llm_messages,
+            max_tokens=2000,
+            tools=tools,
+            db=db,
+            user_id=user_id,
+        )
+    except Exception as e:
+        log.error(f"[CHAT] LLM call failed: {e}")
+        return JSONResponse({"error": f"LLM error: {str(e)}"}, status_code=500)
+    log.info(f"[CHAT] LLM done provider={first_result.get('provider')} content_len={len(first_result.get('content',''))}")
 
     # Tool execution loop
     if supports_tools and first_result.get("tool_calls"):
@@ -242,6 +254,7 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
         asyncio.create_task(extract_and_save_memories(user_id, response_content))
 
     clean_content = strip_memory_tags(response_content)
+    log.info(f"[CHAT] response ready len={len(clean_content)} stream={body.stream}")
 
     # Save message to DB
     if user_id != "internal" and body.sessionId:
