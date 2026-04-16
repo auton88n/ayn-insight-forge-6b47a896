@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Header
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from core.database import fetch, fetchrow, execute, fetchval
 from core.auth_new import (
