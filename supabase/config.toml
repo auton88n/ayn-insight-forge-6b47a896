@@ -349,3 +349,6 @@ verify_jwt = false
 
 [functions.ayn-agent-society]
 verify_jwt = false
+
+[functions.ayn-ai-proxy]
+verify_jwt = false
