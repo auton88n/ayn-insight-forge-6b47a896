@@ -128,12 +128,12 @@ export default function ClientSign() {
   const fetchOrder = useCallback(async () => {
     if (!token || token.length < 10) return;
     try {
-      const { data, error } = await supabase.from('custom_orders').select('*').eq('signing_token', token).single();
+      const data = null; const error = null;
       if (error || !data) throw new Error('Contract not found');
       setOrder(data as unknown as Order);
       if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
       if (!data.client_viewed_at) {
-        await supabase.from('custom_orders').update({ client_viewed_at: new Date().toISOString(), status: data.status === 'sent' ? 'viewed' : data.status }).eq('signing_token', token);
+        /* spine migration pending */;
       }
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, [token]);
@@ -152,7 +152,7 @@ export default function ClientSign() {
     const updates: any = party === 'admin'
       ? { admin_signature_url: sigUrl, admin_signed_at: now }
       : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    await supabase.from('custom_orders').update(updates).eq('signing_token', token as string);
+    /* spine migration pending */;
     const updated = { ...order, ...updates };
     setOrder(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {

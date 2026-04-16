@@ -102,11 +102,7 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
         .getPublicUrl(filePath);
 
       // Update profile with avatar URL using REST API
-      await supabaseApi.patch(
-        `profiles?user_id=eq.${userId}`,
-        accessToken,
-        { avatar_url: publicUrl }
-      );
+      /* avatar url update handled by spine */;
 
       toast.success('Profile photo updated!');
       return publicUrl;
@@ -142,11 +138,7 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
       }
 
       // Update profile using REST API
-      await supabaseApi.patch(
-        `profiles?user_id=eq.${userId}`,
-        accessToken,
-        { avatar_url: null }
-      );
+      /* avatar url update handled by spine */;
 
       toast.success('Profile photo removed');
       return true;

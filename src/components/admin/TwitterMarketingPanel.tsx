@@ -120,7 +120,7 @@ export const TwitterMarketingPanel = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from('twitter_posts').delete().eq('id', id);
+      const { error } = /* spine */;
       if (error) throw error;
       setPosts((prev) => prev.filter((p) => p.id !== id));
       toast.success('Tweet deleted');

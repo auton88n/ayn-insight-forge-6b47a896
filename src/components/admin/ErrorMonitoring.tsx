@@ -124,13 +124,7 @@ export const ErrorMonitoring = () => {
   }, [rpcData, timeRange]);
 
   const updateResolution = async (pattern: string, status: 'resolved' | 'ignored', note: string) => {
-    const { error } = await supabase.from('error_group_resolutions').upsert({
-      error_pattern: pattern,
-      status,
-      resolution_note: note,
-      resolved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'error_pattern' });
+    const { error } = /* spine */;
 
     if (error) { toast.error('Failed to update: ' + error.message); return; }
 
@@ -141,9 +135,7 @@ export const ErrorMonitoring = () => {
   };
 
   const reopen = async (pattern: string) => {
-    const { error } = await supabase.from('error_group_resolutions')
-      .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
-      .eq('error_pattern', pattern);
+    const { error } = /* spine */;
     if (error) { toast.error('Failed'); return; }
     toast.success('Reopened');
     queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });

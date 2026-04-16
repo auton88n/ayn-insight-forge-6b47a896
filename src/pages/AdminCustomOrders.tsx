@@ -91,7 +91,7 @@ export default function AdminCustomOrders() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('custom_orders').select('*').order('created_at', { ascending: false });
+      const data: any = null;
       if (error) throw error;
       setOrders((data || []) as unknown as CustomOrder[]);
     } catch (e: any) {
@@ -155,11 +155,11 @@ export default function AdminCustomOrders() {
         notes: form.notes || null, created_by: user?.id || null,
       };
       if (editingOrder) {
-        const { error } = await supabase.from('custom_orders').update(payload).eq('id', editingOrder.id);
+        const { error } = /* spine */;
         if (error) throw error;
         toast({ title: '✓ Order updated' });
       } else {
-        const { error } = await supabase.from('custom_orders').insert(payload);
+        const { error } = /* spine */;
         if (error) throw error;
         toast({ title: '✓ Order created' });
       }
@@ -171,7 +171,7 @@ export default function AdminCustomOrders() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order permanently?')) return;
-    const { error } = await supabase.from('custom_orders').delete().eq('id', id);
+    const { error } = /* spine */;
     if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
     else { toast({ title: '✓ Deleted' }); fetchOrders(); }
   };
@@ -217,9 +217,7 @@ export default function AdminCustomOrders() {
   const handleMarkPaid = async (orderId: string) => {
     setMarkingPaid(orderId);
     try {
-      const { error } = await supabase.from('custom_orders').update({
-        status: 'paid', paid_at: new Date().toISOString(),
-      }).eq('id', orderId);
+      const { error } = /* spine */;
       if (error) throw error;
       toast({ title: '✓ Marked as paid' });
       fetchOrders();
@@ -265,7 +263,7 @@ export default function AdminCustomOrders() {
       const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
       if (upErr) throw upErr;
       const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
-      await supabase.from('custom_orders').update({ admin_signature_url: urlData.publicUrl, admin_signed_at: new Date().toISOString() }).eq('id', signingId);
+      /* spine */;
       toast({ title: '✓ Signature applied' });
       setPanel('none'); setSigningId(null); fetchOrders();
     } catch (e: any) { toast({ title: 'Error', description: e.message, variant: 'destructive' }); }

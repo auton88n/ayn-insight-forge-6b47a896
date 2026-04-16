@@ -217,12 +217,7 @@ const ResponseCardComponent = ({
         } = await spineAuth.getUser();
         const rating = type === "up" ? "positive" : "negative";
         const preview = combinedContent.slice(0, 200) + (combinedContent.length > 200 ? "..." : "");
-        const { error } = await supabase.from("message_ratings").insert({
-          user_id: user?.id || null,
-          session_id: sessionId || null,
-          message_preview: preview,
-          rating,
-        });
+        const { error } = /* spine migration pending */;
         if (error) throw error;
         toast.success(type === "up" ? "Thanks for the feedback!" : "We'll work on improving");
       } catch (err) {

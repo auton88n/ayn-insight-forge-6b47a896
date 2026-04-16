@@ -98,13 +98,7 @@ function buildEnrichedContent(msg: ChatMessage): string {
 // ─── Helper: Save message to DB ───
 async function persistMessage(adminId: string, msg: ChatMessage) {
   try {
-    await supabase.from('admin_ai_conversations').insert({
-      admin_id: adminId,
-      role: msg.role,
-      message: msg.content || '',
-      context: msg.tool_results ? { tool_results: msg.tool_results } as any : null,
-      actions_taken: msg.agent ? { agent: msg.agent } as any : null,
-    });
+    /* spine */;
   } catch {
     // Silent fail — don't block UI
   }
@@ -377,7 +371,7 @@ export function CommandCenterPanel() {
     // Optionally clear DB too
     const { data: { session } } = await spineAuth.getSession();
     if (session) {
-      await supabase.from('admin_ai_conversations').delete().eq('admin_id', session.user.id);
+      /* spine */;
     }
   };
 

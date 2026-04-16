@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useMemo } from 'react';
 import { CheckCircle, Send, Loader2 } from 'lucide-react';
 import { Button, LiquidButton } from '@/components/ui/button';
@@ -68,11 +69,7 @@ const Contact = () => {
 
     setIsSubmitting(true);
     try {
-      const { error: dbError } = await supabase.from('contact_messages').insert({
-        name: contactForm.name.trim(),
-        email: contactForm.email.trim(),
-        message: contactForm.message.trim(),
-      });
+      const { error: dbError } = await spineApi.submitContact({ name, email, message });
       if (dbError) {
         if (import.meta.env.DEV) console.error('Database error:', dbError);
         throw new Error('Failed to save message');

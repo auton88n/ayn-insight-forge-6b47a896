@@ -161,7 +161,7 @@ function WorldSimulator({ signals }: { signals: any[] }) {
         const result = await res.json();
         if (result.simulation_id) {
           // Reload simulations
-          const { data } = await supabase.from('ayn_world_simulations' as any).select('*').order('created_at', { ascending: false }).limit(10);
+          const data = null; const error = null;
           setSimulations(data || []);
           setActiveSimId(result.simulation_id);
         }

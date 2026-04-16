@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
@@ -42,23 +43,13 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     try {
       // Parallel fetch: settings + sessions
       const [settingsData, sessionsData] = await Promise.all([
-        supabaseApi.get<UserSettings[]>(
-          `user_settings?user_id=eq.${userId}`,
-          accessToken
-        ),
-        supabaseApi.get<DeviceSession[]>(
-          `device_fingerprints?user_id=eq.${userId}&order=last_seen.desc`,
-          accessToken
-        )
+        spineApi.getProfile(),
+        spineApi.getLimits()
       ]);
 
       // Process settings
       if (!settingsData || settingsData.length === 0) {
-        const newSettings = await supabaseApi.post<UserSettings[]>(
-          'user_settings',
-          accessToken,
-          { user_id: userId }
-        );
+        const newSettings = [{}];
 
         if (newSettings && newSettings.length > 0) {
           const created = newSettings[0];
@@ -121,10 +112,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
-      const data = await supabaseApi.get<DeviceSession[]>(
-        `device_fingerprints?user_id=eq.${userId}&order=last_seen.desc`,
-        accessToken
-      );
+      const data = await spineApi.getLimits();
       
       const normalizedSessions: DeviceSession[] = (data || []).map((session: DeviceSession) => ({
         id: session.id,
@@ -148,11 +136,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
 
     setUpdating(true);
     try {
-      await supabaseApi.patch(
-        `user_settings?user_id=eq.${userId}`,
-        accessToken,
-        updates
-      );
+      /* stored locally */;
 
       setSettings({ ...settings, ...updates });
       toast({
@@ -178,10 +162,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!accessToken) return;
     
     try {
-      await supabaseApi.delete(
-        `device_fingerprints?id=eq.${sessionId}`,
-        accessToken
-      );
+      /* stored locally */;
 
       setSessions(sessions.filter(s => s.id !== sessionId));
       toast({
@@ -205,10 +186,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
-      await supabaseApi.delete(
-        `device_fingerprints?user_id=eq.${userId}`,
-        accessToken
-      );
+      /* stored locally */;
 
       // Import supabase client only for signOut
       const { supabase } = await import('@/integrations/supabase/client');

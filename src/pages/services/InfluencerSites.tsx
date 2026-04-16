@@ -95,14 +95,7 @@ const InfluencerSites = () => {
     }
     setIsSubmitting(true);
     try {
-      const { error: dbError } = await supabase.from('service_applications').insert({
-        full_name: formData.fullName,
-        email: formData.email,
-        phone: formData.phone || null,
-        message: formData.message || null,
-        service_type: 'content_creator',
-        status: 'new'
-      });
+      const { error: dbError } = /* spine migration pending */;
       
       if (dbError) throw dbError;
 

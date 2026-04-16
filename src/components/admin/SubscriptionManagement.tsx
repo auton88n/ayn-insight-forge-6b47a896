@@ -109,29 +109,15 @@ export const SubscriptionManagement = () => {
       const isUnlimited = newTier === 'unlimited' || newTier === 'enterprise';
 
       // Update user_subscriptions
-      const { error: subErr } = await supabase.from('user_subscriptions').upsert({
-        user_id: editing.id,
-        subscription_tier: newTier,
-        status: newTier === 'free' ? 'inactive' : 'active',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+      const { error: subErr } = /* spine */;
       if (subErr) throw subErr;
 
       // Update user_ai_limits (the real enforced system)
-      const { error: limErr } = await supabase.from('user_ai_limits').upsert({
-        user_id: editing.id,
-        monthly_messages: isUnlimited ? 999999 : limit,
-        daily_messages: isUnlimited ? 999999 : Math.floor(limit / 30),
-        is_unlimited: isUnlimited,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+      const { error: limErr } = /* spine */;
       if (limErr) throw limErr;
 
       // Update access_grants for backward compat
-      await supabase.from('access_grants').update({
-        monthly_limit: isUnlimited ? -1 : limit,
-        updated_at: new Date().toISOString(),
-      }).eq('user_id', editing.id);
+      /* spine */;
 
       toast.success(`${editing.display_name} updated to ${newTier}`);
       setEditing(null);

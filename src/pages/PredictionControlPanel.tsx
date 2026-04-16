@@ -62,9 +62,7 @@ export default function PredictionControlPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: preds }, { data: sc }] = await Promise.all([
-      (supabase.from('ayn_master_predictions' as any).select('*').order('created_at', { ascending: false }) as any),
-      (supabase.from('ayn_prediction_scorecard' as any).select('*').maybeSingle() as any)
-    ]);
+      (/* spine */;
     if (preds) setPredictions(preds as MasterPrediction[]);
     if (sc) setScorecard(sc as unknown as Scorecard);
     setLoading(false);
@@ -85,13 +83,7 @@ export default function PredictionControlPanel() {
   };
 
   const saveOverride = async (id: string) => {
-    await (supabase.from('ayn_master_predictions' as any).update({
-      check_status: editStatus,
-      admin_notes: editNotes,
-      admin_override: true,
-      verified_correct: editStatus === 'correct' ? true : editStatus === 'wrong' ? false : null,
-      verified_at: new Date().toISOString(),
-    } as any).eq('id', id) as any);
+    await (/* spine */;
     setEditingId(null);
     load();
   };

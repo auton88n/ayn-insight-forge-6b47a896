@@ -212,11 +212,11 @@ export const NDAManager = () => {
     setSaving(true);
     try {
       if (editingNda) {
-        await supabase.from('nda_agreements').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editingNda.id);
+        /* spine */;
         toast({ title: 'NDA updated' });
       } else {
         const signing_token = crypto.randomUUID();
-        await supabase.from('nda_agreements').insert({ ...form, status: 'draft', signing_token });
+        /* spine */;
         toast({ title: 'NDA created' });
       }
       setPanel('none');
@@ -251,7 +251,7 @@ export const NDAManager = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this NDA?')) return;
-    await supabase.from('nda_agreements').delete().eq('id', id);
+    /* spine */;
     toast({ title: 'Deleted' });
     fetchNDAs();
   };

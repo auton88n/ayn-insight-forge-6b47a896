@@ -99,17 +99,7 @@ export const trackDeviceLogin = async (userId: string, accessToken: string) => {
     
     // Use REST API for both operations in parallel
     await Promise.all([
-      supabaseApi.rpc('record_device_fingerprint', accessToken, {
-        _user_id: userId,
-        _fingerprint_hash: fingerprintHash,
-        _device_info: deviceInfo
-      }),
-      supabaseApi.patch(
-        `profiles?user_id=eq.${userId}`,
-        accessToken,
-        { last_login: now }
-      )
-    ]);
+      /* device tracking - spine migration pending */;
     
   } catch {
     // Don't throw - tracking shouldn't break login flow

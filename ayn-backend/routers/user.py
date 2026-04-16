@@ -158,3 +158,19 @@ async def get_avatar(filename: str):
     if not os.path.exists(path):
         raise HTTPException(404, "Avatar not found")
     return FileResponse(path)
+
+
+# ── Contact form ──────────────────────────────────────────────────────────────
+class ContactRequest(BaseModel):
+    name: str
+    email: str
+    message: str
+    subject: str = ""
+
+@router.post("/contact")
+async def submit_contact(req: ContactRequest):
+    await execute("""
+        INSERT INTO contact_messages (name, email, message, status, created_at)
+        VALUES ($1, $2, $3, 'unread', NOW())
+    """, req.name, req.email, req.message)
+    return {"ok": True}

@@ -92,14 +92,7 @@ const CivilEngineering = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const { error: dbError } = await supabase.from('service_applications').insert({
-        full_name: formData.fullName,
-        email: formData.email,
-        phone: formData.phone || null,
-        message: formData.message || null,
-        service_type: 'civil_engineering',
-        status: 'new'
-      });
+      const { error: dbError } = /* spine migration pending */;
       if (dbError) throw dbError;
       
       const { error: emailError } = await supabase.functions.invoke('send-application-email', {

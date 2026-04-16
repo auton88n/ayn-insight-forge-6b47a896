@@ -51,10 +51,7 @@ const BetaProgramSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await supabase.from('system_config').upsert([
-        { key: 'beta_mode', value: betaMode },
-        { key: 'beta_feedback_reward', value: feedbackReward }
-      ], { onConflict: 'key' });
+      /* spine */;
       toast.success('Beta settings saved');
     } catch (err) {
       toast.error('Failed to save beta settings');
@@ -284,11 +281,7 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
 
       // Log the change
       try {
-        await supabase.from('security_logs').insert({
-          action: 'admin_pin_changed',
-          details: { changed_at: new Date().toISOString() },
-          severity: 'high'
-        } as any);
+        /* spine */;
       } catch {}
     } catch (error) {
       console.error('Error changing PIN:', error);

@@ -201,15 +201,7 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
     }
     
     // Security: Log individual application detail access
-    supabase.from('security_logs').insert({
-      action: 'service_application_detail_view',
-      details: {
-        application_id: app.id,
-        email_masked: app.email.substring(0, 2) + '***@' + app.email.split('@')[1],
-        timestamp: new Date().toISOString()
-      },
-      severity: 'high'
-    });
+    /* spine */;
     
     setSelectedApplication(app);
   };

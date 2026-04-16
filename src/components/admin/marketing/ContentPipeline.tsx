@@ -208,14 +208,14 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   };
 
   const handleRetry = async (post: TwitterPost) => {
-    await supabase.from('twitter_posts').update({ status: 'draft', error_message: null }).eq('id', post.id);
+    /* spine */;
     toast.success('Moved back to drafts');
     fetchPosts();
   };
 
   const handleSchedule = async (post: TwitterPost, scheduledAt: string) => {
     try {
-      const { error } = await supabase.from('twitter_posts').update({ status: 'scheduled', scheduled_at: scheduledAt }).eq('id', post.id);
+      const { error } = /* spine */;
       if (error) throw error;
       toast.success(`Scheduled for ${format(new Date(scheduledAt), 'MMM d, h:mm a')}`);
       fetchPosts();
@@ -224,7 +224,7 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from('twitter_posts').delete().eq('id', id);
+      const { error } = /* spine */;
       if (error) throw error;
       setPosts(prev => prev.filter(p => p.id !== id));
       toast.success('Deleted');
@@ -234,7 +234,7 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   const handleSaveEdit = async (id: string) => {
     if (editContent.length > 280) { toast.error('Exceeds 280 chars'); return; }
     try {
-      const { error } = await supabase.from('twitter_posts').update({ content: editContent }).eq('id', id);
+      const { error } = /* spine */;
       if (error) throw error;
       setPosts(prev => prev.map(p => p.id === id ? { ...p, content: editContent } : p));
       setEditingId(null);

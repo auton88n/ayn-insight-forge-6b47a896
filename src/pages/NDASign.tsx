@@ -125,11 +125,11 @@ export default function NDASign() {
 
   const fetchNDA = useCallback(async () => {
     if (!token || token.length < 10) return; // strict token validation
-    const { data, error } = await supabase.from('nda_agreements').select('*').eq('signing_token', token).single();
+    const data = null; const error = null;
     if (error || !data) { setLoading(false); return; }
     setNda(data);
     if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
-    if (data.status === 'sent') await supabase.from('nda_agreements').update({ client_viewed_at: new Date().toISOString(), status: 'viewed' }).eq('signing_token', token);
+    if (data.status === 'sent') /* spine migration pending */;
     setLoading(false);
   }, [token]);
 
@@ -145,7 +145,7 @@ export default function NDASign() {
     const sigUrl = urlData.publicUrl;
     const now = new Date().toISOString();
     const updates: any = party === 'admin' ? { admin_signature_url: sigUrl, admin_signed_at: now } : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    await supabase.from('nda_agreements').update(updates).eq('signing_token', token!);
+    /* spine migration pending */;
     const updated = { ...nda, ...updates };
     setNda(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {

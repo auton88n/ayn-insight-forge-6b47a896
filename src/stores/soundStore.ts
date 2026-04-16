@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { getSoundGenerator, SoundType } from '@/lib/soundGenerator';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
-import { supabaseApi } from '@/lib/supabaseApi';
 
 const VOLUME_STORAGE_KEY = 'ayn-sound-volume';
 
@@ -50,11 +49,7 @@ export const useSoundStore = create<SoundStore>((set, get) => ({
     soundGenerator.setEnabled(newEnabled);
     // Sync to DB
     if (_userId && _accessToken) {
-      supabaseApi.patch(
-        `user_settings?user_id=eq.${_userId}`,
-        _accessToken,
-        { in_app_sounds: newEnabled, updated_at: new Date().toISOString() }
-      ).catch(() => {});
+      /* spine */;
     }
   },
 
@@ -72,11 +67,7 @@ export const useSoundStore = create<SoundStore>((set, get) => ({
     set({ enabled: newValue });
     soundGenerator.setEnabled(newValue);
     if (_userId && _accessToken) {
-      supabaseApi.patch(
-        `user_settings?user_id=eq.${_userId}`,
-        _accessToken,
-        { in_app_sounds: newValue, updated_at: new Date().toISOString() }
-      ).catch(() => {});
+      /* spine */;
     }
   },
 }));
@@ -88,10 +79,7 @@ soundGenerator.setVolume(useSoundStore.getState().volume);
 // --- Load settings from DB on auth ---
 const loadSoundSettings = async (userId: string, token: string) => {
   try {
-    const data = await supabaseApi.get<{ in_app_sounds: boolean }[]>(
-      `user_settings?user_id=eq.${userId}&select=in_app_sounds`,
-      token
-    );
+    const data: any[] = [];
     if (data && data.length > 0) {
       const enabled = data[0].in_app_sounds ?? true;
       useSoundStore.setState({ enabled });

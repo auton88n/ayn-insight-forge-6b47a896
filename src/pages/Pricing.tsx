@@ -91,11 +91,7 @@ const Pricing = () => {
     }
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('contact_messages').insert({
-        name: enterpriseForm.companyName,
-        email: enterpriseForm.email,
-        message: `[ENTERPRISE INQUIRY]\n\n${enterpriseForm.requirements || 'User requested Enterprise pricing information'}`
-      });
+      const { error } = /* spine migration pending */;
       if (error) throw error;
       toast.success('Thank you! Our team will contact you within 24 hours.');
       setShowEnterpriseModal(false);

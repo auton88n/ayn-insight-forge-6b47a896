@@ -1,9 +1,9 @@
+import { spineApi } from '@/lib/spineApi';
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { Sparkles, Zap, Infinity as InfinityIcon, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInDays, format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
 interface UsageCardProps {
@@ -74,15 +74,9 @@ export const UsageCard = ({
   const fetchCredits = async () => {
     if (!userId) return;
     try {
-      const [limitsRes, subRes] = await Promise.all([
-        supabase.from('user_ai_limits').select('*').eq('user_id', userId).maybeSingle(),
-        supabase.from('user_subscriptions').select('subscription_tier').eq('user_id', userId).maybeSingle(),
-      ]);
-
-      const limits = limitsRes.data;
-      if (limitsRes.error || !limits) return;
-
-      const tier = subRes.data?.subscription_tier || 'free';
+      const limitsData = await spineApi.getLimits();
+const limits = limitsData;
+const tier = limitsData?.subscription_tier || 'free';
       const isFree = tier === 'free';
       const isUnlimited = limits.is_unlimited === true;
 

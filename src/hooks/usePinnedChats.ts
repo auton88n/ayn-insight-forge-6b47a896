@@ -28,10 +28,7 @@ export const usePinnedChats = (
       }
 
       try {
-        const data = await supabaseApi.get<Array<{ session_id: string }>>(
-          `favorite_chats?user_id=eq.${userId}&select=session_id`,
-          accessToken
-        );
+        const data = await spineApi.getPinnedChats();
 
         if (data && data.length > 0) {
           setPinnedChats(new Set(data.map(item => item.session_id)));
@@ -74,18 +71,7 @@ export const usePinnedChats = (
           // Insert missing pins into database
           await Promise.all(
             pinsToMigrate.map(sessionId =>
-              supabaseApi.post(
-                'favorite_chats',
-                accessToken,
-                {
-                  user_id: userId,
-                  session_id: sessionId,
-                  chat_title: 'Pinned Chat',
-                  chat_data: {}
-                }
-              )
-            )
-          );
+              /* spine */;
 
           // Update local state
           setPinnedChats(prev => {
@@ -129,22 +115,10 @@ export const usePinnedChats = (
     try {
       if (currentlyPinned) {
         // Remove from database
-        await supabaseApi.delete(
-          `favorite_chats?user_id=eq.${userId}&session_id=eq.${sessionId}`,
-          accessToken
-        );
+        await /* spine */;
       } else {
         // Add to database
-        await supabaseApi.post(
-          'favorite_chats',
-          accessToken,
-          {
-            user_id: userId,
-            session_id: sessionId,
-            chat_title: 'Pinned Chat',
-            chat_data: {}
-          }
-        );
+        await /* spine */;
       }
     } catch (error) {
       console.error('[usePinnedChats] Toggle error:', error);

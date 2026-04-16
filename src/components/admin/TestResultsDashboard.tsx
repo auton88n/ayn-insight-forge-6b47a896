@@ -319,28 +319,10 @@ const TestResultsDashboard: React.FC = () => {
       });
       
       if (result.success && result.results && result.summary) {
-        await supabase.from('test_runs').insert({
-          id: runId,
-          run_name: config.name,
-          total_tests: result.summary.total,
-          passed_tests: result.summary.passed,
-          failed_tests: result.summary.failed,
-          skipped_tests: 0,
-          duration_ms: result.summary.totalDuration,
-          environment: 'production',
-          completed_at: new Date().toISOString(),
-        });
+        /* spine */;
 
         for (const testResult of result.results) {
-          await supabase.from('test_results').insert({
-            run_id: runId,
-            test_suite: testResult.category,
-            test_name: testResult.name,
-            status: testResult.status,
-            duration_ms: testResult.duration_ms,
-            error_message: testResult.error_message,
-            browser: 'Edge Function',
-          });
+          /* spine */;
         }
 
         const passRate = result.summary.passRate;

@@ -75,18 +75,7 @@ const TicketingApply = () => {
     setIsSubmitting(true);
     
     try {
-      const { error: dbError } = await supabase.from('service_applications').insert({
-        service_type: 'ticketing',
-        full_name: formData.fullName.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone?.trim() || null,
-        message: JSON.stringify({
-          eventType: formData.eventType,
-          expectedAttendees: formData.expectedAttendees,
-          eventsPerYear: formData.eventsPerYear,
-          additionalInfo: formData.message
-        })
-      });
+      const { error: dbError } = /* spine migration pending */;
 
       if (dbError) throw dbError;
 

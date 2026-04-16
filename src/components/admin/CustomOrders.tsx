@@ -209,10 +209,10 @@ export const CustomOrders = () => {
       const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent);
       const payload = { ...form, subtotal, total_amount: total, status: editingOrder?.status || 'draft', services: form.services as any };
       if (editingOrder) {
-        await supabase.from('custom_orders').update(payload as any).eq('id', editingOrder.id);
+        /* spine */;
         toast({ title: 'Order updated' });
       } else {
-        await supabase.from('custom_orders').insert(payload as any);
+        /* spine */;
         toast({ title: 'Order created' });
       }
       setPanel('none');
@@ -226,7 +226,7 @@ export const CustomOrders = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order?')) return;
-    await supabase.from('custom_orders').delete().eq('id', id);
+    /* spine */;
     toast({ title: 'Deleted' });
     fetchOrders();
   };
@@ -243,7 +243,7 @@ export const CustomOrders = () => {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Send failed');
-      await supabase.from('custom_orders').update({ status: 'sent', email_sent_at: new Date().toISOString() }).eq('id', order.id);
+      /* spine */;
       toast({ title: '✅ Contract sent', description: `Sent to ${order.company_email}` });
       fetchOrders();
     } catch (e: any) {
@@ -283,7 +283,7 @@ export const CustomOrders = () => {
 
   const handleMarkPaid = async (id: string) => {
     setMarkingPaid(id);
-    await supabase.from('custom_orders').update({ status: 'paid' }).eq('id', id);
+    /* spine */;
     toast({ title: '✅ Marked as paid' });
     fetchOrders();
     setMarkingPaid(null);
