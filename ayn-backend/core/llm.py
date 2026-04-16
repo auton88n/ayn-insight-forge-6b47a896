@@ -216,6 +216,7 @@ async def call_with_fallback(
                         "model_id": f"{provider}-{model_key}",
                         "response_time_ms": elapsed,
                         "was_fallback": i > 0,
+                        "intent_type": intent,
                     }).execute()
                 except Exception:
                     pass

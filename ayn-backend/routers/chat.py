@@ -275,23 +275,16 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
         except Exception:
             pass
 
-    # Streaming response — word-by-word SSE from content already fetched
-    # (ayn-ai-proxy does not support true streaming)
+    # Streaming response — return full content as single SSE event
+    # React's parseSSEStream handles both chunked and single-event SSE
     if body.stream:
-        async def stream_words():
-            words = clean_content.split(" ")
-            chunk_size = 4
-            for i in range(0, len(words), chunk_size):
-                chunk = " ".join(words[i:i + chunk_size])
-                if i + chunk_size < len(words):
-                    chunk += " "
-                payload = json.dumps({"choices": [{"delta": {"content": chunk}}]})
-                yield f"data: {payload}\n\n".encode()
-                await asyncio.sleep(0.01)
-            yield b"data: [DONE]\n\n"
+        def stream_sync():
+            payload = json.dumps({"choices": [{"delta": {"content": clean_content}}]})
+            yield f"data: {payload}\n\n"
+            yield "data: [DONE]\n\n"
 
         return StreamingResponse(
-            stream_words(),
+            stream_sync(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
                      "X-Accel-Buffering": "no", "X-Intent": intent}

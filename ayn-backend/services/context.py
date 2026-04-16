@@ -52,12 +52,20 @@ async def get_market_snapshot() -> dict:
 async def get_user_context(user_id: str) -> dict:
     try:
         db = get_db()
-        memories, prefs = await asyncio.gather(
-            asyncio.to_thread(lambda: db.from_("user_memory").select("key,value")
-                              .eq("user_id", user_id).limit(20).execute()),
-            asyncio.to_thread(lambda: db.from_("user_preferences").select("key,value")
-                              .eq("user_id", user_id).limit(10).execute()),
+        memories_res = await asyncio.to_thread(
+            lambda: db.from_("user_memory").select("key,value")
+                      .eq("user_id", user_id).limit(20).execute()
         )
+        try:
+            prefs_res = await asyncio.to_thread(
+                lambda: db.from_("user_preferences").select("key,value")
+                          .eq("user_id", user_id).limit(10).execute()
+            )
+            prefs_data = prefs_res.data or []
+        except Exception:
+            prefs_data = []
+        memories = type("R", (), {"data": memories_res.data or []})()
+        prefs = type("R", (), {"data": prefs_data})()
         return {
             "memories": memories.data or [],
             "preferences": prefs.data or [],
