@@ -212,11 +212,11 @@ async def call_with_fallback(
                 try:
                     db.table("llm_usage_logs").insert({
                         "user_id": None if user_id in (None, "internal") else user_id,
-                        "model_name": model_key,
                         "model_id": f"{provider}-{model_key}",
+                        "model_name": model_key,
                         "response_time_ms": elapsed,
                         "was_fallback": i > 0,
-                        "intent_type": intent,
+                        "intent_type": intent or "chat",
                     }).execute()
                 except Exception:
                     pass

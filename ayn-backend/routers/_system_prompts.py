@@ -8,7 +8,7 @@ def build_system_prompt(intent: str, language: str, context: dict, user_message:
 
     if memories:
         mem_lines = "\n".join(
-            f"- {m.get('key', '')}: {m.get('value', '') or json.dumps(m.get('data', {}))}"
+            f"- {m.get('memory_key', m.get('key', ''))}: {m.get('memory_data', {}).get('value', '') or m.get('value', '') or json.dumps(m.get('memory_data', {}))}"
             for m in memories
         )
         memory_section = f"\n\nWHAT YOU KNOW ABOUT THIS USER:\n{mem_lines}\nUse this naturally. Don't announce \"I remember\" — just use it like a colleague."

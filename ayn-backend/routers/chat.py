@@ -205,8 +205,10 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
 
     llm_messages = [{"role": "system", "content": system_prompt}] + full_messages
 
-    # Tool-supporting intents
-    supports_tools = intent in ("chat", "search", "deep")
+    # Only use tools when the message actually needs live data
+    # Avoids extra round-trips for simple conversational messages
+    from services.search import needs_web_lookup
+    supports_tools = intent in ("search", "deep") or (intent == "chat" and needs_web_lookup(last_message))
     tools = AYN_TOOLS if supports_tools else None
 
     # First LLM call (non-streaming if tools enabled)

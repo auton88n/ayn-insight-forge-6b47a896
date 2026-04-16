@@ -53,7 +53,7 @@ async def get_user_context(user_id: str) -> dict:
     try:
         db = get_db()
         memories_res = await asyncio.to_thread(
-            lambda: db.from_("user_memory").select("key,value")
+            lambda: db.from_("user_memory").select("memory_key,memory_data,memory_type")
                       .eq("user_id", user_id).limit(20).execute()
         )
         try:
