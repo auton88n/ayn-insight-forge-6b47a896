@@ -101,6 +101,7 @@ export const Sidebar = ({
   selectedChats,
   remaining = 0,
   totalLimit = 5,
+  bonusCredits = 0,
   allowed = true,
   isFree = true,
   isUnlimited: isUnlimitedProp = false,
@@ -347,6 +348,7 @@ export const Sidebar = ({
               <CreditUpgradeCard 
                 remaining={remaining}
                 totalLimit={totalLimit}
+                bonusCredits={bonusCredits}
                 allowed={allowed}
                 resetsAt={resetsAt}
                 tier={subscriptionTier || tierProp}

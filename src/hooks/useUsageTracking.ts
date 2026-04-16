@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface UsageData {
   remaining: number;
   totalLimit: number;
+  bonusCredits: number;
   allowed: boolean;
   resetsAt: string | null;
   tier: string;
@@ -102,6 +103,7 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
       setUsageData({
         remaining,
         totalLimit,
+        bonusCredits: Math.max(0, limits.bonus_credits || 0),
         allowed: remaining > 0,
         resetsAt,
         tier,

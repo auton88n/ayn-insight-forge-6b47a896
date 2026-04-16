@@ -456,6 +456,7 @@ const DashboardContent = ({
           selectedChats={chatSession.selectedChats}
           remaining={usageTracking.remaining}
           totalLimit={usageTracking.totalLimit}
+          bonusCredits={usageTracking.bonusCredits ?? 0}
           allowed={usageTracking.allowed}
           isFree={usageTracking.isFree}
           isUnlimited={usageTracking.isUnlimited}
