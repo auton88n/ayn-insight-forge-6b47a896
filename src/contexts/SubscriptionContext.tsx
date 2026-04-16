@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 
 // Tier configuration — aligned with Stripe products and backend
-export const TOPUP_PRICE_ID = 'price_placeholder_topup_10usd_500msg';
+export const TOPUP_PRICE_ID = 'price_1TMiwDDnqJN6ljeBz0RD5f2K';
 export const TOPUP_CREDITS = 500;
 export const TOPUP_PRICE = 10;
 
