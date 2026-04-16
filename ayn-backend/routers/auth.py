@@ -21,7 +21,7 @@ from services.email import send_email
 from core.auth_new import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, verify_access_token,
-    get_current_user
+    get_current_user, get_user_id
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])

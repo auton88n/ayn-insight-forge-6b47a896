@@ -121,42 +121,41 @@ async def unpin_chat(session_id: str, user_id: str = Depends(get_user_id)):
     return {"ok": True}
 
 
-# ── Avatar Upload ─────────────────────────────────────────────────────────────
-import os, uuid, base64
-from fastapi import UploadFile, File as FastAPIFile
+# ── Avatar Upload (base64 JSON) ──────────────────────────────────────────────
 
-AVATAR_DIR = "/tmp/avatars"
-os.makedirs(AVATAR_DIR, exist_ok=True)
+class AvatarRequest(BaseModel):
+    avatar_data: str  # base64 encoded image
+    mime_type: str = "image/jpeg"
 
 @router.post("/avatar")
-async def upload_avatar(file: UploadFile = FastAPIFile(...), user_id: str = Depends(get_user_id)):
-    # Save file
-    ext = file.filename.split('.')[-1] if '.' in (file.filename or '') else 'jpg'
+async def upload_avatar(req: AvatarRequest, user_id: str = Depends(get_user_id)):
+    import os, base64
+    # Validate it's actual base64
+    try:
+        data = base64.b64decode(req.avatar_data)
+    except Exception:
+        raise HTTPException(400, "Invalid base64 data")
+    
+    ext = "jpg" if "jpeg" in req.mime_type else req.mime_type.split("/")[-1]
+    avatar_dir = "/tmp/avatars"
+    os.makedirs(avatar_dir, exist_ok=True)
     filename = f"{user_id}.{ext}"
-    path = f"{AVATAR_DIR}/{filename}"
-    content = await file.read()
-    with open(path, 'wb') as f:
-        f.write(content)
+    with open(f"{avatar_dir}/{filename}", 'wb') as f:
+        f.write(data)
     
-    # Store as base64 data URL in user record
-    b64 = base64.b64encode(content).decode()
-    mime = file.content_type or 'image/jpeg'
-    avatar_url = f"data:{mime};base64,{b64[:100]}..."  # truncated for DB
-    
-    # Just store a reference - in production use R2/S3
-    await execute(
-        "UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2",
-        f"/avatars/{filename}", user_id
-    )
-    return {"avatar_url": f"/avatars/{filename}", "ok": True}
+    avatar_url = f"https://spine.aynn.io/user/avatar/{filename}"
+    await execute("UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2",
+                  avatar_url, user_id)
+    return {"avatar_url": avatar_url, "ok": True}
 
 
 @router.get("/avatar/{filename}")
 async def get_avatar(filename: str):
+    import os
     from fastapi.responses import FileResponse
-    path = f"{AVATAR_DIR}/{filename}"
+    path = f"/tmp/avatars/{filename}"
     if not os.path.exists(path):
-        raise HTTPException(404, "Avatar not found")
+        raise HTTPException(404, "Not found")
     return FileResponse(path)
 
 
