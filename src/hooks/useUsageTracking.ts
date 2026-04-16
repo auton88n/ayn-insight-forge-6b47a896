@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 
 interface UsageData {
   remaining: number;
@@ -36,21 +37,9 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
     try {
       // Read directly from tables — never call check_user_ai_limit here
       // That RPC increments usage and should only be called when sending a message
-      const [limitsRes, subRes] = await Promise.all([
-        supabase
-          .from('user_ai_limits')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle(),
-        supabase
-          .from('user_subscriptions')
-          .select('subscription_tier')
-          .eq('user_id', userId)
-          .maybeSingle(),
-      ]);
-
-      const limits = limitsRes.data;
-      const tier = subRes.data?.subscription_tier || 'free';
+      const limitsData = await spineApi.getLimits();
+      const limits = limitsData;
+      const tier = limitsData?.subscription_tier || 'free';
 
       if (!limits) {
         setUsageData(prev => ({ ...prev, isLoading: false }));

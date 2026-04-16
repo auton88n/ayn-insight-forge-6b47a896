@@ -106,6 +106,7 @@ async def global_error_handler(request: FastAPIRequest, exc: Exception):
 # ── Register routers ──────────────────────────────────────────────────────────
 from routers.auth import router as auth_router
 from routers.chats import router as chats_router
+from routers.user import router as user_router
 from routers.chat import router as chat_router
 from routers.intelligence import router as intel_router
 from routers.simulation import router as sim_router
@@ -114,6 +115,7 @@ from routers.admin import router as admin_router
 
 app.include_router(auth_router)
 app.include_router(chats_router)
+app.include_router(user_router)
 app.include_router(chat_router)
 app.include_router(intel_router)
 app.include_router(sim_router)

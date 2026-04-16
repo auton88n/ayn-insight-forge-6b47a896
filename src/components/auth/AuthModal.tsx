@@ -219,6 +219,18 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       });
 
       if (error) {
+        // If login fails, show helpful migration message
+        if (error.message?.toLowerCase().includes('invalid') || 
+            error.message?.toLowerCase().includes('not found') ||
+            error.message?.toLowerCase().includes('incorrect')) {
+          toast({
+            title: 'Account Not Found',
+            description: 'Please sign up for a new account. If you had an account before, create a new one with the same email — your data will be restored.',
+            variant: 'destructive'
+          });
+          setIsLoading(false);
+          return;
+        }
         // Special handling: email not confirmed
         const code = (error as { code?: string }).code;
         if (code === 'email_not_confirmed' || /email not confirmed/i.test(error.message)) {

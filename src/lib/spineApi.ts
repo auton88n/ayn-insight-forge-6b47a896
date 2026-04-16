@@ -40,6 +40,12 @@ export const spineApi = {
   // ── User ─────────────────────────────────────────────────────────────────
   getMe: () => req<any>('GET', '/auth/me'),
 
+  // ── User ─────────────────────────────────────────────────────────────────
+  getLimits: () => req<any>('GET', '/user/limits'),
+  getProfile: () => req<any>('GET', '/user/profile'),
+  acceptTerms: (data: { privacy: boolean; terms: boolean; ai_disclaimer: boolean }) =>
+    req('POST', '/user/terms', data),
+
   // ── Intelligence ─────────────────────────────────────────────────────────
   getAllIntelligence: () => req<any>('GET', '/intelligence/all'),
 };
