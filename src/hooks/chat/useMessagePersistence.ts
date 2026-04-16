@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Session } from '@supabase/supabase-js';
+import type { SpineSession as Session } from '@/lib/spineAuth';
 import type { Message, FileAttachment } from '@/types/dashboard.types';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { spineApi } from '@/lib/spineApi';
 
 const PAGE_SIZE = 20;
 
@@ -58,17 +57,12 @@ export function useMessagePersistence(
 
   // Stable — zero deps. Always reads latest values from refs.
   const loadMessages = useCallback(async () => {
-    const s = sessionRef.current;
-    const uid = userIdRef.current;
     const sid = sessionIdRef.current;
-    if (!s || !sid) return;
+    if (!sid) return;
 
     setIsLoadingFromHistory(true);
     try {
-      const data = await supabaseApi.get<any[]>(
-        `messages?user_id=eq.${uid}&session_id=eq.${sid}&select=id,content,created_at,sender,attachment_url,attachment_name,attachment_type&order=created_at.desc&limit=${PAGE_SIZE}`,
-        s.access_token
-      );
+      const data = await spineApi.getMessages(sid);
 
       if (data && data.length > 0) {
         const chatMessages = mapDbMessages(data);
@@ -87,27 +81,7 @@ export function useMessagePersistence(
         setHasMoreMessages(false);
       }
 
-      // Count query (HEAD — no row data)
-      try {
-        let token = s.access_token;
-        try {
-          const { supabase } = await import('@/integrations/supabase/client');
-          const { data: { session: fresh } } = await spineAuth.getSession();
-          if (fresh?.access_token) token = fresh.access_token;
-        } catch { /* ignore */ }
-
-        const countRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/messages?user_id=eq.${uid}&session_id=eq.${sid}&select=id`,
-          {
-            method: 'HEAD',
-            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Prefer': 'count=exact' }
-          }
-        );
-        const range = countRes.headers.get('content-range');
-        setTotalMessageCount(range ? parseInt(range.split('/').pop() || '0', 10) : (data?.length ?? 0));
-      } catch {
-        setTotalMessageCount(data?.length ?? 0);
-      }
+      setTotalMessageCount(data?.length ?? 0);
     } catch (error) {
       // Only log non-abort errors — AbortErrors are expected on fast session switches
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -165,73 +139,24 @@ export function useMessagePersistence(
     const sid = sessionIdRef.current;
     if (!s) return false;
 
-    let token = s.access_token;
+    const title = userMsg.content.length > 60 
+      ? userMsg.content.substring(0, 60) + '...' 
+      : userMsg.content;
+
     try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session: fresh } } = await spineAuth.getSession();
-      if (fresh?.access_token) token = fresh.access_token;
-    } catch { /* ignore */ }
-
-    // Save session title if new
-    try {
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/chat_sessions?session_id=eq.${sid}&user_id=eq.${uid}&select=id`,
-        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` } }
-      );
-      const existing = await res.json();
-      if (!existing || existing.length === 0) {
-        const title = userMsg.content.length > 30 ? userMsg.content.substring(0, 30) + '...' : userMsg.content;
-        await fetch(`${SUPABASE_URL}/rest/v1/chat_sessions`, {
-          method: 'POST',
-          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ session_id: sid, user_id: uid, title })
-        });
-      }
-    } catch { /* non-critical */ }
-
-    const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/messages`, {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify([
-        {
-          user_id: uid, session_id: sid, content: userMsg.content, sender: 'user',
-          mode_used: selectedMode, created_at: userMsg.timestamp.toISOString(),
-          attachment_url: userMsg.attachment?.url || null,
-          attachment_name: userMsg.attachment?.name || null,
-          attachment_type: userMsg.attachment?.type || null
-        },
-        {
-          user_id: uid, session_id: sid,
-          content: aynContent.replace(/!\[([^\]]*)\]\(data:image\/[^;]+;base64,[^)]+\)/g, '![$1](image-generated)'),
-          sender: 'ayn', mode_used: selectedMode,
-          created_at: new Date(userMsg.timestamp.getTime() + 1).toISOString(),
-          attachment_url: webhookData?.documentUrl || null,
-          attachment_name: webhookData?.documentUrl
-            ? (webhookData?.documentTitle || (webhookData?.documentType === 'excel' ? 'Document.xlsx' : 'Document.pdf'))
-            : null,
-          attachment_type: webhookData?.documentUrl
-            ? (webhookData?.documentType === 'excel'
-              ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-              : 'application/pdf')
-            : null
-        }
-      ])
-    });
-
-    return saveRes.ok;
-  }, []); // ← stable: zero deps
-
-  const setMessagesFromHistory = useCallback((newMessages: Message[]) => {
-    setIsLoadingFromHistory(true);
-    setMessages(newMessages);
-    setTotalMessageCount(newMessages.length);
-    setTimeout(() => setIsLoadingFromHistory(false), 200);
-  }, []);
-
-  return {
-    messages, setMessages, setMessagesFromHistory,
-    loadMessages, loadMoreMessages, saveMessages,
-    isLoadingFromHistory, hasMoreMessages, isLoadingMore,
-    totalMessageCount, setTotalMessageCount,
-  };
-}
+      // Save user message
+      await spineApi.saveMessage(sid, {
+        role: 'user',
+        content: userMsg.content,
+        title,
+      });
+      // Save assistant message
+      await spineApi.saveMessage(sid, {
+        role: 'assistant',
+        content: aynContent.replace(/!\[([^\]]*)\]\(data:image\/[^;]+;base64,[^)]+\)/g, '![$1](image-generated)'),
+        title,
+      });
+    } catch (e) {
+      console.error('[useMessagePersistence] Save failed:', e);
+      return false;
+    }

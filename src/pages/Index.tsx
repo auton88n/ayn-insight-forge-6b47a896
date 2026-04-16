@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { spineAuth } from '@/lib/spineAuth';
-import type { User, Session } from '@supabase/supabase-js';
+import { spineAuth, SpineUser, SpineSession } from '@/lib/spineAuth';
 import { AYNLoader, DashboardLoader } from '@/components/ui/page-loader';
 import { lazy, Suspense } from 'react';
 
@@ -10,8 +8,8 @@ import LandingPage from '@/components/LandingPage';
 const Dashboard = lazy(() => import('@/components/Dashboard'));
 
 const Index = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<SpineUser | null>(null);
+  const [session, setSession] = useState<SpineSession | null>(null);
   const [loading, setLoading] = useState(false); // Start false - show landing page immediately
   const [isInitialized, setIsInitialized] = useState(false);
 

@@ -1,4 +1,4 @@
-import { User, Session } from '@supabase/supabase-js';
+import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
 import { DashboardContainer } from './dashboard/DashboardContainer';
 import { TermsModal } from '@/components/shared/TermsModal';
 import { AdminPinGate } from './admin/AdminPinGate';

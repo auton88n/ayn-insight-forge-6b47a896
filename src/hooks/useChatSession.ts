@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabaseApi } from '@/lib/supabaseApi';
+import { spineApi } from '@/lib/spineApi';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatHistory, Message, UseChatSessionReturn } from '@/types/dashboard.types';
 
@@ -21,15 +22,8 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     }
     
     try {
-      // Lightweight query: only fetch chat_sessions metadata (no messages needed for sidebar)
-      const sessionsData = await supabaseApi.get<Array<{
-        session_id: string;
-        title: string;
-        updated_at: string;
-      }>>(
-        `chat_sessions?user_id=eq.${userId}&select=session_id,title,updated_at&order=updated_at.desc&limit=10`,
-        session.access_token
-      );
+      // Fetch chat sessions from spine
+      const sessionsData = await spineApi.listChats();
 
       if (!sessionsData || sessionsData.length === 0) {
         setRecentChats([]);
@@ -226,26 +220,20 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
       try {
         // PARALLEL QUERIES - lightweight: session ID + chat_sessions metadata only
         const [latestSessionData, sessionsData] = await Promise.all([
-          // Query 1: Get latest session_id
-          supabaseApi.get<Array<{ session_id: string }>>(
-            `messages?user_id=eq.${userId}&select=session_id&order=created_at.desc&limit=1`,
-            session.access_token,
-            { signal: controller.signal }
-          ),
-          // Query 2: Get chat_sessions with titles (lightweight, no messages)
-          supabaseApi.get<Array<{ session_id: string; title: string; updated_at: string }>>(
-            `chat_sessions?user_id=eq.${userId}&select=session_id,title,updated_at&order=updated_at.desc&limit=10`,
-            session.access_token,
-            { signal: controller.signal }
-          )
+          // Query 1: Get latest session_id from spine
+          spineApi.getLatestSessionId(),
+          // Query 2: Get chat sessions from spine
+          spineApi.listChats()
         ]);
         
         if (controller.signal.aborted) return;
         
         // Set current session ID - ONLY if not already set
         if (!currentSessionId) {
-          if (latestSessionData && latestSessionData.length > 0 && latestSessionData[0].session_id) {
-            setCurrentSessionId(latestSessionData[0].session_id);
+          const latestId = (latestSessionData as any)?.session_id || 
+                          (Array.isArray(latestSessionData) && latestSessionData[0]?.session_id);
+          if (latestId) {
+            setCurrentSessionId(latestId);
           } else {
             setCurrentSessionId(crypto.randomUUID());
           }
