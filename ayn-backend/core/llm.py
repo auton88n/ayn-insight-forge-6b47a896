@@ -212,7 +212,6 @@ async def call_with_fallback(
                 try:
                     db.table("llm_usage_logs").insert({
                         "user_id": None if user_id in (None, "internal") else user_id,
-                        "model_id": f"{provider}-{model_key}",
                         "model_name": model_key,
                         "response_time_ms": elapsed,
                         "was_fallback": i > 0,
@@ -231,9 +230,8 @@ async def call_with_fallback(
                 try:
                     db.table("llm_failures").insert({
                         "user_id": None if user_id in (None, "internal") else user_id,
-                        "model_id": f"{provider}-{model_key}",
                         "error_type": "error",
-                        "error_message": str(e)[:500],
+                        "error_message": f"[{provider}/{model_key}] {str(e)[:480]}",
                     }).execute()
                 except Exception:
                     pass

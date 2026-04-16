@@ -64,11 +64,15 @@ async def get_user_context(user_id: str) -> dict:
             prefs_data = prefs_res.data or []
         except Exception:
             prefs_data = []
-        memories = type("R", (), {"data": memories_res.data or []})()
-        prefs = type("R", (), {"data": prefs_data})()
+        # Normalize memory_key/memory_data → key/value for system prompt
+        raw = memories_res.data or []
+        normalized = [
+            {"key": m.get("memory_key", ""), "value": m.get("memory_data", {}).get("value", "") if isinstance(m.get("memory_data"), dict) else str(m.get("memory_data", ""))}
+            for m in raw
+        ]
         return {
-            "memories": memories.data or [],
-            "preferences": prefs.data or [],
+            "memories": normalized,
+            "preferences": prefs_data,
         }
     except Exception:
         return {}
