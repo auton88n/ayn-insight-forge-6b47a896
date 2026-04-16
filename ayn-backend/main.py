@@ -56,12 +56,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning(f"⚠️  Gemini client issue: {e}")
 
-    # Run database migrations
-    try:
-        pool = await get_pool()
-        await run_migrations(pool)
-    except Exception as e:
-        log.warning(f"Migration warning: {e}")
+    # Run database migrations in background (don't block startup)
+    import asyncio
+    async def run_migrations_bg():
+        try:
+            pool = await get_pool()
+            await run_migrations(pool)
+        except Exception as e:
+            log.warning(f"Migration warning: {e}")
+    asyncio.create_task(run_migrations_bg())
 
     log.info("✅ AYN Backend ready")
     yield
@@ -158,17 +161,22 @@ async def root():
 
 @app.get("/health")
 async def health():
-    providers = await check_health()
+    # Fast health check — no external calls, just confirms app is running
     from core.scheduler import get_scheduler
     scheduler = get_scheduler()
     return {
         "status": "healthy",
-        "llm": providers,
         "scheduler": {
             "running": scheduler.running if scheduler else False,
             "jobs": len(scheduler.get_jobs()) if scheduler else 0,
         },
     }
+
+@app.get("/health/llm")
+async def health_llm():
+    # Separate slow endpoint that actually tests LLM providers
+    providers = await check_health()
+    return {"status": "healthy", "llm": providers}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

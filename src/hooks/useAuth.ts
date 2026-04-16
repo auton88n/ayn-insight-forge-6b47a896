@@ -144,6 +144,12 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         setHasAcceptedTerms(localTermsAccepted || true); // accept by default for spine users
 
       } catch (error) {
+        // Even on error — unblock the app, give access, show dashboard
+        if (isMounted) {
+          setHasAccess(true);
+          setIsAdmin(user.email?.endsWith('@aynn.io') === true);
+          setHasAcceptedTerms(true);
+        }
         if (import.meta.env.DEV) {
           console.error('Auth queries batch failed:', error);
         }

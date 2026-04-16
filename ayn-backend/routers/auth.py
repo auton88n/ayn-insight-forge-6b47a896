@@ -183,7 +183,29 @@ async def me(current_user: dict = Depends(get_current_user)):
     """, current_user["user_id"])
 
     if not user:
-        raise HTTPException(404, "User not found")
+        # Auto-create missing user (happens when token is valid but user not in Railway DB yet)
+        await execute("""
+            INSERT INTO users (id, email, first_name, last_name, created_at, updated_at)
+            VALUES ($1, $2, '', '', NOW(), NOW())
+            ON CONFLICT (id) DO NOTHING
+        """, current_user["user_id"], current_user.get("email", ""))
+        await execute("""
+            INSERT INTO user_subscriptions (user_id, subscription_tier, status, updated_at)
+            VALUES ($1, 'free', 'active', NOW()) ON CONFLICT (user_id) DO NOTHING
+        """, current_user["user_id"])
+        await execute("""
+            INSERT INTO user_ai_limits (user_id, daily_messages, current_daily_messages, bonus_credits)
+            VALUES ($1, 5, 0, 0) ON CONFLICT (user_id) DO NOTHING
+        """, current_user["user_id"])
+        return {
+            "id": current_user["user_id"],
+            "email": current_user.get("email", ""),
+            "first_name": "", "last_name": "",
+            "subscription": {"tier": "free", "status": "active"},
+            "limits": {"daily_messages": 5, "current_daily_messages": 0,
+                      "monthly_messages": 5, "bonus_credits": 0},
+            "is_admin": False,
+        }
 
     return {
         "id": str(user["id"]),
