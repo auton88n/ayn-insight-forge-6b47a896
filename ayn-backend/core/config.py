@@ -37,6 +37,13 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 ZEP_API_KEY         = os.getenv("ZEP_API_KEY", "")
 OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "")
 
+# ── Railway PostgreSQL ────────────────────────────────────────────────────────
+DATABASE_URL = os.getenv("DATABASE_URL", "")  # Auto-set by Railway PostgreSQL plugin
+
+# ── AYN Auth (self-hosted) ─────────────────────────────────────────────────────
+AYN_JWT_SECRET      = os.getenv("AYN_JWT_SECRET", "")
+INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
+
 # ── Server ────────────────────────────────────────────────────────────────────
 PORT            = int(os.getenv("PORT", 8080))
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://aynn.io,https://www.aynn.io,https://ayn-insight-forge.lovable.app,http://localhost:5173,http://localhost:8080").split(",") if o.strip()]

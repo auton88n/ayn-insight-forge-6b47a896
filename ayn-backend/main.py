@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI):
     # Warm up DB connection
     try:
         from core.db import get_db
+from core.database import get_pool, close_pool
         get_db()
         log.info("✅ Supabase connected")
     except Exception as e:
@@ -103,12 +104,14 @@ async def global_error_handler(request: FastAPIRequest, exc: Exception):
     return FJSONResponse({"error": str(exc)}, status_code=500)
 
 # ── Register routers ──────────────────────────────────────────────────────────
+from routers.auth import router as auth_router
 from routers.chat import router as chat_router
 from routers.intelligence import router as intel_router
 from routers.simulation import router as sim_router
 from routers.subscriptions import router as sub_router
 from routers.admin import router as admin_router
 
+app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(intel_router)
 app.include_router(sim_router)
@@ -117,6 +120,18 @@ app.include_router(admin_router)
 
 
 # ── Core endpoints ────────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup_db():
+    try:
+        await get_pool()
+        log.info("[main] Railway PostgreSQL pool ready")
+    except Exception as e:
+        log.warning(f"[main] Railway PostgreSQL not available: {e}")
+
+@app.on_event("shutdown")  
+async def shutdown_db():
+    await close_pool()
+
 @app.get("/")
 async def root():
     return {
