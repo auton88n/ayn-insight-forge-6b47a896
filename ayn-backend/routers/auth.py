@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 
 from core.database import fetch, fetchrow, execute, fetchval
+from services.email import send_email
 from core.auth_new import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, verify_access_token,
@@ -97,6 +98,9 @@ async def register(req: RegisterRequest):
     refresh_token = await create_refresh_token(str(user_id))
 
     log.info(f"[auth] Registered: {req.email}")
+    # Send welcome email (fire and forget)
+    import asyncio
+    asyncio.create_task(send_email(req.email.lower(), "welcome", {"userName": req.first_name or req.email.split("@")[0]}))
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -211,8 +215,13 @@ async def forgot_password(req: ForgotPasswordRequest):
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (user_id) DO UPDATE SET token=$2, expires_at=$3
         """, user["id"], reset_token, expire)
-        # TODO: send email via spine email service
-        log.info(f"[auth] Password reset requested: {req.email} token={reset_token}")
+        reset_url = f"https://aynn.io/reset-password?token={reset_token}"
+        import asyncio
+        asyncio.create_task(send_email(req.email.lower(), "password_reset", {
+            "userName": user.get("first_name") or req.email.split("@")[0],
+            "resetUrl": reset_url,
+        }))
+        log.info(f"[auth] Password reset email sent: {req.email}")
     return {"ok": True, "message": "If that email exists, a reset link has been sent"}
 
 

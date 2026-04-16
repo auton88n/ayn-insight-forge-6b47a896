@@ -33,6 +33,7 @@ LOVABLE_MODELS = {
 # ── External APIs ─────────────────────────────────────────────────────────────
 FIRECRAWL_API_KEY   = os.getenv("FIRECRAWL_API_KEY", "")
 STRIPE_SECRET_KEY   = os.getenv("STRIPE_SECRET_KEY", "")
+RESEND_API_KEY      = os.getenv("RESEND_API_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 ZEP_API_KEY         = os.getenv("ZEP_API_KEY", "")
 OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "")
