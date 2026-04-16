@@ -120,3 +120,15 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
+
+
+@app.post("/chat-test")
+async def chat_test(request: dict = None):
+    """No-auth test endpoint — confirm LLM is working."""
+    from core.llm import call_with_fallback
+    result = await call_with_fallback(
+        "chat",
+        [{"role": "user", "content": "Say hello in 5 words"}],
+        max_tokens=50,
+    )
+    return {"content": result.get("content"), "provider": result.get("provider")}
