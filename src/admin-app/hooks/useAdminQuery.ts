@@ -167,6 +167,27 @@ export function useAdminErrorMonitoring() {
   });
 }
 
+// Raw error logs with source filtering (spine, edge functions, frontend)
+export function useRawErrorLogs(source?: string) {
+  return useQuery({
+    queryKey: [...adminKeys.errorMonitoring(), 'raw', source],
+    queryFn: async () => {
+      const { adminSupabase } = await import('@/admin-app/adminSupabase');
+      let q = adminSupabase
+        .from('error_logs')
+        .select('id,source,severity,error_message,error_stack,endpoint,context,user_id,url,status,created_at,resolved_at,resolved_note,fix_applied')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (source) q = q.eq('source', source);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
 export function useAdminActivityLog() {
   return useQuery({
     queryKey: adminKeys.activityLog(),

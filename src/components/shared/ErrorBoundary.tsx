@@ -55,15 +55,21 @@ export class ErrorBoundary extends Component<Props, State> {
   private async reportError(error: Error, errorInfo: ErrorInfo) {
     try {
       const { supabase } = await import('@/integrations/supabase/client');
+      const { SUPABASE_URL } = await import('@/config');
       const { data: { session } } = await supabase.auth.getSession();
 
+      // Write directly to error_logs table
       await (supabase as any).from('error_logs').insert({
+        source: 'frontend',
+        severity: 'error',
         error_message: (error.message || 'Unknown error').slice(0, 1000),
         error_stack: error.stack?.slice(0, 5000) || null,
         component_stack: errorInfo.componentStack?.slice(0, 5000) || null,
         url: window.location.href,
         user_id: session?.user?.id || null,
         user_agent: navigator.userAgent,
+        status: 'open',
+        context: { component_stack: errorInfo.componentStack?.slice(0, 500) }
       });
     } catch {
       // Silent failure — error reporting should never break the app

@@ -224,6 +224,12 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
         )
     except Exception as e:
         log.error(f"[CHAT] LLM call failed: {e}")
+        from core.error_logger import log_error
+        asyncio.create_task(log_error(
+            "spine-chat", f"LLM call failed: {e}",
+            error=e, severity="error", endpoint="/chat",
+            user_id=user_id, context={"intent": intent}
+        ))
         return JSONResponse({"error": f"LLM error: {str(e)}"}, status_code=500)
     log.info(f"[CHAT] LLM done provider={first_result.get('provider')} content_len={len(first_result.get('content',''))}")
 

@@ -84,11 +84,22 @@ from fastapi.exceptions import RequestValidationError
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: FastAPIRequest, exc: RequestValidationError):
     log.error(f"[VALIDATION] {request.url.path} — {exc.errors()}")
+    from core.error_logger import log_error
+    asyncio.create_task(log_error(
+        "spine-validation", f"{request.url.path}: {exc.errors()}",
+        severity="warning", endpoint=str(request.url.path)
+    ))
     return FJSONResponse({"error": "Validation error", "detail": str(exc.errors())}, status_code=422)
 
 @app.exception_handler(Exception)
 async def global_error_handler(request: FastAPIRequest, exc: Exception):
     log.error(f"[ERROR] {request.url.path} — {type(exc).__name__}: {exc}")
+    from core.error_logger import log_error
+    import asyncio as _asyncio
+    _asyncio.create_task(log_error(
+        "spine-backend", f"{type(exc).__name__}: {exc}",
+        error=exc, severity="error", endpoint=str(request.url.path)
+    ))
     return FJSONResponse({"error": str(exc)}, status_code=500)
 
 # ── Register routers ──────────────────────────────────────────────────────────
