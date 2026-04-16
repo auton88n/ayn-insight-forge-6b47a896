@@ -17,6 +17,7 @@ Endpoints:
 """
 
 import logging
+from core.database import get_pool, close_pool
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,7 +42,6 @@ async def lifespan(app: FastAPI):
     # Warm up DB connection
     try:
         from core.db import get_db
-from core.database import get_pool, close_pool
         get_db()
         log.info("✅ Supabase connected")
     except Exception as e:
