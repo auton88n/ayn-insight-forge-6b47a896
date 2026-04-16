@@ -36,30 +36,42 @@ const Index = () => {
           setUser(data.session.user);
         } else if (mounted) {
           // No spine session — try to auto-migrate from any existing browser state
-          // This handles users who had Supabase accounts
-          const storedUser = localStorage.getItem('sb-dfkoxuokfkttjhfjcecx-auth-token');
-          if (storedUser) {
+          const SPINE = import.meta.env.VITE_AYN_BACKEND_URL || 'https://spine.aynn.io';
+          
+          // Try all possible Supabase localStorage key formats
+          const sbKeys = Object.keys(localStorage).filter(k => 
+            k.startsWith('sb-') && k.endsWith('-auth-token')
+          );
+          
+          let migrated = false;
+          for (const key of sbKeys) {
             try {
-              const parsed = JSON.parse(storedUser);
-              const sbUser = parsed?.user || parsed?.data?.user;
-              if (sbUser?.email && sbUser?.id) {
-                const SPINE = import.meta.env.VITE_AYN_BACKEND_URL || 'https://spine.aynn.io';
-                const res = await fetch(`${SPINE}/auth/migrate`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    email: sbUser.email,
-                    user_id: sbUser.id,
-                    first_name: sbUser.user_metadata?.full_name?.split(' ')[0] || '',
-                    last_name: sbUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-                  })
-                });
-                if (res.ok) {
-                  const data2 = await res.json();
-                  const { tokenStore } = await import('@/lib/spineAuth');
-                  tokenStore.save({ access_token: data2.access_token, refresh_token: data2.refresh_token, user: data2.user });
-                  if (mounted) { setSession({ access_token: data2.access_token, refresh_token: data2.refresh_token, user: data2.user } as any); setUser(data2.user as any); }
+              const stored = localStorage.getItem(key);
+              if (!stored) continue;
+              const parsed = JSON.parse(stored);
+              const sbUser = parsed?.user || parsed?.currentSession?.user;
+              if (!sbUser?.email || !sbUser?.id) continue;
+              
+              const res = await fetch(`${SPINE}/auth/migrate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: sbUser.email,
+                  user_id: sbUser.id,
+                  first_name: sbUser.user_metadata?.full_name?.split(' ')[0] || '',
+                  last_name: sbUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+                })
+              });
+              if (res.ok) {
+                const d = await res.json();
+                const { tokenStore } = await import('@/lib/spineAuth');
+                tokenStore.save({ access_token: d.access_token, refresh_token: d.refresh_token, user: d.user });
+                if (mounted) {
+                  setSession({ access_token: d.access_token, refresh_token: d.refresh_token, user: d.user } as any);
+                  setUser(d.user as any);
                 }
+                migrated = true;
+                break;
               }
             } catch {}
           }

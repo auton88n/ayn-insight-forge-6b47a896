@@ -22,7 +22,14 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     
     try {
       // Fetch chat sessions from spine
-      const sessionsData = await spineApi.listChats();
+      let sessionsData: any[] = [];
+      try {
+        sessionsData = await spineApi.listChats();
+      } catch (e: any) {
+        // 401 = not logged in yet, just show empty
+        setRecentChats([]);
+        return;
+      }
 
       if (!sessionsData || sessionsData.length === 0) {
         setRecentChats([]);
@@ -182,11 +189,8 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
       // Mark as initialized immediately to prevent duplicate calls
       lastInitializedUserId.current = userId;
       
-      // Skip if no session available - only set new ID if we don't have one
-      if (!session) {
-        if (!currentSessionId) {
-          setCurrentSessionId(crypto.randomUUID());
-        }
+      // No session = not logged in, stop loading
+      if (!userId || userId === 'undefined' || userId === 'null') {
         setIsLoadingChats(false);
         return;
       }

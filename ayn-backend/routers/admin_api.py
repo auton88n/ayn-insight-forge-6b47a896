@@ -81,12 +81,8 @@ class GiftCreditsRequest(BaseModel):
 
 @router.post("/gift-credits")
 async def gift_credits(req: GiftCreditsRequest, _=Depends(require_admin)):
-    await execute("""
-        INSERT INTO user_ai_limits (user_id, bonus_credits)
-        VALUES ($1, $2)
-        ON CONFLICT (user_id) DO UPDATE
-        SET bonus_credits = user_ai_limits.bonus_credits + $2, updated_at = NOW()
-    """, req.user_id, req.amount)
+    await execute("SELECT add_bonus_credits($1::uuid, $2, $3, 'admin')", 
+                  req.user_id, req.amount, req.reason)
     return {"ok": True}
 
 
@@ -207,3 +203,179 @@ async def admin_health(_=Depends(require_admin)):
         "db": "railway_postgresql",
         "status": "healthy"
     }
+
+
+# ── Support Tickets ────────────────────────────────────────────────────────────
+
+@router.get("/support-tickets")
+async def get_support_tickets(_=Depends(require_admin)):
+    rows = await fetch("""
+        SELECT t.*, u.email as user_email,
+               (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) as message_count
+        FROM support_tickets t
+        LEFT JOIN users u ON u.id = t.user_id
+        ORDER BY t.updated_at DESC LIMIT 100
+    """)
+    return rows or []
+
+class TicketUpdateRequest(BaseModel):
+    status: str = None
+    assigned_to: str = None
+    priority: str = None
+
+@router.patch("/support-tickets/{ticket_id}")
+async def update_ticket(ticket_id: str, req: TicketUpdateRequest, _=Depends(require_admin)):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates.keys()))
+    values = list(updates.values())
+    await execute(f"UPDATE support_tickets SET {set_clause}, updated_at = NOW() WHERE id = $1",
+                  ticket_id, *values)
+    return {"ok": True}
+
+class TicketReplyRequest(BaseModel):
+    message: str
+    is_ai_generated: bool = False
+
+@router.post("/support-tickets/{ticket_id}/reply")
+async def reply_ticket(ticket_id: str, req: TicketReplyRequest, _=Depends(require_admin)):
+    await execute("""
+        INSERT INTO support_ticket_replies (ticket_id, message, sent_by, is_ai_generated)
+        VALUES ($1, $2, 'admin', $3)
+    """, ticket_id, req.message, req.is_ai_generated)
+    await execute("UPDATE support_tickets SET has_unread_reply = true, updated_at = NOW() WHERE id = $1", ticket_id)
+    return {"ok": True}
+
+
+# ── Custom Orders ──────────────────────────────────────────────────────────────
+
+@router.get("/custom-orders")
+async def get_custom_orders(_=Depends(require_admin)):
+    rows = await fetch("SELECT * FROM custom_orders ORDER BY created_at DESC")
+    return rows or []
+
+@router.post("/custom-orders")
+async def create_custom_order(data: dict, admin=Depends(require_admin)):
+    row = await fetchrow("""
+        INSERT INTO custom_orders (company_name, company_email, contact_person, order_title,
+            services, subtotal, total_amount, currency, status, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9)
+        RETURNING *
+    """, data.get('company_name'), data.get('company_email'), data.get('contact_person'),
+        data.get('order_title'), json_or_null(data.get('services', [])),
+        data.get('subtotal', 0), data.get('total_amount', 0),
+        data.get('currency', 'SAR'), admin['user_id'])
+    return dict(row) if row else {}
+
+@router.patch("/custom-orders/{order_id}")
+async def update_custom_order(order_id: str, data: dict, _=Depends(require_admin)):
+    allowed = ['status', 'notes', 'client_signature_url', 'admin_signature_url', 
+               'stripe_payment_link', 'contract_pdf_url']
+    updates = {k: v for k, v in data.items() if k in allowed}
+    if not updates:
+        return {"ok": True}
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates.keys()))
+    await execute(f"UPDATE custom_orders SET {set_clause}, updated_at = NOW() WHERE id = $1",
+                  order_id, *updates.values())
+    return {"ok": True}
+
+
+# ── NDA Management ─────────────────────────────────────────────────────────────
+
+@router.get("/nda-agreements")
+async def get_nda_agreements(_=Depends(require_admin)):
+    rows = await fetch("SELECT * FROM nda_agreements ORDER BY created_at DESC")
+    return rows or []
+
+@router.post("/nda-agreements")
+async def create_nda(data: dict, admin=Depends(require_admin)):
+    row = await fetchrow("""
+        INSERT INTO nda_agreements (company_name, company_email, contact_person, 
+            nda_purpose, status, created_by)
+        VALUES ($1, $2, $3, $4, 'draft', $5)
+        RETURNING *
+    """, data.get('company_name'), data.get('company_email'), data.get('contact_person'),
+        data.get('nda_purpose'), admin['user_id'])
+    return dict(row) if row else {}
+
+
+# ── System Config ──────────────────────────────────────────────────────────────
+
+@router.get("/system-config")
+async def get_system_config(_=Depends(require_admin)):
+    rows = await fetch("SELECT key, value, updated_at FROM system_config ORDER BY key")
+    return rows or []
+
+class SystemConfigRequest(BaseModel):
+    key: str
+    value: dict
+
+@router.post("/system-config")
+async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_admin)):
+    import json
+    await execute("""
+        INSERT INTO system_config (key, value, updated_by, updated_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()
+    """, req.key, json.dumps(req.value), admin['user_id'])
+    return {"ok": True}
+
+
+# ── Service Applications ───────────────────────────────────────────────────────
+
+@router.get("/service-applications")
+async def get_service_applications(_=Depends(require_admin)):
+    rows = await fetch("SELECT * FROM service_applications ORDER BY created_at DESC")
+    return rows or []
+
+
+# ── LLM Usage Stats ────────────────────────────────────────────────────────────
+
+@router.get("/llm-stats")
+async def get_llm_stats(_=Depends(require_admin)):
+    rows = await fetch("""
+        SELECT model_name, intent_type,
+               COUNT(*) as request_count,
+               SUM(input_tokens) as total_input_tokens,
+               SUM(output_tokens) as total_output_tokens,
+               SUM(cost_sar) as total_cost_sar,
+               AVG(response_time_ms) as avg_response_ms
+        FROM llm_usage_logs
+        WHERE created_at > NOW() - INTERVAL '30 days'
+        GROUP BY model_name, intent_type
+        ORDER BY request_count DESC
+    """)
+    return rows or []
+
+
+# ── Visitor Analytics ──────────────────────────────────────────────────────────
+
+@router.get("/visitor-analytics")
+async def get_visitor_analytics(_=Depends(require_admin)):
+    stats = await fetchrow("""
+        SELECT 
+            COUNT(DISTINCT visitor_id) as unique_visitors,
+            COUNT(*) as total_pageviews,
+            COUNT(DISTINCT session_id) as sessions,
+            COUNT(DISTINCT CASE WHEN created_at > NOW() - INTERVAL '24 hours' 
+                                THEN visitor_id END) as visitors_today
+        FROM visitor_analytics
+        WHERE created_at > NOW() - INTERVAL '30 days'
+    """)
+    pages = await fetch("""
+        SELECT page_path, COUNT(*) as views
+        FROM visitor_analytics
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY page_path ORDER BY views DESC LIMIT 20
+    """)
+    return {"stats": dict(stats) if stats else {}, "top_pages": pages or []}
+
+
+def json_or_null(val):
+    import json
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val
+    return json.dumps(val)

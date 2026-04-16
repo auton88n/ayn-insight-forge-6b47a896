@@ -56,14 +56,13 @@ async def check_user_limit(user_id: str, intent: str) -> dict:
     if user_id == "internal":
         return {"allowed": True}
     try:
-        db = get_db()
-        result = db.rpc("check_user_ai_limit", {
-            "_user_id": user_id,
-            "_intent_type": intent or "chat",
-        }).execute()
-        data = result.data
-        if not data or not data.get("allowed"):
-            return {"allowed": False, "reason": data.get("error", "Limit reached") if data else "Limit reached"}
+        from core.database import fetchval
+        result = await fetchval(
+            "SELECT check_user_ai_limit($1::uuid)",
+            user_id
+        )
+        if not result or not result.get("allowed"):
+            return {"allowed": False, "reason": result.get("error", "Limit reached") if result else "Limit reached"}
         return {"allowed": True}
     except Exception as e:
         print(f"[auth] check_user_limit error (fail open): {e}")

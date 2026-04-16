@@ -91,8 +91,8 @@ async def register(req: RegisterRequest):
     """, req.email.lower(), hash_password(req.password), req.first_name, req.last_name)
 
     # Initialize limits + subscription
-    await _init_user_limits(str(user_id))
-    await _init_user_subscription(str(user_id))
+    # Call the SQL function that mirrors Supabase's handle_new_user trigger
+    await execute("SELECT handle_new_user($1::uuid, $2)", str(user_id), req.email.lower())
 
     access_token = create_access_token(str(user_id), req.email.lower())
     refresh_token = await create_refresh_token(str(user_id))
