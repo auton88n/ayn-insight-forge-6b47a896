@@ -261,86 +261,27 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
         except Exception:
             pass
 
-    # Streaming response (SSE)
+    # Streaming response — word-by-word SSE from content already fetched
+    # (ayn-ai-proxy does not support true streaming)
     if body.stream:
-        # ── REAL SSE STREAMING — pipe Lovable proxy tokens directly to React ──
-        # No buffering. First token arrives in <500ms.
-        import httpx
-        from core.config import PROXY_URL, PROXY_SECRET, SUPABASE_SERVICE_KEY, LOVABLE_MODELS
-        from core.llm import FALLBACK_CHAINS
-
-        chain = FALLBACK_CHAINS.get(intent, FALLBACK_CHAINS["chat"])
-        model_id = None
-        for provider, model_key in chain:
-            if provider == "lovable":
-                model_id = LOVABLE_MODELS.get(model_key, LOVABLE_MODELS["chat"])
-                break
-
-        if not model_id:
-            model_id = LOVABLE_MODELS["chat"]
-
-        proxy_payload = {
-            "model": model_id,
-            "messages": llm_messages,
-            "stream": True,
-            "max_tokens": 2000,
-        }
-        proxy_headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-            "x-proxy-secret": PROXY_SECRET,
-            "x-source": "ayn-backend",
-        }
-
-        captured_tokens = []
-
-        async def true_stream():
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                async with client.stream("POST", PROXY_URL, json=proxy_payload,
-                                         headers=proxy_headers) as resp:
-                    if resp.status_code != 200:
-                        err = await resp.aread()
-                        yield f"data: {{\"error\": \"Proxy {resp.status_code}\"}}\n\n".encode()
-                        return
-                    async for chunk in resp.aiter_bytes():
-                        if chunk:
-                            # Capture for post-processing
-                            try:
-                                line = chunk.decode("utf-8", errors="ignore").strip()
-                                for part in line.split("\n"):
-                                    part = part.strip()
-                                    if part.startswith("data:") and part != "data: [DONE]":
-                                        d = json.loads(part[5:].strip())
-                                        t = d.get("choices",[{}])[0].get("delta",{}).get("content","")
-                                        if t:
-                                            captured_tokens.append(t)
-                            except Exception:
-                                pass
-                            yield chunk  # Forward raw SSE bytes to React immediately
-
-            # Post-process after stream finishes (fire and forget)
-            full = "".join(captured_tokens)
-            clean = strip_memory_tags(full)
-            async def _save():
-                if user_id != "internal" and "[MEMORY:" in full:
-                    await extract_and_save_memories(user_id, full)
-                if user_id != "internal" and body.sessionId and clean:
-                    try:
-                        db.table("messages").insert([
-                            {"user_id": user_id, "session_id": body.sessionId, "content": last_message, "sender": "user"},
-                            {"user_id": user_id, "session_id": body.sessionId, "content": clean, "sender": "ayn"},
-                        ]).execute()
-                    except Exception:
-                        pass
-            asyncio.create_task(_save())
+        async def stream_words():
+            words = clean_content.split(" ")
+            chunk_size = 4
+            for i in range(0, len(words), chunk_size):
+                chunk = " ".join(words[i:i + chunk_size])
+                if i + chunk_size < len(words):
+                    chunk += " "
+                payload = json.dumps({"choices": [{"delta": {"content": chunk}}]})
+                yield f"data: {payload}\n\n".encode()
+                await asyncio.sleep(0.01)
+            yield b"data: [DONE]\n\n"
 
         return StreamingResponse(
-            true_stream(),
+            stream_words(),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
                      "X-Accel-Buffering": "no", "X-Intent": intent}
         )
-
     # Non-streaming
     return {
         "content": clean_content,
