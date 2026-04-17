@@ -1,10 +1,10 @@
 """
 services/context.py — market + user context for chat
-Port of supabase/functions/ayn-unified/contextBuilder.ts
+Uses Railway PostgreSQL via asyncpg (replaces Supabase client)
 """
 import re
 import asyncio
-from core.db import get_db
+from core.database import fetch, fetchrow
 
 COUNTRY_PATTERNS: dict[str, list[str]] = {
     "SA": ["saudi", "ksa", "riyadh", "jeddah", "dammam", "السعودية", "الرياض", "جدة"],
@@ -20,10 +20,8 @@ COUNTRY_PATTERNS: dict[str, list[str]] = {
     "EG": ["egypt", "egyptian", "cairo", "مصر", "القاهرة"],
     "QA": ["qatar", "qatari", "doha", "قطر"],
     "KW": ["kuwait", "kuwaiti", "الكويت"],
-    "BH": ["bahrain", "bahraini", "البحرين"],
-    "OM": ["oman", "omani", "muscat", "عمان"],
-    "JO": ["jordan", "jordanian", "amman", "الأردن"],
-    "TR": ["turkey", "turkish", "istanbul", "ankara", "تركيا"],
+    "SA": ["saudi", "ksa", "riyadh", "السعودية"],
+    "TR": ["turkey", "turkish", "istanbul", "تركيا"],
 }
 
 
@@ -42,47 +40,42 @@ def needs_market_data(message: str) -> bool:
 
 async def get_market_snapshot() -> dict:
     try:
-        db = get_db()
-        r = db.from_("ayn_market_snapshot").select("*").limit(1).maybe_single().execute()
-        return r.data or {}
+        r = await fetchrow("SELECT * FROM ayn_market_snapshot ORDER BY fetched_at DESC LIMIT 1")
+        return dict(r) if r else {}
     except Exception:
         return {}
 
 
 async def get_user_context(user_id: str) -> dict:
     try:
-        db = get_db()
-        memories_res = await asyncio.to_thread(
-            lambda: db.from_("user_memory").select("memory_key,memory_data,memory_type")
-                      .eq("user_id", user_id).limit(20).execute()
+        memories = await fetch(
+            "SELECT memory_key, memory_data, memory_type FROM user_memory WHERE user_id = $1::uuid LIMIT 20",
+            user_id
         )
         try:
-            prefs_res = await asyncio.to_thread(
-                lambda: db.from_("user_preferences").select("key,value")
-                          .eq("user_id", user_id).limit(10).execute()
+            prefs = await fetch(
+                "SELECT settings FROM user_settings WHERE user_id = $1::uuid LIMIT 1",
+                user_id
             )
-            prefs_data = prefs_res.data or []
+            prefs_data = [dict(p) for p in prefs] if prefs else []
         except Exception:
             prefs_data = []
-        # Normalize memory_key/memory_data → key/value for system prompt
-        raw = memories_res.data or []
-        normalized = [
-            {"key": m.get("memory_key", ""), "value": m.get("memory_data", {}).get("value", "") if isinstance(m.get("memory_data"), dict) else str(m.get("memory_data", ""))}
-            for m in raw
-        ]
-        return {
-            "memories": normalized,
-            "preferences": prefs_data,
-        }
+
+        normalized = []
+        for m in (memories or []):
+            md = m.get("memory_data", {})
+            val = md.get("value", "") if isinstance(md, dict) else str(md or "")
+            normalized.append({"key": m.get("memory_key", ""), "value": val})
+
+        return {"memories": normalized, "preferences": prefs_data}
     except Exception:
         return {}
 
 
 async def get_market_prices() -> dict:
     try:
-        db = get_db()
-        r = db.from_("ayn_market_prices").select("*").limit(1).maybe_single().execute()
-        return r.data or {}
+        r = await fetchrow("SELECT * FROM ayn_market_prices ORDER BY fetched_at DESC LIMIT 1")
+        return dict(r) if r else {}
     except Exception:
         return {}
 
@@ -91,9 +84,11 @@ async def get_country_intelligence(country_codes: list[str]) -> list[dict]:
     if not country_codes:
         return []
     try:
-        db = get_db()
-        r = db.from_("ayn_country_intelligence").select("*").in_("country_code", country_codes).execute()
-        return r.data or []
+        rows = await fetch(
+            "SELECT * FROM ayn_country_intelligence WHERE country_code = ANY($1) LIMIT 10",
+            country_codes
+        )
+        return [dict(r) for r in rows] if rows else []
     except Exception:
         return []
 
@@ -102,48 +97,48 @@ async def get_trade_flows(country_codes: list[str]) -> list[dict]:
     if not country_codes:
         return []
     try:
-        db = get_db()
-        r = (db.from_("ayn_trade_flows").select("*")
-             .in_("country_code", country_codes).limit(10).execute())
-        return r.data or []
+        rows = await fetch(
+            "SELECT * FROM ayn_trade_flows WHERE country_code = ANY($1) LIMIT 10",
+            country_codes
+        )
+        return [dict(r) for r in rows] if rows else []
     except Exception:
         return []
 
 
 async def get_world_signals(limit: int = 5) -> list[dict]:
     try:
-        db = get_db()
-        r = (db.from_("ayn_world_signals").select("headline,severity,region,impact_on_oil,impact_on_gold,impact_on_btc")
-             .eq("status", "active").order("created_at", desc=True).limit(limit).execute())
-        return r.data or []
+        rows = await fetch(
+            "SELECT headline, severity, region, impact_on_oil, impact_on_gold, impact_on_btc "
+            "FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT $1",
+            limit
+        )
+        return [dict(r) for r in rows] if rows else []
     except Exception:
         return []
 
 
 async def get_master_predictions(limit: int = 3) -> list[dict]:
     try:
-        db = get_db()
-        r = (db.from_("ayn_master_predictions").select("title,probability_pct,actionable_move,domain")
-             .order("created_at", desc=True).limit(limit).execute())
-        return r.data or []
+        rows = await fetch(
+            "SELECT title, probability_pct, actionable_move, domain "
+            "FROM ayn_master_predictions ORDER BY created_at DESC LIMIT $1",
+            limit
+        )
+        return [dict(r) for r in rows] if rows else []
     except Exception:
         return []
 
 
 def build_intelligence_context(
-    snapshot: dict,
-    country_profiles: list[dict],
-    prices: dict,
-    trade_flows: list[dict],
-    signals: list[dict] = [],
-    predictions: list[dict] = [],
+    snapshot: dict, country_profiles: list[dict],
+    prices: dict, trade_flows: list[dict],
+    signals: list[dict] = [], predictions: list[dict] = [],
 ) -> str:
-    """Build intelligence context string injected into system prompt."""
     ctx = ""
-
     brief = snapshot.get("intelligence_brief", [])
     if brief:
-        ctx += f"\n\nBACKGROUND INTELLIGENCE (use only when user asks about markets/world):\n"
+        ctx += "\n\nBACKGROUND INTELLIGENCE (use only when user asks about markets/world):\n"
         ctx += "\n".join(str(b) for b in brief[:8])
         ctx += "\n\nRULE: Only cite when user asks about markets, business, world events. Never unprompted."
 
@@ -164,9 +159,6 @@ def build_intelligence_context(
             ctx += f"\n\n{cp.get('country_name', '')}:"
             if b:
                 ctx += "\n" + "\n".join(str(x) for x in b[:6])
-            hot = cp.get("hot_sectors", [])
-            if hot:
-                ctx += f"\nHot sectors: {hot[0].get('snippet', hot[0].get('title', '')) if isinstance(hot[0], dict) else hot[0]}"
 
     price_narrative = prices.get("narrative", [])
     if price_narrative:
@@ -176,10 +168,6 @@ def build_intelligence_context(
 
 
 async def build_full_context(message: str, user_id: str) -> tuple[dict, str]:
-    """
-    Fetch all context in parallel, return (user_context, intelligence_context_string).
-    Called once per chat request.
-    """
     country_codes = detect_countries(message)
     fetch_market = needs_market_data(message)
 
@@ -190,7 +178,6 @@ async def build_full_context(message: str, user_id: str) -> tuple[dict, str]:
                   get_world_signals(), get_master_predictions()]
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
-
     user_ctx = results[0] if not isinstance(results[0], Exception) else {}
 
     intel_ctx = ""

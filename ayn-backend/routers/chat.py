@@ -2,9 +2,135 @@
 routers/chat.py — AYN chat endpoint, replacing ayn-unified edge function
 
 Streaming SSE to React. Same request shape, same response shape.
-React changes one URL: /functions/v1/ayn-unified → /chat
+React changes one URL: /functions/v1/ayn-unified -> /chat
 Everything else stays identical.
 """
+import re
+import asyncio
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse, JSONResponse
+from pydantic import BaseModel
+from typing import Optional
+
+from core.auth import verify_token, check_user_limit
+from core.db import get_db
+from core.llm import call_with_fallback, lovable
+from core.config import LOVABLE_MODELS
+from services.context import build_full_context
+from services.memory import extract_and_save_memories, strip_memory_tags
+from services.search import needs_web_lookup, search_web, scrape_url
+
+# ── Intent detector (port of intentDetector.ts) ───────────────────────────────
+from routers._intent import detect_intent
+
+router = APIRouter()
+
+
+class ChatBody(BaseModel):
+    model_config = {"extra": "allow"}  # accept any extra fields React sends
+
+    messages: list[dict] = []
+    intent: Optional[str] = None
+    context: dict = {}
+    stream: bool = True
+    sessionId: Optional[str] = None
+
+
+# ── AYN tool definitions (same as toolHandler.ts) ─────────────────────────────
+AYN_TOOLS = [
+    {"type": "function", "function": {
+        "name": "get_market_prices",
+        "description": "Gets the latest live prices for commodities, crypto, and currencies.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "get_business_news",
+        "description": "Gets the latest top business and market news headlines.",
+        "parameters": {"type": "object", "properties": {
+            "country_codes": {"type": "array", "items": {"type": "string"}}
+        }}}},
+    {"type": "function", "function": {
+        "name": "get_geopolitical_risks",
+        "description": "Retrieves active conflicts, trade tensions, and sanctions globally.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "search_web",
+        "description": "Search the live internet for ANY information. ALWAYS search when not 100% certain of current facts.",
+        "parameters": {"type": "object", "properties": {
+            "query": {"type": "string"}
+        }, "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "get_sector_intelligence",
+        "description": "Gets intelligence for sectors: startups, jobs, supply_chain, real_estate, consumer, health, tech, energy.",
+        "parameters": {"type": "object", "properties": {
+            "sector": {"type": "string"}
+        }, "required": ["sector"]}}},
+    {"type": "function", "function": {
+        "name": "get_country_profile",
+        "description": "Gets deep intelligence on a specific country.",
+        "parameters": {"type": "object", "properties": {
+            "country_codes": {"type": "array", "items": {"type": "string"}}
+        }, "required": ["country_codes"]}}},
+]
+
+
+async def execute_tool(tool_call: dict, db=None) -> dict:
+    """Execute an AYN tool call using Railway PostgreSQL."""
+    from core.database import fetch, fetchrow
+    name = tool_call.get("function", {}).get("name", "")
+    args = tool_call.get("function", {}).get("arguments", {})
+    if isinstance(args, str):
+        import json
+        try: args = json.loads(args)
+        except: args = {}
+
+    try:
+        if name == "get_market_prices":
+            r = await fetchrow("SELECT * FROM ayn_market_prices ORDER BY fetched_at DESC LIMIT 1")
+            return {"prices": dict(r) if r else {}}
+
+        elif name == "get_business_news":
+            codes = args.get("country_codes", [])
+            if codes:
+                r = await fetch("SELECT * FROM ayn_business_news WHERE country_code = ANY($1) ORDER BY fetched_at DESC LIMIT 10", codes)
+            else:
+                r = await fetch("SELECT * FROM ayn_business_news ORDER BY fetched_at DESC LIMIT 10")
+            return {"news": [dict(x) for x in r] if r else []}
+
+        elif name == "get_geopolitical_risks":
+            r = await fetch("SELECT headline, severity, region, summary FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT 15")
+            return {"risks": [dict(x) for x in r] if r else []}
+
+        elif name == "search_web":
+            query = args.get("query", "")
+            result = await search_web(query)
+            return {"results": result}
+
+        elif name == "get_sector_intelligence":
+            sector = args.get("sector", "")
+            table_map = {
+                "startups": "ayn_startup_intel", "jobs": "ayn_job_market",
+                "supply_chain": "ayn_supply_chain", "real_estate": "ayn_real_estate",
+                "consumer": "ayn_consumer_sentiment", "health": "ayn_health_intel",
+                "tech": "ayn_tech_disruption", "energy": "ayn_supply_chain",
+            }
+            table = table_map.get(sector, "ayn_sector_intel")
+            try:
+                r = await fetch(f"SELECT * FROM {table} ORDER BY created_at DESC LIMIT 5")
+                return {"sector_data": [dict(x) for x in r] if r else []}
+            except:
+                return {"sector_data": []}
+
+        elif name == "get_country_profile":
+            codes = args.get("country_codes", [])
+            if not codes:
+                return {"countries": []}
+            r = await fetch("SELECT * FROM ayn_country_intelligence WHERE country_code = ANY($1)", codes)
+            return {"countries": [dict(x) for x in r] if r else []}
+
+        return {}
+    except Exception as e:
+        log.warning(f"[TOOL] {name} failed: {e}")
+        return {"error": str(e)}
 import re
 import asyncio
 from fastapi import APIRouter, Depends, Request
@@ -265,23 +391,29 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
     clean_content = strip_memory_tags(response_content)
     log.info(f"[CHAT] response ready len={len(clean_content)} stream={body.stream}")
 
-    # Save message to DB
+    # Save messages to Railway PostgreSQL
     if user_id != "internal" and body.sessionId:
         try:
-            db.table("messages").insert({
-                "user_id": user_id,
-                "session_id": body.sessionId,
-                "content": last_message,
-                "sender": "user",
-            }).execute()
-            db.table("messages").insert({
-                "user_id": user_id,
-                "session_id": body.sessionId,
-                "content": clean_content,
-                "sender": "ayn",
-            }).execute()
-        except Exception:
-            pass
+            from core.database import execute as pg_execute
+            title = last_message[:60] + "..." if len(last_message) > 60 else last_message
+            # Upsert session
+            await pg_execute("""
+                INSERT INTO chat_sessions (session_id, user_id, title, created_at, updated_at)
+                VALUES ($1, $2::uuid, $3, NOW(), NOW())
+                ON CONFLICT (session_id) DO UPDATE SET updated_at = NOW()
+            """, body.sessionId, user_id, title)
+            # Save user message
+            await pg_execute("""
+                INSERT INTO messages (user_id, session_id, role, content, created_at)
+                VALUES ($1::uuid, $2, 'user', $3, NOW())
+            """, user_id, body.sessionId, last_message)
+            # Save assistant message
+            await pg_execute("""
+                INSERT INTO messages (user_id, session_id, role, content, created_at)
+                VALUES ($1::uuid, $2, 'assistant', $3, NOW() + INTERVAL '1 millisecond')
+            """, user_id, body.sessionId, clean_content)
+        except Exception as e:
+            log.warning(f"[CHAT] message save failed: {e}")
 
     # Return as plain JSON — React's useMessages handles both streaming and non-streaming
     # StreamingResponse causes ExceptionGroup crashes in Python 3.12 + Starlette
