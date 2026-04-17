@@ -16,7 +16,10 @@ const mapDbMessages = (data: Array<{
 }>): Message[] => data.map(msg => ({
   id: msg.id,
   content: msg.content,
-  sender: msg.sender as 'user' | 'ayn',
+  sender: (() => {
+    const raw = msg.role || msg.sender || 'ayn';
+    return (raw === 'assistant' ? 'ayn' : raw) as 'user' | 'ayn';
+  })(),
   timestamp: new Date(msg.created_at),
   status: 'sent' as const,
   attachment: msg.attachment_url ? {
