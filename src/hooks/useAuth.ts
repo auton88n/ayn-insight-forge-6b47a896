@@ -105,58 +105,33 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
       if (hasRun) return;
       hasRun = true;
 
-      try {
-        const results = await Promise.all([
-          // Primary access check: user_subscriptions
-          spineApi.getMe(),
-          Promise.resolve([]),
-          Promise.resolve([]),
-          Promise.resolve([])
-        ]);
-
-        if (!isMounted) return;
-
-        const [meData] = results;
-
-        // All authenticated users have access
+      // Step 1: Resolve everything from local state IMMEDIATELY — no network needed
+      // This unblocks the UI instantly. User data is in localStorage from login.
+      if (isMounted) {
         setHasAccess(true);
+        setIsAdmin(user.email?.endsWith('@aynn.io') === true);
+        const localTermsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
+        setHasAcceptedTerms(localTermsAccepted);
+        setIsAuthLoading(false); // ← unblock sidebar immediately
+      }
 
-        // Admin check from spine user data
-        const isAdminUser = (meData as any)?.is_admin === true || 
-                            user.email?.endsWith('@aynn.io') === true;
-        setIsAdmin(isAdminUser);
-        setIsDuty(false);
-
-        // Build profile from spine /auth/me response
-        if (meData && typeof meData === 'object') {
-          const me = meData as any;
+      // Step 2: Load enriched profile from spine in background (non-blocking)
+      try {
+        const me = await spineApi.getMe() as any;
+        if (!isMounted) return;
+        if (me && typeof me === 'object') {
           setUserProfile({
             user_id: user.id,
             contact_person: `${me.first_name || ''} ${me.last_name || ''}`.trim() || user.email || '',
-            company_name: '',
-            business_type: '',
+            company_name: me.company_name || '',
+            business_type: me.business_type || '',
             avatar_url: me.avatar_url || null,
           } as UserProfile);
+          // Update admin from server (more authoritative than email check)
+          if (me.is_admin === true) setIsAdmin(true);
         }
-
-        // Terms — check localStorage
-        const localTermsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
-        setHasAcceptedTerms(localTermsAccepted);
-
-      } catch (error) {
-        // Even on error — unblock the app, give access, show dashboard
-        if (isMounted) {
-          setHasAccess(true);
-          setIsAdmin(user.email?.endsWith('@aynn.io') === true);
-          // Don't auto-accept terms on error - let the modal show
-        }
-        if (import.meta.env.DEV) {
-          console.error('Auth queries batch failed:', error);
-        }
-      } finally {
-        if (isMounted) {
-          setIsAuthLoading(false);
-        }
+      } catch {
+        // Silent — profile already defaulted above, sidebar already unblocked
       }
     };
 

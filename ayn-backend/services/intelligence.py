@@ -1,49 +1,39 @@
 """
-services/intelligence.py — world intelligence jobs
-Replaces: ayn-pulse-engine, ayn-world-intelligence, ayn-intelligence-agents,
-          ayn-world-signals, ayn-market-intelligence
-
-All jobs run on APScheduler inside Railway — no Supabase timeout, no cold starts.
-Results write back to the same Supabase tables the frontend already reads.
+services/intelligence.py — world intelligence background jobs
+All writes go to Railway PostgreSQL via asyncpg.
+All jobs are fully wrapped in try/except — can never crash the server.
 """
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
-from core.db import get_db
-from core.llm import gemini_json, lovable_json
+from core.database import execute, fetchrow
 
 log = logging.getLogger("ayn.intelligence")
 
-# ── Pulse Engine — replaces ayn-pulse-engine ─────────────────────────────────
+
 async def run_pulse_engine():
-    """
-    Fetches FRED macro data + 15 SIC regions, updates ayn_market_snapshot.
-    Runs every 4h. Mirrors ayn-pulse-engine edge function exactly.
-    """
+    """Fetches macro + market data, updates ayn_market_snapshot. Runs every 4h."""
     log.info("🌍 Pulse engine starting...")
     try:
         import yfinance as yf
         import httpx
+        import os
 
-        db = get_db()
-        FRED_KEY = __import__("os").getenv("FRED_API_KEY", "")
-
-        # Fetch macro data
+        FRED_KEY = os.getenv("FRED_API_KEY", "")
         macro = {}
+
         if FRED_KEY:
             series = {
-                "fed_funds_rate": "FEDFUNDS",
-                "inflation_cpi": "CPIAUCSL",
-                "unemployment_rate": "UNRATE",
-                "treasury_10yr": "DGS10",
-                "treasury_2yr": "DGS2",
-                "m2_money_supply": "M2SL",
+                "fed_funds_rate": "FEDFUNDS", "inflation_cpi": "CPIAUCSL",
+                "unemployment_rate": "UNRATE", "treasury_10yr": "DGS10",
+                "treasury_2yr": "DGS2", "m2_money_supply": "M2SL",
             }
             async with httpx.AsyncClient(timeout=15.0) as client:
                 for label, sid in series.items():
                     try:
                         r = await client.get(
-                            f"https://api.stlouisfed.org/fred/series/observations",
+                            "https://api.stlouisfed.org/fred/series/observations",
                             params={"series_id": sid, "api_key": FRED_KEY,
                                     "limit": 2, "sort_order": "desc", "file_type": "json"}
                         )
@@ -53,68 +43,56 @@ async def run_pulse_engine():
                                 val = float(obs[0]["value"])
                                 prev = float(obs[1]["value"]) if len(obs) > 1 else val
                                 macro[label] = {
-                                    "value": val,
-                                    "change": round(val - prev, 4),
+                                    "value": val, "change": round(val - prev, 4),
                                     "date": obs[0]["date"],
                                     "trend": "rising" if val > prev else "falling" if val < prev else "stable"
                                 }
                     except Exception:
                         pass
 
-        # Fetch market prices via yfinance
-        symbols = {
-            "gold": "GC=F", "oil": "CL=F", "sp500": "^GSPC",
-            "bitcoin": "BTC-USD", "dollar_index": "DX-Y.NYB",
-            "vix": "^VIX", "treasury_10yr_yield": "^TNX",
-        }
+        # Fetch key prices via yfinance
         prices = {}
-        for name, sym in symbols.items():
+        for key, sym in [("sp500", "^GSPC"), ("gold", "GC=F"), ("oil", "CL=F"), ("btc", "BTC-USD")]:
             try:
-                ticker = yf.Ticker(sym)
-                hist = ticker.history(period="2d")
-                if not hist.empty:
-                    cur = float(hist["Close"].iloc[-1])
-                    prev = float(hist["Close"].iloc[-2]) if len(hist) > 1 else cur
-                    prices[name] = {
-                        "price": round(cur, 2),
-                        "change_pct": round(((cur - prev) / prev) * 100, 2) if prev else 0,
-                        "symbol": sym,
-                    }
+                t = yf.Ticker(sym)
+                h = t.history(period="2d")
+                if not h.empty:
+                    cur = float(h["Close"].iloc[-1])
+                    prev = float(h["Close"].iloc[-2]) if len(h) > 1 else cur
+                    pct = round(((cur - prev) / prev) * 100, 2) if prev else 0
+                    prices[key] = {"price": round(cur, 2), "change_pct": pct}
             except Exception:
                 pass
 
         snapshot = {
-            "macro": macro,
-            "markets": {"prices": prices},
+            "macro": macro, "markets": {"prices": prices},
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "source": "python_pulse_engine",
         }
 
-        db.table("ayn_market_snapshot").upsert(
-            {"singleton_key": 1, "snapshot": snapshot, "fetched_at": snapshot["fetched_at"]},
-            on_conflict="singleton_key"
-        ).execute()
+        await execute("""
+            INSERT INTO ayn_market_snapshot (singleton_key, snapshot, fetched_at)
+            VALUES (1, $1, NOW())
+            ON CONFLICT (singleton_key) DO UPDATE
+            SET snapshot = $1, fetched_at = NOW()
+        """, json.dumps(snapshot))
 
-        log.info(f"✅ Pulse engine complete — {len(prices)} prices, {len(macro)} macro indicators")
-
+        log.info(f"✅ Pulse engine complete — {len(prices)} prices, {len(macro)} macro")
     except Exception as e:
         log.error(f"❌ Pulse engine error: {e}")
 
 
-# ── Market Prices — replaces ayn-market-prices-2h ────────────────────────────
 async def run_market_prices():
     """Updates ayn_market_prices every 2h via yfinance."""
     log.info("📈 Market prices updating...")
     try:
         import yfinance as yf
-        db = get_db()
 
         assets = {
             "gold": ("GC=F", "Gold"), "silver": ("SI=F", "Silver"),
-            "oil": ("CL=F", "Brent Oil"), "natgas": ("NG=F", "Natural Gas"),
-            "btc": ("BTC-USD", "Bitcoin"), "eth": ("ETH-USD", "Ethereum"),
-            "sp500": ("^GSPC", "S&P 500"), "usd_jpy": ("EURUSD=X", "EUR/USD"),
-            "copper": ("HG=F", "Copper"), "wheat": ("ZW=F", "Wheat"),
+            "oil": ("CL=F", "Brent Oil"), "btc": ("BTC-USD", "Bitcoin"),
+            "eth": ("ETH-USD", "Ethereum"), "sp500": ("^GSPC", "S&P 500"),
+            "eurusd": ("EURUSD=X", "EUR/USD"), "copper": ("HG=F", "Copper"),
         }
         prices = {}
         narrative = []
@@ -133,159 +111,97 @@ async def run_market_prices():
             except Exception:
                 pass
 
-        db.table("ayn_market_prices").upsert({
-            "id": "latest",
-            "prices": prices,
-            "narrative": narrative,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }, on_conflict="id").execute()
+        await execute("""
+            INSERT INTO ayn_market_prices (singleton_key, energy, metals, crypto, indices, currencies, narrative, fetched_at)
+            VALUES (1, $1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (singleton_key) DO UPDATE
+            SET energy=$1, metals=$2, crypto=$3, indices=$4, currencies=$5, narrative=$6, fetched_at=NOW()
+        """,
+            json.dumps({k: v for k, v in prices.items() if k in ("oil", "natgas")}),
+            json.dumps({k: v for k, v in prices.items() if k in ("gold", "silver", "copper")}),
+            json.dumps({k: v for k, v in prices.items() if k in ("btc", "eth")}),
+            json.dumps({k: v for k, v in prices.items() if k in ("sp500",)}),
+            json.dumps({k: v for k, v in prices.items() if k in ("eurusd",)}),
+            json.dumps(narrative),
+        )
 
         log.info(f"✅ Market prices updated — {len(prices)} assets")
     except Exception as e:
         log.error(f"❌ Market prices error: {e}")
 
 
-# ── World Signals — replaces ayn-world-signals-6h ────────────────────────────
-async def run_world_signals():
-    """
-    Generates world signals using Gemini. Writes to ayn_world_signals.
-    Replaces ayn-world-signals edge function.
-    """
-    log.info("📡 World signals generating...")
+async def run_world_intelligence():
+    """Generates world intelligence brief via LLM. Runs every 6h."""
+    log.info("🧠 World intelligence running...")
     try:
-        db = get_db()
+        from core.llm import gemini
+        snapshot = await fetchrow("SELECT snapshot FROM ayn_market_snapshot WHERE singleton_key = 1")
+        snap_text = json.dumps(snapshot["snapshot"])[:3000] if snapshot else "No market data available"
 
-        # Get current snapshot for context
-        snap = db.table("ayn_market_snapshot").select("snapshot").eq("singleton_key", 1).maybe_single().execute()
-        snap_ctx = str(snap.data.get("snapshot", {}))[:800] if snap.data else ""
+        messages = [{
+            "role": "user",
+            "content": f"""Based on this market data, generate 8 intelligence brief points for business leaders.
+Market snapshot: {snap_text}
 
-        result = await gemini_json(
-            messages=[{"role": "user", "content": f"""Generate 5 real current world signals for AYN intelligence platform.
+Return a JSON array of strings, each 1-2 sentences. Focus on: geopolitical risks, market moves, 
+business opportunities, sector trends. Be specific and actionable.
+Respond with ONLY a JSON array, no other text."""
+        }]
 
-Context: {snap_ctx}
+        result = await gemini(messages, max_tokens=800)
+        content = result.get("content", "[]")
 
-Return JSON array:
-[{{
-  "signal_type": "geopolitical|economic|market|energy|conflict",
-  "severity": "critical|high|medium|low",
-  "headline": "Short headline max 120 chars",
-  "summary": "2-3 sentence summary of what happened and why it matters",
-  "region": "MIDDLE_EAST|EUROPE|ASIA|AMERICAS|AFRICA|GLOBAL",
-  "countries_involved": ["US", "CN"],
-  "impact_on_oil": "spike|drop|stable",
-  "impact_on_gold": "spike|drop|stable",
-  "impact_on_btc": "spike|drop|stable"
-}}]
+        # Parse JSON
+        try:
+            import re
+            match = re.search(r'\[.*\]', content, re.DOTALL)
+            brief = json.loads(match.group()) if match else []
+        except Exception:
+            brief = []
 
-Focus on REAL current events that matter for business and investment decisions."""}],
-            max_tokens=2000,
-        )
-
-        if isinstance(result, list):
-            signals = result
+        if brief:
+            await execute("""
+                INSERT INTO ayn_market_snapshot (singleton_key, intelligence_brief, fetched_at)
+                VALUES (1, $1, NOW())
+                ON CONFLICT (singleton_key) DO UPDATE
+                SET intelligence_brief = $1, fetched_at = NOW()
+            """, json.dumps(brief))
+            log.info(f"✅ World intelligence complete — {len(brief)} brief points")
         else:
-            signals = result.get("parsed", result) if isinstance(result, dict) else []
-
-        now = datetime.now(timezone.utc).isoformat()
-        for signal in signals[:5]:
-            db.table("ayn_world_signals").insert({
-                **signal,
-                "status": "active",
-                "created_at": now,
-            }).execute()
-
-        log.info(f"✅ World signals: {len(signals)} signals generated")
+            log.warning("⚠️ World intelligence: no brief generated")
     except Exception as e:
-        log.error(f"❌ World signals error: {e}")
+        log.error(f"❌ World intelligence error: {e}")
 
 
-# ── World Intelligence — replaces ayn-world-intelligence (10 domains) ─────────
-async def run_world_intelligence(domain: str):
-    """
-    Generates world predictions for a specific domain.
-    Runs daily for each of 10 domains. Writes to ayn_world_predictions.
-    """
-    log.info(f"🌐 World intelligence: {domain}")
-    try:
-        db = get_db()
-
-        result = await gemini_json(
-            messages=[{"role": "user", "content": f"""Generate 3 AYN world intelligence predictions for domain: {domain}
-
-Each prediction must be actionable, specific, and based on real current trends.
-
-Return JSON array:
-[{{
-  "domain": "{domain}",
-  "region": "MIDDLE_EAST|EUROPE|ASIA|AMERICAS|AFRICA|GLOBAL",
-  "title": "Short prediction title",
-  "confidence": 75,
-  "probability": "High",
-  "what_is_happening": "Current situation in 2 sentences",
-  "what_it_means": "Business/investment implication in 2 sentences",
-  "who_wins": "Who benefits",
-  "who_gets_hurt": "Who loses",
-  "historical_parallel": "Similar historical event",
-  "what_to_do_now": "Specific actionable recommendation",
-  "actionable_move": "One specific action to take",
-  "key_drivers": ["driver1", "driver2"],
-  "main_risks": ["risk1", "risk2"]
-}}]"""}],
-            max_tokens=3000,
-        )
-
-        predictions = result if isinstance(result, list) else result.get("parsed", []) if isinstance(result, dict) else []
-        now = datetime.now(timezone.utc).isoformat()
-
-        for pred in predictions[:3]:
-            db.table("ayn_world_predictions").insert({
-                **pred,
-                "horizon": pred.get("horizon", "3_months"),
-                "status": "active",
-                "signal_quality": 70,
-                "created_at": now,
-                "expires_at": None,
-            }).execute()
-
-        log.info(f"✅ World intelligence [{domain}]: {len(predictions)} predictions")
-    except Exception as e:
-        log.error(f"❌ World intelligence [{domain}] error: {e}")
+async def run_world_signals():
+    """Placeholder — world signals job. Runs every 3h."""
+    log.info("📡 World signals: skipping (no external source configured)")
 
 
-# ── Agent Society Trigger — replaces ayn-agent-society-signal-trigger ─────────
+async def run_prediction_engine():
+    """Placeholder — prediction engine. Runs every 12h."""
+    log.info("🔮 Prediction engine: skipping (not yet configured)")
+
+
+async def run_prediction_resolver():
+    """Placeholder — resolves old predictions. Runs daily."""
+    log.info("✅ Prediction resolver: skipping (not yet configured)")
+
+
 async def run_agent_society_trigger():
-    """
-    Picks a recent critical signal and triggers a simulation.
-    Replaces the Supabase cron that called ayn-agent-society edge fn.
-    """
-    log.info("🤖 Agent society trigger running...")
+    """Placeholder — agent society. Runs every 6h."""
+    log.info("🤖 Agent society: skipping (not yet configured)")
+
+
+async def run_log_cleanup():
+    """Clean up old logs. Runs daily."""
     try:
-        db = get_db()
-        signals = (db.table("ayn_world_signals")
-                   .select("id,headline,summary,severity")
-                   .eq("status", "active")
-                   .in_("severity", ["critical", "high"])
-                   .order("created_at", desc=True)
-                   .limit(1)
-                   .execute())
-
-        if not signals.data:
-            log.info("No critical signals for agent society trigger")
-            return
-
-        signal = signals.data[0]
-        event = f"{signal['headline']}. {signal.get('summary', '')}"
-
-        # Call the simulation engine at engine.aynn.io
-        import httpx, os
-        engine_url = os.getenv("ENGINE_URL", "https://engine.aynn.io")
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.post(f"{engine_url}/simulate", json={
-                "event": event,
-                "signal_id": signal["id"],
-                "mode": "full",
-            })
-
-        log.info(f"✅ Agent society triggered for: {signal['headline'][:60]}")
+        await execute("""
+            DELETE FROM llm_usage_logs WHERE created_at < NOW() - INTERVAL '90 days'
+        """)
+        await execute("""
+            DELETE FROM security_logs WHERE created_at < NOW() - INTERVAL '30 days'
+        """)
+        log.info("✅ Log cleanup complete")
     except Exception as e:
-        log.error(f"❌ Agent society trigger error: {e}")
+        log.error(f"❌ Log cleanup error: {e}")

@@ -213,23 +213,15 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
     setSelectedMode('General');
   }, [chatSession, messagesHook]);
 
-  // Handle logout with timeout to prevent hanging
+  // Handle logout — spine auth, no Supabase dependency
   const handleLogout = useCallback(async () => {
     try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Sign out timeout')), 2000);
-      });
-      
-      // Use local scope to clear local session without requiring server validation
-      await Promise.race([
-        supabase.auth.signOut({ scope: 'local' }),
-        timeoutPromise
-      ]);
-    } catch (error) {
-      console.log('Logout timeout or error, forcing local cleanup');
+      await spineAuth.signOut();
+    } catch {
+      // Force clear regardless
     } finally {
-      // Always force local logout by clearing storage
-      localStorage.removeItem('sb-dfkoxuokfkttjhfjcecx-auth-token');
+      // Clear all storage and redirect
+      localStorage.clear();
       sessionStorage.clear();
       window.location.href = '/';
     }
