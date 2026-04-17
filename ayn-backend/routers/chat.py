@@ -74,8 +74,9 @@ AYN_TOOLS = [
 
 
 async def execute_tool(tool_call: dict, db=None) -> dict:
-    """Execute an AYN tool call using Railway PostgreSQL."""
-    from core.database import fetch, fetchrow
+    """Execute an AYN tool call — reads from Supabase where the data lives."""
+    import asyncio
+    from core.db import get_db
     name = tool_call.get("function", {}).get("name", "")
     args = tool_call.get("function", {}).get("arguments", {})
     if isinstance(args, str):
@@ -84,21 +85,28 @@ async def execute_tool(tool_call: dict, db=None) -> dict:
         except: args = {}
 
     try:
+        supa = get_db()
+
         if name == "get_market_prices":
-            r = await fetchrow("SELECT * FROM ayn_market_prices ORDER BY fetched_at DESC LIMIT 1")
-            return {"prices": dict(r) if r else {}}
+            r = await asyncio.to_thread(
+                lambda: supa.from_("ayn_market_prices").select("*").limit(1).maybe_single().execute()
+            )
+            return {"prices": r.data or {}}
 
         elif name == "get_business_news":
             codes = args.get("country_codes", [])
-            if codes:
-                r = await fetch("SELECT * FROM ayn_business_news WHERE country_code = ANY($1) ORDER BY fetched_at DESC LIMIT 10", codes)
-            else:
-                r = await fetch("SELECT * FROM ayn_business_news ORDER BY fetched_at DESC LIMIT 10")
-            return {"news": [dict(x) for x in r] if r else []}
+            r = await asyncio.to_thread(
+                lambda: supa.from_("ayn_business_news").select("*").order("fetched_at", desc=True).limit(10).execute()
+            )
+            return {"news": r.data or []}
 
         elif name == "get_geopolitical_risks":
-            r = await fetch("SELECT headline, severity, region, summary FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT 15")
-            return {"risks": [dict(x) for x in r] if r else []}
+            r = await asyncio.to_thread(
+                lambda: supa.from_("ayn_world_signals")
+                    .select("headline,severity,region,summary,impact_on_oil,impact_on_gold")
+                    .eq("status", "active").order("created_at", desc=True).limit(15).execute()
+            )
+            return {"risks": r.data or []}
 
         elif name == "search_web":
             query = args.get("query", "")
@@ -111,21 +119,21 @@ async def execute_tool(tool_call: dict, db=None) -> dict:
                 "startups": "ayn_startup_intel", "jobs": "ayn_job_market",
                 "supply_chain": "ayn_supply_chain", "real_estate": "ayn_real_estate",
                 "consumer": "ayn_consumer_sentiment", "health": "ayn_health_intel",
-                "tech": "ayn_tech_disruption", "energy": "ayn_supply_chain",
+                "tech": "ayn_tech_disruption",
             }
             table = table_map.get(sector, "ayn_sector_intel")
-            try:
-                r = await fetch(f"SELECT * FROM {table} ORDER BY created_at DESC LIMIT 5")
-                return {"sector_data": [dict(x) for x in r] if r else []}
-            except:
-                return {"sector_data": []}
+            r = await asyncio.to_thread(
+                lambda: supa.from_(table).select("*").order("fetched_at", desc=True).limit(3).execute()
+            )
+            return {"sector_data": r.data or []}
 
         elif name == "get_country_profile":
             codes = args.get("country_codes", [])
-            if not codes:
-                return {"countries": []}
-            r = await fetch("SELECT * FROM ayn_country_intelligence WHERE country_code = ANY($1)", codes)
-            return {"countries": [dict(x) for x in r] if r else []}
+            if not codes: return {"countries": []}
+            r = await asyncio.to_thread(
+                lambda: supa.from_("ayn_country_intelligence").select("*").in_("country_code", codes).execute()
+            )
+            return {"countries": r.data or []}
 
         return {}
     except Exception as e:

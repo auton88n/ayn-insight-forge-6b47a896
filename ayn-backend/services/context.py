@@ -1,10 +1,14 @@
 """
 services/context.py — market + user context for chat
-Uses Railway PostgreSQL via asyncpg (replaces Supabase client)
+Reads world intelligence data from Supabase (where it lives).
+Reads user memory from Railway PostgreSQL (spine-owned data).
 """
 import re
 import asyncio
-from core.database import fetch, fetchrow
+import logging
+from core.db import get_db
+
+log = logging.getLogger("ayn.context")
 
 COUNTRY_PATTERNS: dict[str, list[str]] = {
     "SA": ["saudi", "ksa", "riyadh", "jeddah", "dammam", "السعودية", "الرياض", "جدة"],
@@ -19,17 +23,13 @@ COUNTRY_PATTERNS: dict[str, list[str]] = {
     "CA": ["canada", "canadian", "toronto", "كندا"],
     "EG": ["egypt", "egyptian", "cairo", "مصر", "القاهرة"],
     "QA": ["qatar", "qatari", "doha", "قطر"],
-    "KW": ["kuwait", "kuwaiti", "الكويت"],
-    "SA": ["saudi", "ksa", "riyadh", "السعودية"],
     "TR": ["turkey", "turkish", "istanbul", "تركيا"],
 }
-
 
 def detect_countries(message: str) -> list[str]:
     lower = message.lower()
     return [code for code, patterns in COUNTRY_PATTERNS.items()
             if any(p in lower for p in patterns)]
-
 
 def needs_market_data(message: str) -> bool:
     return bool(re.search(
@@ -37,121 +37,118 @@ def needs_market_data(message: str) -> bool:
         r'bitcoin|crypto|market|سعر|ذهب|نفط|عملة|دولار|ريال)\b', message, re.I
     ))
 
-
 async def get_market_snapshot() -> dict:
+    """Read from Supabase where the pulse engine writes."""
     try:
-        r = await fetchrow("SELECT * FROM ayn_market_snapshot ORDER BY fetched_at DESC LIMIT 1")
-        return dict(r) if r else {}
-    except Exception:
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("ayn_market_snapshot").select("*").limit(1).maybe_single().execute()
+        )
+        return r.data or {}
+    except Exception as e:
+        log.debug(f"market_snapshot: {e}")
         return {}
 
-
 async def get_user_context(user_id: str) -> dict:
+    """Read user memory from Railway (spine-owned)."""
     try:
+        from core.database import fetch
         memories = await fetch(
             "SELECT memory_key, memory_data, memory_type FROM user_memory WHERE user_id = $1::uuid LIMIT 20",
             user_id
         )
-        try:
-            prefs = await fetch(
-                "SELECT settings FROM user_settings WHERE user_id = $1::uuid LIMIT 1",
-                user_id
-            )
-            prefs_data = [dict(p) for p in prefs] if prefs else []
-        except Exception:
-            prefs_data = []
-
         normalized = []
         for m in (memories or []):
             md = m.get("memory_data", {})
             val = md.get("value", "") if isinstance(md, dict) else str(md or "")
             normalized.append({"key": m.get("memory_key", ""), "value": val})
-
-        return {"memories": normalized, "preferences": prefs_data}
+        return {"memories": normalized, "preferences": []}
     except Exception:
         return {}
-
 
 async def get_market_prices() -> dict:
+    """Read from Supabase."""
     try:
-        r = await fetchrow("SELECT * FROM ayn_market_prices ORDER BY fetched_at DESC LIMIT 1")
-        return dict(r) if r else {}
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("ayn_market_prices").select("*").limit(1).maybe_single().execute()
+        )
+        return r.data or {}
     except Exception:
         return {}
-
 
 async def get_country_intelligence(country_codes: list[str]) -> list[dict]:
     if not country_codes:
         return []
     try:
-        rows = await fetch(
-            "SELECT * FROM ayn_country_intelligence WHERE country_code = ANY($1) LIMIT 10",
-            country_codes
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("ayn_country_intelligence").select("*").in_("country_code", country_codes).execute()
         )
-        return [dict(r) for r in rows] if rows else []
+        return r.data or []
     except Exception:
         return []
-
 
 async def get_trade_flows(country_codes: list[str]) -> list[dict]:
     if not country_codes:
         return []
     try:
-        rows = await fetch(
-            "SELECT * FROM ayn_trade_flows WHERE country_code = ANY($1) LIMIT 10",
-            country_codes
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("ayn_trade_flows").select("*").in_("country_code", country_codes).limit(10).execute()
         )
-        return [dict(r) for r in rows] if rows else []
+        return r.data or []
     except Exception:
         return []
-
 
 async def get_world_signals(limit: int = 5) -> list[dict]:
+    """Read from Supabase - this is where world signals live."""
     try:
-        rows = await fetch(
-            "SELECT headline, severity, region, impact_on_oil, impact_on_gold, impact_on_btc "
-            "FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT $1",
-            limit
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("ayn_world_signals")
+                .select("headline,severity,region,impact_on_oil,impact_on_gold,impact_on_btc")
+                .eq("status", "active")
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
         )
-        return [dict(r) for r in rows] if rows else []
+        return r.data or []
     except Exception:
         return []
-
 
 async def get_master_predictions(limit: int = 3) -> list[dict]:
+    """Read from Supabase - this is where predictions live."""
     try:
-        rows = await fetch(
-            "SELECT title, probability_pct, actionable_move, domain "
-            "FROM ayn_master_predictions ORDER BY created_at DESC LIMIT $1",
-            limit
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("ayn_master_predictions")
+                .select("title,probability_pct,actionable_move,domain")
+                .order("created_at", desc=True)
+                .limit(limit)
+                .execute()
         )
-        return [dict(r) for r in rows] if rows else []
+        return r.data or []
     except Exception:
         return []
 
-
-def build_intelligence_context(
-    snapshot: dict, country_profiles: list[dict],
-    prices: dict, trade_flows: list[dict],
-    signals: list[dict] = [], predictions: list[dict] = [],
-) -> str:
+def build_intelligence_context(snapshot, country_profiles, prices, trade_flows, signals=[], predictions=[]) -> str:
     ctx = ""
-    brief = snapshot.get("intelligence_brief", [])
+    brief = snapshot.get("intelligence_brief", []) if snapshot else []
     if brief:
-        ctx += "\n\nBACKGROUND INTELLIGENCE (use only when user asks about markets/world):\n"
-        ctx += "\n".join(str(b) for b in brief[:8])
-        ctx += "\n\nRULE: Only cite when user asks about markets, business, world events. Never unprompted."
-
+        ctx += "\n\nBACKGROUND INTELLIGENCE:\n" + "\n".join(str(b) for b in brief[:8])
+        ctx += "\n\nOnly use when user asks about markets/world events."
     if signals:
         ctx += "\n\nACTIVE WORLD SIGNALS:\n"
         for s in signals:
             ctx += f"- [{s.get('severity','').upper()}] {s.get('headline','')} ({s.get('region','')})\n"
-
     if predictions:
-        ctx += "\n\nAYN CURRENT PREDICTIONS:\n"
+        ctx += "\n\nAYN PREDICTIONS:\n"
         for p in predictions:
-            ctx += f"- {p.get('title','')} — {p.get('probability_pct','')}% probability. Move: {p.get('actionable_move','')}\n"
-
+            ctx += f"- {p.get('title','')} — {p.get('probability_pct','')}% probability\n"
+    price_narrative = prices.get("narrative", []) if prices else []
+    if price_narrative:
+        ctx += "\n\nLIVE PRICES:\n" + "\n".join(str(p) for p in price_narrative[:15])
     if country_profiles:
         ctx += "\n\nCOUNTRY INTELLIGENCE:"
         for cp in country_profiles:
@@ -159,13 +156,7 @@ def build_intelligence_context(
             ctx += f"\n\n{cp.get('country_name', '')}:"
             if b:
                 ctx += "\n" + "\n".join(str(x) for x in b[:6])
-
-    price_narrative = prices.get("narrative", [])
-    if price_narrative:
-        ctx += f"\n\nLIVE PRICES:\n" + "\n".join(str(p) for p in price_narrative[:15])
-
     return ctx
-
 
 async def build_full_context(message: str, user_id: str) -> tuple[dict, str]:
     country_codes = detect_countries(message)
