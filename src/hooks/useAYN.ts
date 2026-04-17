@@ -75,9 +75,10 @@ export function useAYN(options: UseAYNOptions = {}) {
       const messages: AYNMessage[] = context?.conversationHistory || [];
       messages.push({ role: 'user', content: message });
 
-      const spineRes = await fetch(\`\${SPINE_URL}/chat\`, {
+      const token = await spineAuth.getAccessToken();
+      const spineRes = await fetch(`${SPINE_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${spineAuth.getAccessToken ? await spineAuth.getAccessToken() : ''}\` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token || ''}` },
         body: JSON.stringify({ messages, intent: '', stream: false })
       });
       const data = await spineRes.json();
