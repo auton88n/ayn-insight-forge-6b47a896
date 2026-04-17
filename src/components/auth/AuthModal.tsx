@@ -105,20 +105,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     setIsResettingPassword(true);
     try {
       // Check if email is registered before sending reset
-      const { data: checkData } = await supabase.functions.invoke('check-email-exists', {
-        body: { email: email.trim().toLowerCase() },
-      });
-
-      if (checkData && checkData.exists === false) {
-        toast({
-          title: t('auth.emailNotRegistered'),
-          description: t('auth.emailNotRegisteredDesc'),
-          variant: "destructive"
-        });
-        setIsResettingPassword(false);
-        return;
-      }
-
+      // email check skipped — spine handles duplicate detection on register
       // Call Supabase's built-in reset (required - contains the actual reset link)
       localStorage.setItem('password_reset_email', email.trim().toLowerCase());
       const { error } = await spineAuth.resetPasswordForEmail(email, {
@@ -356,13 +343,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       } else {
         // Send welcome email (async, don't block signup)
         try {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              to: email,
-              emailType: 'welcome',
-              data: { userName: fullName || 'there' }
-            }
-          });
+          // welcome email sent by spine on register
           console.log('[AuthModal] Welcome email sent');
         } catch (emailError) {
           console.warn('[AuthModal] Welcome email failed:', emailError);

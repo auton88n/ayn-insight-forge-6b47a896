@@ -3,145 +3,109 @@ import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth
 import { useToast } from '@/hooks/use-toast';
 import { trackDeviceLogin } from '@/hooks/useDeviceTracking';
 import type { UserProfile, UseAuthReturn } from '@/types/dashboard.types';
-
 import { spineApi } from '@/lib/spineApi';
 
 export const useAuth = (user: User, session: Session): UseAuthReturn => {
   const [hasAccess, setHasAccess] = useState(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isDuty, setIsDuty] = useState(false);
+  const [isDuty] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [currentMonthUsage, setCurrentMonthUsage] = useState(0);
   const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
   const [usageResetDate, setUsageResetDate] = useState<string | null>(null);
   const { toast } = useToast();
-  
   const hasTrackedDevice = useRef(false);
 
-  // Check access — any authenticated user with a subscription row has access.
-  // Falls back to access_grants for backward compatibility.
-  const checkAccess = useCallback(async () => {
-    try {
-      // All authenticated users have access in spine auth
-      setHasAccess(true);
-      return;
-    } catch {
-
-      const record = data[0];
-      const isActive = record.is_active && (!record.expires_at || new Date(record.expires_at) > new Date());
-      setHasAccess(isActive);
-      setCurrentMonthUsage(record.current_month_usage ?? 0);
-      setMonthlyLimit(record.monthly_limit ?? null);
-      setUsageResetDate(record.usage_reset_date ?? null);
-    } catch {
-      // Fail closed — deny access on errors (blueprint security rule #1)
-      setHasAccess(false);
-    }
-  }, [user.id, session.access_token]);
-
-  // checkAdminRole — handled by loadUserProfile via /auth/me
-  const checkAdminRole = useCallback(async () => {
-    const isAdminUser = user.email?.endsWith('@aynn.io') === true;
-    setIsAdmin(isAdminUser);
-    setIsDuty(false);
-  }, [user.email]);
-
-  // Load user profile from spine
-  const loadUserProfile = useCallback(async () => {
-    try {
-      const me = await spineApi.getMe() as any;
-      if (me) {
-        setUserProfile({
-          user_id: user.id,
-          contact_person: `${me.first_name || ''} ${me.last_name || ''}`.trim() || user.email || '',
-          company_name: '',
-          business_type: '',
-          avatar_url: me.avatar_url || null,
-        } as UserProfile);
-        setIsAdmin(me.is_admin === true || user.email?.endsWith('@aynn.io'));
-      }
-    } catch {
-      // Silent failure
-    }
-  }, [user.id, user.email]);
-
-  // Accept terms and conditions
-  const acceptTerms = useCallback(async (consent: { privacy: boolean; terms: boolean; aiDisclaimer: boolean }) => {
-    try {
-
-      setHasAcceptedTerms(true);
-      localStorage.setItem(`terms_accepted_${user.id}`, 'true');
-      // Terms saved locally — spine migration will add server-side later
-      
-      toast({
-        title: 'Welcome to AYN',
-        description: 'Your AI companion is ready to assist you.'
-      });
-    } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Failed to save terms acceptance:', error);
-      }
-      toast({
-        title: 'Error',
-        description: 'Could not save your acceptance. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  }, [user.id, session.access_token, toast]);
-
-  // Load all auth data on mount
+  // ── Main auth load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user?.id || !session?.access_token) {
       setIsAuthLoading(false);
       return;
     }
 
-    let isMounted = true;
-    let hasRun = false;
+    let mounted = true;
 
-    const runQueries = async () => {
-      if (hasRun) return;
-      hasRun = true;
+    const init = async () => {
+      // Step 1: Resolve everything instantly from local state — no network needed
+      setHasAccess(true);
+      setIsAdmin(user.email?.endsWith('@aynn.io') === true);
+      const termsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
+      setHasAcceptedTerms(termsAccepted);
 
-      // Step 1: Resolve everything from local state IMMEDIATELY — no network needed
-      // This unblocks the UI instantly. User data is in localStorage from login.
-      if (isMounted) {
-        setHasAccess(true);
-        setIsAdmin(user.email?.endsWith('@aynn.io') === true);
-        const localTermsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
-        setHasAcceptedTerms(localTermsAccepted);
-        setIsAuthLoading(false); // ← unblock sidebar immediately
-      }
+      // Build profile from what we already know (user object from login response)
+      setUserProfile({
+        user_id: user.id,
+        contact_person: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || '',
+        company_name: '',
+        business_type: '',
+        avatar_url: null,
+      } as UserProfile);
 
-      // Step 2: Load profile from Supabase user metadata (no network call needed)
+      // Unblock sidebar immediately
+      if (mounted) setIsAuthLoading(false);
+
+      // Step 2: Enrich from spine /auth/me in background (non-blocking)
       try {
-        if (!isMounted) return;
-        const meta = (user as any).user_metadata || {};
+        const me = await spineApi.getMe() as any;
+        if (!mounted || !me) return;
+
         setUserProfile({
           user_id: user.id,
-          contact_person: meta.full_name || meta.name || user.email?.split('@')[0] || '',
-          company_name: meta.company_name || '',
-          business_type: meta.business_type || '',
-          avatar_url: meta.avatar_url || null,
+          contact_person: `${me.first_name || ''} ${me.last_name || ''}`.trim() || user.email || '',
+          company_name: me.company_name || '',
+          business_type: me.business_type || '',
+          avatar_url: me.avatar_url || null,
         } as UserProfile);
+
+        if (me.is_admin === true) setIsAdmin(true);
+
+        // Load usage limits
+        if (me.limits) {
+          setCurrentMonthUsage(me.limits.current_daily_messages || 0);
+          setMonthlyLimit(me.limits.daily_messages || 5);
+        }
       } catch {
-        // Silent failure
+        // Silent — profile already set from login data above
       }
     };
 
-    runQueries();
+    init();
 
+    // Track device login
     if (!hasTrackedDevice.current) {
       hasTrackedDevice.current = true;
-      setTimeout(() => trackDeviceLogin(user.id, session.access_token), 0);
+      setTimeout(() => trackDeviceLogin(user.id, session.access_token), 1000);
     }
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { mounted = false; };
   }, [user?.id, session?.access_token]);
+
+  // ── Accept terms ────────────────────────────────────────────────────────────
+  const acceptTerms = useCallback(async (_consent: { privacy: boolean; terms: boolean; aiDisclaimer: boolean }) => {
+    setHasAcceptedTerms(true);
+    localStorage.setItem(`terms_accepted_${user.id}`, 'true');
+    toast({ title: 'Welcome to AYN', description: 'Your AI companion is ready.' });
+  }, [user.id, toast]);
+
+  // ── Stubs for legacy callers ────────────────────────────────────────────────
+  const checkAccess = useCallback(async () => { setHasAccess(true); }, []);
+  const checkAdminRole = useCallback(async () => {
+    setIsAdmin(user.email?.endsWith('@aynn.io') === true);
+  }, [user.email]);
+  const loadUserProfile = useCallback(async () => {
+    try {
+      const me = await spineApi.getMe() as any;
+      if (me) setUserProfile({
+        user_id: user.id,
+        contact_person: `${me.first_name || ''} ${me.last_name || ''}`.trim() || user.email || '',
+        company_name: me.company_name || '',
+        business_type: '',
+        avatar_url: me.avatar_url || null,
+      } as UserProfile);
+    } catch {}
+  }, [user.id, user.email]);
 
   return {
     hasAccess,
@@ -157,6 +121,6 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
     checkAccess,
     checkAdminRole,
     loadUserProfile,
-    acceptTerms
+    acceptTerms,
   };
 };

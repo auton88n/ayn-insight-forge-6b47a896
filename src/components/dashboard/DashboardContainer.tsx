@@ -1,6 +1,5 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
 
