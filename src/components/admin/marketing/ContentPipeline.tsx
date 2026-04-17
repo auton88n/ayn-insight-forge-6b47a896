@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { spineApi } from '@/lib/spineApi';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -208,15 +208,14 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   };
 
   const handleRetry = async (post: TwitterPost) => {
-    /* spine */;
+    try { await spineApi.req('POST', `/admin/twitter/posts/${post.id}/retry`, {}); } catch {}
     toast.success('Moved back to drafts');
     fetchPosts();
   };
 
   const handleSchedule = async (post: TwitterPost, scheduledAt: string) => {
     try {
-      const { error } = /* spine */;
-      if (error) throw error;
+      await spineApi.req('POST', `/admin/twitter/posts/${post.id}/schedule`, { scheduled_at: scheduledAt });
       toast.success(`Scheduled for ${format(new Date(scheduledAt), 'MMM d, h:mm a')}`);
       fetchPosts();
     } catch { toast.error('Failed to schedule'); }
@@ -224,8 +223,7 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = /* spine */;
-      if (error) throw error;
+      await spineApi.req('DELETE', `/admin/twitter/posts/${id}`);
       setPosts(prev => prev.filter(p => p.id !== id));
       toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
@@ -234,8 +232,7 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   const handleSaveEdit = async (id: string) => {
     if (editContent.length > 280) { toast.error('Exceeds 280 chars'); return; }
     try {
-      const { error } = /* spine */;
-      if (error) throw error;
+      await spineApi.req('PATCH', `/admin/twitter/posts/${id}`, { content: editContent });
       setPosts(prev => prev.map(p => p.id === id ? { ...p, content: editContent } : p));
       setEditingId(null);
       toast.success('Updated');
