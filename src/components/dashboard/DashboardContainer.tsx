@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -213,11 +213,9 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
     setSelectedMode('General');
   }, [chatSession, messagesHook]);
 
-  // Handle logout via Supabase
+  // Handle logout via spine
   const handleLogout = useCallback(async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch {}
+    try { await spineAuth.signOut(); } catch {}
     localStorage.clear();
     sessionStorage.clear();
     window.location.href = '/';

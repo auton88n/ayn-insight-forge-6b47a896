@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { User, Session } from '@supabase/supabase-js';
+import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
 import { trackDeviceLogin } from '@/hooks/useDeviceTracking';
 import type { UserProfile, UseAuthReturn } from '@/types/dashboard.types';

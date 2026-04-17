@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { spineAuth, SpineUser, SpineSession } from '@/lib/spineAuth';
+import { spineAuth, SpineUser, SpineSession, tokenStore } from '@/lib/spineAuth';
 import { AYNLoader } from '@/components/ui/page-loader';
 import { lazy, Suspense } from 'react';
 
@@ -8,32 +7,57 @@ import LandingPage from '@/components/LandingPage';
 const Dashboard = lazy(() => import('@/components/Dashboard'));
 
 const Index = () => {
-  const [user, setUser] = useState<any>(null);
-  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState<SpineUser | null>(null);
+  const [session, setSession] = useState<SpineSession | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    // Get current session from Supabase (instant - reads from localStorage)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Step 1: Check if we already have a spine session in localStorage (instant)
+    const storedToken = tokenStore.getAccessToken();
+    const storedUser = tokenStore.getUser();
+
+    if (storedToken && storedUser) {
+      // We have a session — validate it's not expired
+      try {
+        const payload = JSON.parse(atob(storedToken.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          // Token still valid — show dashboard immediately
+          if (mounted) {
+            setUser(storedUser);
+            setSession({ access_token: storedToken, refresh_token: tokenStore.getRefreshToken()!, user: storedUser });
+            setIsInitialized(true);
+          }
+          return;
+        }
+      } catch {}
+    }
+
+    // Step 2: Try refreshing the token
+    spineAuth.getSession().then(({ data }) => {
       if (!mounted) return;
-      if (session) {
-        setSession(session);
+      if (data.session) {
+        setUser(data.session.user);
+        setSession(data.session);
+      }
+      setIsInitialized(true);
+    }).catch(() => {
+      if (mounted) setIsInitialized(true);
+    });
+
+    // Step 3: Listen for auth state changes (login/logout)
+    const { data: { subscription } } = spineAuth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      if (event === 'SIGNED_IN' && session) {
         setUser(session.user);
+        setSession(session);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
       }
       setIsInitialized(true);
     });
-
-    // Listen for auth changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsInitialized(true);
-      }
-    );
 
     return () => {
       mounted = false;
@@ -41,13 +65,8 @@ const Index = () => {
     };
   }, []);
 
-  if (!isInitialized) {
-    return <AYNLoader />;
-  }
-
-  if (!user || !session) {
-    return <LandingPage />;
-  }
+  if (!isInitialized) return <AYNLoader />;
+  if (!user || !session) return <LandingPage />;
 
   return (
     <Suspense fallback={<AYNLoader />}>
