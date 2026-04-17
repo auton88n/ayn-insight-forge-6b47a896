@@ -77,15 +77,24 @@ export const spineAuth = {
     const token = tokenStore.getAccessToken();
     const user = tokenStore.getUser();
     if (!token || !user) return { data: { session: null } };
-    // Check if token is close to expiry
+    // Check if token is expired (not close to expiry, actually expired)
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.exp * 1000 - Date.now() < 5 * 60 * 1000) {
+      const isExpired = payload.exp * 1000 < Date.now();
+      const isCloseToExpiry = payload.exp * 1000 - Date.now() < 5 * 60 * 1000;
+      if (isExpired) {
+        // Token fully expired - try refresh, if fails return null
         if (!refreshPromise) refreshPromise = doRefresh().finally(() => { refreshPromise = null; });
         const s = await refreshPromise;
-        if (s) return { data: { session: s } };
+        return { data: { session: s } };
+      }
+      if (isCloseToExpiry) {
+        // Close to expiry - refresh in background, but still return current session
+        if (!refreshPromise) refreshPromise = doRefresh().finally(() => { refreshPromise = null; });
+        refreshPromise.catch(() => {}); // background, don't block
       }
     } catch {}
+    // Return stored session - always valid unless actually expired
     return { data: { session: { access_token: token, refresh_token: tokenStore.getRefreshToken()!, user } } };
   },
 

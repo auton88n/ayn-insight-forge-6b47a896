@@ -141,14 +141,14 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
 
         // Terms — check localStorage
         const localTermsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
-        setHasAcceptedTerms(localTermsAccepted || true); // accept by default for spine users
+        setHasAcceptedTerms(localTermsAccepted);
 
       } catch (error) {
         // Even on error — unblock the app, give access, show dashboard
         if (isMounted) {
           setHasAccess(true);
           setIsAdmin(user.email?.endsWith('@aynn.io') === true);
-          setHasAcceptedTerms(true);
+          // Don't auto-accept terms on error - let the modal show
         }
         if (import.meta.env.DEV) {
           console.error('Auth queries batch failed:', error);

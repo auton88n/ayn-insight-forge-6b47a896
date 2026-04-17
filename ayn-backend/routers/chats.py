@@ -30,11 +30,19 @@ async def list_chats(user_id: str = Depends(get_user_id)):
     rows = await fetch("""
         SELECT session_id, title, updated_at
         FROM chat_sessions
-        WHERE user_id = $1
+        WHERE user_id = $1::uuid
         ORDER BY updated_at DESC
         LIMIT 20
     """, user_id)
-    return rows or []
+    # Convert asyncpg Records to dicts + serialize datetime
+    result = []
+    for r in (rows or []):
+        result.append({
+            "session_id": r["session_id"],
+            "title": r["title"] or "New Chat",
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+        })
+    return result
 
 
 @router.get("/{session_id}")

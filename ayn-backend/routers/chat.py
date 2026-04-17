@@ -391,29 +391,8 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
     clean_content = strip_memory_tags(response_content)
     log.info(f"[CHAT] response ready len={len(clean_content)} stream={body.stream}")
 
-    # Save messages to Railway PostgreSQL
-    if user_id != "internal" and body.sessionId:
-        try:
-            from core.database import execute as pg_execute
-            title = last_message[:60] + "..." if len(last_message) > 60 else last_message
-            # Upsert session
-            await pg_execute("""
-                INSERT INTO chat_sessions (session_id, user_id, title, created_at, updated_at)
-                VALUES ($1, $2::uuid, $3, NOW(), NOW())
-                ON CONFLICT (session_id) DO UPDATE SET updated_at = NOW()
-            """, body.sessionId, user_id, title)
-            # Save user message
-            await pg_execute("""
-                INSERT INTO messages (user_id, session_id, role, content, created_at)
-                VALUES ($1::uuid, $2, 'user', $3, NOW())
-            """, user_id, body.sessionId, last_message)
-            # Save assistant message
-            await pg_execute("""
-                INSERT INTO messages (user_id, session_id, role, content, created_at)
-                VALUES ($1::uuid, $2, 'assistant', $3, NOW() + INTERVAL '1 millisecond')
-            """, user_id, body.sessionId, clean_content)
-        except Exception as e:
-            log.warning(f"[CHAT] message save failed: {e}")
+    # Messages are saved by frontend via POST /chats/:sessionId
+    # chat.py does NOT save — avoids double-save and conflicts
 
     # Return as plain JSON — React's useMessages handles both streaming and non-streaming
     # StreamingResponse causes ExceptionGroup crashes in Python 3.12 + Starlette
