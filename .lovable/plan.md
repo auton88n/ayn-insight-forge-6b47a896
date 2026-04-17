@@ -1,71 +1,82 @@
 
+You picked **B1 — Pure spine**. Here is the concrete execution plan to fix the build, finish the migration, and get the app working end-to-end against `spine.aynn.io`.
 
-## Premium World Intelligence Redesign
+## Scope summary (from prior audit)
+- 9 pages have hard syntax errors from leftover `/* spine migration pending */;` stubs.
+- `src/lib/spineApi.ts` has ~30 orphan methods sitting outside the object literal (lines ~121-154+).
+- ~15 files destructure `{ data, error }` from `spineApi.req()` which returns raw JSON.
+- ~5 files have dangling `const fnError = null` + `if (fnError)` dead branches.
+- ~76 files still import `@/integrations/supabase/client`; ~359 calls to `supabase.from()` / `.channel()` / `.storage`.
+- `.env` missing `VITE_AYN_BACKEND_URL`.
+- Spine CORS doesn't include the current Lovable preview domain pattern.
+- Edge-function build errors in the `supabase/functions/**` tree are noise from a half-migrated repo — under B1 these functions will be deleted from the frontend codebase since spine replaces them.
 
-### Vision
-Transform the page from a functional dashboard into an elite, Bloomberg/Palantir-grade intelligence terminal with generous spacing, smooth scroll, immersive map, and glass-tier card hierarchy.
+## Execution plan
 
-### Key Changes
+### Phase A — Make the build compile (1 message)
+1. **Rewrite `src/lib/spineApi.ts`** as a single, clean object with every method (auth, chat, sessions, limits, admin, engineering, trading, email, image, memory, scheduler, intelligence, simulation) properly typed. All Phase 4-6 orphans go inside the object.
+2. **Fix the 9 broken pages** (`AdminCustomOrders`, `Contact`, `Pricing`, `PredictionControlPanel`, `services/AIEmployee`, `services/AIEmployeeApply`, `services/Automation`, `services/Ticketing`, `services/TicketingApply`) — replace each `/* spine migration pending */;` with the correct `spineApi` call.
+3. **Sweep the broken patterns** across the repo:
+   - Replace `const { data, error } = await spineApi.req(...)` with `const data = await spineApi.req(...); ` (no error var).
+   - Remove dangling `const fnError = null; if (fnError) throw fnError;` lines.
+4. **Add `VITE_AYN_BACKEND_URL=https://spine.aynn.io`** to `.env`.
 
-**1. Layout & Spacing Overhaul**
-- Increase map height from `clamp(300px, 50vh, 500px)` to `clamp(400px, 60vh, 640px)` — give the map room to breathe as the hero focal point
-- Add consistent `gap-8` between sections instead of `gap-5/6`
-- Wrap main content in `scroll-smooth` with `overscroll-behavior: contain` for native-feel scrolling
-- Add generous padding: `p-6 sm:p-8 lg:p-10` instead of `p-4 sm:p-6`
+After Phase A: app builds and core flows (login, chat) work.
 
-**2. Premium Card System**
-- Replace flat `bg-card border border-border` cards with glassmorphism: `bg-white/[0.03] backdrop-blur-xl border border-white/[0.06]` + subtle inner top highlight
-- Add hover lift effects: `hover:-translate-y-0.5 hover:shadow-[0_16px_48px_rgba(0,0,0,0.3)]` with 300ms transitions
-- Round up to `rounded-2xl` consistently, larger cards get `rounded-3xl`
-- Use `SpotlightCard` from premium.tsx for the Intelligence Brief and Sentiment cards
+### Phase B — Migrate remaining Supabase calls to spine (3-4 messages, batched)
+Goal: zero `import { supabase } from '@/integrations/supabase/client'` in `src/`.
 
-**3. Section Headers**
-- Replace inline icon+text headers with a structured section header component: uppercase tracking-widest label + large Syne display title + muted description
-- Add thin separator lines between major sections
+Approach — group the 76 files by domain and migrate one batch per message:
 
-**4. Sidebar Polish**
-- Add subtle gradient background to sidebar: `bg-gradient-to-b from-card to-background`
-- Active item gets a soft glow: `shadow-[0_0_12px_rgba(14,165,233,0.15)]` with AYN blue accent
-- Increase sidebar item padding and add icon-only tooltips when collapsed
+**Batch B1: Reads/writes for user-scoped tables** (~25 files)
+`profiles`, `user_settings`, `user_preferences`, `user_memory`, `user_subscriptions`, `favorite_chats`, `pinned_sessions`, `saved_responses`, `saved_insights`, `calculation_history`, `engineering_projects`, `engineering_portfolio`, `grading_projects` → spine endpoints under `/user/*`, `/engineering/*`, `/grading/*`.
 
-**5. Ticker Redesign**
-- Increase height to `h-11`, add more breathing room between items
-- Add subtle glass background: `bg-white/[0.02] backdrop-blur-sm`
-- Larger font for values, better color contrast for up/down indicators
-- Add thin dividers between ticker items
+**Batch B2: Admin-scoped tables** (~20 files)
+`support_tickets`, `custom_orders`, `contact_messages`, `nda_signatures`, `usage_logs`, `api_rate_limits`, `notification_log`, `system_config`, `test_results`, `ayn_activity_log` → spine endpoints under `/admin/*`.
 
-**6. Signal Cards**
-- Severity indicators become left-border accents (4px colored left border) instead of small dots
-- Add impact badges as pill chips below headline
-- Stagger entrance animations more dramatically
+**Batch B3: Realtime channels** (~12 files)
+Replace `supabase.channel(...).on('postgres_changes', ...)` with spine WebSocket (`/ws/*`) or polling via `useQuery` + `refetchInterval` where realtime isn't critical. Affected: AgentSociety, PredictionGraph live feeds, chat session live updates, admin notifications.
 
-**7. Predictions Section**
-- Graph Intelligence cards get the `SpotlightCard` treatment with cursor-following highlight
-- Winners/Losers boxes get frosted glass backgrounds with colored top borders
-- "Your Move" box gets a subtle border-beam animation to draw attention
-- Category filter pills get more padding and smoother active transitions
+**Batch B4: Storage** (~8 files)
+Replace `supabase.storage.from(...).upload/download/getPublicUrl` with spine `/storage/upload`, `/storage/download`, `/storage/url`. Affected: avatars, file uploads in chat, generated images, contract PDFs, NDA PDFs.
 
-**8. Countries Grid**
-- Cards become taller with more internal spacing
-- Add a subtle country flag emoji or region indicator
-- GDP/inflation stats get mini progress bars instead of just numbers
-- Hover reveals a "View Dossier →" overlay
+**Batch B5: Misc / leftovers** (~11 files)
+Sweep anything remaining: edge function invokes still using `supabase.functions.invoke`, auth-adjacent reads, etc.
 
-**9. Country Dossier Panel**
-- Width increases to `sm:w-[520px]`
-- Add backdrop overlay with blur when panel is open
-- Section dividers with subtle gradients
-- Stats cards get mini sparkline-style indicators
+### Phase C — Audit + add missing spine endpoints (1 message)
+Cross-reference `spineApi` method list against `ayn-backend/routers/*.py`. For each missing route, either:
+- Add a thin FastAPI endpoint in `ayn-backend/`, OR
+- Mark the spine method as TODO with a clear error if backend work is out of scope for this Lovable session (you'll need to deploy backend changes to Railway separately).
 
-**10. Mobile Bottom Nav**
-- Increase height, add glass background with blur
-- Active tab gets a top-edge accent line
-- Slightly larger icons (w-5 h-5)
+Likely-missing endpoints to verify/add: `/admin/verify-pin`, `/admin/set-pin`, `/email/contact`, `/email/ticket-reply`, `/email/application`, `/email/nda`, `/engineering/dxf`, `/engineering/pdf`, `/analyze/floor-plan`, `/analyze/chart`, `/trading/klines`, `/admin/add-credits`, `/admin/unblock-user`, `/admin/contact-messages`, `/admin/tickets`, `/admin/orders`, `/admin/llm`, `/admin/test-results`, `/admin/rate-limits`, `/admin/notification-log`, `/admin/ndas`, `/admin/config`, `/analytics/summary`, `/intelligence/vote`, `/user/memory`, `/user/pinned-chats`, `/user/avatar`, `/storage/*`, `/ws/*`.
 
-### Technical Details
-- Single file edit: `src/pages/WorldIntelligence.tsx`
-- Import `SpotlightCard` from `@/components/ui/premium`
-- All changes are CSS/styling — no data logic changes
-- Preserve all existing data fetching, voting, filtering logic
-- Add custom CSS for smooth scroll behavior via inline `<style>` tag
+### Phase D — Cleanup (1 message)
+1. **Delete `supabase/functions/**`** from the frontend repo (spine replaces them). This eliminates all the TS build errors in your build log.
+2. **Delete `src/integrations/supabase/`** (client + types) once Batch B5 confirms zero imports.
+3. **Remove `@supabase/supabase-js`** from `package.json`.
+4. **Update spine CORS** in `ayn-backend/core/config.py` to allow `*.lovable.app` and `*.lovableproject.com` preview patterns (you'll deploy this to Railway).
 
+### Phase E — Verify (1 message)
+End-to-end smoke checklist:
+- Login + signup
+- Send chat message + receive response + load history
+- Admin PIN gate
+- Contact form submission
+- File upload in chat
+- Engineering compliance check (floor-plan analyze)
+- Trading chart analyze
+- Stripe checkout redirect
+- Email send (contact reply)
+
+## What you need to do outside Lovable
+- **Deploy `ayn-backend/` changes to Railway** after Phase C and Phase D step 4. Lovable can edit the Python files but cannot deploy them.
+- Confirm `spine.aynn.io` is reachable and CORS-updated before Phase E.
+
+## Order of operations for the next messages
+1. Message 1: Phase A (build green).
+2. Message 2: Phase B1 + B2 (user + admin tables).
+3. Message 3: Phase B3 + B4 (realtime + storage).
+4. Message 4: Phase B5 + Phase C (cleanup imports + endpoint audit).
+5. Message 5: Phase D + Phase E (delete supabase/ tree, verify).
+
+Approve this and I'll start with Phase A in the next message.
