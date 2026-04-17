@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { AIEngineeringResponse, CalculatorType } from '@/lib/engineeringKnowledge';
 import { getHandlingMessage } from '@/lib/errorMessages';
 import { toast } from 'sonner';
@@ -49,12 +49,8 @@ export const useEngineeringAI = ({
           : msg.content
       }));
 
-      const data = await spineApi.engineeringChat(userMessage, context || ''); const fnError = null;
-
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
-
+      const ctx = JSON.stringify({ calculatorType, currentInputs, currentOutputs, history: conversationHistory });
+      const data = await spineApi.engineeringChat(question, ctx);
       const response = data as AIEngineeringResponse;
 
       // Add assistant message

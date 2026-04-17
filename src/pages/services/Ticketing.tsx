@@ -135,12 +135,7 @@ const Ticketing = () => {
     setIsSubmitting(true);
     
     try {
-      const { error: dbError } = /* spine migration pending */;
-
-      if (dbError) throw dbError;
-
-      await spineApi.contactUs(applicantEmail, applicantName, details);
-
+      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Ticketing] ${(formData as any).message || ''}`);
       setIsSuccess(true);
       toast({
         title: language === 'ar' ? 'تم الإرسال بنجاح' : 'Application Submitted',

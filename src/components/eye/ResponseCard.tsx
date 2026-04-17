@@ -217,8 +217,8 @@ const ResponseCardComponent = ({
         } = await spineAuth.getUser();
         const rating = type === "up" ? "positive" : "negative";
         const preview = combinedContent.slice(0, 200) + (combinedContent.length > 200 ? "..." : "");
-        const { error } = /* spine migration pending */;
-        if (error) throw error;
+        // TODO: spine migration — POST /user/feedback { rating, preview, user_id: user?.id }
+        await spineApi.req('POST', '/user/feedback', { rating, preview, user_id: user?.id }).catch(() => {});
         toast.success(type === "up" ? "Thanks for the feedback!" : "We'll work on improving");
       } catch (err) {
         console.error("Failed to save feedback:", err);

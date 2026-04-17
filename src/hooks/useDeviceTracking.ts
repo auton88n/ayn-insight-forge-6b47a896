@@ -97,9 +97,10 @@ export const trackDeviceLogin = async (userId: string, accessToken: string) => {
     const deviceInfo = getDeviceInfo();
     const now = new Date().toISOString();
     
-    // Use REST API for both operations in parallel
+    // TODO: spine migration — POST /user/device-track
     await Promise.all([
-      /* device tracking - spine migration pending */;
+      Promise.resolve({ fingerprintHash, deviceInfo, userId, accessToken, now }),
+    ]);
     
   } catch {
     // Don't throw - tracking shouldn't break login flow

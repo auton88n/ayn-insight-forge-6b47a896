@@ -91,8 +91,7 @@ const Pricing = () => {
     }
     setIsSubmitting(true);
     try {
-      const { error } = /* spine migration pending */;
-      if (error) throw error;
+      await spineApi.contactUs(enterpriseForm.companyName, enterpriseForm.email, enterpriseForm.requirements || 'Enterprise inquiry');
       toast.success('Thank you! Our team will contact you within 24 hours.');
       setShowEnterpriseModal(false);
       setEnterpriseForm({ companyName: '', email: '', requirements: '' });

@@ -124,33 +124,17 @@ export default function NDASign() {
   const [completed, setCompleted] = useState(false);
 
   const fetchNDA = useCallback(async () => {
-    if (!token || token.length < 10) return; // strict token validation
-    const data = null; const error = null;
-    if (error || !data) { setLoading(false); return; }
-    setNda(data);
-    if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
-    if (data.status === 'sent') /* spine migration pending */;
+    if (!token || token.length < 10) return;
+    // TODO: spine migration — GET /sign/nda/{token}
     setLoading(false);
   }, [token]);
 
   useEffect(() => { fetchNDA(); }, [fetchNDA]);
 
-  const saveSignature = async (dataUrl: string, party: 'admin' | 'client') => {
+  const saveSignature = async (_dataUrl: string, _party: 'admin' | 'client') => {
     if (!nda) return;
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const path = `signatures/nda_${nda.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
-    if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
-    const sigUrl = urlData.publicUrl;
-    const now = new Date().toISOString();
-    const updates: any = party === 'admin' ? { admin_signature_url: sigUrl, admin_signed_at: now } : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    /* spine migration pending */;
-    const updated = { ...nda, ...updates };
-    setNda(updated);
-    if (updated.admin_signature_url && updated.client_signature_url) {
-      setCompleted(true);
-    }
+    // TODO: spine migration — POST /sign/nda/{token}/signature
+    throw new Error('NDA signing temporarily unavailable');
   };
 
   const F: React.CSSProperties = { fontFamily: '"Times New Roman", Times, serif' };
