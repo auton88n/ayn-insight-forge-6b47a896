@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -105,7 +106,7 @@ const SupportManagement: React.FC = () => {
   const fetchTickets = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_support_tickets', { p_limit: 200, p_offset: 0 });
+      const { data, error } = await spineApi.req("GET", "/admin/tickets");
       if (error) throw error;
       const result = data as any;
       setTickets(result?.tickets || []);

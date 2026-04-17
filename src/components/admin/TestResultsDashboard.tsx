@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -258,7 +259,7 @@ const TestResultsDashboard: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_test_results_data');
+      const { data, error } = await spineApi.req("GET", "/admin/test-results");
       if (error) throw error;
       const d = data as any;
 

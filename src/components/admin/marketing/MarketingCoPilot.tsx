@@ -129,7 +129,7 @@ export const MarketingCoPilot = ({ brandKit, activeView, onBrandKitUpdate, onCam
 
   const handleBrandScan = useCallback(async (url: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('twitter-brand-scan', { body: { url } });
+      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
       if (error) throw error;
       if (data?.brand_dna?.colors && onBrandKitUpdate) {
         const mapped = data.brand_dna.colors.slice(0, 5).map((c: { name?: string; hex?: string; role?: string }, i: number) => ({
@@ -154,12 +154,7 @@ export const MarketingCoPilot = ({ brandKit, activeView, onBrandKitUpdate, onCam
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('twitter-creative-chat', {
-        body: {
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-          brand_kit: brandKit || undefined,
-        },
-      });
+      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
 
       if (error) throw error;
       if (data?.error) { toast.error(data.error); setIsLoading(false); return; }
@@ -172,9 +167,7 @@ export const MarketingCoPilot = ({ brandKit, activeView, onBrandKitUpdate, onCam
           const followUp: ChatMessage = { role: 'user', content: `[BRAND_DNA_RESULT] ${JSON.stringify(brandDNA)}. Suggest visuals based on this.` };
           const updatedMsgs = [...newMessages, { role: 'assistant' as const, content: data.message }, followUp];
           setMessages(prev => [...prev, followUp]);
-          const { data: followData } = await supabase.functions.invoke('twitter-creative-chat', {
-            body: { messages: updatedMsgs.map(m => ({ role: m.role, content: m.content })), brand_kit: brandKit || undefined },
-          });
+          const followData = null;
           if (followData) setMessages(prev => [...prev, { role: 'assistant', content: followData.message || 'got the DNA. what should we build?', image_url: followData.image_url }]);
         }
         setIsLoading(false);

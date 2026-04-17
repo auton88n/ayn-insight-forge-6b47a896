@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -54,13 +55,7 @@ export const CreditGiftModal = ({ isOpen, onClose, user, onSuccess }: CreditGift
     setIsSubmitting(true);
     try {
       const currentUser = await spineAuth.getUser();
-      const { error } = await supabase.rpc('add_bonus_credits', {
-        p_user_id: user.user_id,
-        p_amount: amount,
-        p_reason: reason.trim(),
-        p_gift_type: 'manual',
-        p_given_by: currentUser.data.user?.id
-      });
+      const { error } = await spineApi.req("POST", "/admin/add-credits", { userId, credits });
 
       if (error) throw error;
 

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useCallback, useState } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -103,9 +104,7 @@ export const SurveyUploader: React.FC<SurveyUploaderProps> = ({
     try {
       const content = await file.text();
       
-      const { data, error } = await supabase.functions.invoke('parse-survey-file', {
-        body: { content, fileName: file.name }
-      });
+      const data = await spineApi.engineeringAnalysis(fileData, 'survey'); const error = null;
 
       if (error) throw error;
       

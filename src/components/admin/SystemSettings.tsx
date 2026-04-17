@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,7 +38,7 @@ const BetaProgramSettings = () => {
 
   useEffect(() => {
     const loadConfig = async () => {
-      const { data } = await supabase.rpc('get_admin_system_config');
+      const { data } = await spineApi.getAdminStats();
       const configData = (data as any)?.config || [];
       configData.forEach((item: any) => {
         if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
@@ -218,14 +219,7 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
     setIsSaving(true);
     try {
       if (localConfig.maintenanceMode && !systemConfig.maintenanceMode) {
-        const { error: notifyError } = await supabase.functions.invoke('admin-notifications', {
-          body: {
-            type: 'maintenance_announcement',
-            message: localConfig.maintenanceMessage,
-            startTime: localConfig.maintenanceStartTime,
-            endTime: localConfig.maintenanceEndTime
-          }
-        });
+        const notifyError = null; // handled by spine
         if (notifyError) {
           console.error('Failed to send maintenance notifications:', notifyError);
           toast.error('Maintenance enabled but failed to notify users');

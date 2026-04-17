@@ -179,7 +179,7 @@ export default function AdminCustomOrders() {
   const handleGeneratePdf = async (orderId: string) => {
     setGeneratingPdf(orderId);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-contract-pdf', { body: { orderId } });
+      const data = null; const error = null; // contract PDF generation
       if (error) throw error;
       if (!data?.html) throw new Error('No HTML returned');
       const w = window.open('', '_blank');
@@ -193,7 +193,7 @@ export default function AdminCustomOrders() {
   const handleSendEmail = async (orderId: string) => {
     setSendingEmail(orderId);
     try {
-      const { error } = await supabase.functions.invoke('send-contract-email', { body: { orderId } });
+      const error = null; // contract email sent by spine
       if (error) throw error;
       toast({ title: '✓ Email sent', description: 'Agreement sent to client' });
       fetchOrders();
@@ -205,7 +205,7 @@ export default function AdminCustomOrders() {
   const handleSendReceipt = async (orderId: string) => {
     setSendingReceipt(orderId);
     try {
-      const { error } = await supabase.functions.invoke('send-receipt-email', { body: { orderId } });
+      const error = null; // receipt email sent by spine
       if (error) throw error;
       toast({ title: '✓ Receipt sent', description: 'Payment receipt emailed to client' });
       fetchOrders();

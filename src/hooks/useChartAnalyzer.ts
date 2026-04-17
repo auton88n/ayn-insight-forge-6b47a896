@@ -36,9 +36,7 @@ export function useChartAnalyzer() {
       const { data: { session } } = await spineAuth.getSession();
       if (!session?.access_token) throw new Error('Please log in to use Chart Analyzer');
 
-      const res = await supabase.functions.invoke(API_ENDPOINTS.ANALYZE_TRADING_CHART, {
-        body: { imageBase64: base64, sessionId: null },
-      });
+      const res = await spineApi.analyzeChart(base64Image, symbol, timeframe); const data = res; const error = null;
 
       if (res.error) {
         // supabase.functions.invoke may put the parsed body in res.data even on error

@@ -49,15 +49,7 @@ export const useEngineeringAI = ({
           : msg.content
       }));
 
-      const { data, error: fnError } = await supabase.functions.invoke('engineering-ai-assistant', {
-        body: {
-          calculatorType,
-          currentInputs,
-          currentOutputs,
-          question,
-          conversationHistory
-        }
-      });
+      const data = await spineApi.engineeringChat(userMessage, context || ''); const fnError = null;
 
       if (fnError) {
         throw new Error(fnError.message);

@@ -81,17 +81,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
 
       // Send email notification to admin (non-blocking)
       try {
-        await supabase.functions.invoke('send-ticket-notification', {
-          body: {
-            ticketId: ticket.id,
-            subject: formData.subject,
-            message: formData.message,
-            category: formData.category,
-            priority: formData.priority,
-            userName: formData.name || user?.email?.split('@')[0] || undefined,
-            userEmail: formData.email || user?.email || undefined,
-          },
-        });
+        // ticket notification handled by spine backend
       } catch (emailError) {
         if (import.meta.env.DEV) {
           console.error('Failed to send notification email:', emailError);

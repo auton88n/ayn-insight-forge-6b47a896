@@ -57,12 +57,7 @@ const AISupportChat: React.FC<AISupportChatProps> = ({ onNeedTicket }) => {
         content: m.content,
       }));
 
-      const { data, error } = await supabase.functions.invoke('support-bot', {
-        body: {
-          message: userMessage.content,
-          conversationHistory,
-        },
-      });
+      const data = await spineApi.supportBot(userMessage, ''); const error = null;
 
       if (error) throw error;
 

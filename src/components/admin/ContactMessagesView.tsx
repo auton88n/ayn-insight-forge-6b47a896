@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -81,7 +82,7 @@ const ContactMessagesView: React.FC = () => {
   const fetchMessages = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_contact_messages', { p_limit: 200 });
+      const { data, error } = await spineApi.req("GET", "/admin/contact-messages");
       if (error) throw error;
       setMessages((Array.isArray(data) ? data : []) as ContactMessage[]);
     } catch (error) {

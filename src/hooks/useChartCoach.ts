@@ -278,21 +278,7 @@ export function useChartCoach(result?: ChartAnalysisResult) {
         { role: 'user' as const, content: trimmed },
       ];
 
-      const { data, error } = await supabase.functions.invoke('ayn-unified', {
-        body: {
-          messages: conversationMessages,
-          intent: 'trading-coach',
-          context: {
-            fileContext,
-            scrapeUrl: urls?.[0] || null,
-            searchQuery: searchQuery || null,
-            ticker: result?.ticker || null,
-            assetType: result?.assetType || null,
-            timeframe: result?.timeframe || null,
-          },
-          stream: false,
-        },
-      });
+      const chatRes = await fetch('https://spine.aynn.io/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, stream: false }) }); const data = await chatRes.json(); const error = null;
 
       if (error) throw error;
 

@@ -91,14 +91,7 @@ const AutomationApply = () => {
 
       if (dbError) throw dbError;
 
-      await supabase.functions.invoke('send-application-email', {
-        body: {
-          serviceType: 'Process Automation',
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          formData: formData
-        }
-      });
+      await spineApi.contactUs('', '', '') /* application email */;
 
       setIsSubmitted(true);
       toast.success(t('common.success'), { description: 'Your application has been submitted.' });

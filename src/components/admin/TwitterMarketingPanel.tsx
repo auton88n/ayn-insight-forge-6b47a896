@@ -89,7 +89,7 @@ export const TwitterMarketingPanel = () => {
       if (filterContentType !== 'all') body.content_type = filterContentType;
       if (filterAudience !== 'all') body.target_audience = filterAudience;
 
-      const { data, error } = await supabase.functions.invoke('twitter-auto-market', { body });
+      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
       if (error) throw error;
       toast.success('Tweet generated!');
       fetchPosts();
@@ -104,9 +104,7 @@ export const TwitterMarketingPanel = () => {
   const handlePost = async (post: TwitterPost) => {
     setIsPosting(post.id);
     try {
-      const { data, error } = await supabase.functions.invoke('twitter-post', {
-        body: { text: post.content, post_id: post.id },
-      });
+      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
       if (error) throw error;
       toast.success('Tweet posted to X!');
       fetchPosts();

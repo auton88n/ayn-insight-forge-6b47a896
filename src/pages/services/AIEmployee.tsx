@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Brain, ArrowLeft, ArrowRight, Users, Headphones, TrendingUp, Calculator, FileText, MessageCircle, Clock, DollarSign, Heart, Plane, GraduationCap, CheckCircle, Loader2, Sparkles } from 'lucide-react';
@@ -96,15 +97,7 @@ const AIEmployee = () => {
       const { error: dbError } = /* spine migration pending */;
       
       if (dbError) throw dbError;
-      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
-        body: {
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          applicantPhone: formData.phone,
-          message: formData.message,
-          serviceType: 'AI Employee'
-        }
-      });
+      const emailError = null; await spineApi.contactUs(applicantEmail, applicantName, applicationDetails);
       if (emailError) {
         console.error('Email notification failed:', emailError);
         // Don't throw — application was saved, just email failed

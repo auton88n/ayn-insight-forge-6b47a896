@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,7 +70,7 @@ export function LLMManagement() {
 
   const fetchModels = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_admin_llm_management');
+      const { data, error } = await spineApi.req("GET", "/admin/llm");
       if (error) throw error;
       const d = data as any;
 

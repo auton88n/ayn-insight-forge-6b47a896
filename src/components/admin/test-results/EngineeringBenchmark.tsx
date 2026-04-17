@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,9 +83,7 @@ const EngineeringBenchmark: React.FC = () => {
   const runValidation = async () => {
     setIsRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke('engineering-ai-validator', {
-        body: { calculators: ['beam', 'column', 'foundation', 'slab', 'retaining-wall', 'parking', 'grading'] }
-      });
+      const data = await spineApi.engineeringAnalysis(benchData, 'validate'); const error = null;
       
       if (error) throw error;
       

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { ArrowLeft, Brain, Zap, Clock, Settings, Link2, BarChart3, Shield, Bell, FileText, Mail, Calendar, Database, Share2, Workflow, Play, CheckCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -114,19 +115,7 @@ const Automation = () => {
 
       if (dbError) throw dbError;
 
-      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
-        body: {
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          serviceType: 'Process Automation',
-          formData: {
-            'Full Name': formData.fullName,
-            'Email': formData.email,
-            'Phone': formData.phone || 'Not provided',
-            'Message': formData.message || 'No message provided'
-          }
-        }
-      });
+      const emailError = null; await spineApi.contactUs(applicantEmail, applicantName, applicationDetails);
 
       if (emailError) console.error('Email error:', emailError);
 

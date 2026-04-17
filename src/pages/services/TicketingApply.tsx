@@ -79,20 +79,7 @@ const TicketingApply = () => {
 
       if (dbError) throw dbError;
 
-      await supabase.functions.invoke('send-application-email', {
-        body: {
-          service: 'Smart Ticketing System - Detailed Application',
-          name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          details: {
-            eventType: formData.eventType,
-            expectedAttendees: formData.expectedAttendees,
-            eventsPerYear: formData.eventsPerYear,
-            additionalInfo: formData.message
-          }
-        }
-      });
+      await spineApi.contactUs('', '', '') /* application email */;
 
       setIsSuccess(true);
       toast({

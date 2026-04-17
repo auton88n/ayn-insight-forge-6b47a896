@@ -238,13 +238,7 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleExportDXF = async () => {
     setIsExportingDXF(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-dxf', {
-        body: {
-          type: result.type,
-          inputs: result.inputs,
-          outputs: result.outputs,
-        },
-      });
+      const data = await spineApi.generateDxf(calculationData || {}); const error = null;
 
       if (error) throw error;
 
@@ -307,13 +301,7 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleAIAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('engineering-ai-analysis', {
-        body: {
-          type: result.type,
-          inputs: result.inputs,
-          outputs: result.outputs,
-        },
-      });
+      const data = await spineApi.engineeringAnalysis(calculationData || {}, calculationType || ''); const error = null;
 
       if (error) throw error;
 

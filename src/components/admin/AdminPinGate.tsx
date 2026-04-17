@@ -55,9 +55,7 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
     setError('');
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('verify-admin-pin', {
-        body: { pin }
-      });
+      const data = await spineApi.verifyAdminPin(pin); const fnError = null;
 
       if (fnError) throw fnError;
 

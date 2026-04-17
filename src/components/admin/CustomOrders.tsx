@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 // Thin wrapper that embeds AdminCustomOrders into the admin panel tab
 // Strips the standalone page's back button/navigation
 import { spineAuth } from '@/lib/spineAuth';
@@ -173,7 +174,7 @@ export const CustomOrders = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const { data, error } = await supabase.rpc('get_admin_custom_orders');
+      const { data, error } = await spineApi.req("GET", "/admin/orders");
       if (error) throw error;
       setOrders((Array.isArray(data) ? data : []) as unknown as CustomOrder[]);
     } catch (e: any) {

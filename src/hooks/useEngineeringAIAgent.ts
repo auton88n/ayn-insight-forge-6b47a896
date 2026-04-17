@@ -281,18 +281,7 @@ export const useEngineeringAIAgent = ({
       // Get session context if available
       const sessionContext = (window as any).__engineeringSessionContext?.();
 
-      const { data, error } = await supabase.functions.invoke('engineering-ai-agent', {
-        body: {
-          calculatorType,
-          currentInputs,
-          currentOutputs,
-          question: question.trim(),
-          messages: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
-          allCalculatorStates: sessionContext?.allCalculatorStates || {},
-          recentActions: sessionContext?.recentActions || [],
-          sessionInfo: sessionContext?.sessionInfo || {},
-        },
-      });
+      const data = await spineApi.engineeringAgent(task, context || {}); const error = null;
 
       if (error) throw error;
 

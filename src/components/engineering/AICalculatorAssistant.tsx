@@ -250,19 +250,7 @@ export const AICalculatorAssistant: React.FC<AICalculatorAssistantProps> = ({
   const requestAIOptimization = async () => {
     setIsAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('engineering-ai-chat', {
-        body: {
-          calculatorType,
-          currentInputs: inputs,
-          currentOutputs: outputs,
-          messages: [
-            {
-              role: 'user',
-              content: `Analyze my current inputs and provide specific optimized values. Return a JSON object with suggested field values and reasons. Current inputs: ${JSON.stringify(inputs)}`,
-            },
-          ],
-        },
-      });
+      const data = await spineApi.engineeringChat(message, JSON.stringify(calculationContext || {})); const error = null;
 
       if (error) throw error;
       if (data?.suggestions) {

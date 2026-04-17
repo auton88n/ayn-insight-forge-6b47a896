@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,7 +72,7 @@ export const VisitorAnalytics = () => {
   const fetchAnalytics = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_visitor_analytics', { p_days: 30 });
+      const { data, error } = await spineApi.req("GET", "/analytics/summary");
       if (error) throw error;
       const d = data as any;
 

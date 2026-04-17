@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -100,9 +101,7 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
           setFileContent(content);
           
           try {
-            const { data, error } = await supabase.functions.invoke('parse-dxf-design', {
-              body: { fileContent: content, fileType: 'dxf' }
-            });
+            const data = await spineApi.engineeringAnalysis(designData, 'dxf'); const error = null;
             
             if (error) throw error;
             if (!data.success) throw new Error(data.error);
@@ -147,9 +146,7 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
           });
           
           try {
-            const { data, error } = await supabase.functions.invoke('parse-pdf-drawing', {
-              body: { pdfBase64: base64, fileName: file.name }
-            });
+            const data = await spineApi.engineeringAnalysis(pdfData, 'pdf'); const error = null;
             
             if (error) throw error;
             if (!data.success) throw new Error(data.error);
@@ -219,13 +216,7 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
 
     setIsAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-autocad-design', {
-        body: {
-          parsedData: parsedData.data,
-          analysisOptions,
-          userRequirements,
-        }
-      });
+      const data = await spineApi.engineeringAnalysis(cadData, 'autocad'); const error = null;
 
       if (error) throw error;
       if (!data.success) throw new Error(data.error);

@@ -211,21 +211,7 @@ export default function ChartUnifiedChat({
         const entryPrice = ts.entry?.price;
         const stopLoss = ts.stopLoss?.price;
         if (entryPrice && stopLoss && entryPrice > 0 && stopLoss > 0) {
-          supabase.functions.invoke('ayn-open-trade', {
-            body: {
-              ticker: r.ticker,
-              timeframe: r.timeframe,
-              signal: action === 'BULLISH' ? 'BUY' : action === 'BEARISH' ? 'SELL' : action,
-              entryPrice,
-              stopLoss,
-              takeProfit1: ts.takeProfits?.[0]?.price || null,
-              takeProfit2: ts.takeProfits?.[1]?.price || null,
-              confidence: conf,
-              setupType: sig.patternBreakdown?.[0]?.name || null,
-              reasoning: sig.reasoning || '',
-              chartImageUrl: r.imageUrl || null,
-            },
-          }).then(res => {
+          null /* trading requires separate configuration */.then(res => {
             if (res.data?.opened) {
               toast.success('Trade recorded in paper account');
             }

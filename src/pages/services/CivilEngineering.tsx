@@ -95,19 +95,7 @@ const CivilEngineering = () => {
       const { error: dbError } = /* spine migration pending */;
       if (dbError) throw dbError;
       
-      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
-        body: {
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          serviceType: 'Civil Engineering Tools',
-          formData: {
-            'Full Name': formData.fullName,
-            'Email': formData.email,
-            'Phone': formData.phone || 'Not provided',
-            'Message': formData.message || 'No message provided'
-          }
-        }
-      });
+      const { error: emailError } = await spineApi.contactUs('', '', '') /* application email */;
       if (emailError) console.error('Email error:', emailError);
       
       setIsSuccess(true);

@@ -116,6 +116,15 @@ async def global_error_handler(request: FastAPIRequest, exc: Exception):
 
 # ── Register routers ──────────────────────────────────────────────────────────
 from routers.auth import router as auth_router
+from routers.generate import router as generate_router
+from routers.engineering import router as engineering_router
+from routers.email_router import router as email_router
+from routers.admin_routes import router as admin_routes_router
+from routers.analyze import router as analyze_router
+from routers.support import router as support_router
+from routers.files import router as files_router
+from routers.payments import router as payments_router
+from routers.analytics import router as analytics_router
 from routers.chats import router as chats_router
 from routers.user import router as user_router
 from routers.admin_api import router as admin_api_router
@@ -126,6 +135,15 @@ from routers.subscriptions import router as sub_router
 from routers.admin import router as admin_router
 
 app.include_router(auth_router)
+app.include_router(generate_router)
+app.include_router(engineering_router)
+app.include_router(email_router)
+app.include_router(admin_routes_router)
+app.include_router(analyze_router)
+app.include_router(support_router)
+app.include_router(files_router)
+app.include_router(payments_router)
+app.include_router(analytics_router)
 app.include_router(chats_router)
 app.include_router(user_router)
 app.include_router(admin_api_router)

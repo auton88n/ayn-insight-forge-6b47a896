@@ -1,86 +1,73 @@
-# AYN — Supabase → spine.aynn.io Migration Plan
+# AYN Migration Plan: Supabase → Python Spine
 
-## Architecture After Migration
-- spine.aynn.io (Railway) = auth + DB + all API
-- aynn.io (Lovable) = frontend only, talks to spine
-- ayn-ai-proxy (Supabase) = stays, free tier, Lovable LLM proxy
-- engine.aynn.io (Railway) = simulation engine, unchanged
+## Architecture Decision
+All services move to spine.aynn.io (Railway Python). 
+Supabase kept ONLY for Postgres database (data storage).
+No more edge functions.
 
-## Phase 1: Railway PostgreSQL (Database)
-- Add PostgreSQL plugin to Railway project
-- Export all Supabase tables + data via pg_dump
-- Import into Railway Postgres
-- Switch spine db.py from supabase-py to asyncpg/SQLAlchemy
+## Phase 1: DONE ✅
+- /auth (login, register, refresh, logout, me)
+- /chat (main AI — replaces ayn-unified)
+- /chats (sessions + messages)
+- /user/limits (replaces check-subscription)
+- Background jobs (scheduler)
 
-## Phase 2: Auth System in spine
-- POST /auth/register  — bcrypt password, issue JWT
-- POST /auth/login     — verify password, issue JWT  
-- POST /auth/refresh   — refresh token rotation
-- POST /auth/logout    — invalidate refresh token
-- GET  /auth/me        — return user profile
-- JWT secret stored in Railway env (AYN_JWT_SECRET)
-- Refresh tokens stored in DB (sessions table)
+## Phase 2: Core endpoints needed NOW
+Priority = used on every page load or core flow
 
-## Phase 3: Core API Routes in spine
-Replace Supabase direct queries with spine endpoints:
-- GET  /user/profile
-- PUT  /user/profile
-- GET  /user/limits
-- GET  /chats          — list sessions
-- GET  /chats/:id      — get messages
-- POST /chats/:id/messages — send message (already /chat)
-- DELETE /chats/:id
+### /generate/suggestions
+Called by: useMessages.ts when chat loads
+Replaces: generate-suggestions
+Does: returns 3 suggested questions based on context
 
-## Phase 4: Frontend Migration
-Replace in batches:
-1. supabase.auth.* → fetch(spine/auth/*)
-2. supabase.from('messages') → fetch(spine/chats/*)
-3. supabase.from('user_*') → fetch(spine/user/*)
-4. supabase.from('ayn_*') → fetch(spine/intelligence/*)
-5. Remove @supabase/supabase-js entirely
+### /generate/eye-behaviors  
+Called by: AYN orb animation
+Replaces: generate-eye-behaviors
+Does: returns emotion/animation config
 
-## Phase 5: Stripe Webhook → spine
-- POST /webhooks/stripe in spine
-- No more edge function needed
+### /upload
+Called by: file attachment in chat
+Replaces: file-upload
+Does: uploads file to storage, returns URL
 
-## Tables to migrate (priority order)
-### Critical (Phase 1)
-- users (auth.users → our own users table)
-- user_sessions (refresh tokens)
-- user_subscriptions
-- user_ai_limits
-- user_settings
-- user_memory
-- messages
-- chat_sessions
+### /admin/verify-pin + /admin/set-pin
+Called by: AdminPinGate.tsx
+Replaces: verify-admin-pin, set-admin-pin
+Does: verifies 6-digit admin PIN
 
-### Important (Phase 2)  
-- ayn_world_signals
-- ayn_predictions / ayn_consensus_predictions
-- ayn_market_snapshot
-- ayn_country_intelligence
-- ayn_master_predictions
-- error_logs
-- profiles
+### /support/bot
+Called by: support chat widget
+Replaces: support-bot
+Does: AI response for support tickets
 
-### Admin (Phase 3)
-- beta_feedback
-- contact_messages
-- custom_orders
-- service_applications
-- support_tickets
-- All other admin tables
+## Phase 3: Email endpoints
+All use Resend API
 
-## What stays on Supabase (free tier only)
-- ayn-ai-proxy edge function (Lovable LLM proxy)
-- Nothing else
+### /email/contact → send-contact-email
+### /email/application → send-application-email  
+### /email/ticket-notification → send-ticket-notification
+### /email/ticket-reply → send-ticket-reply
+### /email/reply → send-reply-email
 
-## Railway services after migration
-- spine (Python FastAPI) — main backend
-- spine-db (PostgreSQL) — $5/mo
-- engine (simulation) — existing
+## Phase 4: Engineering endpoints (complex)
+### /engineering/analyze → engineering-ai-analysis
+### /engineering/chat → engineering-ai-chat
+### /engineering/agent → engineering-ai-agent
+### /engineering/pdf → generate-engineering-pdf
+### /engineering/dxf → generate-dxf
 
-## Cost comparison
-Before: Supabase Pro ~$25/mo + Railway
-After:  Railway PostgreSQL ~$5/mo + Railway spine (already paying)
-Saving: ~$20/mo minimum
+## Phase 5: Payments (Stripe)
+### /payments/checkout → create-checkout
+### /payments/portal → customer-portal
+### /payments/webhook → stripe-webhook
+
+## Phase 6: Analytics + Admin
+### /analytics/track → track-visit
+### /admin/ai-assistant → admin-ai-assistant
+
+## Frontend Migration Pattern
+For each endpoint:
+1. Add Python route to spine
+2. Add spineApi.ts method
+3. Replace supabase.functions.invoke() in frontend
+4. Remove Supabase call

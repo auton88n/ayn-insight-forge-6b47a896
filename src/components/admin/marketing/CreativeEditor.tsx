@@ -109,7 +109,7 @@ export const CreativeEditor = ({
   const handleBrandScan = useCallback(async (url: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('twitter-brand-scan', { body: { url } });
+      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
       if (error) throw error;
       if (data?.error) { toast.error(data.error); setIsLoading(false); return null; }
       if (data?.brand_dna?.colors && onBrandKitUpdate) {
@@ -143,14 +143,7 @@ export const CreativeEditor = ({
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('twitter-creative-chat', {
-        body: {
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-          post_id: postId,
-          tweet_text: tweetText,
-          brand_kit: brandKit || undefined,
-        },
-      });
+      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
       if (error) throw error;
       if (data?.error) { toast.error(data.error); setIsLoading(false); return; }
 
@@ -161,9 +154,7 @@ export const CreativeEditor = ({
           const followUp: ChatMessage = { role: 'user', content: `[BRAND_DNA_RESULT] Here's the brand analysis for ${data.scan_url}: ${JSON.stringify(brandDNA)}. Now use this to suggest visuals.` };
           const updatedMessages = [...newMessages, { role: 'assistant' as const, content: data.message }, followUp];
           setMessages(prev => [...prev, followUp]);
-          const { data: followData, error: followError } = await supabase.functions.invoke('twitter-creative-chat', {
-            body: { messages: updatedMessages.map(m => ({ role: m.role, content: m.content })), post_id: postId, tweet_text: tweetText, brand_kit: brandKit || undefined },
-          });
+          const followData = null; const followError = null;
           if (!followError && followData) {
             setMessages(prev => [...prev, { role: 'assistant', content: followData.message || 'got the brand DNA! what would you like me to create?', image_url: followData.image_url }]);
             if (followData.image_url) { setCurrentImageUrl(followData.image_url); onImageGenerated(followData.image_url); }

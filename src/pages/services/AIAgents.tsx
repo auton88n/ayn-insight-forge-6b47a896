@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { ArrowLeft, Brain, MessageSquare, Zap, Globe, Users, BarChart3, Clock, Bot, Headphones, Languages, UserCheck, Shield, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -121,19 +122,7 @@ const AIAgents = () => {
 
       if (dbError) throw dbError;
 
-      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
-        body: {
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          serviceType: 'AI Agents',
-          formData: {
-            'Full Name': formData.fullName,
-            'Email': formData.email,
-            'Phone': formData.phone || 'Not provided',
-            'Message': formData.message || 'No message provided'
-          }
-        }
-      });
+      const emailError = null; await spineApi.contactUs(applicantEmail, applicantName, applicationDetails);
 
       if (emailError) console.error('Email error:', emailError);
 

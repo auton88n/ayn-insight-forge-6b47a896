@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Mountain, Sparkles, PlusCircle, FileSearch } from 'lucide-react';
@@ -82,14 +83,7 @@ const AIGradingDesigner: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-grading-design', {
-        body: { 
-          points, 
-          terrainAnalysis, 
-          requirements: requirements || 'Standard site grading for construction with proper drainage',
-          region: gradingRegion,
-        }
-      });
+      const data = await spineApi.engineeringAnalysis(designInput, 'grading'); const error = null;
 
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
@@ -124,13 +118,7 @@ const AIGradingDesigner: React.FC = () => {
 
     setIsApplyingOptimizations(true);
     try {
-      const { data, error } = await supabase.functions.invoke('apply-design-optimizations', {
-        body: {
-          parsedData: analysisResult.parsedData,
-          optimizations,
-          projectName,
-        }
-      });
+      const data = await spineApi.engineeringAnalysis(optimInput, 'optimize'); const error = null;
 
       if (error) throw error;
       if (!data.success) throw new Error(data.error);

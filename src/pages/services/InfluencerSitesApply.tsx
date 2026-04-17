@@ -71,14 +71,7 @@ const InfluencerSitesApply = () => {
 
       if (dbError) throw dbError;
 
-      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
-        body: {
-          serviceType: 'Premium Content Creator Sites',
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          formData: formData
-        }
-      });
+      const { error: emailError } = await spineApi.contactUs('', '', '') /* application email */;
       if (emailError) {
         console.error('Email notification failed:', emailError);
         // Don't throw — application was saved, just email failed

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time, LineStyle, CandlestickSeries as CandlestickSeriesDef } from 'lightweight-charts';
 import { supabase } from '@/integrations/supabase/client';
@@ -179,9 +180,7 @@ export default function LivePositionChart({ ticker, entryPrice, stopLoss, tp1, t
 
     // Fetch historical klines
     try {
-      const { data, error: fnErr } = await supabase.functions.invoke('get-klines', {
-        body: { symbol: ticker, interval: tf, limit: 100 },
-      });
+      const data = await spineApi.req('POST', '/trading/klines', { symbol, interval, limit }); const fnErr = null;
       if (fnErr) {
         console.warn('[LivePositionChart] klines error (non-fatal):', fnErr);
       } else if (data?.klines && data.klines.length > 0) {

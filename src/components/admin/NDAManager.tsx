@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
@@ -179,7 +180,7 @@ export const NDAManager = () => {
 
   const fetchNDAs = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc('get_admin_nda_agreements');
+    const { data, error } = await spineApi.req("GET", "/admin/ndas");
     if (!error) setNdas((Array.isArray(data) ? data : []) as unknown as NDA[]);
     setLoading(false);
   };

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
-import { SUPABASE_URL } from '@/config';
+const SPINE_URL = 'https://spine.aynn.io';
 
 interface AYNMessage {
   role: 'user' | 'assistant' | 'system';
@@ -75,17 +75,13 @@ export function useAYN(options: UseAYNOptions = {}) {
       const messages: AYNMessage[] = context?.conversationHistory || [];
       messages.push({ role: 'user', content: message });
 
-      const { data, error: invokeError } = await supabase.functions.invoke('ayn-unified', {
-        body: {
-          messages,
-          intent: context?.intent,
-          language: context?.language,
-          context: {
-            fileContext: context?.fileContext,
-          },
-          stream: false,
-        },
+      const spineRes = await fetch(\`\${SPINE_URL}/chat\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': \`Bearer \${spineAuth.getAccessToken ? await spineAuth.getAccessToken() : ''}\` },
+        body: JSON.stringify({ messages, intent: '', stream: false })
       });
+      const data = await spineRes.json();
+      const invokeError = spineRes.ok ? null : data;
 
       if (invokeError) {
         // Handle upgrade-required (403) as a normal response instead of throwing

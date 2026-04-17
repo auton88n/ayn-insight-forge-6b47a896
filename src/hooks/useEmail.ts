@@ -21,9 +21,7 @@ export const useEmail = () => {
     userId?: string
   ): Promise<SendEmailResponse> => {
     try {
-      const { data: response, error } = await supabase.functions.invoke('send-email', {
-        body: { to, emailType, data, userId }
-      });
+      const response = await spineApi.sendEmail(to, subject, template, data || {}); const error = null;
 
       if (error) {
         if (import.meta.env.DEV) {

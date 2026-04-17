@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
@@ -127,14 +128,7 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
       }, 200);
 
       // Upload via edge function
-      const { data, error } = await supabase.functions.invoke('file-upload', {
-        body: {
-          file: base64,
-          fileName: processedFile.name,
-          fileType: processedFile.type,
-          userId
-        }
-      });
+      const data = await spineApi.uploadFile(fileData, fileName, fileType, fileSize); const error = null;
 
       clearInterval(progressInterval);
 

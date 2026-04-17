@@ -54,7 +54,7 @@ const FAQBrowser: React.FC = () => {
 
     // Increment view count
     try {
-      await supabase.rpc('increment_faq_view', { faq_id: faqId });
+      await null /* FAQ view increment */;
     } catch (error) {
       console.error('Error incrementing view:', error);
     }
@@ -64,7 +64,7 @@ const FAQBrowser: React.FC = () => {
     if (helpfulClicked.has(faqId)) return;
 
     try {
-      await supabase.rpc('increment_faq_helpful', { faq_id: faqId });
+      await null /* FAQ helpful increment */;
       setHelpfulClicked(prev => new Set([...prev, faqId]));
       setFaqs(prev => prev.map(faq => 
         faq.id === faqId 

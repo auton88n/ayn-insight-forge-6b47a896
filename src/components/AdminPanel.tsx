@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useLayoutEffect, lazy, Suspense, useCallback } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { useNavigate } from 'react-router-dom';
@@ -147,10 +148,7 @@ export const AdminPanel = ({
       for (const [key, value] of Object.entries(updates)) {
         const dbKey = keyMap[key];
         if (dbKey) {
-          const { error } = await supabase.rpc('admin_upsert_system_config', {
-            p_key: dbKey,
-            p_value: JSON.stringify(value),
-          });
+          const { error } = await spineApi.req("POST", "/admin/config", body);
           if (error) throw new Error(`Failed to update ${dbKey}: ${error.message}`);
         }
       }

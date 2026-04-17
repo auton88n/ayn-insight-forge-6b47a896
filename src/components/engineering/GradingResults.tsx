@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { Download, TrendingUp, TrendingDown, FileText, AlertTriangle, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -69,9 +70,7 @@ export const GradingResults: React.FC<GradingResultsProps> = ({
   const handleExportDXF = async () => {
     setExporting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-grading-dxf', {
-        body: { points: fglPoints, design, projectName }
-      });
+      const data = await spineApi.generateDxf(gradingData); const error = null;
 
       if (error) throw error;
       if (!data.success) throw new Error(data.error);

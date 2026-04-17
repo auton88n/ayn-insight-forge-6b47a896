@@ -125,19 +125,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
           hasSavedSessionRef.current = true;
           
           // Fire and forget - don't block unmount
-          supabase.rpc('upsert_user_memory', {
-            _user_id: userId,
-            _memory_type: 'project',
-            _memory_key: `eng_session_${Date.now()}`,
-            _memory_data: {
-              calculators: calcUsed,
-              lastCalculator: (context as any).activeCalculator,
-              calculationsRun: (context as any).calculationsRun || 0,
-              sessionDuration,
-              date: new Date().toISOString()
-            },
-            _priority: 2
-          });
+          spineApi.saveMemory(memoryKey, memoryValue);
         }
       }
     };
@@ -222,15 +210,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
       tempDiv.style.background = 'white';
       
       // Fetch HTML from edge function
-      const { data, error } = await supabase.functions.invoke('generate-engineering-pdf', {
-        body: {
-          type: selectedCalculator,
-          inputs: currentInputs,
-          outputs: currentOutputs || calculationResult?.outputs || {},
-          buildingCode: selectedBuildingCode,
-          projectName: `${selectedCalculator.charAt(0).toUpperCase() + selectedCalculator.slice(1).replace('_', ' ')} Design`,
-        }
-      });
+      const data = await spineApi.generateEngineeringPdf(pdfData || {}); const error = null;
 
       if (error) throw error;
       
@@ -303,13 +283,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
     try {
       toast.loading('Generating DXF file...', { id: 'dxf-export' });
       
-      const { data, error } = await supabase.functions.invoke('generate-dxf', {
-        body: {
-          type: selectedCalculator,
-          inputs: currentInputs,
-          outputs: currentOutputs || calculationResult?.outputs || {},
-        }
-      });
+      const data = await spineApi.generateDxf(dxfData || {}); const error = null;
 
       if (error) throw error;
 

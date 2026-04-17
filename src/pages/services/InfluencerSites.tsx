@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import influencerWomanBg from '@/assets/influencer-woman-bg.jpg';
@@ -99,15 +100,7 @@ const InfluencerSites = () => {
       
       if (dbError) throw dbError;
 
-      await supabase.functions.invoke('send-application-email', {
-        body: {
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          applicantPhone: formData.phone,
-          message: formData.message,
-          serviceType: 'Content Creator Sites'
-        }
-      });
+      await spineApi.contactUs(applicantEmail, applicantName, details);
       setIsSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (error) {

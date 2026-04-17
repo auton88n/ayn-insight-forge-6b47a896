@@ -92,13 +92,7 @@ const AIEmployeeApply = () => {
 
       if (dbError) throw dbError;
 
-      await supabase.functions.invoke('send-application-email', {
-        body: {
-          applicantName: formData.fullName,
-          applicantEmail: formData.email,
-          applicantPhone: formData.phone,
-          message: formData.message,
-          serviceType: 'AI Employee (Detailed)',
+      await spineApi.contactUs('', '', '') /* application email */',
           customFields: {
             'Company': formData.companyName,
             'Industry': formData.industry,

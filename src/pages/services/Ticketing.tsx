@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, QrCode, Smartphone, BarChart3, Calendar, Wifi, Palette, Check, Loader2, Ticket, ShieldCheck, Users, Brain, MessageCircle, Crown, Megaphone } from 'lucide-react';
@@ -138,15 +139,7 @@ const Ticketing = () => {
 
       if (dbError) throw dbError;
 
-      await supabase.functions.invoke('send-application-email', {
-        body: {
-          service: 'Smart Ticketing System',
-          name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          message: formData.message
-        }
-      });
+      await spineApi.contactUs(applicantEmail, applicantName, details);
 
       setIsSuccess(true);
       toast({

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -79,12 +80,7 @@ export const BetaFeedbackModal = ({
       if (feedbackError) throw feedbackError;
 
       // Add bonus credits
-      const { error: creditsError } = await supabase.rpc('add_bonus_credits', {
-        p_user_id: userId,
-        p_amount: rewardAmount,
-        p_reason: 'Beta feedback survey completion',
-        p_gift_type: 'feedback_reward'
-      });
+      const { error: creditsError } = await spineApi.req("POST", "/admin/add-credits", { userId, credits });
 
       if (creditsError) throw creditsError;
 

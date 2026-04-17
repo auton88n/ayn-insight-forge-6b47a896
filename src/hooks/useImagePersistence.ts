@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -34,9 +35,7 @@ export const useImagePersistence = () => {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('save-generated-image', {
-        body: { imageUrl: normalizedUrl }
-      });
+      const data = await spineApi.saveImage(imageUrl, prompt || ''); const fnError = null;
 
       if (fnError) {
         // Cache negative result to avoid repeated retries
@@ -106,9 +105,7 @@ export const persistDalleImage = async (imageUrl: string): Promise<string> => {
     return urlCache.get(normalizedUrl)!;
   }
 
-  const { data, error } = await supabase.functions.invoke('save-generated-image', {
-    body: { imageUrl: normalizedUrl }
-  });
+  const data = await spineApi.saveImage(imageUrl, ''); const error = null;
 
   // Best-effort: never throw, and cache failures to avoid retry loops
   if (error || data?.error) {

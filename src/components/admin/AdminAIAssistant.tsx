@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -134,7 +135,7 @@ export function AdminAIAssistant() {
   // Fetch stats directly from DB — fast, no AI call needed
   const fetchStats = useCallback(async () => {
     try {
-      const { data, error } = await supabase.rpc('get_admin_system_monitoring');
+      const { data, error } = await spineApi.getAdminStats();
       if (error) throw error;
       const d = data as any;
 
@@ -270,9 +271,7 @@ export function AdminAIAssistant() {
 
       switch (action.type) {
         case 'unblock_user':
-          const { error: unblockError } = await supabase.rpc('admin_unblock_user', { 
-            p_user_id: action.params 
-          });
+          const { error: unblockError } = await spineApi.req("POST", "/admin/unblock-user", { userId });
           if (unblockError) throw unblockError;
           toast.success('User unblocked successfully');
           break;

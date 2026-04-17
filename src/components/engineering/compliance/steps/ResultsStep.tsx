@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useCallback } from 'react';
 import { ComplianceResultCard } from '../ComplianceResultCard';
 import { ComplianceSummaryBadge } from '../ComplianceSummaryBadge';
@@ -55,16 +56,7 @@ export const ResultsStep: React.FC<Props> = ({ results, passed, failed, warnings
     try {
       toast.loading('Generating PDF report...', { id: 'compliance-pdf' });
 
-      const { data, error } = await supabase.functions.invoke('generate-compliance-pdf', {
-        body: {
-          results,
-          passed,
-          failed,
-          warnings,
-          codeSystem,
-          projectName: `${codeSystem === 'IRC_2024' ? 'IRC 2024' : 'NBC 2025'} Compliance Report`,
-        },
-      });
+      const data = await spineApi.generateCompliancePdf(pdfData); const error = null;
 
       if (error) throw error;
 

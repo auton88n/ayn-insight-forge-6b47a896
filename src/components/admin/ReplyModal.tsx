@@ -61,16 +61,7 @@ export const ReplyModal = ({
     setIsSending(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('send-reply-email', {
-        body: {
-          applicationId: application.id,
-          recipientEmail: application.email,
-          recipientName: application.full_name,
-          subject,
-          message,
-          serviceType: getServiceLabel(application.service_type),
-        },
-      });
+      const data = await spineApi.sendReplyEmail(applicationId, replyText, email); const error = null;
 
       if (error) throw error;
 

@@ -25,6 +25,29 @@ async function req<T>(method: string, path: string, body?: object): Promise<T> {
 }
 
 export const spineApi = {
+  // Generation
+  getSuggestions:  (context: string, mode: string) => req('POST', '/generate/suggestions', { context, mode }),
+  getEyeBehaviors: () => req('POST', '/generate/eye-behaviors', {}),
+  saveImage:       (image_url: string, prompt: string) => req('POST', '/generate/save-image', { image_url, prompt }),
+
+  // Upload
+  uploadFile:      (data: string, name: string, type: string, size: number) =>
+                     req<{url: string, name: string, type: string}>('POST', '/upload', { data, name, type, size }),
+
+  // Support
+  supportBot:      (message: string, user_name?: string) => req('POST', '/support/bot', { message, user_name }),
+  contactUs:       (name: string, email: string, message: string) => req('POST', '/support/contact', { name, email, message }),
+
+  // Analytics
+  trackVisit:      (visitor_id: string, page_path: string, referrer?: string) =>
+                     req('POST', '/analytics/track', { visitor_id, page_path, referrer }),
+  logError:        (error_message: string, url?: string, context?: object) =>
+                     req('POST', '/analytics/error', { error_message, url, context }),
+
+  // Payments
+  createCheckout:  (price_id: string) => req('POST', '/payments/checkout', { price_id }),
+  customerPortal:  () => req('POST', '/payments/portal', {}),
+
   // Auth/User
   getMe:       () => req<any>('GET', '/auth/me'),
   getLimits:   () => req<any>('GET', '/user/limits'),
@@ -94,3 +117,38 @@ export const adminApi = {
   getLlmStats:          () => req<any>('GET', '/admin/llm-stats'),
   getVisitorAnalytics:  () => req<any>('GET', '/admin/visitor-analytics'),
 };
+
+// ─── Extended API methods added in full migration ─────────────────────────────
+
+  // Engineering
+  engineeringChat:     (message: string, context: string) =>
+                         req('POST', '/engineering/chat', { message, context }),
+  engineeringAnalysis: (data: object, type: string) =>
+                         req('POST', '/engineering/analyze', { data, type }),
+  engineeringAgent:    (task: string, context: object) =>
+                         req('POST', '/engineering/agent', { task, context }),
+  generateDxf:         (data: object) => req('POST', '/engineering/dxf', { data }),
+  generateEngineeringPdf: (data: object) => req('POST', '/engineering/pdf', { data }),
+  generateCompliancePdf:  (data: object) => req('POST', '/engineering/compliance-pdf', { data }),
+
+  // Admin
+  verifyAdminPin:  (pin: string) => req('POST', '/admin/verify-pin', { pin }),
+  setAdminPin:     (pin: string, newPin: string) => req('POST', '/admin/set-pin', { pin, new_pin: newPin }),
+  getAdminUsers:   () => req('GET', '/admin/users'),
+  getAdminStats:   () => req('GET', '/admin/stats'),
+
+  // Email
+  sendEmail:         (to: string, subject: string, template: string, data: object) =>
+                       req('POST', '/email/send', { to, subject, template, data }),
+  sendTicketReply:   (ticket_id: string, content: string, user_email: string) =>
+                       req('POST', '/email/ticket-reply', { ticket_id, content, user_email }),
+  sendReplyEmail:    (application_id: string, content: string, email: string) =>
+                       req('POST', '/email/reply', { application_id, content, email }),
+
+  // Memory
+  saveMemory:        (key: string, value: string) =>
+                       req('POST', '/user/memory', { key, value }),
+
+  // Chart analysis
+  analyzeChart:      (image: string, symbol: string, timeframe: string) =>
+                       req('POST', '/analyze/chart', { image, symbol, timeframe }),

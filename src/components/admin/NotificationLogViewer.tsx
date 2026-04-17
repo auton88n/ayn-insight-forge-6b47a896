@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,7 +47,7 @@ export const NotificationLogViewer = () => {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_admin_notification_log');
+      const { data, error } = await spineApi.req("GET", "/admin/notification-log");
       if (error) throw error;
       setLogs((data || []) as NotificationLog[]);
     } catch (error) {

@@ -335,9 +335,7 @@ export const CenterStageLayout = ({
   // Fetch dynamic suggestions
   const fetchDynamicSuggestions = useCallback(async (userMessage: string, aynResponse: string, mode: AIMode) => {
     try {
-      const { data, error } = await supabase.functions.invoke("generate-suggestions", {
-        body: { lastUserMessage: userMessage, lastAynResponse: aynResponse, mode },
-      });
+      const data = await spineApi.getSuggestions(context || '', mode || 'chat'); const error = null;
       if (error) {
         if (import.meta.env.DEV) console.error("Failed to fetch suggestions:", error);
         return DEFAULT_SUGGESTIONS;

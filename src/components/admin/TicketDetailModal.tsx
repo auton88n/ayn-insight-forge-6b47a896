@@ -138,15 +138,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
       // Send email notification to user (if not internal note)
       if (!isInternalNote && ticket.guest_email) {
         try {
-          await supabase.functions.invoke('send-ticket-reply', {
-            body: {
-              ticketId: ticket.id,
-              userEmail: ticket.guest_email,
-              userName: ticket.guest_name || 'User',
-              subject: ticket.subject,
-              message: newMessage.trim(),
-            },
-          });
+          await spineApi.sendTicketReply(ticketId, replyContent, userEmail);
         } catch (emailError) {
           console.error('Failed to send email notification:', emailError);
         }
@@ -188,15 +180,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
         .reverse()
         .find(m => m.sender_type === 'user')?.message || '';
 
-      const { data, error } = await supabase.functions.invoke('support-bot', {
-        body: {
-          message: lastUserMessage,
-          conversationHistory: messages.map(m => ({
-            role: m.sender_type === 'user' ? 'user' : 'assistant',
-            content: m.message,
-          })),
-        },
-      });
+      const data = await spineApi.supportBot(message, ''); const error = null;
 
       if (error) throw error;
       

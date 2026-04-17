@@ -151,7 +151,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
         }
       }
 
-      const { data, error } = await supabase.functions.invoke('check-subscription');
+      const data = await spineApi.getLimits(); const error = null;
       
       if (error) {
         if (import.meta.env.DEV) {
@@ -205,9 +205,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { priceId },
-      });
+      const data = await spineApi.createCheckout(TOPUP_PRICE_ID); const error = null;
 
       if (error) throw error;
 
@@ -224,13 +222,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
 
   const startTopUp = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { 
-          priceId: TOPUP_PRICE_ID,
-          mode: 'payment',
-          credits: TOPUP_CREDITS
-        },
-      });
+      const data = await spineApi.createCheckout(TOPUP_PRICE_ID); const error = null;
 
       if (error) throw error;
 
@@ -247,7 +239,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
 
   const openCustomerPortal = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('customer-portal');
+      const data = await spineApi.customerPortal(); const error = null;
 
       if (error) throw error;
 

@@ -75,9 +75,7 @@ const Contact = () => {
         throw new Error('Failed to save message');
       }
 
-      const { error: emailError } = await supabase.functions.invoke('send-contact-email', {
-        body: {
-          name: contactForm.name.trim(),
+      const { error: emailError } = await spineApi.contactUs(name, email, message),
           email: contactForm.email.trim(),
           message: contactForm.message.trim(),
         },
