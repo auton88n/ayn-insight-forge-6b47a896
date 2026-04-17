@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
+import type { User, Session } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 import { trackDeviceLogin } from '@/hooks/useDeviceTracking';
 import type { UserProfile, UseAuthReturn } from '@/types/dashboard.types';
@@ -115,23 +115,19 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         setIsAuthLoading(false); // ← unblock sidebar immediately
       }
 
-      // Step 2: Load enriched profile from spine in background (non-blocking)
+      // Step 2: Load profile from Supabase user metadata (no network call needed)
       try {
-        const me = await spineApi.getMe() as any;
         if (!isMounted) return;
-        if (me && typeof me === 'object') {
-          setUserProfile({
-            user_id: user.id,
-            contact_person: `${me.first_name || ''} ${me.last_name || ''}`.trim() || user.email || '',
-            company_name: me.company_name || '',
-            business_type: me.business_type || '',
-            avatar_url: me.avatar_url || null,
-          } as UserProfile);
-          // Update admin from server (more authoritative than email check)
-          if (me.is_admin === true) setIsAdmin(true);
-        }
+        const meta = (user as any).user_metadata || {};
+        setUserProfile({
+          user_id: user.id,
+          contact_person: meta.full_name || meta.name || user.email?.split('@')[0] || '',
+          company_name: meta.company_name || '',
+          business_type: meta.business_type || '',
+          avatar_url: meta.avatar_url || null,
+        } as UserProfile);
       } catch {
-        // Silent — profile already defaulted above, sidebar already unblocked
+        // Silent failure
       }
     };
 

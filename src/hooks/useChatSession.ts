@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { SpineSession as Session } from '@/lib/spineAuth';
+import { Session } from '@supabase/supabase-js';
 import { spineApi } from '@/lib/spineApi';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatHistory, Message, UseChatSessionReturn } from '@/types/dashboard.types';

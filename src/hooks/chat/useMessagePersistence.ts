@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SpineSession as Session } from '@/lib/spineAuth';
+import type { Session } from '@supabase/supabase-js';
 import type { Message, FileAttachment } from '@/types/dashboard.types';
 import { spineApi } from '@/lib/spineApi';
 
