@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { spineApi } from '@/lib/spineApi';
 import { toast } from 'sonner';
 import { Search, RefreshCw, Edit2, Mail, Shield, Chrome, Users, Crown, Zap, Infinity as InfinityIcon, User, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -108,16 +108,12 @@ export const SubscriptionManagement = () => {
       const limit = useCustom ? customLimit : (tierData?.limits?.monthlyCredits ?? 50);
       const isUnlimited = newTier === 'unlimited' || newTier === 'enterprise';
 
-      // Update user_subscriptions
-      const { error: subErr } = /* spine */;
-      if (subErr) throw subErr;
-
-      // Update user_ai_limits (the real enforced system)
-      const { error: limErr } = /* spine */;
-      if (limErr) throw limErr;
-
-      // Update access_grants for backward compat
-      /* spine */;
+      // Update subscription via spine
+      await spineApi.req('PATCH', `/admin/users/${editing.id}/subscription`, {
+        tier: newTier,
+        monthly_limit: limit,
+        is_unlimited: isUnlimited,
+      });
 
       toast.success(`${editing.display_name} updated to ${newTier}`);
       setEditing(null);

@@ -94,14 +94,7 @@ const AIEmployee = () => {
     }
     setIsSubmitting(true);
     try {
-      const { error: dbError } = /* spine migration pending */;
-      
-      if (dbError) throw dbError;
-      const emailError = null; await spineApi.contactUs(applicantEmail, applicantName, applicationDetails);
-      if (emailError) {
-        console.error('Email notification failed:', emailError);
-        // Don't throw — application was saved, just email failed
-      }
+      await spineApi.contactUs(formData.fullName, formData.email, `[AI Employee] ${formData.message || ''}`);
       setIsSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (error) {

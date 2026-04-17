@@ -128,36 +128,20 @@ export default function ClientSign() {
   const fetchOrder = useCallback(async () => {
     if (!token || token.length < 10) return;
     try {
-      const data = null; const error = null;
-      if (error || !data) throw new Error('Contract not found');
+      // TODO: spine migration — GET /sign/order/{token}
+      const data: any = null; const fetchErr: any = new Error('Contract signing temporarily unavailable');
+      if (fetchErr || !data) throw fetchErr || new Error('Contract not found');
       setOrder(data as unknown as Order);
       if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
-      if (!data.client_viewed_at) {
-        /* spine migration pending */;
-      }
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, [token]);
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
-  const saveSignature = async (dataUrl: string, party: 'admin' | 'client') => {
+  const saveSignature = async (_dataUrl: string, _party: 'admin' | 'client') => {
     if (!order) return;
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const path = `signatures/order_${order.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
-    if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
-    const sigUrl = urlData.publicUrl;
-    const now = new Date().toISOString();
-    const updates: any = party === 'admin'
-      ? { admin_signature_url: sigUrl, admin_signed_at: now }
-      : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    /* spine migration pending */;
-    const updated = { ...order, ...updates };
-    setOrder(updated);
-    if (updated.admin_signature_url && updated.client_signature_url) {
-      setCompleted(true);
-    }
+    // TODO: spine migration — POST /sign/order/{token}/signature
+    throw new Error('Signature upload temporarily unavailable');
   };
 
   const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: order?.currency || 'USD' }).format(n);

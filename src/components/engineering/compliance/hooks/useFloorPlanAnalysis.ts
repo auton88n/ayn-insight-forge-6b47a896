@@ -1,6 +1,6 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+
 import type { ComplianceInput } from '../utils/complianceEngine';
 import { toast } from 'sonner';
 
@@ -67,9 +67,7 @@ export function useFloorPlanAnalysis() {
       const base64 = await fileToBase64(file);
 
       setPhase('analyzing');
-      const data = await spineApi.req('POST', '/analyze/floor-plan', { image: base64Image }); const fnError = null;
-
-      if (fnError) throw new Error(fnError.message || 'Analysis failed');
+      const data: any = await spineApi.analyzeFloorPlan(base64);
       if (data?.error) throw new Error(data.error);
 
       setPhase('extracting');

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { spineApi } from '@/lib/spineApi';
 import { AlertTriangle, RefreshCw, Bug, Clock, User, ChevronDown, ChevronRight, CheckCircle, EyeOff, Wrench, Lightbulb, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAdminErrorMonitoring, useRawErrorLogs, adminKeys } from '@/admin-app/hooks/useAdminQuery';
@@ -124,21 +124,25 @@ export const ErrorMonitoring = () => {
   }, [rpcData, timeRange]);
 
   const updateResolution = async (pattern: string, status: 'resolved' | 'ignored', note: string) => {
-    const { error } = /* spine */;
-
-    if (error) { toast.error('Failed to update: ' + error.message); return; }
-
-    toast.success(status === 'resolved' ? '✅ Marked as resolved' : '🙈 Ignored');
-    setFixingError(null);
-    setNoteInput('');
-    queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
+    try {
+      await spineApi.req('POST', '/admin/errors/resolve', { pattern, status, note });
+      toast.success(status === 'resolved' ? '✅ Marked as resolved' : '🙈 Ignored');
+      setFixingError(null);
+      setNoteInput('');
+      queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
+    } catch (e: any) {
+      toast.error('Failed to update: ' + (e?.message || 'unknown'));
+    }
   };
 
   const reopen = async (pattern: string) => {
-    const { error } = /* spine */;
-    if (error) { toast.error('Failed'); return; }
-    toast.success('Reopened');
-    queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
+    try {
+      await spineApi.req('POST', '/admin/errors/reopen', { pattern });
+      toast.success('Reopened');
+      queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
+    } catch {
+      toast.error('Failed');
+    }
   };
 
   const severityColor = (count: number, status: string) => {

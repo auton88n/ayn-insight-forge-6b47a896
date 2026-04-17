@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormError } from '@/components/ui/form-error';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useFormValidation, aiEmployeeSchema } from '@/hooks/useFormValidation';
@@ -71,39 +71,8 @@ const AIEmployeeApply = () => {
 
     setIsSubmitting(true);
     try {
-      const { error: dbError } = await supabase
-        .from('service_applications')
-        .insert({
-          full_name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone || null,
-          message: formData.message || null,
-          service_type: 'ai_employee',
-          status: 'new',
-          custom_fields: {
-            company_name: formData.companyName,
-            industry: formData.industry,
-            team_size: formData.teamSize,
-            roles: formData.roles,
-            workload: formData.workload,
-            budget: formData.budget
-          }
-        });
-
-      if (dbError) throw dbError;
-
-      await spineApi.contactUs('', '', '') /* application email */',
-          customFields: {
-            'Company': formData.companyName,
-            'Industry': formData.industry,
-            'Team Size': formData.teamSize,
-            'Roles Needed': formData.roles,
-            'Workload': formData.workload,
-            'Budget': formData.budget
-          }
-        }
-      });
-
+      const details = `Company: ${formData.companyName}\nIndustry: ${formData.industry}\nTeam Size: ${formData.teamSize}\nRoles: ${formData.roles}\nWorkload: ${formData.workload}\nBudget: ${formData.budget}\n\n${formData.message || ''}`;
+      await spineApi.contactUs(formData.fullName, formData.email, `[AI Employee Apply] ${details}`);
       setIsSuccess(true);
     } catch (error) {
       console.error('Submission error:', error);

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { spineAuth } from '@/lib/spineAuth';
 import {
   ArrowLeft, RefreshCw, CheckCircle2, XCircle, AlertTriangle,
@@ -61,10 +61,16 @@ export default function PredictionControlPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [{ data: preds }, { data: sc }] = await Promise.all([
-      (/* spine */;
-    if (preds) setPredictions(preds as MasterPrediction[]);
-    if (sc) setScorecard(sc as unknown as Scorecard);
+    try {
+      const [preds, sc] = await Promise.all([
+        spineApi.req<MasterPrediction[]>('GET', '/admin/predictions/master').catch(() => []),
+        spineApi.req<Scorecard>('GET', '/admin/predictions/scorecard').catch(() => null),
+      ]);
+      if (preds) setPredictions(preds);
+      if (sc) setScorecard(sc);
+    } catch (e) {
+      console.error('[PredictionControlPanel] load error:', e);
+    }
     setLoading(false);
   }, []);
 
@@ -72,18 +78,16 @@ export default function PredictionControlPanel() {
 
   const runChecker = async () => {
     setRunning(true);
-    await (supabase.rpc('trigger_prediction_checker' as any) as any).catch(() => {});
-    // Trigger via net.http_post equivalent — use edge function directly
-    await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/ayn-prediction-checker`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await spineAuth.getSession()).data.session?.access_token}` },
-      body: JSON.stringify({ source: 'admin_manual' })
-    }).catch(() => {});
+    try {
+      await spineApi.req('POST', '/admin/predictions/run-checker', { source: 'admin_manual' });
+    } catch {}
     setTimeout(() => { load(); setRunning(false); }, 45000);
   };
 
   const saveOverride = async (id: string) => {
-    await (/* spine */;
+    try {
+      await spineApi.req('PATCH', `/admin/predictions/${id}`, { admin_notes: editNotes, check_status: editStatus, admin_override: true });
+    } catch {}
     setEditingId(null);
     load();
   };
