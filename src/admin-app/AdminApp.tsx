@@ -59,14 +59,20 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
     if (lockedUntil || checking) return;
     setChecking(true);
     try {
-      // Use the edge function — requires authenticated session
-      const { data, error: fnError } = await (async () => { const r = await fetch('https://spine.aynn.io/admin/verify-pin', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${(await adminSupabase.auth.getSession()).data.session?.access_token||''}`}, body: JSON.stringify({
-        body: { pin: fullPin },
+      const token = (await adminSupabase.auth.getSession()).data.session?.access_token || '';
+      const r = await fetch('https://spine.aynn.io/admin/verify-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pin: fullPin }),
       });
+      const data = await r.json().catch(() => ({} as any));
+      const ok = r.ok && data?.success;
 
-      if (fnError || !data?.success) {
+      if (!ok) {
         if (data?.locked) {
-          // Server-side lockout
           const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
           localStorage.setItem(LOCKOUT_KEY, until.toString());
           setLockedUntil(until);
@@ -87,7 +93,8 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
           setTimeout(() => inputs.current[0]?.focus(), 100);
         }
       } else {
-        localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
+        localStorage.removeItem(LOCKOUT_KEY);
+        localStorage.removeItem(ATTEMPTS_KEY);
         sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
         onSuccess();
       }
