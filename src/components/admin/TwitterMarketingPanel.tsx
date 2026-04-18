@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { spineApi } from '@/lib/spineApi';
 import {
   Sparkles, Send, RefreshCw, Loader2, Clock, CheckCircle, XCircle,
   Brain, Target, BarChart3, Trash2, Edit3, Camera, Download
@@ -119,8 +119,7 @@ export const TwitterMarketingPanel = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = /* spine */;
-      if (error) throw error;
+      await spineApi.req('DELETE', `/admin/twitter/posts/${id}`);
       setPosts((prev) => prev.filter((p) => p.id !== id));
       toast.success('Tweet deleted');
     } catch {

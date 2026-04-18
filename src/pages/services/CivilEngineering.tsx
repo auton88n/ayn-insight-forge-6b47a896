@@ -92,12 +92,7 @@ const CivilEngineering = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const { error: dbError } = /* spine migration pending */;
-      if (dbError) throw dbError;
-      
-      const { error: emailError } = await spineApi.contactUs('', '', '') /* application email */;
-      if (emailError) console.error('Email error:', emailError);
-      
+      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Civil Engineering] ${(formData as any).message || ''}`);
       setIsSuccess(true);
       toast({ title: t.successTitle, description: t.successDesc });
     } catch (error) {

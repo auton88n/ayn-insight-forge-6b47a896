@@ -111,14 +111,7 @@ const Automation = () => {
     setIsSubmitting(true);
 
     try {
-      const { error: dbError } = /* spine migration pending */;
-
-      if (dbError) throw dbError;
-
-      const emailError = null; await spineApi.contactUs(applicantEmail, applicantName, applicationDetails);
-
-      if (emailError) console.error('Email error:', emailError);
-
+      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Automation] ${(formData as any).message || ''}`);
       setIsSuccess(true);
       toast({
         title: language === 'ar' ? 'تم إرسال الطلب' : language === 'fr' ? 'Demande soumise' : 'Application submitted',

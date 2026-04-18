@@ -68,10 +68,10 @@ export const usePinnedChats = (
         const pinsToMigrate = localPins.filter(pin => !pinnedChats.has(pin));
         
         if (pinsToMigrate.length > 0) {
-          // Insert missing pins into database
+          // Insert missing pins into spine
           await Promise.all(
-            pinsToMigrate.map(sessionId =>
-              /* spine */;
+            pinsToMigrate.map(sessionId => spineApi.pinChat(sessionId, '').catch(() => {}))
+          );
 
           // Update local state
           setPinnedChats(prev => {
@@ -114,11 +114,9 @@ export const usePinnedChats = (
 
     try {
       if (currentlyPinned) {
-        // Remove from database
-        await /* spine */;
+        await spineApi.unpinChat(sessionId);
       } else {
-        // Add to database
-        await /* spine */;
+        await spineApi.pinChat(sessionId, '');
       }
     } catch (error) {
       console.error('[usePinnedChats] Toggle error:', error);

@@ -156,7 +156,11 @@ export function useMessagePersistence(
         content: aynContent.replace(/!\[([^\]]*)\]\(data:image\/[^;]+;base64,[^)]+\)/g, '![$1](image-generated)'),
         title,
       });
+      return true;
     } catch (e) {
       console.error('[useMessagePersistence] Save failed:', e);
       return false;
     }
+  }, []);
+}
+

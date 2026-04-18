@@ -1,7 +1,7 @@
 import { SUPABASE_URL } from '@/config';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { spineAuth } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -156,12 +156,10 @@ export default function AdminCustomOrders() {
         notes: form.notes || null, created_by: user?.id || null,
       };
       if (editingOrder) {
-        const { error } = /* spine */;
-        if (error) throw error;
+        await spineApi.req('PATCH', `/admin/custom-orders/${editingOrder.id}`, payload);
         toast({ title: '✓ Order updated' });
       } else {
-        const { error } = /* spine */;
-        if (error) throw error;
+        await spineApi.req('POST', '/admin/custom-orders', payload);
         toast({ title: '✓ Order created' });
       }
       setPanel('none'); setEditingOrder(null); fetchOrders();
@@ -172,9 +170,12 @@ export default function AdminCustomOrders() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order permanently?')) return;
-    const { error } = /* spine */;
-    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    else { toast({ title: '✓ Deleted' }); fetchOrders(); }
+    try {
+      await spineApi.req('DELETE', `/admin/custom-orders/${id}`);
+      toast({ title: '✓ Deleted' }); fetchOrders();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
   };
 
   const handleGeneratePdf = async (orderId: string) => {
@@ -218,8 +219,7 @@ export default function AdminCustomOrders() {
   const handleMarkPaid = async (orderId: string) => {
     setMarkingPaid(orderId);
     try {
-      const { error } = /* spine */;
-      if (error) throw error;
+      await spineApi.req('POST', `/admin/custom-orders/${orderId}/mark-paid`, {});
       toast({ title: '✓ Marked as paid' });
       fetchOrders();
     } catch (e: any) {

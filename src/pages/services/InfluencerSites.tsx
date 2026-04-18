@@ -96,11 +96,7 @@ const InfluencerSites = () => {
     }
     setIsSubmitting(true);
     try {
-      const { error: dbError } = /* spine migration pending */;
-      
-      if (dbError) throw dbError;
-
-      await spineApi.contactUs(applicantEmail, applicantName, details);
+      await spineApi.contactUs(formData.fullName, formData.email, `[Influencer Sites] ${formData.message || ''}`);
       setIsSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (error) {

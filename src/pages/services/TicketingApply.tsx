@@ -75,12 +75,7 @@ const TicketingApply = () => {
     setIsSubmitting(true);
     
     try {
-      const { error: dbError } = /* spine migration pending */;
-
-      if (dbError) throw dbError;
-
-      await spineApi.contactUs('', '', '') /* application email */;
-
+      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Ticketing Apply] ${JSON.stringify(formData)}`);
       setIsSuccess(true);
       toast({
         title: t.successTitle,
