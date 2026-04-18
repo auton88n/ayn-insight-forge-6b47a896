@@ -138,8 +138,9 @@ export function useAYN(options: UseAYNOptions = {}) {
         throw new Error('Not authenticated');
       }
 
+      const { SUPABASE_URL: SUPA_URL } = await import('@/config');
       const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/ayn-unified`,
+        `${SUPA_URL}/functions/v1/ayn-unified`,
         {
           method: 'POST',
           headers: {

@@ -47,40 +47,20 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
         spineApi.getLimits()
       ]);
 
-      // Process settings
-      if (!settingsData || settingsData.length === 0) {
-        const newSettings = [{}];
-
-        if (newSettings && newSettings.length > 0) {
-          const created = newSettings[0];
-          setSettings({
-            id: created.id,
-            user_id: created.user_id,
-            email_system_alerts: created.email_system_alerts ?? true,
-            email_usage_warnings: created.email_usage_warnings ?? true,
-            email_marketing: created.email_marketing ?? false,
-            email_weekly_summary: created.email_weekly_summary ?? false,
-            in_app_sounds: created.in_app_sounds ?? true,
-            desktop_notifications: created.desktop_notifications ?? false,
-            allow_personalization: created.allow_personalization ?? false,
-            store_chat_history: created.store_chat_history ?? true,
-          });
-        }
-      } else {
-        const fetched = settingsData[0];
-        setSettings({
-          id: fetched.id,
-          user_id: fetched.user_id,
-          email_system_alerts: fetched.email_system_alerts ?? true,
-          email_usage_warnings: fetched.email_usage_warnings ?? true,
-          email_marketing: fetched.email_marketing ?? false,
-          email_weekly_summary: fetched.email_weekly_summary ?? false,
-          in_app_sounds: fetched.in_app_sounds ?? true,
-          desktop_notifications: fetched.desktop_notifications ?? false,
-          allow_personalization: fetched.allow_personalization ?? false,
-          store_chat_history: fetched.store_chat_history ?? true,
-        });
-      }
+      // Process settings (settingsData is profile object from spine)
+      const fetched: any = settingsData || {};
+      setSettings({
+        id: fetched.id || userId,
+        user_id: fetched.user_id || userId,
+        email_system_alerts: fetched.email_system_alerts ?? true,
+        email_usage_warnings: fetched.email_usage_warnings ?? true,
+        email_marketing: fetched.email_marketing ?? false,
+        email_weekly_summary: fetched.email_weekly_summary ?? false,
+        in_app_sounds: fetched.in_app_sounds ?? true,
+        desktop_notifications: fetched.desktop_notifications ?? false,
+        allow_personalization: fetched.allow_personalization ?? false,
+        store_chat_history: fetched.store_chat_history ?? true,
+      });
 
       // Process sessions
       const normalizedSessions: DeviceSession[] = (sessionsData || []).map((session: DeviceSession) => ({
@@ -186,10 +166,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
-      /* stored locally */;
-
-      // Import supabase client only for signOut
-      const { supabase } = await import('@/integrations/supabase/client');
+      const { spineAuth } = await import('@/lib/spineAuth');
       await spineAuth.signOut();
       
       toast({

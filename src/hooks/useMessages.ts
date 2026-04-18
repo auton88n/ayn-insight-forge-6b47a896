@@ -84,7 +84,7 @@ export const useMessages = (
     // Usage check (skip for unlimited)
     let latestToken = session.access_token;
     try {
-      const { supabase } = await import('@/integrations/supabase/client');
+      const { spineAuth } = await import('@/lib/spineAuth');
       const { data: { session: freshSession } } = await spineAuth.getSession();
       if (freshSession?.access_token) latestToken = freshSession.access_token;
     } catch { /* ignore */ }

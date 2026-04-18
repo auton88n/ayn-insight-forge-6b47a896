@@ -40,7 +40,7 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         contact_person: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || '',
         company_name: '',
         business_type: '',
-        avatar_url: null,
+        avatar_url: undefined,
       } as UserProfile);
 
       // Unblock sidebar immediately

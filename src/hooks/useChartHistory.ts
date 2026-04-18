@@ -109,8 +109,8 @@ export function useChartHistory() {
 
   const deleteItem = useCallback(async (id: string) => {
     try {
-      const { error } = await null;
-      if (error) throw error;
+      // TODO: spine endpoint for chart-analysis delete
+      // await spineApi.req('DELETE', `/chart-analysis/${id}`);
       setItems(prev => prev.filter(item => item.id !== id));
       if (selectedItem?.id === id) setSelectedItem(null);
     } catch (err) {
