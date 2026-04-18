@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 
 export interface ClimateZone {
   id: string;
@@ -24,13 +25,15 @@ export function useClimateZone(country: string) {
   useEffect(() => {
     if (!country) return;
     setLoading(true);
-    supabase
-      .from('climate_zones')
-      .select('*')
-      .eq('country', country)
-      .order('region')
-      .then(({ data }) => {
-        setZones((data as unknown as ClimateZone[]) || []);
+    const token = tokenStore.getAccessToken() || '';
+    supabaseApi
+      .get<ClimateZone[]>(`climate_zones?country=eq.${country}&order=region.asc`, token)
+      .then((data) => {
+        setZones(data || []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setZones([]);
         setLoading(false);
       });
   }, [country]);

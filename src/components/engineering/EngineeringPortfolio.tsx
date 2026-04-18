@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 import { Briefcase, Plus, Eye, EyeOff, Trash2, ExternalLink, Loader2, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -35,15 +36,12 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('engineering_portfolio')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      // Map data to ensure proper typing
-      const mappedItems: PortfolioItem[] = (data || []).map(item => ({
+      const token = tokenStore.getAccessToken() || '';
+      const data = await supabaseApi.get<any[]>(
+        `engineering_portfolio?user_id=eq.${userId}&order=created_at.desc`,
+        token
+      );
+      const mappedItems: PortfolioItem[] = (data || []).map((item: any) => ({
         ...item,
         key_specs: item.key_specs as Record<string, any> | null,
       }));
@@ -65,12 +63,12 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
 
   const togglePublic = async (itemId: string, currentState: boolean) => {
     try {
-      const { error } = await supabase
-        .from('engineering_portfolio')
-        .update({ is_public: !currentState })
-        .eq('id', itemId);
-
-      if (error) throw error;
+      const token = tokenStore.getAccessToken() || '';
+      await supabaseApi.patch(
+        `engineering_portfolio?id=eq.${itemId}`,
+        token,
+        { is_public: !currentState }
+      );
 
       setItems(prev => 
         prev.map(item => 
@@ -98,12 +96,11 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
 
   const deleteItem = async (itemId: string) => {
     try {
-      const { error } = await supabase
-        .from('engineering_portfolio')
-        .delete()
-        .eq('id', itemId);
-
-      if (error) throw error;
+      const token = tokenStore.getAccessToken() || '';
+      await supabaseApi.delete(
+        `engineering_portfolio?id=eq.${itemId}`,
+        token
+      );
 
       setItems(prev => prev.filter(item => item.id !== itemId));
 

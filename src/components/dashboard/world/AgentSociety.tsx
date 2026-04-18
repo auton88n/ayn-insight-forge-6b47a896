@@ -14,7 +14,8 @@ import * as THREE from 'three';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 
 const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const ENGINE_URL = 'https://engine.aynn.io';
@@ -594,13 +595,13 @@ export default function AgentSociety({
 
   const loadData=useCallback(async()=>{
     try{
-      // Fetch conversations from Supabase directly
-      const { data: convData } = await supabase
-        .from('ayn_agent_conversations')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      // Fetch agent states — try engine first, fall back to Supabase ayn_agent_states
+      const token = tokenStore.getAccessToken() || '';
+      // Fetch conversations via REST
+      const convData = await supabaseApi.get<any[]>(
+        'ayn_agent_conversations?order=created_at.desc&limit=20',
+        token
+      ).catch(() => []);
+      // Fetch agent states — try engine first, fall back to ayn_agent_states
       let agentStatesList: any[] = [];
       try {
         const agentRes = await fetch(`${ENGINE_URL}/agents`);
@@ -614,12 +615,12 @@ export default function AgentSociety({
           }));
         }
       } catch {}
-      // Fallback: load from Supabase ayn_agent_states if engine returned nothing
+      // Fallback: load from ayn_agent_states if engine returned nothing
       if (agentStatesList.length === 0) {
-        const { data: statesData } = await supabase
-          .from('ayn_agent_states')
-          .select('*')
-          .limit(100);
+        const statesData = await supabaseApi.get<any[]>(
+          'ayn_agent_states?limit=100',
+          token
+        ).catch(() => []);
         agentStatesList = statesData || [];
       }
       const data: any = {
@@ -656,12 +657,11 @@ export default function AgentSociety({
   useEffect(()=>{
     const fetchSignals = async () => {
       try {
-        const { data } = await supabase
-          .from('ayn_world_signals')
-          .select('id,signal_type,severity,headline,region,impact_on_oil,impact_on_gold,impact_on_btc,created_at')
-          .in('severity', ['critical', 'high'])
-          .order('created_at', { ascending: false })
-          .limit(8);
+        const token = tokenStore.getAccessToken() || '';
+        const data = await supabaseApi.get<any[]>(
+          'ayn_world_signals?select=id,signal_type,severity,headline,region,impact_on_oil,impact_on_gold,impact_on_btc,created_at&severity=in.(critical,high)&order=created_at.desc&limit=8',
+          token
+        );
         if (data) setLiveSignals(data);
       } catch {}
     };
@@ -703,11 +703,11 @@ export default function AgentSociety({
     const fetchMsgs = async () => {
       setLoadingMsgs(true);
       try {
-        const { data: msgData } = await supabase
-          .from('ayn_agent_messages')
-          .select('*')
-          .eq('conversation_id', activeConvId)
-          .order('sequence_order', { ascending: true });
+        const token = tokenStore.getAccessToken() || '';
+        const msgData = await supabaseApi.get<any[]>(
+          `ayn_agent_messages?conversation_id=eq.${activeConvId}&order=sequence_order.asc`,
+          token
+        );
         if (msgData) setMessages(msgData);
       } catch {} finally { setLoadingMsgs(false); }
     };

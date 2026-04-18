@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Json } from '@/integrations/supabase/types';
 
 interface SaveDesignDialogProps {
   isOpen: boolean;
@@ -127,40 +127,33 @@ export const SaveDesignDialog: React.FC<SaveDesignDialogProps> = ({
     setIsSaving(true);
 
     try {
+      const token = tokenStore.getAccessToken() || '';
       // First, save to calculation_history
-      const { data: calcData, error: calcError } = await supabase
-        .from('calculation_history')
-        .insert({
-          user_id: userId,
-          calculation_type: calculationType,
-          inputs: inputs as Json,
-          outputs: (outputs || {}) as Json,
-        })
-        .select()
-        .single();
-
-      if (calcError) throw calcError;
+      const calcResult = await supabaseApi.post<any[]>('calculation_history', token, {
+        user_id: userId,
+        calculation_type: calculationType,
+        inputs: inputs,
+        outputs: outputs || {},
+      });
+      const calcData = Array.isArray(calcResult) ? calcResult[0] : (calcResult as any);
+      if (!calcData?.id) throw new Error('Failed to save calculation');
 
       // Then save to engineering_portfolio
       const keySpecs = generateKeySpecs(calculationType, inputs, outputs);
 
-      const { error: portfolioError } = await supabase
-        .from('engineering_portfolio')
-        .insert({
-          user_id: userId,
-          calculation_id: calcData.id,
-          title: title.trim(),
-          description: description.trim() || null,
-          project_type: calculationType,
-          key_specs: keySpecs as Json,
-          is_public: false,
-        });
-
-      if (portfolioError) throw portfolioError;
+      await supabaseApi.post('engineering_portfolio', token, {
+        user_id: userId,
+        calculation_id: calcData.id,
+        title: title.trim(),
+        description: description.trim() || null,
+        project_type: calculationType,
+        key_specs: keySpecs,
+        is_public: false,
+      });
 
       // Also save to user memory for AYN context
       try {
-        await supabase.rpc('upsert_user_memory', {
+        await supabaseApi.rpc('upsert_user_memory', token, {
           _user_id: userId,
           _memory_type: 'project',
           _memory_key: `saved_${calculationType}_${title.toLowerCase().replace(/\s+/g, '_').slice(0, 30)}`,

@@ -1,6 +1,7 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 import { getHandlingMessage, RATE_LIMIT_MESSAGE } from '@/lib/errorMessages';
@@ -90,22 +91,14 @@ export const useEngineeringAIAgent = ({
       if (!userId) return;
       
       try {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('session_id', engineeringSessionId)
-          .eq('mode_used', 'engineering')
-          .order('created_at', { ascending: true });
-        
-        if (error) {
-          if (import.meta.env.DEV) {
-            console.error('Error loading engineering messages:', error);
-          }
-          return;
-        }
+        const token = tokenStore.getAccessToken() || '';
+        const data = await supabaseApi.get<any[]>(
+          `messages?session_id=eq.${engineeringSessionId}&mode_used=eq.engineering&order=created_at.asc`,
+          token
+        );
         
         if (data && data.length > 0) {
-          setMessages(data.map(m => ({
+          setMessages(data.map((m: any) => ({
             id: m.id,
             role: m.sender === 'user' ? 'user' : 'assistant' as const,
             content: m.content,
@@ -130,26 +123,20 @@ export const useEngineeringAIAgent = ({
     if (!userId) return null;
     
     try {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
+      const token = tokenStore.getAccessToken() || '';
+      const result = await supabaseApi.post<any[]>(
+        'messages',
+        token,
+        {
           user_id: userId,
           content,
           sender,
           session_id: engineeringSessionId,
-          mode_used: 'engineering'
-        })
-        .select('id')
-        .single();
-      
-      if (error) {
-        if (import.meta.env.DEV) {
-          console.error('Error saving message:', error);
+          mode_used: 'engineering',
         }
-        return null;
-      }
-      
-      return data?.id || null;
+      );
+      const row = Array.isArray(result) ? result[0] : (result as any);
+      return row?.id || null;
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Failed to save message:', err);

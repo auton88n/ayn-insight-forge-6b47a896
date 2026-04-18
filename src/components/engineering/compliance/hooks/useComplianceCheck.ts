@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 import { runComplianceChecks, type BuildingCode, type ComplianceInput, type ComplianceResult } from '../utils/complianceEngine';
 
 export function useComplianceCheck() {
@@ -23,17 +24,15 @@ export function useComplianceCheck() {
     setError(null);
 
     try {
-      // Fetch building codes for this code system
-      const { data: codes, error: fetchError } = await supabase
-        .from('building_codes')
-        .select('*')
-        .eq('code_system', codeSystem);
-
-      if (fetchError) throw fetchError;
+      const token = tokenStore.getAccessToken() || '';
+      const codes = await supabaseApi.get<BuildingCode[]>(
+        `building_codes?code_system=eq.${codeSystem}`,
+        token
+      );
 
       const checkResults = runComplianceChecks(
         inputs,
-        (codes as unknown as BuildingCode[]) || [],
+        codes || [],
         projectConfig
       );
 
