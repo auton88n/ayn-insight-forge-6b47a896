@@ -61,7 +61,7 @@ export function OWASPSecurityReport() {
       if (error) throw error;
       
       // Type-safe mapping using correct column names
-      const mappedResults: SecurityTestResult[] = (data || []).map(row => ({
+      const mappedResults: SecurityTestResult[] = (data || []).map((row: any) => ({
         name: row.test_name,
         category: row.test_suite,
         status: row.status as 'passed' | 'failed' | 'skipped',
