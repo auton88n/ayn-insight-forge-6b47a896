@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { adminApi as supabase } from '@/lib/adminApi';
+import { spineApi } from '@/lib/spineApi';
 import { Send, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
