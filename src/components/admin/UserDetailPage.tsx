@@ -1,4 +1,4 @@
-import { spineApi } from '@/lib/spineApi';
+import { spineApi, adminApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Search, User, Mail, Shield, MessageSquare, Clock, TrendingUp, Activity, RefreshCw, ChevronRight } from 'lucide-react';
@@ -33,14 +33,14 @@ export const UserDetailPage = () => {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const { data } = await spineApi.getAdminUsers();
+    const data = await adminApi.getUsers();
     setUsers((data || []) as UserFull[]);
     setLoading(false);
   }, []);
 
   const fetchUserMsgs = useCallback(async (uid: string) => {
     setLoadingMsgs(true);
-    const { data } = await spineApi.req("GET", "/admin/user-messages");
+    const data = await adminApi.getUserMessages(uid);
     setRecentMsgs((Array.isArray(data) ? data : []) as RecentMsg[]);
     setLoadingMsgs(false);
   }, []);

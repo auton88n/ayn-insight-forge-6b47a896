@@ -139,7 +139,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
       // Send email notification to user (if not internal note)
       if (!isInternalNote && ticket.guest_email) {
         try {
-          await spineApi.sendTicketReply(ticketId, replyContent, userEmail);
+          await spineApi.sendTicketReply(ticket.id, newMessage.trim(), ticket.guest_email);
         } catch (emailError) {
           console.error('Failed to send email notification:', emailError);
         }
@@ -181,11 +181,9 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
         .reverse()
         .find(m => m.sender_type === 'user')?.message || '';
 
-      const data = await spineApi.supportBot(message, ''); const error = null;
+      const data: any = await spineApi.supportBot(lastUserMessage, '');
 
-      if (error) throw error;
-      
-      setNewMessage(data.answer);
+      setNewMessage(data?.answer || data?.message || '');
       toast.success('AI draft generated');
     } catch (error) {
       console.error('Error generating AI response:', error);

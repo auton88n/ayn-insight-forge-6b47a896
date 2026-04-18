@@ -158,13 +158,8 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
 
   const fetchPosts = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('twitter_posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      setPosts((data as unknown as TwitterPost[]) || []);
+      const data = await spineApi.req<TwitterPost[]>('GET', '/admin/twitter/posts?limit=100');
+      setPosts(data || []);
     } catch { toast.error('Failed to load posts'); }
     finally { setIsLoading(false); }
   }, []);

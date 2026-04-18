@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Lock, Delete, Loader2, ShieldAlert } from 'lucide-react';
-import { spineApi } from '@/lib/spineApi';
+import { adminApi } from '@/lib/spineApi';
 
 interface AdminPinGateProps {
   open: boolean;
@@ -55,9 +55,9 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
     setError('');
 
     try {
-      const data = await spineApi.verifyAdminPin(pin);
+      const data: any = await adminApi.verifyAdminPin(pin);
 
-      if (data?.success) {
+      if (data?.valid || data?.success) {
         toast.success('Access granted');
         setPin('');
         setAttempts(0);

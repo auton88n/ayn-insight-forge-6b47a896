@@ -3,7 +3,7 @@ import { useState, useLayoutEffect, lazy, Suspense, useCallback } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { Session } from '@supabase/supabase-js';
+import type { SpineSession as Session } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';
@@ -148,8 +148,7 @@ export const AdminPanel = ({
       for (const [key, value] of Object.entries(updates)) {
         const dbKey = keyMap[key];
         if (dbKey) {
-          const { error } = await spineApi.req("POST", "/admin/config", body);
-          if (error) throw new Error(`Failed to update ${dbKey}: ${error.message}`);
+          await spineApi.req("POST", "/admin/config", { key: dbKey, value });
         }
       }
       queryClient.invalidateQueries({ queryKey: adminKeys.systemConfig() });

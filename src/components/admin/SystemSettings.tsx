@@ -1,4 +1,4 @@
-import { spineApi } from '@/lib/spineApi';
+import { spineApi, adminApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -38,8 +38,8 @@ const BetaProgramSettings = () => {
 
   useEffect(() => {
     const loadConfig = async () => {
-      const { data } = await spineApi.getAdminStats();
-      const configData = (data as any)?.config || [];
+      const data: any = await adminApi.getStats();
+      const configData = data?.config || [];
       configData.forEach((item: any) => {
         if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
         else if (item.key === 'beta_feedback_reward') setFeedbackReward(parseInt(String(item.value)) || 5);
