@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 
 export interface GraphCluster {
   id: string;

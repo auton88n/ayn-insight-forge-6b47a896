@@ -1,6 +1,7 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 import { getHandlingMessage, RATE_LIMIT_MESSAGE } from '@/lib/errorMessages';
