@@ -121,7 +121,7 @@ export const AYNMindDashboard = () => {
 
     const channel = supabase
       .channel('ayn-mind-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ayn_mind' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ayn_mind' }, (payload: any) => {
         const newEntry = payload.new as MindEntry;
         if (ENTRY_TYPES.includes(newEntry.type)) {
           setEntries(prev => [newEntry, ...prev]);
