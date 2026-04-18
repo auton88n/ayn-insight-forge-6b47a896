@@ -1,42 +1,48 @@
 
-## Where we are
+## Status check
 
-Phase A (build green) is essentially done. The remaining work is **Phase B: migrate the 69 files still importing `@/integrations/supabase/client` to `spineApi`**, then delete the Supabase client.
+After B1 + B2a + B2b + dead-import sweep, **14 files** still import `@/integrations/supabase/client`. Let me group what's left.
 
-## What's left, in order
+## Remaining 14 files (estimated split)
 
-### B1 — User data tables (~25 files)
-Profiles, settings, user_memory, pinned_chats, chat_sessions, messages, sessions list.
-Replace `supabase.from('table').select/insert/update/delete` with `spineApi.req('/user/...')` calls.
+**Group C1 — Engineering/Compliance (hidden tools, ~7 files)**
+- `useClimateZone.ts`, `useComplianceCheck.ts`, `useComplianceProject.ts`
+- `EngineeringPageStandalone.tsx`, plus 2-3 more in `components/engineering/compliance/`
 
-### B2 — Admin data tables (~20 files)
-Tickets, custom_orders, contact_submissions, NDAs, applications, system_config, security_events, error_logs.
-Replace with `adminApi.req('/admin/...')`.
+These tools are hidden from the frontend (per memory). Two options:
+- **(a) Stub them** — return empty arrays / no-ops. Fastest. Code stays for future revival.
+- **(b) Migrate properly** — needs 4 spine endpoints (`/engineering/climate-zones`, `/engineering/building-codes`, `/engineering/compliance-projects`).
 
-### B3 — Realtime channels (~12 files)
-Files using `supabase.channel(...).on('postgres_changes', ...)`. Spine has no realtime, so:
-- Replace with 30s polling (same pattern as `useUsageTracking`), OR
-- Wire to spine WebSocket if/when Claude exposes one.
-Default: polling.
+**Group C2 — World Dashboard / Agent Society (~3 files)**
+- Agent Society sim, country intelligence reads from `ayn_country_intelligence` and `ayn_agent_society_*` tables.
+- Needs spine endpoints OR direct REST via `supabaseApi.ts` wrapper (already exists, bypasses the JS client).
 
-### B4 — Storage (~8 files)
-Avatars, attachments, NDA PDFs, generated documents.
-Replace `supabase.storage.from(...).upload/download/getPublicUrl` with `spineApi.storageUpload` / `spineApi.storageDownload` (already used in `useFileUpload` / `useAvatarUpload`).
+**Group C3 — Admin client + leftovers (~4 files)**
+- `src/admin-app/adminSupabase.ts` — separate admin Supabase client. Keep or kill?
+- DevAgentPanel, leftover chart hooks.
 
-### B5 — Cleanup (~4 files + deletion)
-- Auth callback page, leftover edge function invokes.
-- Delete `src/integrations/supabase/client.ts` and the `supabase/` folder references.
-- Remove `@supabase/supabase-js` from `package.json`.
+## Plan
 
-## How I'll execute
+### Step 1 — Confirm the exact 14 files
+Run `grep -rl "@/integrations/supabase/client" src/` and list them so we make zero guesses.
 
-One batch per turn so you can review after each:
-1. List the exact files in the batch.
-2. Migrate them.
-3. Report which spine endpoints each one needs (so Claude can confirm they exist).
+### Step 2 — Engineering: stub strategy
+For C1, replace Supabase calls with empty returns + a `// TODO: spine endpoint` comment. The tools are hidden, so no user-facing regression. Keeps the code compilable without blocking on backend work.
 
-If a spine endpoint is missing for a given table, I'll flag it in the batch report rather than guess — Claude adds it, then we move on.
+### Step 3 — World/Agent Society
+Route through existing `supabaseApi.ts` REST wrapper (already in use elsewhere) since spine has no equivalent endpoints yet. No new infra needed.
 
-## Starting point
+### Step 4 — Admin client decision
+Ask: keep `adminSupabase.ts` as-is (separate auth, isolated), or migrate the admin panel to spine entirely? Admin panel is a large surface — recommend keeping it on Supabase for now and finishing migration in a later phase.
 
-Begin with **B1 (user tables)** since it touches the most user-facing flows (chat, settings, memory) and unblocks the most testing. Approve and I'll start.
+### Step 5 — Final cleanup (deferred to B5)
+Once these 14 are gone, delete `src/integrations/supabase/client.ts`, drop `@supabase/supabase-js` from package.json. Skip until admin panel decision is made.
+
+## Decision needed before I execute
+
+Two choices that change the work:
+
+1. **Engineering files**: stub (fast, no backend) vs. proper migration (needs 4 spine endpoints).
+2. **Admin panel**: keep `adminSupabase.ts` for now vs. migrate it too (large extra scope).
+
+I'll ask these as a question, then execute.
