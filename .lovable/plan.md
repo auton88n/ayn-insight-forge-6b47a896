@@ -1,81 +1,95 @@
 
-## Status
+## Yes, we can go fully Supabase-free
 
-Claude pushed Phase D from the spine side. You confirmed: zero `@/integrations/supabase/client` imports, zero `adminSupabase.from()` calls, SSE now points to `/sse/admin` on the spine.
+Your Railway diagram shows you already have your own Postgres + spine running. So Supabase becomes redundant. Here's the plan.
 
-But the build is still red because of the broken `checkPin` block in `src/admin-app/AdminApp.tsx` lines 58-101. The push didn't fix the local file — it's the same mangled `fetch()` from before.
+## What's still using Supabase today
 
-## What's broken
+After Phase D, only 3 small things remain:
 
-`src/admin-app/AdminApp.tsx` lines 63-66:
-```ts
-const { data, error: fnError } = await (async () => { 
-  const r = await fetch('https://spine.aynn.io/admin/verify-pin', { 
-    method:'POST', headers:{...}, body: JSON.stringify({
-  body: { pin: fullPin },   // ← orphaned, never closes
-});
+1. **`src/integrations/supabase/client.ts`** — the SDK client (still imported by 2-3 leftover files)
+2. **`src/admin-app/adminSupabase.ts`** — admin auth session (PIN gate uses it for the JWT)
+3. **`@supabase/supabase-js`** in `package.json` — the SDK itself
+4. **A few `Session` type imports** from `@supabase/supabase-js` in 5 files (just the TypeScript type)
+
+Plus one immediate build error in `EmailBroadcast.tsx` (line 51 references `spineApi` without importing it).
+
+## Plan: Phase E — Full Supabase removal
+
+### E0. Fix build (1 line)
+`src/components/admin/EmailBroadcast.tsx`: add `import { spineApi } from '@/lib/spineApi';`
+
+### E1. Move Postgres connection to Railway Postgres
+Backend-side (Claude on the spine):
+- Update spine env var `DATABASE_URL` to point at the Railway Postgres container instead of Supabase
+- Run schema dump from Supabase → restore into Railway Postgres
+- Migrate Supabase Storage buckets → Railway volume or S3-compatible (e.g. Backblaze B2)
+- Smoke-test all spine routers (auth, chat, admin, etc.)
+
+Frontend: nothing changes — it already only talks to `spine.aynn.io`.
+
+### E2. Migrate admin auth to spine
+Replace `adminSupabase.auth.signInWithPassword` with a `fetch('/admin/login')` to spine.
+- New spine endpoint `POST /admin/login` (verifies email/password + admin role, returns JWT)
+- Store admin token under `ayn_admin_token` localStorage key
+- Replace the 3-4 calls to `adminSupabase.auth.getSession()` with reading that token
+- Remove `Session` type imports — replace with a local `interface AdminSession { user: { id, email } }`
+
+Files touched (~6):
+- `src/admin-app/AdminApp.tsx`
+- `src/admin-app/AdminLogin.tsx` (or wherever login lives)
+- `src/components/admin/ApplicationDetailModal.tsx`
+- `src/components/admin/RateLimitMonitoring.tsx`
+- `src/components/admin/ReplyModal.tsx`
+- `src/components/admin/ApplicationManagement.tsx`
+- `src/components/settings/PrivacySettings.tsx`
+
+### E3. Delete Supabase artifacts
+- Delete `src/admin-app/adminSupabase.ts`
+- Delete `src/integrations/supabase/client.ts`
+- Keep `src/integrations/supabase/types.ts` for now (it's just TypeScript types — harmless, can remove later)
+- Remove `@supabase/supabase-js` from `package.json`
+- Remove `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` from `.env` (replaced by `VITE_AYN_BACKEND_URL`)
+- Delete the `supabase/functions/` folder (everything is on spine now)
+- Delete `supabase/config.toml`
+
+### E4. Cancel Supabase project
+Once spine + Railway Postgres are confirmed stable for 1-2 weeks, cancel the Supabase subscription. Save the schema dump as backup.
+
+## Final architecture
+
+```text
+┌──────────────────────────┐
+│  React frontend          │
+│  - aynn.io               │
+│  - zero Supabase imports │
+└────────────┬─────────────┘
+             │ HTTPS (REST + SSE)
+             ▼
+┌──────────────────────────┐         ┌────────────────────┐
+│  spine.aynn.io (Railway) │ ──────► │ Railway Postgres   │
+│  - all auth              │  asyncpg│ (own container)    │
+│  - all data              │         │ - postgres-volume  │
+│  - all AI                │         └────────────────────┘
+│  - SSE realtime          │
+└──────────────────────────┘
 ```
 
-11 TS errors all cascade from this one block. Nothing else is wrong.
+100% your infrastructure. Zero Supabase. The brand disappears entirely.
 
-## Fix
+## Risks & mitigations
 
-Single edit to `src/admin-app/AdminApp.tsx`, replace the `checkPin` function (lines 58-101) with a clean implementation that calls the new spine endpoint:
+- **Storage migration**: Supabase Storage public URLs (`/storage/v1/object/public/...`) are referenced in DB rows (avatars, generated PDFs, signatures). Need a rewrite script after migration. Spine already has `/storage/upload` — add `/storage/serve` for the read path.
+- **RLS policies**: Won't matter once moved — only the spine talks to Postgres with service-role-equivalent access. RLS becomes optional.
+- **Realtime**: Already moved to SSE on spine. No change needed.
+- **Phase E1 (DB migration)** is backend work — most of it happens on Claude/spine side, not in this Lovable project.
 
-```ts
-const checkPin = async (fullPin: string) => {
-  if (lockedUntil || checking) return;
-  setChecking(true);
-  try {
-    const token = (await adminSupabase.auth.getSession()).data.session?.access_token || '';
-    const r = await fetch('https://spine.aynn.io/admin/verify-pin', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ pin: fullPin }),
-    });
-    const data = await r.json().catch(() => ({}));
-    const ok = r.ok && data?.success;
+## Order of execution
 
-    if (!ok) {
-      if (data?.locked) {
-        const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
-        localStorage.setItem(LOCKOUT_KEY, until.toString());
-        setLockedUntil(until);
-        return;
-      }
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
-      localStorage.setItem(ATTEMPTS_KEY, newAttempts.toString());
-      if (newAttempts >= MAX_ATTEMPTS) {
-        const until = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
-        localStorage.setItem(LOCKOUT_KEY, until.toString());
-        localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
-        setLockedUntil(until);
-        try { await adminSupabase.functions.invoke('admin-pin-alert', { body: {} }); } catch {}
-      } else {
-        setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`);
-        setPin(['', '', '', '']);
-        setTimeout(() => inputs.current[0]?.focus(), 100);
-      }
-    } else {
-      localStorage.removeItem(LOCKOUT_KEY);
-      localStorage.removeItem(ATTEMPTS_KEY);
-      sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
-      onSuccess();
-    }
-  } catch {
-    setError('Unable to verify PIN. Please try again.');
-    setPin(['', '', '', '']);
-    setTimeout(() => inputs.current[0]?.focus(), 100);
-  } finally {
-    setChecking(false);
-  }
-};
-```
+1. **E0** (1 min, fixes build) — do now
+2. **E2** (frontend admin-auth swap) — do in this project
+3. **E3** (delete files, remove SDK) — do in this project after E2 verified
+4. **E1** (DB + storage migration) — Claude/Railway side, separate task
+5. **E4** (cancel Supabase) — manual, after 1-2 weeks of stability
 
-## After
-
-Build goes green. Phase D is complete on the frontend side. Ready to publish.
+Suggest starting with **E0 + E2 + E3 in one push** so the frontend is 100% Supabase-free immediately. E1 can happen in parallel without breaking anything because the spine env var is the only thing that needs to change.
