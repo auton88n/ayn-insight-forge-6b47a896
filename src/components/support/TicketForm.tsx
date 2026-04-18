@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 
@@ -59,25 +59,11 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
         ticketData.guest_name = formData.name;
       }
 
-      const { data: ticket, error: ticketError } = await supabase
-        .from('support_tickets')
-        .insert(ticketData as never)
-        .select()
-        .single();
-
-      if (ticketError) throw ticketError;
-
-      // Add initial message
-      const { error: messageError } = await supabase
-        .from('ticket_messages')
-        .insert({
-          ticket_id: ticket.id,
-          sender_type: 'user',
-          sender_id: user?.id || null,
-          message: formData.message,
-        });
-
-      if (messageError) throw messageError;
+      const ticket = await spineApi.req<{ id: string }>('POST', '/support/tickets', {
+        ...ticketData,
+        initial_message: formData.message,
+      });
+      if (!ticket?.id) throw new Error('Ticket creation failed');
 
       // Send email notification to admin (non-blocking)
       try {
