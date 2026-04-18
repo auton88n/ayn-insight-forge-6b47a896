@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthModal } from '@/components/auth/AuthModal';

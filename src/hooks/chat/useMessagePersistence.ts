@@ -5,15 +5,7 @@ import { spineApi } from '@/lib/spineApi';
 
 const PAGE_SIZE = 20;
 
-const mapDbMessages = (data: Array<{
-  id: string;
-  content: string;
-  created_at: string;
-  sender: string;
-  attachment_url: string | null;
-  attachment_name: string | null;
-  attachment_type: string | null;
-}>): Message[] => data.map(msg => ({
+const mapDbMessages = (data: Array<any>): Message[] => data.map(msg => ({
   id: msg.id,
   content: msg.content,
   sender: (() => {
@@ -162,5 +154,23 @@ export function useMessagePersistence(
       return false;
     }
   }, []);
+
+  const setMessagesFromHistory = useCallback((msgs: Message[]) => {
+    setMessages(msgs);
+  }, []);
+
+  return {
+    messages,
+    setMessages,
+    setMessagesFromHistory,
+    loadMessages,
+    loadMoreMessages,
+    saveMessages,
+    isLoadingFromHistory,
+    hasMoreMessages,
+    isLoadingMore,
+    totalMessageCount,
+    setTotalMessageCount,
+  };
 }
 

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { ArrowLeft, Calculator, Box, FileDown, Sparkles, Building2, Ruler, Layers, FileText, HardHat, CheckCircle2, Loader2, Car, Mountain } from 'lucide-react';
 import Building3DShowcase from '@/components/services/Building3DShowcase';

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
@@ -281,9 +282,7 @@ export const useEngineeringAIAgent = ({
       // Get session context if available
       const sessionContext = (window as any).__engineeringSessionContext?.();
 
-      const data = await spineApi.engineeringAgent(task, context || {}); const error = null;
-
-      if (error) throw error;
+      const data = await spineApi.engineeringAgent(question.trim(), sessionContext || {}) as any;
 
       // Execute any actions from the AI
       let executedActions: AIAction[] = [];

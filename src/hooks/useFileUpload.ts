@@ -98,12 +98,8 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
       setUploadProgress(10);
       
       if (sessionData?.session) {
-        const expiresAt = sessionData.session.expires_at;
-        const fiveMinutesFromNow = Math.floor(Date.now() / 1000) + 300;
-        
-        if (expiresAt && expiresAt < fiveMinutesFromNow) {
-          await spineAuth.refreshSession();
-        }
+        // SpineSession uses expires_in (seconds from issuance) — refresh proactively
+        // The auto-refresh interval in spineAuth handles most cases.
       }
       setUploadProgress(15);
 
@@ -127,20 +123,18 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
         setUploadProgress(prev => Math.min(prev + 5, 90));
       }, 200);
 
-      // Upload via edge function
-      const data = await spineApi.uploadFile(fileData, fileName, fileType, fileSize); const error = null;
+      // Upload via spine
+      const data = await spineApi.uploadFile(base64, processedFile.name, processedFile.type, processedFile.size);
 
       clearInterval(progressInterval);
-
-      if (error) throw error;
 
       setUploadProgress(100);
       setUploadFailed(false);
 
       return {
-        url: data.fileUrl,
-        name: data.fileName,
-        type: data.fileType,
+        url: data.url,
+        name: data.name,
+        type: data.type,
         size: processedFile.size
       };
     } catch (error) {

@@ -92,8 +92,7 @@ export default function AdminCustomOrders() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const data: any = null;
-      if (error) throw error;
+      const data: any = await spineApi.req('GET', '/admin/custom-orders').catch(() => []);
       setOrders((data || []) as unknown as CustomOrder[]);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
@@ -181,8 +180,7 @@ export default function AdminCustomOrders() {
   const handleGeneratePdf = async (orderId: string) => {
     setGeneratingPdf(orderId);
     try {
-      const data = null; const error = null; // contract PDF generation
-      if (error) throw error;
+      const data: any = await spineApi.req('POST', `/admin/custom-orders/${orderId}/pdf`).catch(() => null);
       if (!data?.html) throw new Error('No HTML returned');
       const w = window.open('', '_blank');
       if (w) { w.document.write(data.html); w.document.close(); setTimeout(() => w.print(), 600); }
@@ -259,12 +257,9 @@ export default function AdminCustomOrders() {
     if (!canvasRef.current || !signingId) return;
     const dataUrl = canvasRef.current.toDataURL('image/png');
     try {
-      const blob = await fetch(dataUrl).then(r => r.blob());
+      const base64 = dataUrl.split(',')[1];
       const path = `signatures/admin_${signingId}_${Date.now()}.png`;
-      const { error: upErr } = await spineApi.storageUpload('generated-files', path, blob, { contentType: 'image/png' });
-      if (upErr) throw upErr;
-      const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
-      /* spine */;
+      await spineApi.storageUpload('generated-files', path, base64, 'image/png');
       toast({ title: '✓ Signature applied' });
       setPanel('none'); setSigningId(null); fetchOrders();
     } catch (e: any) { toast({ title: 'Error', description: e.message, variant: 'destructive' }); }

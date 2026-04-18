@@ -16,6 +16,7 @@ interface UsageData {
 const DEFAULT_STATE: UsageData = {
   remaining: 5,
   totalLimit: 5,
+  bonusCredits: 0,
   allowed: true,
   resetsAt: null,
   tier: 'free',
@@ -52,6 +53,7 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
         setUsageData({
           remaining: -1,
           totalLimit: -1,
+          bonusCredits: 0,
           allowed: true,
           resetsAt: null,
           tier,
@@ -111,47 +113,11 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
     fetchUsage();
   }, [fetchUsage]);
 
-  // Reset deadlock fix: if daily_reset_at has passed but counter is still non-zero,
-  // the user is stuck (allowed=false blocks sending, which blocks the RPC reset).
-  // Directly reset the daily counter so the UI unblocks immediately.
+  // Poll usage every 30s instead of supabase realtime (spine has no realtime channel)
   useEffect(() => {
     if (!userId) return;
-    const checkAndReset = async () => {
-      const { data: limits } = await supabase
-        .from('user_ai_limits')
-        .select('daily_reset_at, current_daily_messages')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (!limits) return;
-      const resetAt = limits.daily_reset_at ? new Date(limits.daily_reset_at) : null;
-      const isExpired = !resetAt || resetAt <= new Date();
-      if (isExpired && (limits.current_daily_messages || 0) > 0) {
-        // Daily reset handled by spine /user/limits
-        // Realtime channel picks up the change and calls fetchUsage automatically
-      }
-    };
-    checkAndReset();
-  }, [userId]);
-
-  // Real-time updates when user_ai_limits changes
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel(`usage-${userId.slice(0, 8)}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'user_ai_limits',
-          filter: `user_id=eq.${userId}`,
-        },
-        () => fetchUsage()
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    const id = setInterval(fetchUsage, 30000);
+    return () => clearInterval(id);
   }, [userId, fetchUsage]);
 
   return { ...usageData, refreshUsage: fetchUsage };

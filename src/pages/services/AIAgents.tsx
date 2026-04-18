@@ -122,9 +122,7 @@ const AIAgents = () => {
 
       if (dbError) throw dbError;
 
-      const emailError = null; await spineApi.contactUs(applicantEmail, applicantName, applicationDetails);
-
-      if (emailError) console.error('Email error:', emailError);
+      try { await spineApi.contactUs(formData.fullName, formData.email, formData.message || ''); } catch (e) { console.error('Email error:', e); }
 
       setIsSuccess(true);
       toast({

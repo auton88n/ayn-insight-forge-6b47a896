@@ -26,7 +26,7 @@ const Index = () => {
           // Token still valid — show dashboard immediately
           if (mounted) {
             setUser(storedUser);
-            setSession({ access_token: storedToken, refresh_token: tokenStore.getRefreshToken()!, user: storedUser });
+            setSession({ access_token: storedToken, refresh_token: tokenStore.getRefreshToken()!, user: storedUser, expires_in: 86400, token_type: 'bearer' });
             setIsInitialized(true);
           }
           return;

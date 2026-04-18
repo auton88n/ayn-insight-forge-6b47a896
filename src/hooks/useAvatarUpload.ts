@@ -1,6 +1,5 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import imageCompression from 'browser-image-compression';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
@@ -69,18 +68,25 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
       const fileName = `avatar.${fileExt}`;
       const filePath = `${userId}/${fileName}`;
 
-      // Delete old avatar if exists (keep using supabase.storage for storage operations)
-      const existingFilesResult = await spineApi.storageList('avatars', userId); const existingFiles = (existingFilesResult as any)?.files || [];;
+      // Delete old avatar(s) if any
+      const existingFilesResult = await spineApi.storageList('avatars', userId);
+      const existingFiles: any[] = (existingFilesResult as any)?.files || [];
 
-      if (existingFiles && existingFiles.length > 0) {
-        await spineApi.storageDelete('avatars', existingFiles.map(f => `${userId}/${f.name}`[0]));
+      if (existingFiles.length > 0) {
+        for (const f of existingFiles) {
+          await spineApi.storageDelete('avatars', `${userId}/${f.name}`);
+        }
       }
 
-      // Upload new avatar
-      const uploadResult = await spineApi.storageUpload('avatars', filePath, compressedFile, {
-          cacheControl: '3600',
-          upsert: true,
-        }); const uploadError = (uploadResult as any)?.error || null;;
+      // Convert file to base64 for spine upload
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(compressedFile);
+      });
+
+      const uploadResult = await spineApi.storageUpload('avatars', filePath, base64, compressedFile.type) as any;
+      const uploadError = uploadResult?.error || null;
 
       if (uploadError) {
         if (import.meta.env.DEV) {
@@ -118,11 +124,14 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
     setIsUploading(true);
 
     try {
-      // Delete from storage (keep using supabase.storage)
-      const existingFilesResult = await spineApi.storageList('avatars', userId); const existingFiles = (existingFilesResult as any)?.files || [];;
+      // Delete from storage
+      const existingFilesResult = await spineApi.storageList('avatars', userId);
+      const existingFiles: any[] = (existingFilesResult as any)?.files || [];
 
-      if (existingFiles && existingFiles.length > 0) {
-        await spineApi.storageDelete('avatars', existingFiles.map(f => `${userId}/${f.name}`[0]));
+      if (existingFiles.length > 0) {
+        for (const f of existingFiles) {
+          await spineApi.storageDelete('avatars', `${userId}/${f.name}`);
+        }
       }
 
       // Update profile using REST API

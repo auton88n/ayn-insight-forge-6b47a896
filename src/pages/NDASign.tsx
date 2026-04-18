@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -125,11 +126,11 @@ export default function NDASign() {
 
   const fetchNDA = useCallback(async () => {
     if (!token || token.length < 10) return; // strict token validation
-    const data = null; const error = null;
+    const data: any = null; const error: any = null;
     if (error || !data) { setLoading(false); return; }
     setNda(data);
     if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
-    if (data.status === 'sent') /* spine migration pending */;
+    if (data.status === 'sent') { /* spine migration pending */ }
     setLoading(false);
   }, [token]);
 
@@ -137,10 +138,9 @@ export default function NDASign() {
 
   const saveSignature = async (dataUrl: string, party: 'admin' | 'client') => {
     if (!nda) return;
-    const blob = await fetch(dataUrl).then(r => r.blob());
+    const base64 = dataUrl.split(',')[1];
     const path = `signatures/nda_${nda.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await spineApi.storageUpload('generated-files', path, blob, { contentType: 'image/png' });
-    if (upErr) throw upErr;
+    await spineApi.storageUpload('generated-files', path, base64, 'image/png');
     const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
     const sigUrl = urlData.publicUrl;
     const now = new Date().toISOString();

@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { spineAuth } from '@/lib/spineAuth';
