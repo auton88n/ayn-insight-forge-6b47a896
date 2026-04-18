@@ -30,18 +30,17 @@ import { initPerformanceMonitoring } from '@/lib/performanceMonitor';
 window.addEventListener('unhandledrejection', (event) => {
   const message = event.reason?.message || String(event.reason) || 'Unhandled rejection';
   console.error('Unhandled promise rejection:', event.reason);
-  // Log to Supabase — fire and forget
-  import('@/integrations/supabase/client').then(({ supabase }) => {
-    (supabase as any).from('error_logs').insert({
+  // Log to spine — fire and forget
+  import('@/lib/spineApi').then(({ spineApi }) => {
+    spineApi.req('POST', '/errors', {
       source: 'frontend',
       severity: 'warning',
       error_message: message.slice(0, 1000),
       error_stack: event.reason?.stack?.slice(0, 3000) || null,
       url: window.location.href,
       user_agent: navigator.userAgent,
-      status: 'open',
       context: { type: 'unhandledrejection' },
-    }).then(() => {}).catch(() => {});
+    }).catch(() => {});
   }).catch(() => {});
 });
 

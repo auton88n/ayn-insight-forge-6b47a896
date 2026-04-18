@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormError } from '@/components/ui/form-error';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { toast } from 'sonner';
 import { useFormValidation, automationSchema } from '@/hooks/useFormValidation';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -71,28 +71,22 @@ const AutomationApply = () => {
     setIsSubmitting(true);
 
     try {
-      const { error: dbError } = await supabase
-        .from('service_applications')
-        .insert({
-          service_type: 'automation',
-          full_name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone || null,
-          message: formData.message || null,
-          custom_fields: {
-            companyName: formData.companyName,
-            industry: formData.industry,
-            currentTools: formData.currentTools,
-            processesToAutomate: formData.processesToAutomate,
-            painPoints: formData.painPoints,
-            budget: formData.budget,
-            timeline: formData.timeline
-          }
-        });
-
-      if (dbError) throw dbError;
-
-      await spineApi.contactUs('', '', '') /* application email */;
+      await spineApi.req('POST', '/applications', {
+        service_type: 'automation',
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        message: formData.message || null,
+        custom_fields: {
+          companyName: formData.companyName,
+          industry: formData.industry,
+          currentTools: formData.currentTools,
+          processesToAutomate: formData.processesToAutomate,
+          painPoints: formData.painPoints,
+          budget: formData.budget,
+          timeline: formData.timeline,
+        },
+      });
 
       setIsSubmitted(true);
       toast.success(t('common.success'), { description: 'Your application has been submitted.' });
