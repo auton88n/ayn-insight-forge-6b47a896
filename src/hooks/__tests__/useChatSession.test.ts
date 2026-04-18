@@ -17,7 +17,7 @@ global.fetch = vi.fn().mockResolvedValue({
 });
 
 // Mock session for tests
-const mockSession: Session = {
+const mockSession: any = {
   access_token: 'test-access-token',
   refresh_token: 'test-refresh-token',
   expires_in: 3600,
@@ -26,6 +26,8 @@ const mockSession: Session = {
   user: {
     id: 'test-user-id',
     email: 'test@example.com',
+    first_name: 'Test',
+    last_name: 'User',
     app_metadata: {},
     user_metadata: {},
     aud: 'authenticated',
