@@ -250,9 +250,7 @@ export const AICalculatorAssistant: React.FC<AICalculatorAssistantProps> = ({
   const requestAIOptimization = async () => {
     setIsAnalyzing(true);
     try {
-      const data = await spineApi.engineeringChat(message, JSON.stringify(calculationContext || {})); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.engineeringAgent('optimize', { inputs });
       if (data?.suggestions) {
         setSuggestions(data.suggestions);
       }

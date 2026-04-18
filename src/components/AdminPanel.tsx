@@ -67,7 +67,7 @@ interface SystemConfig {
   sessionTimeout: number;
 }
 interface AdminPanelProps {
-  session: Session;
+  session: SpineSession;
   onBackClick?: () => void;
   isAdmin?: boolean;
   isDuty?: boolean;

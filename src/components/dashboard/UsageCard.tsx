@@ -120,20 +120,11 @@ const tier = limitsData?.subscription_tier || 'free';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, propRemaining]);
 
-  // Realtime subscription for instant updates
+  // Realtime subscription removed — usage now refreshed via polling/spineApi
   useEffect(() => {
     if (!userId) return;
-
-    const channel = supabase
-      .channel(`usage-card-${userId.slice(0, 8)}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_ai_limits', filter: `user_id=eq.${userId}` },
-        () => fetchCredits()
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    const interval = setInterval(() => fetchCredits(), 30000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 

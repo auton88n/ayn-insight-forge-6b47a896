@@ -211,11 +211,7 @@ export default function ChartUnifiedChat({
         const entryPrice = ts.entry?.price;
         const stopLoss = ts.stopLoss?.price;
         if (entryPrice && stopLoss && entryPrice > 0 && stopLoss > 0) {
-          (async () => { /* trading: null */ })().then(res => {
-            if (res.data?.opened) {
-              toast.success('Trade recorded in paper account');
-            }
-          }).catch(() => {});
+          // Paper trade recording disabled until spine /trading/paper endpoint exists
         }
       }
     }

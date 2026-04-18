@@ -162,7 +162,7 @@ function LoginScreen({ onSuccess }: { onSuccess: (s: Session) => void }) {
     e.preventDefault(); setLoading(true); setError('');
     const { data, error } = await adminSupabase.auth.signInWithPassword({ email, password });
     if (error) { setError(error.message); setLoading(false); return; }
-    if (data.session) onSuccess(data.session);
+    if (data.session) onSuccess(data.session as unknown as Session);
     setLoading(false);
   };
 
@@ -224,11 +224,12 @@ export default function AdminApp() {
   useEffect(() => {
     adminSupabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        setSession(session);
+        const s = session as unknown as Session;
+        setSession(s);
         // If already PIN-verified this session, go straight to ready
         const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-        if (cached === session.user.id) { setStep('ready'); }
-        else { checkAdmin(session); }
+        if (cached === s.user.id) { setStep('ready'); }
+        else { checkAdmin(s); }
       } else {
         setStep('login');
       }

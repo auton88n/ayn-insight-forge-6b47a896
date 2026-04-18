@@ -238,9 +238,7 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleExportDXF = async () => {
     setIsExportingDXF(true);
     try {
-      const data = await spineApi.generateDxf(calculationData || {}); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.generateDxf(calculationData || {});
 
       // Download the DXF file
       const blob = new Blob([data.dxfContent], { type: 'application/dxf' });

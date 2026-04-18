@@ -64,25 +64,15 @@ export const BetaFeedbackModal = ({
 
     setIsSubmitting(true);
     try {
-      // Insert feedback
-      const { error: feedbackError } = await supabase
-        .from('beta_feedback')
-        .insert({
-          user_id: userId,
-          overall_rating: rating,
-          favorite_features: selectedFeatures,
-          improvement_suggestions: improvements.trim() || null,
-          bugs_encountered: bugs.trim() || null,
-          would_recommend: wouldRecommend,
-          credits_awarded: rewardAmount
-        });
-
-      if (feedbackError) throw feedbackError;
-
-      // Add bonus credits
-      const { error: creditsError } = await spineApi.req("POST", "/user/beta-feedback", { overall_rating: rating, favorite_features: favorites, improvement_suggestions: suggestions, bugs_encountered: bugs, would_recommend: recommend, additional_comments: comments, credits_awarded: 50 });
-
-      if (creditsError) throw creditsError;
+      // Submit feedback + bonus credits via spine
+      await spineApi.req("POST", "/user/beta-feedback", {
+        overall_rating: rating,
+        favorite_features: selectedFeatures,
+        improvement_suggestions: improvements.trim() || null,
+        bugs_encountered: bugs.trim() || null,
+        would_recommend: wouldRecommend,
+        credits_awarded: rewardAmount,
+      });
 
       // Trigger credit refresh after a short delay to ensure DB commit
       setTimeout(() => {
