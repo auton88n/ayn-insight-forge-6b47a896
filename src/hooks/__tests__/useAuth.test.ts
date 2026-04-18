@@ -16,16 +16,18 @@ vi.mock('@/hooks/useDeviceTracking', () => ({
   trackDeviceLogin: vi.fn(),
 }));
 
-const mockUser: User = {
+const mockUser: any = {
   id: 'test-user-id',
   email: 'test@example.com',
+  first_name: 'Test',
+  last_name: 'User',
   app_metadata: {},
   user_metadata: {},
   aud: 'authenticated',
   created_at: new Date().toISOString(),
 };
 
-const mockSession: Session = {
+const mockSession: any = {
   access_token: 'test-access-token',
   refresh_token: 'test-refresh-token',
   expires_in: 3600,
