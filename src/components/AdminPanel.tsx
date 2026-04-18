@@ -3,7 +3,7 @@ import { useState, useLayoutEffect, lazy, Suspense, useCallback } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import type { SpineSession as Session } from '@/lib/spineAuth';
+import type { SpineSession } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';

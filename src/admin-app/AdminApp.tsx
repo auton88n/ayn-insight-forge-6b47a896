@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Session } from '@supabase/supabase-js';
+import type { SpineSession as Session } from '@/lib/spineAuth';
 import { adminSupabase } from './adminSupabase';
 import { AdminPanel } from '@/components/AdminPanel';
 import AdminCustomOrders from '@/pages/AdminCustomOrders';
