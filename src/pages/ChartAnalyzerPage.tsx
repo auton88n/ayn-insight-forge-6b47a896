@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, ArrowLeft, MessageSquare, History, PanelLeft } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

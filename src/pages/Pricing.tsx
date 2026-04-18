@@ -16,7 +16,6 @@ import { Label } from '@/components/ui/label';
 import { useSubscription, SUBSCRIPTION_TIERS, SubscriptionTier } from '@/contexts/SubscriptionContext';
 import { SEO } from '@/components/shared/SEO';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const tierIcons: Record<SubscriptionTier, React.ReactNode> = {
