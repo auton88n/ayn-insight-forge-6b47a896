@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { lazy, Suspense } from "react";
 import { useRef, useState, useEffect, useCallback, memo, useMemo } from "react";
+import { spineAuth } from '@/lib/spineAuth';
+import { spineApi } from '@/lib/spineApi';
 
 import { cn } from "@/lib/utils";
 import { StreamingMarkdown } from "@/components/eye/StreamingMarkdown";

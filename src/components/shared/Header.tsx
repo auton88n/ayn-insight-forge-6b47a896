@@ -7,9 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button, LiquidButton } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { supabase } from '@/integrations/supabase/client';
-import { spineAuth } from '@/lib/spineAuth';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { spineAuth, type SpineUser } from '@/lib/spineAuth';
 
 const navLinks = [
 { path: '/', en: 'Home', fr: 'Accueil', ar: 'الرئيسية' },
@@ -25,7 +23,7 @@ export const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<SpineUser | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = spineAuth.onAuthStateChange((_event, session) => {

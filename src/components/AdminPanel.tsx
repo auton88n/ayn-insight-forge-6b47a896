@@ -216,10 +216,10 @@ export const AdminPanel = ({
               <ErrorBoundary>
                 {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard /></Suspense>}
                 {activeTab === 'google-analytics' && <Suspense fallback={<TabFallback />}><GoogleAnalytics /></Suspense>}
-                {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
+                {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session as any} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
                 {activeTab === 'support' && <Suspense fallback={<TabFallback />}><SupportManagement /></Suspense>}
                 {activeTab === 'users' && <Suspense fallback={<TabFallback />}><UserManagement /></Suspense>}
-                {activeTab === 'rate-limits' && <Suspense fallback={<TabFallback />}><RateLimitMonitoring session={session} /></Suspense>}
+                {activeTab === 'rate-limits' && <Suspense fallback={<TabFallback />}><RateLimitMonitoring session={session as any} /></Suspense>}
                 {activeTab === 'settings' && <Suspense fallback={<TabFallback />}><SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} /></Suspense>}
                 {activeTab === 'ai-costs' && <Suspense fallback={<TabFallback />}><AICostDashboard /></Suspense>}
                 {activeTab === 'ai-limits' && <Suspense fallback={<TabFallback />}><UserAILimits /></Suspense>}

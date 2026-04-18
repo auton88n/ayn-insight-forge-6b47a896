@@ -103,11 +103,9 @@ export const SurveyUploader: React.FC<SurveyUploaderProps> = ({
 
     try {
       const content = await file.text();
-      
-      const data = await spineApi.engineeringAnalysis(fileData, 'survey'); const error = null;
 
-      if (error) throw error;
-      
+      const data: any = await spineApi.engineeringAnalysis({ content, fileName: file.name }, 'survey');
+
       if (!data.success) {
         throw new Error(data.error || 'Failed to parse file');
       }
