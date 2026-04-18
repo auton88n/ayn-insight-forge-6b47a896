@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { getSoundGenerator, SoundType } from '@/lib/soundGenerator';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 
 const VOLUME_STORAGE_KEY = 'ayn-sound-volume';

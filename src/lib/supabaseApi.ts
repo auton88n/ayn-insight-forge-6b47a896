@@ -4,7 +4,6 @@
  */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 
 interface FetchOptions {

@@ -4,7 +4,6 @@ import { Download, TrendingUp, TrendingDown, FileText, AlertTriangle, FileDown }
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { StationDataTable } from './StationDataTable';
 const ElevationProfile = lazy(() => import('./ElevationProfile').then(m => ({ default: m.ElevationProfile })));

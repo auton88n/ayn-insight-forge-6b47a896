@@ -29,7 +29,6 @@ const Visualization3DFallback = () => (
   <div className="h-[300px] bg-muted rounded-lg animate-pulse" />
 );
 
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 

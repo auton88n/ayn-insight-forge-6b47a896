@@ -8,7 +8,6 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';

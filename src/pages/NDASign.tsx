@@ -1,7 +1,6 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
 interface NDA {

@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormError } from '@/components/ui/form-error';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useFormValidation, aiAgentsSchema } from '@/hooks/useFormValidation';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -49,32 +48,22 @@ const AIAgentsApply = () => {
     setIsSubmitting(true);
 
     try {
-      const { error: dbError } = await supabase
-        .from('service_applications')
-        .insert({
-          service_type: 'ai_agents',
-          full_name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone || null,
-          message: formData.message || null,
-          custom_fields: {
-            companyName: formData.companyName,
-            industry: formData.industry,
-            agentType: formData.agentType,
-            useCase: formData.useCase,
-            integrations: formData.integrations,
-            budget: formData.budget,
-            timeline: formData.timeline
-          }
-        });
-
-      if (dbError) throw dbError;
-
-      const { error: emailError } = await spineApi.contactUs('', '', '') /* application email */;
-      if (emailError) {
-        console.error('Email notification failed:', emailError);
-        // Don't throw — application was saved, just email failed
-      }
+      await spineApi.req('POST', '/applications', {
+        service_type: 'ai_agents',
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        message: formData.message || null,
+        custom_fields: {
+          companyName: formData.companyName,
+          industry: formData.industry,
+          agentType: formData.agentType,
+          useCase: formData.useCase,
+          integrations: formData.integrations,
+          budget: formData.budget,
+          timeline: formData.timeline,
+        },
+      });
 
       setIsSubmitted(true);
       toast.success(t('common.success'), { description: 'Your application has been submitted.' });

@@ -1,7 +1,6 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ClipboardCheck, HardHat } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { SEO } from '@/components/shared/SEO';
