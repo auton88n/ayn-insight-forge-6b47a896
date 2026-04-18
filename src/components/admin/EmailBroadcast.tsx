@@ -48,9 +48,7 @@ export const EmailBroadcast = () => {
     try {
       for (let i = 0; i < recipients.length; i += 10) {
         await Promise.allSettled(recipients.slice(i, i + 10).map(r =>
-          supabase.functions.invoke('send-email', {
-            body: { to: r.email, emailType: 'broadcast', data: { userName: r.name, subject, message: body } }
-          }).then(res => { if (!res.error) ok++; })
+          spineApi.sendEmail(r.email, subject, 'broadcast', { userName: r.name, subject, message: body }).then(() => ok++)
         ));
       }
       toast.success(`Sent to ${ok}/${recipients.length}`);
