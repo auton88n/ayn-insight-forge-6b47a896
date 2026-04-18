@@ -8,6 +8,7 @@
  * Scope: admin-only. The main app uses spineApi / supabaseApi.
  */
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { subscribeAdminTables } from './adminSSE';
 
 const ADMIN_STORAGE_KEY = 'ayn-admin-auth';
 
@@ -217,4 +218,54 @@ export const adminApi = {
     return builder;
   },
 
+  /**
+   * channel() — Drop-in shim for adminSupabase.channel(name).on('postgres_changes', ...).subscribe().
+   * Bridges to SSE: collects every table mentioned in .on() calls, then on .subscribe()
+   * starts a single SSE stream and dispatches change events to all matching handlers.
+   * Ignores filter/event/schema specifics — handlers fire on ANY change to the table.
+   */
+  channel(name: string) {
+    const handlers: Array<{ table: string; cb: (payload: any) => void }> = [];
+    let unsubscribe: (() => void) | null = null;
+    const ch: any = {
+      _name: name,
+      on(_event: string, opts: any, cb: (payload: any) => void) {
+        const table = opts?.table;
+        if (table) handlers.push({ table, cb });
+        return ch;
+      },
+      subscribe(statusCb?: (status: string) => void) {
+        const tables = Array.from(new Set(handlers.map(h => h.table)));
+        if (tables.length) {
+          unsubscribe = subscribeAdminTables(tables, (table) => {
+            for (const h of handlers) {
+              if (h.table === table) {
+                try { h.cb({ eventType: 'CHANGE', table, new: null, old: null }); } catch { /* ignore */ }
+              }
+            }
+          });
+        }
+        statusCb?.('SUBSCRIBED');
+        return ch;
+      },
+      unsubscribe() {
+        unsubscribe?.();
+        unsubscribe = null;
+        return Promise.resolve('ok');
+      },
+    };
+    return ch;
+  },
+
+  /** removeChannel — shim. Calls .unsubscribe() on the channel. */
+  removeChannel(ch: any) {
+    try { return ch?.unsubscribe?.(); } catch { /* ignore */ }
+  },
+
+  /** functions — shim for adminSupabase.functions.invoke(name, { body }). */
+  functions: {
+    async invoke<T = unknown>(name: string, opts: { body?: object } = {}): Promise<{ data: T | null; error: Error | null }> {
+      return adminApi.invoke<T>(name, opts.body ?? {});
+    },
+  },
 };
