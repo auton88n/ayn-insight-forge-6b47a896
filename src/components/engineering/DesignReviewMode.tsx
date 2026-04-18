@@ -101,9 +101,8 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
           setFileContent(content);
           
           try {
-            const data = await spineApi.engineeringAnalysis(designData, 'dxf'); const error = null;
-            
-            if (error) throw error;
+            const data: any = await spineApi.engineeringAnalysis({ content, fileName: file.name }, 'dxf');
+
             if (!data.success) throw new Error(data.error);
             
             setParsedData(data);
@@ -146,9 +145,8 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
           });
           
           try {
-            const data = await spineApi.engineeringAnalysis(pdfData, 'pdf'); const error = null;
-            
-            if (error) throw error;
+            const data: any = await spineApi.engineeringAnalysis({ base64, fileName: file.name }, 'pdf');
+
             if (!data.success) throw new Error(data.error);
             
             setParsedData(data);
@@ -216,9 +214,8 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
 
     setIsAnalyzing(true);
     try {
-      const data = await spineApi.engineeringAnalysis(cadData, 'autocad'); const error = null;
+      const data: any = await spineApi.engineeringAnalysis({ parsed: parsedData, fileName: uploadedFile?.name }, 'autocad');
 
-      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       onAnalysisComplete({

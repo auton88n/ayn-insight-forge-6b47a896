@@ -1,4 +1,4 @@
-import { spineApi } from '@/lib/spineApi';
+import { adminApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -54,10 +54,7 @@ export const CreditGiftModal = ({ isOpen, onClose, user, onSuccess }: CreditGift
 
     setIsSubmitting(true);
     try {
-      const currentUser = await spineAuth.getUser();
-      const { error } = await spineApi.req("POST", "/admin/add-credits", { userId, credits });
-
-      if (error) throw error;
+      await adminApi.giftCredits(user.user_id, amount, reason);
 
       setShowSuccess(true);
       toast.success(`Added ${amount} bonus credits to ${user.email || 'user'}`);

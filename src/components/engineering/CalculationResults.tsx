@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -238,9 +239,7 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleExportDXF = async () => {
     setIsExportingDXF(true);
     try {
-      const data = await spineApi.generateDxf(calculationData || {}); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.generateDxf(calculationData || {});
 
       // Download the DXF file
       const blob = new Blob([data.dxfContent], { type: 'application/dxf' });
@@ -301,9 +300,7 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleAIAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const data = await spineApi.engineeringAnalysis(calculationData || {}, calculationType || ''); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.engineeringAnalysis(result as any, (result?.type as string) || '');
 
       setAiAnalysis(data);
       toast.success('AI analysis complete!');

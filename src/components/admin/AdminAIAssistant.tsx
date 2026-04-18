@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { adminApi } from '@/lib/spineApi';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -135,8 +136,7 @@ export function AdminAIAssistant() {
   // Fetch stats directly from DB — fast, no AI call needed
   const fetchStats = useCallback(async () => {
     try {
-      const { data, error } = await spineApi.getAdminStats();
-      if (error) throw error;
+      const data = await adminApi.getStats();
       const d = data as any;
 
       const llmUsage = d.llm_usage_24h || 0;
@@ -271,8 +271,7 @@ export function AdminAIAssistant() {
 
       switch (action.type) {
         case 'unblock_user':
-          const { error: unblockError } = await spineApi.req("POST", "/admin/unblock-user", { user_id: userId });
-          if (unblockError) throw unblockError;
+          await adminApi.unblockUser(action.params);
           toast.success('User unblocked successfully');
           break;
           

@@ -322,6 +322,7 @@ export interface SidebarProps {
   selectedChats: Set<number>;
   remaining?: number;
   totalLimit?: number;
+  bonusCredits?: number;
   allowed?: boolean;
   isFree?: boolean;
   isUnlimited?: boolean;

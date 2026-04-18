@@ -347,9 +347,7 @@ export const AccountPreferences = ({ userId, userEmail, accessToken }: AccountPr
                   setChangingPassword(true);
                   if (!userEmail) throw new Error('No email found');
                   localStorage.setItem('password_reset_email', userEmail.trim().toLowerCase());
-                  const { error } = await spineAuth.resetPasswordForEmail(userEmail, {
-                    redirectTo: `${window.location.origin}/reset-password`,
-                  });
+                  const { error } = await spineAuth.resetPasswordForEmail(userEmail);
                   if (error) throw error;
                   toast({
                     title: t('common.success'),

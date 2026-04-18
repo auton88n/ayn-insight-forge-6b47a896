@@ -13,7 +13,7 @@ import { useEngineeringHistory } from '@/hooks/useEngineeringHistory';
 import { useEngineeringSessionOptional } from '@/contexts/EngineeringSessionContext';
 import { SEO } from '@/components/shared/SEO';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { type BuildingCodeId, type NBCCVersion } from '@/lib/buildingCodes';
 import { toast } from 'sonner';
 
@@ -125,7 +125,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
           hasSavedSessionRef.current = true;
           
           // Fire and forget - don't block unmount
-          spineApi.saveMemory(memoryKey, memoryValue);
+          spineApi.saveMemory(`engineering_session_${userId}`, context);
         }
       }
     };
@@ -210,9 +210,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
       tempDiv.style.background = 'white';
       
       // Fetch HTML from edge function
-      const data = await spineApi.generateEngineeringPdf(pdfData || {}); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.generateEngineeringPdf({ calculator: selectedCalculator, outputs: currentOutputs, result: calculationResult } || {});
       
       // Parse and inject HTML content with styles
       const parser = new DOMParser();

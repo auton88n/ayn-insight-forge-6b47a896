@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,14 +62,8 @@ export const TwitterMarketingPanel = () => {
 
   const fetchPosts = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('twitter_posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setPosts((data as unknown as TwitterPost[]) || []);
+      const data = await spineApi.req<TwitterPost[]>('GET', '/admin/twitter/posts?limit=50');
+      setPosts(data || []);
     } catch (err) {
       console.error('Failed to fetch tweets:', err);
       toast.error('Failed to load tweets');
@@ -133,11 +126,7 @@ export const TwitterMarketingPanel = () => {
       return;
     }
     try {
-      const { error } = await supabase
-        .from('twitter_posts')
-        .update({ content: editContent })
-        .eq('id', id);
-      if (error) throw error;
+      await spineApi.req('PATCH', `/admin/twitter/posts/${id}`, { content: editContent });
       setPosts((prev) =>
         prev.map((p) => (p.id === id ? { ...p, content: editContent } : p))
       );

@@ -104,13 +104,9 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     setIsResettingPassword(true);
     try {
-      // Check if email is registered before sending reset
-      // email check skipped — spine handles duplicate detection on register
-      // Call Supabase's built-in reset (required - contains the actual reset link)
+      // Call spine reset password
       localStorage.setItem('password_reset_email', email.trim().toLowerCase());
-      const { error } = await spineAuth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      const { error } = await spineAuth.resetPasswordForEmail(email);
 
       if (error) {
         // Check for rate limit error
@@ -233,7 +229,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               const resendCode = (resendError as { code?: string }).code;
               const isRateLimited = 
                 resendCode === 'over_email_send_rate_limit' ||
-                resendError.message?.toLowerCase().includes('rate limit') ||
+                ((resendError as any)?.message || '').toLowerCase().includes('rate limit') ||
                 (resendError as { status?: number }).status === 429;
               
               if (isRateLimited) {
@@ -333,7 +329,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           description: ((error as any)?.message || 'An error occurred'),
           variant: "destructive"
         });
-      } else if (data.user?.identities?.length === 0) {
+      } else if ((data.user as any)?.identities?.length === 0) {
         // User already exists - Supabase doesn't return error for security
         toast({
           title: t('auth.emailAlreadyRegistered'),

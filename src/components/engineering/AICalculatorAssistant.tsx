@@ -21,8 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { supabase } from '@/integrations/supabase/client';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { spineApi } from '@/lib/spineApi';
 import { CalculatorType } from '@/lib/engineeringKnowledge';
 
 interface Suggestion {
@@ -250,9 +249,7 @@ export const AICalculatorAssistant: React.FC<AICalculatorAssistantProps> = ({
   const requestAIOptimization = async () => {
     setIsAnalyzing(true);
     try {
-      const data = await spineApi.engineeringChat(message, JSON.stringify(calculationContext || {})); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.engineeringAgent('optimize', { inputs });
       if (data?.suggestions) {
         setSuggestions(data.suggestions);
       }

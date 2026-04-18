@@ -56,9 +56,7 @@ export const ResultsStep: React.FC<Props> = ({ results, passed, failed, warnings
     try {
       toast.loading('Generating PDF report...', { id: 'compliance-pdf' });
 
-      const data = await spineApi.generateCompliancePdf(pdfData); const error = null;
-
-      if (error) throw error;
+      const data: any = await spineApi.generateCompliancePdf({ results, passed, failed, warnings, codeSystem });
 
       // Create an isolated iframe to avoid affecting the main page
       const iframe = document.createElement('iframe');

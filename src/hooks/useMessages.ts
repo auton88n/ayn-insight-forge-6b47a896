@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Session } from '@supabase/supabase-js';
+import type { SpineSession as Session } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
 import { chatRateLimiter } from '@/lib/rateLimiter';
 import { offlineQueue } from '@/lib/offlineQueue';

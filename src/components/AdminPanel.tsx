@@ -3,7 +3,7 @@ import { useState, useLayoutEffect, lazy, Suspense, useCallback } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { Session } from '@supabase/supabase-js';
+import type { SpineSession } from '@/lib/spineAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';
@@ -67,7 +67,7 @@ interface SystemConfig {
   sessionTimeout: number;
 }
 interface AdminPanelProps {
-  session: Session;
+  session: SpineSession;
   onBackClick?: () => void;
   isAdmin?: boolean;
   isDuty?: boolean;
@@ -148,8 +148,7 @@ export const AdminPanel = ({
       for (const [key, value] of Object.entries(updates)) {
         const dbKey = keyMap[key];
         if (dbKey) {
-          const { error } = await spineApi.req("POST", "/admin/config", body);
-          if (error) throw new Error(`Failed to update ${dbKey}: ${error.message}`);
+          await spineApi.req("POST", "/admin/config", { key: dbKey, value });
         }
       }
       queryClient.invalidateQueries({ queryKey: adminKeys.systemConfig() });
@@ -217,10 +216,10 @@ export const AdminPanel = ({
               <ErrorBoundary>
                 {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard /></Suspense>}
                 {activeTab === 'google-analytics' && <Suspense fallback={<TabFallback />}><GoogleAnalytics /></Suspense>}
-                {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
+                {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session as any} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
                 {activeTab === 'support' && <Suspense fallback={<TabFallback />}><SupportManagement /></Suspense>}
                 {activeTab === 'users' && <Suspense fallback={<TabFallback />}><UserManagement /></Suspense>}
-                {activeTab === 'rate-limits' && <Suspense fallback={<TabFallback />}><RateLimitMonitoring session={session} /></Suspense>}
+                {activeTab === 'rate-limits' && <Suspense fallback={<TabFallback />}><RateLimitMonitoring session={session as any} /></Suspense>}
                 {activeTab === 'settings' && <Suspense fallback={<TabFallback />}><SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} /></Suspense>}
                 {activeTab === 'ai-costs' && <Suspense fallback={<TabFallback />}><AICostDashboard /></Suspense>}
                 {activeTab === 'ai-limits' && <Suspense fallback={<TabFallback />}><UserAILimits /></Suspense>}

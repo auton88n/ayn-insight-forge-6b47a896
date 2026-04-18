@@ -62,11 +62,9 @@ export const ReplyModal = ({
     setIsSending(true);
 
     try {
-      let data: any = null; let error: any = null; try { data = await spineApi.sendReplyEmail(applicationId, replyText, email); } catch(e: any) { error = e; }
+      const data: any = await spineApi.sendReplyEmail(application.id, message, application.email);
 
-      if (error) throw error;
-
-      if (data?.success) {
+      if (data?.success !== false) {
         toast.success('Reply sent successfully');
         onSuccess();
       } else {

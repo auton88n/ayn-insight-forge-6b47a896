@@ -336,11 +336,7 @@ export const CenterStageLayout = ({
   // Fetch dynamic suggestions
   const fetchDynamicSuggestions = useCallback(async (userMessage: string, aynResponse: string, mode: AIMode) => {
     try {
-      const data = await spineApi.getSuggestions((context as string) || currentMode || 'chat', (mode as string) || 'chat'); const error = null;
-      if (error) {
-        if (import.meta.env.DEV) console.error("Failed to fetch suggestions:", error);
-        return DEFAULT_SUGGESTIONS;
-      }
+      const data: any = await spineApi.getSuggestions(userMessage || aynResponse || 'chat', (mode as string) || 'chat');
       return data?.suggestions || DEFAULT_SUGGESTIONS;
     } catch (err) {
       if (import.meta.env.DEV) console.error("Error fetching suggestions:", err);

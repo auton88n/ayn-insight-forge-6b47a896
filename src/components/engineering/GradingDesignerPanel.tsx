@@ -84,9 +84,8 @@ const GradingDesignerPanel: React.FC<GradingDesignerPanelProps> = ({ onInputChan
 
     setIsGenerating(true);
     try {
-      const data = await spineApi.engineeringAnalysis(gradingData, 'grading'); const error = null;
+      const data: any = await spineApi.engineeringAnalysis({ points, terrainAnalysis, projectName }, 'grading');
 
-      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       setDesign(data.design);
@@ -126,9 +125,8 @@ const GradingDesignerPanel: React.FC<GradingDesignerPanelProps> = ({ onInputChan
 
     setIsApplyingOptimizations(true);
     try {
-      const data = await spineApi.engineeringAnalysis(optimData, 'optimize'); const error = null;
+      const data: any = await spineApi.engineeringAnalysis({ parsedData: analysisResult.parsedData, optimizations }, 'optimize');
 
-      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       // Download the optimized DXF
