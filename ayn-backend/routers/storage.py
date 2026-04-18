@@ -102,3 +102,39 @@ async def delete_file(bucket: str, path: str, user_id: str = Depends(get_user_id
         return {"ok": r.is_success}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.get("/serve/{bucket}/{path:path}")
+async def serve_file(bucket: str, path: str):
+    """
+    Serve a file from Supabase Storage via spine URL.
+    Replaces: https://dfkoxuokfkttjhfjcecx.supabase.co/storage/v1/object/public/{bucket}/{path}
+    New URL:  https://spine.aynn.io/storage/serve/{bucket}/{path}
+
+    Used after URL rewrite migration so existing DB references still work.
+    """
+    if not SUPABASE_URL:
+        raise HTTPException(503, "Storage not configured")
+    
+    supabase_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{path}"
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            r = await client.get(supabase_url)
+        
+        if not r.is_success:
+            raise HTTPException(r.status_code, "File not found")
+        
+        from fastapi.responses import Response
+        return Response(
+            content=r.content,
+            media_type=r.headers.get("content-type", "application/octet-stream"),
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Content-Length": str(len(r.content)),
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))

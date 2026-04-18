@@ -55,14 +55,16 @@ def _hash_pin(pin: str) -> str:
 # ── PIN management ─────────────────────────────────────────────────────────────
 
 @router.post("/verify-pin")
-async def verify_admin_pin(req: PinRequest, user_id: str = Depends(get_user_id)):
+async def verify_admin_pin(req: PinRequest, user: dict = Depends(get_current_user)):
+    """Verify admin PIN. Accepts both regular JWT (from adminSupabase) and admin JWT (from /admin/login)."""
     try:
         record = await fetchrow("SELECT value FROM app_settings WHERE key = 'admin_pin'")
         if not record:
+            # No PIN set yet — accept default "123456"
             valid = req.pin == "123456"
-            return {"valid": valid, "lockoutRemaining": 0}
+            return {"valid": valid, "success": valid, "lockoutRemaining": 0}
         valid = record["value"] == _hash_pin(req.pin)
-        return {"valid": valid, "lockoutRemaining": 0}
+        return {"valid": valid, "success": valid, "lockoutRemaining": 0}
     except Exception as e:
         log.error(f"[admin] verify pin: {e}")
         raise HTTPException(500, str(e))

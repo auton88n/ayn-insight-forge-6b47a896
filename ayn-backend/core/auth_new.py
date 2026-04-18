@@ -32,12 +32,12 @@ if not JWT_SECRET:
 
 # ── Token creation ─────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, is_admin: bool = False) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    return jwt.encode(
-        {"sub": user_id, "email": email, "exp": expire, "type": "access"},
-        JWT_SECRET, algorithm=JWT_ALGORITHM
-    )
+    payload = {"sub": user_id, "email": email, "exp": expire, "type": "access"}
+    if is_admin:
+        payload["is_admin"] = True
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 async def create_refresh_token(user_id: str) -> str:
