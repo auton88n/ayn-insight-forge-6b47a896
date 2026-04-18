@@ -115,11 +115,11 @@ function WorldSimulator({ signals }: { signals: any[] }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await supabase
-          .from('ayn_world_simulations' as any)
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(10);
+        const token = tokenStore.getAccessToken() || '';
+        const data = await supabaseApi.get<any[]>(
+          'ayn_world_simulations?order=created_at.desc&limit=10',
+          token
+        );
         const results = (data || []) as any[];
         if (results.length) {
           setSimulations(results);
@@ -136,11 +136,11 @@ function WorldSimulator({ signals }: { signals: any[] }) {
     const load = async () => {
       setLoadingCascade(true);
       try {
-        const { data } = await supabase
-          .from('ayn_world_events' as any)
-          .select('*')
-          .eq('simulation_run_id', activeSimId)
-          .order('cascade_depth', { ascending: true });
+        const token = tokenStore.getAccessToken() || '';
+        const data = await supabaseApi.get<any[]>(
+          `ayn_world_events?simulation_run_id=eq.${activeSimId}&order=cascade_depth.asc`,
+          token
+        );
         setCascadeEvents(data || []);
       } catch {} finally { setLoadingCascade(false); }
     };
