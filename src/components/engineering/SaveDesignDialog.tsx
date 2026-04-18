@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Json } from '@/integrations/supabase/types';
 
 interface SaveDesignDialogProps {
   isOpen: boolean;
