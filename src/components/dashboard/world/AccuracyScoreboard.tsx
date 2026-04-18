@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { tokenStore } from '@/lib/spineAuth';
 
 
 function AccuracyScoreboard() {
@@ -8,11 +9,11 @@ function AccuracyScoreboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data: rows } = await supabase
-          .from('ayn_prediction_outcomes')
-          .select('was_direction_correct, accuracy_score, actual_date, actual_direction, actual_pct_change, value_error_pct, prediction_id, ayn_predictions(asset, horizon, predicted_direction, predicted_pct_change)')
-          .order('actual_date', { ascending: false })
-          .limit(200);
+        const token = tokenStore.getAccessToken() || '';
+        const rows = await supabaseApi.get<any[]>(
+          'ayn_prediction_outcomes?select=was_direction_correct,accuracy_score,actual_date,actual_direction,actual_pct_change,value_error_pct,prediction_id,ayn_predictions(asset,horizon,predicted_direction,predicted_pct_change)&order=actual_date.desc&limit=200',
+          token
+        );
 
         if (!rows?.length) return;
 
