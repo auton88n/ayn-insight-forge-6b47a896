@@ -1,55 +1,81 @@
 
-## Where we stand
+## Status
 
-Phase C is done. The only remaining consumer of `@/integrations/supabase/client` is `src/integrations/supabase/client.ts` itself. The admin app still uses its own isolated `src/admin-app/adminSupabase.ts`.
+Claude pushed Phase D from the spine side. You confirmed: zero `@/integrations/supabase/client` imports, zero `adminSupabase.from()` calls, SSE now points to `/sse/admin` on the spine.
 
-Per your earlier decision ("Migrate admin too"), the final phase is **Phase D: Admin migration + final cleanup**.
+But the build is still red because of the broken `checkPin` block in `src/admin-app/AdminApp.tsx` lines 58-101. The push didn't fix the local file — it's the same mangled `fetch()` from before.
 
-## Phase D scope
+## What's broken
 
-Admin panel uses `adminSupabase` from `src/admin-app/adminSupabase.ts`. I need to confirm the actual surface before estimating.
+`src/admin-app/AdminApp.tsx` lines 63-66:
+```ts
+const { data, error: fnError } = await (async () => { 
+  const r = await fetch('https://spine.aynn.io/admin/verify-pin', { 
+    method:'POST', headers:{...}, body: JSON.stringify({
+  body: { pin: fullPin },   // ← orphaned, never closes
+});
+```
 
-Quick estimate (to confirm in step 1):
-- ~20-30 admin components reading dashboards, users, logs, applications, tickets, LLM usage, marketing posts, etc.
-- Admin auth flow (PIN gate already uses `verify-admin-pin` edge function — auth itself is fine).
-- Real-time subscriptions on a few tables (Telegram sync, ticket updates).
+11 TS errors all cascade from this one block. Nothing else is wrong.
 
-## Plan
+## Fix
 
-### Step 1 — Inventory
-List every file importing `adminSupabase` and group by concern:
-- **Reads** (dashboards, lists, charts) → migrate to `supabaseApi.get()` REST wrapper
-- **Writes** (status updates, deletes, config changes) → need spine endpoints OR use REST wrapper with service-role-protected RPCs
-- **Realtime subscriptions** → these CANNOT use REST. Must keep a Supabase client OR switch to polling.
-- **Auth (sign-in/session)** → already isolated, low risk to keep
+Single edit to `src/admin-app/AdminApp.tsx`, replace the `checkPin` function (lines 58-101) with a clean implementation that calls the new spine endpoint:
 
-### Step 2 — Decide the realtime story
-This is the blocker. Options:
-- **(a)** Keep `adminSupabase` ONLY for realtime channels, migrate everything else to REST. Smallest risk.
-- **(b)** Replace realtime with polling (every 5-10s). Eliminates the SDK entirely but adds load.
-- **(c)** Build a server-sent-events spine endpoint. Most work, cleanest end state.
+```ts
+const checkPin = async (fullPin: string) => {
+  if (lockedUntil || checking) return;
+  setChecking(true);
+  try {
+    const token = (await adminSupabase.auth.getSession()).data.session?.access_token || '';
+    const r = await fetch('https://spine.aynn.io/admin/verify-pin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ pin: fullPin }),
+    });
+    const data = await r.json().catch(() => ({}));
+    const ok = r.ok && data?.success;
 
-### Step 3 — Migrate in batches
-- D1: Read-only dashboards (~10 files)
-- D2: Write actions (~10 files)
-- D3: Realtime decision applied
-- D4: Auth flow (last, since it's the riskiest)
+    if (!ok) {
+      if (data?.locked) {
+        const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
+        localStorage.setItem(LOCKOUT_KEY, until.toString());
+        setLockedUntil(until);
+        return;
+      }
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      localStorage.setItem(ATTEMPTS_KEY, newAttempts.toString());
+      if (newAttempts >= MAX_ATTEMPTS) {
+        const until = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
+        localStorage.setItem(LOCKOUT_KEY, until.toString());
+        localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
+        setLockedUntil(until);
+        try { await adminSupabase.functions.invoke('admin-pin-alert', { body: {} }); } catch {}
+      } else {
+        setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`);
+        setPin(['', '', '', '']);
+        setTimeout(() => inputs.current[0]?.focus(), 100);
+      }
+    } else {
+      localStorage.removeItem(LOCKOUT_KEY);
+      localStorage.removeItem(ATTEMPTS_KEY);
+      sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
+      onSuccess();
+    }
+  } catch {
+    setError('Unable to verify PIN. Please try again.');
+    setPin(['', '', '', '']);
+    setTimeout(() => inputs.current[0]?.focus(), 100);
+  } finally {
+    setChecking(false);
+  }
+};
+```
 
-### Step 4 — Final cleanup (only after D1-D4 green)
-- Delete `src/integrations/supabase/client.ts`
-- Delete `src/admin-app/adminSupabase.ts` (if fully migrated)
-- Remove `@supabase/supabase-js` from `package.json`
-- Remove `src/integrations/supabase/types.ts` references where dead
-- Verify `npm run build` clean
+## After
 
-## Decision needed before I start
-
-**Realtime strategy** — this changes the entire shape of the admin migration:
-
-1. Keep `adminSupabase` ONLY for realtime (pragmatic, ships fast, ~5% SDK surface remains)
-2. Replace realtime with polling (full SDK removal, slight UX latency)
-3. Build SSE spine endpoint (cleanest, most backend work)
-
-Recommend **option 1**: it gets you 95% of the way (no main app SDK, isolated admin-only realtime client) without backend changes. Final cleanup then drops the main `client.ts` and keeps only the slim admin realtime client.
-
-I'll ask this as a question, then start D1.
+Build goes green. Phase D is complete on the frontend side. Ready to publish.
