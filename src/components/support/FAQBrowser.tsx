@@ -4,7 +4,7 @@ import { Search, ChevronDown, ThumbsUp, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { MessageFormatter } from '@/components/shared/MessageFormatter';
 
 interface FAQItem {
@@ -29,13 +29,7 @@ const FAQBrowser: React.FC = () => {
 
   const fetchFAQs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('faq_items')
-        .select('*')
-        .eq('is_published', true)
-        .order('order_index');
-
-      if (error) throw error;
+      const data = await spineApi.req<FAQItem[]>('GET', '/support/faq?published=true');
       setFaqs(data || []);
     } catch (error) {
       console.error('Error fetching FAQs:', error);

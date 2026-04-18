@@ -10,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import AISupportChat from '@/components/support/AISupportChat';
 import TicketForm from '@/components/support/TicketForm';
 import FAQBrowser from '@/components/support/FAQBrowser';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { spineAuth } from '@/lib/spineAuth';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -35,15 +35,14 @@ const Support = () => {
   // Fetch FAQs for structured data
   useEffect(() => {
     const fetchFAQs = async () => {
-      const { data } = await supabase
-        .from('faq_items')
-        .select('question, answer')
-        .eq('is_published', true)
-        .order('order_index', { ascending: true })
-        .limit(10);
-      
-      if (data) {
-        setFaqs(data);
+      try {
+        const data = await spineApi.req<Array<{ question: string; answer: string }>>(
+          'GET',
+          '/support/faq?published=true&limit=10'
+        );
+        if (data) setFaqs(data);
+      } catch {
+        // non-critical
       }
     };
     fetchFAQs();
@@ -61,13 +60,7 @@ const Support = () => {
       const { data: { user } } = await spineAuth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from('support_tickets')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await spineApi.req<SupportTicket[]>('GET', '/support/tickets');
       setTickets(data || []);
     } catch (error) {
       console.error('Error fetching tickets:', error);

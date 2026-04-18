@@ -268,37 +268,14 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     };
   }, [checkSubscription]);
 
-  // Realtime listener for subscription changes
+  // Polling fallback for subscription changes (replaces Supabase realtime)
   useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const interval = setInterval(() => {
+      sessionStorage.removeItem('subscription_cache');
+      checkSubscription();
+    }, 60000); // 60s polling
 
-    const setupRealtime = async () => {
-      const { data: { session } } = await spineAuth.getSession();
-      if (!session?.user?.id) return;
-
-      channel = supabase
-        .channel(`sub-${session.user.id.slice(0, 8)}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'user_subscriptions',
-            filter: `user_id=eq.${session.user.id}`
-          },
-          () => {
-            sessionStorage.removeItem('subscription_cache');
-            checkSubscription();
-          }
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
+    return () => clearInterval(interval);
   }, [checkSubscription]);
 
   return (
