@@ -83,10 +83,8 @@ const AIGradingDesigner: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      const data = await spineApi.engineeringAnalysis(designInput, 'grading'); const error = null;
-
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      const data: any = await spineApi.engineeringAnalysis({ points, terrainAnalysis }, 'grading');
+      if (!data?.success) throw new Error(data?.error || 'Generation failed');
 
       setDesign(data.design);
       setCostBreakdown(data.costBreakdown);
@@ -118,10 +116,8 @@ const AIGradingDesigner: React.FC = () => {
 
     setIsApplyingOptimizations(true);
     try {
-      const data = await spineApi.engineeringAnalysis(optimInput, 'optimize'); const error = null;
-
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      const data: any = await spineApi.engineeringAnalysis({ analysisResult, optimizations }, 'optimize');
+      if (!data?.success) throw new Error(data?.error || 'Optimization failed');
 
       // Download the optimized DXF
       const blob = new Blob([data.dxfContent], { type: 'application/dxf' });

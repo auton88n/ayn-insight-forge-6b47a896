@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Send, Loader2, Check } from 'lucide-react';

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
 import { spineAuth } from '@/lib/spineAuth';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import { AccountPreferences } from '@/components/settings/AccountPreferences';

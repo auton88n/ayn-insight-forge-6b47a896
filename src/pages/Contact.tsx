@@ -69,7 +69,7 @@ const Contact = () => {
 
     setIsSubmitting(true);
     try {
-      await spineApi.contactUs(name, email, message);
+      await spineApi.contactUs(contactForm.name, contactForm.email, contactForm.message);
 
       setIsSubmitted(true);
       setContactForm({ name: '', email: '', message: '' });
