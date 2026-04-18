@@ -36,15 +36,12 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('engineering_portfolio')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      // Map data to ensure proper typing
-      const mappedItems: PortfolioItem[] = (data || []).map(item => ({
+      const token = tokenStore.getAccessToken() || '';
+      const data = await supabaseApi.get<any[]>(
+        `engineering_portfolio?user_id=eq.${userId}&order=created_at.desc`,
+        token
+      );
+      const mappedItems: PortfolioItem[] = (data || []).map((item: any) => ({
         ...item,
         key_specs: item.key_specs as Record<string, any> | null,
       }));
