@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { cn, debounce } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -335,7 +336,7 @@ export const CenterStageLayout = ({
   // Fetch dynamic suggestions
   const fetchDynamicSuggestions = useCallback(async (userMessage: string, aynResponse: string, mode: AIMode) => {
     try {
-      const data = await spineApi.getSuggestions(context || '', mode || 'chat'); const error = null;
+      const data = await spineApi.getSuggestions((context as string) || currentMode || 'chat', (mode as string) || 'chat'); const error = null;
       if (error) {
         if (import.meta.env.DEV) console.error("Failed to fetch suggestions:", error);
         return DEFAULT_SUGGESTIONS;

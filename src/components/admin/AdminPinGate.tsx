@@ -66,11 +66,11 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
         onSuccess();
       } else if (data?.locked) {
         setIsLocked(true);
-        setError(`Too many attempts. Locked for ${Math.ceil(data.lockoutRemaining / 60)} minutes.`);
+        setError(`Too many attempts. Locked for ${Math.ceil((data.lockoutRemaining ?? 0) / 60)} minutes.`);
         setTimeout(() => {
           setIsLocked(false);
           setAttempts(0);
-        }, data.lockoutRemaining * 1000);
+        }, (data.lockoutRemaining ?? 60) * 1000);
       } else {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);

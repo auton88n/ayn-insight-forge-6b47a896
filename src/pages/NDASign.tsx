@@ -139,9 +139,9 @@ export default function NDASign() {
     if (!nda) return;
     const blob = await fetch(dataUrl).then(r => r.blob());
     const path = `signatures/nda_${nda.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
+    const { error: upErr } = await spineApi.storageUpload('generated-files', path, blob, { contentType: 'image/png' });
     if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
+    const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
     const sigUrl = urlData.publicUrl;
     const now = new Date().toISOString();
     const updates: any = party === 'admin' ? { admin_signature_url: sigUrl, admin_signed_at: now } : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };

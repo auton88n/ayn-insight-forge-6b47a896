@@ -1,3 +1,4 @@
+from typing import Any, Optional, List
 """
 routers/user.py — user profile, limits, settings
 GET  /user/limits       — ai limits + subscription tier
@@ -173,3 +174,167 @@ async def submit_contact(req: ContactRequest):
         VALUES ($1, $2, $3, 'unread', NOW())
     """, req.name, req.email, req.message)
     return {"ok": True}
+
+
+# ── Memory CRUD ────────────────────────────────────────────────────────────────
+
+class MemoryUpsertRequest(BaseModel):
+    key: str
+    value: Any
+    memory_type: str = "user"
+
+@router.get("/memory")
+async def get_user_memory(user_id: str = Depends(get_user_id)):
+    """Get all user memory entries."""
+    try:
+        rows = await fetch(
+            "SELECT memory_key, memory_data, memory_type, updated_at FROM user_memory WHERE user_id = $1::uuid",
+            user_id
+        )
+        return {"memory": [dict(r) for r in rows] if rows else []}
+    except Exception as e:
+        return {"memory": []}
+
+@router.post("/memory")
+async def upsert_user_memory(req: MemoryUpsertRequest, user_id: str = Depends(get_user_id)):
+    """Upsert a memory entry. Replaces upsert_user_memory RPC."""
+    try:
+        import json
+        val = json.dumps(req.value) if not isinstance(req.value, str) else f'"{req.value}"'
+        await execute("""
+            INSERT INTO user_memory (user_id, memory_key, memory_data, memory_type, updated_at)
+            VALUES ($1::uuid, $2, $3::jsonb, $4, NOW())
+            ON CONFLICT (user_id, memory_key)
+            DO UPDATE SET memory_data = $3::jsonb, memory_type = $4, updated_at = NOW()
+        """, user_id, req.key, val, req.memory_type)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.delete("/memory/{key}")
+async def delete_user_memory(key: str, user_id: str = Depends(get_user_id)):
+    """Delete a memory entry."""
+    try:
+        await execute(
+            "DELETE FROM user_memory WHERE user_id = $1::uuid AND memory_key = $2",
+            user_id, key
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── Settings / Preferences ─────────────────────────────────────────────────────
+
+class SettingsRequest(BaseModel):
+    settings: dict
+
+@router.get("/settings")
+async def get_user_settings(user_id: str = Depends(get_user_id)):
+    try:
+        row = await fetchrow(
+            "SELECT settings FROM user_settings WHERE user_id = $1::uuid", user_id
+        )
+        return {"settings": row["settings"] if row else {}}
+    except Exception:
+        return {"settings": {}}
+
+@router.post("/settings")
+async def save_user_settings(req: SettingsRequest, user_id: str = Depends(get_user_id)):
+    try:
+        import json
+        await execute("""
+            INSERT INTO user_settings (user_id, settings, updated_at)
+            VALUES ($1::uuid, $2::jsonb, NOW())
+            ON CONFLICT (user_id) DO UPDATE SET settings = $2::jsonb, updated_at = NOW()
+        """, user_id, json.dumps(req.settings))
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.get("/preferences")
+async def get_user_preferences(user_id: str = Depends(get_user_id)):
+    try:
+        from core.db import get_db
+        import asyncio
+        db = get_db()
+        r = await asyncio.to_thread(
+            lambda: db.from_("user_preferences").select("*").eq("user_id", user_id).maybe_single().execute()
+        )
+        return {"preferences": r.data or {}}
+    except Exception:
+        return {"preferences": {}}
+
+@router.post("/preferences")
+async def save_user_preferences(body: dict, user_id: str = Depends(get_user_id)):
+    try:
+        from core.db import get_db
+        import asyncio
+        db = get_db()
+        await asyncio.to_thread(
+            lambda: db.from_("user_preferences").upsert({
+                "user_id": user_id, **body
+            }).execute()
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── Beta Feedback ──────────────────────────────────────────────────────────────
+
+class BetaFeedbackRequest(BaseModel):
+    overall_rating: int = 5
+    favorite_features: list = []
+    improvement_suggestions: str = ""
+    bugs_encountered: str = ""
+    would_recommend: bool = True
+    additional_comments: str = ""
+    credits_awarded: int = 50
+
+@router.post("/beta-feedback")
+async def submit_beta_feedback(req: BetaFeedbackRequest, user_id: str = Depends(get_user_id)):
+    try:
+        import json
+        from core.db import get_db
+        import asyncio
+        db = get_db()
+        await asyncio.to_thread(
+            lambda: db.from_("beta_feedback").upsert({
+                "user_id": user_id,
+                "overall_rating": req.overall_rating,
+                "favorite_features": req.favorite_features,
+                "improvement_suggestions": req.improvement_suggestions,
+                "bugs_encountered": req.bugs_encountered,
+                "would_recommend": req.would_recommend,
+                "additional_comments": req.additional_comments,
+                "credits_awarded": req.credits_awarded,
+            }).execute()
+        )
+        # Add bonus credits
+        await execute("""
+            UPDATE user_ai_limits SET bonus_credits = COALESCE(bonus_credits,0) + $2, updated_at = NOW()
+            WHERE user_id = $1::uuid
+        """, user_id, req.credits_awarded)
+        new_balance = await fetchval(
+            "SELECT COALESCE(bonus_credits,0) FROM user_ai_limits WHERE user_id = $1::uuid", user_id
+        )
+        return {"ok": True, "new_balance": new_balance or 0, "credits_awarded": req.credits_awarded}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/profile")
+async def update_user_profile(body: dict, user_id: str = Depends(get_user_id)):
+    """Update user profile fields."""
+    try:
+        allowed = {k: v for k, v in body.items() if k in ("first_name","last_name","company_name","business_type")}
+        if allowed:
+            sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(allowed.keys()))
+            vals = list(allowed.values())
+            await execute(
+                f"UPDATE users SET {sets}, updated_at = NOW() WHERE id = $1::uuid",
+                user_id, *vals
+            )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))

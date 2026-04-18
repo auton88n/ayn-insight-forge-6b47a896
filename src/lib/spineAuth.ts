@@ -14,12 +14,22 @@ export interface SpineUser {
   first_name: string;
   last_name: string;
   is_admin?: boolean;
+  // Compatibility fields (mirrors Supabase User shape)
+  user_metadata: {
+    full_name?: string;
+    avatar_url?: string;
+    [key: string]: any;
+  };
+  app_metadata?: Record<string, any>;
 }
 
 export interface SpineSession {
   access_token: string;
   refresh_token: string;
   user: SpineUser;
+  // Compatibility fields (mirrors Supabase Session shape)
+  expires_in: number;
+  token_type: string;
 }
 
 export const tokenStore = {
@@ -61,7 +71,11 @@ async function doRefresh(): Promise<SpineSession | null> {
   if (!rt) return null;
   try {
     const data = await post('/auth/refresh', { refresh_token: rt });
-    const session: SpineSession = { access_token: data.access_token, refresh_token: data.refresh_token, user: tokenStore.getUser()! };
+    const storedUser = tokenStore.getUser()!;
+    const session: SpineSession = { 
+      access_token: data.access_token, refresh_token: data.refresh_token, 
+      user: storedUser, expires_in: 86400, token_type: 'bearer' 
+    };
     tokenStore.save(session);
     emit('TOKEN_REFRESHED', session);
     return session;
@@ -95,7 +109,8 @@ export const spineAuth = {
       }
     } catch {}
     // Return stored session - always valid unless actually expired
-    return { data: { session: { access_token: token, refresh_token: tokenStore.getRefreshToken()!, user } } };
+    const fullSession: SpineSession = { access_token: token, refresh_token: tokenStore.getRefreshToken()!, user: { ...user, user_metadata: user.user_metadata || { full_name: `${user.first_name||''} ${user.last_name||''}`.trim() }, app_metadata: {} }, expires_in: 86400, token_type: 'bearer' };
+    return { data: { session: fullSession } };
   },
 
   async getUser() {
@@ -106,10 +121,11 @@ export const spineAuth = {
   async signInWithPassword({ email, password }: { email: string; password: string }) {
     try {
       const data = await post('/auth/login', { email, password });
-      const session: SpineSession = { access_token: data.access_token, refresh_token: data.refresh_token, user: data.user };
+      const spineUser: SpineUser = { ...data.user, user_metadata: { full_name: `${data.user.first_name||''} ${data.user.last_name||''}`.trim(), avatar_url: data.user.avatar_url }, app_metadata: {} };
+      const session: SpineSession = { access_token: data.access_token, refresh_token: data.refresh_token, user: spineUser, expires_in: 86400, token_type: 'bearer' };
       tokenStore.save(session);
       emit('SIGNED_IN', session);
-      return { data: { session, user: data.user }, error: null };
+      return { data: { session, user: spineUser }, error: null };
     } catch (e: any) {
       return { data: { session: null, user: null }, error: { message: e.message } };
     }
@@ -120,10 +136,11 @@ export const spineAuth = {
       const name = options?.data?.full_name || '';
       const [first_name, ...rest] = name.split(' ');
       const data = await post('/auth/register', { email, password, first_name: first_name || '', last_name: rest.join(' ') || '' });
-      const session: SpineSession = { access_token: data.access_token, refresh_token: data.refresh_token, user: data.user };
+      const spineUser: SpineUser = { ...data.user, user_metadata: { full_name: `${data.user.first_name||''} ${data.user.last_name||''}`.trim(), avatar_url: data.user.avatar_url }, app_metadata: {} };
+      const session: SpineSession = { access_token: data.access_token, refresh_token: data.refresh_token, user: spineUser, expires_in: 86400, token_type: 'bearer' };
       tokenStore.save(session);
       emit('SIGNED_IN', session);
-      return { data: { session, user: data.user }, error: null };
+      return { data: { session, user: spineUser }, error: null };
     } catch (e: any) {
       return { data: { session: null, user: null }, error: { message: e.message } };
     }
@@ -153,7 +170,7 @@ export const spineAuth = {
     const user = tokenStore.getUser();
     const token = tokenStore.getAccessToken();
     if (user && token) {
-      setTimeout(() => callback('SIGNED_IN', { access_token: token, refresh_token: tokenStore.getRefreshToken()!, user }), 0);
+      setTimeout(() => callback('SIGNED_IN', { access_token: token, refresh_token: tokenStore.getRefreshToken()!, user: { ...user, user_metadata: user.user_metadata || {}, app_metadata: {} }, expires_in: 86400, token_type: 'bearer' }), 0);
     }
     return { data: { subscription: { unsubscribe: () => { const i = listeners.indexOf(callback); if (i > -1) listeners.splice(i, 1); } } } };
   },

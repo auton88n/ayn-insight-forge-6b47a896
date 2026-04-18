@@ -144,9 +144,9 @@ export default function ClientSign() {
     if (!order) return;
     const blob = await fetch(dataUrl).then(r => r.blob());
     const path = `signatures/order_${order.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
+    const { error: upErr } = await spineApi.storageUpload('generated-files', path, blob, { contentType: 'image/png' });
     if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
+    const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
     const sigUrl = urlData.publicUrl;
     const now = new Date().toISOString();
     const updates: any = party === 'admin'

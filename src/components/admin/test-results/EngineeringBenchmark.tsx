@@ -83,7 +83,7 @@ const EngineeringBenchmark: React.FC = () => {
   const runValidation = async () => {
     setIsRunning(true);
     try {
-      const data = await spineApi.engineeringAnalysis(benchData, 'validate'); const error = null;
+      const benchPayload = {}; const data = await spineApi.engineeringAnalysis(benchPayload, 'validate'); const error = null;
       
       if (error) throw error;
       

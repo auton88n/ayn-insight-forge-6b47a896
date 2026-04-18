@@ -116,6 +116,56 @@ export const adminApi = {
   getServiceApplications: () => req<any[]>('GET', '/admin/service-applications'),
   getLlmStats:          () => req<any>('GET', '/admin/llm-stats'),
   getVisitorAnalytics:  () => req<any>('GET', '/admin/visitor-analytics'),
+
+  // Marketing (replaces twitter-* edge functions)
+  brandScan:       (url: string) => req('POST', '/marketing/brand-scan', { url }),
+  brandDna:        (url: string) => req('POST', '/marketing/brand-dna', { url }),
+  creativeChat:    (message: string, brand_context?: object) => req('POST', '/marketing/creative-chat', { message, brand_context }),
+  generatePlan:    (topic: string, audience?: string) => req('POST', '/marketing/generate-plan', { topic, audience }),
+  generateThread:  (topic: string, tone?: string, count?: number) => req('POST', '/marketing/generate-thread', { topic, tone, count }),
+  postTweet:       (text: string) => req('POST', '/marketing/post', { text }),
+  autoMarket:      () => req('POST', '/marketing/auto-market', {}),
+
+  // Storage (replaces supabase.storage.*)
+  storageUpload:   (bucket: string, path: string, data: string, content_type?: string) =>
+                     req('POST', '/storage/upload', { bucket, path, data, content_type }),
+  storageGetUrl:   (bucket: string, path: string) =>
+                     req<{public_url: string}>('GET', `/storage/url?bucket=${bucket}&path=${encodeURIComponent(path)}`),
+  storageList:     (bucket: string, prefix?: string) =>
+                     req('GET', `/storage/list?bucket=${bucket}&prefix=${prefix||''}`),
+  storageDelete:   (bucket: string, path: string) =>
+                     req('DELETE', `/storage/delete?bucket=${bucket}&path=${encodeURIComponent(path)}`),
+
+  // Trading (replaces get-klines)
+  getKlines:       (symbol: string, interval: string, limit?: number) =>
+                     req('POST', '/trading/klines', { symbol, interval, limit: limit || 100 }),
+
+  // Extended admin
+  giftCredits:     (user_id: string, credits: number) => req('POST', '/admin/add-credits', { user_id, credits }),
+  getAdminTickets: () => req('GET', '/admin/tickets'),
+  getContactMessages: () => req('GET', '/admin/contact-messages'),
+  getCustomOrders:  () => req('GET', '/admin/orders'),
+  getLLMStats:      () => req('GET', '/admin/llm'),
+  getTestResults:   () => req('GET', '/admin/test-results'),
+  getRateLimits:    () => req('GET', '/admin/rate-limits'),
+  getNotificationLog: () => req('GET', '/admin/notification-log'),
+  getNDAs:          () => req('GET', '/admin/ndas'),
+  getSystemConfig:  () => req('GET', '/admin/config'),
+  setSystemConfig:  (key: string, value: any) => req('POST', '/admin/config', { key, value }),
+  getUserMessages:  (user_id: string) => req('GET', `/admin/user-messages?user_id=${user_id}`),
+  getAnalyticsSummary: (days?: number) => req('GET', `/admin/analytics/summary?days=${days||30}`),
+
+  // User extended
+  getMemory:        () => req('GET', '/user/memory'),
+  upsertMemory:     (key: string, value: any) => req('POST', '/user/memory', { key, value }),
+  deleteMemory:     (key: string) => req('DELETE', `/user/memory/${key}`),
+  getSettings:      () => req('GET', '/user/settings'),
+  saveSettings:     (settings: object) => req('POST', '/user/settings', { settings }),
+  getPreferences:   () => req('GET', '/user/preferences'),
+  savePreferences:  (prefs: object) => req('POST', '/user/preferences', prefs),
+  submitBetaFeedback: (feedback: object) => req('POST', '/user/beta-feedback', feedback),
+  updateProfile:    (profile: object) => req('POST', '/user/profile', profile),
+
 };
 
 // ─── Extended API methods added in full migration ─────────────────────────────

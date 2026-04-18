@@ -271,7 +271,7 @@ export function AdminAIAssistant() {
 
       switch (action.type) {
         case 'unblock_user':
-          const { error: unblockError } = await spineApi.req("POST", "/admin/unblock-user", { userId });
+          const { error: unblockError } = await spineApi.req("POST", "/admin/unblock-user", { user_id: userId });
           if (unblockError) throw unblockError;
           toast.success('User unblocked successfully');
           break;

@@ -1,3 +1,4 @@
+import { SUPABASE_URL } from '@/config';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -260,9 +261,9 @@ export default function AdminCustomOrders() {
     try {
       const blob = await fetch(dataUrl).then(r => r.blob());
       const path = `signatures/admin_${signingId}_${Date.now()}.png`;
-      const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
+      const { error: upErr } = await spineApi.storageUpload('generated-files', path, blob, { contentType: 'image/png' });
       if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
+      const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
       /* spine */;
       toast({ title: '✓ Signature applied' });
       setPanel('none'); setSigningId(null); fetchOrders();

@@ -24,7 +24,7 @@ const AIImprovements: React.FC = () => {
   const runAnalysis = async () => {
     setIsRunning(true);
     try {
-      const data = { improvements: [] }; const error = null; // requires separate configuration
+      const data: { improvements: any[]; aiAnalysis?: string } = { improvements: [], aiAnalysis: 'Analysis requires configuration' }; const error = null;
       if (error) throw error;
       
       setImprovements(data.improvements || []);

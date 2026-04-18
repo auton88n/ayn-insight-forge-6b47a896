@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';

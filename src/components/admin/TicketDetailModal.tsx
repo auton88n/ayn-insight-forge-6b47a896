@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { motion } from 'framer-motion';

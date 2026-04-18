@@ -70,23 +70,17 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
       const filePath = `${userId}/${fileName}`;
 
       // Delete old avatar if exists (keep using supabase.storage for storage operations)
-      const { data: existingFiles } = await supabase.storage
-        .from('avatars')
-        .list(userId);
+      const existingFilesResult = await spineApi.storageList('avatars', userId); const existingFiles = (existingFilesResult as any)?.files || [];;
 
       if (existingFiles && existingFiles.length > 0) {
-        await supabase.storage
-          .from('avatars')
-          .remove(existingFiles.map(f => `${userId}/${f.name}`));
+        await spineApi.storageDelete('avatars', existingFiles.map(f => `${userId}/${f.name}`[0]));
       }
 
       // Upload new avatar
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, compressedFile, {
+      const uploadResult = await spineApi.storageUpload('avatars', filePath, compressedFile, {
           cacheControl: '3600',
           upsert: true,
-        });
+        }); const uploadError = (uploadResult as any)?.error || null;;
 
       if (uploadError) {
         if (import.meta.env.DEV) {
@@ -97,9 +91,7 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
       }
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const publicUrl = `${import.meta.env.VITE_SUPABASE_URL || ''}/storage/v1/object/public/avatars/${filePath}`;;
 
       // Update profile with avatar URL using REST API
       /* avatar url update handled by spine */;
@@ -127,14 +119,10 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
 
     try {
       // Delete from storage (keep using supabase.storage)
-      const { data: existingFiles } = await supabase.storage
-        .from('avatars')
-        .list(userId);
+      const existingFilesResult = await spineApi.storageList('avatars', userId); const existingFiles = (existingFilesResult as any)?.files || [];;
 
       if (existingFiles && existingFiles.length > 0) {
-        await supabase.storage
-          .from('avatars')
-          .remove(existingFiles.map(f => `${userId}/${f.name}`));
+        await spineApi.storageDelete('avatars', existingFiles.map(f => `${userId}/${f.name}`[0]));
       }
 
       // Update profile using REST API

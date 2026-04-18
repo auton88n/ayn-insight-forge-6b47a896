@@ -1,3 +1,4 @@
+import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
@@ -61,7 +62,7 @@ export const ReplyModal = ({
     setIsSending(true);
 
     try {
-      const data = await spineApi.sendReplyEmail(applicationId, replyText, email); const error = null;
+      let data: any = null; let error: any = null; try { data = await spineApi.sendReplyEmail(applicationId, replyText, email); } catch(e: any) { error = e; }
 
       if (error) throw error;
 

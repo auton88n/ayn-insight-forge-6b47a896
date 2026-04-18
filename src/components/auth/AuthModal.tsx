@@ -117,8 +117,8 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         const errorCode = (error as { code?: string }).code;
         const isRateLimited = 
           errorCode === 'over_email_send_rate_limit' ||
-          error.message?.toLowerCase().includes('rate limit') ||
-          error.message?.toLowerCase().includes('too many requests') ||
+          ((error as any)?.message || '').toLowerCase().includes('rate limit') ||
+          ((error as any)?.message || '').toLowerCase().includes('too many requests') ||
           (error as { status?: number }).status === 429;
         
         if (isRateLimited) {
@@ -133,7 +133,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         } else {
           toast({
             title: t('common.error'),
-            description: error.message,
+            description: ((error as any)?.message || 'An error occurred'),
             variant: "destructive"
           });
         }
@@ -181,7 +181,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     if (error) {
       toast({
         title: t('auth.authError'),
-        description: error.message,
+        description: ((error as any)?.message || 'An error occurred'),
         variant: 'destructive',
       });
     }
@@ -207,9 +207,9 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
       if (error) {
         // If login fails, show helpful migration message
-        if (error.message?.toLowerCase().includes('invalid') || 
-            error.message?.toLowerCase().includes('not found') ||
-            error.message?.toLowerCase().includes('incorrect')) {
+        if (((error as any)?.message || '').toLowerCase().includes('invalid') || 
+            ((error as any)?.message || '').toLowerCase().includes('not found') ||
+            ((error as any)?.message || '').toLowerCase().includes('incorrect')) {
           toast({
             title: 'Account Not Found',
             description: 'Please sign up for a new account. If you had an account before, create a new one with the same email — your data will be restored.',
@@ -220,7 +220,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         }
         // Special handling: email not confirmed
         const code = (error as { code?: string }).code;
-        if (code === 'email_not_confirmed' || /email not confirmed/i.test(error.message)) {
+        if (code === 'email_not_confirmed' || /email not confirmed/i.test((error as any)?.message || '')) {
           try {
             const { error: resendError } = await spineAuth.resend({
               type: 'signup',
@@ -262,7 +262,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           }
         } else {
           // Parse error for user-friendly message
-          const errorMsg = error.message?.toLowerCase() || '';
+          const errorMsg = ((error as any)?.message || '').toLowerCase() || '';
           const friendlyDesc = errorMsg.includes('invalid login') || errorMsg.includes('invalid credentials')
             ? t('error.invalidCredentialsDesc')
             : error.message;
@@ -330,7 +330,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       if (error) {
         toast({
           title: t('auth.registrationError'),
-          description: error.message,
+          description: ((error as any)?.message || 'An error occurred'),
           variant: "destructive"
         });
       } else if (data.user?.identities?.length === 0) {

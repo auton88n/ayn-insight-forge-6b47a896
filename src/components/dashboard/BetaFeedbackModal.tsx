@@ -80,7 +80,7 @@ export const BetaFeedbackModal = ({
       if (feedbackError) throw feedbackError;
 
       // Add bonus credits
-      const { error: creditsError } = await spineApi.req("POST", "/admin/add-credits", { userId, credits });
+      const { error: creditsError } = await spineApi.req("POST", "/user/beta-feedback", { overall_rating: rating, favorite_features: favorites, improvement_suggestions: suggestions, bugs_encountered: bugs, would_recommend: recommend, additional_comments: comments, credits_awarded: 50 });
 
       if (creditsError) throw creditsError;
 
