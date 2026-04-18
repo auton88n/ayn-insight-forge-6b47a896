@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { differenceInDays, differenceInHours } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 
 interface CreditUpgradeCardProps {
   remaining?: number;
@@ -58,13 +58,13 @@ export const CreditUpgradeCard = ({
     if (!userId) return;
     const check = async () => {
       try {
-        const { data } = await supabase
-          .from('beta_feedback')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1);
-        setHasSubmittedFeedback(data ? data.length > 0 : false);
-      } catch (error) { console.error("Error checking beta feedback:", error); }
+        // TODO(spine): /user/beta-feedback/exists — returns { exists: boolean }
+        const data: any = await spineApi.req('GET', '/user/beta-feedback/exists');
+        setHasSubmittedFeedback(!!data?.exists);
+      } catch (error) {
+        // Silent fallback — assume not submitted
+        setHasSubmittedFeedback(false);
+      }
     };
     check();
   }, [userId]);

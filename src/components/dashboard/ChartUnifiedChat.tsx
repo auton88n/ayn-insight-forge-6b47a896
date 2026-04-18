@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 
 import { cn } from '@/lib/utils';
 import { useChartAnalyzer } from '@/hooks/useChartAnalyzer';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 import { MessageFormatter } from '@/components/shared/MessageFormatter';

@@ -17,7 +17,6 @@ import { useBubbleAnimation } from "@/hooks/useBubbleAnimation";
 import { useAYNEmotion, AYNEmotion } from "@/stores/emotionStore";
 import { useSoundStore } from "@/stores/soundStore";
 import { getBubbleType } from "@/lib/emotionMapping";
-import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticFeedback } from "@/lib/haptics";
 import { useEmotionOrchestrator } from "@/hooks/useEmotionOrchestrator";

@@ -35,7 +35,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractBestDocumentLink, openDocumentUrl } from "@/lib/documentUrlUtils";
 import type { Message } from "@/types/dashboard.types";
