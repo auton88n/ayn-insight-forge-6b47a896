@@ -1,5 +1,5 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
+import { spineApi } from '@/lib/spineApi';
 import { ArrowLeft, Brain, MessageSquare, Zap, Globe, Users, BarChart3, Clock, Bot, Headphones, Languages, UserCheck, Shield, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
