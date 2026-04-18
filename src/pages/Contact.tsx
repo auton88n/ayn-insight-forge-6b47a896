@@ -69,20 +69,7 @@ const Contact = () => {
 
     setIsSubmitting(true);
     try {
-      const { error: dbError } = await spineApi.submitContact({ name, email, message });
-      if (dbError) {
-        if (import.meta.env.DEV) console.error('Database error:', dbError);
-        throw new Error('Failed to save message');
-      }
-
-      const { error: emailError } = await spineApi.contactUs(name, email, message),
-          email: contactForm.email.trim(),
-          message: contactForm.message.trim(),
-        },
-      });
-      if (emailError && import.meta.env.DEV) {
-        console.error('Email error:', emailError);
-      }
+      await spineApi.contactUs(name, email, message);
 
       setIsSubmitted(true);
       setContactForm({ name: '', email: '', message: '' });
