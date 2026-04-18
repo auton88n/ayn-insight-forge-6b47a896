@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabaseApi } from '@/lib/supabaseApi';
+import { spineAuth, tokenStore } from '@/lib/spineAuth';
 import { cn } from '@/lib/utils';
 
 
