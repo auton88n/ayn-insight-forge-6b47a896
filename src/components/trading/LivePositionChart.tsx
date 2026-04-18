@@ -1,7 +1,6 @@
 import { spineApi } from '@/lib/spineApi';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time, LineStyle, CandlestickSeries as CandlestickSeriesDef } from 'lightweight-charts';
-import { spineApi } from '@/lib/spineApi';
 
 interface LivePositionChartProps {
   ticker: string;

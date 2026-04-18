@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
+import { spineApi } from '@/lib/spineApi';
 import { toast } from 'sonner';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 

@@ -210,7 +210,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
       tempDiv.style.background = 'white';
       
       // Fetch HTML from edge function
-      const data: any = await spineApi.generateEngineeringPdf({ calculator: selectedCalculator, outputs: currentOutputs, result: calculationResult } || {});
+      const data: any = await spineApi.generateEngineeringPdf({ calculator: selectedCalculator, outputs: currentOutputs, result: calculationResult });
       
       // Parse and inject HTML content with styles
       const parser = new DOMParser();
@@ -281,7 +281,7 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
     try {
       toast.loading('Generating DXF file...', { id: 'dxf-export' });
       
-      const data = await spineApi.generateDxf(dxfData || {}); const error = null;
+      const data: any = await spineApi.generateDxf({ calculator: selectedCalculator, inputs: currentInputs, outputs: currentOutputs, result: calculationResult }); const error = null;
 
       if (error) throw error;
 

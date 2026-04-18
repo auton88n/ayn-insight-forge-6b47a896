@@ -70,7 +70,7 @@ export const GradingResults: React.FC<GradingResultsProps> = ({
   const handleExportDXF = async () => {
     setExporting(true);
     try {
-      const data: any = await spineApi.generateDxf({ points, fglPoints, design, projectName });
+      const data: any = await spineApi.generateDxf({ points: fglPoints, fglPoints, design, projectName });
 
       if (!data.success) throw new Error(data.error);
 
