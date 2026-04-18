@@ -86,13 +86,12 @@ export function usePredictionGraph() {
     setLoading(true);
     setError(null);
     try {
+      const token = tokenStore.getAccessToken() || '';
       // Latest run
-      const { data: runs } = await supabase
-        .from('ayn_graph_runs' as any)
-        .select('*')
-        .eq('status', 'complete')
-        .order('created_at', { ascending: false })
-        .limit(1) as any;
+      const runs = await supabaseApi.get<any[]>(
+        'ayn_graph_runs?status=eq.complete&order=created_at.desc&limit=1',
+        token
+      );
 
       const latestRun = runs?.[0] || null;
       if (!latestRun) {
@@ -102,30 +101,26 @@ export function usePredictionGraph() {
       }
 
       // Clusters from latest run
-      const { data: clusters } = await (supabase
-        .from('ayn_prediction_clusters' as any)
-        .select('*')
-        .eq('run_id', latestRun.id)
-        .order('prediction_count', { ascending: false }) as any);
+      const clusters = await supabaseApi.get<any[]>(
+        `ayn_prediction_clusters?run_id=eq.${latestRun.id}&order=prediction_count.desc`,
+        token
+      );
 
       // Top surprising edges from latest run
-      const { data: edges } = await (supabase
-        .from('ayn_prediction_graph_edges' as any)
-        .select('*')
-        .eq('run_id', latestRun.id)
-        .order('surprise_score', { ascending: false })
-        .limit(30) as any);
+      const edges = await supabaseApi.get<any[]>(
+        `ayn_prediction_graph_edges?run_id=eq.${latestRun.id}&order=surprise_score.desc&limit=30`,
+        token
+      );
 
       // Members with prediction details
       const clusterIds = (clusters || []).map((c: GraphCluster) => c.id);
-      const { data: members } = await (supabase
-        .from('ayn_prediction_cluster_members' as any)
-        .select(`
-          prediction_id, cluster_id, confidence_label, centrality_score, is_bridge,
-          ayn_world_predictions!inner(title, domain, region, confidence, signal_quality, horizon, what_is_happening, actionable_move, key_drivers, tags)
-        `)
-        .in('cluster_id', clusterIds)
-        .order('centrality_score', { ascending: false }) as any);
+      const select = encodeURIComponent('prediction_id,cluster_id,confidence_label,centrality_score,is_bridge,ayn_world_predictions!inner(title,domain,region,confidence,signal_quality,horizon,what_is_happening,actionable_move,key_drivers,tags)');
+      const members = clusterIds.length > 0
+        ? await supabaseApi.get<any[]>(
+            `ayn_prediction_cluster_members?select=${select}&cluster_id=in.(${clusterIds.join(',')})&order=centrality_score.desc`,
+            token
+          )
+        : [];
 
       // Build membersByCluster
       const membersByCluster: Record<string, GraphMember[]> = {};
