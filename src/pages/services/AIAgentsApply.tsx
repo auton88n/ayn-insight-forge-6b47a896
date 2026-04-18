@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormError } from '@/components/ui/form-error';
-import { spineApi } from '@/lib/spineApi';
 import { toast } from 'sonner';
 import { useFormValidation, aiAgentsSchema } from '@/hooks/useFormValidation';
 import { useLanguage } from '@/contexts/LanguageContext';
