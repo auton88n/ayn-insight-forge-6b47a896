@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { spineAuth } from '@/lib/spineAuth';
 import type { ChartHistoryItem, ChartHistoryFilter, ChartAnalysisResult } from '@/types/chartAnalyzer.types';
 
@@ -66,27 +66,19 @@ export function useChartHistory() {
       const { data: { session } } = await spineAuth.getSession();
       if (!session?.user) return;
 
-      let query = supabase
-        .from('chart_analyses')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1);
+      // TODO(spine): /user/chart-analyses?offset=&limit=&ticker=&asset_type=&signal=
+      const params = new URLSearchParams({
+        offset: String(offset),
+        limit: String(PAGE_SIZE),
+      });
+      if (filter.ticker) params.set('ticker', filter.ticker);
+      if (filter.assetType) params.set('asset_type', filter.assetType);
+      if (filter.signal) params.set('signal', filter.signal);
 
-      if (filter.ticker) {
-        query = query.ilike('ticker', `%${filter.ticker}%`);
-      }
-      if (filter.assetType) {
-        query = query.eq('asset_type', filter.assetType);
-      }
-      if (filter.signal) {
-        query = query.eq('prediction_signal', filter.signal);
-      }
+      const data: any = await spineApi.req('GET', `/user/chart-analyses?${params.toString()}`);
+      const list: any[] = Array.isArray(data) ? data : (data?.items || []);
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const mapped = (data || []).map(mapRowToHistoryItem);
+      const mapped = list.map(mapRowToHistoryItem);
       setHasMore(mapped.length === PAGE_SIZE);
 
       if (append) {

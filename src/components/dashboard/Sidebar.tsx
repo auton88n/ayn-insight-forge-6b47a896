@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { usePinnedChats } from '@/hooks/usePinnedChats';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 
 // Moved outside to prevent recreation on each render
 interface ProfileTriggerButtonProps extends React.ComponentPropsWithoutRef<'button'> {
@@ -152,17 +152,12 @@ export const Sidebar = ({
   useEffect(() => {
     if (!userId) return;
     
-    // Non-blocking fetch
+    // Non-blocking fetch — tier comes from /user/limits
     const fetchTier = async () => {
       try {
-        const { data } = await supabase
-          .from('user_subscriptions')
-          .select('subscription_tier')
-          .eq('user_id', userId)
-          .maybeSingle();
-        if (data?.subscription_tier) {
-          setSubscriptionTier(data.subscription_tier);
-        }
+        const data: any = await spineApi.getLimits();
+        const tier = data?.tier || data?.subscription_tier;
+        if (tier) setSubscriptionTier(tier);
       } catch {
         // Silent failure - default to free
       }

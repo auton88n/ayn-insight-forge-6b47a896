@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gift, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { spineApi } from '@/lib/spineApi';
 import { cn } from '@/lib/utils';
 
 interface FloatingFeedbackButtonProps {
@@ -24,20 +24,12 @@ export const FloatingFeedbackButton = ({
   useEffect(() => {
     const checkFeedbackStatus = async () => {
       try {
-        const { data, error } = await supabase
-          .from('beta_feedback')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1);
-
-        if (error) {
-          console.error('Error checking feedback status:', error);
-          return;
-        }
-
-        setHasSubmittedFeedback(data && data.length > 0);
+        // TODO(spine): /user/beta-feedback/exists
+        const data: any = await spineApi.req('GET', '/user/beta-feedback/exists');
+        setHasSubmittedFeedback(!!data?.exists);
       } catch (err) {
-        console.error('Error checking feedback status:', err);
+        // Silent fallback
+        setHasSubmittedFeedback(false);
       }
     };
 

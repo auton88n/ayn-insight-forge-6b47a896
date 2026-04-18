@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { supabase } from '@/integrations/supabase/client';
 import { spineAuth } from '@/lib/spineAuth';
 import { spineApi } from '@/lib/spineApi';
 
@@ -54,22 +53,8 @@ await Promise.all(sessions.map((s: any) => spineApi.deleteSession(s.session_id))
     if (!userId) return;
 
     try {
-      // Call edge function to fully delete account including auth.users
-      const response = await fetch(
-        'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/delete-account',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete account');
-      }
+      // TODO(spine): /user/account DELETE — fully removes account
+      await spineApi.req('DELETE', '/user/account');
 
       // Sign out locally and redirect
       await spineAuth.signOut();
