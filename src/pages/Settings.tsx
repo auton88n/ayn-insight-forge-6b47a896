@@ -63,7 +63,7 @@ const Settings = () => {
         {{
           account: <AccountPreferences userId={user.id} userEmail={user.email || ''} accessToken={session.access_token} />,
           notifications: <NotificationSettings userId={user.id} accessToken={session.access_token} />,
-          privacy: <PrivacySettings userId={user.id} session={session} />,
+          privacy: <PrivacySettings userId={user.id} session={session as any} />,
           sessions: <SessionManagement userId={user.id} userEmail={user.email || ''} accessToken={session.access_token} />,
           memory: <MemoryManagement userId={user.id} />,
         }}
