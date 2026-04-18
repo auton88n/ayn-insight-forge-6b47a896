@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { adminApi } from '@/lib/spineApi';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';

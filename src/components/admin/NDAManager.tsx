@@ -2,7 +2,7 @@ import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';

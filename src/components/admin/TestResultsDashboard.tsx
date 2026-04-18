@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { 
   CheckCircle, 
   XCircle, 

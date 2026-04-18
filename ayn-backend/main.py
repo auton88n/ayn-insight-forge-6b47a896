@@ -122,6 +122,7 @@ from routers.marketing import router as marketing_router
 from routers.storage import router as storage_router
 from routers.trading import router as trading_router
 from routers.realtime import router as realtime_router
+from routers.sse import router as sse_router
 from routers.email_router import router as email_router
 from routers.admin_routes import router as admin_routes_router
 from routers.analyze import router as analyze_router
@@ -145,6 +146,7 @@ app.include_router(marketing_router)
 app.include_router(storage_router)
 app.include_router(trading_router)
 app.include_router(realtime_router)
+app.include_router(sse_router)
 app.include_router(email_router)
 app.include_router(admin_routes_router)
 app.include_router(analyze_router)

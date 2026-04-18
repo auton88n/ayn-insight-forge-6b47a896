@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import type { SpineSession as Session } from '@/lib/spineAuth';
 import { adminSupabase } from './adminSupabase';
+import { adminApi } from '@/lib/adminApi';
 import { AdminPanel } from '@/components/AdminPanel';
 import AdminCustomOrders from '@/pages/AdminCustomOrders';
 
@@ -59,7 +60,7 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
     setChecking(true);
     try {
       // Use the edge function — requires authenticated session
-      const { data, error: fnError } = await adminSupabase.functions.invoke('verify-admin-pin', {
+      const { data, error: fnError } = await (async () => { const r = await fetch('https://spine.aynn.io/admin/verify-pin', { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${(await adminSupabase.auth.getSession()).data.session?.access_token||''}`}, body: JSON.stringify({
         body: { pin: fullPin },
       });
 
@@ -211,7 +212,7 @@ export default function AdminApp() {
     const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
     if (cached === s.user.id) { setStep('ready'); return; }
     try {
-      const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
+      const { data } = await adminApi.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
       if (data?.role === 'admin' || data?.role === 'duty') {
         // Verified as admin — now require PIN
         setStep('pin');

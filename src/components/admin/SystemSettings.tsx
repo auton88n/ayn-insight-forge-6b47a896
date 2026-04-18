@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { NotificationLogViewer } from './NotificationLogViewer';
 import { 
   AlertTriangle, 

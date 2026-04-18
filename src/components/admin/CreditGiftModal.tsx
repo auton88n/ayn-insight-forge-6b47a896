@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Gift, Loader2, Sparkles } from 'lucide-react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 

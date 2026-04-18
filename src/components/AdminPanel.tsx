@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import {

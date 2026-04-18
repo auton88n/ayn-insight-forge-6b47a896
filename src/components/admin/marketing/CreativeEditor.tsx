@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Download, Send, Sparkles, Globe } from 'lucide-react';
 import { AynEyeIcon } from './AynEyeIcon';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { toast } from 'sonner';
 import type { BrandKitState } from './CompactBrandBar';
 

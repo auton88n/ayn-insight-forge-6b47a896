@@ -10,7 +10,7 @@ import {
   Calculator, CheckCircle, XCircle, AlertTriangle, Play, Loader2, Clock, 
   ChevronDown, ChevronRight, FileText, Beaker, Target, Code, Car, Mountain
 } from 'lucide-react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { toast } from 'sonner';
 
 interface OutputCheck {

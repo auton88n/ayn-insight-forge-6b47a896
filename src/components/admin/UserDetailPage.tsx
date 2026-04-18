@@ -1,6 +1,6 @@
 import { spineApi, adminApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { Search, User, Mail, Shield, MessageSquare, Clock, TrendingUp, Activity, RefreshCw, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 

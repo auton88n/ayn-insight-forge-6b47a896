@@ -11,7 +11,8 @@
  *
  * Reconnects automatically on stream end / disconnect.
  */
-import { SUPABASE_URL } from '@/config';
+import { AYN_BACKEND_URL } from '@/config';
+const SPINE_URL = AYN_BACKEND_URL || 'https://spine.aynn.io';
 import { getAdminToken } from './adminApi';
 
 type ChangeHandler = (table: string) => void;
@@ -31,7 +32,7 @@ export function subscribeAdminTables(tables: string[], onChange: ChangeHandler):
       reconnectTimer = window.setTimeout(connect, RECONNECT_DELAY_MS);
       return;
     }
-    const url = new URL(`${SUPABASE_URL}/functions/v1/admin-sse`);
+    const url = new URL(`${SPINE_URL}/sse/admin`);
     url.searchParams.set('tables', tables.join(','));
     url.searchParams.set('token', token);
     es = new EventSource(url.toString());

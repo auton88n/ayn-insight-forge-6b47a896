@@ -15,7 +15,7 @@ import {
   Clock,
   RefreshCw
 } from 'lucide-react';
-import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { adminApi as supabase } from '@/lib/adminApi';
 import { Button } from '@/components/ui/button';
 import { format, subDays, startOfDay, startOfWeek, startOfMonth } from 'date-fns';
 
