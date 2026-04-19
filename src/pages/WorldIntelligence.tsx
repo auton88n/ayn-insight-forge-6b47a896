@@ -352,22 +352,32 @@ export default function WorldIntelligence() {
       if (!consensus.length) return;
       const voteCounts = d.vote_counts || [];
       const vMap = Object.fromEntries((voteCounts).map((v: any) => [v.prediction_id, v]));
-      const preds = consensus.map((c: any) => ({
-        id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
-        baseline_value: Number(c.baseline_value),
-        predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
-        predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
-        predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
-        predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
-        predicted_pct_change: Number(c.consensus_pct_change),
-        confidence: Number(c.consensus_confidence || 50),
-        calibration: calibMap[c.asset] || null,
-        reasoning: c.ayn_reasoning || '',
-        generated_by: 'consensus',
-        agree_count: vMap[c.id]?.agree_count || 0,
-        disagree_count: vMap[c.id]?.disagree_count || 0,
-        user_vote: null,
-      }));
+      const preds = consensus.map((c: any) => {
+        // Spine returns rows from ayn_predictions which use predicted_* fields,
+        // but legacy ayn_consensus_predictions used consensus_* fields. Accept both.
+        const pct = Number(c.consensus_pct_change ?? c.predicted_pct_change ?? 0);
+        const dir = (c.consensus_direction ?? c.predicted_direction ?? 'sideways').toString().toLowerCase();
+        const baseline = Number(c.baseline_value ?? 0);
+        const predictedValue = c.predicted_value != null ? Number(c.predicted_value) : baseline * (1 + pct / 100);
+        const lo = c.predicted_low != null ? Number(c.predicted_low) : baseline * (1 + pct / 100 - 0.03);
+        const hi = c.predicted_high != null ? Number(c.predicted_high) : baseline * (1 + pct / 100 + 0.03);
+        return {
+          id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
+          baseline_value: baseline,
+          predicted_value: predictedValue,
+          predicted_low: lo,
+          predicted_high: hi,
+          predicted_direction: dir as 'up' | 'down' | 'sideways',
+          predicted_pct_change: pct,
+          confidence: Number(c.consensus_confidence ?? c.confidence ?? 50),
+          calibration: calibMap[c.asset] || null,
+          reasoning: c.ayn_reasoning || c.reasoning || '',
+          generated_by: c.generated_by || 'spine',
+          agree_count: vMap[c.id]?.agree_count || 0,
+          disagree_count: vMap[c.id]?.disagree_count || 0,
+          user_vote: null,
+        };
+      });
       setPredictions(preds);
     } catch (e) { console.error('predictions:', e); }
   }, []);
