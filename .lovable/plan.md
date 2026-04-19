@@ -1,86 +1,80 @@
 
 
-User is on `/world-intelligence` and every section is empty: Intelligence Brief says "populates on next data sweep", Signals shows "No active signals", AYN Predictions shows 0, Market Forecasts shows "No predictions for this filter", Country Intelligence shows "No country data available". Plus Fear & Greed bar is empty and Market Sentiment label is red.
+## What's actually in Railway right now (from the live `/intelligence/all` response)
 
-This is the predictable consequence of the migration: the cron jobs are registered in Spine but haven't fired yet (they're on 4-6h schedules), and the historical Supabase data was never migrated to Railway Postgres. So Railway tables are empty → frontend shows empty states.
+- `world_signals`: 12 rows, all from 2026-04-19, with `title=null, category=null, impact_level=null, affected_regions=null, market_impact=null` but rich `summary`, `countries_involved`, `confidence_impact`, `ancient_parallel`. **The data IS real Gemini output, sourced from real market prices (Gold $4879, Bitcoin $75k, Copper -3.26%, Oil $90, OFAC SDN 18,758 entities). It is NOT dummy.** The writer just doesn't fill the legacy columns the frontend keys off.
+- `market_snapshot`: null — pulse-engine never wrote a row, OR write failed
+- `world_predictions`: populated (per earlier check)
+- `ayn_mind`: populated
+- `country_intelligence`: empty — no job writes here
+- `market_prices`: unknown, need to check
 
-Let me verify before planning fixes.
+So "dummy" is the wrong word. The data is real and timely. The dashboard is hiding it because of a column mismatch + 2 jobs not running.
 
-## Investigation needed
+## Why it feels fake
 
-Read these in parallel:
-1. `ayn-backend/services/intelligence.py` — confirm jobs write to the right tables
-2. `ayn-backend/main.py` — confirm scheduler intervals + admin endpoints
-3. `ayn-backend/routers/intelligence.py` — confirm `/intelligence/all` queries match table names actually being written
-4. `src/pages/WorldIntelligence.tsx` (or equivalent) — confirm frontend expects the data shape Spine returns
-5. Check for an admin scheduler endpoint to manually trigger jobs
+1. Cards filter on `title` → all 12 signals get dropped → "No active signals"
+2. Market Sentiment can't render without `market_snapshot` → empty bar
+3. Country panel has nothing to render → "No country data"
 
-I'll also check via psql if the Railway intelligence tables have any rows.
+## Plan (do it for real, not patched)
 
-## Root causes (high confidence based on context)
+### Step 1 — Investigate (read-only, 10 min)
 
-**Cause 1 — Tables are empty.** Spine cron jobs run every 2-6h. The Spine container only booted ~20 min ago per logs. None have fired yet. There's also no historical data because the Supabase → Railway migration script for intelligence data was never run.
+Confirm before changing anything:
+- Read `ayn-backend/services/intelligence.py` — exact INSERT columns for each job
+- Read the frontend signal/snapshot/country card components — exact fields they read
+- `psql` row counts on all 8 ayn_* tables + check `pulse-engine` and `world-signals` `last_error` from scheduler
+- Confirm whether the signal Gemini prompt CAN produce title/category/impact_level (it should — those are basic fields)
 
-**Cause 2 — Possible field/table name drift.** `routers/intelligence.py` queries `ayn_market_snapshot`, `ayn_world_signals`, `ayn_world_predictions`, `ayn_mind`, `ayn_opportunity_alerts`, `ayn_market_prices`, `ayn_predictions`, `ayn_country_intelligence`. If `services/intelligence.py` writes to slightly different table/column names, the dashboard will stay empty even after crons fire.
+### Step 2 — Fix the writer, not the reader
 
-**Cause 3 — Market Sentiment / Fear & Greed.** This card likely reads `ayn_market_snapshot.snapshot.sentiment.fear_greed_index`. If `pulse-engine` hasn't run, the card renders an empty bar with a red placeholder.
+The right fix is to make Gemini output the missing fields, because:
+- `title` (≤80 chars) is what humans scan first
+- `category` (geopolitical/macro/commodity/crypto/fx) drives filtering
+- `impact_level` (low/medium/high/critical) drives the severity badge color
+- `affected_regions` drives the country flags
 
-## Plan
+Patch `world-signals` job in `services/intelligence.py`:
+- Add these 4 fields to the Gemini JSON schema prompt
+- Add them to the INSERT statement
+- Backfill existing 12 rows with a one-shot Gemini call that derives `title`/`category`/`impact_level` from existing `summary` + `confidence_impact`
 
-### Step 1 — Investigate (read-only, 5 min)
+This way the data stays real (sourced from live prices + OFAC + sanctions), and the dashboard renders it properly.
 
-- Read `ayn-backend/services/intelligence.py`, `services/predictions.py`, `services/pulse.py` (whatever holds the cron job bodies) → list every table + column they write
-- Read `ayn-backend/routers/intelligence.py` → list every table + column the dashboard reads
-- Diff the two lists → flag any drift
-- Query Railway Postgres row counts for all 8 intelligence tables to confirm "empty" theory
-- Check if `/admin/scheduler/run/{job_id}` endpoint exists
+### Step 3 — Fix `pulse-engine` (Market Snapshot + Fear & Greed)
 
-### Step 2 — Fix any table/column drift (if found)
+- Pull its `last_error` from `/admin/scheduler/status`
+- If it's a code bug (likely — never written a row), fix it
+- If it's a schema bug (singleton_key constraint, missing column), fix the upsert
+- Trigger via Cron Control, verify a row lands in `ayn_market_snapshot`
 
-If a job writes to `ayn_signals` but dashboard reads `ayn_world_signals`, fix one side. Same for column names like `headline` vs `title`, `severity` vs `level`, etc.
+### Step 4 — Add `country-intel` job (real data, not filler)
 
-### Step 3 — Add a one-shot backfill endpoint
+New job in `services/intelligence.py`:
+- Pulls FRED indicators (GDP, CPI, unemployment, policy rate) for top 20 economies
+- Pulls GDELT event tone for last 7 days per country
+- Writes to `ayn_country_intelligence`: `country_iso3`, `gdp_growth`, `inflation`, `unemployment`, `policy_rate`, `event_tone`, `risk_score`, `summary` (Gemini-derived 2-sentence brief)
+- Schedule every 12h
+- Trigger once via Cron Control to backfill
 
-If `/admin/scheduler/run/{job_id}` doesn't exist yet, add it to `ayn-backend/routers/admin.py`:
-```python
-POST /admin/scheduler/run/{job_id}
-```
-Calls the underlying job function directly (not through APScheduler) so we get instant execution + error visibility.
+### Step 5 — Verify it's real, not dummy
 
-### Step 4 — Fire all 5 intelligence jobs immediately
+After the above, the user should see:
+- 12+ signals, each with a real headline like "Gold surges to $4,879 as central banks abandon USD reserves" (Gemini-derived from actual price action)
+- Market Sentiment bar showing actual Fear & Greed value (computed from VIX, put/call ratio, junk bond spreads)
+- Country cards for USA, China, Japan, Germany, etc. with real FRED macro numbers
+- Every card has a `created_at` timestamp visible so user can see freshness
 
-After deploy, hit:
-- `POST /admin/scheduler/run/pulse-engine` → fills Market Sentiment + Fear & Greed
-- `POST /admin/scheduler/run/world-intel` → fills Intelligence Brief + AYN Mind
-- `POST /admin/scheduler/run/world-signals` → fills Live World Signals
-- `POST /admin/scheduler/run/predictions-daily` → fills AYN Predictions + Price Predictions
-- `POST /admin/scheduler/run/agent-society` → fills Agents tab
-- Add a `country-intel` job if missing → fills Country Intelligence
-
-Each call will take 30-90s (LLM-heavy). I'll run them sequentially and verify row counts after each.
-
-### Step 5 — Add a "Refresh Now" admin button (optional polish)
-
-In the admin panel, add 6 buttons (one per job) that POST to the scheduler endpoint, so you can re-fire data without waiting 4h. Useful when you redeploy or want fresh signals for a demo.
-
-### Step 6 — Verify on /world-intelligence
-
-After backfill, the dashboard should show:
-- Intelligence Brief: real summary
-- Market Sentiment: colored bar with Fear & Greed value
-- US Macro: Fed rate, CPI, unemployment
-- Live World Signals: 5-15 cards
-- AYN Predictions: 8-15 graph predictions
-- Price Predictions: 8 assets × 3 horizons = 24 cards
-- Country Intelligence: 10-20 country cards
+Each piece traces back to a real source (FRED, GDELT, OFAC, market prices, Gemini reasoning over real inputs). No mocked numbers, no Lorem Ipsum.
 
 ## Out of scope
 
-- Re-architecting the cron schedule (4h cadence is correct for production)
-- Re-running the Supabase → Railway historical migration (not needed; live data will accumulate fast once jobs fire)
-- Cosmetic empty-state polish
+- Adding more sophisticated sentiment models (existing pulse logic is fine once it runs)
+- UI polish on signal cards
+- Historical backfill beyond what crons produce naturally
 
-## What I need from you
+## Estimate
 
-Just say "go". Estimated 60 min total: 10 min code, 50 min waiting for the 5 LLM-heavy jobs to populate the dashboard.
+~45 min: 20 min code (writer schema + pulse fix + country job), 25 min verifying jobs fire and dashboard renders.
 
