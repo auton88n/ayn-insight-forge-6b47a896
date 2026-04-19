@@ -206,3 +206,111 @@ async def run_log_cleanup():
         log.info("✅ Log cleanup complete")
     except Exception as e:
         log.error(f"❌ Log cleanup error: {e}")
+
+
+async def run_supabase_sync():
+    """
+    Syncs new intelligence rows from Supabase → Railway every 30 min.
+    Edge functions write to Supabase. This job keeps Railway in sync.
+    Tables: ayn_world_predictions, ayn_world_signals, ayn_mind,
+            ayn_opportunity_alerts, ayn_historical_patterns, ayn_agent_messages
+    """
+    log.info("🔄 Supabase → Railway sync starting...")
+    try:
+        import httpx, os, json as _json
+        from datetime import datetime, timezone, date
+        from core.database import get_pool
+
+        SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+        SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            log.warning("[sync] SUPABASE_URL or SUPABASE_SERVICE_KEY not set")
+            return
+
+        TABLES = [
+            "ayn_world_predictions", "ayn_world_signals", "ayn_mind",
+            "ayn_opportunity_alerts", "ayn_historical_patterns",
+            "ayn_agent_messages", "ayn_agent_conversations",
+            "ayn_activity_log", "ayn_sales_pipeline",
+        ]
+
+        headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        pool = await get_pool()
+        total_synced = 0
+
+        def coerce(v, udt=""):
+            if isinstance(v, list):
+                if udt.startswith("_"): return v
+                return _json.dumps(v)
+            if isinstance(v, dict): return _json.dumps(v)
+            if isinstance(v, datetime): return v
+            if isinstance(v, date): return v.isoformat()
+            if isinstance(v, str):
+                if len(v) > 10 and "T" in v:
+                    if udt in ("timestamptz", "timestamp"):
+                        try: return datetime.fromisoformat(v.replace("Z", "+00:00"))
+                        except: pass
+                elif len(v) == 10 and v.count("-") == 2:
+                    if udt == "date":
+                        try: return date.fromisoformat(v)
+                        except: pass
+                # Fix invalid JSON strings
+                if udt == "jsonb":
+                    try: _json.loads(v)
+                    except: return _json.dumps(v)
+            return v
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for table in TABLES:
+                try:
+                    # Only fetch rows from last 2 hours (new since last sync)
+                    since = datetime.now(timezone.utc).replace(
+                        minute=0, second=0, microsecond=0
+                    ).isoformat().replace("+00:00", "+00:00")
+
+                    r = await client.get(
+                        f"{SUPABASE_URL}/rest/v1/{table}",
+                        headers={**headers, "Prefer": "count=exact"},
+                        params={"select": "*", "created_at": f"gte.{since}", "limit": 500}
+                    )
+                    if not r.is_success:
+                        continue
+                    rows = r.json()
+                    if not rows:
+                        continue
+
+                    async with pool.acquire() as conn:
+                        # Get Railway columns
+                        col_records = await conn.fetch(
+                            "SELECT column_name, udt_name FROM information_schema.columns "
+                            "WHERE table_schema='public' AND table_name=$1", table
+                        )
+                        if not col_records:
+                            continue
+                        type_map = {r["column_name"]: r["udt_name"] for r in col_records}
+
+                        synced = 0
+                        for row in rows:
+                            filtered = {k: v for k, v in row.items() if k in type_map}
+                            if not filtered: continue
+                            cols = list(filtered.keys())
+                            vals = [coerce(v, type_map.get(c, "")) for v, c in zip(filtered.values(), cols)]
+                            ph = ", ".join(f"${i+1}" for i in range(len(cols)))
+                            cn = ", ".join(f'"{col}"' for col in cols)
+                            try:
+                                res = await conn.execute(
+                                    f"INSERT INTO {table} ({cn}) VALUES ({ph}) ON CONFLICT (id) DO NOTHING",
+                                    *vals
+                                )
+                                if res != "INSERT 0 0": synced += 1
+                            except Exception:
+                                pass
+                    if synced:
+                        log.info(f"[sync] {table}: +{synced} new rows")
+                        total_synced += synced
+                except Exception as e:
+                    log.warning(f"[sync] {table} failed: {e}")
+
+        log.info(f"✅ Supabase sync complete — {total_synced} new rows synced to Railway")
+    except Exception as e:
+        log.error(f"❌ Supabase sync error: {e}")

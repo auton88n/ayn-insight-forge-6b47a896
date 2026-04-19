@@ -20,7 +20,7 @@ def get_scheduler() -> AsyncIOScheduler:
 def start_scheduler():
     scheduler = get_scheduler()
 
-    from services.intelligence import (
+    from services.intelligence import (run_supabase_sync,
         run_world_intelligence, run_pulse_engine, run_market_prices,
         run_world_signals, run_prediction_engine, run_prediction_resolver,
         run_agent_society_trigger, run_log_cleanup,
@@ -55,6 +55,13 @@ def start_scheduler():
         id="agent-society", replace_existing=True, misfire_grace_time=300)
 
     # Log cleanup — daily at 3am
+    scheduler.add_job(
+        run_supabase_sync,
+        trigger=IntervalTrigger(minutes=30),
+        id="supabase-sync",
+        name="Supabase → Railway sync",
+        replace_existing=True,
+    )
     scheduler.add_job(run_log_cleanup, CronTrigger(hour=3, minute=0),
         id="log-cleanup", replace_existing=True, misfire_grace_time=600)
 
