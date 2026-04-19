@@ -115,3 +115,92 @@ async def admin_sse(
             "Connection": "keep-alive",
         },
     )
+
+
+@router.get("/user")
+async def user_sse(
+    token: str = Query(""),
+):
+    """
+    SSE endpoint for per-user realtime updates.
+    Streams: usage limits, message count, subscription changes.
+
+    Client subscribes:
+      GET /sse/user?token=<JWT>
+
+    Events emitted:
+      event: limits   → { daily_messages, current_daily_messages, bonus_credits }
+      event: ping     → {} (keepalive every 25s)
+      event: reconnect → {} (after MAX_DURATION, client should reconnect)
+    """
+    # Verify token
+    try:
+        payload = verify_access_token(token)
+        user_id = payload["sub"]
+    except Exception:
+        from fastapi import HTTPException
+        raise HTTPException(401, "Invalid token")
+
+    log.info(f"[sse/user] Connected: user={user_id[:8]}")
+
+    async def user_sse_stream(user_id: str):
+        elapsed = 0.0
+        last_ping = 0.0
+        last_limits = None
+
+        # Send initial limits immediately
+        try:
+            db = get_db()
+            r = await asyncio.to_thread(
+                lambda: db.from_("user_ai_limits")
+                    .select("daily_messages,current_daily_messages,bonus_credits,monthly_messages")
+                    .eq("user_id", user_id)
+                    .maybe_single()
+                    .execute()
+            )
+            if r.data:
+                last_limits = r.data
+                payload = json.dumps(r.data)
+                yield f"event: limits\ndata: {payload}\n\n"
+        except Exception as e:
+            log.debug(f"[sse/user] initial limits error: {e}")
+
+        yield "event: connected\ndata: {}\n\n"
+
+        while elapsed < MAX_DURATION:
+            await asyncio.sleep(POLL_INTERVAL)
+            elapsed += POLL_INTERVAL
+
+            # Ping keepalive
+            if elapsed - last_ping >= PING_INTERVAL:
+                yield "event: ping\ndata: {}\n\n"
+                last_ping = elapsed
+
+            # Poll limits for changes
+            try:
+                db = get_db()
+                r = await asyncio.to_thread(
+                    lambda: db.from_("user_ai_limits")
+                        .select("daily_messages,current_daily_messages,bonus_credits,monthly_messages")
+                        .eq("user_id", user_id)
+                        .maybe_single()
+                        .execute()
+                )
+                if r.data and r.data != last_limits:
+                    last_limits = r.data
+                    payload = json.dumps(r.data)
+                    yield f"event: limits\ndata: {payload}\n\n"
+            except Exception as e:
+                log.debug(f"[sse/user] poll error: {e}")
+
+        yield "event: reconnect\ndata: {}\n\n"
+
+    return StreamingResponse(
+        user_sse_stream(user_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
