@@ -59,15 +59,27 @@ async def get_messages(session_id: str, user_id: str = Depends(get_user_id)):
 
 @router.post("/{session_id}")
 async def save_message(session_id: str, req: SaveMessageRequest, user_id: str = Depends(get_user_id)):
-    """Save a message and upsert chat session."""
-    # Upsert chat session
+    """Save a message and upsert chat session.
+
+    Title rule: set title ONLY when (a) row does not exist OR (b) existing
+    title is NULL/empty/'New Chat'. Never overwrite a real title.
+    """
+    incoming_title = (req.title or '').strip()
+
+    # Upsert chat session — title locked after first real value
     await execute("""
         INSERT INTO chat_sessions (session_id, user_id, title, created_at, updated_at)
-        VALUES ($1, $2, $3, NOW(), NOW())
+        VALUES ($1, $2, NULLIF($3, ''), NOW(), NOW())
         ON CONFLICT (session_id) DO UPDATE
         SET updated_at = NOW(),
-            title = COALESCE(NULLIF($3, ''), chat_sessions.title, 'New Chat')
-    """, session_id, user_id, req.title or 'New Chat')
+            title = CASE
+                WHEN chat_sessions.title IS NULL
+                  OR chat_sessions.title = ''
+                  OR chat_sessions.title = 'New Chat'
+                THEN COALESCE(NULLIF($3, ''), chat_sessions.title)
+                ELSE chat_sessions.title
+            END
+    """, session_id, user_id, incoming_title)
 
     # Insert message
     msg = await fetchrow("""
