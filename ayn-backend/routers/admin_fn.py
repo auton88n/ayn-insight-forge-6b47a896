@@ -381,3 +381,77 @@ async def admin_command_center(req: CommandCenterRequest, user: dict = Depends(g
         return {"response": result.get("content", ""), "ok": True}
     except Exception as e:
         return {"response": str(e), "ok": False}
+
+
+@router.post("/run-intelligence-migration")
+async def run_intelligence_migration(request: Request):
+    """
+    Internal endpoint: pulls intelligence data from Supabase and writes to Railway.
+    Called once via: curl -X POST https://spine.aynn.io/admin/fn/run-intelligence-migration
+                          -H "Authorization: Bearer <admin_token>"
+    """
+    import httpx, os, json as _json
+    from core.database import get_pool
+    import asyncpg
+
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+    
+    TABLES = [
+        "ayn_world_predictions", "ayn_world_signals", "ayn_predictions", "ayn_mind",
+        "ayn_agent_conversations", "ayn_agent_messages", "ayn_opportunity_alerts",
+        "ayn_prediction_outcomes", "ayn_historical_patterns", "ayn_activity_log",
+        "ayn_sales_pipeline", "ayn_kg_snapshots", "ayn_market_prices", "ayn_graph_runs",
+    ]
+
+    results = {}
+    pool = await get_pool()
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for table in TABLES:
+            rows = []
+            offset = 0
+            while True:
+                r = await client.get(
+                    f"{SUPABASE_URL}/rest/v1/{table}",
+                    headers=headers,
+                    params={"select": "*", "limit": 1000, "offset": offset}
+                )
+                if not r.is_success:
+                    break
+                batch = r.json()
+                if not batch:
+                    break
+                rows.extend(batch)
+                if len(batch) < 1000:
+                    break
+                offset += 1000
+
+            if not rows:
+                results[table] = {"read": 0, "written": 0}
+                continue
+
+            written = 0
+            async with pool.acquire() as conn:
+                for row in rows:
+                    cols = list(row.keys())
+                    vals = [_json.dumps(v) if isinstance(v, (dict, list)) else v for v in row.values()]
+                    ph = ", ".join(f"${i+1}" for i in range(len(cols)))
+                    cn = ", ".join(f'"{c}"' for c in cols)
+                    try:
+                        res = await conn.execute(
+                            f"INSERT INTO {table} ({cn}) VALUES ({ph}) ON CONFLICT (id) DO NOTHING",
+                            *vals
+                        )
+                        if res != "INSERT 0 0":
+                            written += 1
+                    except Exception:
+                        pass
+
+            results[table] = {"read": len(rows), "written": written}
+            log.info(f"[migrate] {table}: {written}/{len(rows)}")
+
+    total_read = sum(r["read"] for r in results.values())
+    total_written = sum(r["written"] for r in results.values())
+    return {"ok": True, "results": results, "total": {"read": total_read, "written": total_written}}
