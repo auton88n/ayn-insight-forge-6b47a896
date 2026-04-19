@@ -4,6 +4,7 @@ All jobs are wrapped defensively — a crash in any job cannot bring down the se
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 import logging
 
 log = logging.getLogger("ayn.scheduler")
