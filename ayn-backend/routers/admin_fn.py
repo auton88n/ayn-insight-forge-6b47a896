@@ -320,7 +320,8 @@ async def ayn_dev_agent(req: DevAgentRequest, user: dict = Depends(get_current_u
                     return f"Success: committed to {args['branch']} → {data.get('content',{}).get('path', args['path'])}"
             return "Unknown tool"
 
-        yield f"data: {json.dumps({'text': '> 🧠 Analyzing with AYN Dev Agent...\\n\\n'})}\n\ndata: [DONE]\n\n"
+        start_msg = json.dumps({"text": "> 🧠 Analyzing with AYN Dev Agent...\n\n"})
+        yield "data: " + start_msg + "\n\ndata: [DONE]\n\n"
 
         system = f"""You are AYN Dev Agent. You are an autonomous coding assistant who reads code, diagnoses issues, writes fixes, and deploys them by committing directly to GitHub.
 Repos: {json.dumps(req.repos)}
@@ -347,7 +348,8 @@ Use tools to list, read, and commit files. When asked to fix or push, use commit
                         args = json.loads(tc.get("function", {}).get("arguments", "{}"))
                     except Exception:
                         args = {}
-                    yield f"data: {json.dumps({'text': f'*Using tool:* `{fn_name}`...\\n\\n'})}\n\ndata: [DONE]\n\n"
+                    tool_chunk = json.dumps({"text": "*Using tool:* `" + fn_name + "`...\n\n"})
+                    yield "data: " + tool_chunk + "\n\ndata: [DONE]\n\n"
                     tool_result = await github_call(fn_name, args)
                     messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
                     messages.append({"role": "tool", "tool_call_id": tc.get("id", ""), "name": fn_name, "content": tool_result})
