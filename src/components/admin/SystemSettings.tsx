@@ -262,10 +262,10 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Update directly in app_settings
+      // Update using the backend's canonical key
       const { error } = await supabase
         .from('app_settings')
-        .upsert({ key: 'admin_pin_hash', value: hashHex, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        .upsert({ key: 'admin_pin', value: hashHex, updated_at: new Date().toISOString() }, { onConflict: 'key' });
 
       if (error) throw error;
 
