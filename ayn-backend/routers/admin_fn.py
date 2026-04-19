@@ -507,14 +507,18 @@ async def run_intelligence_migration(request: Request):
                             try: _json.loads(v); return v
                             except: return _json.dumps(v)
                         if isinstance(v, datetime): return v
-                        if isinstance(v, date): return v.isoformat()
+                        if isinstance(v, date): return v.isoformat()  # DATE col needs str
                         if isinstance(v, str):
                             if len(v) > 10 and 'T' in v:
-                                try: return datetime.fromisoformat(v.replace('Z','+00:00'))
-                                except: pass
+                                # Only parse as datetime if column is timestamptz
+                                if udt in ('timestamptz', 'timestamp'):
+                                    try: return datetime.fromisoformat(v.replace('Z','+00:00'))
+                                    except: pass
                             elif len(v) == 10 and v.count('-') == 2:
-                                try: return date.fromisoformat(v)
-                                except: pass
+                                # Only parse as date if column is date — otherwise keep as str
+                                if udt == 'date':
+                                    try: return date.fromisoformat(v)
+                                    except: pass
                         return v
                     vals = [coerce_typed(v, c) for v, c in zip(filtered.values(), filtered.keys())]
                     ph = ", ".join(f"${i+1}" for i in range(len(cols)))
