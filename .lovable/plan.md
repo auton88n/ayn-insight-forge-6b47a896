@@ -1,52 +1,63 @@
 
 
-Claude confirmed cutover is done. Two remaining items, both small:
+Yes — Python, on Railway, via the existing Spine. No Supabase edge functions, no new infra.
 
-1. **Remove `@supabase/supabase-js` from `package.json`** — Lovable can't directly edit `package.json` (it's managed), so I need to use the dependency removal flow. In default mode I can use the package manager tool to drop it.
+## Why Python (not edge functions)
 
-2. **The intelligence data migration script** (`railway run python scripts/migrate_intelligence_data.py`) — that's a CLI command Claude needs to run from his Railway terminal, not something I execute from the frontend project. Just acknowledge.
+The Spine already runs Python (FastAPI + APScheduler) on Railway. The cron jobs are just Python functions in `services/intelligence.py` that fire on a schedule. Claude already wired the AI plumbing — the `_ai()` helper now calls `core/llm.py` which routes to Lovable AI Gateway (key stays in Supabase) with Gemini direct as fallback.
 
-Let me verify zero `supabase-js` imports remain in `src/` before pulling the dep, so we don't break the build.
+So: **same language, same process, same database**. I just need to fill in the 5 cron functions that are still stubs.
 
-## Plan: Final Supabase removal
+## What runs where
 
-### Step 1 — Verify zero imports (read-only check)
+```text
+Railway (Python)                    Supabase (only holds the key)
+─────────────────                   ──────────────────────────────
+APScheduler ticks every 4-6h
+  └─ services/intelligence.py
+       └─ _ai() helper
+            └─ core/llm.py lovable() ──► ayn-ai-proxy edge fn
+                                              │ (uses LOVABLE_API_KEY)
+                                              ▼
+                                         Lovable AI Gateway → Gemini
+            └─ on failure: gemini() ────► Gemini direct (GEMINI_API_KEY on Railway)
+       └─ writes results ──► Railway Postgres (ayn_world_signals, etc.)
+```
 
-Grep `src/` for any remaining:
-- `from '@supabase/supabase-js'`
-- `from "@supabase/supabase-js"`
-- `import supabase` references
-- Any `supabase.auth.*`, `supabase.from(`, `supabase.channel(`, `supabase.storage` calls
+No new env vars. No edge functions to deploy. Just Python.
 
-If any found → list them, cut them over, then drop the dep.
-If zero found → drop the dep immediately.
+## The 5 stubs to port
 
-### Step 2 — Remove the dependency
+All in `ayn-backend/services/intelligence.py`:
 
-Use the package manager tool to remove `@supabase/supabase-js` from `package.json`. This is the final line per Claude.
+1. `run_world_intelligence` — pulls market snapshot + signals → Gemini → writes `ayn_mind` (world brief)
+2. `run_world_signals` — fetches GDELT + Firecrawl headlines → Gemini classifies → writes `ayn_world_signals`
+3. `run_prediction_engine` — reads last 7d of signals → Gemini predicts → writes `ayn_world_predictions`
+4. `run_prediction_resolver` — checks matured predictions vs reality → marks hit/miss → writes `ayn_prediction_outcomes`
+5. `run_agent_society_trigger` — multi-agent sim (80 personas) → writes `ayn_agent_messages`
 
-### Step 3 — Clean up `.env`
+Each one is ~50-100 lines of Python. Same logic as the original Supabase edge functions, just translated.
 
-`.env` still has `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`. With zero Supabase code left these are dead. Remove them so the next dev doesn't think Supabase is still wired.
+## Plan
 
-### Step 4 — Update memory
+**Step 1** — Read the 5 original Supabase edge functions in `supabase/functions/` to copy their exact logic (prompts, API calls, output schema).
 
-Update `mem://index.md` Core rules:
-- Remove any "Supabase" architectural assumptions
-- Add: "Backend is Spine (FastAPI on Railway). Zero Supabase deps. Data on Railway Postgres."
-- Save `mem://architecture/spine-only-backend` documenting the cutover completion date.
+**Step 2** — Port each to Python in `services/intelligence.py`. Each uses the existing `_ai()` helper and writes to Railway via the existing `db` connection.
 
-### Step 5 — Reply to Claude
+**Step 3** — Add 2 small admin endpoints to Spine:
+- `GET /admin/scheduler/status` — last-run / next-run / last-error per job
+- `POST /admin/scheduler/run/{job_id}` — manual trigger so you can backfill the dashboard immediately instead of waiting 6 hours
 
-Short confirmation:
-> Pulled `@supabase/supabase-js`. Cleaned `.env`. Frontend has zero Supabase traces. Run the migration script when ready — I'm green on my side. Closing the Supabase chapter.
+**Step 4** — Give you the SQL to disable the now-redundant Supabase pg_cron jobs (so they stop double-running and burning credits).
 
-### Out of scope (Claude's job)
+**Step 5** — Manually trigger each job once after deploy → World Intelligence dashboard fills with fresh data within minutes.
 
-- `railway run python scripts/migrate_intelligence_data.py` — Claude runs this from his Railway CLI, not me.
-- Pausing the Supabase project — your call once Claude confirms the data copy succeeded.
+## Out of scope
 
-### What I need from you
+- Frontend — already wired correctly to `/intelligence/all`, no UI changes needed.
+- New env vars — none required, the proxy chain Claude built handles it.
 
-Just say "go" and I'll execute Steps 1–5 in one push. ~2 minutes.
+## What I need from you
+
+Just say "go" and I'll execute Steps 1-5 in one push. About 60 min of work.
 
