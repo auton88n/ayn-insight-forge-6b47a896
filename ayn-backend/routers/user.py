@@ -11,7 +11,8 @@ import logging
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from core.auth_new import get_user_id, get_current_user
-from core.database import fetch, fetchrow, execute
+from core.database import fetch, fetchrow, fetchval, execute
+from fastapi import HTTPException
 
 router = APIRouter(prefix="/user", tags=["user"])
 log = logging.getLogger("ayn.user")
@@ -19,26 +20,31 @@ log = logging.getLogger("ayn.user")
 
 @router.get("/limits")
 async def get_limits(user_id: str = Depends(get_user_id)):
-    """Get user AI limits + subscription — replaces direct supabase.from('user_ai_limits')"""
+    """Get user AI limits + subscription — single row guaranteed."""
     row = await fetchrow("""
         SELECT 
-            l.daily_messages, l.current_daily_messages,
-            l.monthly_messages, l.current_monthly_messages,
-            l.bonus_credits, l.daily_reset_at, l.monthly_reset_at,
-            l.updated_at,
-            COALESCE(s.subscription_tier, 'free') as subscription_tier,
-            COALESCE(s.status, 'active') as subscription_status
+            COALESCE(l.daily_messages, 5)            AS daily_messages,
+            COALESCE(l.current_daily_messages, 0)    AS current_daily_messages,
+            COALESCE(l.monthly_messages, 5)          AS monthly_messages,
+            COALESCE(l.current_monthly_messages, 0)  AS current_monthly_messages,
+            COALESCE(l.bonus_credits, 0)             AS bonus_credits,
+            l.daily_reset_at, l.monthly_reset_at, l.updated_at,
+            COALESCE((SELECT subscription_tier FROM user_subscriptions
+                      WHERE user_id = $1::uuid
+                      ORDER BY updated_at DESC NULLS LAST LIMIT 1), 'free') AS subscription_tier,
+            COALESCE((SELECT status FROM user_subscriptions
+                      WHERE user_id = $1::uuid
+                      ORDER BY updated_at DESC NULLS LAST LIMIT 1), 'active') AS subscription_status
         FROM user_ai_limits l
-        LEFT JOIN user_subscriptions s ON s.user_id = l.user_id
-        WHERE l.user_id = $1
+        WHERE l.user_id = $1::uuid
     """, user_id)
 
     if not row:
         # Auto-create limits for new user
         await execute("""
             INSERT INTO user_ai_limits (user_id, daily_messages, current_daily_messages, 
-                monthly_messages, bonus_credits, updated_at)
-            VALUES ($1, 5, 0, 5, 0, NOW())
+                monthly_messages, bonus_credits, daily_reset_at, updated_at)
+            VALUES ($1::uuid, 5, 0, 5, 0, NOW() + INTERVAL '1 day', NOW())
             ON CONFLICT (user_id) DO NOTHING
         """, user_id)
         return {
@@ -294,33 +300,50 @@ class BetaFeedbackRequest(BaseModel):
 
 @router.post("/beta-feedback")
 async def submit_beta_feedback(req: BetaFeedbackRequest, user_id: str = Depends(get_user_id)):
+    """Save beta feedback to Railway PG and atomically award bonus credits."""
     try:
         import json
-        from core.db import get_db
-        import asyncio
-        db = get_db()
-        await asyncio.to_thread(
-            lambda: db.from_("beta_feedback").upsert({
-                "user_id": user_id,
-                "overall_rating": req.overall_rating,
-                "favorite_features": req.favorite_features,
-                "improvement_suggestions": req.improvement_suggestions,
-                "bugs_encountered": req.bugs_encountered,
-                "would_recommend": req.would_recommend,
-                "additional_comments": req.additional_comments,
-                "credits_awarded": req.credits_awarded,
-            }).execute()
-        )
-        # Add bonus credits
+        # 1) Insert/upsert feedback row in Railway PG
         await execute("""
-            UPDATE user_ai_limits SET bonus_credits = COALESCE(bonus_credits,0) + $2, updated_at = NOW()
-            WHERE user_id = $1::uuid
+            INSERT INTO beta_feedback
+                (user_id, overall_rating, favorite_features, improvement_suggestions,
+                 bugs_encountered, would_recommend, additional_comments, credits_awarded, created_at)
+            VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, $7, $8, NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+                overall_rating          = EXCLUDED.overall_rating,
+                favorite_features       = EXCLUDED.favorite_features,
+                improvement_suggestions = EXCLUDED.improvement_suggestions,
+                bugs_encountered        = EXCLUDED.bugs_encountered,
+                would_recommend         = EXCLUDED.would_recommend,
+                additional_comments     = EXCLUDED.additional_comments,
+                credits_awarded         = EXCLUDED.credits_awarded,
+                updated_at              = NOW()
+        """,
+            user_id, req.overall_rating,
+            json.dumps(req.favorite_features or []),
+            req.improvement_suggestions or "",
+            req.bugs_encountered or "",
+            req.would_recommend,
+            req.additional_comments or "",
+            req.credits_awarded,
+        )
+
+        # 2) Ensure limits row exists, then add bonus credits atomically
+        await execute("""
+            INSERT INTO user_ai_limits (user_id, daily_messages, current_daily_messages, bonus_credits, updated_at)
+            VALUES ($1::uuid, 5, 0, $2, NOW())
+            ON CONFLICT (user_id) DO UPDATE
+              SET bonus_credits = COALESCE(user_ai_limits.bonus_credits, 0) + $2,
+                  updated_at = NOW()
         """, user_id, req.credits_awarded)
+
         new_balance = await fetchval(
-            "SELECT COALESCE(bonus_credits,0) FROM user_ai_limits WHERE user_id = $1::uuid", user_id
+            "SELECT COALESCE(bonus_credits,0) FROM user_ai_limits WHERE user_id = $1::uuid",
+            user_id,
         )
         return {"ok": True, "new_balance": new_balance or 0, "credits_awarded": req.credits_awarded}
     except Exception as e:
+        log.error(f"[beta-feedback] failed user={user_id[:8]}: {e}")
         raise HTTPException(500, str(e))
 
 @router.post("/profile")
