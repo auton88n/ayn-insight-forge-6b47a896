@@ -456,9 +456,23 @@ async def run_intelligence_migration(request: Request):
             written = 0
             first_error = None
             async with pool.acquire() as conn:
+                # Get Railway columns for this table to avoid schema mismatch
+                col_records = await conn.fetch(
+                    "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",
+                    table
+                )
+                railway_cols = {r["column_name"] for r in col_records}
+                if not railway_cols:
+                    results[table] = {"read": len(rows), "written": 0, "error": "table missing in Railway"}
+                    continue
+
                 for row in rows:
-                    cols = list(row.keys())
-                    vals = [_json.dumps(v) if isinstance(v, (dict, list)) else v for v in row.values()]
+                    # Only insert columns that exist in Railway
+                    filtered = {k: v for k, v in row.items() if k in railway_cols}
+                    if not filtered:
+                        continue
+                    cols = list(filtered.keys())
+                    vals = [_json.dumps(v) if isinstance(v, (dict, list)) else v for v in filtered.values()]
                     ph = ", ".join(f"${i+1}" for i in range(len(cols)))
                     cn = ", ".join(f'"{col}"' for col in cols)
                     try:
