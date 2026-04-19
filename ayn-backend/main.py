@@ -198,11 +198,36 @@ async def root():
 
 @app.get("/health")
 async def health():
-    # Fast health check — no external calls, just confirms app is running
     from core.scheduler import get_scheduler
+    import os
     scheduler = get_scheduler()
+    
+    # Check DB connection
+    db_status = "not_configured"
+    db_tables = 0
+    migrations_run = 0
+    
+    if os.getenv("DATABASE_URL"):
+        try:
+            from core.database import get_pool
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                db_tables = await conn.fetchval(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
+                )
+                try:
+                    migrations_run = await conn.fetchval("SELECT COUNT(*) FROM _migrations")
+                except Exception:
+                    migrations_run = 0
+            db_status = "connected"
+        except Exception as e:
+            db_status = f"error: {str(e)[:50]}"
+    
     return {
         "status": "healthy",
+        "db": db_status,
+        "db_tables": db_tables,
+        "migrations_run": migrations_run,
         "scheduler": {
             "running": scheduler.running if scheduler else False,
             "jobs": len(scheduler.get_jobs()) if scheduler else 0,
