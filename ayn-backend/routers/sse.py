@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from core.auth_new import verify_access_token
 from core.db import get_db
+from core.database import fetchrow
 
 router = APIRouter(prefix="/sse", tags=["sse"])
 log = logging.getLogger("ayn.sse")
@@ -143,55 +144,52 @@ async def user_sse(
 
     log.info(f"[sse/user] Connected: user={user_id[:8]}")
 
+    async def _fetch_limits(uid: str):
+        row = await fetchrow(
+            "SELECT daily_messages, current_daily_messages, bonus_credits, monthly_messages "
+            "FROM user_ai_limits WHERE user_id = $1::uuid",
+            uid,
+        )
+        return dict(row) if row else None
+
     async def user_sse_stream(user_id: str):
         elapsed = 0.0
         last_ping = 0.0
         last_limits = None
 
-        # Send initial limits immediately
+        # Send initial limits immediately (Railway PG)
         try:
-            db = get_db()
-            r = await asyncio.to_thread(
-                lambda: db.from_("user_ai_limits")
-                    .select("daily_messages,current_daily_messages,bonus_credits,monthly_messages")
-                    .eq("user_id", user_id)
-                    .maybe_single()
-                    .execute()
-            )
-            if r.data:
-                last_limits = r.data
-                payload = json.dumps(r.data)
-                yield f"event: limits\ndata: {payload}\n\n"
+            data = await _fetch_limits(user_id)
+            if data:
+                last_limits = data
+                yield f"event: limits\ndata: {json.dumps(data)}\n\n"
         except Exception as e:
             log.debug(f"[sse/user] initial limits error: {e}")
 
         yield "event: connected\ndata: {}\n\n"
 
+        # Poll less aggressively — every 15s instead of 3s
+        user_poll_interval = 15.0
+        since_poll = 0.0
+
         while elapsed < MAX_DURATION:
             await asyncio.sleep(POLL_INTERVAL)
             elapsed += POLL_INTERVAL
+            since_poll += POLL_INTERVAL
 
-            # Ping keepalive
             if elapsed - last_ping >= PING_INTERVAL:
                 yield "event: ping\ndata: {}\n\n"
                 last_ping = elapsed
 
-            # Poll limits for changes
-            try:
-                db = get_db()
-                r = await asyncio.to_thread(
-                    lambda: db.from_("user_ai_limits")
-                        .select("daily_messages,current_daily_messages,bonus_credits,monthly_messages")
-                        .eq("user_id", user_id)
-                        .maybe_single()
-                        .execute()
-                )
-                if r.data and r.data != last_limits:
-                    last_limits = r.data
-                    payload = json.dumps(r.data)
-                    yield f"event: limits\ndata: {payload}\n\n"
-            except Exception as e:
-                log.debug(f"[sse/user] poll error: {e}")
+            if since_poll >= user_poll_interval:
+                since_poll = 0.0
+                try:
+                    data = await _fetch_limits(user_id)
+                    if data and data != last_limits:
+                        last_limits = data
+                        yield f"event: limits\ndata: {json.dumps(data)}\n\n"
+                except Exception as e:
+                    log.debug(f"[sse/user] poll error: {e}")
 
         yield "event: reconnect\ndata: {}\n\n"
 
