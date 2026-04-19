@@ -34,10 +34,64 @@ interface Prediction {
   fusion_method?: string; boost_factor?: string | null; generated_by?: string | null;
 }
 interface WorldSignal {
-  id: string; signal_type: string; severity: string; headline: string;
-  summary?: string; region: string; countries_involved: string[];
-  impact_on_oil: string; impact_on_gold: string; impact_on_btc: string;
+  id: string;
+  signal_type?: string;
+  category?: string | null;
+  severity: string;
+  headline: string;
+  title?: string | null;
+  summary?: string;
+  region: string;
+  affected_regions?: string[] | null;
+  countries_involved: string[];
+  impact_level?: string | null;
+  impact_on_oil?: string;
+  impact_on_gold?: string;
+  impact_on_btc?: string;
+  market_impact?: any;
+  confidence_impact?: number;
+  ancient_parallel?: string | null;
   created_at: string;
+}
+
+/** Normalize raw API signal rows: derive headline/severity/region when missing. */
+function normalizeSignal(raw: any): WorldSignal {
+  const summary: string = raw?.summary || '';
+  const headline: string =
+    raw?.headline ||
+    raw?.title ||
+    (summary ? summary.split(/(?<=[.!?])\s+/)[0].slice(0, 120) : 'Live signal');
+
+  let severity: string = raw?.severity || raw?.impact_level || '';
+  if (!severity) {
+    const ci = Number(raw?.confidence_impact ?? 0);
+    if (ci >= 10) severity = 'critical';
+    else if (ci >= 7) severity = 'high';
+    else if (ci >= 4) severity = 'medium';
+    else severity = 'low';
+  }
+
+  const countries: string[] = Array.isArray(raw?.countries_involved)
+    ? raw.countries_involved
+    : Array.isArray(raw?.affected_regions) ? raw.affected_regions : [];
+
+  const region: string =
+    raw?.region ||
+    (Array.isArray(raw?.affected_regions) && raw.affected_regions[0]) ||
+    countries[0] ||
+    'global';
+
+  const mi = raw?.market_impact || {};
+  return {
+    ...raw,
+    headline,
+    severity,
+    region,
+    countries_involved: countries,
+    impact_on_oil: raw?.impact_on_oil ?? mi.oil,
+    impact_on_gold: raw?.impact_on_gold ?? mi.gold,
+    impact_on_btc: raw?.impact_on_btc ?? mi.btc,
+  };
 }
 interface WorldPrediction {
   id: string; domain: string; region: string; title: string;
@@ -318,35 +372,33 @@ export default function WorldIntelligence() {
     } catch (e) { console.error('predictions:', e); }
   }, []);
 
-  const fetchSignals = useCallback(async () => {
-    try {
-      const d = await spineApi.getAllIntelligence();
-      if (d.signals?.length) setSignals(d.signals);
-    } catch {}
-  }, []);
-
-  const fetchMasterPreds = useCallback(async () => {
-    try {
-      const d = await spineApi.getAllIntelligence();
-      if (d.master_predictions?.length) setMasterPreds(d.master_predictions);
-    } catch {}
-  }, []);
-
-  const fetchCountryIntel = useCallback(async () => {
-    try {
-      const d = await spineApi.getAllIntelligence();
-      if (d.country_intel?.length) setCountryIntel(d.country_intel);
-    } catch {}
-  }, []);
-
   // Fetch all world intelligence data in one parallel request via spine.aynn.io
+  // The spine API returns: market_snapshot, world_signals, world_predictions,
+  // country_intelligence, master_predictions, mind, market_prices, etc.
   const fetchAllIntelligence = useCallback(async () => {
     try {
-      const d = await spineApi.getAllIntelligence();
-      if (d.snapshot) setSnapshot(d.snapshot);
-      if (d.signals?.length) setSignals(d.signals);
-      if (d.master_predictions?.length) setMasterPreds(d.master_predictions);
-      if (d.country_intel?.length) setCountryIntel(d.country_intel);
+      const d: any = await spineApi.getAllIntelligence();
+
+      // Market snapshot: spine returns market_snapshot OR snapshot
+      const snap = d.market_snapshot ?? d.snapshot;
+      if (snap) setSnapshot(snap);
+
+      // Signals: spine returns world_signals; older code used `signals`
+      const rawSignals = d.world_signals ?? d.signals;
+      if (Array.isArray(rawSignals) && rawSignals.length) {
+        setSignals(rawSignals.map(normalizeSignal));
+      }
+
+      // Master predictions
+      if (Array.isArray(d.master_predictions) && d.master_predictions.length) {
+        setMasterPreds(d.master_predictions);
+      }
+
+      // Country intelligence: spine returns country_intelligence; older code used country_intel
+      const rawCountries = d.country_intelligence ?? d.country_intel;
+      if (Array.isArray(rawCountries) && rawCountries.length) {
+        setCountryIntel(rawCountries);
+      }
     } catch (e) {
       console.warn('[WorldIntelligence] fetchAllIntelligence failed:', e);
     }
