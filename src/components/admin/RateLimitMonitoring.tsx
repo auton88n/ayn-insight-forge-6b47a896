@@ -1,8 +1,9 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Session } from '@supabase/supabase-js';
 import { adminApi as supabase } from '@/lib/adminApi';
+
+interface Session { user: { id: string; email?: string }; access_token?: string }
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -1,24 +1,20 @@
 /**
  * adminApi.ts — REST wrapper for the admin panel.
  *
- * Drop-in replacement for adminSupabase.from(...).select/insert/update/delete.
- * Uses the user's JWT (stored under the 'ayn-admin-auth' storageKey) and the
- * Supabase REST endpoint directly. No JS SDK needed.
+ * Routes all admin DB/RPC/edge-function calls through the spine
+ * (https://spine.aynn.io/admin/...). The Supabase JS SDK is no longer used.
  *
- * Scope: admin-only. The main app uses spineApi / supabaseApi.
+ * Auth: spine admin JWT stored under 'ayn_admin_token' by AdminApp.tsx.
  */
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { subscribeAdminTables } from './adminSSE';
 
-const ADMIN_STORAGE_KEY = 'ayn-admin-auth';
+const SPINE_BASE = 'https://spine.aynn.io';
+const ADMIN_TOKEN_KEY = 'ayn_admin_token';
 
-/** Read the admin access token from localStorage (stored by the supabase-js client). */
+/** Read the spine admin access token from localStorage. */
 export function getAdminToken(): string | null {
   try {
-    const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.access_token ?? parsed?.currentSession?.access_token ?? null;
+    return localStorage.getItem(ADMIN_TOKEN_KEY);
   } catch { return null; }
 }
 
@@ -35,10 +31,9 @@ async function call<T>(
   opts: FetchOptions = {},
 ): Promise<T> {
   const token = getAdminToken();
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
+  const res = await fetch(`${SPINE_BASE}/admin/db/${endpoint}`, {
     method,
     headers: {
-      'apikey': SUPABASE_ANON_KEY,
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       'Content-Type': 'application/json',
       'Prefer': opts.prefer ?? (method === 'GET' ? 'count=exact' : 'return=representation'),
@@ -56,29 +51,24 @@ async function call<T>(
 }
 
 export const adminApi = {
-  /** GET rows. `endpoint` is the path after /rest/v1/, e.g. "support_tickets?status=eq.open&order=created_at.desc". */
   get<T = unknown>(endpoint: string, opts?: FetchOptions): Promise<T> {
     return call<T>('GET', endpoint, undefined, opts);
   },
-  /** Insert one or many rows. */
   insert<T = unknown>(table: string, rows: object | object[], opts?: FetchOptions): Promise<T> {
     return call<T>('POST', table, rows, opts);
   },
-  /** Update rows matching the filter, e.g. table="support_tickets?id=eq.<uuid>". */
   update<T = unknown>(endpoint: string, patch: object, opts?: FetchOptions): Promise<T> {
     return call<T>('PATCH', endpoint, patch, opts);
   },
-  /** Delete rows matching the filter, e.g. table="support_tickets?id=eq.<uuid>". */
   remove<T = unknown>(endpoint: string, opts?: FetchOptions): Promise<T> {
     return call<T>('DELETE', endpoint, undefined, opts);
   },
-  /** Call a Postgres RPC function. */
+  /** Call a Postgres RPC function via spine. */
   async rpc<T = unknown>(fn: string, args: object = {}): Promise<T> {
     const token = getAdminToken();
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    const res = await fetch(`${SPINE_BASE}/admin/db/rpc/${fn}`, {
       method: 'POST',
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
       },
@@ -91,14 +81,13 @@ export const adminApi = {
     const text = await res.text();
     return (text ? JSON.parse(text) : null) as T;
   },
-  /** Invoke an edge function. Replaces adminSupabase.functions.invoke. */
+  /** Invoke a spine admin function (replaces edge function invoke). */
   async invoke<T = unknown>(name: string, body: object = {}): Promise<{ data: T | null; error: Error | null }> {
     try {
       const token = getAdminToken();
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      const res = await fetch(`${SPINE_BASE}/admin/fn/${name}`, {
         method: 'POST',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
@@ -115,10 +104,7 @@ export const adminApi = {
 
   /**
    * from() — Drop-in shim for adminSupabase.from(table).
-   * Returns a builder that delegates to adminApi.get/insert/update/remove.
-   * Supports: .select(), .insert(), .update(), .delete(), .upsert(),
-   *           .eq(), .neq(), .in(), .is(), .not(), .order(), .limit(),
-   *           .range(), .single(), .maybeSingle(), .execute()
+   * Returns a builder that delegates to the spine /admin/db proxy.
    */
   from(table: string) {
     const filters: string[] = [];
@@ -218,12 +204,7 @@ export const adminApi = {
     return builder;
   },
 
-  /**
-   * channel() — Drop-in shim for adminSupabase.channel(name).on('postgres_changes', ...).subscribe().
-   * Bridges to SSE: collects every table mentioned in .on() calls, then on .subscribe()
-   * starts a single SSE stream and dispatches change events to all matching handlers.
-   * Ignores filter/event/schema specifics — handlers fire on ANY change to the table.
-   */
+  /** channel() — SSE bridge shim for realtime subscriptions. */
   channel(name: string) {
     const handlers: Array<{ table: string; cb: (payload: any) => void }> = [];
     let unsubscribe: (() => void) | null = null;
@@ -257,12 +238,10 @@ export const adminApi = {
     return ch;
   },
 
-  /** removeChannel — shim. Calls .unsubscribe() on the channel. */
   removeChannel(ch: any) {
     try { return ch?.unsubscribe?.(); } catch { /* ignore */ }
   },
 
-  /** functions — shim for adminSupabase.functions.invoke(name, { body }). */
   functions: {
     async invoke<T = unknown>(name: string, opts: { body?: object } = {}): Promise<{ data: T | null; error: Error | null }> {
       return adminApi.invoke<T>(name, opts.body ?? {});

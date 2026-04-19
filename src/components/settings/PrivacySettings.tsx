@@ -11,8 +11,9 @@ import { spineApi } from '@/lib/spineApi';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Trash2, AlertTriangle } from 'lucide-react';
-import { Session } from '@supabase/supabase-js';
 import { MemoryManagement } from './MemoryManagement';
+
+interface Session { user: { id: string; email?: string }; access_token: string }
 
 interface PrivacySettingsProps {
   userId: string;
