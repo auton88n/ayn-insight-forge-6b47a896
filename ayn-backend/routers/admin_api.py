@@ -13,10 +13,19 @@ log = logging.getLogger("ayn.admin")
 
 
 async def require_admin(current_user: dict = Depends(get_current_user)):
-    user = await fetchrow("SELECT is_admin FROM users WHERE id = $1", current_user["user_id"])
-    if not user or not user["is_admin"]:
-        raise HTTPException(403, "Admin access required")
-    return current_user
+    # Trust JWT claim from /admin/login (verified at issuance)
+    if current_user.get("is_admin"):
+        return current_user
+    if current_user.get("user_id") == "internal":
+        return current_user
+    # Fallback: DB lookup
+    try:
+        user = await fetchrow("SELECT is_admin FROM users WHERE id = $1::uuid", current_user["user_id"])
+        if user and user["is_admin"]:
+            return current_user
+    except Exception:
+        pass
+    raise HTTPException(403, "Admin access required")
 
 
 # ── Dashboard Stats ────────────────────────────────────────────────────────────

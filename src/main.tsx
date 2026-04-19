@@ -26,22 +26,9 @@ import App from './App.tsx'
 import './index.css'
 import { initPerformanceMonitoring } from '@/lib/performanceMonitor';
 
-// Global handler for unhandled promise rejections
+// Global handler for unhandled promise rejections (log locally only — no spine ingest endpoint)
 window.addEventListener('unhandledrejection', (event) => {
-  const message = event.reason?.message || String(event.reason) || 'Unhandled rejection';
   console.error('Unhandled promise rejection:', event.reason);
-  // Log to spine — fire and forget
-  import('@/lib/spineApi').then(({ spineApi }) => {
-    spineApi.req('POST', '/errors', {
-      source: 'frontend',
-      severity: 'warning',
-      error_message: message.slice(0, 1000),
-      error_stack: event.reason?.stack?.slice(0, 3000) || null,
-      url: window.location.href,
-      user_agent: navigator.userAgent,
-      context: { type: 'unhandledrejection' },
-    }).catch(() => {});
-  }).catch(() => {});
 });
 
 createRoot(document.getElementById("root")!).render(<App />);

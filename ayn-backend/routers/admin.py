@@ -16,16 +16,30 @@ router = APIRouter(prefix="/admin")
 async def require_admin(user_id: str = Depends(verify_token)) -> str:
     if user_id == "internal":
         return user_id
+    # Trust JWT is_admin claim (set at /admin/login after password verification)
+    try:
+        from core.auth_new import verify_access_token
+        from fastapi import Request  # noqa
+        # verify_token already validated; re-decode to read claim
+        # NOTE: verify_token returns just user_id, so we re-check via DB OR user_roles
+    except Exception:
+        pass
     db = get_db()
+    # Try user_roles first
     try:
         r = db.table("user_roles").select("role").eq("user_id", user_id).maybe_single().execute()
-        if not r.data or r.data.get("role") not in ("admin", "super_admin"):
-            raise HTTPException(403, "Admin access required")
-    except HTTPException:
-        raise
+        if r and r.data and r.data.get("role") in ("admin", "super_admin"):
+            return user_id
     except Exception:
-        raise HTTPException(403, "Admin access required")
-    return user_id
+        pass
+    # Fallback: users.is_admin flag
+    try:
+        u = db.table("users").select("is_admin").eq("id", user_id).maybe_single().execute()
+        if u and u.data and u.data.get("is_admin"):
+            return user_id
+    except Exception:
+        pass
+    raise HTTPException(403, "Admin access required")
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
