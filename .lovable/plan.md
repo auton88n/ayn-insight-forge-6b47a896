@@ -1,76 +1,61 @@
 
 
-User is on `/world-intelligence` and reports things still missing. Console shows a real error:
+## What's broken
 
+The admin panel at `/manage-bae76e99d97e188b` shows **"Failed to load dashboard — Field required: authorization"** and every tab is broken (UserManagement, Errors, Subscriptions, Conversations, Contact, Beta, Twitter, NDAs, Rate Limits, Notifications, Visitor Analytics, LLM, Email Broadcast, Support, etc.).
+
+## Why
+
+Two **separate token keys** in localStorage:
+
+| App | Login route | Token key |
+|---|---|---|
+| User dashboard | `/` (LandingPage) | `ayn_access_token` |
+| Admin panel | `/manage-...` (AdminApp) | `ayn_admin_token` |
+
+When you log in via the admin entry, only `ayn_admin_token` is set. But the admin components call `adminApi`/`spineApi` exported from **`src/lib/spineApi.ts`**, whose `req()` reads the token via `tokenStore.getAccessToken()` → `ayn_access_token` → empty → no `Authorization` header sent → spine returns **422 "Field required"**.
+
+The PIN screen worked because `AdminApp.tsx` manually attaches `session.access_token` from the admin key. Everything after that breaks.
+
+Confirmed in network logs:
+- `POST /admin/verify-pin` → has Bearer → **200 OK**
+- `GET /admin/health` → no header → **422**
+- `GET /admin/stats` → no header → **422** (retried 4x)
+
+## Fix (one tiny change, repo-wide effect)
+
+In `src/lib/spineApi.ts`, change the token resolver in `req()` to fall back to the admin token when the user token is absent:
+
+```ts
+const token =
+  tokenStore.getAccessToken() ||
+  localStorage.getItem('ayn_admin_token');
 ```
-AccuracyScoreboard.tsx:32 → API error 401: Empty JWT
-  at supabaseApi.ts:143
-```
 
-This is the smoking gun. There are still legacy components on the World Intelligence page calling **Supabase directly** instead of Spine — violating the "Spine-only backend" core rule. They throw 401 and render empty.
+Same change in the avatar-upload helper inside `spineApi`.
 
-Let me investigate before planning.
+That single fallback re-arms every admin call: `getStats`, `getUsers`, `getHealth`, `getConversations`, `getErrors`, `getSubscriptions`, all twitter/marketing endpoints, NDAs, rate-limits, notifications, contact messages, support tickets, etc.
 
-## Investigation needed
+## Why this is safe
 
-1. `src/components/dashboard/world/AccuracyScoreboard.tsx` — confirm it calls supabaseApi
-2. `grep src/components/dashboard/world/` for other components still importing supabaseApi or @/integrations/supabase
-3. `src/pages/WorldIntelligence.tsx` — list every child component rendered, cross-reference which ones are wired to Spine vs. Supabase
-4. `ayn-backend/routers/intelligence.py` — confirm what endpoints exist (we already have `/intelligence/all`, but accuracy/calibration/agent-society may need their own)
+- User-app context: `ayn_access_token` exists → fallback never triggers → behavior unchanged.
+- Admin-app context: `ayn_access_token` empty, `ayn_admin_token` valid → calls now authenticated.
+- Both tokens are spine JWTs minted by the same `/auth/login` and `/admin/login` flows — the backend validates them identically.
 
-## Likely root causes
+## Verification after fix
 
-**Cause A — Multiple legacy Supabase calls.** `AccuracyScoreboard` is one; there are probably 3-6 more (AgentSociety panel, calibration chart, prediction resolver feed, master predictions, market-prices ticker). Each throws 401 silently and renders blank.
-
-**Cause B — Some Spine endpoints exist but components don't use them.** `/intelligence/all` already returns `predictions`, `accuracy`, `master_predictions`, `consensus_predictions` aliases — components just need to be re-wired to read from the page-level fetch instead of making their own Supabase calls.
-
-**Cause C — A few sub-features have no Spine endpoint at all** (agent-society messages, prediction resolver history). Need to add those.
-
-## Plan
-
-### Step 1 — Audit (read-only, 5 min)
-
-- Grep `src/components/dashboard/world/` and `src/pages/WorldIntelligence.tsx` for `supabaseApi`, `@/integrations/supabase`, `.from(`
-- List every offending component
-- For each, identify which Spine endpoint should feed it (existing or new)
-
-### Step 2 — Re-wire components to Spine
-
-Convert each legacy Supabase call to either:
-- Read from the parent's `/intelligence/all` payload (preferred — no extra round-trip)
-- Or call a dedicated Spine endpoint (`/intelligence/accuracy`, `/intelligence/agent-messages`, `/intelligence/master-predictions`)
-
-Components to fix (confirmed/suspected):
-- `AccuracyScoreboard.tsx` → use `accuracy[]` from /intelligence/all (already returned, currently empty array — separate fix)
-- `AgentSociety` panel → use `/intelligence/agent-messages`
-- Master predictions feed → use `master_predictions[]` from /intelligence/all
-- Any market-prices ticker → use `market_prices` from /intelligence/all
-- Prediction resolver / accuracy calibration → /intelligence/accuracy
-
-### Step 3 — Populate empty Spine arrays
-
-`/intelligence/all` returns `accuracy: []` hardcoded. Wire it to actually query `ayn_accuracy_calibration`. Same for any other legacy alias returning empty.
-
-### Step 4 — Trigger missing data jobs via Cron Control
-
-Once components stop crashing, fire `pulse-engine` (still missing → market_snapshot null) and verify country-intel job exists. If country-intel job isn't registered yet, add it.
-
-### Step 5 — Verify
-
-Reload `/world-intelligence`:
-- No 401s in console
-- AccuracyScoreboard renders (or shows clean "no data yet" state)
-- Agent Society shows messages
-- Market Snapshot card filled
-- Country Intelligence populated
+Reload `/manage-bae76e99d97e188b`:
+1. Dashboard renders user count + today's messages (no error card)
+2. Switch through every tab — no more "Failed to load" empty states
+3. Network panel: every `/admin/*` request carries an `Authorization: Bearer …` header and returns 200
 
 ## Out of scope
 
-- Visual polish on cards
-- Re-architecting World Intelligence layout
-- Adding new intelligence sources (FRED expansion etc.)
+- Visual tweaks
+- Adding any new endpoints
+- Refactoring the dual-token architecture (works fine once the fallback is in place)
 
 ## Estimate
 
-~40 min: 15 min audit + rewire, 15 min add missing Spine endpoints + populate empty arrays, 10 min verify after Cron Control trigger.
+5 min code, 5 min verify across tabs.
 
