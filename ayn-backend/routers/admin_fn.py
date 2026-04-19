@@ -473,11 +473,15 @@ async def run_intelligence_migration(request: Request):
                         continue
                     cols = list(filtered.keys())
                     from datetime import datetime, date
-                    def coerce(v, col_name=""):
-                        if isinstance(v, list): return v  # pass lists as-is for TEXT[] columns
+                    def coerce(v):
                         if isinstance(v, dict): return _json.dumps(v)
-                        if isinstance(v, date) and not isinstance(v, datetime): return v.isoformat()  # date→str
-                        if isinstance(v, datetime): return v  # keep datetime objects
+                        if isinstance(v, list):
+                            # Try to keep as list (for TEXT[] cols); asyncpg will handle it
+                            # But if items are complex, serialize to JSON string
+                            if all(isinstance(i, str) for i in v): return v
+                            return _json.dumps(v)
+                        if isinstance(v, date) and not isinstance(v, datetime): return v.isoformat()
+                        if isinstance(v, datetime): return v
                         if isinstance(v, str):
                             if len(v) > 10 and 'T' in v:
                                 try: return datetime.fromisoformat(v.replace('Z','+00:00'))
@@ -486,7 +490,33 @@ async def run_intelligence_migration(request: Request):
                                 try: return date.fromisoformat(v)
                                 except: pass
                         return v
-                    vals = [coerce(v, c) for v, c in zip(filtered.values(), filtered.keys())]
+                    # Get Railway column types to handle TEXT[] vs JSONB correctly
+                    col_types = await conn.fetch(
+                        "SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",
+                        table
+                    )
+                    type_map = {r["column_name"]: r["udt_name"] for r in col_types}
+                    def coerce_typed(v, col):
+                        udt = type_map.get(col, "")
+                        if isinstance(v, list):
+                            if udt == "_text" or udt.startswith("_"): return v  # TEXT[] — pass as list
+                            return _json.dumps(v)  # JSONB — serialize
+                        if isinstance(v, dict): return _json.dumps(v)
+                        if udt == "jsonb" and isinstance(v, str):
+                            # Validate JSON — if invalid, wrap as string
+                            try: _json.loads(v); return v
+                            except: return _json.dumps(v)
+                        if isinstance(v, date) and not isinstance(v, datetime): return v.isoformat()
+                        if isinstance(v, datetime): return v
+                        if isinstance(v, str):
+                            if len(v) > 10 and 'T' in v:
+                                try: return datetime.fromisoformat(v.replace('Z','+00:00'))
+                                except: pass
+                            elif len(v) == 10 and v.count('-') == 2:
+                                try: return date.fromisoformat(v)
+                                except: pass
+                        return v
+                    vals = [coerce_typed(v, c) for v, c in zip(filtered.values(), filtered.keys())]
                     ph = ", ".join(f"${i+1}" for i in range(len(cols)))
                     cn = ", ".join(f'"{col}"' for col in cols)
                     try:
