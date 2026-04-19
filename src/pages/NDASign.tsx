@@ -140,8 +140,7 @@ export default function NDASign() {
     const base64 = dataUrl.split(',')[1];
     const path = `signatures/nda_${nda.id}_${party}_${Date.now()}.png`;
     await spineApi.storageUpload('generated-files', path, base64, 'image/png');
-    const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
-    const sigUrl = urlData.publicUrl;
+    const { public_url: sigUrl } = await spineApi.storageGetUrl('generated-files', path);
     const now = new Date().toISOString();
     const updates: any = party === 'admin' ? { admin_signature_url: sigUrl, admin_signed_at: now } : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
     /* spine migration pending */;
