@@ -19,26 +19,31 @@ log = logging.getLogger("ayn.user")
 
 @router.get("/limits")
 async def get_limits(user_id: str = Depends(get_user_id)):
-    """Get user AI limits + subscription — replaces direct supabase.from('user_ai_limits')"""
+    """Get user AI limits + subscription — single row guaranteed."""
     row = await fetchrow("""
         SELECT 
-            l.daily_messages, l.current_daily_messages,
-            l.monthly_messages, l.current_monthly_messages,
-            l.bonus_credits, l.daily_reset_at, l.monthly_reset_at,
-            l.updated_at,
-            COALESCE(s.subscription_tier, 'free') as subscription_tier,
-            COALESCE(s.status, 'active') as subscription_status
+            COALESCE(l.daily_messages, 5)            AS daily_messages,
+            COALESCE(l.current_daily_messages, 0)    AS current_daily_messages,
+            COALESCE(l.monthly_messages, 5)          AS monthly_messages,
+            COALESCE(l.current_monthly_messages, 0)  AS current_monthly_messages,
+            COALESCE(l.bonus_credits, 0)             AS bonus_credits,
+            l.daily_reset_at, l.monthly_reset_at, l.updated_at,
+            COALESCE((SELECT subscription_tier FROM user_subscriptions
+                      WHERE user_id = $1::uuid
+                      ORDER BY updated_at DESC NULLS LAST LIMIT 1), 'free') AS subscription_tier,
+            COALESCE((SELECT status FROM user_subscriptions
+                      WHERE user_id = $1::uuid
+                      ORDER BY updated_at DESC NULLS LAST LIMIT 1), 'active') AS subscription_status
         FROM user_ai_limits l
-        LEFT JOIN user_subscriptions s ON s.user_id = l.user_id
-        WHERE l.user_id = $1
+        WHERE l.user_id = $1::uuid
     """, user_id)
 
     if not row:
         # Auto-create limits for new user
         await execute("""
             INSERT INTO user_ai_limits (user_id, daily_messages, current_daily_messages, 
-                monthly_messages, bonus_credits, updated_at)
-            VALUES ($1, 5, 0, 5, 0, NOW())
+                monthly_messages, bonus_credits, daily_reset_at, updated_at)
+            VALUES ($1::uuid, 5, 0, 5, 0, NOW() + INTERVAL '1 day', NOW())
             ON CONFLICT (user_id) DO NOTHING
         """, user_id)
         return {
