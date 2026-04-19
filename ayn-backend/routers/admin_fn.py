@@ -409,7 +409,7 @@ async def run_intelligence_migration(request: Request):
     Called once via: curl -X POST https://spine.aynn.io/admin/fn/run-intelligence-migration
                           -H "Authorization: Bearer <admin_token>"
     """
-    import asyncio
+    import asyncio, ssl as _ssl
     import httpx, os, json as _json
     from core.database import get_pool
     import asyncpg
@@ -425,6 +425,7 @@ async def run_intelligence_migration(request: Request):
     ]
 
     results = {}
+    # Use existing pool (already configured with SSL)
     pool = await get_pool()
     headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
 
