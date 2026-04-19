@@ -21,12 +21,18 @@ async def get_pool() -> asyncpg.Pool:
         db_url = os.getenv("DATABASE_URL", "")
         if not db_url:
             raise RuntimeError("DATABASE_URL not set — add PostgreSQL to Railway project")
-        _pool = await asyncpg.create_pool(
-            db_url,
-            min_size=2,
-            max_size=10,
-            command_timeout=30,
-            ssl="require" if "railway" in db_url or "amazonaws" in db_url else None,
+        # Determine SSL: Railway needs ssl=True, not "require" (avoids cert verification issues)
+        use_ssl = True if ("railway" in db_url or "amazonaws" in db_url or "rlwy.net" in db_url) else None
+        _pool = await asyncio.wait_for(
+            asyncpg.create_pool(
+                db_url,
+                min_size=1,
+                max_size=10,
+                command_timeout=30,
+                server_settings={"application_name": "ayn-spine"},
+                ssl=use_ssl,
+            ),
+            timeout=20.0
         )
         log.info("[db] PostgreSQL pool created")
     return _pool

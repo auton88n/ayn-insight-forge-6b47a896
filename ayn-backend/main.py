@@ -173,11 +173,14 @@ app.include_router(admin_router)
 # ── Core endpoints ────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_db():
-    try:
-        await get_pool()
-        log.info("[main] Railway PostgreSQL pool ready")
-    except Exception as e:
-        log.warning(f"[main] Railway PostgreSQL not available: {e}")
+    # Non-blocking — don't delay /health responding
+    async def _connect():
+        try:
+            await get_pool()
+            log.info("[main] Railway PostgreSQL pool ready")
+        except Exception as e:
+            log.warning(f"[main] Railway PostgreSQL not available: {e}")
+    asyncio.create_task(_connect())
 
 @app.on_event("shutdown")  
 async def shutdown_db():
