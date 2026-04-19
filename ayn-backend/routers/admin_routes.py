@@ -58,11 +58,16 @@ def _hash_pin(pin: str) -> str:
 async def verify_admin_pin(req: PinRequest, user: dict = Depends(get_current_user)):
     """Verify admin PIN. Accepts both regular JWT (from adminSupabase) and admin JWT (from /admin/login)."""
     try:
-        record = await fetchrow("SELECT value FROM app_settings WHERE key = 'admin_pin'")
+        record = await fetchrow("""
+            SELECT value, key
+            FROM app_settings
+            WHERE key IN ('admin_pin', 'admin_pin_hash')
+            ORDER BY CASE WHEN key = 'admin_pin' THEN 0 ELSE 1 END
+            LIMIT 1
+        """)
         stored = (record["value"] if record else "") or ""
         if not stored:
-            # No PIN set yet (missing row OR empty value) — accept default "123456"
-            valid = req.pin == "123456"
+            valid = req.pin == "1234"
             return {"valid": valid, "success": valid, "lockoutRemaining": 0}
         valid = stored == _hash_pin(req.pin)
         return {"valid": valid, "success": valid, "lockoutRemaining": 0}
@@ -73,9 +78,15 @@ async def verify_admin_pin(req: PinRequest, user: dict = Depends(get_current_use
 
 @router.post("/set-pin")
 async def set_admin_pin(req: SetPinRequest, user_id: str = Depends(get_user_id)):
-    record = await fetchrow("SELECT value FROM app_settings WHERE key = 'admin_pin'")
+    record = await fetchrow("""
+        SELECT value, key
+        FROM app_settings
+        WHERE key IN ('admin_pin', 'admin_pin_hash')
+        ORDER BY CASE WHEN key = 'admin_pin' THEN 0 ELSE 1 END
+        LIMIT 1
+    """)
     stored = (record["value"] if record else "") or ""
-    current_valid = (not stored and req.pin == "123456") or \
+    current_valid = (not stored and req.pin == "1234") or \
                     (stored and stored == _hash_pin(req.pin))
     if not current_valid:
         raise HTTPException(403, "Current PIN incorrect")
