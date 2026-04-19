@@ -8,7 +8,7 @@ import { tokenStore } from './spineAuth';
 const SPINE = AYN_BACKEND_URL || 'https://spine.aynn.io';
 
 async function req<T = any>(method: string, path: string, body?: object): Promise<T> {
-  const token = tokenStore.getAccessToken();
+  const token = tokenStore.getAccessToken() || (typeof localStorage !== 'undefined' ? localStorage.getItem('ayn_admin_token') : null);
   const res = await fetch(`${SPINE}${path}`, {
     method,
     headers: {
@@ -54,7 +54,7 @@ export const spineApi = {
 
   // ── Avatar ─────────────────────────────────────────────────────────────────
   uploadAvatar: async (userId: string, file: File) => {
-    const token = tokenStore.getAccessToken();
+    const token = tokenStore.getAccessToken() || (typeof localStorage !== 'undefined' ? localStorage.getItem('ayn_admin_token') : null);
     const fd = new FormData();
     fd.append('file', file);
     const res = await fetch(`${SPINE}/user/avatar`, {
