@@ -142,11 +142,128 @@ async def get_country_intelligence(
 
 
 @router.get("/accuracy")
-async def get_accuracy(user_id: str = Depends(get_user_id)):
-    rows = await fetch(
-        "SELECT * FROM ayn_accuracy_calibration ORDER BY updated_at DESC LIMIT 20"
-    )
-    return rows
+async def get_accuracy(user_id: str = Depends(get_user_id_optional)):
+    try:
+        rows = await fetch(
+            "SELECT * FROM ayn_accuracy_calibration ORDER BY last_updated DESC NULLS LAST LIMIT 50"
+        )
+        return rows
+    except Exception:
+        return []
+
+
+@router.get("/prediction-outcomes")
+async def get_prediction_outcomes(
+    limit: int = Query(200, le=500),
+    user_id: str = Depends(get_user_id_optional)
+):
+    """Resolved prediction outcomes joined with the original prediction."""
+    try:
+        rows = await fetch(
+            """
+            SELECT o.was_direction_correct, o.accuracy_score, o.actual_date,
+                   o.actual_direction, o.actual_pct_change, o.value_error_pct,
+                   o.prediction_id,
+                   p.asset, p.horizon, p.predicted_direction, p.predicted_pct_change
+            FROM ayn_prediction_outcomes o
+            LEFT JOIN ayn_predictions p ON p.id = o.prediction_id
+            ORDER BY o.actual_date DESC NULLS LAST
+            LIMIT $1
+            """,
+            limit,
+        )
+        # Reshape to mimic the legacy nested ayn_predictions object the frontend expects
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["ayn_predictions"] = {
+                "asset": d.pop("asset", None),
+                "horizon": d.pop("horizon", None),
+                "predicted_direction": d.pop("predicted_direction", None),
+                "predicted_pct_change": d.pop("predicted_pct_change", None),
+            }
+            out.append(d)
+        return out
+    except Exception as e:
+        log.error(f"[intelligence] prediction-outcomes error: {e}")
+        return []
+
+
+@router.get("/agent-conversations")
+async def get_agent_conversations(
+    limit: int = Query(20, le=100),
+    user_id: str = Depends(get_user_id_optional)
+):
+    try:
+        rows = await fetch(
+            "SELECT * FROM ayn_agent_conversations ORDER BY created_at DESC LIMIT $1",
+            limit,
+        )
+        return rows
+    except Exception:
+        return []
+
+
+@router.get("/agent-states")
+async def get_agent_states(
+    limit: int = Query(100, le=500),
+    user_id: str = Depends(get_user_id_optional)
+):
+    try:
+        rows = await fetch("SELECT * FROM ayn_agent_states LIMIT $1", limit)
+        return rows
+    except Exception:
+        return []
+
+
+@router.get("/critical-signals")
+async def get_critical_signals(
+    limit: int = Query(8, le=50),
+    user_id: str = Depends(get_user_id_optional)
+):
+    """High/critical world signals for the AgentSociety trigger panel."""
+    try:
+        rows = await fetch(
+            """SELECT id, signal_type, severity, headline, region,
+                      impact_on_oil, impact_on_gold, impact_on_btc, created_at
+               FROM ayn_world_signals
+               WHERE status = 'active' AND severity IN ('critical','high')
+               ORDER BY created_at DESC LIMIT $1""",
+            limit,
+        )
+        return rows
+    except Exception:
+        return []
+
+
+@router.get("/world-simulations")
+async def get_world_simulations(
+    limit: int = Query(10, le=50),
+    user_id: str = Depends(get_user_id_optional)
+):
+    try:
+        rows = await fetch(
+            "SELECT * FROM ayn_world_simulations ORDER BY created_at DESC LIMIT $1",
+            limit,
+        )
+        return rows
+    except Exception:
+        return []
+
+
+@router.get("/world-events")
+async def get_world_events(
+    simulation_run_id: str = Query(...),
+    user_id: str = Depends(get_user_id_optional)
+):
+    try:
+        rows = await fetch(
+            "SELECT * FROM ayn_world_events WHERE simulation_run_id = $1::uuid ORDER BY cascade_depth ASC",
+            simulation_run_id,
+        )
+        return rows
+    except Exception:
+        return []
 
 
 @router.get("/agent-messages")
