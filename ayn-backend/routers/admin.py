@@ -288,12 +288,40 @@ async def scheduler_status(_: str = Depends(require_admin)):
 @router.post("/scheduler/run/{job_id}")
 async def scheduler_run(job_id: str, _: str = Depends(require_admin)):
     """Manually trigger a cron job immediately. Runs in background — returns right away."""
-    from core.scheduler import JOB_REGISTRY, _wrap
     import asyncio
+    from core.scheduler import JOB_REGISTRY, _wrap
     fn = JOB_REGISTRY.get(job_id)
     if not fn:
         raise HTTPException(404, f"Unknown job: {job_id}. Available: {list(JOB_REGISTRY.keys())}")
     # Fire-and-forget so the HTTP request returns instantly
     asyncio.create_task(_wrap(job_id, fn)())
     return {"ok": True, "job_id": job_id, "status": "triggered"}
+
+
+@router.post("/scheduler/bootstrap/{job_id}")
+async def scheduler_bootstrap(job_id: str, key: str = Query(...)):
+    """
+    Bootstrap trigger — protected by INTERNAL_SERVICE_KEY query param.
+    Used to manually fire intelligence jobs after a fresh deploy or DB migration,
+    without needing an admin JWT in the browser.
+    """
+    import asyncio
+    import os
+    expected = os.getenv("INTERNAL_SERVICE_KEY", "")
+    if not expected or key != expected:
+        raise HTTPException(403, "Invalid bootstrap key")
+    from core.scheduler import JOB_REGISTRY, _wrap
+    fn = JOB_REGISTRY.get(job_id)
+    if not fn:
+        raise HTTPException(404, f"Unknown job: {job_id}. Available: {list(JOB_REGISTRY.keys())}")
+    asyncio.create_task(_wrap(job_id, fn)())
+    return {"ok": True, "job_id": job_id, "status": "triggered"}
+
+
+@router.get("/scheduler/jobs")
+async def scheduler_jobs_public():
+    """Public list of registered job IDs (no secrets exposed). Useful for the bootstrap UI."""
+    from core.scheduler import JOB_REGISTRY
+    return {"jobs": list(JOB_REGISTRY.keys())}
+
 

@@ -16,6 +16,7 @@ Endpoints:
   GET  /health                  — Health check
 """
 
+import asyncio
 import logging
 from core.database import get_pool, close_pool
 from core.migrate import run_migrations
