@@ -12,35 +12,19 @@ from datetime import datetime, timezone, date
 
 log = logging.getLogger("ayn.intelligence")
 
-LOVABLE_KEY = None
-SUPABASE_URL = None
-SUPABASE_KEY = None
-
-
-def _get_keys():
-    global LOVABLE_KEY, SUPABASE_URL, SUPABASE_KEY
-    LOVABLE_KEY = os.getenv("LOVABLE_API_KEY", "")
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
-
-
 async def _ai(prompt: str, max_tokens: int = 3000) -> str:
-    """Call Lovable AI gateway (Gemini)."""
-    import httpx
-    _get_keys()
-    if not LOVABLE_KEY:
-        raise RuntimeError("LOVABLE_API_KEY not set")
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        r = await client.post(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
-            headers={"Authorization": f"Bearer {LOVABLE_KEY}", "Content-Type": "application/json"},
-            json={"model": "google/gemini-3-flash-preview",
-                  "messages": [{"role": "user", "content": prompt}],
-                  "max_tokens": max_tokens, "temperature": 0.25}
-        )
-        if not r.is_success:
-            raise RuntimeError(f"AI gateway {r.status_code}: {r.text[:100]}")
-        return r.json()["choices"][0]["message"]["content"]
+    """Call AI via ayn-ai-proxy (Lovable gateway) with Gemini fallback."""
+    from core.llm import lovable, gemini
+    messages = [{"role": "user", "content": prompt}]
+    # Try Lovable proxy first (LOVABLE_API_KEY stays in Supabase)
+    try:
+        result = await lovable(messages, model="intelligence", max_tokens=max_tokens, temperature=0.25, timeout=55.0)
+        return result.get("content", "")
+    except Exception as e:
+        log.debug(f"[ai] Lovable proxy failed ({e}), falling back to Gemini direct")
+    # Fallback: Gemini direct
+    result = await gemini(messages, max_tokens=max_tokens, temperature=0.25)
+    return result.get("content", "")
 
 
 def _parse_json(text: str):
@@ -679,7 +663,8 @@ async def run_supabase_sync():
         import json as _json
         from datetime import timezone
 
-        _get_keys()
+        SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+        SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
         if not SUPABASE_URL or not SUPABASE_KEY:
             log.warning("[sync] SUPABASE_URL or SUPABASE_SERVICE_KEY not set")
             return
