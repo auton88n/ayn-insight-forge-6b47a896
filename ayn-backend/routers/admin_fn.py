@@ -476,3 +476,26 @@ async def run_intelligence_migration(request: Request):
     total_read = sum(r["read"] for r in results.values())
     total_written = sum(r["written"] for r in results.values())
     return {"ok": True, "results": results, "total": {"read": total_read, "written": total_written}}
+
+
+@router.post("/run-migrations")
+async def force_run_migrations(user: dict = Depends(get_current_user)):
+    """Force run pending database migrations. Safe to call multiple times."""
+    try:
+        import asyncio
+        from core.database import get_pool
+        from core.migrate import run_migrations
+        
+        pool = await get_pool()
+        await run_migrations(pool)
+        
+        # Check result
+        async with pool.acquire() as conn:
+            tables = await conn.fetchval(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
+            )
+            migrations = await conn.fetchval("SELECT COUNT(*) FROM _migrations")
+        
+        return {"ok": True, "tables": tables, "migrations_run": migrations}
+    except Exception as e:
+        raise HTTPException(500, str(e))
