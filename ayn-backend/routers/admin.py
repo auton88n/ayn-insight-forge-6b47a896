@@ -256,3 +256,44 @@ async def get_feedback(limit: int = 50, _: str = Depends(require_admin)):
     db = get_db()
     r = db.table("beta_feedback").select("*").order("created_at", desc=True).limit(limit).execute()
     return {"feedback": r.data or []}
+
+
+# ── Scheduler / Cron health ───────────────────────────────────────────────────
+@router.get("/scheduler/status")
+async def scheduler_status(_: str = Depends(require_admin)):
+    """Returns per-job cron status: last run, next run, last error, success/failure counts."""
+    from core.scheduler import get_scheduler, JOB_STATS, JOB_REGISTRY
+    scheduler = get_scheduler()
+    jobs_info = []
+    for job_id in JOB_REGISTRY.keys():
+        job = scheduler.get_job(job_id)
+        stats = JOB_STATS.get(job_id, {})
+        jobs_info.append({
+            "id": job_id,
+            "next_run": job.next_run_time.isoformat() if job and job.next_run_time else None,
+            "trigger": str(job.trigger) if job else None,
+            "last_run": stats.get("last_run"),
+            "last_success": stats.get("last_success"),
+            "last_error": stats.get("last_error"),
+            "success_count": stats.get("success_count", 0),
+            "failure_count": stats.get("failure_count", 0),
+            "last_duration_ms": stats.get("last_duration_ms"),
+        })
+    return {
+        "running": scheduler.running,
+        "jobs": jobs_info,
+    }
+
+
+@router.post("/scheduler/run/{job_id}")
+async def scheduler_run(job_id: str, _: str = Depends(require_admin)):
+    """Manually trigger a cron job immediately. Runs in background — returns right away."""
+    from core.scheduler import JOB_REGISTRY, _wrap
+    import asyncio
+    fn = JOB_REGISTRY.get(job_id)
+    if not fn:
+        raise HTTPException(404, f"Unknown job: {job_id}. Available: {list(JOB_REGISTRY.keys())}")
+    # Fire-and-forget so the HTTP request returns instantly
+    asyncio.create_task(_wrap(job_id, fn)())
+    return {"ok": True, "job_id": job_id, "status": "triggered"}
+
