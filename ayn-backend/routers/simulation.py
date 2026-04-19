@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from core.auth import verify_token
-from core.db import get_db
+from core.database import fetch, fetchrow, execute
 
 router = APIRouter(prefix="/simulation")
 
@@ -57,7 +57,6 @@ async def get_conversations(
     user_id: str = Depends(verify_token),
 ):
     """Get agent conversations — public ones + user's own."""
-    db = get_db()
     q = (db.table("ayn_agent_conversations")
          .select("id,topic,status,created_at,signal_id,metadata,visibility,user_id")
          .order("created_at", desc=True)
@@ -76,7 +75,6 @@ async def get_conversations(
 @router.get("/conversations/{conv_id}/messages")
 async def get_conversation_messages(conv_id: str, user_id: str = Depends(verify_token)):
     """Get all messages for a conversation."""
-    db = get_db()
     # Verify access
     conv = db.table("ayn_agent_conversations").select("visibility,user_id").eq("id", conv_id).maybe_single().execute()
     if conv.data:

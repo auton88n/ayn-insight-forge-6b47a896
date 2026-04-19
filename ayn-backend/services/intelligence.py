@@ -13,19 +13,48 @@ log = logging.getLogger("ayn.intelligence")
 
 
 async def _supabase_upsert(table: str, data: dict, conflict: str = "singleton_key"):
-    """Write to Supabase safely."""
+    """Write to Railway Postgres (spine owns all intelligence data)."""
     try:
-        from core.db import get_db
-        db = get_db()
-        await asyncio.to_thread(
-            lambda: db.table(table).upsert(data, on_conflict=conflict).execute()
+        from core.database import get_pool
+        import json as _json
+        pool = await get_pool()
+        
+        cols = list(data.keys())
+        vals = list(data.values())
+        
+        # Serialize any dict/list values to JSON
+        pg_vals = []
+        for v in vals:
+            if isinstance(v, (dict, list)):
+                pg_vals.append(_json.dumps(v))
+            else:
+                pg_vals.append(v)
+        
+        placeholders = ", ".join(f"${i+1}" for i in range(len(cols)))
+        col_names = ", ".join(f'"{c}"' for c in cols)
+        
+        # Build upsert: INSERT ... ON CONFLICT (conflict_col) DO UPDATE SET ...
+        updates = ", ".join(
+            f'"{c}" = EXCLUDED."{c}"'
+            for c in cols if c != conflict
         )
+        
+        sql = f"""
+            INSERT INTO {table} ({col_names})
+            VALUES ({placeholders})
+            ON CONFLICT ("{conflict}") DO UPDATE SET {updates},
+                updated_at = NOW()
+        """
+        
+        async with pool.acquire() as conn:
+            await conn.execute(sql, *pg_vals)
+        log.debug(f"[intelligence] wrote to Railway {table}")
     except Exception as e:
-        log.warning(f"[intelligence] Supabase write to {table} failed: {e}")
+        log.warning(f"[intelligence] Railway write to {table} failed: {e}")
 
 
 async def run_pulse_engine():
-    """Updates ayn_market_snapshot in Supabase every 4h."""
+    """Updates ayn_market_snapshot in Railway Postgres every 4h."""
     log.info("🌍 Pulse engine starting...")
     try:
         import yfinance as yf
@@ -82,7 +111,7 @@ async def run_pulse_engine():
 
 
 async def run_market_prices():
-    """Updates ayn_market_prices in Supabase every 2h."""
+    """Updates ayn_market_prices in Railway Postgres every 2h."""
     log.info("📈 Market prices updating...")
     try:
         import yfinance as yf
@@ -132,7 +161,7 @@ async def run_world_intelligence():
         db = get_db()
 
         snap = await asyncio.to_thread(
-            lambda: db.table("ayn_market_snapshot").select("snapshot").eq("singleton_key", 1).maybe_single().execute()
+lambda: __import__('asyncio').get_event_loop()
         )
         snap_text = json.dumps(snap.data.get("snapshot", {}))[:2000] if snap.data else "No data"
 
