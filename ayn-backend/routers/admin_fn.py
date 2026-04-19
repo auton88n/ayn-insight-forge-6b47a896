@@ -473,10 +473,12 @@ async def run_intelligence_migration(request: Request):
                         continue
                     cols = list(filtered.keys())
                     from datetime import datetime, date
-                    def coerce(v):
-                        if isinstance(v, (dict, list)): return _json.dumps(v)
+                    def coerce(v, col_name=""):
+                        if isinstance(v, list): return v  # pass lists as-is for TEXT[] columns
+                        if isinstance(v, dict): return _json.dumps(v)
+                        if isinstance(v, date) and not isinstance(v, datetime): return v.isoformat()  # date→str
+                        if isinstance(v, datetime): return v  # keep datetime objects
                         if isinstance(v, str):
-                            # Parse ISO datetime/date strings
                             if len(v) > 10 and 'T' in v:
                                 try: return datetime.fromisoformat(v.replace('Z','+00:00'))
                                 except: pass
@@ -484,12 +486,15 @@ async def run_intelligence_migration(request: Request):
                                 try: return date.fromisoformat(v)
                                 except: pass
                         return v
-                    vals = [coerce(v) for v in filtered.values()]
+                    vals = [coerce(v, c) for v, c in zip(filtered.values(), filtered.keys())]
                     ph = ", ".join(f"${i+1}" for i in range(len(cols)))
                     cn = ", ".join(f'"{col}"' for col in cols)
                     try:
+                        conflict = "ON CONFLICT (id) DO NOTHING"
+                        if table == "ayn_market_prices":
+                            conflict = "ON CONFLICT (singleton_key) DO NOTHING"
                         res = await conn.execute(
-                            f"INSERT INTO {table} ({cn}) VALUES ({ph}) ON CONFLICT (id) DO NOTHING",
+                            f"INSERT INTO {table} ({cn}) VALUES ({ph}) {conflict}",
                             *vals
                         )
                         if res != "INSERT 0 0":
