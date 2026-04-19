@@ -141,6 +141,7 @@ from routers.intelligence import router as intel_router
 from routers.simulation import router as sim_router
 from routers.subscriptions import router as sub_router
 from routers.admin import router as admin_router
+from routers.system import router as system_router
 
 app.include_router(auth_router)
 app.include_router(generate_router)
@@ -168,6 +169,7 @@ app.include_router(intel_router)
 app.include_router(sim_router)
 app.include_router(sub_router)
 app.include_router(admin_router)
+app.include_router(system_router)
 
 
 # ── Core endpoints ────────────────────────────────────────────────────────────
