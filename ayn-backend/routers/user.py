@@ -11,7 +11,8 @@ import logging
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from core.auth_new import get_user_id, get_current_user
-from core.database import fetch, fetchrow, execute
+from core.database import fetch, fetchrow, fetchval, execute
+from fastapi import HTTPException
 
 router = APIRouter(prefix="/user", tags=["user"])
 log = logging.getLogger("ayn.user")
