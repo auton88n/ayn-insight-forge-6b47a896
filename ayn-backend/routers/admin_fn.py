@@ -385,6 +385,25 @@ async def admin_command_center(req: CommandCenterRequest, user: dict = Depends(g
 
 @router.post("/run-intelligence-migration")
 async def run_intelligence_migration(request: Request):
+    # Accept either admin JWT or internal service key
+    auth = request.headers.get("Authorization", "")
+    import os
+    internal_key = os.getenv("INTERNAL_SERVICE_KEY", "")
+    if internal_key and auth == f"Bearer {internal_key}":
+        pass  # internal key auth OK
+    else:
+        # Fall back to admin JWT check
+        from core.auth_new import verify_access_token
+        try:
+            token = auth.removeprefix("Bearer ").strip()
+            payload = verify_access_token(token)
+            if not payload.get("is_admin"):
+                from fastapi.responses import JSONResponse
+                return JSONResponse({"error": "admin required"}, status_code=403)
+        except Exception:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+
     """
     Internal endpoint: pulls intelligence data from Supabase and writes to Railway.
     Called once via: curl -X POST https://spine.aynn.io/admin/fn/run-intelligence-migration
