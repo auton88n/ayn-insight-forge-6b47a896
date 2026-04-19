@@ -20,25 +20,33 @@ async def get_all_intelligence(user_id: str = Depends(get_user_id)):
     """Get all world intelligence data for the dashboard."""
     try:
         results = await asyncio.gather(
-            fetchrow("SELECT snapshot, fetched_at FROM ayn_market_snapshot WHERE singleton_key = 1"),
-            fetch("SELECT * FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT 30"),
-            fetch("SELECT * FROM ayn_master_predictions ORDER BY created_at DESC LIMIT 8"),
-            fetch("""SELECT id, asset, asset_category, consensus_direction, consensus_strength,
-                           ayn_direction, ayn_reasoning, horizon, status, consensus_confidence,
-                           created_at FROM ayn_consensus_predictions
-                     WHERE status = 'active' ORDER BY consensus_confidence DESC LIMIT 60"""),
+            fetchrow("SELECT snapshot, fetched_at, intelligence_brief FROM ayn_market_snapshot WHERE singleton_key = 1"),
+            fetch("SELECT * FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT 50"),
+            fetch("SELECT * FROM ayn_world_predictions WHERE status = 'active' ORDER BY created_at DESC LIMIT 100"),
+            fetch("SELECT * FROM ayn_mind ORDER BY created_at DESC LIMIT 50"),
+            fetch("SELECT * FROM ayn_opportunity_alerts ORDER BY created_at DESC LIMIT 30"),
+            fetch("SELECT * FROM ayn_market_prices WHERE singleton_key = 1 LIMIT 1"),
+            fetch("SELECT * FROM ayn_predictions WHERE status = 'active' ORDER BY created_at DESC LIMIT 50"),
             fetch("SELECT * FROM ayn_country_intelligence LIMIT 20"),
-            fetch("SELECT * FROM ayn_accuracy_calibration ORDER BY updated_at DESC LIMIT 10"),
             return_exceptions=True
         )
 
+        def safe(r, default=[]):
+            return r if not isinstance(r, Exception) else default
+
         return {
-            "market_snapshot": results[0] if not isinstance(results[0], Exception) else None,
-            "world_signals":   results[1] if not isinstance(results[1], Exception) else [],
-            "master_predictions": results[2] if not isinstance(results[2], Exception) else [],
-            "consensus_predictions": results[3] if not isinstance(results[3], Exception) else [],
-            "country_intelligence": results[4] if not isinstance(results[4], Exception) else [],
-            "accuracy": results[5] if not isinstance(results[5], Exception) else [],
+            "market_snapshot":       safe(results[0], None),
+            "world_signals":         safe(results[1]),
+            "world_predictions":     safe(results[2]),
+            "mind":                  safe(results[3]),
+            "opportunity_alerts":    safe(results[4]),
+            "market_prices":         safe(results[5], [None])[0] if safe(results[5]) else None,
+            "predictions":           safe(results[6]),
+            "country_intelligence":  safe(results[7]),
+            # Legacy aliases so old frontend code still works
+            "master_predictions":    safe(results[2])[:8],
+            "consensus_predictions": safe(results[6])[:60],
+            "accuracy":              [],
         }
     except Exception as e:
         log.error(f"[intelligence] get_all error: {e}")
