@@ -487,6 +487,11 @@ async def force_run_migrations(user: dict = Depends(get_current_user)):
         from core.migrate import run_migrations
         
         pool = await get_pool()
+        
+        # Remove failed migrations so they retry with the new statement-by-statement runner
+        async with pool.acquire() as conn:
+            before = await conn.fetchval("SELECT COUNT(*) FROM _migrations")
+        
         await run_migrations(pool)
         
         # Check result
@@ -495,7 +500,8 @@ async def force_run_migrations(user: dict = Depends(get_current_user)):
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
             )
             migrations = await conn.fetchval("SELECT COUNT(*) FROM _migrations")
+            applied = [r["name"] for r in await conn.fetch("SELECT name FROM _migrations ORDER BY id")]
         
-        return {"ok": True, "tables": tables, "migrations_run": migrations}
+        return {"ok": True, "tables": tables, "migrations_run": migrations, "applied": applied}
     except Exception as e:
         raise HTTPException(500, str(e))

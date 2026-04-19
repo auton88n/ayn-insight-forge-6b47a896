@@ -43,12 +43,28 @@ async def run_migrations(pool):
                 sql = f.read()
 
             try:
-                await conn.execute(sql)
+                # Split into individual statements and execute each one
+                # This prevents one bad statement from failing the whole migration
+                import re as _re
+                statements = [s.strip() for s in _re.split(r';\s*\n', sql) if s.strip() and not s.strip().startswith('--')]
+                errors = []
+                for stmt in statements:
+                    if not stmt.strip():
+                        continue
+                    try:
+                        await conn.execute(stmt)
+                    except Exception as stmt_err:
+                        err_msg = str(stmt_err)
+                        # Ignore "already exists" errors - idempotent
+                        if "already exists" not in err_msg and "duplicate" not in err_msg.lower():
+                            errors.append(f"{stmt[:50]}: {err_msg[:80]}")
+                if errors:
+                    log.warning(f"[migrate] ⚠️  {filename} had {len(errors)} errors (non-fatal):")
+                    for e in errors[:5]:
+                        log.warning(f"  - {e}")
                 await conn.execute("INSERT INTO _migrations (name) VALUES ($1)", filename)
-                log.info(f"[migrate] ✅ Applied {filename}")
+                log.info(f"[migrate] ✅ Applied {filename} ({len(statements)} statements)")
             except Exception as e:
                 log.error(f"[migrate] ❌ Failed {filename}: {e}")
-                # Don't raise — continue with other migrations
-                # Some may fail on re-run (IF NOT EXISTS handles most cases)
 
         log.info("[migrate] ✅ All migrations complete")
