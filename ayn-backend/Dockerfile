@@ -16,5 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app
 COPY . .
 
-# Start
-CMD python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Use shell form so ${PORT:-8080} expands correctly
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
