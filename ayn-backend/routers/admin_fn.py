@@ -464,6 +464,7 @@ async def run_intelligence_migration(request: Request):
                 railway_cols = {r["column_name"] for r in col_records}
                 if not railway_cols:
                     results[table] = {"read": len(rows), "written": 0, "error": "table missing in Railway"}
+                    log.error(f"[migrate] {table}: NO COLUMNS FOUND in Railway — table missing or wrong DB")
                     continue
 
                 for row in rows:
@@ -571,3 +572,36 @@ async def force_run_migrations(user: dict = Depends(get_current_user)):
         return {"ok": True, "tables": tables, "migrations_run": migrations, "applied": applied}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.get("/db-debug")
+async def db_debug():
+    """Show what DB spine is connected to and table counts."""
+    import os
+    from core.database import get_pool
+    db_url = os.getenv("DATABASE_URL", "NOT SET")
+    masked = db_url[:35] + "..." if len(db_url) > 35 else db_url
+    
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            tables = await conn.fetch(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name"
+            )
+            table_names = [r["table_name"] for r in tables]
+            
+            counts = {}
+            for t in ["ayn_world_predictions", "ayn_world_signals", "ayn_mind", "ayn_opportunity_alerts", "users"]:
+                if t in table_names:
+                    counts[t] = await conn.fetchval(f"SELECT COUNT(*) FROM {t}")
+                else:
+                    counts[t] = "TABLE NOT FOUND"
+            
+        return {
+            "db_url_masked": masked,
+            "total_tables": len(table_names),
+            "intelligence_counts": counts,
+            "all_tables": table_names
+        }
+    except Exception as e:
+        return {"db_url_masked": masked, "error": str(e)}
