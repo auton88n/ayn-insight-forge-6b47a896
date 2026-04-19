@@ -193,3 +193,26 @@ async def vote_prediction(req: VoteRequest, uid: str = Depends(get_user_id)):
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.post("/simulate")
+async def trigger_simulation(body: dict, user_id: str = Depends(get_user_id)):
+    """
+    Proxy to simulation engine for WorldSimulator.tsx.
+    Delegates to /simulation/run.
+    """
+    import httpx, os
+    ENGINE_URL = os.getenv("ENGINE_URL", "https://engine.aynn.io")
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            r = await client.post(
+                f"{ENGINE_URL}/simulate",
+                json={**body, "user_id": user_id},
+            )
+            if not r.is_success:
+                raise HTTPException(r.status_code, r.text[:200])
+            return r.json()
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Simulation timed out")
+    except httpx.ConnectError:
+        raise HTTPException(503, "Simulation engine unavailable")
