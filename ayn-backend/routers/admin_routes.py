@@ -18,6 +18,21 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger("ayn.admin")
 
 
+# ── Admin guard (trusts JWT is_admin claim, falls back to DB) ──────────────────
+async def require_admin(current_user: dict = Depends(get_current_user)):
+    if current_user.get("is_admin"):
+        return current_user
+    if current_user.get("user_id") == "internal":
+        return current_user
+    try:
+        row = await fetchrow("SELECT is_admin FROM users WHERE id = $1::uuid", current_user["user_id"])
+        if row and row["is_admin"]:
+            return current_user
+    except Exception:
+        pass
+    raise HTTPException(403, "Admin access required")
+
+
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
 class PinRequest(BaseModel):
