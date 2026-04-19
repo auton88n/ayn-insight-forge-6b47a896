@@ -1,98 +1,86 @@
 
 
-Three real bugs from the screenshot + description. Let me map each to the code.
+User is on `/world-intelligence` and every section is empty: Intelligence Brief says "populates on next data sweep", Signals shows "No active signals", AYN Predictions shows 0, Market Forecasts shows "No predictions for this filter", Country Intelligence shows "No country data available". Plus Fear & Greed bar is empty and Market Sentiment label is red.
 
-## Bug 1 — Recent chat title doesn't persist for the first message
+This is the predictable consequence of the migration: the cron jobs are registered in Spine but haven't fired yet (they're on 4-6h schedules), and the historical Supabase data was never migrated to Railway Postgres. So Railway tables are empty → frontend shows empty states.
 
-User sends first message → sidebar shows "gello" (or whatever the first words were) → but after refresh / when AI replies, it reverts to "New Chat" or generic title. The title set optimistically isn't being persisted to Spine, OR Spine is overwriting it on first AI response with a stale value.
+Let me verify before planning fixes.
 
-Likely files:
-- `src/hooks/useMessages.ts` or `src/hooks/useChats.ts` — where new chat is created
-- `src/components/dashboard/Sidebar.tsx` (RecentChats section)
-- Spine endpoint: `POST /chats` or `PATCH /chats/{id}` — needs to accept and store the title
+## Investigation needed
 
-Need to read these to confirm:
-- Is the title being sent to Spine when chat is created?
-- Does Spine persist `title` column on `conversations` table?
-- Does the SSE stream push back the canonical title and overwrite the optimistic one?
+Read these in parallel:
+1. `ayn-backend/services/intelligence.py` — confirm jobs write to the right tables
+2. `ayn-backend/main.py` — confirm scheduler intervals + admin endpoints
+3. `ayn-backend/routers/intelligence.py` — confirm `/intelligence/all` queries match table names actually being written
+4. `src/pages/WorldIntelligence.tsx` (or equivalent) — confirm frontend expects the data shape Spine returns
+5. Check for an admin scheduler endpoint to manually trigger jobs
 
-## Bug 2 — Credit bar not detecting credits
+I'll also check via psql if the Railway intelligence tables have any rows.
 
-Screenshot shows "5 of 5 messages remaining" with full white bar — but user says it's not detecting actual usage. After sending a message, the count doesn't decrement in the UI.
+## Root causes (high confidence based on context)
 
-Likely cause: Frontend `useUsageTracking` hook either:
-- Polls `/user/limits` but cache isn't invalidated after sending a message
-- Listens to `/sse/user` for usage updates but Spine isn't pushing the update event after `current_daily_messages` increments
-- We just fixed the SSE loop to read from Railway every 15s — the diff might not push events when value changes
+**Cause 1 — Tables are empty.** Spine cron jobs run every 2-6h. The Spine container only booted ~20 min ago per logs. None have fired yet. There's also no historical data because the Supabase → Railway migration script for intelligence data was never run.
 
-Likely files:
-- `src/hooks/useUsageTracking.ts`
-- `src/components/dashboard/CreditUpgradeCard.tsx` (already in context)
-- `ayn-backend/routers/sse.py` (just edited)
-- `ayn-backend/routers/user.py` — `/user/limits` endpoint
-- Spine chat handler — must increment `current_daily_messages` after each user message
+**Cause 2 — Possible field/table name drift.** `routers/intelligence.py` queries `ayn_market_snapshot`, `ayn_world_signals`, `ayn_world_predictions`, `ayn_mind`, `ayn_opportunity_alerts`, `ayn_market_prices`, `ayn_predictions`, `ayn_country_intelligence`. If `services/intelligence.py` writes to slightly different table/column names, the dashboard will stay empty even after crons fire.
 
-## Bug 3 — Bonus credits not adding
-
-When user earns +5 from feedback, `bonus_credits` column should increment in `user_ai_limits` and the bar should show blue segment. Per screenshot, button is visible ("Earn +5 Credits") so feedback flow exists, but:
-- Either the feedback submit endpoint isn't writing `bonus_credits += 5` to Railway Postgres
-- Or `/user/limits` isn't returning `bonus_credits` field
-- Or `CreditUpgradeCard` isn't reading it correctly (it does read `propBonusCredits`, so likely backend issue)
-
-Likely files:
-- Feedback submit endpoint in Spine — `POST /user/beta-feedback` or similar
-- `ayn-backend/routers/user.py` — `/user/limits` response shape
-- Frontend feedback modal handler
+**Cause 3 — Market Sentiment / Fear & Greed.** This card likely reads `ayn_market_snapshot.snapshot.sentiment.fear_greed_index`. If `pulse-engine` hasn't run, the card renders an empty bar with a red placeholder.
 
 ## Plan
 
-### Step 1 — Investigate (read-only)
+### Step 1 — Investigate (read-only, 5 min)
 
-Read these files in parallel to confirm root causes:
-- `src/hooks/useUsageTracking.ts`
-- `src/hooks/useChats.ts` and `src/hooks/useMessages.ts`
-- `src/components/dashboard/Sidebar.tsx` (recent chats section)
-- `ayn-backend/routers/user.py`
-- `ayn-backend/routers/chats.py`
-- `ayn-backend/routers/sse.py` (already edited, verify final shape)
-- Spine chat send handler (probably `routers/chat.py` or `routers/messages.py`)
-- Feedback endpoint location
+- Read `ayn-backend/services/intelligence.py`, `services/predictions.py`, `services/pulse.py` (whatever holds the cron job bodies) → list every table + column they write
+- Read `ayn-backend/routers/intelligence.py` → list every table + column the dashboard reads
+- Diff the two lists → flag any drift
+- Query Railway Postgres row counts for all 8 intelligence tables to confirm "empty" theory
+- Check if `/admin/scheduler/run/{job_id}` endpoint exists
 
-### Step 2 — Fix Bug 1 (chat title persistence)
+### Step 2 — Fix any table/column drift (if found)
 
-- Confirm `POST /chats` in Spine accepts `title` and writes it to `conversations.title`
-- If Spine generates auto-title on first AI response, either disable that or make it only fire when `title IS NULL`
-- Frontend: ensure title is sent on creation and not overwritten by stale SSE payload
-- Add SSE event `chat.title.updated` so sidebar gets the canonical title without a refresh
+If a job writes to `ayn_signals` but dashboard reads `ayn_world_signals`, fix one side. Same for column names like `headline` vs `title`, `severity` vs `level`, etc.
 
-### Step 3 — Fix Bug 2 (credit decrement)
+### Step 3 — Add a one-shot backfill endpoint
 
-- Spine: confirm chat send handler runs `UPDATE user_ai_limits SET current_daily_messages = current_daily_messages + 1 WHERE user_id = $1` atomically
-- Spine: after increment, push an SSE event on `/sse/user` with the new value (don't wait 15s for next poll)
-- Frontend `useUsageTracking`: invalidate React Query cache for `/user/limits` immediately after sending a message (optimistic decrement + refetch)
+If `/admin/scheduler/run/{job_id}` doesn't exist yet, add it to `ayn-backend/routers/admin.py`:
+```python
+POST /admin/scheduler/run/{job_id}
+```
+Calls the underlying job function directly (not through APScheduler) so we get instant execution + error visibility.
 
-### Step 4 — Fix Bug 3 (bonus credits)
+### Step 4 — Fire all 5 intelligence jobs immediately
 
-- Spine: in feedback submit handler, run `UPDATE user_ai_limits SET bonus_credits = COALESCE(bonus_credits, 0) + 5 WHERE user_id = $1` and log to `beta_feedback_log`
-- Spine: `/user/limits` response must include `bonus_credits` field (verify the Railway query selects it)
-- Spine: usage check logic must consider `daily_messages + bonus_credits` as the effective daily cap, not just `daily_messages`
-- Frontend: `CreditUpgradeCard` already renders `propBonusCredits` correctly — no change needed once backend returns it
+After deploy, hit:
+- `POST /admin/scheduler/run/pulse-engine` → fills Market Sentiment + Fear & Greed
+- `POST /admin/scheduler/run/world-intel` → fills Intelligence Brief + AYN Mind
+- `POST /admin/scheduler/run/world-signals` → fills Live World Signals
+- `POST /admin/scheduler/run/predictions-daily` → fills AYN Predictions + Price Predictions
+- `POST /admin/scheduler/run/agent-society` → fills Agents tab
+- Add a `country-intel` job if missing → fills Country Intelligence
 
-### Step 5 — Verify end-to-end
+Each call will take 30-90s (LLM-heavy). I'll run them sequentially and verify row counts after each.
 
-After deploy:
-1. Send a chat message → sidebar title sticks → bar decrements from 5 → 4 within 1s
-2. Submit feedback → `bonus_credits` becomes 5 → blue segment appears in bar → cap becomes 10
-3. `GET /user/limits` returns `{ daily_messages: 5, current_daily_messages: 1, bonus_credits: 5, monthly_messages: 0 }`
+### Step 5 — Add a "Refresh Now" admin button (optional polish)
+
+In the admin panel, add 6 buttons (one per job) that POST to the scheduler endpoint, so you can re-fire data without waiting 4h. Useful when you redeploy or want fresh signals for a demo.
+
+### Step 6 — Verify on /world-intelligence
+
+After backfill, the dashboard should show:
+- Intelligence Brief: real summary
+- Market Sentiment: colored bar with Fear & Greed value
+- US Macro: Fed rate, CPI, unemployment
+- Live World Signals: 5-15 cards
+- AYN Predictions: 8-15 graph predictions
+- Price Predictions: 8 assets × 3 horizons = 24 cards
+- Country Intelligence: 10-20 country cards
 
 ## Out of scope
 
-- Cron jobs (working)
-- Auth flow (working)
-- World Intelligence dashboard (separate task)
-- The "Earn +5" button styling (works as designed)
+- Re-architecting the cron schedule (4h cadence is correct for production)
+- Re-running the Supabase → Railway historical migration (not needed; live data will accumulate fast once jobs fire)
+- Cosmetic empty-state polish
 
 ## What I need from you
 
-Just say "go" and I'll execute Steps 1–5 in one push. ~45 min of work across 4 frontend files and 3 Spine routers.
+Just say "go". Estimated 60 min total: 10 min code, 50 min waiting for the 5 LLM-heavy jobs to populate the dashboard.
 
