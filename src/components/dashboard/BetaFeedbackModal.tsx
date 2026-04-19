@@ -64,7 +64,7 @@ export const BetaFeedbackModal = ({
     setIsSubmitting(true);
     try {
       // Submit feedback + bonus credits via spine
-      await spineApi.req("POST", "/user/beta-feedback", {
+      await spineApi.submitBetaFeedback({
         overall_rating: rating,
         favorite_features: selectedFeatures,
         improvement_suggestions: improvements.trim() || null,
@@ -73,10 +73,9 @@ export const BetaFeedbackModal = ({
         credits_awarded: rewardAmount,
       });
 
-      // Trigger credit refresh after a short delay to ensure DB commit
-      setTimeout(() => {
-        onCreditsUpdated?.();
-      }, 500);
+      // Trigger credit refresh immediately + again after a short delay
+      onCreditsUpdated?.();
+      setTimeout(() => onCreditsUpdated?.(), 800);
 
       setStep('success');
       onSuccess?.();
