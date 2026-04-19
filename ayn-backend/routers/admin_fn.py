@@ -480,8 +480,8 @@ async def run_intelligence_migration(request: Request):
                             # But if items are complex, serialize to JSON string
                             if all(isinstance(i, str) for i in v): return v
                             return _json.dumps(v)
-                        if isinstance(v, date) and not isinstance(v, datetime): return v.isoformat()
                         if isinstance(v, datetime): return v
+                        if isinstance(v, date): return v.isoformat()
                         if isinstance(v, str):
                             if len(v) > 10 and 'T' in v:
                                 try: return datetime.fromisoformat(v.replace('Z','+00:00'))
@@ -506,8 +506,8 @@ async def run_intelligence_migration(request: Request):
                             # Validate JSON — if invalid, wrap as string
                             try: _json.loads(v); return v
                             except: return _json.dumps(v)
-                        if isinstance(v, date) and not isinstance(v, datetime): return v.isoformat()
                         if isinstance(v, datetime): return v
+                        if isinstance(v, date): return v.isoformat()
                         if isinstance(v, str):
                             if len(v) > 10 and 'T' in v:
                                 try: return datetime.fromisoformat(v.replace('Z','+00:00'))
