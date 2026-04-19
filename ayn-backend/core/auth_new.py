@@ -94,3 +94,15 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
+
+
+async def get_user_id_optional(authorization: str = Header(default="")) -> str:
+    """Like get_user_id but returns 'anonymous' if no token provided."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return "anonymous"
+    try:
+        token = authorization.removeprefix("Bearer ").strip()
+        payload = verify_access_token(token)
+        return str(payload.get("sub", "anonymous"))
+    except Exception:
+        return "anonymous"

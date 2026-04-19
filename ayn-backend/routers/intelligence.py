@@ -8,7 +8,7 @@ import asyncio
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from core.auth_new import get_user_id
+from core.auth_new import get_user_id, get_user_id_optional
 from core.database import fetch, fetchrow, fetchval, execute
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
@@ -16,7 +16,7 @@ log = logging.getLogger("ayn.intelligence")
 
 
 @router.get("/all")
-async def get_all_intelligence(user_id: str = Depends(get_user_id)):
+async def get_all_intelligence(user_id: str = Depends(get_user_id_optional)):
     """Get all world intelligence data for the dashboard."""
     try:
         results = await asyncio.gather(
