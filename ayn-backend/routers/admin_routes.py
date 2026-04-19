@@ -59,11 +59,12 @@ async def verify_admin_pin(req: PinRequest, user: dict = Depends(get_current_use
     """Verify admin PIN. Accepts both regular JWT (from adminSupabase) and admin JWT (from /admin/login)."""
     try:
         record = await fetchrow("SELECT value FROM app_settings WHERE key = 'admin_pin'")
-        if not record:
-            # No PIN set yet — accept default "123456"
+        stored = (record["value"] if record else "") or ""
+        if not stored:
+            # No PIN set yet (missing row OR empty value) — accept default "123456"
             valid = req.pin == "123456"
             return {"valid": valid, "success": valid, "lockoutRemaining": 0}
-        valid = record["value"] == _hash_pin(req.pin)
+        valid = stored == _hash_pin(req.pin)
         return {"valid": valid, "success": valid, "lockoutRemaining": 0}
     except Exception as e:
         log.error(f"[admin] verify pin: {e}")
@@ -73,8 +74,9 @@ async def verify_admin_pin(req: PinRequest, user: dict = Depends(get_current_use
 @router.post("/set-pin")
 async def set_admin_pin(req: SetPinRequest, user_id: str = Depends(get_user_id)):
     record = await fetchrow("SELECT value FROM app_settings WHERE key = 'admin_pin'")
-    current_valid = (not record and req.pin == "123456") or \
-                    (record and record["value"] == _hash_pin(req.pin))
+    stored = (record["value"] if record else "") or ""
+    current_valid = (not stored and req.pin == "123456") or \
+                    (stored and stored == _hash_pin(req.pin))
     if not current_valid:
         raise HTTPException(403, "Current PIN incorrect")
     if len(req.new_pin) < 4:
