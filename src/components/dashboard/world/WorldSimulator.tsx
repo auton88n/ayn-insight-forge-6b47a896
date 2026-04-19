@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabaseApi } from '@/lib/supabaseApi';
 import { spineAuth, tokenStore } from '@/lib/spineAuth';
+import { spineApi } from '@/lib/spineApi';
 import { cn } from '@/lib/utils';
 
 
@@ -150,21 +151,15 @@ function WorldSimulator({ signals }: { signals: any[] }) {
   const runSim = async (signalId?: string) => {
     setSimulating(true);
     try {
-      const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/ayn-world-simulator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signalId ? { mode: 'simulate_signal', signal_id: signalId } : { mode: 'simulate_signal' }),
-      });
-      if (res.ok) {
-        const result = await res.json();
-        if (result.simulation_id) {
-          // Reload simulations
-          const data = null; const error = null;
-          setSimulations(data || []);
-          setActiveSimId(result.simulation_id);
-        }
+      // TODO(spine): confirm /intelligence/simulate route exists; using escape-hatch req() for now
+      const result: any = await spineApi.req(
+        'POST',
+        '/intelligence/simulate',
+        signalId ? { mode: 'simulate_signal', signal_id: signalId } : { mode: 'simulate_signal' }
+      ).catch((e: unknown) => { console.error(e); return null; });
+      if (result?.simulation_id) {
+        setSimulations([]);
+        setActiveSimId(result.simulation_id);
       }
     } catch(e) { console.error(e); } finally { setSimulating(false); }
   };

@@ -96,8 +96,9 @@ export const useAvatarUpload = ({ userId, accessToken }: UseAvatarUploadOptions)
         return null;
       }
 
-      // Get public URL
-      const publicUrl = `${import.meta.env.VITE_SUPABASE_URL || ''}/storage/v1/object/public/avatars/${filePath}`;;
+      // Get public URL via spine
+      const urlResult = await spineApi.storageGetUrl('avatars', filePath);
+      const publicUrl = urlResult?.public_url || '';
 
       // Update profile with avatar URL using REST API
       /* avatar url update handled by spine */;

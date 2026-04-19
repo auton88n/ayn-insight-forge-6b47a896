@@ -1,7 +1,7 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+
 
 interface ServiceItem { name: string; description: string; price: number; quantity: number; }
 interface Order {
@@ -145,8 +145,7 @@ export default function ClientSign() {
     const base64 = dataUrl.split(',')[1];
     const path = `signatures/order_${order.id}_${party}_${Date.now()}.png`;
     await spineApi.storageUpload('generated-files', path, base64, 'image/png');
-    const { data: urlData } = { data: { publicUrl: `${SUPABASE_URL}/storage/v1/object/public/generated-files/${path}` } };
-    const sigUrl = urlData.publicUrl;
+    const { public_url: sigUrl } = await spineApi.storageGetUrl('generated-files', path);
     const now = new Date().toISOString();
     const updates: any = party === 'admin'
       ? { admin_signature_url: sigUrl, admin_signed_at: now }

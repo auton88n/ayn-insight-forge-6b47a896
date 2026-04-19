@@ -1,5 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { spineApi } from '@/lib/spineApi';
+import { spineAuth } from '@/lib/spineAuth';
+import { AYN_BACKEND_URL } from '@/config';
+
+const SPINE = AYN_BACKEND_URL || 'https://spine.aynn.io';
 
 interface UsageData {
   remaining: number;
@@ -25,41 +29,37 @@ const DEFAULT_STATE: UsageData = {
   isLoading: true,
 };
 
+/**
+ * useUsageTracking — realtime usage via spine SSE (/sse/user).
+ * Falls back to a 60s safety poll only when SSE is disconnected.
+ */
 export const useUsageTracking = (userId: string | null): UsageData & { refreshUsage: () => void } => {
   const [usageData, setUsageData] = useState<UsageData>(DEFAULT_STATE);
+  const esRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const safetyPollRef = useRef<number | null>(null);
+  const backoffRef = useRef(1000);
+  const lastEventAtRef = useRef<number>(Date.now());
 
   const fetchUsage = useCallback(async () => {
     if (!userId) {
       setUsageData(prev => ({ ...prev, isLoading: false }));
       return;
     }
-
     try {
-      // Read directly from tables — never call check_user_ai_limit here
-      // That RPC increments usage and should only be called when sending a message
-      const limitsData = await spineApi.getLimits();
-      const limits = limitsData;
-      const tier = limitsData?.subscription_tier || 'free';
-
+      const limits: any = await spineApi.getLimits();
       if (!limits) {
         setUsageData(prev => ({ ...prev, isLoading: false }));
         return;
       }
-
+      const tier = limits?.subscription_tier || 'free';
       const isFree = tier === 'free';
       const isUnlimited = limits.is_unlimited === true;
 
       if (isUnlimited) {
         setUsageData({
-          remaining: -1,
-          totalLimit: -1,
-          bonusCredits: 0,
-          allowed: true,
-          resetsAt: null,
-          tier,
-          isFree: false,
-          isUnlimited: true,
-          isLoading: false,
+          remaining: -1, totalLimit: -1, bonusCredits: 0, allowed: true,
+          resetsAt: null, tier, isFree: false, isUnlimited: true, isLoading: false,
         });
         return;
       }
@@ -74,7 +74,6 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
         const used = isExpired ? 0 : (limits.current_daily_messages || 0);
         const dailyLimit = limits.daily_messages || 5;
         const bonusRemaining = Math.max(0, limits.bonus_credits || 0);
-        // Remaining = daily messages left + bonus credits (bonus used first by RPC)
         remaining = Math.max(0, dailyLimit - used) + bonusRemaining;
         totalLimit = dailyLimit + bonusRemaining;
         resetsAt = isExpired
@@ -91,33 +90,111 @@ export const useUsageTracking = (userId: string | null): UsageData & { refreshUs
       }
 
       setUsageData({
-        remaining,
-        totalLimit,
+        remaining, totalLimit,
         bonusCredits: Math.max(0, limits.bonus_credits || 0),
         allowed: remaining > 0,
-        resetsAt,
-        tier,
-        isFree,
-        isUnlimited: false,
-        isLoading: false,
+        resetsAt, tier, isFree, isUnlimited: false, isLoading: false,
       });
     } catch (err) {
-      if (import.meta.env.DEV) {
-        console.error('[useUsageTracking] Error:', err);
-      }
+      if (import.meta.env.DEV) console.error('[useUsageTracking] Error:', err);
       setUsageData(prev => ({ ...prev, isLoading: false }));
     }
   }, [userId]);
 
+  // Apply a partial limits payload pushed from /sse/user
+  const applyLimitsEvent = useCallback((payload: any) => {
+    setUsageData(prev => {
+      if (prev.isUnlimited) return prev;
+      const dailyLimit = payload.daily_messages ?? prev.totalLimit;
+      const used = payload.current_daily_messages ?? 0;
+      const bonus = Math.max(0, payload.bonus_credits ?? prev.bonusCredits);
+      const remaining = Math.max(0, dailyLimit - used) + (prev.isFree ? bonus : 0);
+      const totalLimit = prev.isFree ? dailyLimit + bonus : (payload.monthly_messages ?? prev.totalLimit);
+      return {
+        ...prev,
+        remaining,
+        totalLimit,
+        bonusCredits: bonus,
+        allowed: remaining > 0,
+        isLoading: false,
+      };
+    });
+  }, []);
+
+  // Open SSE connection
+  const openSSE = useCallback(async () => {
+    if (!userId) return;
+    if (esRef.current) { esRef.current.close(); esRef.current = null; }
+
+    let token: string | null = null;
+    try {
+      const { data: { session } } = await spineAuth.getSession();
+      token = session?.access_token || null;
+    } catch { /* ignore */ }
+    if (!token) return;
+
+    const url = `${SPINE}/sse/user?token=${encodeURIComponent(token)}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener('connected', () => {
+      backoffRef.current = 1000;
+      lastEventAtRef.current = Date.now();
+    });
+
+    es.addEventListener('limits', (e) => {
+      lastEventAtRef.current = Date.now();
+      try {
+        const payload = JSON.parse((e as MessageEvent).data);
+        applyLimitsEvent(payload);
+      } catch { /* ignore parse */ }
+    });
+
+    es.addEventListener('ping', () => {
+      lastEventAtRef.current = Date.now();
+    });
+
+    es.addEventListener('reconnect', () => {
+      es.close();
+      esRef.current = null;
+      reconnectTimerRef.current = window.setTimeout(() => openSSE(), 250);
+    });
+
+    es.onerror = () => {
+      es.close();
+      esRef.current = null;
+      const delay = Math.min(backoffRef.current, 10000);
+      backoffRef.current = Math.min(backoffRef.current * 2, 10000);
+      reconnectTimerRef.current = window.setTimeout(() => openSSE(), delay);
+    };
+  }, [userId, applyLimitsEvent]);
+
+  // Initial fetch + open SSE
   useEffect(() => {
     fetchUsage();
-  }, [fetchUsage]);
+    openSSE();
+    return () => {
+      if (esRef.current) { esRef.current.close(); esRef.current = null; }
+      if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current);
+    };
+  }, [fetchUsage, openSSE]);
 
-  // Poll usage every 30s instead of supabase realtime (spine has no realtime channel)
+  // Reopen SSE on token refresh
   useEffect(() => {
     if (!userId) return;
-    const id = setInterval(fetchUsage, 30000);
-    return () => clearInterval(id);
+    const { data: { subscription } } = spineAuth.onAuthStateChange((event) => {
+      if (event === 'TOKEN_REFRESHED') openSSE();
+    });
+    return () => subscription.unsubscribe();
+  }, [userId, openSSE]);
+
+  // Safety poll: refetch every 60s only if SSE has been silent for >30s
+  useEffect(() => {
+    if (!userId) return;
+    safetyPollRef.current = window.setInterval(() => {
+      if (Date.now() - lastEventAtRef.current > 30000) fetchUsage();
+    }, 60000);
+    return () => { if (safetyPollRef.current) window.clearInterval(safetyPollRef.current); };
   }, [userId, fetchUsage]);
 
   return { ...usageData, refreshUsage: fetchUsage };
