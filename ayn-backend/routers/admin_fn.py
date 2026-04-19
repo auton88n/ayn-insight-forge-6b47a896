@@ -390,6 +390,7 @@ async def run_intelligence_migration(request: Request):
     Called once via: curl -X POST https://spine.aynn.io/admin/fn/run-intelligence-migration
                           -H "Authorization: Bearer <admin_token>"
     """
+    import asyncio
     import httpx, os, json as _json
     from core.database import get_pool
     import asyncpg
