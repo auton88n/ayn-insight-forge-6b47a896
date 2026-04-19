@@ -49,6 +49,7 @@ const DocumentStudio = lazy(() => import('@/components/admin/DocumentStudio').th
 const TermsConsentViewer = lazy(() => import('@/components/admin/TermsConsentViewer').then(m => ({ default: m.TermsConsentViewer })));
 const CommandCenterPanel = lazy(() => import('@/components/admin/workforce/CommandCenterPanel').then(m => ({ default: m.CommandCenterPanel })));
 const PredictionControlPanel = lazy(() => import('@/pages/PredictionControlPanel'));
+const CronControl = lazy(() => import('@/components/admin/CronControl').then(m => ({ default: m.CronControl })));
 
 // ── Suspense fallback with proper skeleton ──────────────────
 const TabFallback = () => <div className="py-8"><AdminSkeleton variant="table" /></div>;
@@ -242,6 +243,7 @@ export const AdminPanel = ({
                 {activeTab === 'custom-orders' && <Suspense fallback={<TabFallback />}><CustomOrders /></Suspense>}
                 {activeTab === 'document-studio' && <Suspense fallback={<TabFallback />}><DocumentStudio /></Suspense>}
                 {activeTab === 'prediction-control' && <Suspense fallback={<TabFallback />}><PredictionControlPanel /></Suspense>}
+                {activeTab === 'cron-control' && <Suspense fallback={<TabFallback />}><CronControl /></Suspense>}
               </ErrorBoundary>
             </div>
           </div>
