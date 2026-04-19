@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabaseApi } from '@/lib/supabaseApi';
 import { spineAuth, tokenStore } from '@/lib/spineAuth';
+import { spineApi } from '@/lib/spineApi';
 import { cn } from '@/lib/utils';
 
 
@@ -155,7 +156,7 @@ function WorldSimulator({ signals }: { signals: any[] }) {
         'POST',
         '/intelligence/simulate',
         signalId ? { mode: 'simulate_signal', signal_id: signalId } : { mode: 'simulate_signal' }
-      ).catch((e) => { console.error(e); return null; });
+      ).catch((e: unknown) => { console.error(e); return null; });
       if (result?.simulation_id) {
         setSimulations([]);
         setActiveSimId(result.simulation_id);
