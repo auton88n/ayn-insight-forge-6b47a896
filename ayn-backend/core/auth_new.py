@@ -78,7 +78,11 @@ async def get_current_user(authorization: str = Header(...)) -> dict:
         return {"user_id": "internal", "email": "internal@aynn.io"}
 
     payload = verify_access_token(token)
-    return {"user_id": payload["sub"], "email": payload.get("email", "")}
+    return {
+        "user_id": payload["sub"],
+        "email": payload.get("email", ""),
+        "is_admin": bool(payload.get("is_admin", False)),
+    }
 
 
 async def get_user_id(authorization: str = Header(...)) -> str:
