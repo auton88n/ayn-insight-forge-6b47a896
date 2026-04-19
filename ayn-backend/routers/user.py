@@ -300,33 +300,50 @@ class BetaFeedbackRequest(BaseModel):
 
 @router.post("/beta-feedback")
 async def submit_beta_feedback(req: BetaFeedbackRequest, user_id: str = Depends(get_user_id)):
+    """Save beta feedback to Railway PG and atomically award bonus credits."""
     try:
         import json
-        from core.db import get_db
-        import asyncio
-        db = get_db()
-        await asyncio.to_thread(
-            lambda: db.from_("beta_feedback").upsert({
-                "user_id": user_id,
-                "overall_rating": req.overall_rating,
-                "favorite_features": req.favorite_features,
-                "improvement_suggestions": req.improvement_suggestions,
-                "bugs_encountered": req.bugs_encountered,
-                "would_recommend": req.would_recommend,
-                "additional_comments": req.additional_comments,
-                "credits_awarded": req.credits_awarded,
-            }).execute()
-        )
-        # Add bonus credits
+        # 1) Insert/upsert feedback row in Railway PG
         await execute("""
-            UPDATE user_ai_limits SET bonus_credits = COALESCE(bonus_credits,0) + $2, updated_at = NOW()
-            WHERE user_id = $1::uuid
+            INSERT INTO beta_feedback
+                (user_id, overall_rating, favorite_features, improvement_suggestions,
+                 bugs_encountered, would_recommend, additional_comments, credits_awarded, created_at)
+            VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, $7, $8, NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+                overall_rating          = EXCLUDED.overall_rating,
+                favorite_features       = EXCLUDED.favorite_features,
+                improvement_suggestions = EXCLUDED.improvement_suggestions,
+                bugs_encountered        = EXCLUDED.bugs_encountered,
+                would_recommend         = EXCLUDED.would_recommend,
+                additional_comments     = EXCLUDED.additional_comments,
+                credits_awarded         = EXCLUDED.credits_awarded,
+                updated_at              = NOW()
+        """,
+            user_id, req.overall_rating,
+            json.dumps(req.favorite_features or []),
+            req.improvement_suggestions or "",
+            req.bugs_encountered or "",
+            req.would_recommend,
+            req.additional_comments or "",
+            req.credits_awarded,
+        )
+
+        # 2) Ensure limits row exists, then add bonus credits atomically
+        await execute("""
+            INSERT INTO user_ai_limits (user_id, daily_messages, current_daily_messages, bonus_credits, updated_at)
+            VALUES ($1::uuid, 5, 0, $2, NOW())
+            ON CONFLICT (user_id) DO UPDATE
+              SET bonus_credits = COALESCE(user_ai_limits.bonus_credits, 0) + $2,
+                  updated_at = NOW()
         """, user_id, req.credits_awarded)
+
         new_balance = await fetchval(
-            "SELECT COALESCE(bonus_credits,0) FROM user_ai_limits WHERE user_id = $1::uuid", user_id
+            "SELECT COALESCE(bonus_credits,0) FROM user_ai_limits WHERE user_id = $1::uuid",
+            user_id,
         )
         return {"ok": True, "new_balance": new_balance or 0, "credits_awarded": req.credits_awarded}
     except Exception as e:
+        log.error(f"[beta-feedback] failed user={user_id[:8]}: {e}")
         raise HTTPException(500, str(e))
 
 @router.post("/profile")
