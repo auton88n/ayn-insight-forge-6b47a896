@@ -118,7 +118,7 @@ async def set_admin_pin(req: SetPinRequest, user_id: str = Depends(get_user_id))
 # ── Credits / users ────────────────────────────────────────────────────────────
 
 @router.post("/add-credits")
-async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(get_current_user)):
+async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_admin)):
     try:
         await execute("""
             UPDATE user_ai_limits
@@ -135,7 +135,7 @@ async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(get_current
 
 
 @router.post("/unblock-user")
-async def unblock_user(req: UnblockUserRequest, user: dict = Depends(get_current_user)):
+async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_admin)):
     try:
         await execute("""
             UPDATE user_sessions SET expires_at = NOW() - INTERVAL '1 second'
@@ -147,7 +147,7 @@ async def unblock_user(req: UnblockUserRequest, user: dict = Depends(get_current
 
 
 @router.get("/users")
-async def get_admin_users(user: dict = Depends(get_current_user)):
+async def get_admin_users(user: dict = Depends(require_admin)):
     try:
         rows = await fetch("""
             SELECT u.id, u.email, u.first_name, u.last_name, u.created_at,
@@ -164,7 +164,7 @@ async def get_admin_users(user: dict = Depends(get_current_user)):
 
 
 @router.get("/user-messages")
-async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(get_current_user)):
+async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(require_admin)):
     try:
         rows = await fetch("""
             SELECT m.id, m.content, m.role, m.created_at, cs.title
@@ -181,7 +181,7 @@ async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(
 # ── Tickets & Contact ──────────────────────────────────────────────────────────
 
 @router.get("/tickets")
-async def get_support_tickets(limit: int = 200, offset: int = 0, user: dict = Depends(get_current_user)):
+async def get_support_tickets(limit: int = 200, offset: int = 0, user: dict = Depends(require_admin)):
     try:
         # Read from Supabase DB via SDK
         from core.db import get_db
@@ -197,7 +197,7 @@ async def get_support_tickets(limit: int = 200, offset: int = 0, user: dict = De
 
 
 @router.get("/contact-messages")
-async def get_contact_messages(limit: int = 200, user: dict = Depends(get_current_user)):
+async def get_contact_messages(limit: int = 200, user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -213,7 +213,7 @@ async def get_contact_messages(limit: int = 200, user: dict = Depends(get_curren
 # ── Custom Orders ──────────────────────────────────────────────────────────────
 
 @router.get("/orders")
-async def get_custom_orders(user: dict = Depends(get_current_user)):
+async def get_custom_orders(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -229,7 +229,7 @@ async def get_custom_orders(user: dict = Depends(get_current_user)):
 # ── Stats / Analytics ──────────────────────────────────────────────────────────
 
 @router.get("/stats")
-async def get_admin_stats(user: dict = Depends(get_current_user)):
+async def get_admin_stats(user: dict = Depends(require_admin)):
     try:
         users = await fetchval("SELECT COUNT(*) FROM users") or 0
         sessions = await fetchval("SELECT COUNT(*) FROM user_sessions WHERE expires_at > NOW()") or 0
@@ -244,7 +244,7 @@ async def get_admin_stats(user: dict = Depends(get_current_user)):
 
 
 @router.get("/llm")
-async def get_llm_stats(user: dict = Depends(get_current_user)):
+async def get_llm_stats(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -258,7 +258,7 @@ async def get_llm_stats(user: dict = Depends(get_current_user)):
 
 
 @router.get("/test-results")
-async def get_test_results(user: dict = Depends(get_current_user)):
+async def get_test_results(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -272,7 +272,7 @@ async def get_test_results(user: dict = Depends(get_current_user)):
 
 
 @router.get("/rate-limits")
-async def get_rate_limits(user: dict = Depends(get_current_user)):
+async def get_rate_limits(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -286,7 +286,7 @@ async def get_rate_limits(user: dict = Depends(get_current_user)):
 
 
 @router.get("/notification-log")
-async def get_notification_log(user: dict = Depends(get_current_user)):
+async def get_notification_log(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -300,7 +300,7 @@ async def get_notification_log(user: dict = Depends(get_current_user)):
 
 
 @router.get("/ndas")
-async def get_ndas(user: dict = Depends(get_current_user)):
+async def get_ndas(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -316,7 +316,7 @@ async def get_ndas(user: dict = Depends(get_current_user)):
 # ── System Config ──────────────────────────────────────────────────────────────
 
 @router.get("/config")
-async def get_system_config(user: dict = Depends(get_current_user)):
+async def get_system_config(user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -330,7 +330,7 @@ async def get_system_config(user: dict = Depends(get_current_user)):
 
 
 @router.post("/config")
-async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(get_current_user)):
+async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
@@ -346,7 +346,7 @@ async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(ge
 # ── AI Assistant ───────────────────────────────────────────────────────────────
 
 @router.post("/ai-assistant")
-async def admin_ai(req: AIAssistantRequest, user: dict = Depends(get_current_user)):
+async def admin_ai(req: AIAssistantRequest, user: dict = Depends(require_admin)):
     try:
         stats = await get_admin_stats(user)
         system = f"""You are AYN's internal admin AI. You have access to platform stats:
@@ -382,7 +382,7 @@ async def save_user_memory(req: MemoryRequest, user_id: str = Depends(get_user_i
 
 
 @router.get("/analytics/summary")
-async def get_analytics_summary(days: int = 30, user: dict = Depends(get_current_user)):
+async def get_analytics_summary(days: int = 30, user: dict = Depends(require_admin)):
     try:
         from core.db import get_db
         import asyncio
