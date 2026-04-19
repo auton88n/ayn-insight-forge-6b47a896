@@ -1,7 +1,7 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+
 
 interface ServiceItem { name: string; description: string; price: number; quantity: number; }
 interface Order {
