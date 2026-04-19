@@ -472,7 +472,19 @@ async def run_intelligence_migration(request: Request):
                     if not filtered:
                         continue
                     cols = list(filtered.keys())
-                    vals = [_json.dumps(v) if isinstance(v, (dict, list)) else v for v in filtered.values()]
+                    from datetime import datetime, date
+                    def coerce(v):
+                        if isinstance(v, (dict, list)): return _json.dumps(v)
+                        if isinstance(v, str):
+                            # Parse ISO datetime/date strings
+                            if len(v) > 10 and 'T' in v:
+                                try: return datetime.fromisoformat(v.replace('Z','+00:00'))
+                                except: pass
+                            elif len(v) == 10 and v.count('-') == 2:
+                                try: return date.fromisoformat(v)
+                                except: pass
+                        return v
+                    vals = [coerce(v) for v in filtered.values()]
                     ph = ", ".join(f"${i+1}" for i in range(len(cols)))
                     cn = ", ".join(f'"{col}"' for col in cols)
                     try:
