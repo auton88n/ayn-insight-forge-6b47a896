@@ -1,89 +1,98 @@
 
 
-The Railway logs reveal two real problems on the backend, plus one frontend symptom. Good news: the boot is clean, all 9 cron jobs are registered, migrations are applied, and the scheduler is alive. Bad news: there's a tight loop hammering Supabase every ~3 seconds with a 406, and one Spine endpoint is missing.
+Three real bugs from the screenshot + description. Let me map each to the code.
 
-## Issue 1 — Spine is calling Supabase in a 3-second loop (CRITICAL)
+## Bug 1 — Recent chat title doesn't persist for the first message
 
-Every 3.17 seconds Spine fires:
-```
-GET https://dfkoxuokfkttjhfjcecx.supabase.co/rest/v1/user_ai_limits?... → 406 Not Accepted
-```
+User sends first message → sidebar shows "gello" (or whatever the first words were) → but after refresh / when AI replies, it reverts to "New Chat" or generic title. The title set optimistically isn't being persisted to Spine, OR Spine is overwriting it on first AI response with a stale value.
 
-This is the opposite of what we wanted. Supabase was supposed to be retired from data path. Something inside Spine (likely the SSE `/sse/user` heartbeat or a `user_ai_limits` polling task spawned per connected user) is still wired to the old Supabase REST endpoint instead of Railway Postgres. The 406 means Supabase is rejecting the request shape (probably stale anon key / missing `Accept: application/vnd.pgrst.object+json` header), so it never succeeds — it just retries forever.
+Likely files:
+- `src/hooks/useMessages.ts` or `src/hooks/useChats.ts` — where new chat is created
+- `src/components/dashboard/Sidebar.tsx` (RecentChats section)
+- Spine endpoint: `POST /chats` or `PATCH /chats/{id}` — needs to accept and store the title
 
-Impact:
-- Burns Supabase egress + Railway CPU 24/7
-- Keeps Supabase alive (you can't pause it)
-- User limits in the UI are coming from `/user/limits` which works (200 OK) — so the loop is unused output, just waste
+Need to read these to confirm:
+- Is the title being sent to Spine when chat is created?
+- Does Spine persist `title` column on `conversations` table?
+- Does the SSE stream push back the canonical title and overwrite the optimistic one?
 
-Fix: find the Spine module still pointing at Supabase for `user_ai_limits` and repoint it at Railway Postgres. Most likely candidates: `services/usage.py`, `routers/sse.py`, or a background task in `core/limits.py`.
+## Bug 2 — Credit bar not detecting credits
 
-## Issue 2 — `/system/config` returns 404 (HIGH)
+Screenshot shows "5 of 5 messages remaining" with full white bar — but user says it's not detecting actual usage. After sending a message, the count doesn't decrement in the UI.
 
-Frontend `Dashboard.tsx` calls `GET /system/config?keys=maintenance_mode,...` every 60s and gets **404 Not Found**. This means:
-- Maintenance mode toggle doesn't work
-- Beta mode toggle doesn't work
-- Frontend silently falls back to defaults (so it doesn't crash, but admins can't toggle maintenance)
+Likely cause: Frontend `useUsageTracking` hook either:
+- Polls `/user/limits` but cache isn't invalidated after sending a message
+- Listens to `/sse/user` for usage updates but Spine isn't pushing the update event after `current_daily_messages` increments
+- We just fixed the SSE loop to read from Railway every 15s — the diff might not push events when value changes
 
-Fix: add a `GET /system/config` endpoint to Spine that reads from a Railway `system_config` table (or whatever holds these keys post-migration) and returns `[{key, value}, ...]`.
+Likely files:
+- `src/hooks/useUsageTracking.ts`
+- `src/components/dashboard/CreditUpgradeCard.tsx` (already in context)
+- `ayn-backend/routers/sse.py` (just edited)
+- `ayn-backend/routers/user.py` — `/user/limits` endpoint
+- Spine chat handler — must increment `current_daily_messages` after each user message
 
-## Issue 3 — Frontend console noise
+## Bug 3 — Bonus credits not adding
 
-```
-warning: Unknown message type: RESET_BLANK_CHECK
-```
-Comes from `cdn.gpteng.co/lovable.js` — that's the Lovable preview iframe internals, not your code. Ignore.
+When user earns +5 from feedback, `bonus_credits` column should increment in `user_ai_limits` and the bar should show blue segment. Per screenshot, button is visible ("Earn +5 Credits") so feedback flow exists, but:
+- Either the feedback submit endpoint isn't writing `bonus_credits += 5` to Railway Postgres
+- Or `/user/limits` isn't returning `bonus_credits` field
+- Or `CreditUpgradeCard` isn't reading it correctly (it does read `propBonusCredits`, so likely backend issue)
+
+Likely files:
+- Feedback submit endpoint in Spine — `POST /user/beta-feedback` or similar
+- `ayn-backend/routers/user.py` — `/user/limits` response shape
+- Frontend feedback modal handler
 
 ## Plan
 
-### Step 1 — Read the Spine source to find the Supabase loop
+### Step 1 — Investigate (read-only)
 
-Open these files to locate the `user_ai_limits` call:
-- `ayn-backend/routers/sse.py`
-- `ayn-backend/services/usage.py` (if exists)
-- `ayn-backend/core/limits.py` (if exists)
+Read these files in parallel to confirm root causes:
+- `src/hooks/useUsageTracking.ts`
+- `src/hooks/useChats.ts` and `src/hooks/useMessages.ts`
+- `src/components/dashboard/Sidebar.tsx` (recent chats section)
 - `ayn-backend/routers/user.py`
+- `ayn-backend/routers/chats.py`
+- `ayn-backend/routers/sse.py` (already edited, verify final shape)
+- Spine chat send handler (probably `routers/chat.py` or `routers/messages.py`)
+- Feedback endpoint location
 
-Grep for `user_ai_limits` and `supabase.co` across `ayn-backend/`.
+### Step 2 — Fix Bug 1 (chat title persistence)
 
-### Step 2 — Repoint that call to Railway Postgres
+- Confirm `POST /chats` in Spine accepts `title` and writes it to `conversations.title`
+- If Spine generates auto-title on first AI response, either disable that or make it only fire when `title IS NULL`
+- Frontend: ensure title is sent on creation and not overwritten by stale SSE payload
+- Add SSE event `chat.title.updated` so sidebar gets the canonical title without a refresh
 
-Replace the Supabase REST call with a direct query against Railway's `user_ai_limits` table (which already exists per migration `005_missing_tables.sql` / `007_data_migration_from_supabase.sql`). Use the existing `db` connection pool.
+### Step 3 — Fix Bug 2 (credit decrement)
 
-### Step 3 — Add `GET /system/config` endpoint to Spine
+- Spine: confirm chat send handler runs `UPDATE user_ai_limits SET current_daily_messages = current_daily_messages + 1 WHERE user_id = $1` atomically
+- Spine: after increment, push an SSE event on `/sse/user` with the new value (don't wait 15s for next poll)
+- Frontend `useUsageTracking`: invalidate React Query cache for `/user/limits` immediately after sending a message (optimistic decrement + refetch)
 
-In `ayn-backend/routers/system.py` (create if missing):
-```python
-@router.get("/system/config")
-async def get_system_config(keys: str = ""):
-    key_list = [k.strip() for k in keys.split(",") if k.strip()]
-    rows = await db.fetch(
-        "SELECT key, value FROM system_config WHERE key = ANY($1)",
-        key_list
-    )
-    return [{"key": r["key"], "value": r["value"]} for r in rows]
-```
+### Step 4 — Fix Bug 3 (bonus credits)
 
-Public endpoint (no auth) since it's just maintenance/beta flags, same as the original Supabase version.
+- Spine: in feedback submit handler, run `UPDATE user_ai_limits SET bonus_credits = COALESCE(bonus_credits, 0) + 5 WHERE user_id = $1` and log to `beta_feedback_log`
+- Spine: `/user/limits` response must include `bonus_credits` field (verify the Railway query selects it)
+- Spine: usage check logic must consider `daily_messages + bonus_credits` as the effective daily cap, not just `daily_messages`
+- Frontend: `CreditUpgradeCard` already renders `propBonusCredits` correctly — no change needed once backend returns it
 
-### Step 4 — Verify with one redeploy
+### Step 5 — Verify end-to-end
 
-After Spine redeploys, confirm in Railway logs:
-- ✅ Zero `dfkoxuokfkttjhfjcecx.supabase.co` requests
-- ✅ `/system/config` returns 200 instead of 404
-- ✅ All 9 cron jobs still alive
-
-### Step 5 — Then (and only then) Supabase can actually be paused
-
-Once the loop is dead and `/system/config` works, Supabase has zero remaining traffic from Spine. You can pause it.
+After deploy:
+1. Send a chat message → sidebar title sticks → bar decrements from 5 → 4 within 1s
+2. Submit feedback → `bonus_credits` becomes 5 → blue segment appears in bar → cap becomes 10
+3. `GET /user/limits` returns `{ daily_messages: 5, current_daily_messages: 1, bonus_credits: 5, monthly_messages: 0 }`
 
 ## Out of scope
 
-- The `RESET_BLANK_CHECK` warning — Lovable preview noise, not your code.
-- Cron job logic — already working per Step 1 of last session.
-- Frontend changes — none needed; both `/user/limits` and `/system/config` are already called correctly from `useUsageTracking` and `Dashboard.tsx`.
+- Cron jobs (working)
+- Auth flow (working)
+- World Intelligence dashboard (separate task)
+- The "Earn +5" button styling (works as designed)
 
 ## What I need from you
 
-Just say "go" and I'll execute Steps 1–4 in one push (Step 5 is your call afterward). About 30 min of work.
+Just say "go" and I'll execute Steps 1–5 in one push. ~45 min of work across 4 frontend files and 3 Spine routers.
 
