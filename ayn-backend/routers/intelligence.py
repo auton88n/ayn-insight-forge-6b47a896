@@ -28,6 +28,7 @@ async def get_all_intelligence(user_id: str = Depends(get_user_id_optional)):
             fetch("SELECT * FROM ayn_market_prices WHERE singleton_key = 1 LIMIT 1"),
             fetch("SELECT * FROM ayn_predictions WHERE status = 'active' ORDER BY created_at DESC LIMIT 50"),
             fetch("SELECT * FROM ayn_country_intelligence LIMIT 20"),
+            fetch("SELECT * FROM ayn_accuracy_calibration ORDER BY last_updated DESC NULLS LAST LIMIT 50"),
             return_exceptions=True
         )
 
@@ -43,10 +44,10 @@ async def get_all_intelligence(user_id: str = Depends(get_user_id_optional)):
             "market_prices":         safe(results[5], [None])[0] if safe(results[5]) else None,
             "predictions":           safe(results[6]),
             "country_intelligence":  safe(results[7]),
+            "accuracy":              safe(results[8]),
             # Legacy aliases so old frontend code still works
             "master_predictions":    safe(results[2])[:8],
             "consensus_predictions": safe(results[6])[:60],
-            "accuracy":              [],
         }
     except Exception as e:
         log.error(f"[intelligence] get_all error: {e}")
