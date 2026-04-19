@@ -454,12 +454,13 @@ async def run_intelligence_migration(request: Request):
                 continue
 
             written = 0
+            first_error = None
             async with pool.acquire() as conn:
                 for row in rows:
                     cols = list(row.keys())
                     vals = [_json.dumps(v) if isinstance(v, (dict, list)) else v for v in row.values()]
                     ph = ", ".join(f"${i+1}" for i in range(len(cols)))
-                    cn = ", ".join(f'"{c}"' for c in cols)
+                    cn = ", ".join(f'"{col}"' for col in cols)
                     try:
                         res = await conn.execute(
                             f"INSERT INTO {table} ({cn}) VALUES ({ph}) ON CONFLICT (id) DO NOTHING",
@@ -467,10 +468,10 @@ async def run_intelligence_migration(request: Request):
                         )
                         if res != "INSERT 0 0":
                             written += 1
-                    except Exception:
-                        pass
+                    except Exception as row_err:
+                        if first_error is None: first_error = str(row_err)[:200]
 
-            results[table] = {"read": len(rows), "written": written}
+            results[table] = {"read": len(rows), "written": written, "error": first_error}
             log.info(f"[migrate] {table}: {written}/{len(rows)}")
 
     total_read = sum(r["read"] for r in results.values())
