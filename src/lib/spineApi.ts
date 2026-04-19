@@ -148,8 +148,18 @@ export const spineApi = {
   autoMarket:      () => req('POST', '/marketing/auto-market', {}),
 
   // ── World Intelligence ─────────────────────────────────────────────────────
-  getAllIntelligence: () => req<any>('GET', '/intelligence/all'),
-  votePrediction:    (pred_id: string, vote: string, user_id: string) =>
+  getAllIntelligence:        () => req<any>('GET', '/intelligence/all'),
+  getAccuracy:               () => req<any[]>('GET', '/intelligence/accuracy'),
+  getPredictionOutcomes:     (limit = 200) => req<any[]>('GET', `/intelligence/prediction-outcomes?limit=${limit}`),
+  getAgentConversations:     (limit = 20) => req<any[]>('GET', `/intelligence/agent-conversations?limit=${limit}`),
+  getAgentStates:            (limit = 100) => req<any[]>('GET', `/intelligence/agent-states?limit=${limit}`),
+  getAgentMessages:          (conversation_id: string, limit = 200) =>
+    req<any[]>('GET', `/intelligence/agent-messages?conversation_id=${conversation_id}&limit=${limit}`),
+  getCriticalSignals:        (limit = 8) => req<any[]>('GET', `/intelligence/critical-signals?limit=${limit}`),
+  getWorldSimulations:       (limit = 10) => req<any[]>('GET', `/intelligence/world-simulations?limit=${limit}`),
+  getWorldEvents:            (simulation_run_id: string) =>
+    req<any[]>('GET', `/intelligence/world-events?simulation_run_id=${simulation_run_id}`),
+  votePrediction:            (pred_id: string, vote: string, user_id: string) =>
     req('POST', '/intelligence/vote', { pred_id, vote, user_id }),
 
   // ── Generic request escape hatch ──────────────────────────────────────────
