@@ -219,6 +219,15 @@ export const adminApi = {
   getRateLimits:      () => req<any[]>('GET', '/admin/rate-limits'),
   getNotificationLog: () => req<any[]>('GET', '/admin/notification-log'),
 
+  // Payments & Revenue
+  getStripeBalance:   () => req<any>('GET', '/payments/admin/balance'),
+  getStripeCharges:   () => req<any[]>('GET', '/payments/admin/charges'),
+  getStripeSubscriptions: () => req<any[]>('GET', '/payments/admin/subscriptions'),
+  issueRefund:        (payment_intent_id: string, amount?: number) =>
+    req('POST', '/payments/refund', { payment_intent_id, amount }),
+  cancelSubscription: (sub_id: string) =>
+    req('POST', `/payments/admin/cancel/${sub_id}`, {}),
+
   // PIN
   verifyAdminPin:     (pin: string) => req<{ valid: boolean; lockoutRemaining?: number }>('POST', '/admin/verify-pin', { pin }),
   setAdminPin:        (pin: string, new_pin: string) => req('POST', '/admin/set-pin', { pin, new_pin }),
