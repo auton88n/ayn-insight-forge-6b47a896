@@ -74,7 +74,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className="absolute -inset-8 rounded-full blur-2xl pointer-events-none bg-[radial-gradient(circle,_hsl(25,100%,60%,0.35)_0%,_transparent_70%)] dark:bg-[radial-gradient(circle,_hsl(25,100%,55%,0.25)_0%,_transparent_70%)]" />
+          <div className="absolute -inset-4 rounded-full blur-xl pointer-events-none bg-[radial-gradient(circle,_hsl(25,100%,60%,0.18)_0%,_transparent_70%)] dark:bg-[radial-gradient(circle,_hsl(25,100%,55%,0.15)_0%,_transparent_70%)]" />
 
           <div className="relative w-[180px] h-[180px] sm:w-[240px] sm:h-[240px] md:w-[300px] md:h-[300px] lg:w-[360px] lg:h-[360px] rounded-full flex items-center justify-center">
             {/* Outer concentric rings */}
