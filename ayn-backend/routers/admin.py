@@ -309,3 +309,116 @@ async def schedule_twitter_post(post_id: str, body: dict, _: str = Depends(requi
     await execute("UPDATE twitter_posts SET scheduled_for=$1 WHERE id=$2::uuid",
                   body.get("scheduled_for"), post_id)
     return {"ok": True}
+
+
+# ── Custom Orders ─────────────────────────────────────────────────────────────
+@router.get("/custom-orders")
+async def list_custom_orders(_: str = Depends(require_admin)):
+    rows = await fetch("SELECT * FROM custom_orders ORDER BY created_at DESC")
+    return [dict(r) for r in rows]
+
+
+@router.post("/custom-orders")
+async def create_custom_order(body: dict, _: str = Depends(require_admin)):
+    import json
+    fields = ["client_name","client_email","service_type","description",
+              "price","currency","status","notes","services"]
+    cols = [k for k in fields if k in body]
+    vals = [json.dumps(body[k]) if isinstance(body[k], (dict, list)) else body[k]
+            for k in cols]
+    ph = ", ".join(f"${i+1}" for i in range(len(cols)))
+    cn = ", ".join(f'"{c}"' for c in cols)
+    row = await fetchrow(
+        f'INSERT INTO custom_orders ({cn}, created_at) VALUES ({ph}, NOW()) RETURNING id',
+        *vals)
+    return {"ok": True, "id": str(row["id"]) if row else None}
+
+
+@router.patch("/custom-orders/{order_id}")
+async def update_custom_order(order_id: str, body: dict, _: str = Depends(require_admin)):
+    import json
+    fields = ["client_name","client_email","service_type","description",
+              "price","currency","status","notes","services","paid"]
+    cols = [k for k in fields if k in body]
+    if not cols:
+        return {"ok": True}
+    vals = [json.dumps(body[k]) if isinstance(body[k], (dict, list)) else body[k]
+            for k in cols]
+    sets = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols))
+    await execute(f'UPDATE custom_orders SET {sets} WHERE id=$1::uuid', order_id, *vals)
+    return {"ok": True}
+
+
+@router.delete("/custom-orders/{order_id}")
+async def delete_custom_order(order_id: str, _: str = Depends(require_admin)):
+    await execute("DELETE FROM custom_orders WHERE id=$1::uuid", order_id)
+    return {"ok": True}
+
+
+@router.post("/custom-orders/{order_id}/mark-paid")
+async def mark_order_paid(order_id: str, _: str = Depends(require_admin)):
+    await execute(
+        "UPDATE custom_orders SET paid=TRUE, paid_at=NOW(), status='paid' WHERE id=$1::uuid",
+        order_id)
+    return {"ok": True}
+
+
+@router.post("/custom-orders/{order_id}/pdf")
+async def generate_order_pdf(order_id: str, _: str = Depends(require_admin)):
+    row = await fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", order_id)
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Order not found")
+    order = dict(row)
+    # Return order data for frontend PDF generation
+    return {"ok": True, "order": order, "html": None}
+
+
+# ── Predictions ───────────────────────────────────────────────────────────────
+@router.get("/predictions/master")
+async def get_master_predictions(_: str = Depends(require_admin)):
+    rows = await fetch(
+        "SELECT * FROM ayn_world_predictions ORDER BY created_at DESC LIMIT 200")
+    return [dict(r) for r in rows]
+
+
+@router.get("/predictions/scorecard")
+async def get_predictions_scorecard(_: str = Depends(require_admin)):
+    total = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions") or 0
+    correct = await fetchval(
+        "SELECT COUNT(*) FROM ayn_world_predictions WHERE resolution_correct=TRUE") or 0
+    resolved = await fetchval(
+        "SELECT COUNT(*) FROM ayn_world_predictions WHERE status='resolved'") or 0
+    return {
+        "total": total, "resolved": resolved,
+        "correct": correct,
+        "accuracy_pct": round((correct / resolved * 100) if resolved > 0 else 0, 1)
+    }
+
+
+@router.post("/predictions/run-checker")
+async def run_prediction_checker(body: dict = {}, _: str = Depends(require_admin)):
+    from core.scheduler import get_scheduler
+    scheduler = get_scheduler()
+    job = scheduler.get_job("prediction-resolver") if scheduler else None
+    if job:
+        import datetime
+        job.modify(next_run_time=datetime.datetime.now(datetime.timezone.utc))
+        return {"ok": True, "triggered": "prediction-resolver"}
+    return {"ok": False, "error": "Scheduler job not found"}
+
+
+@router.patch("/predictions/{prediction_id}")
+async def update_prediction(prediction_id: str, body: dict,
+                             _: str = Depends(require_admin)):
+    allowed = ["admin_notes", "check_status", "admin_override", "status",
+               "resolution_correct", "resolution_notes"]
+    cols = [k for k in allowed if k in body]
+    if not cols:
+        return {"ok": True}
+    sets = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols))
+    vals = [body[k] for k in cols]
+    await execute(
+        f'UPDATE ayn_world_predictions SET {sets} WHERE id=$1::uuid',
+        prediction_id, *vals)
+    return {"ok": True}

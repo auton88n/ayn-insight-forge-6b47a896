@@ -361,3 +361,74 @@ async def update_user_profile(body: dict, user_id: str = Depends(get_user_id)):
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ── Account deletion ───────────────────────────────────────────────────────────
+@router.delete("/account")
+async def delete_account(user_id: str = Depends(get_user_id)):
+    """Permanently delete user account and all data."""
+    try:
+        # Delete in order (FK constraints)
+        for table in ["messages", "chat_sessions", "user_memory", "user_ai_limits",
+                      "user_subscriptions", "user_settings", "user_preferences",
+                      "pinned_chats", "beta_feedback", "user_sessions"]:
+            try:
+                await execute(f"DELETE FROM {table} WHERE user_id=$1::uuid", user_id)
+            except Exception:
+                pass
+        await execute("DELETE FROM users WHERE id=$1::uuid", user_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── Memory by ID ───────────────────────────────────────────────────────────────
+@router.delete("/memory/by-id/{memory_id}")
+async def delete_memory_by_id(memory_id: str, user_id: str = Depends(get_user_id)):
+    """Delete a specific memory by its ID."""
+    await execute(
+        "DELETE FROM user_memory WHERE id=$1::uuid AND user_id=$2::uuid",
+        memory_id, user_id)
+    return {"ok": True}
+
+
+# ── Beta feedback exists check ────────────────────────────────────────────────
+@router.get("/beta-feedback/exists")
+async def beta_feedback_exists(user_id: str = Depends(get_user_id)):
+    """Check if user has already submitted beta feedback."""
+    count = await fetchval(
+        "SELECT COUNT(*) FROM beta_feedback WHERE user_id=$1::uuid", user_id)
+    return {"exists": (count or 0) > 0}
+
+
+# ── User feedback (general) ───────────────────────────────────────────────────
+@router.post("/feedback")
+async def submit_feedback(body: dict, user_id: str = Depends(get_user_id)):
+    """Submit general feedback."""
+    try:
+        import json as _json
+        await execute("""
+            INSERT INTO beta_feedback (user_id, overall_rating, additional_comments, created_at)
+            VALUES ($1::uuid, $2, $3, NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+                additional_comments = EXCLUDED.additional_comments,
+                updated_at = NOW()
+        """, user_id,
+            body.get("rating", 5),
+            body.get("comment", body.get("message", "")))
+        return {"ok": True}
+    except Exception as e:
+        log.error(f"[feedback] {e}")
+        return {"ok": False, "error": str(e)}
+
+
+# ── Chart analyses ────────────────────────────────────────────────────────────
+@router.get("/chart-analyses")
+async def get_chart_analyses(user_id: str = Depends(get_user_id),
+                              limit: int = 20, offset: int = 0):
+    """Get user's chart analysis history."""
+    rows = await fetch(
+        "SELECT * FROM chart_analyses WHERE user_id=$1::uuid "
+        "ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        user_id, limit, offset)
+    return {"analyses": [dict(r) for r in rows]}

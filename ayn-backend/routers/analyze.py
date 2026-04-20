@@ -49,3 +49,14 @@ async def analyze_floor_plan(req: FloorPlanRequest, user_id: str = Depends(get_u
         return {"analysis": result.get("content", ""), "ok": True}
     except Exception as e:
         return {"analysis": f"Analysis unavailable: {e}", "ok": False}
+
+
+# ── Chart analysis history ─────────────────────────────────────────────────────
+@router.delete("/chart-analysis/{analysis_id}")
+async def delete_chart_analysis(analysis_id: str, user_id: str = Depends(get_user_id)):
+    """Delete a chart analysis."""
+    from core.database import execute as _execute
+    await _execute(
+        "DELETE FROM chart_analyses WHERE id=$1::uuid AND user_id=$2::uuid",
+        analysis_id, user_id)
+    return {"ok": True}

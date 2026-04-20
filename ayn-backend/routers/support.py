@@ -57,3 +57,94 @@ async def contact(req: ContactRequest):
         pass
     asyncio.create_task(send_email(req.email, "contact_confirmation", {"userName": req.name}))
     return {"ok": True}
+
+
+# ── Support Tickets (user-facing) ─────────────────────────────────────────────
+class TicketRequest(BaseModel):
+    subject: str
+    message: str
+    category: str = "general"
+    priority: str = "normal"
+
+
+@router.post("/tickets")
+async def create_ticket(req: TicketRequest, user_id: str = Depends(get_user_id)):
+    """Create a support ticket."""
+    from services.email import send_email
+    import asyncio
+    try:
+        row = await fetchrow("""
+            INSERT INTO support_tickets (user_id, subject, message, category, priority, status, created_at, updated_at)
+            VALUES ($1::uuid, $2, $3, $4, $5, 'open', NOW(), NOW())
+            RETURNING id, subject, status
+        """, user_id, req.subject, req.message, req.category, req.priority)
+        ticket = dict(row) if row else {}
+        # Notify team
+        asyncio.create_task(send_email(
+            "support@aynn.io", "new_ticket",
+            {"subject": req.subject, "ticket_id": str(ticket.get("id", ""))}
+        ))
+        return {"ok": True, "ticket": ticket}
+    except Exception as e:
+        log.error(f"[support] create ticket: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.get("/tickets/{ticket_id}")
+async def get_ticket(ticket_id: str, user_id: str = Depends(get_user_id)):
+    """Get a specific ticket with messages."""
+    ticket = await fetchrow(
+        "SELECT * FROM support_tickets WHERE id=$1::uuid AND user_id=$2::uuid",
+        ticket_id, user_id)
+    if not ticket:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Ticket not found")
+    messages = await fetch(
+        "SELECT * FROM ticket_messages WHERE ticket_id=$1::uuid ORDER BY created_at",
+        ticket_id)
+    return {"ticket": dict(ticket), "messages": [dict(m) for m in messages]}
+
+
+@router.get("/tickets/{ticket_id}/messages")
+async def get_ticket_messages(ticket_id: str, user_id: str = Depends(get_user_id)):
+    """Get messages for a ticket."""
+    messages = await fetch(
+        "SELECT * FROM ticket_messages WHERE ticket_id=$1::uuid ORDER BY created_at",
+        ticket_id)
+    return {"messages": [dict(m) for m in messages]}
+
+
+@router.post("/tickets/{ticket_id}")
+async def reply_to_ticket(ticket_id: str, body: dict, user_id: str = Depends(get_user_id)):
+    """User replies to a ticket."""
+    message = body.get("message", "")
+    if not message:
+        from fastapi import HTTPException
+        raise HTTPException(400, "Message required")
+    await execute("""
+        INSERT INTO ticket_messages (ticket_id, message, sender, sender_id, created_at)
+        VALUES ($1::uuid, $2, 'user', $3::uuid, NOW())
+    """, ticket_id, message, user_id)
+    await execute(
+        "UPDATE support_tickets SET status='awaiting_reply', updated_at=NOW() WHERE id=$1::uuid",
+        ticket_id)
+    return {"ok": True}
+
+
+@router.post("/tickets/{ticket_id}/mark-read")
+async def mark_ticket_read(ticket_id: str, user_id: str = Depends(get_user_id)):
+    """Mark ticket messages as read."""
+    await execute(
+        "UPDATE support_tickets SET has_unread_reply=FALSE WHERE id=$1::uuid AND user_id=$2::uuid",
+        ticket_id, user_id)
+    return {"ok": True}
+
+
+@router.delete("/tickets/{ticket_id}")
+async def close_ticket(ticket_id: str, user_id: str = Depends(get_user_id)):
+    """Close/delete a ticket."""
+    await execute(
+        "UPDATE support_tickets SET status='closed', updated_at=NOW() "
+        "WHERE id=$1::uuid AND user_id=$2::uuid",
+        ticket_id, user_id)
+    return {"ok": True}
