@@ -117,7 +117,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
                       width: isHovered ? '40%' : '36%',
                       height: isHovered ? '40%' : '36%',
                       color: 'hsl(25, 100%, 65%)',
-                      filter: 'drop-shadow(0 0 12px hsl(25, 100%, 55%, 0.6))',
+                      filter: 'drop-shadow(0 0 12px hsl(25, 100%, 55%, 0.35))',
                     }}
                   />
                 </div>
