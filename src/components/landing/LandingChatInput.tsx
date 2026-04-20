@@ -81,10 +81,11 @@ export const LandingChatInput: React.FC<LandingChatInputProps> = ({ onSendAttemp
         className={cn(
           "relative rounded-2xl overflow-hidden",
           "bg-background/95 backdrop-blur-xl",
-          "border border-border/50",
-          "shadow-lg shadow-black/5",
+          "border border-ayn/40",
+          "shadow-[0_0_24px_-4px_hsl(var(--ayn-orange)/0.35)]",
           "transition-all duration-300",
-          "hover:border-border hover:shadow-xl"
+          "hover:border-ayn/70 hover:shadow-[0_0_32px_-2px_hsl(var(--ayn-orange)/0.55)]",
+          "focus-within:border-ayn focus-within:shadow-[0_0_36px_-2px_hsl(var(--ayn-orange)/0.65)]"
         )}
       >
         {/* Row 1: Input Area */}
