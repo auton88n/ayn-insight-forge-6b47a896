@@ -1,7 +1,6 @@
 import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { tokenStore } from '@/lib/spineAuth';
+import { adminApi } from '@/lib/adminApi';
 import { spineAuth } from '@/lib/spineAuth';
 import { toast } from 'sonner';
 import { getHandlingMessage, RATE_LIMIT_MESSAGE } from '@/lib/errorMessages';
@@ -91,12 +90,12 @@ export const useEngineeringAIAgent = ({
       if (!userId) return;
       
       try {
-        const token = tokenStore.getAccessToken() || '';
-        const data = await supabaseApi.get<any[]>(
-          `messages?session_id=eq.${engineeringSessionId}&mode_used=eq.engineering&order=created_at.asc`,
-          token
-        );
-        
+        const { data } = await adminApi.from('messages')
+          .select('*')
+          .eq('session_id', engineeringSessionId)
+          .eq('mode_used', 'engineering')
+          .order('created_at', { ascending: true });
+
         if (data && data.length > 0) {
           setMessages(data.map((m: any) => ({
             id: m.id,
@@ -123,19 +122,14 @@ export const useEngineeringAIAgent = ({
     if (!userId) return null;
     
     try {
-      const token = tokenStore.getAccessToken() || '';
-      const result = await supabaseApi.post<any[]>(
-        'messages',
-        token,
-        {
-          user_id: userId,
-          content,
-          sender,
-          session_id: engineeringSessionId,
-          mode_used: 'engineering',
-        }
-      );
-      const row = Array.isArray(result) ? result[0] : (result as any);
+      const { data: rows } = await adminApi.from('messages').insert([{
+        user_id: userId,
+        content,
+        sender,
+        session_id: engineeringSessionId,
+        mode_used: 'engineering',
+      }]);
+      const row = Array.isArray(rows) ? rows[0] : rows;
       return row?.id || null;
     } catch (err) {
       if (import.meta.env.DEV) {

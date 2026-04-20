@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { tokenStore } from '@/lib/spineAuth';
+import { adminApi } from '@/lib/adminApi';
 import { runComplianceChecks, type BuildingCode, type ComplianceInput, type ComplianceResult } from '../utils/complianceEngine';
 
 export function useComplianceCheck() {
@@ -24,15 +23,13 @@ export function useComplianceCheck() {
     setError(null);
 
     try {
-      const token = tokenStore.getAccessToken() || '';
-      const codes = await supabaseApi.get<BuildingCode[]>(
-        `building_codes?code_system=eq.${codeSystem}`,
-        token
-      );
+      const { data: codes } = await adminApi.from('building_codes')
+        .select('*')
+        .eq('code_system', codeSystem);
 
       const checkResults = runComplianceChecks(
         inputs,
-        codes || [],
+        (codes as BuildingCode[]) || [],
         projectConfig
       );
 

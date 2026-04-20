@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { tokenStore } from '@/lib/spineAuth';
+import { adminApi } from '@/lib/adminApi';
 import { toast } from 'sonner';
 
 export interface ComplianceProject {
@@ -52,9 +51,8 @@ export function useComplianceProject(userId: string) {
   const saveProject = useCallback(async () => {
     setSaving(true);
     try {
-      const token = tokenStore.getAccessToken() || '';
-      const result = await supabaseApi.post<any[]>('compliance_projects', token, project);
-      const row = Array.isArray(result) ? result[0] : (result as any);
+      const { data: rows } = await adminApi.from('compliance_projects').insert([project]);
+      const row = Array.isArray(rows) ? rows[0] : rows;
       const id = row?.id as string | undefined;
       if (id) setProject(prev => ({ ...prev, id }));
       toast.success('Project saved');

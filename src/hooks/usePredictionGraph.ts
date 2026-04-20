@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { tokenStore } from '@/lib/spineAuth';
+import { adminApi } from '@/lib/adminApi';
 
 export interface GraphCluster {
   id: string;
@@ -86,12 +85,9 @@ export function usePredictionGraph() {
     setLoading(true);
     setError(null);
     try {
-      const token = tokenStore.getAccessToken() || '';
       // Latest run
-      const runs = await supabaseApi.get<any[]>(
-        'ayn_graph_runs?status=eq.complete&order=created_at.desc&limit=1',
-        token
-      );
+      const { data: runs } = await adminApi.from('ayn_graph_runs')
+        .select('*').eq('status', 'complete').order('created_at', { ascending: false }).limit(1);
 
       const latestRun = runs?.[0] || null;
       if (!latestRun) {
@@ -101,24 +97,19 @@ export function usePredictionGraph() {
       }
 
       // Clusters from latest run
-      const clusters = await supabaseApi.get<any[]>(
-        `ayn_prediction_clusters?run_id=eq.${latestRun.id}&order=prediction_count.desc`,
-        token
-      );
+      const { data: clusters } = await adminApi.from('ayn_prediction_clusters')
+        .select('*').eq('run_id', latestRun.id).order('prediction_count', { ascending: false });
 
       // Top surprising edges from latest run
-      const edges = await supabaseApi.get<any[]>(
-        `ayn_prediction_graph_edges?run_id=eq.${latestRun.id}&order=surprise_score.desc&limit=30`,
-        token
-      );
+      const { data: edges } = await adminApi.from('ayn_prediction_graph_edges')
+        .select('*').eq('run_id', latestRun.id).order('surprise_score', { ascending: false }).limit(30);
 
-      // Members with prediction details
+      // Members with prediction details (embedded join via PostgREST select)
       const clusterIds = (clusters || []).map((c: GraphCluster) => c.id);
-      const select = encodeURIComponent('prediction_id,cluster_id,confidence_label,centrality_score,is_bridge,ayn_world_predictions!inner(title,domain,region,confidence,signal_quality,horizon,what_is_happening,actionable_move,key_drivers,tags)');
+      const select = 'prediction_id,cluster_id,confidence_label,centrality_score,is_bridge,ayn_world_predictions!inner(title,domain,region,confidence,signal_quality,horizon,what_is_happening,actionable_move,key_drivers,tags)';
       const members = clusterIds.length > 0
-        ? await supabaseApi.get<any[]>(
-            `ayn_prediction_cluster_members?select=${select}&cluster_id=in.(${clusterIds.join(',')})&order=centrality_score.desc`,
-            token
+        ? await adminApi.get<any[]>(
+            `ayn_prediction_cluster_members?select=${encodeURIComponent(select)}&cluster_id=in.(${clusterIds.join(',')})&order=centrality_score.desc`
           )
         : [];
 

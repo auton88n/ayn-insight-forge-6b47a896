@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { tokenStore } from '@/lib/spineAuth';
+import { adminApi } from '@/lib/adminApi';
 
 export interface ClimateZone {
   id: string;
@@ -25,10 +24,11 @@ export function useClimateZone(country: string) {
   useEffect(() => {
     if (!country) return;
     setLoading(true);
-    const token = tokenStore.getAccessToken() || '';
-    supabaseApi
-      .get<ClimateZone[]>(`climate_zones?country=eq.${country}&order=region.asc`, token)
-      .then((data) => {
+    adminApi.from('climate_zones')
+      .select('*')
+      .eq('country', country)
+      .order('region', { ascending: true })
+      .then(({ data }: { data: ClimateZone[] | null }) => {
         setZones(data || []);
         setLoading(false);
       })
