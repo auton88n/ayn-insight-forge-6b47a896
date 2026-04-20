@@ -35,12 +35,12 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
       aria-label="Hero"
     >
       {/* Headline */}
-      <div className="w-full max-w-4xl text-center mb-4 md:mb-6">
+      <div className="w-full max-w-4xl text-center mb-8 md:mb-12">
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
-          className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
+          className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-4xl sm:text-5xl md:text-6xl lg:text-7xl"
         >
           {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
         </motion.h1>
