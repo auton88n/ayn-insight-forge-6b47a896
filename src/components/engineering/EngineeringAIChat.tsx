@@ -25,7 +25,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { toast } from '@/hooks/use-toast';
 import { CalculatorType } from '@/lib/engineeringKnowledge';
 import { MessageFormatter } from '@/components/shared/MessageFormatter';
@@ -273,7 +272,7 @@ export const EngineeringAIChat = ({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${(await import('@/lib/spineAuth')).spineAuth.getAccessToken() || ''}`,
           },
           body: JSON.stringify({
             calculatorType,

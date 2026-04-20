@@ -91,7 +91,6 @@ interface BugReport {
   suggestedFix: string;
 }
 
-import { SUPABASE_URL } from '@/config';
 
 /**
  * Safely fetch JSON from an edge function with proper content-type validation
@@ -313,7 +312,7 @@ const TestResultsDashboard: React.FC = () => {
           totalDuration: number;
         };
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/run-real-tests`, {
+      }>(`${}/functions/v1/run-real-tests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ suite: config.suite }),
@@ -410,7 +409,7 @@ const TestResultsDashboard: React.FC = () => {
         }>;
         analysis?: string;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-comprehensive-tester`, {
+      }>(`${}/functions/v1/ai-comprehensive-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ concurrency: 3 }),
@@ -476,7 +475,7 @@ const TestResultsDashboard: React.FC = () => {
         }>;
         analysis?: string;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-ux-tester`, {
+      }>(`${}/functions/v1/ai-ux-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
@@ -537,7 +536,7 @@ const TestResultsDashboard: React.FC = () => {
         byIntent?: Record<string, unknown>;
         sloTargets?: Record<string, { ttft: number; total: number }>;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-response-time-tester`, {
+      }>(`${}/functions/v1/ai-response-time-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intents: ['chat', 'engineering'], iterations: 2 }),
@@ -620,7 +619,7 @@ const TestResultsDashboard: React.FC = () => {
         results?: Array<{ path: string; name: string; status: 'passed' | 'warning' | 'failed'; analysisMethod: string; issues: Array<{ type: string; severity: string; description: string; element?: string; suggestion: string }>; metrics: { htmlSize: number; loadTime: number; elementsCount: number; imagesCount: number; linksCount: number; formsCount: number } }>;
         aiAnalysis?: string;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-visual-tester`, {
+      }>(`${}/functions/v1/ai-visual-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -666,7 +665,7 @@ const TestResultsDashboard: React.FC = () => {
         byCategory?: Record<string, { passed: number; failed: number; skipped: number }>;
         failures?: Array<{ endpoint: string; category: string; httpStatus: number; error?: string; payload?: unknown }>;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-crash-tester`, {
+      }>(`${}/functions/v1/ai-crash-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

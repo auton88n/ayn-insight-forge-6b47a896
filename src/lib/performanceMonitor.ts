@@ -1,4 +1,3 @@
-import { SUPABASE_URL } from '@/config';
 
 /**
  * Reports Core Web Vitals (TTFB, DCL, Load) to the report-vitals edge function.

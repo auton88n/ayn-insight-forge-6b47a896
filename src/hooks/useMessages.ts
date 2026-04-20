@@ -14,7 +14,6 @@ import type {
   LABResponse
 } from '@/types/dashboard.types';
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY, AYN_BACKEND_URL } from '@/config';
 import { detectIntent } from '@/hooks/chat/useIntentDetection';
 import { parseSSEStream, fetchWithRetry } from '@/hooks/chat/useSSEStream';
 import { useMessagePersistence } from '@/hooks/chat/useMessagePersistence';
@@ -150,12 +149,7 @@ export const useMessages = (
         ? {
             'Authorization': `Bearer ${latestToken}`,
             'Content-Type': 'application/json',
-          }
-        : {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${latestToken}`,
-            'Content-Type': 'application/json',
-          };
+          }: {'Authorization': `Bearer ${latestToken}`, 'Content-Type': 'application/json'};
 
       const webhookResponse = await fetchWithRetry(chatUrl, {
         method: 'POST',

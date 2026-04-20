@@ -22,7 +22,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { spineApi } from '@/lib/spineApi';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { CalculatorType } from '@/lib/engineeringKnowledge';
 
 interface Suggestion {
@@ -281,7 +280,7 @@ export const AICalculatorAssistant: React.FC<AICalculatorAssistantProps> = ({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${(await import('@/lib/spineAuth')).spineAuth.getAccessToken() || ''}`,
           },
           body: JSON.stringify({
             calculatorType,

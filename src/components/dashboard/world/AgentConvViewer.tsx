@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { spineAuth } from '@/lib/spineAuth';
 
 const EM: Record<string, {color:string;bg:string;border:string;emoji:string;label:string}> = {
   neutral:    {color:'#94a3b8',bg:'rgba(148,163,184,0.08)',border:'rgba(148,163,184,0.2)',  emoji:'😐',label:'Neutral'},
@@ -180,12 +180,12 @@ export default function AgentConvViewer({convId}:{convId:string}) {
   useEffect(()=>{
     if(!convId)return;
     setLoading(true);setError(null);setMessages([]);setConvMeta(null);
-    fetch(`${SUPABASE_URL}/rest/v1/ayn_agent_messages?conversation_id=eq.${convId}&select=*&order=sequence_order.asc`,{
-      headers:{'Authorization':`Bearer ${SUPABASE_ANON_KEY}`,'apikey':SUPABASE_ANON_KEY}
+    fetch(`https://spine.aynn.io/intelligence/agent-conversations/${convId}/messages`,{
+      headers:{'Authorization':`Bearer ${await spineAuth.getAccessToken()}`,'Content-Type':'application/json'}
     }).then(r=>r.json()).then(d=>setMessages(Array.isArray(d)?d:[])).catch(e=>setError(String(e))).finally(()=>setLoading(false));
 
-    fetch(`${SUPABASE_URL}/rest/v1/ayn_agent_conversations?id=eq.${convId}&select=*`,{
-      headers:{'Authorization':`Bearer ${SUPABASE_ANON_KEY}`,'apikey':SUPABASE_ANON_KEY}
+    fetch(`https://spine.aynn.io/intelligence/agent-conversations/${convId}`,{
+      headers:{'Authorization':`Bearer ${await spineAuth.getAccessToken()}`,'Content-Type':'application/json'}
     }).then(r=>r.json()).then(d=>{if(d?.[0])setConvMeta(d[0]);}).catch(()=>{});
   },[convId]);
 

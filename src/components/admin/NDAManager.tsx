@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import { adminApi as supabase } from '@/lib/adminApi';
-import { SUPABASE_URL } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';

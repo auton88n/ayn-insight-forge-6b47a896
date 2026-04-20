@@ -5,7 +5,6 @@ import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { adminApi as supabase } from '@/lib/adminApi';
-import { SUPABASE_URL } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

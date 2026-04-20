@@ -24,7 +24,6 @@ import {
   History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { SUPABASE_URL } from '@/config';
 
 interface ChatMessage {
   id: string;

@@ -137,7 +137,6 @@ export function useAYN(options: UseAYNOptions = {}) {
         throw new Error('Not authenticated');
       }
 
-      const { SUPABASE_URL: SUPA_URL } = await import('@/config');
       const response = await fetch(
         `https://spine.aynn.io/chat`,
         {

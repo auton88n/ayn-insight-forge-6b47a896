@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SUPABASE_URL } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, X, ChevronRight, FileText, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';

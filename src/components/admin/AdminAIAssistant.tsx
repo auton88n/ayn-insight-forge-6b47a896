@@ -33,7 +33,6 @@ interface Message {
   timestamp?: Date;
 }
 
-import { SUPABASE_URL } from '@/config';
 
 // Typing indicator dots
 const TypingIndicator = () => (
@@ -276,7 +275,7 @@ export function AdminAIAssistant() {
           break;
           
         case 'run_tests':
-          await fetch(`${SUPABASE_URL}/functions/v1/ai-comprehensive-tester`, {
+          await fetch(`${}/functions/v1/ai-comprehensive-tester`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${session.access_token}`,
