@@ -88,7 +88,7 @@ const LandingPage = memo(() => {
               {language === 'ar' ? 'من نحن' : language === 'fr' ? 'À Propos d\'AYN' : 'About AYN'}
             </span>
 
-            <h2 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold mb-4 md:mb-6">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-serif font-bold mb-4 md:mb-6">
               {language === 'ar' ? 'ذكاء أعمال لا يتوقف' : language === 'fr' ? 'Intelligence qui ne s\'arrête jamais' : 'Business Intelligence That Never Sleeps'}
             </h2>
 
