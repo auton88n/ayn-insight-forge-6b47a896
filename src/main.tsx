@@ -1,3 +1,14 @@
+
+// Hostinger SPA routing fix — handle ?redirect= param from 404.html
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect');
+  if (redirect) {
+    // Replace current URL with the intended path, no page reload
+    window.history.replaceState(null, '', decodeURIComponent(redirect));
+  }
+})();
+
 // Self-hosted fonts via @fontsource (replaces Google Fonts CDN)
 import '@fontsource/syne/400.css';
 import '@fontsource/syne/500.css';
