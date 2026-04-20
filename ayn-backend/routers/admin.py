@@ -339,3 +339,97 @@ async def scheduler_jobs_public():
     return {"jobs": list(JOB_REGISTRY.keys())}
 
 
+
+
+# ── Error resolution ──────────────────────────────────────────────────────────
+class ErrorResolveBody(BaseModel):
+    pattern: str
+    status: str = "resolved"
+    note: Optional[str] = None
+
+
+@router.post("/errors/resolve")
+async def resolve_errors(body: ErrorResolveBody, _: str = Depends(require_admin)):
+    await execute(
+        "UPDATE error_logs SET status=$1 WHERE message ILIKE $2",
+        body.status, f"%{body.pattern}%"
+    )
+    return {"ok": True}
+
+
+@router.post("/errors/reopen")
+async def reopen_errors(body: ErrorResolveBody, _: str = Depends(require_admin)):
+    await execute(
+        "UPDATE error_logs SET status='open' WHERE message ILIKE $1",
+        f"%{body.pattern}%"
+    )
+    return {"ok": True}
+
+
+# ── User subscription update ──────────────────────────────────────────────────
+class SubscriptionUpdateBody(BaseModel):
+    status: Optional[str] = None
+    plan: Optional[str] = None
+
+
+@router.patch("/users/{user_id}/subscription")
+async def update_user_subscription(
+    user_id: str, body: SubscriptionUpdateBody, _: str = Depends(require_admin)
+):
+    if body.status:
+        await execute(
+            "UPDATE user_subscriptions SET status=$1 WHERE user_id=$2::uuid",
+            body.status, user_id
+        )
+    return {"ok": True}
+
+
+# ── Twitter posts (admin view) ────────────────────────────────────────────────
+@router.get("/twitter/posts")
+async def get_twitter_posts(limit: int = 50, _: str = Depends(require_admin)):
+    rows = await fetch(
+        "SELECT * FROM twitter_posts ORDER BY created_at DESC LIMIT $1", limit
+    )
+    return {"posts": [dict(r) for r in rows]}
+
+
+@router.delete("/twitter/posts/{post_id}")
+async def delete_twitter_post(post_id: str, _: str = Depends(require_admin)):
+    await execute("DELETE FROM twitter_posts WHERE id=$1::uuid", post_id)
+    return {"ok": True}
+
+
+@router.post("/twitter/posts/{post_id}/retry")
+async def retry_twitter_post(post_id: str, _: str = Depends(require_admin)):
+    await execute(
+        "UPDATE twitter_posts SET status='pending', error=NULL WHERE id=$1::uuid", post_id
+    )
+    return {"ok": True}
+
+
+@router.post("/twitter/posts/{post_id}/schedule")
+async def schedule_twitter_post(post_id: str, body: dict, _: str = Depends(require_admin)):
+    await execute(
+        "UPDATE twitter_posts SET scheduled_for=$1 WHERE id=$2::uuid",
+        body.get("scheduled_for"), post_id
+    )
+    return {"ok": True}
+
+
+# ── /admin/llm alias (LLMManagement.tsx calls /admin/llm not /admin/llm/models) ──
+@router.get("/llm")
+async def get_llm_overview(_: str = Depends(require_admin)):
+    models = await fetch("SELECT * FROM llm_models")
+    usage = await fetch(
+        "SELECT model_name, COUNT(*) as calls, AVG(response_time_ms) as avg_ms "
+        "FROM llm_usage_logs WHERE created_at > NOW() - INTERVAL '7 days' "
+        "GROUP BY model_name ORDER BY calls DESC"
+    )
+    failures = await fetch(
+        "SELECT COUNT(*) as count FROM llm_failures WHERE created_at > NOW() - INTERVAL '24 hours'"
+    )
+    return {
+        "models": [dict(r) for r in models],
+        "usage": [dict(r) for r in usage],
+        "failures_24h": dict(failures[0])["count"] if failures else 0,
+    }
