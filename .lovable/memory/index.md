@@ -1,0 +1,99 @@
+# Project Memory
+
+## Core
+- Dark theme, premium Apple/Palantir aesthetic. aynn.io is the production domain.
+- Fonts: Syne (headings), Inter (body), JetBrains Mono (tech/mono). Avoid serif.
+- AYN is a personal intelligence assistant/smart friend. Do not claim tech dev capabilities.
+- Never delete user accounts, profiles, auth records, or modify admins. English-only system emails.
+- B2B Global Canadian positioning. No Arabic 'عين'. Avoid "Privacy-First" claims.
+- Natural human tone in public copy. Strictly no em dashes (—) or hyphens (-).
+- No trading features. Do not re-add chart analyzer or paper trading.
+- Hide /engineering and /compliance tools from frontend, keep in codebase.
+- Database has NO native foreign keys (Relationships: []); manage referential integrity in app/edge functions.
+- All RLS policies must wrap `auth.uid()` in `(select auth.uid())` for performance.
+- Backend is Spine (FastAPI on Railway Postgres). Zero live Supabase calls in src/. All data/auth/storage via spine.aynn.io.
+- Admin uses adminApi/spineApi → /admin/db/, /admin/fn/, /admin/db/rpc/. Realtime via adminSSE → /sse/admin.
+- supabaseApi.ts deleted 2026-04-20; all data calls use adminApi.from() builder or spineApi.
+- Intelligence frontend uses only GET /intelligence/all and POST /intelligence/simulate.
+- Default AI model: google/gemini-2.5-flash via Lovable AI Gateway.
+- Admin panel strictly protected by a custom server-side 2FA PIN (hash 690135e5).
+
+## Memories
+- [Spine-Only Backend](mem://architecture/spine-only-backend) — Supabase fully retired 2026-04-19, all calls to spine.aynn.io on Railway
+- [Server Rate Limiting](mem://security/server-side-rate-limiting-implemented) — 100 req/hr API limits, auto-blocking, PostgreSQL enforced
+- [File Upload](mem://features/unified-file-upload-system) — Pre-upload validation, 16 extensions, block send until complete
+- [Chat Integrity](mem://features/chat/integrity-and-persistence-v1) — 100 msg limit/session, UUIDs, cross-device pinned chats
+- [Admin Audit](mem://security/admin-audit-and-privacy-controls) — Security logs for admin access, creator profile privacy toggles
+- [Multimodal Chat](mem://features/chat/multimodal-file-intelligence-v1) — Base64 conversion for vision/PDFs, 15k char limit, UI striping
+- [Zustand State](mem://architecture/zustand-state-management-v1) — debugStore, soundStore, emotionStore replacing React Context
+- [Offline Support](mem://features/offline-support-and-retries-v1) — Service worker, network-first, offline message queue with 3 retries
+- [Client Rate Limiting](mem://security/client-side-rate-limiting-v1) — 5 msg/10s, UI countdown toasts via RateLimiter class
+- [Prompt Injection](mem://security/prompt-injection-defense) — INJECTION_GUARD, sanitizePrompt.ts, non-blocking logging
+- [Marketing Persona](mem://architecture/marketing/sales-expert-persona) — Sales expert, AIDA/PAS frameworks, Cialdini principles
+- [Autonomous Marketing](mem://features/marketing/autonomous-marketing-hq) — Twitter OAuth, auto-pilot, metric tracking, Gemini images
+- [Admin UI Sync](mem://architecture/admin-ui-real-time-synchronization) — Real-time Subscriptions for AYN Telegram/autonomous actions
+- [Origin Validation](mem://security/origin-validation) — Whitelist (aynn.io, lovable.app) for sensitive edge functions
+- [Inbound Email](mem://features/marketing/inbound-email-processing) — Resend webhook fetching full body for Telegram sales pipeline
+- [Multimodal Bot](mem://features/admin-co-pilot-multimodal-support) — Telegram bot converts PDF/Audio to Base64, Gemini analysis
+- [Platform Stability](mem://architecture/platform-stability-standards) — clear-before-set timers, no index React keys, error boundaries
+- [Theme UI Tokens](mem://style/theme-aware-ui-components) — Semantic tokens (bg-card), leading-relaxed, avoiding hardcoded grays
+- [Edge Deployment](mem://architecture/edge-function-deployment-standards) — Deno.serve(), esm.sh/npm: imports, CORS headers
+- [Chat Pagination](mem://architecture/chat/paginated-history-and-sidebar-optimization) — Cursor-based loadMoreMessages, idx_messages_user_timestamp
+- [LLM Usage Tracking](mem://monitoring/llm-usage-and-token-tracking) — ayn-unified logging usage/costs non-blocking to DB
+- [Intent Detection](mem://features/chat/intent-detection-refinement) — Fuzzy regex matching, retry intent, hallucination guards
+- [TOS & Privacy UI](mem://legal/v2-terms-and-privacy-policy-hardened) — 3 non-dismissible checkboxes, terms_consent_log, LTR forced
+- [Brand Integrity](mem://identity/brand-and-personal-privacy-integrity) — "AYN Team", no architecture leaks, no real-people PII
+- [Eng Standards](mem://architecture/engineering-response-standards) — "Preliminary estimate", amber warning for licensed PE
+- [Session Setup](mem://auth/session-initialization-logic) — 4 parallel DB queries, block if access_grants.is_active=false
+- [Auth Resend](mem://auth/verification-and-resend-logic) — Auto-resend confirm email on unverified sign-in attempt
+- [Firecrawl Sec](mem://security/firecrawl-sanitization) — HTML sanitization, 30m TTL in news_cache to prevent DDoS
+- [Chat Layout Constraints](mem://style/layout-and-scroll-constraints) — ResizeObserver dynamic ResponseCard height, float scroll arrow
+- [AYN Mind Unified](mem://architecture/ayn-mind-unified-assistant) — Single assistant reasoning loop replacing 13-agent architecture
+- [Mind Logic](mem://features/ayn-mind/system-logic) — Injects company metrics/objectives, memory scoped to last 10 msgs
+- [Pulse Intelligence](mem://features/ayn-pulse-intelligence-system) — 4hr background cron, FRED/GDELT/Firecrawl intelligence injection
+- [Assistant Persona](mem://identity/personal-intelligence-assistant-persona) — Smart friend, 2-4 sentences max, plain English market context
+- [Pre-chat Intel](mem://features/ayn-intelligence-ui-section) — World Mood, Is now a good time?, My decision glass-morphism cards
+- [Config Sync](mem://architecture/edge-function-configuration-sync) — supabase/config.toml sync with directories, verify_jwt=false
+- [Sub Tiers](mem://monetization/subscription-tiers-and-limits) — Stripe tiers: Free(5), Starter(200), Pro(1000), Biz(5000), Enterprise
+- [Usage UI](mem://monetization/usage-display-logic) — Real-time usage limit blocks input, tier-specific upgrade redirects
+- [AI Context Limits](mem://architecture/ai-model-context-limits) — 15 msg history, 1500 chars/msg, max_tokens 1536, top 30 memories
+- [Support Guardrails](mem://features/support-bot-guardrails) — Platform specific only, no general knowledge, billing/tech support
+- [User Memory System](mem://features/user-memory-privacy-system) — Privacy settings UI for users to view/delete AI collected memory
+- [Upload Sec](mem://security/file-upload-hardening) — Magic byte validation, ZIP bomb protection, 5MB limits
+- [SEO & Multilingual](mem://marketing/seo-and-multilingual-standards) — react-helmet-async, EN/AR/FR hreflang, robots.txt routing
+- [Privileged Data](mem://constraints/ayn-privileged-data-boundaries) — AYN forbidden from deleting user messages, accounts, sec logs
+- [AI Gateway](mem://architecture/lovable-ai-gateway-unification) — ai.gateway.lovable.dev, gemini-2.5-flash standard
+- [Registration Trigger](mem://auth/registration-and-onboarding-system) — handle_new_user atomic PostgreSQL trigger creates 6 records
+- [Platform Security](mem://security/platform-hardening-comprehensive) — No service role full access, restricted RLS, N8N auth
+- [Dashboard Loading](mem://architecture/dashboard-loading-resilience) — lazyRetry, 3 reload ErrorBoundary, gated by auth access_token
+- [Admin PIN Gate](mem://security/admin-panel-2fa-pin-gate) — Server-side 2FA PIN verify-admin-pin, explicit RLS error handling
+- [Memory Extraction](mem://architecture/chat/zero-cost-memory-extraction-v1) — [MEMORY:type/key=value] tags inline parsing via upsert_user_memory
+- [Turn-based Language](mem://architecture/chat/turn-based-language-detection) — Explicitly define language per turn in system prompt
+- [Premium Aesthetics](mem://style/premium-card-aesthetic) — Clean shadow elevations, 500ms hover lift, items-stretch uniform grids
+- [Platform Reliability](mem://architecture/platform-reliability-and-timeouts) — 90s client stream timeout, 45s upstream, lazy init
+- [Hostinger Deploy](mem://infrastructure/hostinger-deployment-requirements) — .htaccess SPA routing rewrites to index.html
+- [Google Login](mem://auth/social-login-google) — signInWithOAuth, footer legal links, google-site-verification
+- [Email Reset Auth](mem://auth/custom-email-and-password-reset-flow) — Resend auth-send-email edge function, PKCE via Supabase client
+- [Auth Redirect Flash](mem://auth/authentication-redirect-flash-constraint) — Expected Supabase flash unless verified custom domain exists
+- [Site Navigation](mem://architecture/site-navigation-standardization) — Smooth-scroll anchors, shared Header/Footer, hard links
+- [B2B Positioning](mem://marketing/b2b-product-repositioning) — Focus on AI Agents, Automation, AI Employees, Ticketing
+- [Custom Contracts](mem://features/admin/custom-orders-and-contracts) — dynamic Stripe links, generated PDFs, digital signatures
+- [NDA Automation](mem://features/legal/nda-automation-system) — generate-nda-pdf, send-nda-email, formal branded agreements
+- [Document Studio](mem://features/admin/document-studio) — Gemini-2.5-flash branded business documents (Brain SVG, AYN bold)
+- [Dev Agent](mem://features/admin/dev-agent-architecture) — ayn-dev-agent via Gateway, 120s timeout, skill content property
+- [Admin UI Perf](mem://architecture/admin-panel-performance-architecture) — Lazy load 30+ tabs, defer queries, no Framer Motion/blurs
+- [Tiered Cache](mem://performance/tiered-cache-and-count-optimization) — staleTime presets (15s, 30m, 24h), exact count HEAD requests
+- [Admin URL Route](mem://security/admin-route-security-limitation) — Hash-based /manage-[hash] hardcoded discovery limitation
+- [Agent Society](mem://features/world-intelligence/agent-society-system) — Multi-agent sim, 80 personas, CIA aesthetic, JetBrains Mono
+- [Upgrade Routing](mem://navigation/dashboard-upgrade-redirection) — Route internal dashboard upgrades to /dashboard/pricing
+- [World Intel UI](mem://features/world-intelligence/dashboard-aesthetic) — Bloomberg aesthetic, 3D map hero, ThreatTicker, SpotlightCard
+- [World Intel Layout](mem://features/world-intelligence/layout-optimization) — max-w-1440px, globe resize observer, container-scoped auto-scroll
+- [Hidden Eng Tools](mem://features/legacy/engineering-compliance-context) — ACI/CSA calculators, vision parsing, Desktop only
+- [Country Mapping](mem://features/world-intelligence/country-intelligence-mapping) — ISO2-to-ISO3, structured JSON, 520px side panel
+- [CSS Animations](mem://performance/animation-rendering-standard) — Pure CSS @keyframes for high-frequency (ThreatTicker) over React
+- [Brand Eye Tunnel](mem://style/brand-eye-tunnel-design) — 5-layer concentric ring tunnel, progressively darker insets
+- [Privacy Claim Limit](mem://constraints/privacy-branding-limitation) — Avoid 'Privacy-First' claims due to 3rd-party LLM usage
+- [Landing Features](mem://style/landing-page-feature-visuals) — Premium dark mockups (Biz Intel, Market Intel, World Map)
+- [Value Props](mem://marketing/value-prop-vs-services-distinction) — Distinction between Services and core Value Propositions
+- [World Intel Nav](mem://features/world-intelligence/navigation-architecture) — Collapsible left sidebar, 5 sections, AnimatePresence
+- [Landing Localization](mem://i18n/landing-page-localization) — useLanguage dynamically updates chat placeholder text
