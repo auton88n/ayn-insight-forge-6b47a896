@@ -106,10 +106,10 @@ export const liquidButtonVariants = cva(
     "disabled:pointer-events-none disabled:opacity-40",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
     "outline-none select-none",
-    "bg-orange-500 hover:bg-orange-600 text-black",
+    "bg-ayn hover:bg-ayn-hover text-black",
     "shadow-sm hover:shadow-md",
     "transition-all duration-200 active:scale-[0.97]",
-    "focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+    "focus-visible:ring-2 focus-visible:ring-ayn focus-visible:ring-offset-2 focus-visible:ring-offset-background",
   ].join(" "),
   {
     variants: {
