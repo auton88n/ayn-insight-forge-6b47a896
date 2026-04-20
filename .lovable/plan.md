@@ -1,84 +1,69 @@
 
 
-## What Claude is asking for
+## My take on the orange usage
 
-Replace every `@/lib/supabaseApi` import with either `adminApi` (admin pages) or `spineApi` (user pages) so no frontend code touches the legacy `supabaseApi` shim — then delete that shim file entirely.
+You're right — **everything orange = nothing orange**. Orange should act like a spotlight, not wallpaper. The eye is already the brand's emotional centerpiece in orange. The rest of the page should stay black/white/grey, and orange should only appear in **3 strategic spots** that pull the user toward action.
 
-## Current state (what I already verified)
+## Where orange should live (and where it shouldn't)
 
-I previously rewrote `supabaseApi.ts` to proxy through `${SPINE}/admin/db/...` instead of hitting Supabase REST. So technically zero frontend code touches Supabase directly anymore — Claude's stated goal ("zero frontend code touches Supabase directly") is already met.
+**Use orange (action + identity moments):**
+1. **The eye iris** — already done, this is the soul of the brand
+2. **Primary CTA buttons only** — "Get Started Free" in header, send arrow in chat input, "Sign Up" in auth modal, "Contact Sales" in pricing. These are the *one thing* you want clicked on each screen.
+3. **Micro-accents** — the bullet dots (`•`) next to feature list items, the small icon badges next to "Build & Study Business", "Market Shifts", "World Predictions" (currently `bg-primary/10`). One subtle orange tint = the eye color "echoing" through the page.
 
-**However**, Claude's deeper point is still valid:
-1. The shim is dead weight — same code path as `adminApi.from()`.
-2. It always uses the **admin token**, which means the user-facing call sites (Engineering tools, PredictionGraph) only work for admins. If a normal user ever opens `/engineering`, those calls silently 401.
-3. Two source-of-truths for "how to talk to spine" is a maintenance trap.
+**Do NOT use orange:**
+- Headlines (keep them pure foreground/black-white — they need to feel premium and editorial, not loud)
+- Body text (kills readability)
+- Section backgrounds (overwhelming)
+- Decorative section labels ("ABOUT AYN", "AYN CAPABILITIES" — keep mono grey)
+- Card borders, shadows, hover states (keeps the "cathedral quiet" Palantir feel)
 
-So the cleanup is worth doing.
+## Concrete changes
 
-## Files to migrate
+### 1. Kill the glossy LiquidButton — replace with a flat orange CTA
 
-Per Claude's list + my earlier search:
+Rewrite `LiquidButton` in `src/components/ui/button.tsx` as a clean, flat, square-ish (rounded-lg) orange button with **no glass, no gloss streak, no backdrop-blur**. Keep the same component name + API so all 6 usage sites (Header desktop, Header mobile, AuthModal x2, ChatInput, Pricing, Contact, LandingChatInput) automatically inherit the new look.
 
-**Admin-only callers → `adminApi`**
-- `src/components/admin/AYNActivityLog.tsx`
-- `src/components/admin/AYNMindDashboard.tsx`
-- `src/components/admin/ApplicationManagement.tsx`
-- `src/components/admin/SupportManagement.tsx`
-- `src/components/admin/CommandCenterPanel.tsx`
-
-**User-facing callers → `spineApi`** (need user JWT, not admin token)
-- `src/hooks/usePredictionGraph.ts`
-- `src/hooks/useEngineeringHistory.ts`
-- `src/hooks/useEngineeringAIAgent.ts`
-- `src/components/engineering/EngineeringPortfolio.tsx`
-- `src/components/engineering/SaveDesignDialog.tsx` (also imports it)
-
-(Per memory: Engineering/Compliance tools are hidden from frontend nav but kept in codebase, currently admin/internal only — so `adminApi` would also work for these. I'll use `spineApi` to future-proof them in case they're ever re-exposed to users, falling back to admin token automatically since `spineApi` reads from the user token store.)
-
-## Migration mapping
-
-```
-supabaseApi.get(`table?filter=eq.x&order=...`, token)
-  → adminApi.from('table').select('*').eq('filter', 'x').order(...).execute()
-
-supabaseApi.post('table', token, { ...row })
-  → adminApi.from('table').insert([{ ...row }])
-
-supabaseApi.patch(`table?id=eq.X`, token, { ...patch })
-  → adminApi.from('table').update({ ...patch }).eq('id', 'X')
-
-supabaseApi.delete(`table?id=eq.X`)
-  → adminApi.from('table').delete().eq('id', 'X')
-
-supabaseApi.rpc('fn_name', token, params)
-  → adminApi.rpc('fn_name', params)
+```text
+Old: pill, glassy, blur, gradient streak, white border
+New: rounded-lg, solid bg-orange-500, hover bg-orange-600,
+     text-black font-medium, subtle shadow on hover only,
+     scale 0.97 on press
 ```
 
-For the user-facing files I'll first verify `spineApi` exposes the same `from()` builder; if it only supports specific endpoints, I'll keep `adminApi` for now (admin tools work either way per current scope) and note the limitation.
+### 2. Update LandingChatInput send button to match the new button system
 
-## Steps
+Remove the inline custom button I added last turn — use the same `LiquidButton` (now flat) at icon size for visual consistency.
 
-1. Open `src/lib/spineApi.ts` and `src/lib/adminApi.ts` to confirm the exact builder API for each.
-2. Migrate the 5 admin components → `adminApi.from()`.
-3. Migrate the 5 engineering/graph files → `adminApi.from()` (since these are admin-gated per current product scope; revisit if exposed to users).
-4. Delete `src/lib/supabaseApi.ts`.
-5. Run a final grep for `@/lib/supabaseApi` to confirm zero references.
-6. Update memory: remove `mem://architecture/direct-rest-api-wrapper` (no longer accurate).
+### 3. Add orange micro-accents on landing page
 
-## Verification
+In `src/components/LandingPage.tsx`:
+- The 3 small icon badges next to feature headings (`bg-primary/10` + `text-primary`) → swap to `bg-orange-500/10` + `text-orange-500`. This makes the icons quietly echo the eye.
+- The bullet dots (`bg-primary` 1.5x1.5 circles in feature lists) → `bg-orange-500`. Tiny but ties everything together.
+- The 6 value-prop icons in "About AYN" section currently use `bg-muted/50` + `text-foreground` — leave them grey (intentional restraint, lets feature section pop more).
 
-- TypeScript build succeeds (no broken imports).
-- Reload `/manage-bae76e99d97e188b` and walk every admin tab — same behavior as before (200s).
-- Open `/engineering` (as admin) — calculation history loads, save works.
-- Network panel: every request still hits `spine.aynn.io/admin/db/...` (no change in wire traffic, just one less indirection in code).
+### 4. Headlines stay black/white
 
-## Out of scope
+Confirm "Meet AYN" stays `text-foreground`. No orange on H1/H2. The eye carries the color identity for the hero — the headline carries the typographic identity.
 
-- Refactoring `adminApi.from()` builder itself.
-- Adding user-facing routes for engineering tools.
-- Any backend/spine changes.
+## Visual hierarchy after changes
 
-## Estimate
+```text
+HERO:        eye (orange) ← only color moment
+HEADLINES:   pure black/white
+CTAs:        flat orange buttons (3 max per screen)
+FEATURES:    grey cards + tiny orange icon badges + orange bullets
+SECTIONS:    grey/white backgrounds, no tint
+```
 
-~20 min: 5 min verify builder APIs, 10 min mechanical migration across 10 files, 5 min delete shim + verify build.
+This gives orange a job: **"orange = AYN's identity (the eye) + AYN's invitation (the button)"**. Everything else stays calm, premium, and lets the orange punch through.
+
+## Files to change (4)
+
+1. `src/components/ui/button.tsx` — rewrite `LiquidButton` flat (no glass)
+2. `src/components/landing/LandingChatInput.tsx` — restore `<LiquidButton>` for send arrow, remove inline custom button
+3. `src/components/LandingPage.tsx` — swap `text-primary`/`bg-primary` to orange on the 3 feature icon badges and bullet dots only
+4. *(no other files — Header/Pricing/Contact/AuthModal automatically inherit new LiquidButton)*
+
+No memory updates needed. No backend changes. Quick visual refinement.
 
