@@ -1,5 +1,5 @@
 """
-routers/admin_db.py — Generic admin DB proxy with PostgREST-style filter semantics
+routers/admin_db.py — Generic admin DB proxy (Railway Postgres)
 
 GET    /admin/db/{table}?col=eq.val&order=col.asc&limit=N&offset=M
 POST   /admin/db/{table}                     body: row | row[]
@@ -7,69 +7,48 @@ PATCH  /admin/db/{table}?col=eq.val          body: patch object
 DELETE /admin/db/{table}?col=eq.val
 POST   /admin/db/rpc/{function}              body: args dict
 
-Headers:
-  Authorization: Bearer <admin_jwt>   — required, must have is_admin claim
-  Prefer: return=representation       — inserts/updates return the row
-  Prefer: count=exact                 — selects include Content-Range header
-  Prefer: resolution=merge-duplicates — upsert on conflict
-
-Mirrors PostgREST so adminApi.from() builder routes here with zero changes.
+Mirrors PostgREST semantics so adminApi.from() builder works unchanged.
+All queries now run against Railway Postgres via asyncpg.
 """
 import logging
 import json
-import asyncio
+from datetime import datetime, date
 from typing import Any, Optional
-from fastapi import APIRouter, Depends, Request, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, Request, HTTPException, Header
 from fastapi.responses import JSONResponse
 from core.auth_new import get_current_user
-from core.db import get_db
+from core.database import get_pool
 
 router = APIRouter(prefix="/admin/db", tags=["admin-db"])
 log = logging.getLogger("ayn.admin_db")
 
-# Tables admin is allowed to access
 ALLOWED_TABLES = {
-    # Auth / users
     "user_roles", "users", "user_subscriptions", "user_ai_limits",
     "user_settings", "user_preferences", "user_memory",
-    # Support
     "support_tickets", "support_ticket_replies", "ticket_messages",
     "contact_messages", "faq_items",
-    # Applications & orders
     "service_applications", "application_replies",
     "custom_orders", "nda_agreements",
-    # Admin config
     "admin_notification_config", "admin_notification_log",
     "app_settings", "system_config",
-    # Rate limits & security
     "api_rate_limits", "ip_blocks", "security_incidents", "security_audit_logs",
-    # Dev agent
     "ayn_dev_conversations", "ayn_dev_messages", "ayn_dev_skills", "ayn_dev_agent_memory",
-    # Logs & analytics
     "error_logs", "visitor_analytics", "llm_usage_logs", "llm_cost_daily",
-    "ayn_activity_log", "ayn_error_log",
-    # Intelligence
+    "ayn_activity_log", "ayn_error_log", "llm_failures", "llm_models",
     "ayn_world_signals", "ayn_world_predictions", "ayn_market_prices",
     "ayn_agent_conversations", "ayn_agent_messages", "ayn_mind",
     "ayn_opportunity_alerts", "ayn_sales_pipeline",
-    # Test results
     "test_results", "test_runs", "stress_test_metrics",
-    # Marketing
     "twitter_posts", "marketing_competitors", "competitor_tweets",
-    # Contracts
-    "contracts", "nda_agreements",
-    # Other
-    "profiles", "chat_sessions", "messages", "pinned_sessions",
+    "profiles", "chat_sessions", "messages", "pinned_chats",
     "employee_tasks", "employee_states", "company_objectives",
-    "performance_metrics", "system_health_checks",
+    "performance_metrics", "system_health_checks", "beta_feedback",
+    "credit_gifts", "pinned_sessions", "admin_ai_conversations",
 }
 
-# PostgREST filter operators → Supabase SDK equivalents
-FILTER_OPS = {
-    "eq": "eq", "neq": "neq", "gt": "gt", "gte": "gte",
-    "lt": "lt", "lte": "lte", "is": "is_", "in": "in_",
-    "ilike": "ilike", "like": "like", "cs": "contains",
-    "not": "not_", "fts": "text_search",
+ALLOWED_RPCS = {
+    "add_bonus_credits", "admin_unblock_user",
+    "admin_upsert_system_config", "increment_faq_view", "increment_faq_helpful",
 }
 
 
@@ -78,59 +57,117 @@ def _require_admin(user: dict):
         raise HTTPException(403, "Admin access required")
 
 
-def _parse_filters(params: dict) -> list[tuple[str, str, str]]:
-    """Parse PostgREST-style query params into (column, op, value) triples."""
+def _serialize(val):
+    """Convert Python types to JSON-safe."""
+    if isinstance(val, (datetime, date)):
+        return val.isoformat()
+    if isinstance(val, dict):
+        return {k: _serialize(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_serialize(v) for v in val]
+    return val
+
+
+def _rows_to_dicts(rows) -> list:
+    return [_serialize(dict(r)) for r in rows]
+
+
+def _parse_filters(params: dict) -> list[tuple]:
+    """Parse PostgREST-style query params into (col, op, val) triples."""
     SKIP = {"order", "limit", "offset", "select", "on_conflict"}
+    OPS = {"eq", "neq", "gt", "gte", "lt", "lte", "is", "in", "ilike", "like", "not"}
     filters = []
     for key, val in params.items():
         if key in SKIP or not val:
             continue
-        # val format: "op.value" or just "value"
         if "." in val:
             op, rest = val.split(".", 1)
-            if op in FILTER_OPS:
+            if op in OPS:
                 filters.append((key, op, rest))
                 continue
         filters.append((key, "eq", val))
     return filters
 
 
-def _apply_filters(query, filters: list[tuple[str, str, str]]):
-    """Apply filters to a Supabase SDK query builder."""
+def _build_where(filters: list[tuple], start_idx: int = 1) -> tuple[str, list]:
+    """Build WHERE clause and values from filters."""
+    if not filters:
+        return "", []
+    clauses = []
+    vals = []
+    idx = start_idx
     for col, op, val in filters:
+        safe_col = f'"{col}"'
         if op == "eq":
-            query = query.eq(col, val)
+            clauses.append(f"{safe_col} = ${idx}")
+            vals.append(None if val == "null" else val)
+            idx += 1
         elif op == "neq":
-            query = query.neq(col, val)
+            clauses.append(f"{safe_col} != ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "gt":
-            query = query.gt(col, val)
+            clauses.append(f"{safe_col} > ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "gte":
-            query = query.gte(col, val)
+            clauses.append(f"{safe_col} >= ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "lt":
-            query = query.lt(col, val)
+            clauses.append(f"{safe_col} < ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "lte":
-            query = query.lte(col, val)
+            clauses.append(f"{safe_col} <= ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "is":
-            query = query.is_(col, None if val == "null" else val)
+            if val == "null":
+                clauses.append(f"{safe_col} IS NULL")
+            else:
+                clauses.append(f"{safe_col} IS ${idx}")
+                vals.append(val)
+                idx += 1
         elif op == "in":
-            # val format: "(a,b,c)"
             items = val.strip("()").split(",")
-            query = query.in_(col, items)
+            ph = ", ".join(f"${i}" for i in range(idx, idx + len(items)))
+            clauses.append(f"{safe_col} IN ({ph})")
+            vals.extend(items)
+            idx += len(items)
         elif op == "ilike":
-            query = query.ilike(col, val)
+            clauses.append(f"{safe_col} ILIKE ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "like":
-            query = query.like(col, val)
-        elif op == "cs":
-            try:
-                query = query.contains(col, json.loads(val))
-            except Exception:
-                query = query.contains(col, val)
+            clauses.append(f"{safe_col} LIKE ${idx}")
+            vals.append(val)
+            idx += 1
         elif op == "not":
-            # "not.eq.value"
             if "." in val:
                 inner_op, inner_val = val.split(".", 1)
-                query = query.not_(col, inner_op, inner_val)
-    return query
+                if inner_op == "eq":
+                    clauses.append(f"{safe_col} != ${idx}")
+                    vals.append(inner_val)
+                    idx += 1
+        # Unknown ops: skip
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    return where, vals
+
+
+def _build_select_cols(select_str: str) -> str:
+    """Convert PostgREST select string to safe SQL columns."""
+    if not select_str or select_str == "*":
+        return "*"
+    cols = [c.strip() for c in select_str.split(",")]
+    safe = []
+    for c in cols:
+        if c == "*":
+            safe.append("*")
+        elif c.isidentifier():
+            safe.append(f'"{c}"')
+        # Skip complex expressions for safety
+    return ", ".join(safe) if safe else "*"
 
 
 @router.get("/{table}")
@@ -140,40 +177,43 @@ async def db_select(
     prefer: Optional[str] = Header(None),
     user: dict = Depends(get_current_user),
 ):
-    """GET rows. Supports PostgREST filter params, order, limit, offset."""
+    """GET rows — PostgREST-compatible."""
     _require_admin(user)
     if table not in ALLOWED_TABLES:
         raise HTTPException(403, f"Table '{table}' not in allowed list")
 
     params = dict(request.query_params)
-    select_cols = params.get("select", "*")
-    order = params.get("order")     # "col.asc" or "col.desc"
-    limit = params.get("limit")
-    offset = params.get("offset")
-    count_exact = prefer and "count=exact" in prefer
+    select_cols = _build_select_cols(params.get("select", "*"))
+    order = params.get("order")
+    limit = int(params.get("limit", 100))
+    offset = int(params.get("offset", 0))
     filters = _parse_filters({k: v for k, v in params.items()
                                if k not in ("select", "order", "limit", "offset")})
 
+    where, vals = _build_where(filters)
+
+    order_clause = ""
+    if order:
+        parts = order.split(".")
+        col = parts[0]
+        direction = "DESC" if len(parts) > 1 and parts[1] == "desc" else "ASC"
+        if col.isidentifier():
+            order_clause = f'ORDER BY "{col}" {direction}'
+
+    sql = f'SELECT {select_cols} FROM "{table}" {where} {order_clause} LIMIT {limit} OFFSET {offset}'
+
     try:
-        db = get_db()
-        q = db.from_(table).select(select_cols, count="exact" if count_exact else None)
-        q = _apply_filters(q, filters)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *vals)
+            data = _rows_to_dicts(rows)
 
-        if order:
-            parts = order.split(".")
-            col = parts[0]
-            desc = len(parts) > 1 and parts[1] == "desc"
-            q = q.order(col, desc=desc)
-        if limit:
-            q = q.limit(int(limit))
-        if offset:
-            q = q.range(int(offset), int(offset) + int(limit or 1000) - 1)
+            headers = {}
+            if prefer and "count=exact" in prefer:
+                count_sql = f'SELECT COUNT(*) FROM "{table}" {where}'
+                total = await conn.fetchval(count_sql, *vals)
+                headers["Content-Range"] = f"{offset}-{offset+len(data)-1}/{total}"
 
-        r = await asyncio.to_thread(lambda: q.execute())
-        data = r.data or []
-        headers = {}
-        if count_exact and r.count is not None:
-            headers["Content-Range"] = f"0-{len(data)-1}/{r.count}"
         return JSONResponse(content=data, headers=headers)
     except HTTPException:
         raise
@@ -189,30 +229,62 @@ async def db_insert(
     prefer: Optional[str] = Header(None),
     user: dict = Depends(get_current_user),
 ):
-    """POST rows (insert or upsert)."""
+    """POST rows — insert or upsert."""
     _require_admin(user)
     if table not in ALLOWED_TABLES:
         raise HTTPException(403, f"Table '{table}' not in allowed list")
 
     body = await request.json()
-    on_conflict = request.query_params.get("on_conflict")
+    on_conflict = request.query_params.get("on_conflict", "id")
     is_upsert = prefer and "merge-duplicates" in prefer
+    return_rep = prefer and "return=representation" in prefer
+
+    # Normalize to list
+    rows = body if isinstance(body, list) else [body]
+    if not rows:
+        return JSONResponse(content=[], status_code=201)
 
     try:
-        db = get_db()
-        if is_upsert and on_conflict:
-            q = db.from_(table).upsert(body, on_conflict=on_conflict)
-        elif is_upsert:
-            q = db.from_(table).upsert(body)
-        else:
-            q = db.from_(table).insert(body)
+        pool = await get_pool()
+        # Get column types for this table
+        async with pool.acquire() as conn:
+            col_records = await conn.fetch(
+                "SELECT column_name, udt_name FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name=$1", table
+            )
+            type_map = {r["column_name"]: r["udt_name"] for r in col_records}
 
-        if prefer and "return=representation" in prefer:
-            r = await asyncio.to_thread(lambda: q.execute())
-            return JSONResponse(content=r.data or [])
-        else:
-            await asyncio.to_thread(lambda: q.execute())
-            return JSONResponse(content=None, status_code=201)
+        inserted = []
+        async with pool.acquire() as conn:
+            for row in rows:
+                filtered = {k: v for k, v in row.items() if k in type_map}
+                if not filtered:
+                    continue
+                cols = list(filtered.keys())
+                vals = [json.dumps(v) if isinstance(v, (dict, list)) else v
+                        for v in filtered.values()]
+                ph = ", ".join(f"${i+1}" for i in range(len(cols)))
+                cn = ", ".join(f'"{c}"' for c in cols)
+
+                if is_upsert:
+                    conflict_col = on_conflict if on_conflict in type_map else "id"
+                    updates = ", ".join(f'"{c}"=EXCLUDED."{c}"' for c in cols if c != conflict_col)
+                    sql = f'INSERT INTO "{table}" ({cn}) VALUES ({ph}) ON CONFLICT ("{conflict_col}") DO UPDATE SET {updates} RETURNING *'
+                else:
+                    sql = f'INSERT INTO "{table}" ({cn}) VALUES ({ph}) ON CONFLICT DO NOTHING RETURNING *'
+
+                try:
+                    r = await conn.fetchrow(sql, *vals)
+                    if r:
+                        inserted.append(_serialize(dict(r)))
+                except Exception as row_err:
+                    log.debug(f"[admin-db] INSERT {table} row error: {row_err}")
+
+        if return_rep:
+            return JSONResponse(content=inserted, status_code=200)
+        return JSONResponse(content=None, status_code=201)
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"[admin-db] INSERT {table}: {e}")
         raise HTTPException(500, str(e))
@@ -234,14 +306,35 @@ async def db_update(
     params = dict(request.query_params)
     filters = _parse_filters(params)
 
+    if not body:
+        raise HTTPException(400, "Empty update body")
+
+    # Build SET clause
+    set_cols = [k for k in body.keys() if k.isidentifier()]
+    if not set_cols:
+        raise HTTPException(400, "No valid columns to update")
+
+    set_vals = [json.dumps(v) if isinstance(v, (dict, list)) else v
+                for k, v in body.items() if k in set_cols]
+    set_clause = ", ".join(f'"{c}"=${i+1}' for i, c in enumerate(set_cols))
+
+    where, filter_vals = _build_where(filters, start_idx=len(set_cols) + 1)
+
+    sql = f'UPDATE "{table}" SET {set_clause} {where}'
+    if prefer and "return=representation" in prefer:
+        sql += " RETURNING *"
+
     try:
-        db = get_db()
-        q = db.from_(table).update(body)
-        q = _apply_filters(q, filters)
-        r = await asyncio.to_thread(lambda: q.execute())
-        if prefer and "return=representation" in prefer:
-            return JSONResponse(content=r.data or [])
-        return JSONResponse(content=None, status_code=204)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            if prefer and "return=representation" in prefer:
+                rows = await conn.fetch(sql, *set_vals, *filter_vals)
+                return JSONResponse(content=_rows_to_dicts(rows))
+            else:
+                await conn.execute(sql, *set_vals, *filter_vals)
+                return JSONResponse(content=None, status_code=204)
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"[admin-db] UPDATE {table}: {e}")
         raise HTTPException(500, str(e))
@@ -261,14 +354,18 @@ async def db_delete(
     params = dict(request.query_params)
     filters = _parse_filters(params)
     if not filters:
-        raise HTTPException(400, "DELETE requires at least one filter to prevent full-table wipe")
+        raise HTTPException(400, "DELETE requires at least one filter")
+
+    where, vals = _build_where(filters)
+    sql = f'DELETE FROM "{table}" {where}'
 
     try:
-        db = get_db()
-        q = db.from_(table).delete()
-        q = _apply_filters(q, filters)
-        await asyncio.to_thread(lambda: q.execute())
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(sql, *vals)
         return JSONResponse(content=None, status_code=204)
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"[admin-db] DELETE {table}: {e}")
         raise HTTPException(500, str(e))
@@ -280,20 +377,8 @@ async def db_rpc(
     request: Request,
     user: dict = Depends(get_current_user),
 ):
-    """Call a Postgres RPC function."""
+    """Call a Postgres function."""
     _require_admin(user)
-
-    ALLOWED_RPCS = {
-        "get_admin_users", "get_admin_stats", "get_admin_system_config",
-        "get_admin_support_tickets", "get_admin_contact_messages",
-        "get_admin_visitor_analytics", "get_admin_llm_management",
-        "get_admin_rate_limit_stats", "get_admin_test_results_data",
-        "get_admin_notification_log", "get_admin_nda_agreements",
-        "get_admin_custom_orders", "get_admin_user_messages",
-        "add_bonus_credits", "admin_unblock_user",
-        "admin_upsert_system_config", "increment_faq_view",
-        "increment_faq_helpful",
-    }
     if fn_name not in ALLOWED_RPCS:
         raise HTTPException(403, f"RPC '{fn_name}' not in allowed list")
 
@@ -304,9 +389,16 @@ async def db_rpc(
         pass
 
     try:
-        db = get_db()
-        r = await asyncio.to_thread(lambda: db.rpc(fn_name, body).execute())
-        return JSONResponse(content=r.data)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # Build function call
+            if body:
+                args = ", ".join(f"${i+1}" for i in range(len(body)))
+                vals = list(body.values())
+                row = await conn.fetchrow(f"SELECT * FROM {fn_name}({args})", *vals)
+            else:
+                row = await conn.fetchrow(f"SELECT * FROM {fn_name}()")
+            return JSONResponse(content=_serialize(dict(row)) if row else {})
     except Exception as e:
         log.error(f"[admin-db] RPC {fn_name}: {e}")
         raise HTTPException(500, str(e))
