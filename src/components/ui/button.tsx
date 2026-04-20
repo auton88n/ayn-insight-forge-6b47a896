@@ -101,28 +101,24 @@ export { Button, buttonVariants }
 
 export const liquidButtonVariants = cva(
   [
-    "relative inline-flex items-center justify-center cursor-pointer gap-2",
-    "whitespace-nowrap rounded-full font-medium text-sm",
+    "inline-flex items-center justify-center cursor-pointer gap-2",
+    "whitespace-nowrap rounded-lg font-medium text-sm",
     "disabled:pointer-events-none disabled:opacity-40",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
     "outline-none select-none",
-    "transition-transform duration-300",
-    "hover:scale-105 active:scale-[0.97]",
-    // Orange liquid glass — vibrant tint + blur
-    "bg-orange-500/80 backdrop-blur-md",
-    // Rim: thin white border for glass highlight
-    "border border-orange-300/60",
-    // Outer orange glow + inner top rim + inner bottom shadow
-    "shadow-[0_2px_16px_rgba(249,115,22,0.5),inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.25),0_0_0_1px_rgba(255,255,255,0.1)]",
-    "text-black",
+    "bg-orange-500 hover:bg-orange-600 text-black",
+    "shadow-sm hover:shadow-md",
+    "transition-all duration-200 active:scale-[0.97]",
+    "focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
   ].join(" "),
   {
     variants: {
       size: {
-        sm:      "h-8 px-5 text-xs",
-        default: "h-10 px-6 text-sm",
-        lg:      "h-11 px-8 text-sm",
-        xl:      "h-12 px-10 text-base",
+        sm:      "h-8 px-4 text-xs",
+        default: "h-10 px-5 text-sm",
+        lg:      "h-11 px-6 text-sm",
+        xl:      "h-12 px-8 text-base",
+        icon:    "h-9 w-9 p-0",
       },
     },
     defaultVariants: { size: "default" },
@@ -144,18 +140,7 @@ export const LiquidButton = React.forwardRef<HTMLButtonElement, LiquidButtonProp
         className={cn(liquidButtonVariants({ size, className }))}
         {...props}
       >
-        {/* Gloss streak — top quarter only, fades out */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-[10%] top-0 h-[40%] rounded-b-full"
-          style={{
-            background: "linear-gradient(to bottom, rgba(255,255,255,0.32), transparent)",
-          }}
-        />
-        {/* Content */}
-        <span className="relative z-10 flex items-center gap-2">
-          {children}
-        </span>
+        {children}
       </Comp>
     )
   }
