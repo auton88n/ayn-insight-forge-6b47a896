@@ -205,12 +205,12 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     }
 
     try {
-      const data = await spineApi.createCheckout(TOPUP_PRICE_ID); const error = null;
-
-      if (error) throw error;
+      const data = await spineApi.createCheckout(priceId);
 
       if (data?.url) {
         window.open(data.url, '_blank');
+      } else {
+        throw new Error('No checkout URL returned');
       }
     } catch (err) {
       if (import.meta.env.DEV) {
