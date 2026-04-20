@@ -64,14 +64,19 @@ export const BetaFeedbackModal = ({
     setIsSubmitting(true);
     try {
       // Submit feedback + bonus credits via spine
-      await spineApi.submitBetaFeedback({
+      // Backend rejects nulls for optional fields — omit them entirely instead
+      const payload: Record<string, unknown> = {
         overall_rating: rating,
         favorite_features: selectedFeatures,
-        improvement_suggestions: improvements.trim() || null,
-        bugs_encountered: bugs.trim() || null,
-        would_recommend: wouldRecommend,
         credits_awarded: rewardAmount,
-      });
+      };
+      const trimmedImprovements = improvements.trim();
+      const trimmedBugs = bugs.trim();
+      if (trimmedImprovements) payload.improvement_suggestions = trimmedImprovements;
+      if (trimmedBugs) payload.bugs_encountered = trimmedBugs;
+      if (wouldRecommend !== null) payload.would_recommend = wouldRecommend;
+
+      await spineApi.submitBetaFeedback(payload);
 
       // Trigger credit refresh immediately + again after a short delay
       onCreditsUpdated?.();
