@@ -18,7 +18,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Any
 from core.auth_new import get_current_user, get_user_id
-from core.db import get_db
 
 router = APIRouter(prefix="/admin/fn", tags=["admin-fn"])
 log = logging.getLogger("ayn.admin_fn")
@@ -99,14 +98,11 @@ async def generate_contract_pdf(req: ContractPdfRequest, user: dict = Depends(ge
     """Generate contract HTML for PDF rendering. Replaces generate-contract-pdf edge function."""
     _require_admin(user)
     try:
-        db = get_db()
-        r = await asyncio.to_thread(
-            lambda: db.from_("custom_orders").select("*").eq("id", req.orderId).maybe_single().execute()
-        )
-        order = r.data
-        if not order:
+        from core.database import fetchrow as _fetchrow
+        row = await _fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", req.orderId)
+        if not row:
             raise HTTPException(404, "Order not found")
-
+        order = dict(row)
         services = order.get("services") or []
         html = _generate_contract_html(order, services)
         return {"success": True, "html": html, "order": order}
@@ -213,14 +209,11 @@ async def send_contract_email(req: ContractEmailRequest, user: dict = Depends(ge
     """Send contract email to client. Replaces send-contract-email + send-contract-pdf."""
     _require_admin(user)
     try:
-        db = get_db()
-        r = await asyncio.to_thread(
-            lambda: db.from_("custom_orders").select("*").eq("id", req.orderId).maybe_single().execute()
-        )
-        order = r.data
-        if not order:
+        from core.database import fetchrow as _fetchrow
+        row = await _fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", req.orderId)
+        if not row:
             raise HTTPException(404, "Order not found")
-
+        order = dict(row)
         services = order.get("services") or []
         html_content = _generate_contract_html(order, services)
 

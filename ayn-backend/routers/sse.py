@@ -1,87 +1,68 @@
 """
-routers/sse.py — Server-Sent Events for admin realtime updates
-Replaces: supabase/functions/admin-sse edge function
-
-Client subscribes:
-  GET /sse/admin?tables=support_tickets,contact_messages&token=<JWT>
-
-Server polls each table every 3s, emits 'change' events when row count/hash changes.
+routers/sse.py — Server-Sent Events (Railway Postgres only)
+Admin SSE polls Railway tables. User SSE streams limits from Railway.
 """
 import asyncio
 import hashlib
 import logging
 import json
 from typing import AsyncGenerator
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from core.auth_new import verify_access_token
-from core.db import get_db
-from core.database import fetchrow
+from core.database import fetchrow, fetchval
 
 router = APIRouter(prefix="/sse", tags=["sse"])
 log = logging.getLogger("ayn.sse")
 
-POLL_INTERVAL = 3.0       # seconds between polls
-PING_INTERVAL = 25.0      # SSE ping to keep connection alive
-MAX_DURATION = 4 * 60     # 4 minutes max (Railway has a 5min timeout)
+POLL_INTERVAL = 3.0
+PING_INTERVAL = 25.0
+MAX_DURATION = 4 * 60
 
 ALLOWED_TABLES = {
     "support_tickets", "contact_messages", "service_applications",
     "application_replies", "ayn_activity_log", "ayn_dev_messages",
-    "ayn_dev_conversations", "ayn_mind", "admin_notification_log",
-    "twitter_posts", "agent_telegram_bots", "ticket_messages",
-    "ayn_world_signals", "ayn_world_predictions", "ayn_agent_messages",
-    "ayn_agent_conversations",
+    "ayn_mind", "admin_notification_log", "twitter_posts",
+    "ticket_messages", "ayn_world_signals", "ayn_world_predictions",
+    "ayn_agent_messages",
 }
 
 
 async def _get_table_digest(table: str) -> str:
-    """Get a hash digest of a table's current state via Supabase SDK."""
+    """Hash of table's current state via Railway Postgres."""
     try:
-        db = get_db()
-        r = await asyncio.to_thread(
-            lambda: db.from_(table).select("id", count="exact").limit(1).execute()
-        )
-        count = r.count or 0
-        # Get latest row id/updated_at for change detection
-        r2 = await asyncio.to_thread(
-            lambda: db.from_(table).select("id").order("created_at", desc=True).limit(1).execute()
-        )
-        latest_id = r2.data[0].get("id", "") if r2.data else ""
+        count = await fetchval(f'SELECT COUNT(*) FROM "{table}"') or 0
+        row = await fetchrow(f'SELECT id FROM "{table}" ORDER BY created_at DESC LIMIT 1')
+        latest_id = str(row["id"]) if row else ""
         return hashlib.md5(f"{count}:{latest_id}".encode()).hexdigest()
     except Exception:
         return ""
 
 
-async def admin_sse_stream(tables: list[str], user_id: str) -> AsyncGenerator[str, None]:
-    """Generate SSE events for admin table changes."""
+async def admin_sse_stream(tables: list[str], user_id: str):
     digests = {t: "" for t in tables}
     elapsed = 0.0
     last_ping = 0.0
-
     yield "event: connected\ndata: {}\n\n"
 
     while elapsed < MAX_DURATION:
         await asyncio.sleep(POLL_INTERVAL)
         elapsed += POLL_INTERVAL
 
-        # Send ping to keep connection alive
         if elapsed - last_ping >= PING_INTERVAL:
             yield "event: ping\ndata: {}\n\n"
             last_ping = elapsed
 
-        # Check each table for changes
         for table in tables:
             try:
                 new_digest = await _get_table_digest(table)
                 if new_digest and new_digest != digests[table]:
                     digests[table] = new_digest
-                    payload = json.dumps({"table": table, "at": int(asyncio.get_event_loop().time() * 1000)})
+                    payload = json.dumps({"table": table, "at": int(elapsed * 1000)})
                     yield f"event: change\ndata: {payload}\n\n"
             except Exception as e:
                 log.debug(f"[sse] poll error {table}: {e}")
 
-    # Signal client to reconnect
     yield "event: reconnect\ndata: {}\n\n"
 
 
@@ -90,56 +71,29 @@ async def admin_sse(
     tables: str = Query("support_tickets,contact_messages"),
     token: str = Query(""),
 ):
-    """SSE endpoint for admin realtime. Replaces admin-sse Supabase edge function."""
-    # Verify token
     try:
         payload = verify_access_token(token)
         user_id = payload["sub"]
     except Exception:
-        from fastapi import HTTPException
         raise HTTPException(401, "Invalid token")
 
-    # Validate and filter tables
     requested = [t.strip() for t in tables.split(",") if t.strip()]
-    valid_tables = [t for t in requested if t in ALLOWED_TABLES]
-    if not valid_tables:
-        valid_tables = ["support_tickets"]
-
-    log.info(f"[sse] Admin SSE connected: user={user_id[:8]}, tables={valid_tables}")
+    valid_tables = [t for t in requested if t in ALLOWED_TABLES] or ["support_tickets"]
+    log.info(f"[sse] Admin connected: user={user_id[:8]}, tables={valid_tables}")
 
     return StreamingResponse(
         admin_sse_stream(valid_tables, user_id),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
 
 
 @router.get("/user")
-async def user_sse(
-    token: str = Query(""),
-):
-    """
-    SSE endpoint for per-user realtime updates.
-    Streams: usage limits, message count, subscription changes.
-
-    Client subscribes:
-      GET /sse/user?token=<JWT>
-
-    Events emitted:
-      event: limits   → { daily_messages, current_daily_messages, bonus_credits }
-      event: ping     → {} (keepalive every 25s)
-      event: reconnect → {} (after MAX_DURATION, client should reconnect)
-    """
-    # Verify token
+async def user_sse(token: str = Query("")):
     try:
         payload = verify_access_token(token)
         user_id = payload["sub"]
     except Exception:
-        from fastapi import HTTPException
         raise HTTPException(401, "Invalid token")
 
     log.info(f"[sse/user] Connected: user={user_id[:8]}")
@@ -147,30 +101,24 @@ async def user_sse(
     async def _fetch_limits(uid: str):
         row = await fetchrow(
             "SELECT daily_messages, current_daily_messages, bonus_credits, monthly_messages "
-            "FROM user_ai_limits WHERE user_id = $1::uuid",
-            uid,
-        )
+            "FROM user_ai_limits WHERE user_id=$1::uuid", uid)
         return dict(row) if row else None
 
-    async def user_sse_stream(user_id: str):
+    async def stream():
         elapsed = 0.0
         last_ping = 0.0
         last_limits = None
+        since_poll = 0.0
 
-        # Send initial limits immediately (Railway PG)
         try:
             data = await _fetch_limits(user_id)
             if data:
                 last_limits = data
                 yield f"event: limits\ndata: {json.dumps(data)}\n\n"
         except Exception as e:
-            log.debug(f"[sse/user] initial limits error: {e}")
+            log.debug(f"[sse/user] initial error: {e}")
 
         yield "event: connected\ndata: {}\n\n"
-
-        # Poll less aggressively — every 15s instead of 3s
-        user_poll_interval = 15.0
-        since_poll = 0.0
 
         while elapsed < MAX_DURATION:
             await asyncio.sleep(POLL_INTERVAL)
@@ -181,7 +129,7 @@ async def user_sse(
                 yield "event: ping\ndata: {}\n\n"
                 last_ping = elapsed
 
-            if since_poll >= user_poll_interval:
+            if since_poll >= 15.0:
                 since_poll = 0.0
                 try:
                     data = await _fetch_limits(user_id)
@@ -194,11 +142,7 @@ async def user_sse(
         yield "event: reconnect\ndata: {}\n\n"
 
     return StreamingResponse(
-        user_sse_stream(user_id),
+        stream(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )

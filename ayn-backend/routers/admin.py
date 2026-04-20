@@ -1,82 +1,93 @@
 """
-routers/admin.py — admin API
-Replaces 30+ Supabase admin edge functions with a proper REST API.
-All endpoints require a valid JWT + admin role check.
+routers/admin.py — admin API (Railway Postgres only, no Supabase)
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
-from core.auth import verify_token
-from core.db import get_db
+import datetime
+from core.auth_new import get_current_user
+from core.database import fetch, fetchrow, fetchval, execute
 
 router = APIRouter(prefix="/admin")
 
 
-# ── Admin role guard ──────────────────────────────────────────────────────────
-async def require_admin(user_id: str = Depends(verify_token)) -> str:
+async def require_admin(current_user: dict = Depends(get_current_user)) -> str:
+    user_id = current_user.get("sub") or current_user.get("user_id", "")
     if user_id == "internal":
         return user_id
-    # Trust JWT is_admin claim (set at /admin/login after password verification)
+    if current_user.get("is_admin"):
+        return user_id
     try:
-        from core.auth_new import verify_access_token
-        from fastapi import Request  # noqa
-        # verify_token already validated; re-decode to read claim
-        # NOTE: verify_token returns just user_id, so we re-check via DB OR user_roles
-    except Exception:
-        pass
-    db = get_db()
-    # Try user_roles first
-    try:
-        r = db.table("user_roles").select("role").eq("user_id", user_id).maybe_single().execute()
-        if r and r.data and r.data.get("role") in ("admin", "super_admin"):
-            return user_id
-    except Exception:
-        pass
-    # Fallback: users.is_admin flag
-    try:
-        u = db.table("users").select("is_admin").eq("id", user_id).maybe_single().execute()
-        if u and u.data and u.data.get("is_admin"):
+        is_admin = await fetchval("SELECT is_admin FROM users WHERE id = $1::uuid", user_id)
+        if is_admin:
             return user_id
     except Exception:
         pass
     raise HTTPException(403, "Admin access required")
 
 
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+@router.get("/scheduler/status")
+async def scheduler_status(_: str = Depends(require_admin)):
+    from core.scheduler import get_scheduler
+    scheduler = get_scheduler()
+    if not scheduler:
+        return {"running": False, "jobs": []}
+    jobs = [{"id": j.id, "name": j.name,
+             "next_run": str(j.next_run_time) if j.next_run_time else None}
+            for j in scheduler.get_jobs()]
+    return {"running": scheduler.running, "jobs": jobs}
+
+
+@router.post("/scheduler/run/{job_id}")
+async def run_scheduler_job(job_id: str, _: str = Depends(require_admin)):
+    from core.scheduler import get_scheduler
+    scheduler = get_scheduler()
+    job = scheduler.get_job(job_id) if scheduler else None
+    if not job:
+        raise HTTPException(404, f"Job '{job_id}' not found")
+    job.modify(next_run_time=datetime.datetime.now(datetime.timezone.utc))
+    return {"ok": True, "job": job_id}
+
+
 # ── Users ─────────────────────────────────────────────────────────────────────
 @router.get("/users")
-async def list_users(
-    limit: int = Query(50, le=200),
-    offset: int = 0,
-    search: Optional[str] = None,
-    _: str = Depends(require_admin),
-):
-    db = get_db()
-    q = (db.table("profiles").select(
-        "id,email,contact_person,company_name,created_at,is_admin"
-    ).order("created_at", desc=True).range(offset, offset + limit - 1))
-    r = q.execute()
-    return {"users": r.data or [], "offset": offset, "limit": limit}
+async def list_users(limit: int = Query(50, le=200), offset: int = 0,
+                     search: Optional[str] = None, _: str = Depends(require_admin)):
+    if search:
+        rows = await fetch(
+            "SELECT id,email,first_name,last_name,is_admin,created_at FROM users "
+            "WHERE email ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            f"%{search}%", limit, offset)
+    else:
+        rows = await fetch(
+            "SELECT id,email,first_name,last_name,is_admin,created_at FROM users "
+            "ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)
+    return {"users": [dict(r) for r in rows], "offset": offset, "limit": limit}
 
 
 @router.get("/users/{user_id}")
 async def get_user(user_id: str, _: str = Depends(require_admin)):
-    db = get_db()
-    profile = db.table("profiles").select("*").eq("id", user_id).maybe_single().execute()
-    limits  = db.table("user_ai_limits").select("*").eq("user_id", user_id).maybe_single().execute()
-    sub     = db.table("user_subscriptions").select("*").eq("user_id", user_id).maybe_single().execute()
-    return {
-        "profile": profile.data,
-        "limits": limits.data,
-        "subscription": sub.data,
-    }
+    profile = await fetchrow("SELECT * FROM users WHERE id = $1::uuid", user_id)
+    limits = await fetchrow("SELECT * FROM user_ai_limits WHERE user_id = $1::uuid", user_id)
+    return {"profile": dict(profile) if profile else None,
+            "limits": dict(limits) if limits else None}
 
 
 @router.get("/users/{user_id}/messages")
 async def get_user_messages(user_id: str, limit: int = 50, _: str = Depends(require_admin)):
-    db = get_db()
-    r = (db.table("messages").select("id,content,sender,created_at,session_id")
-         .eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute())
-    return {"messages": r.data or []}
+    rows = await fetch(
+        "SELECT id,content,sender,created_at FROM messages "
+        "WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT $2", user_id, limit)
+    return {"messages": [dict(r) for r in rows]}
+
+
+@router.patch("/users/{user_id}/subscription")
+async def update_user_subscription(user_id: str, body: dict, _: str = Depends(require_admin)):
+    if body.get("status"):
+        await execute("UPDATE user_subscriptions SET status=$1 WHERE user_id=$2::uuid",
+                      body["status"], user_id)
+    return {"ok": True}
 
 
 # ── Credits ───────────────────────────────────────────────────────────────────
@@ -88,64 +99,50 @@ class CreditGiftBody(BaseModel):
 
 @router.post("/credits/gift")
 async def gift_credits(body: CreditGiftBody, admin_id: str = Depends(require_admin)):
-    db = get_db()
-    # Add to bonus_credits
-    db.rpc("add_bonus_credits", {
-        "_user_id": body.user_id,
-        "_amount": body.amount,
-    }).execute()
-    db.table("credit_gifts").insert({
-        "user_id": body.user_id,
-        "amount": body.amount,
-        "reason": body.reason or "Admin gift",
-        "gifted_by": admin_id,
-    }).execute()
+    await execute(
+        "INSERT INTO credit_gifts (user_id,amount,reason,gifted_by,created_at) "
+        "VALUES ($1::uuid,$2,$3,$4::uuid,NOW())",
+        body.user_id, body.amount, body.reason or "Admin gift", admin_id)
     return {"ok": True, "gifted": body.amount}
 
 
 @router.get("/credits/history")
 async def credit_gift_history(_: str = Depends(require_admin)):
-    db = get_db()
-    r = db.table("credit_gifts").select("*").order("created_at", desc=True).limit(100).execute()
-    return {"history": r.data or []}
+    rows = await fetch("SELECT * FROM credit_gifts ORDER BY created_at DESC LIMIT 100")
+    return {"history": [dict(r) for r in rows]}
 
 
 # ── Subscriptions ─────────────────────────────────────────────────────────────
 @router.get("/subscriptions")
-async def list_subscriptions(
-    status: Optional[str] = None,
-    limit: int = 100,
-    _: str = Depends(require_admin),
-):
-    db = get_db()
-    q = db.table("user_subscriptions").select("*").order("created_at", desc=True).limit(limit)
+async def list_subscriptions(status: Optional[str] = None, limit: int = 100,
+                              _: str = Depends(require_admin)):
     if status:
-        q = q.eq("status", status)
-    r = q.execute()
-    return {"subscriptions": r.data or []}
+        rows = await fetch("SELECT * FROM user_subscriptions WHERE status=$1 "
+                           "ORDER BY created_at DESC LIMIT $2", status, limit)
+    else:
+        rows = await fetch("SELECT * FROM user_subscriptions ORDER BY created_at DESC LIMIT $1", limit)
+    return {"subscriptions": [dict(r) for r in rows]}
 
 
 # ── Support ───────────────────────────────────────────────────────────────────
 @router.get("/tickets")
-async def list_tickets(
-    status: Optional[str] = "open",
-    limit: int = 50,
-    _: str = Depends(require_admin),
-):
-    db = get_db()
-    q = db.table("support_tickets").select("*").order("created_at", desc=True).limit(limit)
+async def list_tickets(status: Optional[str] = "open", limit: int = 50,
+                       _: str = Depends(require_admin)):
     if status:
-        q = q.eq("status", status)
-    r = q.execute()
-    return {"tickets": r.data or []}
+        rows = await fetch("SELECT * FROM support_tickets WHERE status=$1 "
+                           "ORDER BY created_at DESC LIMIT $2", status, limit)
+    else:
+        rows = await fetch("SELECT * FROM support_tickets ORDER BY created_at DESC LIMIT $1", limit)
+    return {"tickets": [dict(r) for r in rows]}
 
 
 @router.get("/tickets/{ticket_id}")
 async def get_ticket(ticket_id: str, _: str = Depends(require_admin)):
-    db = get_db()
-    ticket = db.table("support_tickets").select("*").eq("id", ticket_id).maybe_single().execute()
-    replies = db.table("ticket_messages").select("*").eq("ticket_id", ticket_id).order("created_at").execute()
-    return {"ticket": ticket.data, "replies": replies.data or []}
+    ticket = await fetchrow("SELECT * FROM support_tickets WHERE id=$1::uuid", ticket_id)
+    replies = await fetch("SELECT * FROM ticket_messages WHERE ticket_id=$1::uuid "
+                          "ORDER BY created_at", ticket_id)
+    return {"ticket": dict(ticket) if ticket else None,
+            "replies": [dict(r) for r in replies]}
 
 
 class TicketReplyBody(BaseModel):
@@ -156,24 +153,21 @@ class TicketReplyBody(BaseModel):
 
 @router.post("/tickets/reply")
 async def reply_ticket(body: TicketReplyBody, admin_id: str = Depends(require_admin)):
-    db = get_db()
-    db.table("ticket_messages").insert({
-        "ticket_id": body.ticket_id,
-        "sender": "admin",
-        "message": body.message,
-        "sender_id": admin_id,
-    }).execute()
+    await execute(
+        "INSERT INTO ticket_messages (ticket_id,sender,message,sender_id,created_at) "
+        "VALUES ($1::uuid,'admin',$2,$3::uuid,NOW())",
+        body.ticket_id, body.message, admin_id)
     if body.close_ticket:
-        db.table("support_tickets").update({"status": "resolved"}).eq("id", body.ticket_id).execute()
+        await execute("UPDATE support_tickets SET status='resolved' WHERE id=$1::uuid",
+                      body.ticket_id)
     return {"ok": True}
 
 
-# ── System config ─────────────────────────────────────────────────────────────
+# ── Config ────────────────────────────────────────────────────────────────────
 @router.get("/config")
 async def get_config(_: str = Depends(require_admin)):
-    db = get_db()
-    r = db.table("system_config").select("key,value").execute()
-    return {"config": {row["key"]: row["value"] for row in (r.data or [])}}
+    rows = await fetch("SELECT key,value FROM system_config")
+    return {"config": {r["key"]: r["value"] for r in rows}}
 
 
 class ConfigUpdateBody(BaseModel):
@@ -183,213 +177,118 @@ class ConfigUpdateBody(BaseModel):
 
 @router.put("/config")
 async def update_config(body: ConfigUpdateBody, _: str = Depends(require_admin)):
-    db = get_db()
-    db.table("system_config").upsert(
-        {"key": body.key, "value": body.value},
-        on_conflict="key"
-    ).execute()
+    await execute("INSERT INTO system_config (key,value) VALUES ($1,$2) "
+                  "ON CONFLICT (key) DO UPDATE SET value=$2", body.key, str(body.value))
     return {"ok": True}
 
 
-# ── LLM management ────────────────────────────────────────────────────────────
+# ── LLM ───────────────────────────────────────────────────────────────────────
+@router.get("/llm")
+async def get_llm_overview(_: str = Depends(require_admin)):
+    models = await fetch("SELECT * FROM llm_models")
+    usage = await fetch(
+        "SELECT model_name, COUNT(*) as calls, AVG(response_time_ms) as avg_ms "
+        "FROM llm_usage_logs WHERE created_at > NOW() - INTERVAL '7 days' "
+        "GROUP BY model_name ORDER BY calls DESC")
+    failures_count = await fetchval(
+        "SELECT COUNT(*) FROM llm_failures WHERE created_at > NOW() - INTERVAL '24 hours'")
+    return {"models": [dict(r) for r in models],
+            "usage": [dict(r) for r in usage],
+            "failures_24h": failures_count or 0}
+
+
 @router.get("/llm/models")
 async def get_llm_models(_: str = Depends(require_admin)):
-    db = get_db()
-    r = db.table("llm_models").select("*").execute()
-    return {"models": r.data or []}
+    rows = await fetch("SELECT * FROM llm_models")
+    return {"models": [dict(r) for r in rows]}
 
 
 @router.get("/llm/usage")
 async def get_llm_usage(days: int = 7, _: str = Depends(require_admin)):
-    db = get_db()
-    from datetime import datetime, timezone, timedelta
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    r = db.table("llm_usage_logs").select("model_name,response_time_ms,was_fallback,created_at") \
-        .gte("created_at", since).order("created_at", desc=True).limit(1000).execute()
-    return {"usage": r.data or []}
+    rows = await fetch(
+        "SELECT model_name,response_time_ms,was_fallback,created_at FROM llm_usage_logs "
+        "WHERE created_at > NOW() - ($1 || ' days')::interval "
+        "ORDER BY created_at DESC LIMIT 1000", str(days))
+    return {"usage": [dict(r) for r in rows]}
 
 
 @router.get("/llm/failures")
 async def get_llm_failures(limit: int = 100, _: str = Depends(require_admin)):
-    db = get_db()
-    r = db.table("llm_failures").select("*").order("created_at", desc=True).limit(limit).execute()
-    return {"failures": r.data or []}
+    rows = await fetch("SELECT * FROM llm_failures ORDER BY created_at DESC LIMIT $1", limit)
+    return {"failures": [dict(r) for r in rows]}
 
 
 # ── Errors ────────────────────────────────────────────────────────────────────
 @router.get("/errors")
-async def get_errors(
-    limit: int = 100,
-    severity: Optional[str] = None,
-    _: str = Depends(require_admin),
-):
-    db = get_db()
-    q = db.table("error_logs").select("*").order("created_at", desc=True).limit(limit)
+async def get_errors(limit: int = 100, severity: Optional[str] = None,
+                     _: str = Depends(require_admin)):
     if severity:
-        q = q.eq("severity", severity)
-    r = q.execute()
-    return {"errors": r.data or []}
+        rows = await fetch("SELECT * FROM error_logs WHERE severity=$1 "
+                           "ORDER BY created_at DESC LIMIT $2", severity, limit)
+    else:
+        rows = await fetch("SELECT * FROM error_logs ORDER BY created_at DESC LIMIT $1", limit)
+    return {"errors": [dict(r) for r in rows]}
 
 
-# ── Stats ─────────────────────────────────────────────────────────────────────
-@router.get("/stats")
-async def get_stats(_: str = Depends(require_admin)):
-    db = get_db()
-    from datetime import datetime, timezone, timedelta
-    ago24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    ago7d  = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-
-    users_total  = db.table("profiles").select("id", count="exact").execute()
-    msgs_24h     = db.table("messages").select("id", count="exact").gte("created_at", ago24h).execute()
-    msgs_7d      = db.table("messages").select("id", count="exact").gte("created_at", ago7d).execute()
-    open_tickets = db.table("support_tickets").select("id", count="exact").eq("status", "open").execute()
-    active_subs  = db.table("user_subscriptions").select("id", count="exact").eq("status", "active").execute()
-    llm_failures = db.table("llm_failures").select("id", count="exact").gte("created_at", ago24h).execute()
-
-    return {
-        "users_total":     users_total.count or 0,
-        "messages_24h":    msgs_24h.count or 0,
-        "messages_7d":     msgs_7d.count or 0,
-        "open_tickets":    open_tickets.count or 0,
-        "active_subs":     active_subs.count or 0,
-        "llm_failures_24h": llm_failures.count or 0,
-    }
-
-
-# ── Contact messages ──────────────────────────────────────────────────────────
-@router.get("/contacts")
-async def get_contacts(limit: int = 50, _: str = Depends(require_admin)):
-    db = get_db()
-    r = db.table("contact_messages").select("*").order("created_at", desc=True).limit(limit).execute()
-    return {"contacts": r.data or []}
-
-
-# ── Beta feedback ─────────────────────────────────────────────────────────────
-@router.get("/feedback")
-async def get_feedback(limit: int = 50, _: str = Depends(require_admin)):
-    db = get_db()
-    r = db.table("beta_feedback").select("*").order("created_at", desc=True).limit(limit).execute()
-    return {"feedback": r.data or []}
-
-
-# ── Scheduler / Cron health ───────────────────────────────────────────────────
-@router.get("/scheduler/status")
-async def scheduler_status(_: str = Depends(require_admin)):
-    """Returns per-job cron status: last run, next run, last error, success/failure counts."""
-    from core.scheduler import get_scheduler, JOB_STATS, JOB_REGISTRY
-    scheduler = get_scheduler()
-    jobs_info = []
-    for job_id in JOB_REGISTRY.keys():
-        job = scheduler.get_job(job_id)
-        stats = JOB_STATS.get(job_id, {})
-        jobs_info.append({
-            "id": job_id,
-            "next_run": job.next_run_time.isoformat() if job and job.next_run_time else None,
-            "trigger": str(job.trigger) if job else None,
-            "last_run": stats.get("last_run"),
-            "last_success": stats.get("last_success"),
-            "last_error": stats.get("last_error"),
-            "success_count": stats.get("success_count", 0),
-            "failure_count": stats.get("failure_count", 0),
-            "last_duration_ms": stats.get("last_duration_ms"),
-        })
-    return {
-        "running": scheduler.running,
-        "jobs": jobs_info,
-    }
-
-
-@router.post("/scheduler/run/{job_id}")
-async def scheduler_run(job_id: str, _: str = Depends(require_admin)):
-    """Manually trigger a cron job immediately. Runs in background — returns right away."""
-    import asyncio
-    from core.scheduler import JOB_REGISTRY, _wrap
-    fn = JOB_REGISTRY.get(job_id)
-    if not fn:
-        raise HTTPException(404, f"Unknown job: {job_id}. Available: {list(JOB_REGISTRY.keys())}")
-    # Fire-and-forget so the HTTP request returns instantly
-    asyncio.create_task(_wrap(job_id, fn)())
-    return {"ok": True, "job_id": job_id, "status": "triggered"}
-
-
-@router.post("/scheduler/bootstrap/{job_id}")
-async def scheduler_bootstrap(job_id: str, key: str = Query(...)):
-    """
-    Bootstrap trigger — protected by INTERNAL_SERVICE_KEY query param.
-    Used to manually fire intelligence jobs after a fresh deploy or DB migration,
-    without needing an admin JWT in the browser.
-    """
-    import asyncio
-    import os
-    expected = os.getenv("INTERNAL_SERVICE_KEY", "")
-    if not expected or key != expected:
-        raise HTTPException(403, "Invalid bootstrap key")
-    from core.scheduler import JOB_REGISTRY, _wrap
-    fn = JOB_REGISTRY.get(job_id)
-    if not fn:
-        raise HTTPException(404, f"Unknown job: {job_id}. Available: {list(JOB_REGISTRY.keys())}")
-    asyncio.create_task(_wrap(job_id, fn)())
-    return {"ok": True, "job_id": job_id, "status": "triggered"}
-
-
-@router.get("/scheduler/jobs")
-async def scheduler_jobs_public():
-    """Public list of registered job IDs (no secrets exposed). Useful for the bootstrap UI."""
-    from core.scheduler import JOB_REGISTRY
-    return {"jobs": list(JOB_REGISTRY.keys())}
-
-
-
-
-# ── Error resolution ──────────────────────────────────────────────────────────
-class ErrorResolveBody(BaseModel):
+class ErrorActionBody(BaseModel):
     pattern: str
     status: str = "resolved"
     note: Optional[str] = None
 
 
 @router.post("/errors/resolve")
-async def resolve_errors(body: ErrorResolveBody, _: str = Depends(require_admin)):
-    await execute(
-        "UPDATE error_logs SET status=$1 WHERE message ILIKE $2",
-        body.status, f"%{body.pattern}%"
-    )
+async def resolve_errors(body: ErrorActionBody, _: str = Depends(require_admin)):
+    await execute("UPDATE error_logs SET status=$1 WHERE message ILIKE $2",
+                  body.status, f"%{body.pattern}%")
     return {"ok": True}
 
 
 @router.post("/errors/reopen")
-async def reopen_errors(body: ErrorResolveBody, _: str = Depends(require_admin)):
-    await execute(
-        "UPDATE error_logs SET status='open' WHERE message ILIKE $1",
-        f"%{body.pattern}%"
-    )
+async def reopen_errors(body: ErrorActionBody, _: str = Depends(require_admin)):
+    await execute("UPDATE error_logs SET status='open' WHERE message ILIKE $1",
+                  f"%{body.pattern}%")
     return {"ok": True}
 
 
-# ── User subscription update ──────────────────────────────────────────────────
-class SubscriptionUpdateBody(BaseModel):
-    status: Optional[str] = None
-    plan: Optional[str] = None
+# ── Stats ─────────────────────────────────────────────────────────────────────
+@router.get("/stats")
+async def get_stats(_: str = Depends(require_admin)):
+    return {
+        "users_total": await fetchval("SELECT COUNT(*) FROM users") or 0,
+        "messages_24h": await fetchval(
+            "SELECT COUNT(*) FROM messages WHERE created_at > NOW() - INTERVAL '24 hours'") or 0,
+        "messages_7d": await fetchval(
+            "SELECT COUNT(*) FROM messages WHERE created_at > NOW() - INTERVAL '7 days'") or 0,
+        "open_tickets": await fetchval(
+            "SELECT COUNT(*) FROM support_tickets WHERE status='open'") or 0,
+        "active_subs": await fetchval(
+            "SELECT COUNT(*) FROM user_subscriptions WHERE status='active'") or 0,
+        "llm_failures_24h": await fetchval(
+            "SELECT COUNT(*) FROM llm_failures WHERE created_at > NOW() - INTERVAL '24 hours'") or 0,
+        "intelligence_predictions": await fetchval(
+            "SELECT COUNT(*) FROM ayn_world_predictions WHERE status='active'") or 0,
+        "world_signals": await fetchval(
+            "SELECT COUNT(*) FROM ayn_world_signals WHERE status='active'") or 0,
+    }
 
 
-@router.patch("/users/{user_id}/subscription")
-async def update_user_subscription(
-    user_id: str, body: SubscriptionUpdateBody, _: str = Depends(require_admin)
-):
-    if body.status:
-        await execute(
-            "UPDATE user_subscriptions SET status=$1 WHERE user_id=$2::uuid",
-            body.status, user_id
-        )
-    return {"ok": True}
+# ── Contacts & Feedback ───────────────────────────────────────────────────────
+@router.get("/contacts")
+async def get_contacts(limit: int = 50, _: str = Depends(require_admin)):
+    rows = await fetch("SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT $1", limit)
+    return {"contacts": [dict(r) for r in rows]}
 
 
-# ── Twitter posts (admin view) ────────────────────────────────────────────────
+@router.get("/feedback")
+async def get_feedback(limit: int = 50, _: str = Depends(require_admin)):
+    rows = await fetch("SELECT * FROM beta_feedback ORDER BY created_at DESC LIMIT $1", limit)
+    return {"feedback": [dict(r) for r in rows]}
+
+
+# ── Twitter ───────────────────────────────────────────────────────────────────
 @router.get("/twitter/posts")
 async def get_twitter_posts(limit: int = 50, _: str = Depends(require_admin)):
-    rows = await fetch(
-        "SELECT * FROM twitter_posts ORDER BY created_at DESC LIMIT $1", limit
-    )
+    rows = await fetch("SELECT * FROM twitter_posts ORDER BY created_at DESC LIMIT $1", limit)
     return {"posts": [dict(r) for r in rows]}
 
 
@@ -401,35 +300,12 @@ async def delete_twitter_post(post_id: str, _: str = Depends(require_admin)):
 
 @router.post("/twitter/posts/{post_id}/retry")
 async def retry_twitter_post(post_id: str, _: str = Depends(require_admin)):
-    await execute(
-        "UPDATE twitter_posts SET status='pending', error=NULL WHERE id=$1::uuid", post_id
-    )
+    await execute("UPDATE twitter_posts SET status='pending',error=NULL WHERE id=$1::uuid", post_id)
     return {"ok": True}
 
 
 @router.post("/twitter/posts/{post_id}/schedule")
 async def schedule_twitter_post(post_id: str, body: dict, _: str = Depends(require_admin)):
-    await execute(
-        "UPDATE twitter_posts SET scheduled_for=$1 WHERE id=$2::uuid",
-        body.get("scheduled_for"), post_id
-    )
+    await execute("UPDATE twitter_posts SET scheduled_for=$1 WHERE id=$2::uuid",
+                  body.get("scheduled_for"), post_id)
     return {"ok": True}
-
-
-# ── /admin/llm alias (LLMManagement.tsx calls /admin/llm not /admin/llm/models) ──
-@router.get("/llm")
-async def get_llm_overview(_: str = Depends(require_admin)):
-    models = await fetch("SELECT * FROM llm_models")
-    usage = await fetch(
-        "SELECT model_name, COUNT(*) as calls, AVG(response_time_ms) as avg_ms "
-        "FROM llm_usage_logs WHERE created_at > NOW() - INTERVAL '7 days' "
-        "GROUP BY model_name ORDER BY calls DESC"
-    )
-    failures = await fetch(
-        "SELECT COUNT(*) as count FROM llm_failures WHERE created_at > NOW() - INTERVAL '24 hours'"
-    )
-    return {
-        "models": [dict(r) for r in models],
-        "usage": [dict(r) for r in usage],
-        "failures_24h": dict(failures[0])["count"] if failures else 0,
-    }

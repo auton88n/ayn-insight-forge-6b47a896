@@ -7,7 +7,7 @@ import asyncio
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from core.auth_new import verify_access_token
-from core.db import get_db
+from core.database import fetchval
 
 router = APIRouter(prefix="/ws", tags=["realtime"])
 log = logging.getLogger("ayn.realtime")
@@ -89,14 +89,11 @@ async def ws_predictions(websocket: WebSocket):
             await asyncio.sleep(60)
             # Send latest predictions count
             try:
-                db = get_db()
-                r = await asyncio.to_thread(
-                    lambda: db.from_("ayn_world_predictions").select("id", count="exact")
-                               .eq("status", "active").execute()
-                )
+                count = await fetchval(
+                    "SELECT COUNT(*) FROM ayn_world_predictions WHERE status='active'")
                 await websocket.send_json({
                     "type": "predictions_update",
-                    "count": r.count or 0
+                    "count": count or 0
                 })
             except Exception:
                 pass

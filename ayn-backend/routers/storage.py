@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from core.auth_new import get_user_id
-from core.db import get_db
 import asyncio
 
 router = APIRouter(prefix="/storage", tags=["storage"])

@@ -261,27 +261,27 @@ async def save_user_settings(req: SettingsRequest, user_id: str = Depends(get_us
 @router.get("/preferences")
 async def get_user_preferences(user_id: str = Depends(get_user_id)):
     try:
-        from core.db import get_db
-        import asyncio
-        db = get_db()
-        r = await asyncio.to_thread(
-            lambda: db.from_("user_preferences").select("*").eq("user_id", user_id).maybe_single().execute()
-        )
-        return {"preferences": r.data or {}}
+        from core.database import fetchrow
+        row = await fetchrow("SELECT * FROM user_preferences WHERE user_id=$1::uuid", user_id)
+        return {"preferences": dict(row) if row else {}}
     except Exception:
         return {"preferences": {}}
 
 @router.post("/preferences")
 async def save_user_preferences(body: dict, user_id: str = Depends(get_user_id)):
     try:
-        from core.db import get_db
-        import asyncio
-        db = get_db()
-        await asyncio.to_thread(
-            lambda: db.from_("user_preferences").upsert({
-                "user_id": user_id, **body
-            }).execute()
-        )
+        from core.database import execute
+        import json as _json
+        cols = ["user_id"] + [k for k in body.keys() if k.isidentifier()]
+        vals = [user_id] + [_json.dumps(v) if isinstance(v, (dict, list)) else v
+                            for k, v in body.items() if k.isidentifier()]
+        ph = ", ".join(f"${i+1}" for i in range(len(cols)))
+        cn = ", ".join(f'"{c}"' for c in cols)
+        updates = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols[1:]))
+        await execute(
+            f"INSERT INTO user_preferences ({cn}) VALUES ({ph}) "
+            f"ON CONFLICT (user_id) DO UPDATE SET {updates}",
+            *vals)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
