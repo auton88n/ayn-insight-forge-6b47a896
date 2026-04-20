@@ -219,8 +219,8 @@ const LandingPage = memo(() => {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent to-card/20" />
               </div>
               <div className="p-8 md:p-12 lg:p-16 flex flex-col justify-center">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-                  <TrendingUp className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-6">
+                  <TrendingUp className="w-6 h-6 text-orange-500" />
                 </div>
                 <h3 className="text-2xl md:text-3xl font-serif font-bold mb-4">
                   {language === 'ar' ? 'بناء ودراسة الأعمال' : language === 'fr' ? 'Construire & Étudier les Affaires' : 'Build & Study Business'}
@@ -229,9 +229,9 @@ const LandingPage = memo(() => {
                   {language === 'ar' ? 'عين يحلل بيانات شركتك ويساعدك في اتخاذ القرارات الاستراتيجية. من دراسة المنافسين إلى تحليل السوق المستهدف، يوفر لك رؤى عميقة تبني عليها نمو أعمالك.' : language === 'fr' ? 'AYN analyse les données de votre entreprise et vous aide à prendre des décisions stratégiques. De l\'étude des concurrents à l\'analyse du marché cible, il fournit des insights profonds.' : 'AYN analyzes your company data and helps you make strategic decisions. From competitor analysis to target market research, it provides deep insights to fuel your business growth.'}
                 </p>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تحليل المنافسين والسوق' : language === 'fr' ? 'Analyse des concurrents et du marché' : 'Competitor & market analysis'}</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'استراتيجيات النمو المدعومة بالبيانات' : language === 'fr' ? 'Stratégies de croissance basées sur les données' : 'Data-driven growth strategies'}</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تقارير أداء ذكية' : language === 'fr' ? 'Rapports de performance intelligents' : 'Intelligent performance reports'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تحليل المنافسين والسوق' : language === 'fr' ? 'Analyse des concurrents et du marché' : 'Competitor & market analysis'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'استراتيجيات النمو المدعومة بالبيانات' : language === 'fr' ? 'Stratégies de croissance basées sur les données' : 'Data-driven growth strategies'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تقارير أداء ذكية' : language === 'fr' ? 'Rapports de performance intelligents' : 'Intelligent performance reports'}</li>
                 </ul>
               </div>
             </motion.div>
@@ -245,8 +245,8 @@ const LandingPage = memo(() => {
               transition={{ duration: 0.5 }}
             >
               <div className="p-8 md:p-12 lg:p-16 flex flex-col justify-center order-2 md:order-1">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-                  <Eye className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-6">
+                  <Eye className="w-6 h-6 text-orange-500" />
                 </div>
                 <h3 className="text-2xl md:text-3xl font-serif font-bold mb-4">
                   {language === 'ar' ? 'رصد الأسواق والتحولات' : language === 'fr' ? 'Surveillance des Marchés & Tendances' : 'Market Shifts & Intelligence'}
@@ -255,9 +255,9 @@ const LandingPage = memo(() => {
                   {language === 'ar' ? 'عين يراقب الأسواق العالمية في الوقت الفعلي ويكشف التحولات قبل أن تصبح واضحة. من أسعار النفط إلى العملات الرقمية، لا يفوتك أي تغيير.' : language === 'fr' ? 'AYN surveille les marchés mondiaux en temps réel et détecte les changements avant qu\'ils ne deviennent évidents. Du pétrole aux cryptomonnaies, rien ne vous échappe.' : 'AYN monitors global markets in real-time and detects shifts before they become obvious. From oil prices to crypto, no change goes unnoticed.'}
                 </p>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تتبع الأسواق في الوقت الفعلي' : language === 'fr' ? 'Suivi des marchés en temps réel' : 'Real-time market tracking'}</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تحليل القطاعات والاتجاهات' : language === 'fr' ? 'Analyse sectorielle et tendances' : 'Sector analysis & trend detection'}</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تنبيهات الفرص الاستثمارية' : language === 'fr' ? 'Alertes d\'opportunités d\'investissement' : 'Investment opportunity alerts'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تتبع الأسواق في الوقت الفعلي' : language === 'fr' ? 'Suivi des marchés en temps réel' : 'Real-time market tracking'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تحليل القطاعات والاتجاهات' : language === 'fr' ? 'Analyse sectorielle et tendances' : 'Sector analysis & trend detection'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تنبيهات الفرص الاستثمارية' : language === 'fr' ? 'Alertes d\'opportunités d\'investissement' : 'Investment opportunity alerts'}</li>
                 </ul>
               </div>
               <div className="relative overflow-hidden aspect-[16/10] md:aspect-auto order-1 md:order-2">
@@ -279,8 +279,8 @@ const LandingPage = memo(() => {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent to-card/20" />
               </div>
               <div className="p-8 md:p-12 lg:p-16 flex flex-col justify-center">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-                  <AlertTriangle className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-6">
+                  <AlertTriangle className="w-6 h-6 text-orange-500" />
                 </div>
                 <h3 className="text-2xl md:text-3xl font-serif font-bold mb-4">
                   {language === 'ar' ? 'التنبؤ بالأحداث العالمية' : language === 'fr' ? 'Prédiction des Événements Mondiaux' : 'World Event Predictions'}
@@ -289,9 +289,9 @@ const LandingPage = memo(() => {
                   {language === 'ar' ? 'عين يحلل الأحداث الجيوسياسية وسلاسل الإمداد والصراعات العالمية ليتنبأ بتأثيرها على أعمالك. استعد للمستقبل قبل أن يصل.' : language === 'fr' ? 'AYN analyse les événements géopolitiques, les chaînes d\'approvisionnement et les conflits mondiaux pour prédire leur impact sur votre entreprise.' : 'AYN analyzes geopolitical events, supply chains, and global conflicts to predict their impact on your business. Prepare for the future before it arrives.'}
                 </p>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تحليل المخاطر الجيوسياسية' : language === 'fr' ? 'Analyse des risques géopolitiques' : 'Geopolitical risk analysis'}</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'تنبيهات اضطراب سلاسل الإمداد' : language === 'fr' ? 'Alertes de perturbation de la chaîne d\'approvisionnement' : 'Supply chain disruption alerts'}</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary" /> {language === 'ar' ? 'سيناريوهات التأثير على الأعمال' : language === 'fr' ? 'Scénarios d\'impact commercial' : 'Business impact scenarios'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تحليل المخاطر الجيوسياسية' : language === 'fr' ? 'Analyse des risques géopolitiques' : 'Geopolitical risk analysis'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'تنبيهات اضطراب سلاسل الإمداد' : language === 'fr' ? 'Alertes de perturbation de la chaîne d\'approvisionnement' : 'Supply chain disruption alerts'}</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {language === 'ar' ? 'سيناريوهات التأثير على الأعمال' : language === 'fr' ? 'Scénarios d\'impact commercial' : 'Business impact scenarios'}</li>
                 </ul>
               </div>
             </motion.div>
