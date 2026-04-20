@@ -1,69 +1,48 @@
 
 
-## My take on the orange usage
+## Your insight is sharp
 
-You're right — **everything orange = nothing orange**. Orange should act like a spotlight, not wallpaper. The eye is already the brand's emotional centerpiece in orange. The rest of the page should stay black/white/grey, and orange should only appear in **3 strategic spots** that pull the user toward action.
+You're right — orange currently appears in the eye and on buttons but has **no narrative anchor**. The brain (Brain icon inside the eye) is orange, but the wordmark "AYN" is black. So orange feels decorative rather than *meaningful*.
 
-## Where orange should live (and where it shouldn't)
+By coloring the **"AYN" wordmark itself orange**, orange becomes a brand identifier, not a decoration. Then everywhere orange appears (eye iris, CTAs, accents) it visually "belongs to AYN" — same color as the name = same color as the brand.
 
-**Use orange (action + identity moments):**
-1. **The eye iris** — already done, this is the soul of the brand
-2. **Primary CTA buttons only** — "Get Started Free" in header, send arrow in chat input, "Sign Up" in auth modal, "Contact Sales" in pricing. These are the *one thing* you want clicked on each screen.
-3. **Micro-accents** — the bullet dots (`•`) next to feature list items, the small icon badges next to "Build & Study Business", "Market Shifts", "World Predictions" (currently `bg-primary/10`). One subtle orange tint = the eye color "echoing" through the page.
+## The rule
 
-**Do NOT use orange:**
-- Headlines (keep them pure foreground/black-white — they need to feel premium and editorial, not loud)
-- Body text (kills readability)
-- Section backgrounds (overwhelming)
-- Decorative section labels ("ABOUT AYN", "AYN CAPABILITIES" — keep mono grey)
-- Card borders, shadows, hover states (keeps the "cathedral quiet" Palantir feel)
+> Orange = the AYN brand mark (logo wordmark + eye + primary CTAs).
+> Everything else stays black/white/grey.
 
-## Concrete changes
+## Where to apply orange to "AYN" text
 
-### 1. Kill the glossy LiquidButton — replace with a flat orange CTA
+**Apply (logo/brand contexts):**
+1. **Header logo** — `<span>AYN</span>` next to the Brain icon → orange
+2. **Mobile sheet logo** — same wordmark in the slide-out menu → orange
+3. **Footer logo** (if present) — orange
+4. **Auth modal logo** (if shows AYN wordmark) → orange
 
-Rewrite `LiquidButton` in `src/components/ui/button.tsx` as a clean, flat, square-ish (rounded-lg) orange button with **no glass, no gloss streak, no backdrop-blur**. Keep the same component name + API so all 6 usage sites (Header desktop, Header mobile, AuthModal x2, ChatInput, Pricing, Contact, LandingChatInput) automatically inherit the new look.
+**Do NOT apply (editorial/copy contexts):**
+- "Meet AYN" headline → stays black/white. The headline is editorial typography, not a logo. Coloring "AYN" inside a sentence breaks the reading flow and looks like a hyperlink.
+- "About AYN" / "AYN Capabilities" section labels → stays grey. These are navigational/structural labels, not the logo.
+- Body text that mentions AYN → stays foreground. Same reason.
 
-```text
-Old: pill, glassy, blur, gradient streak, white border
-New: rounded-lg, solid bg-orange-500, hover bg-orange-600,
-     text-black font-medium, subtle shadow on hover only,
-     scale 0.97 on press
-```
+The distinction: **the logo is a mark, the headline is a sentence**. Only the mark gets the brand color.
 
-### 2. Update LandingChatInput send button to match the new button system
+## Files to change
 
-Remove the inline custom button I added last turn — use the same `LiquidButton` (now flat) at icon size for visual consistency.
+1. **`src/components/shared/Header.tsx`** — change the two `<span className="...font-bold">AYN</span>` instances (desktop nav line 84, mobile sheet line 137) to add `text-orange-500`.
+2. **`src/components/shared/Footer.tsx`** — if the footer renders an AYN wordmark logo, color it orange. (need to verify file exists / structure)
+3. **`src/components/auth/AuthModal.tsx`** — if a wordmark appears in the modal header, color it orange. (need to verify)
 
-### 3. Add orange micro-accents on landing page
+I'll verify Footer/AuthModal during implementation and only edit if they have a logo wordmark.
 
-In `src/components/LandingPage.tsx`:
-- The 3 small icon badges next to feature headings (`bg-primary/10` + `text-primary`) → swap to `bg-orange-500/10` + `text-orange-500`. This makes the icons quietly echo the eye.
-- The bullet dots (`bg-primary` 1.5x1.5 circles in feature lists) → `bg-orange-500`. Tiny but ties everything together.
-- The 6 value-prop icons in "About AYN" section currently use `bg-muted/50` + `text-foreground` — leave them grey (intentional restraint, lets feature section pop more).
+## What stays the same
 
-### 4. Headlines stay black/white
+- Eye iris orange ✓
+- LiquidButton orange ✓
+- Feature icon badges + bullet dots orange ✓
+- "Meet AYN" headline → black/white ✓
+- All section labels → grey ✓
 
-Confirm "Meet AYN" stays `text-foreground`. No orange on H1/H2. The eye carries the color identity for the hero — the headline carries the typographic identity.
+## Result
 
-## Visual hierarchy after changes
-
-```text
-HERO:        eye (orange) ← only color moment
-HEADLINES:   pure black/white
-CTAs:        flat orange buttons (3 max per screen)
-FEATURES:    grey cards + tiny orange icon badges + orange bullets
-SECTIONS:    grey/white backgrounds, no tint
-```
-
-This gives orange a job: **"orange = AYN's identity (the eye) + AYN's invitation (the button)"**. Everything else stays calm, premium, and lets the orange punch through.
-
-## Files to change (4)
-
-1. `src/components/ui/button.tsx` — rewrite `LiquidButton` flat (no glass)
-2. `src/components/landing/LandingChatInput.tsx` — restore `<LiquidButton>` for send arrow, remove inline custom button
-3. `src/components/LandingPage.tsx` — swap `text-primary`/`bg-primary` to orange on the 3 feature icon badges and bullet dots only
-4. *(no other files — Header/Pricing/Contact/AuthModal automatically inherit new LiquidButton)*
-
-No memory updates needed. No backend changes. Quick visual refinement.
+Orange now has a story: *"orange is the color of AYN"*. Logo, eye, and buttons all share it because they all represent the brand directly. Headlines and copy stay neutral because they're communication, not identity.
 
