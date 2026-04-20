@@ -87,7 +87,7 @@ export const Header = () => {
               className={cn(
                 'relative transition-colors py-1',
                 isActive(link.path) ?
-                'text-foreground after:content-[""] after:absolute after:left-0 after:right-0 after:-bottom-0.5 after:h-[2px] after:bg-orange-500 after:rounded-full' :
+                'text-foreground after:content-[""] after:absolute after:left-0 after:right-0 after:-bottom-0.5 after:h-[2px] after:bg-ayn after:rounded-full' :
                 'text-muted-foreground hover:text-foreground'
               )}>
               
