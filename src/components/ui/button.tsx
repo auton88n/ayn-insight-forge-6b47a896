@@ -108,12 +108,12 @@ export const liquidButtonVariants = cva(
     "outline-none select-none",
     "transition-transform duration-300",
     "hover:scale-105 active:scale-[0.97]",
-    // The actual glass look — transparent dark tint + blur
-    "bg-black/20 backdrop-blur-md",
-    // Rim: thin white border top, transparent bottom for depth
-    "border border-white/50",
-    // Outer glow + inner top rim + inner bottom shadow
-    "shadow-[0_2px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.6),inset_0_-1px_0_rgba(0,0,0,0.3),0_0_0_1px_rgba(255,255,255,0.08)]",
+    // Orange liquid glass — vibrant tint + blur
+    "bg-orange-500/80 backdrop-blur-md",
+    // Rim: thin white border for glass highlight
+    "border border-orange-300/60",
+    // Outer orange glow + inner top rim + inner bottom shadow
+    "shadow-[0_2px_16px_rgba(249,115,22,0.5),inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.25),0_0_0_1px_rgba(255,255,255,0.1)]",
     "text-white",
   ].join(" "),
   {
