@@ -23,6 +23,7 @@ from core.migrate import run_migrations
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from core.config import PORT, ALLOWED_ORIGINS
 from core.llm import check_health
 
@@ -41,13 +42,14 @@ async def lifespan(app: FastAPI):
     from core.scheduler import start_scheduler
     start_scheduler()
 
-    # Warm up DB connection
+    # Pre-warm DB pool — creates min_size=3 connections immediately
+    # This eliminates the "cold first request" latency spike
     try:
-        from core.db import get_db
-        get_db()
-        log.info("✅ Supabase connected")
+        pool = await get_pool()
+        await pool.execute("SELECT 1")  # force actual connections
+        log.info(f"✅ DB pool warm ({pool.get_size()} connections)")
     except Exception as e:
-        log.warning(f"⚠️  Supabase connection issue: {e}")
+        log.warning(f"⚠️  DB warmup issue: {e}")
 
     # Warm up LLM client
     try:
@@ -89,6 +91,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Compress responses > 1KB — speeds up intelligence data transfers significantly
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ── Global exception handler — log everything ────────────────────────────────
 from fastapi import Request as FastAPIRequest

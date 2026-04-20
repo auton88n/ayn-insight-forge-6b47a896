@@ -32,8 +32,9 @@ async def get_pool() -> asyncpg.Pool:
         _pool = await asyncio.wait_for(
             asyncpg.create_pool(
                 db_url,
-                min_size=1,
-                max_size=10,
+                min_size=3,        # keep 3 connections warm at all times
+                max_size=20,       # scale up to 20 under load
+                max_inactive_connection_lifetime=300,  # recycle idle connections
                 command_timeout=30,
                 server_settings={"application_name": "ayn-spine"},
                 ssl=use_ssl,
