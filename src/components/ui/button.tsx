@@ -114,7 +114,7 @@ export const liquidButtonVariants = cva(
     "border border-orange-300/60",
     // Outer orange glow + inner top rim + inner bottom shadow
     "shadow-[0_2px_16px_rgba(249,115,22,0.5),inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.25),0_0_0_1px_rgba(255,255,255,0.1)]",
-    "text-white",
+    "text-black",
   ].join(" "),
   {
     variants: {
