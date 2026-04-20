@@ -1,26 +1,19 @@
 """
 core/auth.py — JWT verification for /chat endpoint
-
-Supports both:
-- Spine JWTs (signed with AYN_JWT_SECRET) — new users
-- Supabase JWTs (signed with SUPABASE_JWT_SECRET) — legacy
-
-Falls back gracefully so chat always works.
+All tokens are signed with AYN_JWT_SECRET (spine-issued).
+No Supabase dependency.
 """
 import jwt
 from fastapi import HTTPException, Header
-from core.config import SUPABASE_JWT_SECRET, SUPABASE_SERVICE_KEY
 import os
 
 AYN_JWT_SECRET = os.getenv("AYN_JWT_SECRET", "")
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")  # kept for internal calls only
 
 
 def verify_token(authorization: str = Header(...)) -> str:
-    """
-    FastAPI dependency — verifies Bearer JWT, returns user_id.
-    Tries spine JWT first, then Supabase JWT.
-    """
+    """FastAPI dependency — verifies Bearer JWT, returns user_id."""
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "Missing Bearer token")
 
@@ -30,40 +23,19 @@ def verify_token(authorization: str = Header(...)) -> str:
     if token in (SUPABASE_SERVICE_KEY, INTERNAL_SERVICE_KEY):
         return "internal"
 
-    # Try spine JWT first (AYN_JWT_SECRET)
-    if AYN_JWT_SECRET:
-        try:
-            payload = jwt.decode(token, AYN_JWT_SECRET, algorithms=["HS256"])
-            if payload.get("type") == "access":
-                user_id = payload.get("sub")
-                if user_id:
-                    return user_id
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(401, "Token expired")
-        except jwt.InvalidTokenError:
-            pass  # Try Supabase next
+    if not AYN_JWT_SECRET:
+        raise HTTPException(500, "AYN_JWT_SECRET not configured")
 
-    # Try Supabase JWT (SUPABASE_JWT_SECRET) - for legacy users
-    if SUPABASE_JWT_SECRET:
-        try:
-            payload = jwt.decode(
-                token, SUPABASE_JWT_SECRET, algorithms=["HS256"],
-                options={"verify_aud": False}
-            )
-            user_id = payload.get("sub")
-            if user_id:
-                return user_id
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(401, "Token expired")
-        except jwt.InvalidTokenError as e:
-            raise HTTPException(401, f"Invalid token: {e}")
-
-    # No secrets configured — fail open (dev mode)
-    if not AYN_JWT_SECRET and not SUPABASE_JWT_SECRET:
-        print("[auth] No JWT secrets configured — failing open")
-        return "unknown"
-
-    raise HTTPException(401, "Invalid token")
+    try:
+        payload = jwt.decode(token, AYN_JWT_SECRET, algorithms=["HS256"])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(401, "Invalid token payload")
+        return user_id
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(401, f"Invalid token: {e}")
 
 
 async def check_user_limit(user_id: str, intent: str) -> dict:
