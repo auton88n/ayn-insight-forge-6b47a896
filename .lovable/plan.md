@@ -1,48 +1,68 @@
 
 
-## Your insight is sharp
+## My honest critique as a senior designer
 
-You're right — orange currently appears in the eye and on buttons but has **no narrative anchor**. The brain (Brain icon inside the eye) is orange, but the wordmark "AYN" is black. So orange feels decorative rather than *meaningful*.
+I looked at your landing page carefully. **The orange is not the problem. The orange is the only thing giving your brand a soul.** Don't remove it. What's "off" is something else, and once I name it you'll feel it too.
 
-By coloring the **"AYN" wordmark itself orange**, orange becomes a brand identifier, not a decoration. Then everywhere orange appears (eye iris, CTAs, accents) it visually "belongs to AYN" — same color as the name = same color as the brand.
+## What's actually wrong (3 real issues)
 
-## The rule
+### 1. The eye glow is too aggressive — orange is leaking everywhere
+The hero eye has a giant orange radial blur (`-inset-8 blur-2xl` at 35% opacity). It's not the orange itself that's loud, it's the **halo size**. The orange should feel like a *pupil*, not a *sunset*. Reduce the glow radius and opacity by ~60% and the orange will feel intentional, jewel-like, premium — not garish.
 
-> Orange = the AYN brand mark (logo wordmark + eye + primary CTAs).
-> Everything else stays black/white/grey.
+### 2. The headline "Meet AYN" is competing with the eye
+You have two heroes fighting for attention: a massive 8xl Syne headline AND a giant glowing eye directly below it. Both are screaming. In premium design (Apple, Linea, Palantir), the hero has **one focal point**. Either:
+- Shrink the headline (text-4xl → text-6xl max) and let the eye lead, OR
+- Keep the headline big and shrink the eye to a compact mark
 
-## Where to apply orange to "AYN" text
+I recommend **eye leads, headline supports** because the eye is your differentiator. Nobody else has it.
 
-**Apply (logo/brand contexts):**
-1. **Header logo** — `<span>AYN</span>` next to the Brain icon → orange
-2. **Mobile sheet logo** — same wordmark in the slide-out menu → orange
-3. **Footer logo** (if present) — orange
-4. **Auth modal logo** (if shows AYN wordmark) → orange
+### 3. Inconsistent typography hierarchy
+You're mixing `font-serif` (Syne) on section headings with `font-display` (also Syne) on the hero, and `font-mono` for labels. That's fine — but the **weights and sizes are too similar across sections**. Every H2 is `text-3xl md:text-5xl lg:text-6xl font-bold`. That means "About AYN", "AYN Capabilities", and "Meet AYN" all carry equal visual weight. Nothing feels like THE moment. Premium sites vary scale dramatically: hero is huge, section heads are restrained.
 
-**Do NOT apply (editorial/copy contexts):**
-- "Meet AYN" headline → stays black/white. The headline is editorial typography, not a logo. Coloring "AYN" inside a sentence breaks the reading flow and looks like a hyperlink.
-- "About AYN" / "AYN Capabilities" section labels → stays grey. These are navigational/structural labels, not the logo.
-- Body text that mentions AYN → stays foreground. Same reason.
+## What's right (don't touch)
 
-The distinction: **the logo is a mark, the headline is a sentence**. Only the mark gets the brand color.
+- **Black/white/orange palette** — exactly correct for a premium AI brand. Linear, Stripe, Vercel all use 2-color + 1-accent. Don't dilute it.
+- **Orange anchored to AYN wordmark** — narratively perfect now. Orange has a reason.
+- **Flat orange CTAs** — clean, modern, confident.
+- **Grey feature cards with orange micro-accents** — restrained and elegant.
+- **Syne + Inter pairing** — premium choice.
 
-## Files to change
+## My recommended changes (4 small surgical edits)
 
-1. **`src/components/shared/Header.tsx`** — change the two `<span className="...font-bold">AYN</span>` instances (desktop nav line 84, mobile sheet line 137) to add `text-orange-500`.
-2. **`src/components/shared/Footer.tsx`** — if the footer renders an AYN wordmark logo, color it orange. (need to verify file exists / structure)
-3. **`src/components/auth/AuthModal.tsx`** — if a wordmark appears in the modal header, color it orange. (need to verify)
+### Edit 1: Calm the eye glow (`Hero.tsx`)
+- `-inset-8 blur-2xl` → `-inset-4 blur-xl`
+- Glow opacity `0.35` → `0.18` (light), `0.25` → `0.15` (dark)
+- `Brain` icon `drop-shadow` opacity `0.6` → `0.35`
 
-I'll verify Footer/AuthModal during implementation and only edit if they have a logo wordmark.
+Result: orange becomes a focused jewel inside the eye, not a flare around it.
 
-## What stays the same
+### Edit 2: Tighten hero headline (`Hero.tsx`)
+- `text-5xl sm:text-6xl md:text-7xl lg:text-8xl` → `text-4xl sm:text-5xl md:text-6xl lg:text-7xl`
+- Add more breathing room above the eye: `mb-4 md:mb-6` → `mb-8 md:mb-12`
 
-- Eye iris orange ✓
-- LiquidButton orange ✓
-- Feature icon badges + bullet dots orange ✓
-- "Meet AYN" headline → black/white ✓
-- All section labels → grey ✓
+Result: clear hierarchy. Eye = star. Headline = supporting cast.
 
-## Result
+### Edit 3: Restrain section H2s (`LandingPage.tsx`)
+- Section headlines `text-3xl md:text-5xl lg:text-6xl` → `text-3xl md:text-4xl lg:text-5xl`
+- Keep them `font-serif font-bold` but smaller — that creates a clear scale: Hero (big) > Sections (medium) > Cards (small).
 
-Orange now has a story: *"orange is the color of AYN"*. Logo, eye, and buttons all share it because they all represent the brand directly. Headlines and copy stay neutral because they're communication, not identity.
+### Edit 4: Add ONE more orange anchor to "ground" the color
+Right now orange appears in 3 places: AYN logo, eye, CTAs. Add a **single subtle orange underline accent** under the active nav link in the header. Just a 2px orange bar under "Home" / "Pricing" etc when active. This makes the navigation feel alive AND ties orange to "where you are" — another piece of identity.
+
+## What I am NOT recommending
+
+- ❌ Removing orange (it's your only differentiator from every other "AI startup")
+- ❌ Adding a second accent color (kills the discipline)
+- ❌ Changing fonts (Syne + Inter is correct)
+- ❌ Changing the layout structure (it's solid)
+
+## Files to change (2)
+
+1. `src/components/landing/Hero.tsx` — calm eye glow + tighten headline
+2. `src/components/LandingPage.tsx` — restrain section H2 sizes
+3. `src/components/shared/Header.tsx` — add 2px orange underline on active nav link
+
+## The result
+
+Your page will feel **quieter but more confident** — like a luxury watch shop instead of a tech expo. The orange will land like a single perfect note instead of background music. Same color, same brand, but it will breathe.
 
