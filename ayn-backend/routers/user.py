@@ -292,10 +292,10 @@ async def save_user_preferences(body: dict, user_id: str = Depends(get_user_id))
 class BetaFeedbackRequest(BaseModel):
     overall_rating: int = 5
     favorite_features: list = []
-    improvement_suggestions: str = ""
-    bugs_encountered: str = ""
+    improvement_suggestions: Optional[str] = None
+    bugs_encountered: Optional[str] = None
     would_recommend: bool = True
-    additional_comments: str = ""
+    additional_comments: Optional[str] = None
     credits_awarded: int = 50
 
 @router.post("/beta-feedback")

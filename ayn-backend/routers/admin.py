@@ -422,3 +422,221 @@ async def update_prediction(prediction_id: str, body: dict,
         f'UPDATE ayn_world_predictions SET {sets} WHERE id=$1::uuid',
         prediction_id, *vals)
     return {"ok": True}
+
+
+# ── Service Applications ──────────────────────────────────────────────────────
+@router.get("/service-applications")
+async def get_service_applications(_: str = Depends(require_admin)):
+    rows = await fetch("SELECT * FROM service_applications ORDER BY created_at DESC")
+    return rows or []
+
+
+# ── NDA Agreements ────────────────────────────────────────────────────────────
+@router.post("/nda-agreements")
+async def create_nda(body: dict, admin_id: str = Depends(require_admin)):
+    import json as _json
+    row = await fetchrow("""
+        INSERT INTO nda_agreements (company_name, company_email, contact_person,
+            nda_purpose, status, created_by, created_at)
+        VALUES ($1, $2, $3, $4, 'draft', $5::uuid, NOW())
+        RETURNING *
+    """, body.get('company_name'), body.get('company_email'),
+        body.get('contact_person'), body.get('nda_purpose'), admin_id)
+    return dict(row) if row else {}
+
+
+# ── Beta Feedback ─────────────────────────────────────────────────────────────
+@router.get("/beta-feedback")
+async def get_beta_feedback(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT bf.*, u.email as user_email
+        FROM beta_feedback bf
+        LEFT JOIN users u ON u.id = bf.user_id
+        ORDER BY bf.created_at DESC LIMIT 100
+    """)
+    return rows or []
+
+
+# ── Visitor Analytics ─────────────────────────────────────────────────────────
+@router.get("/analytics/summary")
+async def get_analytics_summary(_: str = Depends(require_admin)):
+    stats = await fetchrow("""
+        SELECT
+            COUNT(DISTINCT visitor_id) as unique_visitors,
+            COUNT(*) as total_pageviews,
+            COUNT(DISTINCT CASE WHEN created_at > NOW() - INTERVAL '24 hours'
+                                THEN visitor_id END) as visitors_today
+        FROM visitor_analytics
+        WHERE created_at > NOW() - INTERVAL '30 days'
+    """)
+    pages = await fetch("""
+        SELECT page_path, COUNT(*) as views
+        FROM visitor_analytics
+        WHERE created_at > NOW() - INTERVAL '7 days'
+        GROUP BY page_path ORDER BY views DESC LIMIT 20
+    """)
+    return {"stats": dict(stats) if stats else {}, "top_pages": pages or []}
+
+
+# ── Conversations (admin view) ────────────────────────────────────────────────
+@router.get("/conversations")
+async def get_admin_conversations(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT cs.session_id, cs.title, cs.created_at, cs.updated_at,
+               u.email as user_email,
+               COUNT(m.id) as message_count
+        FROM chat_sessions cs
+        JOIN users u ON u.id = cs.user_id
+        LEFT JOIN messages m ON m.session_id = cs.session_id
+        GROUP BY cs.session_id, cs.title, cs.created_at, cs.updated_at, u.email
+        ORDER BY cs.updated_at DESC LIMIT 100
+    """)
+    return rows or []
+
+
+@router.get("/conversations/{session_id}")
+async def get_conversation_messages(session_id: str, _: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT id, role, content, created_at FROM messages
+        WHERE session_id = $1 ORDER BY created_at ASC
+    """, session_id)
+    return rows or []
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+@router.get("/health")
+async def admin_health(_: str = Depends(require_admin)):
+    from core.database import get_pool
+    pool = await get_pool()
+    return {
+        "status": "healthy",
+        "db": "railway_postgresql",
+        "pool_size": pool.get_size(),
+        "users": await fetchval("SELECT COUNT(*) FROM users") or 0,
+        "messages": await fetchval("SELECT COUNT(*) FROM messages") or 0,
+        "open_errors": await fetchval("SELECT COUNT(*) FROM error_logs WHERE status='open'") or 0,
+    }
+
+
+# ── Support tickets (admin) ───────────────────────────────────────────────────
+@router.get("/support-tickets")
+async def get_admin_support_tickets(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT t.*, u.email as user_email,
+               (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) as message_count
+        FROM support_tickets t
+        LEFT JOIN users u ON u.id = t.user_id
+        ORDER BY t.updated_at DESC NULLS LAST LIMIT 100
+    """)
+    return rows or []
+
+
+@router.patch("/support-tickets/{ticket_id}")
+async def update_support_ticket(ticket_id: str, body: dict,
+                                 _: str = Depends(require_admin)):
+    allowed = ["status", "priority", "assigned_to"]
+    cols = [k for k in allowed if k in body]
+    if not cols:
+        return {"ok": True}
+    sets = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols))
+    vals = [body[k] for k in cols]
+    await execute(f'UPDATE support_tickets SET {sets}, updated_at=NOW() WHERE id=$1::uuid',
+                  ticket_id, *vals)
+    return {"ok": True}
+
+
+@router.post("/support-tickets/{ticket_id}/reply")
+async def admin_reply_ticket(ticket_id: str, body: dict,
+                              admin_id: str = Depends(require_admin)):
+    await execute("""
+        INSERT INTO ticket_messages (ticket_id, message, sender, sender_id, created_at)
+        VALUES ($1::uuid, $2, 'admin', $3::uuid, NOW())
+    """, ticket_id, body.get("message", ""), admin_id)
+    await execute(
+        "UPDATE support_tickets SET has_unread_reply=TRUE, status='waiting_reply', "
+        "updated_at=NOW() WHERE id=$1::uuid", ticket_id)
+    return {"ok": True}
+
+
+# ── LLM Stats ─────────────────────────────────────────────────────────────────
+@router.get("/llm-stats")
+async def get_llm_stats_detailed(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT model_name, COUNT(*) as calls,
+               AVG(response_time_ms) as avg_ms,
+               SUM(CASE WHEN was_fallback THEN 1 ELSE 0 END) as fallbacks
+        FROM llm_usage_logs
+        WHERE created_at > NOW() - INTERVAL '30 days'
+        GROUP BY model_name ORDER BY calls DESC
+    """)
+    return rows or []
+
+
+# ── User Growth ───────────────────────────────────────────────────────────────
+@router.get("/user-growth")
+async def get_user_growth(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT DATE(created_at) as date, COUNT(*) as new_users
+        FROM users
+        WHERE created_at > NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at) ORDER BY date ASC
+    """)
+    return rows or []
+
+
+# ── Credit Gifts ──────────────────────────────────────────────────────────────
+@router.get("/credit-gifts")
+async def get_credit_gifts(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT cg.*, u.email as user_email
+        FROM credit_gifts cg
+        LEFT JOIN users u ON u.id = cg.user_id
+        ORDER BY cg.created_at DESC LIMIT 100
+    """)
+    return rows or []
+
+
+# ── Message Ratings ────────────────────────────────────────────────────────────
+@router.get("/message-ratings")
+async def get_message_ratings(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT mr.*, u.email as user_email
+        FROM message_ratings mr
+        LEFT JOIN users u ON u.id = mr.user_id
+        ORDER BY mr.created_at DESC LIMIT 200
+    """)
+    return rows or []
+
+
+# ── Terms Consent ─────────────────────────────────────────────────────────────
+@router.get("/terms-consent")
+async def get_terms_consent(_: str = Depends(require_admin)):
+    rows = await fetch("""
+        SELECT tc.*, u.email as user_email
+        FROM terms_consent_log tc
+        LEFT JOIN users u ON u.id = tc.user_id
+        ORDER BY tc.created_at DESC LIMIT 200
+    """)
+    return rows or []
+
+
+# ── Churn Alerts ──────────────────────────────────────────────────────────────
+@router.get("/churn-alerts")
+async def get_churn_alerts(_: str = Depends(require_admin)):
+    # Users who haven't sent a message in 7 days but were active before
+    rows = await fetch("""
+        SELECT u.id, u.email, u.first_name,
+               MAX(m.created_at) as last_message,
+               COUNT(m.id) as total_messages,
+               s.subscription_tier
+        FROM users u
+        LEFT JOIN messages m ON m.user_id = u.id
+        LEFT JOIN user_subscriptions s ON s.user_id = u.id
+        WHERE u.created_at < NOW() - INTERVAL '7 days'
+        GROUP BY u.id, u.email, u.first_name, s.subscription_tier
+        HAVING MAX(m.created_at) < NOW() - INTERVAL '7 days'
+            OR MAX(m.created_at) IS NULL
+        ORDER BY last_message DESC NULLS LAST
+        LIMIT 100
+    """)
+    return rows or []
