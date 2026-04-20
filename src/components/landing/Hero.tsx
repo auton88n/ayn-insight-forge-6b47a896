@@ -35,12 +35,12 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
       aria-label="Hero"
     >
       {/* Headline */}
-      <div className="w-full max-w-4xl text-center mb-4 md:mb-6">
+      <div className="w-full max-w-4xl text-center mb-8 md:mb-12">
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
-          className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
+          className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-4xl sm:text-5xl md:text-6xl lg:text-7xl"
         >
           {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
         </motion.h1>
@@ -74,7 +74,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className="absolute -inset-8 rounded-full blur-2xl pointer-events-none bg-[radial-gradient(circle,_hsl(25,100%,60%,0.35)_0%,_transparent_70%)] dark:bg-[radial-gradient(circle,_hsl(25,100%,55%,0.25)_0%,_transparent_70%)]" />
+          <div className="absolute -inset-4 rounded-full blur-xl pointer-events-none bg-[radial-gradient(circle,_hsl(25,100%,60%,0.18)_0%,_transparent_70%)] dark:bg-[radial-gradient(circle,_hsl(25,100%,55%,0.15)_0%,_transparent_70%)]" />
 
           <div className="relative w-[180px] h-[180px] sm:w-[240px] sm:h-[240px] md:w-[300px] md:h-[300px] lg:w-[360px] lg:h-[360px] rounded-full flex items-center justify-center">
             {/* Outer concentric rings */}
@@ -117,7 +117,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
                       width: isHovered ? '40%' : '36%',
                       height: isHovered ? '40%' : '36%',
                       color: 'hsl(25, 100%, 65%)',
-                      filter: 'drop-shadow(0 0 12px hsl(25, 100%, 55%, 0.6))',
+                      filter: 'drop-shadow(0 0 12px hsl(25, 100%, 55%, 0.35))',
                     }}
                   />
                 </div>
