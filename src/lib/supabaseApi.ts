@@ -1,10 +1,27 @@
 /**
- * Centralized Supabase REST API utility
- * Bypasses Supabase client to avoid deadlocks and improve performance
+ * supabaseApi.ts — LEGACY SHIM
+ *
+ * The direct Supabase REST endpoint (SUPABASE_URL/rest/v1/...) is retired.
+ * This file now proxies all requests through the Spine backend's
+ * /admin/db/ endpoint so existing call sites (engineering tools,
+ * prediction graph hook) keep working without a rewrite.
+ *
+ * Token resolution order:
+ *   1. ayn_admin_token (admin sessions — required for /admin/db proxy)
+ *   2. caller-supplied token (kept for signature compatibility, currently unused
+ *      because spine has no user-side db proxy)
+ *
+ * If a non-admin user hits one of these legacy endpoints they will get 401,
+ * which is the correct behavior — these tools (Engineering, Compliance,
+ * PredictionGraph) are admin/internal-only per current product scope.
+ *
+ * For user-facing data, use spineApi (src/lib/spineApi.ts) instead.
  */
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
-import { spineAuth } from '@/lib/spineAuth';
+import { AYN_BACKEND_URL } from '@/config';
+
+const SPINE = AYN_BACKEND_URL || 'https://spine.aynn.io';
+const ADMIN_TOKEN_KEY = 'ayn_admin_token';
 
 interface FetchOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -14,97 +31,77 @@ interface FetchOptions {
   signal?: AbortSignal;
 }
 
-/**
- * Make a direct REST API call to Supabase
- */
-export const supabaseApi = {
-  /**
-   * GET request to Supabase REST API
-   */
-  async get<T = unknown>(endpoint: string, token: string, options: Omit<FetchOptions, 'method'> = {}): Promise<T> {
-    return this.fetch<T>(endpoint, token, { ...options, method: 'GET' });
-  },
+function getActiveToken(fallback?: string): string | null {
+  try {
+    const t = localStorage.getItem(ADMIN_TOKEN_KEY);
+    if (t) return t;
+  } catch { /* ignore */ }
+  return fallback || null;
+}
 
-  /**
-   * POST request to Supabase REST API
-   */
-  async post<T = unknown>(endpoint: string, token: string, body: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {
-    return this.fetch<T>(endpoint, token, { ...options, method: 'POST', body });
-  },
+async function spineCall<T>(
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  fallbackToken: string,
+  body?: unknown,
+  opts: { headers?: Record<string, string>; signal?: AbortSignal; timeout?: number } = {},
+): Promise<T> {
+  const token = getActiveToken(fallbackToken);
+  const controller = opts.signal ? null : new AbortController();
+  const timeoutId = controller ? setTimeout(() => controller.abort(), opts.timeout ?? 15000) : null;
+  const signal = opts.signal || controller?.signal;
 
-  /**
-   * PATCH request to Supabase REST API
-   */
-  async patch<T = unknown>(endpoint: string, token: string, body: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {
-    return this.fetch<T>(endpoint, token, { ...options, method: 'PATCH', body });
-  },
-
-  /**
-   * DELETE request to Supabase REST API
-   */
-  async delete<T = unknown>(endpoint: string, token: string, options: Omit<FetchOptions, 'method'> = {}): Promise<T> {
-    return this.fetch<T>(endpoint, token, { ...options, method: 'DELETE' });
-  },
-
-  /**
-   * Call an RPC function via REST API
-   */
-  async rpc<T = unknown>(functionName: string, token: string, params: Record<string, unknown> = {}): Promise<T> {
-    // Get freshest token
-    let activeToken = token;
-    try {
-      const { data: { session } } = await spineAuth.getSession();
-      if (session?.access_token) activeToken = session.access_token;
-    } catch { /* ignore */ }
-
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
-      method: 'POST',
+  try {
+    const res = await fetch(`${SPINE}${path}`, {
+      method,
       headers: {
-        'Authorization': `Bearer ${activeToken}`,
-        'apikey': SUPABASE_ANON_KEY,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
+        'Prefer': method === 'GET' ? 'count=exact' : 'return=representation',
+        ...(opts.headers ?? {}),
       },
-      body: JSON.stringify(params),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
     });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        // Force refresh if 401
-        try {
-          const { data, error } = await spineAuth.refreshSession();
-          if (!error && data.session?.access_token) {
-            const retryResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${functionName}`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${data.session.access_token}`,
-                'apikey': SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(params),
-            });
-            if (retryResponse.ok) {
-              const text = await retryResponse.text();
-              return (text ? JSON.parse(text) : null) as T;
-            }
-          }
-        } catch { /* ignore refresh error */ }
-      }
-      const errorText = await response.text();
-      throw new Error(`RPC error ${response.status}: ${errorText}`);
+    if (timeoutId) clearTimeout(timeoutId);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`spineApi ${method} ${path} ${res.status}: ${text}`);
     }
-
-    const text = await response.text();
+    const text = await res.text();
     return (text ? JSON.parse(text) : null) as T;
+  } catch (e) {
+    if (timeoutId) clearTimeout(timeoutId);
+    throw e;
+  }
+}
+
+export const supabaseApi = {
+  async get<T = unknown>(endpoint: string, token: string, options: Omit<FetchOptions, 'method'> = {}): Promise<T> {
+    return spineCall<T>('GET', `/admin/db/${endpoint}`, token, undefined, options);
   },
 
-  /**
-   * GET with retry logic - returns null on failure instead of throwing
-   */
+  async post<T = unknown>(endpoint: string, token: string, body: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {
+    return spineCall<T>('POST', `/admin/db/${endpoint}`, token, body, options);
+  },
+
+  async patch<T = unknown>(endpoint: string, token: string, body: unknown, options: Omit<FetchOptions, 'method' | 'body'> = {}): Promise<T> {
+    return spineCall<T>('PATCH', `/admin/db/${endpoint}`, token, body, options);
+  },
+
+  async delete<T = unknown>(endpoint: string, token: string, options: Omit<FetchOptions, 'method'> = {}): Promise<T> {
+    return spineCall<T>('DELETE', `/admin/db/${endpoint}`, token, undefined, options);
+  },
+
+  async rpc<T = unknown>(functionName: string, token: string, params: Record<string, unknown> = {}): Promise<T> {
+    return spineCall<T>('POST', `/admin/db/rpc/${functionName}`, token, params);
+  },
+
   async getWithRetry<T = unknown>(endpoint: string, token: string, retries = 2): Promise<T | null> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         return await this.get<T>(endpoint, token);
-      } catch (err) {
+      } catch {
         if (attempt === retries) return null;
         await new Promise(r => setTimeout(r, 600));
       }
@@ -112,66 +109,8 @@ export const supabaseApi = {
     return null;
   },
 
-  /**
-   * Core fetch method with timeout and error handling
-   */
   async fetch<T = unknown>(endpoint: string, token: string, options: FetchOptions = {}): Promise<T> {
-    const { method = 'GET', body, headers = {}, timeout = 15000, signal } = options;
-
-    const internalController = signal ? null : new AbortController();
-    const timeoutId = internalController ? setTimeout(() => internalController.abort(), timeout) : null;
-    const effectiveSignal = signal || internalController?.signal;
-
-    // Get freshest token
-    let activeToken = token;
-    try {
-      const { data: { session } } = await spineAuth.getSession();
-      if (session?.access_token) activeToken = session.access_token;
-    } catch { /* ignore */ }
-
-    const makeRequest = async (tokenToUse: string) => {
-      return await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${tokenToUse}`,
-          'apikey': SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-          'Prefer': method === 'GET' ? 'return=representation' : method === 'POST' ? 'return=representation' : 'return=minimal',
-          ...headers,
-        },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: effectiveSignal,
-      });
-    };
-
-    try {
-      let response = await makeRequest(activeToken);
-
-      if (response.status === 401) {
-        // Force refresh and retry on 401 Unauthorized
-        try {
-          const { data, error } = await spineAuth.refreshSession();
-          if (!error && data.session?.access_token) {
-            response = await makeRequest(data.session.access_token);
-          }
-        } catch { /* ignore refresh error */ }
-      }
-
-      if (timeoutId) clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error ${response.status}: ${errorText}`);
-      }
-
-      const text = await response.text();
-      return (text ? JSON.parse(text) : null) as T;
-    } catch (error) {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw error;
-      }
-      throw error;
-    }
+    const { method = 'GET', body, ...rest } = options;
+    return spineCall<T>(method, `/admin/db/${endpoint}`, token, body, rest);
   },
 };
