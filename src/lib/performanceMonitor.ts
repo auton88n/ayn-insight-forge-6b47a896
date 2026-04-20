@@ -21,7 +21,7 @@ export function initPerformanceMonitoring() {
           connection: (navigator as any).connection?.effectiveType || 'unknown',
         };
         navigator.sendBeacon?.(
-          `${SUPABASE_URL}/functions/v1/report-vitals`,
+          `https://spine.aynn.io/admin/edge/report-vitals`,
           JSON.stringify(metrics)
         );
       } catch { /* silent */ }

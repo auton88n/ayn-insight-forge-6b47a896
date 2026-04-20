@@ -144,7 +144,7 @@ export const useMessages = (
       // Route to Python backend if configured, otherwise Supabase edge function
       const chatUrl = AYN_BACKEND_URL
         ? `${AYN_BACKEND_URL}/chat`
-        : `${SUPABASE_URL}/functions/v1/ayn-unified`;
+        : `https://spine.aynn.io/chat`;
 
       const chatHeaders: Record<string, string> = AYN_BACKEND_URL
         ? {

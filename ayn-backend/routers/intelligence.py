@@ -342,3 +342,17 @@ async def trigger_simulation(body: dict, user_id: str = Depends(get_user_id)):
         raise HTTPException(504, "Simulation timed out")
     except httpx.ConnectError:
         raise HTTPException(503, "Simulation engine unavailable")
+
+
+@router.get("/gpsjam")
+async def get_gpsjam_data():
+    """Proxy for GPS jamming data."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get("https://gpsjam.org/api/interference")
+            if r.is_success:
+                return r.json()
+    except Exception:
+        pass
+    return {"data": [], "status": "unavailable"}

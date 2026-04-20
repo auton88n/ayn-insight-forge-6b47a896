@@ -5,7 +5,7 @@ import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { adminApi as supabase } from '@/lib/adminApi';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { SUPABASE_URL } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -236,8 +236,8 @@ export const CustomOrders = () => {
     setSendingEmail(order.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || SUPABASE_ANON_KEY;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
+      const token = session?.access_token ||;
+      const res = await fetch(`https://spine.aynn.io/admin/edge/send-contract-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ orderId: order.id }),
@@ -258,8 +258,8 @@ export const CustomOrders = () => {
     setGeneratingPdf(order.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || SUPABASE_ANON_KEY;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-contract-pdf`, {
+      const token = session?.access_token ||;
+      const res = await fetch(`https://spine.aynn.io/admin/edge/generate-contract-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ orderId: order.id }),
@@ -294,8 +294,8 @@ export const CustomOrders = () => {
     setSendingPdf(order.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || SUPABASE_ANON_KEY;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-pdf`, {
+      const token = session?.access_token ||;
+      const res = await fetch(`https://spine.aynn.io/admin/edge/send-contract-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ orderId: order.id }),

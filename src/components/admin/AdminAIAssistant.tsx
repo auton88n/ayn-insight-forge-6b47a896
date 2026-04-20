@@ -221,7 +221,7 @@ export function AdminAIAssistant() {
       }
 
       const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/admin-ai-assistant`,
+        `https://spine.aynn.io/admin/edge/admin-ai-assistant`,
         {
           method: 'POST',
           headers: {

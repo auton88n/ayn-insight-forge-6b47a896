@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { SUPABASE_URL } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, X, ChevronRight, FileText, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,11 +47,11 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
 
     try {
       // Use admin-ai-assistant which already has LOVABLE_API_KEY injected by Lovable
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-ai-assistant`, {
+      const res = await fetch(`https://spine.aynn.io/admin/edge/admin-ai-assistant`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${localStorage.getItem('ayn_admin_token') || ''}`,
         },
         body: JSON.stringify({
           action: 'contract_builder',

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import { adminApi as supabase } from '@/lib/adminApi';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+import { SUPABASE_URL } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -233,8 +233,8 @@ export const NDAManager = () => {
     setSending(nda.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || SUPABASE_ANON_KEY;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-email`, {
+      const token = session?.access_token ||;
+      const res = await fetch(`https://spine.aynn.io/admin/edge/send-nda-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ndaId: nda.id }),
@@ -501,8 +501,8 @@ export const NDAManager = () => {
                   {viewingNda.admin_signature_url && viewingNda.client_signature_url && (
                     <Button onClick={async () => {
                       const { data: { session } } = await spineAuth.getSession();
-                      const token = session?.access_token || SUPABASE_ANON_KEY;
-                      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-completion`, {
+                      const token = session?.access_token ||;
+                      const res = await fetch(`https://spine.aynn.io/admin/edge/send-nda-completion`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify({ ndaId: viewingNda.id }),

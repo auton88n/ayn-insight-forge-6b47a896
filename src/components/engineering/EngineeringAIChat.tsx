@@ -268,7 +268,7 @@ export const EngineeringAIChat = ({
       }));
 
       const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/engineering-ai-chat`,
+        `https://spine.aynn.io/admin/edge/engineering-ai-chat`,
         {
           method: 'POST',
           headers: {

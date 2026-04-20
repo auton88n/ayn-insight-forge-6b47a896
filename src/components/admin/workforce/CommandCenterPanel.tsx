@@ -151,7 +151,7 @@ export function CommandCenterPanel() {
     const { data: { session } } = await spineAuth.getSession();
     if (!session) return;
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
+      const res = await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'list_directives' }),
@@ -284,7 +284,7 @@ export function CommandCenterPanel() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 2min timeout
 
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
+      const res = await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -341,7 +341,7 @@ export function CommandCenterPanel() {
     try {
       const { data: { session } } = await spineAuth.getSession();
       if (!session) return;
-      await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
+      await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'chat', message: `Save this as a directive: ${newDirective.trim()}`, history: [] }),
@@ -356,7 +356,7 @@ export function CommandCenterPanel() {
     try {
       const { data: { session } } = await spineAuth.getSession();
       if (!session) return;
-      await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
+      await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'delete_directive', id }),

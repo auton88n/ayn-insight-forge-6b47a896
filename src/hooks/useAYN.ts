@@ -139,7 +139,7 @@ export function useAYN(options: UseAYNOptions = {}) {
 
       const { SUPABASE_URL: SUPA_URL } = await import('@/config');
       const response = await fetch(
-        `${SUPA_URL}/functions/v1/ayn-unified`,
+        `https://spine.aynn.io/chat`,
         {
           method: 'POST',
           headers: {

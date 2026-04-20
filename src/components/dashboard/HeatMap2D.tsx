@@ -152,7 +152,7 @@ export function HeatMap2D({
     if(jamCells.length>0){ setShowJam(true); return; } // already loaded
     setJamLoading(true);
     try{
-      const res=await fetch(`${SUPA}/functions/v1/ayn-gpsjam`);
+      const res=await fetch(`https://spine.aynn.io/intelligence/gpsjam`);
       if(res.ok){
         const d=await res.json();
         setJamCells((d.cells||[]).filter((c:GpsHexCell)=>c.boundary&&c.boundary.length>2));

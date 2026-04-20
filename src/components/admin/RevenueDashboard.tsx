@@ -83,7 +83,7 @@ export const RevenueDashboard = () => {
              className="text-blue-400/70 hover:text-blue-400 underline">
             Supabase → Settings → Edge Functions → Secrets
           </a>
-          {' '}— webhook URL: <code className="text-white/30">supabase.co/functions/v1/stripe-webhook</code>
+          {' '}— webhook URL: <code className="text-white/30">spine.aynn.io/payments/webhook/v2</code>
         </div>
       </div>
 

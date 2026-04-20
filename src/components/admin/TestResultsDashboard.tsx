@@ -358,7 +358,7 @@ const TestResultsDashboard: React.FC = () => {
         analysis?: string;
         modelUsed?: string;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-bug-hunter`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-bug-hunter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -577,7 +577,7 @@ const TestResultsDashboard: React.FC = () => {
         byCategory?: Record<string, unknown>;
         improvements?: string[];
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-ayn-evaluator`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-ayn-evaluator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -718,7 +718,7 @@ const TestResultsDashboard: React.FC = () => {
         emotionCoverage?: Record<string, { tested: boolean; matched: boolean }>;
         personalityScore?: number;
         error?: string;
-      }>(`${SUPABASE_URL}/functions/v1/ai-conversation-evaluator`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-conversation-evaluator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quick }),
