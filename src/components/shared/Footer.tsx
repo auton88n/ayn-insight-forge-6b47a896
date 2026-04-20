@@ -28,7 +28,7 @@ export const Footer = () => {
               <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
                 <Brain className="w-5 h-5 text-background" />
               </div>
-              <span className="text-xl font-bold">AYN</span>
+              <span className="text-xl font-bold text-orange-500">AYN</span>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               {language === 'ar' ? 'حلول ذكاء اصطناعي متقدمة' : language === 'fr' ? 'Solutions IA avancées' : 'Advanced AI Solutions'}

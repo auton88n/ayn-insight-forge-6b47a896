@@ -74,7 +74,7 @@ export const Header = () => {
             <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
               <Brain className="w-5 h-5 text-background" />
             </div>
-            <span className="text-xl font-bold">AYN</span>
+            <span className="text-xl font-bold text-orange-500">AYN</span>
           </Link>
 
           {/* Desktop nav */}
@@ -135,7 +135,7 @@ export const Header = () => {
                       <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center">
                         <Brain className="w-6 h-6 text-background" />
                       </div>
-                      <span className="text-2xl font-bold">AYN</span>
+                      <span className="text-2xl font-bold text-orange-500">AYN</span>
                     </div>
                     <div className="flex flex-col gap-1">
                       {navLinks.map((link) =>
