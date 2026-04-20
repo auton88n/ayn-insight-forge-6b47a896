@@ -16,12 +16,12 @@ export interface EmotionConfig {
 }
 
 export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
-  // 😌 Soft Ocean Blue - peaceful, balanced like still water
+  // 🔥 Warm Orange - energetic, confident, signature AYN tone
   calm: {
-    color: 'hsl(193, 38%, 47%)',      // #4A90A4
-    glowColor: 'hsl(193, 45%, 60%)',
-    ringClass: 'ring-cyan-400/40 dark:ring-cyan-400/35',
-    glowClass: 'shadow-[0_0_50px_hsl(193,38%,47%,0.45)] dark:shadow-[0_0_60px_hsl(193,45%,50%,0.5)]',
+    color: 'hsl(25, 95%, 55%)',       // Vibrant orange
+    glowColor: 'hsl(25, 100%, 65%)',
+    ringClass: 'ring-orange-400/40 dark:ring-orange-400/35',
+    glowClass: 'shadow-[0_0_50px_hsl(25,95%,55%,0.45)] dark:shadow-[0_0_60px_hsl(25,100%,50%,0.5)]',
     irisScale: 1,
     breathingSpeed: 5.5,  // Slow, peaceful breathing
     particleType: 'sparkle',
