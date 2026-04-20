@@ -115,13 +115,13 @@ export const LandingChatInput: React.FC<LandingChatInputProps> = ({ onSendAttemp
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                <button
+                <LiquidButton
+                  size="icon"
                   onClick={handleSend}
-                  className="w-9 h-9 rounded-md bg-orange-500 hover:bg-orange-600 text-black flex items-center justify-center transition-colors shadow-md"
                   aria-label="Send"
                 >
                   <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-                </button>
+                </LiquidButton>
               </motion.div>
             )}
           </AnimatePresence>
