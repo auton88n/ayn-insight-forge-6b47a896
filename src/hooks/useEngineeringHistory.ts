@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabaseApi } from '@/lib/supabaseApi';
-import { tokenStore } from '@/lib/spineAuth';
+import { adminApi } from '@/lib/adminApi';
 import type { BuildingCodeId } from '@/lib/buildingCodes';
 
 export interface CalculationHistoryItem {
@@ -30,11 +29,11 @@ export const useEngineeringHistory = (userId: string | undefined) => {
 
     setIsLoading(true);
     try {
-      const token = tokenStore.getAccessToken() || '';
-      const data = await supabaseApi.get<any[]>(
-        `calculation_history?user_id=eq.${userId}&order=created_at.desc&limit=50`,
-        token
-      );
+      const { data } = await adminApi.from('calculation_history')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       setCalculationHistory((data || []).map((item: any) => ({
         ...item,
@@ -59,13 +58,12 @@ export const useEngineeringHistory = (userId: string | undefined) => {
     if (!userId) return;
 
     try {
-      const token = tokenStore.getAccessToken() || '';
-      await supabaseApi.post('engineering_activity', token, {
+      await adminApi.from('engineering_activity').insert([{
         user_id: userId,
         activity_type: activityType,
         summary,
         details,
-      });
+      }]);
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Error logging engineering activity:', err);
@@ -87,15 +85,14 @@ export const useEngineeringHistory = (userId: string | undefined) => {
         ? { ...inputs, buildingCode }
         : inputs;
 
-      const token = tokenStore.getAccessToken() || '';
-      const result = await supabaseApi.post<any[]>('calculation_history', token, {
+      const { data: rows } = await adminApi.from('calculation_history').insert([{
         user_id: userId,
         calculation_type: calculationType,
         inputs: enrichedInputs,
         outputs: outputs,
         ai_analysis: aiAnalysis || null,
-      });
-      const data = Array.isArray(result) ? result[0] : (result as any);
+      }]);
+      const data = Array.isArray(rows) ? rows[0] : rows;
 
       await logActivity(
         `${calculationType}_calculation`,
@@ -116,11 +113,10 @@ export const useEngineeringHistory = (userId: string | undefined) => {
     if (!userId) return false;
 
     try {
-      const token = tokenStore.getAccessToken() || '';
-      await supabaseApi.delete(
-        `calculation_history?id=eq.${calculationId}&user_id=eq.${userId}`,
-        token
-      );
+      await adminApi.from('calculation_history')
+        .delete()
+        .eq('id', calculationId)
+        .eq('user_id', userId);
 
       setCalculationHistory(prev => prev.filter(c => c.id !== calculationId));
       return true;
