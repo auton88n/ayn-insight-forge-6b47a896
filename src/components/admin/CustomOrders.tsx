@@ -235,7 +235,7 @@ export const CustomOrders = () => {
     setSendingEmail(order.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token ||;
+      const token = session?.access_token || '';
       const res = await fetch(`https://spine.aynn.io/admin/edge/send-contract-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -257,7 +257,7 @@ export const CustomOrders = () => {
     setGeneratingPdf(order.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token ||;
+      const token = session?.access_token || '';
       const res = await fetch(`https://spine.aynn.io/admin/edge/generate-contract-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -293,7 +293,7 @@ export const CustomOrders = () => {
     setSendingPdf(order.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token ||;
+      const token = session?.access_token || '';
       const res = await fetch(`https://spine.aynn.io/admin/edge/send-contract-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

@@ -232,7 +232,7 @@ export const NDAManager = () => {
     setSending(nda.id);
     try {
       const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token ||;
+      const token = session?.access_token || '';
       const res = await fetch(`https://spine.aynn.io/admin/edge/send-nda-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -500,7 +500,7 @@ export const NDAManager = () => {
                   {viewingNda.admin_signature_url && viewingNda.client_signature_url && (
                     <Button onClick={async () => {
                       const { data: { session } } = await spineAuth.getSession();
-                      const token = session?.access_token ||;
+                      const token = session?.access_token || '';
                       const res = await fetch(`https://spine.aynn.io/admin/edge/send-nda-completion`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

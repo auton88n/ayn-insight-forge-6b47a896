@@ -275,7 +275,7 @@ export function AdminAIAssistant() {
           break;
           
         case 'run_tests':
-          await fetch(`${}/functions/v1/ai-comprehensive-tester`, {
+          await fetch(`https://spine.aynn.io/admin/edge/ai-comprehensive-tester`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${session.access_token}`,

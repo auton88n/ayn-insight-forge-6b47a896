@@ -38,7 +38,7 @@ export const DocumentStudio = () => {
     try {
       const res = await fetch(`https://spine.aynn.io/admin/edge/generate-business-document`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ayn_admin_token') || ''}` },
         body: JSON.stringify({ prompt: prompt.trim(), documentType: docType }),
       });
       if (!res.ok) {

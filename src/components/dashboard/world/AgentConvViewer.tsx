@@ -180,13 +180,14 @@ export default function AgentConvViewer({convId}:{convId:string}) {
   useEffect(()=>{
     if(!convId)return;
     setLoading(true);setError(null);setMessages([]);setConvMeta(null);
-    fetch(`https://spine.aynn.io/intelligence/agent-conversations/${convId}/messages`,{
-      headers:{'Authorization':`Bearer ${await spineAuth.getAccessToken()}`,'Content-Type':'application/json'}
-    }).then(r=>r.json()).then(d=>setMessages(Array.isArray(d)?d:[])).catch(e=>setError(String(e))).finally(()=>setLoading(false));
-
-    fetch(`https://spine.aynn.io/intelligence/agent-conversations/${convId}`,{
-      headers:{'Authorization':`Bearer ${await spineAuth.getAccessToken()}`,'Content-Type':'application/json'}
-    }).then(r=>r.json()).then(d=>{if(d?.[0])setConvMeta(d[0]);}).catch(()=>{});
+    spineAuth.getAccessToken().then(token => {
+      fetch(`https://spine.aynn.io/intelligence/agent-conversations/${convId}/messages`,{
+        headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}
+      }).then(r=>r.json()).then(d=>setMessages(Array.isArray(d)?d:[])).catch(e=>setError(String(e))).finally(()=>setLoading(false));
+      fetch(`https://spine.aynn.io/intelligence/agent-conversations/${convId}`,{
+        headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}
+      }).then(r=>r.json()).then(d=>{if(d?.[0])setConvMeta(d[0]);}).catch(()=>{});
+    });
   },[convId]);
 
   const isCascade = convMeta?.metadata?.cascade;

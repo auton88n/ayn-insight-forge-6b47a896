@@ -312,7 +312,7 @@ const TestResultsDashboard: React.FC = () => {
           totalDuration: number;
         };
         error?: string;
-      }>(`${}/functions/v1/run-real-tests`, {
+      }>(`https://spine.aynn.io/admin/edge/run-real-tests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ suite: config.suite }),
@@ -409,7 +409,7 @@ const TestResultsDashboard: React.FC = () => {
         }>;
         analysis?: string;
         error?: string;
-      }>(`${}/functions/v1/ai-comprehensive-tester`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-comprehensive-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ concurrency: 3 }),
@@ -475,7 +475,7 @@ const TestResultsDashboard: React.FC = () => {
         }>;
         analysis?: string;
         error?: string;
-      }>(`${}/functions/v1/ai-ux-tester`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-ux-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
@@ -536,7 +536,7 @@ const TestResultsDashboard: React.FC = () => {
         byIntent?: Record<string, unknown>;
         sloTargets?: Record<string, { ttft: number; total: number }>;
         error?: string;
-      }>(`${}/functions/v1/ai-response-time-tester`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-response-time-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intents: ['chat', 'engineering'], iterations: 2 }),
@@ -619,7 +619,7 @@ const TestResultsDashboard: React.FC = () => {
         results?: Array<{ path: string; name: string; status: 'passed' | 'warning' | 'failed'; analysisMethod: string; issues: Array<{ type: string; severity: string; description: string; element?: string; suggestion: string }>; metrics: { htmlSize: number; loadTime: number; elementsCount: number; imagesCount: number; linksCount: number; formsCount: number } }>;
         aiAnalysis?: string;
         error?: string;
-      }>(`${}/functions/v1/ai-visual-tester`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-visual-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -665,7 +665,7 @@ const TestResultsDashboard: React.FC = () => {
         byCategory?: Record<string, { passed: number; failed: number; skipped: number }>;
         failures?: Array<{ endpoint: string; category: string; httpStatus: number; error?: string; payload?: unknown }>;
         error?: string;
-      }>(`${}/functions/v1/ai-crash-tester`, {
+      }>(`https://spine.aynn.io/admin/edge/ai-crash-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
