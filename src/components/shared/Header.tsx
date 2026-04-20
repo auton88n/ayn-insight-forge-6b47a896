@@ -74,7 +74,7 @@ export const Header = () => {
             <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
               <Brain className="w-5 h-5 text-background" />
             </div>
-            <span className="text-xl font-bold text-orange-500">AYN</span>
+            <span className="text-xl font-bold text-ayn">AYN</span>
           </Link>
 
           {/* Desktop nav */}
