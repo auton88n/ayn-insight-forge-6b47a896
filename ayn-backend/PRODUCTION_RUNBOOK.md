@@ -1,13 +1,25 @@
 # AYN Backend Production Runbook (Railway)
 
-## 1) Deployment topology
+## 1) Deployment topology (role-based)
 
-- **Web service** (`spine-web`): serves FastAPI API traffic.
+- **Web API** (`spine-web`)
+  - `APP_ROLE=web`
   - `ENABLE_SCHEDULER=false`
-- **Worker service** (`spine-worker`): runs the same image, no public traffic.
+  - `RUN_MIGRATIONS_ON_BOOT=false`
+- **Realtime service** (`spine-realtime`, optional split)
+  - `APP_ROLE=realtime`
+  - `ENABLE_SCHEDULER=false`
+  - `RUN_MIGRATIONS_ON_BOOT=false`
+- **Scheduler service** (`spine-scheduler`)
+  - `APP_ROLE=scheduler`
   - `ENABLE_SCHEDULER=true`
+  - `RUN_MIGRATIONS_ON_BOOT=false`
+- **Migration job** (one-shot release task)
+  - `APP_ROLE=migrate`
+  - `RUN_MIGRATIONS_ON_BOOT=true`
+  - run to completion before scaling traffic
 
-This guarantees scheduler jobs run on exactly one instance.
+This avoids mixed responsibilities and reduces accidental duplicate cron execution.
 
 ## 2) Required environment variables
 
@@ -15,6 +27,10 @@ Must be set in Railway before deploy:
 
 - `DATABASE_URL`
 - `AYN_JWT_SECRET`
+- `APP_ROLE` (`web|realtime|scheduler|migrate|all`)
+- `RUN_MIGRATIONS_ON_BOOT` (`true|false`)
+- `ENABLE_SCHEDULER` (`true|false`)
+- `STRICT_ENV_VALIDATION=true`
 - `INTERNAL_SERVICE_KEY`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
@@ -27,8 +43,10 @@ Must be set in Railway before deploy:
 
 ## 3) Health checks and smoke tests
 
-- Railway healthcheck: `GET /health`
+- Railway liveness: `GET /health/live`
+- Railway readiness: `GET /health/ready`
 - Manual checks after deploy:
+  - `GET /health/ready`
   - `GET /health`
   - `GET /health/llm`
   - login + `/auth/me`
@@ -59,5 +77,5 @@ Configure alerts for:
 1. Freeze deploys.
 2. Roll back to previous healthy Railway deployment.
 3. Verify DB connectivity and migration state (`_migrations`).
-4. Disable scheduler (`ENABLE_SCHEDULER=false`) if jobs are causing incident.
+4. Disable scheduler by scaling down `APP_ROLE=scheduler` service or setting `ENABLE_SCHEDULER=false`.
 5. Postmortem with root cause + prevention task.

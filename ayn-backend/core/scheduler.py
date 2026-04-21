@@ -89,3 +89,10 @@ def start_scheduler():
 
     scheduler.start()
     log.info(f"✅ Scheduler started — {len(scheduler.get_jobs())} jobs registered")
+
+
+def stop_scheduler(wait: bool = False):
+    scheduler = get_scheduler()
+    if scheduler.running:
+        scheduler.shutdown(wait=wait)
+        log.info("🛑 Scheduler stopped")
