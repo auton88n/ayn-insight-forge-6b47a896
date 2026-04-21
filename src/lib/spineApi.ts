@@ -170,6 +170,7 @@ export const spineApi = {
 
 // ── Admin API (separate export) ────────────────────────────────────────────────
 export const adminApi = {
+  req: <T = any>(method: string, path: string, body?: object) => req<T>(method, path, body),
   // Stats & Users
   getStats:           () => req<any>('GET', '/admin/stats'),
   getUsers:           () => req<any[]>('GET', '/admin/users'),

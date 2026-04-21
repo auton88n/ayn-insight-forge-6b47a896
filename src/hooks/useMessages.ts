@@ -3,6 +3,7 @@ import type { SpineSession as Session } from '@/lib/spineAuth';
 import { useToast } from '@/hooks/use-toast';
 import { chatRateLimiter } from '@/lib/rateLimiter';
 import { offlineQueue } from '@/lib/offlineQueue';
+import { AYN_BACKEND_URL } from '@/config';
 import type {
   Message,
   FileAttachment,
