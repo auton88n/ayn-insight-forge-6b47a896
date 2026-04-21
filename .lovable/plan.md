@@ -1,68 +1,59 @@
 
 
-## My honest critique as a senior designer
+# Plan — Fix dashboard crash (1 file, 1 line)
 
-I looked at your landing page carefully. **The orange is not the problem. The orange is the only thing giving your brand a soul.** Don't remove it. What's "off" is something else, and once I name it you'll feel it too.
+## Root cause
+`src/components/shared/MessageFormatter.tsx` line 6 imports a CSS file from a package that isn't installed:
 
-## What's actually wrong (3 real issues)
+```ts
+import 'highlight.js/styles/github-dark.min.css';
+```
 
-### 1. The eye glow is too aggressive — orange is leaking everywhere
-The hero eye has a giant orange radial blur (`-inset-8 blur-2xl` at 35% opacity). It's not the orange itself that's loud, it's the **halo size**. The orange should feel like a *pupil*, not a *sunset*. Reduce the glow radius and opacity by ~60% and the orange will feel intentional, jewel-like, premium — not garish.
+The project only has `rehype-highlight` in `package.json` — not `highlight.js` itself. Vite throws "Failed to resolve import" → the module can't compile → `Dashboard.tsx` dynamic import fails → **the entire dashboard fails to load**.
 
-### 2. The headline "Meet AYN" is competing with the eye
-You have two heroes fighting for attention: a massive 8xl Syne headline AND a giant glowing eye directly below it. Both are screaming. In premium design (Apple, Linea, Palantir), the hero has **one focal point**. Either:
-- Shrink the headline (text-4xl → text-6xl max) and let the eye lead, OR
-- Keep the headline big and shrink the eye to a compact mark
+That's why:
+- World Intelligence sections don't work
+- Admin panel doesn't open
+- Settings don't open
+- Buttons do nothing
+- Bonus credits display is missing
+- The page feels stuck/laggy (it's actually crashed and the ErrorBoundary is rendering)
 
-I recommend **eye leads, headline supports** because the eye is your differentiator. Nobody else has it.
+The chat itself (the eye + input) works because that part is rendered by the loading wrapper in `Index.tsx`, before Dashboard is reached.
 
-### 3. Inconsistent typography hierarchy
-You're mixing `font-serif` (Syne) on section headings with `font-display` (also Syne) on the hero, and `font-mono` for labels. That's fine — but the **weights and sizes are too similar across sections**. Every H2 is `text-3xl md:text-5xl lg:text-6xl font-bold`. That means "About AYN", "AYN Capabilities", and "Meet AYN" all carry equal visual weight. Nothing feels like THE moment. Premium sites vary scale dramatically: hero is huge, section heads are restrained.
+## Fix (1 file)
 
-## What's right (don't touch)
+**`src/components/shared/MessageFormatter.tsx`** — replace the broken import with the bundled CSS that lives inside `rehype-highlight`'s peer dep, OR simply remove the import and use a self-contained `<style>` block already used elsewhere.
 
-- **Black/white/orange palette** — exactly correct for a premium AI brand. Linear, Stripe, Vercel all use 2-color + 1-accent. Don't dilute it.
-- **Orange anchored to AYN wordmark** — narratively perfect now. Orange has a reason.
-- **Flat orange CTAs** — clean, modern, confident.
-- **Grey feature cards with orange micro-accents** — restrained and elegant.
-- **Syne + Inter pairing** — premium choice.
+The cleanest fix: install `highlight.js` as a real dependency so the existing import resolves. It's a tiny, well-maintained library that `rehype-highlight` is already designed to pair with.
 
-## My recommended changes (4 small surgical edits)
+```
+bun add highlight.js
+```
 
-### Edit 1: Calm the eye glow (`Hero.tsx`)
-- `-inset-8 blur-2xl` → `-inset-4 blur-xl`
-- Glow opacity `0.35` → `0.18` (light), `0.25` → `0.15` (dark)
-- `Brain` icon `drop-shadow` opacity `0.6` → `0.35`
+No code changes needed — the import on line 6 will then resolve correctly and Dashboard will load again.
 
-Result: orange becomes a focused jewel inside the eye, not a flare around it.
+## Why not just delete the import?
+Code blocks in chat (when AYN replies with code) would render unstyled. The whole point of `MessageFormatter` is to syntax-highlight markdown code fences. Installing `highlight.js` keeps that working and matches the existing `rehype-highlight` integration.
 
-### Edit 2: Tighten hero headline (`Hero.tsx`)
-- `text-5xl sm:text-6xl md:text-7xl lg:text-8xl` → `text-4xl sm:text-5xl md:text-6xl lg:text-7xl`
-- Add more breathing room above the eye: `mb-4 md:mb-6` → `mb-8 md:mb-12`
+## After the fix
+- Dashboard loads ✓
+- World Intelligence sections work ✓
+- Admin panel opens ✓
+- Settings open ✓
+- All buttons work ✓
+- Bonus credits display restored ✓
+- "Lag" disappears (the ErrorBoundary won't be re-mounting on every navigation) ✓
 
-Result: clear hierarchy. Eye = star. Headline = supporting cast.
+## What this does NOT fix
+The two real performance/correctness items I noticed while debugging — both are minor and separate:
+1. `/user/limits` polls every 60 seconds even when nothing changed (unnecessary network noise)
+2. Bonus credits show `0` in the API response — that's a backend data issue (your account literally has `bonus_credits: 0` in `/user/limits`), not a frontend bug
 
-### Edit 3: Restrain section H2s (`LandingPage.tsx`)
-- Section headlines `text-3xl md:text-5xl lg:text-6xl` → `text-3xl md:text-4xl lg:text-5xl`
-- Keep them `font-serif font-bold` but smaller — that creates a clear scale: Hero (big) > Sections (medium) > Cards (small).
+If you want me to also (a) reduce the polling and (b) investigate why bonus credits aren't being credited to your account, say so after the dashboard fix lands and I'll address them as a separate change.
 
-### Edit 4: Add ONE more orange anchor to "ground" the color
-Right now orange appears in 3 places: AYN logo, eye, CTAs. Add a **single subtle orange underline accent** under the active nav link in the header. Just a 2px orange bar under "Home" / "Pricing" etc when active. This makes the navigation feel alive AND ties orange to "where you are" — another piece of identity.
+## Files changed
+- `package.json` (adds `highlight.js` dependency — done via package install, no manual edit)
 
-## What I am NOT recommending
-
-- ❌ Removing orange (it's your only differentiator from every other "AI startup")
-- ❌ Adding a second accent color (kills the discipline)
-- ❌ Changing fonts (Syne + Inter is correct)
-- ❌ Changing the layout structure (it's solid)
-
-## Files to change (2)
-
-1. `src/components/landing/Hero.tsx` — calm eye glow + tighten headline
-2. `src/components/LandingPage.tsx` — restrain section H2 sizes
-3. `src/components/shared/Header.tsx` — add 2px orange underline on active nav link
-
-## The result
-
-Your page will feel **quieter but more confident** — like a luxury watch shop instead of a tech expo. The orange will land like a single perfect note instead of background music. Same color, same brand, but it will breathe.
+That's it. One install, everything comes back.
 
