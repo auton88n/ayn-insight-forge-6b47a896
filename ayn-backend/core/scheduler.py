@@ -7,7 +7,6 @@ in-memory so /admin/scheduler/status can report cron health without DB hits.
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timezone
 import logging
 import inspect
@@ -60,8 +59,11 @@ JOB_REGISTRY: dict[str, callable] = {}
 
 def start_scheduler():
     scheduler = get_scheduler()
+    if scheduler.running:
+        log.info("Scheduler already running")
+        return
 
-    from services.intelligence import (run_supabase_sync,
+    from services.intelligence import (
         run_world_intelligence, run_pulse_engine, run_market_prices,
         run_world_signals, run_prediction_engine, run_prediction_resolver,
         run_agent_society_trigger, run_log_cleanup,
@@ -75,7 +77,6 @@ def start_scheduler():
         ("predictions-daily", run_prediction_engine, CronTrigger(hour=6, minute=0), 600),
         ("prediction-resolver", run_prediction_resolver, CronTrigger(hour="*/6", minute=20), 300),
         ("agent-society", run_agent_society_trigger, CronTrigger(hour="*/4", minute=55), 300),
-        ("supabase-sync", run_supabase_sync, IntervalTrigger(minutes=30), 300),
         ("log-cleanup", run_log_cleanup, CronTrigger(hour=3, minute=0), 600),
     ]
 
@@ -88,3 +89,10 @@ def start_scheduler():
 
     scheduler.start()
     log.info(f"✅ Scheduler started — {len(scheduler.get_jobs())} jobs registered")
+
+
+def stop_scheduler(wait: bool = False):
+    scheduler = get_scheduler()
+    if scheduler.running:
+        scheduler.shutdown(wait=wait)
+        log.info("🛑 Scheduler stopped")

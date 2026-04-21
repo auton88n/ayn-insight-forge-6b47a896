@@ -26,13 +26,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24       # 24h
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 if not JWT_SECRET:
-    log.warning("[auth] AYN_JWT_SECRET not set — using insecure default, set in Railway!")
-    JWT_SECRET = "ayn-insecure-default-change-in-production"
+    log.error("[auth] AYN_JWT_SECRET not set — authentication disabled until configured")
 
 
 # ── Token creation ─────────────────────────────────────────────────────────────
 
 def create_access_token(user_id: str, email: str, is_admin: bool = False) -> str:
+    if not JWT_SECRET:
+        raise HTTPException(500, "Auth not configured")
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": user_id, "email": email, "exp": expire, "type": "access"}
     if is_admin:
@@ -53,6 +54,8 @@ async def create_refresh_token(user_id: str) -> str:
 
 
 def verify_access_token(token: str) -> dict:
+    if not JWT_SECRET:
+        raise HTTPException(500, "Auth not configured")
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "access":

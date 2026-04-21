@@ -16,7 +16,7 @@ from datetime import datetime, date
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Request, HTTPException, Header
 from fastapi.responses import JSONResponse
-from core.auth_new import get_current_user
+from core.security import require_admin_user
 from core.database import get_pool
 
 router = APIRouter(prefix="/admin/db", tags=["admin-db"])
@@ -51,10 +51,6 @@ ALLOWED_RPCS = {
     "admin_upsert_system_config", "increment_faq_view", "increment_faq_helpful",
 }
 
-
-def _require_admin(user: dict):
-    if not user.get("is_admin") and not user.get("email", "").endswith("@aynn.io"):
-        raise HTTPException(403, "Admin access required")
 
 
 def _serialize(val):
@@ -175,10 +171,9 @@ async def db_select(
     table: str,
     request: Request,
     prefer: Optional[str] = Header(None),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin_user),
 ):
     """GET rows — PostgREST-compatible."""
-    _require_admin(user)
     if table not in ALLOWED_TABLES:
         raise HTTPException(403, f"Table '{table}' not in allowed list")
 
@@ -227,10 +222,9 @@ async def db_insert(
     table: str,
     request: Request,
     prefer: Optional[str] = Header(None),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin_user),
 ):
     """POST rows — insert or upsert."""
-    _require_admin(user)
     if table not in ALLOWED_TABLES:
         raise HTTPException(403, f"Table '{table}' not in allowed list")
 
@@ -295,10 +289,9 @@ async def db_update(
     table: str,
     request: Request,
     prefer: Optional[str] = Header(None),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin_user),
 ):
     """PATCH rows matching filters."""
-    _require_admin(user)
     if table not in ALLOWED_TABLES:
         raise HTTPException(403, f"Table '{table}' not in allowed list")
 
@@ -344,10 +337,9 @@ async def db_update(
 async def db_delete(
     table: str,
     request: Request,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin_user),
 ):
     """DELETE rows matching filters."""
-    _require_admin(user)
     if table not in ALLOWED_TABLES:
         raise HTTPException(403, f"Table '{table}' not in allowed list")
 
@@ -375,10 +367,9 @@ async def db_delete(
 async def db_rpc(
     fn_name: str,
     request: Request,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin_user),
 ):
     """Call a Postgres function."""
-    _require_admin(user)
     if fn_name not in ALLOWED_RPCS:
         raise HTTPException(403, f"RPC '{fn_name}' not in allowed list")
 

@@ -5,33 +5,17 @@ Replaces all Supabase get_admin_* RPC functions
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from core.auth_new import get_current_user
 from core.database import fetch, fetchrow, execute, fetchval
+from core.security import require_admin_user
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger("ayn.admin")
 
 
-async def require_admin(current_user: dict = Depends(get_current_user)):
-    # Trust JWT claim from /admin/login (verified at issuance)
-    if current_user.get("is_admin"):
-        return current_user
-    if current_user.get("user_id") == "internal":
-        return current_user
-    # Fallback: DB lookup
-    try:
-        user = await fetchrow("SELECT is_admin FROM users WHERE id = $1::uuid", current_user["user_id"])
-        if user and user["is_admin"]:
-            return current_user
-    except Exception:
-        pass
-    raise HTTPException(403, "Admin access required")
-
-
 # ── Dashboard Stats ────────────────────────────────────────────────────────────
 
 @router.get("/stats")
-async def get_stats(_=Depends(require_admin)):
+async def get_stats(_=Depends(require_admin_user)):
     total_users = await fetchval("SELECT COUNT(*) FROM users") or 0
     active_today = await fetchval("""
         SELECT COUNT(DISTINCT user_id) FROM messages 
@@ -52,7 +36,7 @@ async def get_stats(_=Depends(require_admin)):
 # ── Users ──────────────────────────────────────────────────────────────────────
 
 @router.get("/users")
-async def get_users(_=Depends(require_admin)):
+async def get_users(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT u.id, u.email, u.first_name, u.last_name, u.is_admin, u.created_at,
                COALESCE(s.subscription_tier, 'free') as subscription_tier,
@@ -70,7 +54,7 @@ async def get_users(_=Depends(require_admin)):
 
 
 @router.get("/users/{user_id}")
-async def get_user(user_id: str, _=Depends(require_admin)):
+async def get_user(user_id: str, _=Depends(require_admin_user)):
     row = await fetchrow("""
         SELECT u.*, 
                COALESCE(s.subscription_tier, 'free') as subscription_tier,
@@ -89,7 +73,7 @@ class GiftCreditsRequest(BaseModel):
     reason: str = "Admin gift"
 
 @router.post("/gift-credits")
-async def gift_credits(req: GiftCreditsRequest, _=Depends(require_admin)):
+async def gift_credits(req: GiftCreditsRequest, _=Depends(require_admin_user)):
     await execute("SELECT add_bonus_credits($1::uuid, $2, $3, 'admin')", 
                   req.user_id, req.amount, req.reason)
     return {"ok": True}
@@ -98,7 +82,7 @@ async def gift_credits(req: GiftCreditsRequest, _=Depends(require_admin)):
 # ── Messages / Conversations ───────────────────────────────────────────────────
 
 @router.get("/conversations")
-async def get_conversations(_=Depends(require_admin)):
+async def get_conversations(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT cs.session_id, cs.title, cs.created_at, cs.updated_at,
                u.email as user_email,
@@ -114,7 +98,7 @@ async def get_conversations(_=Depends(require_admin)):
 
 
 @router.get("/conversations/{session_id}")
-async def get_conversation_messages(session_id: str, _=Depends(require_admin)):
+async def get_conversation_messages(session_id: str, _=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT id, role, content, intent_type, model_used, created_at
         FROM messages WHERE session_id = $1
@@ -126,7 +110,7 @@ async def get_conversation_messages(session_id: str, _=Depends(require_admin)):
 # ── Error Logs ─────────────────────────────────────────────────────────────────
 
 @router.get("/errors")
-async def get_errors(source: str = None, status: str = "open", _=Depends(require_admin)):
+async def get_errors(source: str = None, status: str = "open", _=Depends(require_admin_user)):
     where = "WHERE status = $1"
     params = [status]
     if source:
@@ -146,7 +130,7 @@ class ResolveErrorRequest(BaseModel):
     note: str = ""
 
 @router.post("/errors/{error_id}/resolve")
-async def resolve_error(error_id: str, req: ResolveErrorRequest, _=Depends(require_admin)):
+async def resolve_error(error_id: str, req: ResolveErrorRequest, _=Depends(require_admin_user)):
     await execute("""
         UPDATE error_logs SET status='resolved', resolved_at=NOW(), resolved_note=$1
         WHERE id = $2
@@ -157,7 +141,7 @@ async def resolve_error(error_id: str, req: ResolveErrorRequest, _=Depends(requi
 # ── Subscriptions ──────────────────────────────────────────────────────────────
 
 @router.get("/subscriptions")
-async def get_subscriptions(_=Depends(require_admin)):
+async def get_subscriptions(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT u.email, u.first_name, s.subscription_tier, s.status,
                s.stripe_customer_id, s.stripe_subscription_id, 
@@ -172,7 +156,7 @@ async def get_subscriptions(_=Depends(require_admin)):
 # ── Contact Messages ───────────────────────────────────────────────────────────
 
 @router.get("/contact-messages")
-async def get_contact_messages(_=Depends(require_admin)):
+async def get_contact_messages(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 100
     """)
@@ -180,7 +164,7 @@ async def get_contact_messages(_=Depends(require_admin)):
 
 
 @router.post("/contact-messages/{msg_id}/read")
-async def mark_read(msg_id: str, _=Depends(require_admin)):
+async def mark_read(msg_id: str, _=Depends(require_admin_user)):
     await execute("UPDATE contact_messages SET status='read' WHERE id=$1", msg_id)
     return {"ok": True}
 
@@ -188,7 +172,7 @@ async def mark_read(msg_id: str, _=Depends(require_admin)):
 # ── Beta Feedback ──────────────────────────────────────────────────────────────
 
 @router.get("/beta-feedback")
-async def get_beta_feedback(_=Depends(require_admin)):
+async def get_beta_feedback(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT bf.*, u.email as user_email
         FROM beta_feedback bf
@@ -201,7 +185,7 @@ async def get_beta_feedback(_=Depends(require_admin)):
 # ── System health ──────────────────────────────────────────────────────────────
 
 @router.get("/health")
-async def admin_health(_=Depends(require_admin)):
+async def admin_health(_=Depends(require_admin_user)):
     user_count = await fetchval("SELECT COUNT(*) FROM users") or 0
     message_count = await fetchval("SELECT COUNT(*) FROM messages") or 0
     error_count = await fetchval("SELECT COUNT(*) FROM error_logs WHERE status='open'") or 0
@@ -217,7 +201,7 @@ async def admin_health(_=Depends(require_admin)):
 # ── Support Tickets ────────────────────────────────────────────────────────────
 
 @router.get("/support-tickets")
-async def get_support_tickets(_=Depends(require_admin)):
+async def get_support_tickets(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT t.*, u.email as user_email,
                (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) as message_count
@@ -233,7 +217,7 @@ class TicketUpdateRequest(BaseModel):
     priority: str = None
 
 @router.patch("/support-tickets/{ticket_id}")
-async def update_ticket(ticket_id: str, req: TicketUpdateRequest, _=Depends(require_admin)):
+async def update_ticket(ticket_id: str, req: TicketUpdateRequest, _=Depends(require_admin_user)):
     updates = {k: v for k, v in req.dict().items() if v is not None}
     if not updates:
         return {"ok": True}
@@ -248,7 +232,7 @@ class TicketReplyRequest(BaseModel):
     is_ai_generated: bool = False
 
 @router.post("/support-tickets/{ticket_id}/reply")
-async def reply_ticket(ticket_id: str, req: TicketReplyRequest, _=Depends(require_admin)):
+async def reply_ticket(ticket_id: str, req: TicketReplyRequest, _=Depends(require_admin_user)):
     await execute("""
         INSERT INTO support_ticket_replies (ticket_id, message, sent_by, is_ai_generated)
         VALUES ($1, $2, 'admin', $3)
@@ -260,12 +244,12 @@ async def reply_ticket(ticket_id: str, req: TicketReplyRequest, _=Depends(requir
 # ── Custom Orders ──────────────────────────────────────────────────────────────
 
 @router.get("/custom-orders")
-async def get_custom_orders(_=Depends(require_admin)):
+async def get_custom_orders(_=Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM custom_orders ORDER BY created_at DESC")
     return rows or []
 
 @router.post("/custom-orders")
-async def create_custom_order(data: dict, admin=Depends(require_admin)):
+async def create_custom_order(data: dict, admin=Depends(require_admin_user)):
     row = await fetchrow("""
         INSERT INTO custom_orders (company_name, company_email, contact_person, order_title,
             services, subtotal, total_amount, currency, status, created_by)
@@ -278,7 +262,7 @@ async def create_custom_order(data: dict, admin=Depends(require_admin)):
     return dict(row) if row else {}
 
 @router.patch("/custom-orders/{order_id}")
-async def update_custom_order(order_id: str, data: dict, _=Depends(require_admin)):
+async def update_custom_order(order_id: str, data: dict, _=Depends(require_admin_user)):
     allowed = ['status', 'notes', 'client_signature_url', 'admin_signature_url', 
                'stripe_payment_link', 'contract_pdf_url']
     updates = {k: v for k, v in data.items() if k in allowed}
@@ -293,12 +277,12 @@ async def update_custom_order(order_id: str, data: dict, _=Depends(require_admin
 # ── NDA Management ─────────────────────────────────────────────────────────────
 
 @router.get("/nda-agreements")
-async def get_nda_agreements(_=Depends(require_admin)):
+async def get_nda_agreements(_=Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM nda_agreements ORDER BY created_at DESC")
     return rows or []
 
 @router.post("/nda-agreements")
-async def create_nda(data: dict, admin=Depends(require_admin)):
+async def create_nda(data: dict, admin=Depends(require_admin_user)):
     row = await fetchrow("""
         INSERT INTO nda_agreements (company_name, company_email, contact_person, 
             nda_purpose, status, created_by)
@@ -312,7 +296,7 @@ async def create_nda(data: dict, admin=Depends(require_admin)):
 # ── System Config ──────────────────────────────────────────────────────────────
 
 @router.get("/system-config")
-async def get_system_config(_=Depends(require_admin)):
+async def get_system_config(_=Depends(require_admin_user)):
     rows = await fetch("SELECT key, value, updated_at FROM system_config ORDER BY key")
     return rows or []
 
@@ -321,7 +305,7 @@ class SystemConfigRequest(BaseModel):
     value: dict
 
 @router.post("/system-config")
-async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_admin)):
+async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_admin_user)):
     import json
     await execute("""
         INSERT INTO system_config (key, value, updated_by, updated_at)
@@ -334,7 +318,7 @@ async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_a
 # ── Service Applications ───────────────────────────────────────────────────────
 
 @router.get("/service-applications")
-async def get_service_applications(_=Depends(require_admin)):
+async def get_service_applications(_=Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM service_applications ORDER BY created_at DESC")
     return rows or []
 
@@ -342,7 +326,7 @@ async def get_service_applications(_=Depends(require_admin)):
 # ── LLM Usage Stats ────────────────────────────────────────────────────────────
 
 @router.get("/llm-stats")
-async def get_llm_stats(_=Depends(require_admin)):
+async def get_llm_stats(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT model_name, intent_type,
                COUNT(*) as request_count,
@@ -361,7 +345,7 @@ async def get_llm_stats(_=Depends(require_admin)):
 # ── Visitor Analytics ──────────────────────────────────────────────────────────
 
 @router.get("/visitor-analytics")
-async def get_visitor_analytics(_=Depends(require_admin)):
+async def get_visitor_analytics(_=Depends(require_admin_user)):
     stats = await fetchrow("""
         SELECT 
             COUNT(DISTINCT visitor_id) as unique_visitors,

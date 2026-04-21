@@ -74,6 +74,40 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     return dict(row)
 
 
+class ProfileUpdateRequest(BaseModel):
+    contact_person: Optional[str] = None
+    company_name: Optional[str] = None
+    business_type: Optional[str] = None
+    business_context: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+@router.put("/profile")
+@router.post("/profile")
+async def update_profile(req: ProfileUpdateRequest, user_id: str = Depends(get_user_id)):
+    """Update user profile fields. Supports PUT and POST for frontend compatibility."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+
+    set_parts = []
+    values = [user_id]
+    for i, (k, v) in enumerate(updates.items(), start=2):
+        set_parts.append(f"{k} = ${i}")
+        values.append(v)
+    set_clause = ", ".join(set_parts) + ", updated_at = NOW()"
+
+    await execute(
+        f"UPDATE users SET {set_clause} WHERE id = $1::uuid",
+        *values
+    )
+    row = await fetchrow(
+        "SELECT id, email, first_name, last_name, avatar_url, contact_person, company_name, business_type, business_context FROM users WHERE id = $1::uuid",
+        user_id
+    )
+    return {"ok": True, "profile": dict(row) if row else None}
+
+
 class TermsRequest(BaseModel):
     privacy: bool = True
     terms: bool = True

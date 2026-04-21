@@ -5,30 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
 import datetime
-from core.auth_new import get_current_user
 from core.database import fetch, fetchrow, fetchval, execute
+from core.security import require_admin_user
 
 router = APIRouter(prefix="/admin")
 
 
-async def require_admin(current_user: dict = Depends(get_current_user)) -> str:
-    user_id = current_user.get("sub") or current_user.get("user_id", "")
-    if user_id == "internal":
-        return user_id
-    if current_user.get("is_admin"):
-        return user_id
-    try:
-        is_admin = await fetchval("SELECT is_admin FROM users WHERE id = $1::uuid", user_id)
-        if is_admin:
-            return user_id
-    except Exception:
-        pass
-    raise HTTPException(403, "Admin access required")
-
-
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 @router.get("/scheduler/status")
-async def scheduler_status(_: str = Depends(require_admin)):
+async def scheduler_status(_: dict = Depends(require_admin_user)):
     from core.scheduler import get_scheduler
     scheduler = get_scheduler()
     if not scheduler:
@@ -40,7 +25,7 @@ async def scheduler_status(_: str = Depends(require_admin)):
 
 
 @router.post("/scheduler/run/{job_id}")
-async def run_scheduler_job(job_id: str, _: str = Depends(require_admin)):
+async def run_scheduler_job(job_id: str, _: dict = Depends(require_admin_user)):
     from core.scheduler import get_scheduler
     scheduler = get_scheduler()
     job = scheduler.get_job(job_id) if scheduler else None
@@ -53,7 +38,7 @@ async def run_scheduler_job(job_id: str, _: str = Depends(require_admin)):
 # ── Users ─────────────────────────────────────────────────────────────────────
 @router.get("/users")
 async def list_users(limit: int = Query(50, le=200), offset: int = 0,
-                     search: Optional[str] = None, _: str = Depends(require_admin)):
+                     search: Optional[str] = None, _: dict = Depends(require_admin_user)):
     if search:
         rows = await fetch(
             "SELECT id,email,first_name,last_name,is_admin,created_at FROM users "
@@ -67,7 +52,7 @@ async def list_users(limit: int = Query(50, le=200), offset: int = 0,
 
 
 @router.get("/users/{user_id}")
-async def get_user(user_id: str, _: str = Depends(require_admin)):
+async def get_user(user_id: str, _: dict = Depends(require_admin_user)):
     profile = await fetchrow("SELECT * FROM users WHERE id = $1::uuid", user_id)
     limits = await fetchrow("SELECT * FROM user_ai_limits WHERE user_id = $1::uuid", user_id)
     return {"profile": dict(profile) if profile else None,
@@ -75,7 +60,7 @@ async def get_user(user_id: str, _: str = Depends(require_admin)):
 
 
 @router.get("/users/{user_id}/messages")
-async def get_user_messages(user_id: str, limit: int = 50, _: str = Depends(require_admin)):
+async def get_user_messages(user_id: str, limit: int = 50, _: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT id,content,sender,created_at FROM messages "
         "WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT $2", user_id, limit)
@@ -83,7 +68,7 @@ async def get_user_messages(user_id: str, limit: int = 50, _: str = Depends(requ
 
 
 @router.patch("/users/{user_id}/subscription")
-async def update_user_subscription(user_id: str, body: dict, _: str = Depends(require_admin)):
+async def update_user_subscription(user_id: str, body: dict, _: dict = Depends(require_admin_user)):
     if body.get("status"):
         await execute("UPDATE user_subscriptions SET status=$1 WHERE user_id=$2::uuid",
                       body["status"], user_id)
@@ -98,16 +83,18 @@ class CreditGiftBody(BaseModel):
 
 
 @router.post("/credits/gift")
-async def gift_credits(body: CreditGiftBody, admin_id: str = Depends(require_admin)):
+async def gift_credits(body: CreditGiftBody, admin_user: dict = Depends(require_admin_user)):
+    admin_id = admin_user.get("user_id", "")
     await execute(
         "INSERT INTO credit_gifts (user_id,amount,reason,gifted_by,created_at) "
         "VALUES ($1::uuid,$2,$3,$4::uuid,NOW())",
-        body.user_id, body.amount, body.reason or "Admin gift", admin_id)
+        body.user_id, body.amount, body.reason or "Admin gift", admin_id
+    )
     return {"ok": True, "gifted": body.amount}
 
 
 @router.get("/credits/history")
-async def credit_gift_history(_: str = Depends(require_admin)):
+async def credit_gift_history(_: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM credit_gifts ORDER BY created_at DESC LIMIT 100")
     return {"history": [dict(r) for r in rows]}
 
@@ -115,7 +102,7 @@ async def credit_gift_history(_: str = Depends(require_admin)):
 # ── Subscriptions ─────────────────────────────────────────────────────────────
 @router.get("/subscriptions")
 async def list_subscriptions(status: Optional[str] = None, limit: int = 100,
-                              _: str = Depends(require_admin)):
+                              _: dict = Depends(require_admin_user)):
     if status:
         rows = await fetch("SELECT * FROM user_subscriptions WHERE status=$1 "
                            "ORDER BY created_at DESC LIMIT $2", status, limit)
@@ -127,7 +114,7 @@ async def list_subscriptions(status: Optional[str] = None, limit: int = 100,
 # ── Support ───────────────────────────────────────────────────────────────────
 @router.get("/tickets")
 async def list_tickets(status: Optional[str] = "open", limit: int = 50,
-                       _: str = Depends(require_admin)):
+                       _: dict = Depends(require_admin_user)):
     if status:
         rows = await fetch("SELECT * FROM support_tickets WHERE status=$1 "
                            "ORDER BY created_at DESC LIMIT $2", status, limit)
@@ -137,7 +124,7 @@ async def list_tickets(status: Optional[str] = "open", limit: int = 50,
 
 
 @router.get("/tickets/{ticket_id}")
-async def get_ticket(ticket_id: str, _: str = Depends(require_admin)):
+async def get_ticket(ticket_id: str, _: dict = Depends(require_admin_user)):
     ticket = await fetchrow("SELECT * FROM support_tickets WHERE id=$1::uuid", ticket_id)
     replies = await fetch("SELECT * FROM ticket_messages WHERE ticket_id=$1::uuid "
                           "ORDER BY created_at", ticket_id)
@@ -152,7 +139,8 @@ class TicketReplyBody(BaseModel):
 
 
 @router.post("/tickets/reply")
-async def reply_ticket(body: TicketReplyBody, admin_id: str = Depends(require_admin)):
+async def reply_ticket(body: TicketReplyBody, admin_user: dict = Depends(require_admin_user)):
+    admin_id = admin_user.get("user_id", "")
     await execute(
         "INSERT INTO ticket_messages (ticket_id,sender,message,sender_id,created_at) "
         "VALUES ($1::uuid,'admin',$2,$3::uuid,NOW())",
@@ -165,7 +153,7 @@ async def reply_ticket(body: TicketReplyBody, admin_id: str = Depends(require_ad
 
 # ── Config ────────────────────────────────────────────────────────────────────
 @router.get("/config")
-async def get_config(_: str = Depends(require_admin)):
+async def get_config(_: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT key,value FROM system_config")
     return {"config": {r["key"]: r["value"] for r in rows}}
 
@@ -176,7 +164,7 @@ class ConfigUpdateBody(BaseModel):
 
 
 @router.put("/config")
-async def update_config(body: ConfigUpdateBody, _: str = Depends(require_admin)):
+async def update_config(body: ConfigUpdateBody, _: dict = Depends(require_admin_user)):
     await execute("INSERT INTO system_config (key,value) VALUES ($1,$2) "
                   "ON CONFLICT (key) DO UPDATE SET value=$2", body.key, str(body.value))
     return {"ok": True}
@@ -184,7 +172,7 @@ async def update_config(body: ConfigUpdateBody, _: str = Depends(require_admin))
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
 @router.get("/llm")
-async def get_llm_overview(_: str = Depends(require_admin)):
+async def get_llm_overview(_: dict = Depends(require_admin_user)):
     models = await fetch("SELECT * FROM llm_models")
     usage = await fetch(
         "SELECT model_name, COUNT(*) as calls, AVG(response_time_ms) as avg_ms "
@@ -198,13 +186,13 @@ async def get_llm_overview(_: str = Depends(require_admin)):
 
 
 @router.get("/llm/models")
-async def get_llm_models(_: str = Depends(require_admin)):
+async def get_llm_models(_: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM llm_models")
     return {"models": [dict(r) for r in rows]}
 
 
 @router.get("/llm/usage")
-async def get_llm_usage(days: int = 7, _: str = Depends(require_admin)):
+async def get_llm_usage(days: int = 7, _: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT model_name,response_time_ms,was_fallback,created_at FROM llm_usage_logs "
         "WHERE created_at > NOW() - ($1 || ' days')::interval "
@@ -213,7 +201,7 @@ async def get_llm_usage(days: int = 7, _: str = Depends(require_admin)):
 
 
 @router.get("/llm/failures")
-async def get_llm_failures(limit: int = 100, _: str = Depends(require_admin)):
+async def get_llm_failures(limit: int = 100, _: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM llm_failures ORDER BY created_at DESC LIMIT $1", limit)
     return {"failures": [dict(r) for r in rows]}
 
@@ -221,7 +209,7 @@ async def get_llm_failures(limit: int = 100, _: str = Depends(require_admin)):
 # ── Errors ────────────────────────────────────────────────────────────────────
 @router.get("/errors")
 async def get_errors(limit: int = 100, severity: Optional[str] = None,
-                     _: str = Depends(require_admin)):
+                     _: dict = Depends(require_admin_user)):
     if severity:
         rows = await fetch("SELECT * FROM error_logs WHERE severity=$1 "
                            "ORDER BY created_at DESC LIMIT $2", severity, limit)
@@ -237,14 +225,14 @@ class ErrorActionBody(BaseModel):
 
 
 @router.post("/errors/resolve")
-async def resolve_errors(body: ErrorActionBody, _: str = Depends(require_admin)):
+async def resolve_errors(body: ErrorActionBody, _: dict = Depends(require_admin_user)):
     await execute("UPDATE error_logs SET status=$1 WHERE message ILIKE $2",
                   body.status, f"%{body.pattern}%")
     return {"ok": True}
 
 
 @router.post("/errors/reopen")
-async def reopen_errors(body: ErrorActionBody, _: str = Depends(require_admin)):
+async def reopen_errors(body: ErrorActionBody, _: dict = Depends(require_admin_user)):
     await execute("UPDATE error_logs SET status='open' WHERE message ILIKE $1",
                   f"%{body.pattern}%")
     return {"ok": True}
@@ -252,7 +240,7 @@ async def reopen_errors(body: ErrorActionBody, _: str = Depends(require_admin)):
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 @router.get("/stats")
-async def get_stats(_: str = Depends(require_admin)):
+async def get_stats(_: dict = Depends(require_admin_user)):
     return {
         "users_total": await fetchval("SELECT COUNT(*) FROM users") or 0,
         "messages_24h": await fetchval(
@@ -274,38 +262,38 @@ async def get_stats(_: str = Depends(require_admin)):
 
 # ── Contacts & Feedback ───────────────────────────────────────────────────────
 @router.get("/contacts")
-async def get_contacts(limit: int = 50, _: str = Depends(require_admin)):
+async def get_contacts(limit: int = 50, _: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT $1", limit)
     return {"contacts": [dict(r) for r in rows]}
 
 
 @router.get("/feedback")
-async def get_feedback(limit: int = 50, _: str = Depends(require_admin)):
+async def get_feedback(limit: int = 50, _: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM beta_feedback ORDER BY created_at DESC LIMIT $1", limit)
     return {"feedback": [dict(r) for r in rows]}
 
 
 # ── Twitter ───────────────────────────────────────────────────────────────────
 @router.get("/twitter/posts")
-async def get_twitter_posts(limit: int = 50, _: str = Depends(require_admin)):
+async def get_twitter_posts(limit: int = 50, _: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM twitter_posts ORDER BY created_at DESC LIMIT $1", limit)
     return {"posts": [dict(r) for r in rows]}
 
 
 @router.delete("/twitter/posts/{post_id}")
-async def delete_twitter_post(post_id: str, _: str = Depends(require_admin)):
+async def delete_twitter_post(post_id: str, _: dict = Depends(require_admin_user)):
     await execute("DELETE FROM twitter_posts WHERE id=$1::uuid", post_id)
     return {"ok": True}
 
 
 @router.post("/twitter/posts/{post_id}/retry")
-async def retry_twitter_post(post_id: str, _: str = Depends(require_admin)):
+async def retry_twitter_post(post_id: str, _: dict = Depends(require_admin_user)):
     await execute("UPDATE twitter_posts SET status='pending',error=NULL WHERE id=$1::uuid", post_id)
     return {"ok": True}
 
 
 @router.post("/twitter/posts/{post_id}/schedule")
-async def schedule_twitter_post(post_id: str, body: dict, _: str = Depends(require_admin)):
+async def schedule_twitter_post(post_id: str, body: dict, _: dict = Depends(require_admin_user)):
     await execute("UPDATE twitter_posts SET scheduled_for=$1 WHERE id=$2::uuid",
                   body.get("scheduled_for"), post_id)
     return {"ok": True}
@@ -313,13 +301,13 @@ async def schedule_twitter_post(post_id: str, body: dict, _: str = Depends(requi
 
 # ── Custom Orders ─────────────────────────────────────────────────────────────
 @router.get("/custom-orders")
-async def list_custom_orders(_: str = Depends(require_admin)):
+async def list_custom_orders(_: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM custom_orders ORDER BY created_at DESC")
     return [dict(r) for r in rows]
 
 
 @router.post("/custom-orders")
-async def create_custom_order(body: dict, _: str = Depends(require_admin)):
+async def create_custom_order(body: dict, _: dict = Depends(require_admin_user)):
     import json
     fields = ["client_name","client_email","service_type","description",
               "price","currency","status","notes","services"]
@@ -335,7 +323,7 @@ async def create_custom_order(body: dict, _: str = Depends(require_admin)):
 
 
 @router.patch("/custom-orders/{order_id}")
-async def update_custom_order(order_id: str, body: dict, _: str = Depends(require_admin)):
+async def update_custom_order(order_id: str, body: dict, _: dict = Depends(require_admin_user)):
     import json
     fields = ["client_name","client_email","service_type","description",
               "price","currency","status","notes","services","paid"]
@@ -350,13 +338,13 @@ async def update_custom_order(order_id: str, body: dict, _: str = Depends(requir
 
 
 @router.delete("/custom-orders/{order_id}")
-async def delete_custom_order(order_id: str, _: str = Depends(require_admin)):
+async def delete_custom_order(order_id: str, _: dict = Depends(require_admin_user)):
     await execute("DELETE FROM custom_orders WHERE id=$1::uuid", order_id)
     return {"ok": True}
 
 
 @router.post("/custom-orders/{order_id}/mark-paid")
-async def mark_order_paid(order_id: str, _: str = Depends(require_admin)):
+async def mark_order_paid(order_id: str, _: dict = Depends(require_admin_user)):
     await execute(
         "UPDATE custom_orders SET paid=TRUE, paid_at=NOW(), status='paid' WHERE id=$1::uuid",
         order_id)
@@ -364,7 +352,7 @@ async def mark_order_paid(order_id: str, _: str = Depends(require_admin)):
 
 
 @router.post("/custom-orders/{order_id}/pdf")
-async def generate_order_pdf(order_id: str, _: str = Depends(require_admin)):
+async def generate_order_pdf(order_id: str, _: dict = Depends(require_admin_user)):
     row = await fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", order_id)
     if not row:
         from fastapi import HTTPException
@@ -376,14 +364,14 @@ async def generate_order_pdf(order_id: str, _: str = Depends(require_admin)):
 
 # ── Predictions ───────────────────────────────────────────────────────────────
 @router.get("/predictions/master")
-async def get_master_predictions(_: str = Depends(require_admin)):
+async def get_master_predictions(_: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM ayn_world_predictions ORDER BY created_at DESC LIMIT 200")
     return [dict(r) for r in rows]
 
 
 @router.get("/predictions/scorecard")
-async def get_predictions_scorecard(_: str = Depends(require_admin)):
+async def get_predictions_scorecard(_: dict = Depends(require_admin_user)):
     total = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions") or 0
     correct = await fetchval(
         "SELECT COUNT(*) FROM ayn_world_predictions WHERE resolution_correct=TRUE") or 0
@@ -397,7 +385,7 @@ async def get_predictions_scorecard(_: str = Depends(require_admin)):
 
 
 @router.post("/predictions/run-checker")
-async def run_prediction_checker(body: dict = {}, _: str = Depends(require_admin)):
+async def run_prediction_checker(body: dict = {}, _: dict = Depends(require_admin_user)):
     from core.scheduler import get_scheduler
     scheduler = get_scheduler()
     job = scheduler.get_job("prediction-resolver") if scheduler else None
@@ -410,7 +398,7 @@ async def run_prediction_checker(body: dict = {}, _: str = Depends(require_admin
 
 @router.patch("/predictions/{prediction_id}")
 async def update_prediction(prediction_id: str, body: dict,
-                             _: str = Depends(require_admin)):
+                             _: dict = Depends(require_admin_user)):
     allowed = ["admin_notes", "check_status", "admin_override", "status",
                "resolution_correct", "resolution_notes"]
     cols = [k for k in allowed if k in body]
@@ -426,14 +414,14 @@ async def update_prediction(prediction_id: str, body: dict,
 
 # ── Service Applications ──────────────────────────────────────────────────────
 @router.get("/service-applications")
-async def get_service_applications(_: str = Depends(require_admin)):
+async def get_service_applications(_: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM service_applications ORDER BY created_at DESC")
     return rows or []
 
 
 # ── NDA Agreements ────────────────────────────────────────────────────────────
 @router.post("/nda-agreements")
-async def create_nda(body: dict, admin_id: str = Depends(require_admin)):
+async def create_nda(body: dict, admin_id: dict = Depends(require_admin_user)):
     import json as _json
     row = await fetchrow("""
         INSERT INTO nda_agreements (company_name, company_email, contact_person,
@@ -447,7 +435,7 @@ async def create_nda(body: dict, admin_id: str = Depends(require_admin)):
 
 # ── Beta Feedback ─────────────────────────────────────────────────────────────
 @router.get("/beta-feedback")
-async def get_beta_feedback(_: str = Depends(require_admin)):
+async def get_beta_feedback(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT bf.*, u.email as user_email
         FROM beta_feedback bf
@@ -459,7 +447,7 @@ async def get_beta_feedback(_: str = Depends(require_admin)):
 
 # ── Visitor Analytics ─────────────────────────────────────────────────────────
 @router.get("/analytics/summary")
-async def get_analytics_summary(_: str = Depends(require_admin)):
+async def get_analytics_summary(_: dict = Depends(require_admin_user)):
     stats = await fetchrow("""
         SELECT
             COUNT(DISTINCT visitor_id) as unique_visitors,
@@ -480,7 +468,7 @@ async def get_analytics_summary(_: str = Depends(require_admin)):
 
 # ── Conversations (admin view) ────────────────────────────────────────────────
 @router.get("/conversations")
-async def get_admin_conversations(_: str = Depends(require_admin)):
+async def get_admin_conversations(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT cs.session_id, cs.title, cs.created_at, cs.updated_at,
                u.email as user_email,
@@ -495,7 +483,7 @@ async def get_admin_conversations(_: str = Depends(require_admin)):
 
 
 @router.get("/conversations/{session_id}")
-async def get_conversation_messages(session_id: str, _: str = Depends(require_admin)):
+async def get_conversation_messages(session_id: str, _: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT id, role, content, created_at FROM messages
         WHERE session_id = $1 ORDER BY created_at ASC
@@ -505,7 +493,7 @@ async def get_conversation_messages(session_id: str, _: str = Depends(require_ad
 
 # ── Health ────────────────────────────────────────────────────────────────────
 @router.get("/health")
-async def admin_health(_: str = Depends(require_admin)):
+async def admin_health(_: dict = Depends(require_admin_user)):
     from core.database import get_pool
     pool = await get_pool()
     return {
@@ -520,7 +508,7 @@ async def admin_health(_: str = Depends(require_admin)):
 
 # ── Support tickets (admin) ───────────────────────────────────────────────────
 @router.get("/support-tickets")
-async def get_admin_support_tickets(_: str = Depends(require_admin)):
+async def get_admin_support_tickets(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT t.*, u.email as user_email,
                (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = t.id) as message_count
@@ -533,7 +521,7 @@ async def get_admin_support_tickets(_: str = Depends(require_admin)):
 
 @router.patch("/support-tickets/{ticket_id}")
 async def update_support_ticket(ticket_id: str, body: dict,
-                                 _: str = Depends(require_admin)):
+                                 _: dict = Depends(require_admin_user)):
     allowed = ["status", "priority", "assigned_to"]
     cols = [k for k in allowed if k in body]
     if not cols:
@@ -547,7 +535,8 @@ async def update_support_ticket(ticket_id: str, body: dict,
 
 @router.post("/support-tickets/{ticket_id}/reply")
 async def admin_reply_ticket(ticket_id: str, body: dict,
-                              admin_id: str = Depends(require_admin)):
+                              admin_user: dict = Depends(require_admin_user)):
+    admin_id = admin_user.get("user_id", "")
     await execute("""
         INSERT INTO ticket_messages (ticket_id, message, sender, sender_id, created_at)
         VALUES ($1::uuid, $2, 'admin', $3::uuid, NOW())
@@ -560,7 +549,7 @@ async def admin_reply_ticket(ticket_id: str, body: dict,
 
 # ── LLM Stats ─────────────────────────────────────────────────────────────────
 @router.get("/llm-stats")
-async def get_llm_stats_detailed(_: str = Depends(require_admin)):
+async def get_llm_stats_detailed(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT model_name, COUNT(*) as calls,
                AVG(response_time_ms) as avg_ms,
@@ -574,7 +563,7 @@ async def get_llm_stats_detailed(_: str = Depends(require_admin)):
 
 # ── User Growth ───────────────────────────────────────────────────────────────
 @router.get("/user-growth")
-async def get_user_growth(_: str = Depends(require_admin)):
+async def get_user_growth(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT DATE(created_at) as date, COUNT(*) as new_users
         FROM users
@@ -586,7 +575,7 @@ async def get_user_growth(_: str = Depends(require_admin)):
 
 # ── Credit Gifts ──────────────────────────────────────────────────────────────
 @router.get("/credit-gifts")
-async def get_credit_gifts(_: str = Depends(require_admin)):
+async def get_credit_gifts(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT cg.*, u.email as user_email
         FROM credit_gifts cg
@@ -598,7 +587,7 @@ async def get_credit_gifts(_: str = Depends(require_admin)):
 
 # ── Message Ratings ────────────────────────────────────────────────────────────
 @router.get("/message-ratings")
-async def get_message_ratings(_: str = Depends(require_admin)):
+async def get_message_ratings(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT mr.*, u.email as user_email
         FROM message_ratings mr
@@ -610,7 +599,7 @@ async def get_message_ratings(_: str = Depends(require_admin)):
 
 # ── Terms Consent ─────────────────────────────────────────────────────────────
 @router.get("/terms-consent")
-async def get_terms_consent(_: str = Depends(require_admin)):
+async def get_terms_consent(_: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT tc.*, u.email as user_email
         FROM terms_consent_log tc
@@ -622,7 +611,7 @@ async def get_terms_consent(_: str = Depends(require_admin)):
 
 # ── Churn Alerts ──────────────────────────────────────────────────────────────
 @router.get("/churn-alerts")
-async def get_churn_alerts(_: str = Depends(require_admin)):
+async def get_churn_alerts(_: dict = Depends(require_admin_user)):
     # Users who haven't sent a message in 7 days but were active before
     rows = await fetch("""
         SELECT u.id, u.email, u.first_name,

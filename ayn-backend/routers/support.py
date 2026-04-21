@@ -47,6 +47,7 @@ class ContactRequest(BaseModel):
 async def contact(req: ContactRequest):
     """Save contact message. Replaces send-contact-email."""
     from services.email import send_email
+    from services.email_queue import enqueue_email
     import asyncio
     try:
         await execute("""
@@ -55,7 +56,9 @@ async def contact(req: ContactRequest):
         """, req.name, req.email, req.message)
     except Exception:
         pass
-    asyncio.create_task(send_email(req.email, "contact_confirmation", {"userName": req.name}))
+    queued = await enqueue_email(req.email, "contact_confirmation", {"userName": req.name})
+    if not queued:
+        asyncio.create_task(send_email(req.email, "contact_confirmation", {"userName": req.name}))
     return {"ok": True}
 
 
@@ -71,6 +74,7 @@ class TicketRequest(BaseModel):
 async def create_ticket(req: TicketRequest, user_id: str = Depends(get_user_id)):
     """Create a support ticket."""
     from services.email import send_email
+    from services.email_queue import enqueue_email
     import asyncio
     try:
         row = await fetchrow("""
@@ -80,10 +84,10 @@ async def create_ticket(req: TicketRequest, user_id: str = Depends(get_user_id))
         """, user_id, req.subject, req.message, req.category, req.priority)
         ticket = dict(row) if row else {}
         # Notify team
-        asyncio.create_task(send_email(
-            "support@aynn.io", "new_ticket",
-            {"subject": req.subject, "ticket_id": str(ticket.get("id", ""))}
-        ))
+        payload = {"subject": req.subject, "ticket_id": str(ticket.get("id", ""))}
+        queued = await enqueue_email("support@aynn.io", "new_ticket", payload)
+        if not queued:
+            asyncio.create_task(send_email("support@aynn.io", "new_ticket", payload))
         return {"ok": True, "ticket": ticket}
     except Exception as e:
         log.error(f"[support] create ticket: {e}")

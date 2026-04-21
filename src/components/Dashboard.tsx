@@ -62,7 +62,13 @@ export default function Dashboard({ user, session }: DashboardProps) {
         // TODO(spine): /system/config?keys=... — public maintenance/beta config
         const data: any = await spineApi.req('GET', '/system/config?keys=maintenance_mode,maintenance_message,maintenance_start_time,maintenance_end_time,pre_maintenance_notice,pre_maintenance_message,beta_mode,beta_feedback_reward');
 
-        const list: any[] = Array.isArray(data) ? data : (data?.items || []);
+        const list: any[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+            ? data.items
+            : data?.config
+              ? Object.entries(data.config).map(([key, value]) => ({ key, value }))
+              : [];
         if (list.length > 0) {
           const configMap = new Map(list.map((c: any) => [c.key, c.value]));
           setMaintenanceConfig({

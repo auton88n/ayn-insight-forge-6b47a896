@@ -21,7 +21,9 @@ async function req<T = any>(method: string, path: string, body?: object): Promis
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || err.error || `${res.status}`);
   }
-  return res.json();
+  if (res.status === 204) return null as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export const spineApi = {
@@ -29,7 +31,7 @@ export const spineApi = {
   getMe:        () => req<any>('GET', '/auth/me'),
   getLimits:    () => req<any>('GET', '/user/limits'),
   getProfile:   () => req<any>('GET', '/user/profile'),
-  updateProfile:(profile: object) => req('POST', '/user/profile', profile),
+  updateProfile:(profile: object) => req('PUT', '/user/profile', profile),
   acceptTerms:  (d: any) => req('POST', '/user/terms', d),
 
   // ── Memory ─────────────────────────────────────────────────────────────────
@@ -218,6 +220,10 @@ export const adminApi = {
   getTestResults:     () => req<any[]>('GET', '/admin/test-results'),
   getRateLimits:      () => req<any[]>('GET', '/admin/rate-limits'),
   getNotificationLog: () => req<any[]>('GET', '/admin/notification-log'),
+  getOperationsSummary: () => req<any>('GET', '/admin/ops/summary'),
+  getQueueDlq: (queue: string, limit = 100) => req<any>('GET', `/admin/ops/queues/${queue}/dlq?limit=${limit}`),
+  requeueDlq: (queue: string, index: number) => req<any>('POST', `/admin/ops/queues/${queue}/dlq/${index}/requeue`, {}),
+  resolveDlq: (queue: string, index: number) => req<any>('DELETE', `/admin/ops/queues/${queue}/dlq/${index}`),
 
   // Payments & Revenue
   getStripeBalance:   () => req<any>('GET', '/payments/admin/balance'),

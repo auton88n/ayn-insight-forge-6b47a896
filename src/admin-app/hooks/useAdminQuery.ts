@@ -40,6 +40,7 @@ export const adminKeys = {
   notificationLog: () => [...adminKeys.all, 'notificationLog'] as const,
   revenue: () => [...adminKeys.all, 'revenue'] as const,
   systemMonitoring: () => [...adminKeys.all, 'systemMonitoring'] as const,
+  operations: () => [...adminKeys.all, 'operations'] as const,
   rateLimits: () => [...adminKeys.all, 'rateLimits'] as const,
   twitterPosts: () => [...adminKeys.all, 'twitterPosts'] as const,
 } as const;
@@ -169,6 +170,10 @@ export function useAdminSystemMonitoring() {
 
 export function useAdminRateLimits() {
   return useQuery({ queryKey: adminKeys.rateLimits(), queryFn: () => adminApi.getRateLimits(), staleTime: FAST_STALE_TIME });
+}
+
+export function useAdminOperations() {
+  return useQuery({ queryKey: adminKeys.operations(), queryFn: () => adminApi.getOperationsSummary(), staleTime: FAST_STALE_TIME });
 }
 
 export function useAdminUserMessages(userId: string | null) {

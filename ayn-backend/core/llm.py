@@ -46,8 +46,8 @@ async def lovable(
     LOVABLE_API_KEY stays in Supabase secrets.
     Timeout: 55s (safe below Supabase 60s ceiling).
     """
-    if not PROXY_URL or not SUPABASE_URL:
-        raise RuntimeError("SUPABASE_URL not set — cannot reach ayn-ai-proxy")
+    if not PROXY_URL or not SUPABASE_URL or not PROXY_SECRET:
+        raise RuntimeError("Proxy not configured — set SUPABASE_URL and AYN_PROXY_SECRET")
 
     model_id = LOVABLE_MODELS.get(model, LOVABLE_MODELS["chat"])
     payload: dict = {

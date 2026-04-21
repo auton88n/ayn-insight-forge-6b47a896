@@ -50,6 +50,7 @@ const TermsConsentViewer = lazy(() => import('@/components/admin/TermsConsentVie
 const CommandCenterPanel = lazy(() => import('@/components/admin/workforce/CommandCenterPanel').then(m => ({ default: m.CommandCenterPanel })));
 const PredictionControlPanel = lazy(() => import('@/pages/PredictionControlPanel'));
 const CronControl = lazy(() => import('@/components/admin/CronControl').then(m => ({ default: m.CronControl })));
+const OperationsCenter = lazy(() => import('@/components/admin/OperationsCenter'));
 
 // ── Suspense fallback with proper skeleton ──────────────────
 const TabFallback = () => <div className="py-8"><AdminSkeleton variant="table" /></div>;
@@ -244,6 +245,7 @@ export const AdminPanel = ({
                 {activeTab === 'document-studio' && <Suspense fallback={<TabFallback />}><DocumentStudio /></Suspense>}
                 {activeTab === 'prediction-control' && <Suspense fallback={<TabFallback />}><PredictionControlPanel /></Suspense>}
                 {activeTab === 'cron-control' && <Suspense fallback={<TabFallback />}><CronControl /></Suspense>}
+                {activeTab === 'operations' && <Suspense fallback={<TabFallback />}><OperationsCenter /></Suspense>}
               </ErrorBoundary>
             </div>
           </div>

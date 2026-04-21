@@ -17,21 +17,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Any
-from core.auth_new import get_current_user, get_user_id
+from core.auth_new import get_user_id
+from core.security import require_admin_user
 
 router = APIRouter(prefix="/admin/fn", tags=["admin-fn"])
 log = logging.getLogger("ayn.admin_fn")
 
 
-def _require_admin(user: dict):
-    if not user.get("is_admin") and not user.get("email", "").endswith("@aynn.io"):
-        raise HTTPException(403, "Admin access required")
-
 
 # ── admin-pin-alert ────────────────────────────────────────────────────────────
 
 @router.post("/admin-pin-alert")
-async def admin_pin_alert(request: Request, user: dict = Depends(get_current_user)):
+async def admin_pin_alert(request: Request, user: dict = Depends(require_admin_user)):
     """Send security alert email when PIN is entered incorrectly 3 times."""
     try:
         import httpx
@@ -94,9 +91,8 @@ class ContractPdfRequest(BaseModel):
     orderId: str
 
 @router.post("/generate-contract-pdf")
-async def generate_contract_pdf(req: ContractPdfRequest, user: dict = Depends(get_current_user)):
+async def generate_contract_pdf(req: ContractPdfRequest, user: dict = Depends(require_admin_user)):
     """Generate contract HTML for PDF rendering. Replaces generate-contract-pdf edge function."""
-    _require_admin(user)
     try:
         from core.database import fetchrow as _fetchrow
         row = await _fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", req.orderId)
@@ -205,9 +201,8 @@ class ContractEmailRequest(BaseModel):
 
 @router.post("/send-contract-email")
 @router.post("/send-contract-pdf")
-async def send_contract_email(req: ContractEmailRequest, user: dict = Depends(get_current_user)):
+async def send_contract_email(req: ContractEmailRequest, user: dict = Depends(require_admin_user)):
     """Send contract email to client. Replaces send-contract-email + send-contract-pdf."""
-    _require_admin(user)
     try:
         from core.database import fetchrow as _fetchrow
         row = await _fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", req.orderId)
@@ -251,13 +246,12 @@ class DevAgentRequest(BaseModel):
     skills: str = ""
 
 @router.post("/ayn-dev-agent")
-async def ayn_dev_agent(req: DevAgentRequest, user: dict = Depends(get_current_user)):
+async def ayn_dev_agent(req: DevAgentRequest, user: dict = Depends(require_admin_user)):
     """
     AI dev agent with GitHub tools. Replaces ayn-dev-agent edge function.
     Returns streaming SSE response.
     """
-    _require_admin(user)
-
+    
     if not req.github_token:
         raise HTTPException(400, "github_token required")
 
@@ -361,9 +355,8 @@ class CommandCenterRequest(BaseModel):
     context: Any = None
 
 @router.post("/admin-command-center")
-async def admin_command_center(req: CommandCenterRequest, user: dict = Depends(get_current_user)):
+async def admin_command_center(req: CommandCenterRequest, user: dict = Depends(require_admin_user)):
     """Admin command center AI. Replaces admin-command-center edge function."""
-    _require_admin(user)
     from core.llm import gemini
     try:
         result = await gemini(
@@ -539,7 +532,7 @@ async def run_intelligence_migration(request: Request):
 
 
 @router.post("/run-migrations")
-async def force_run_migrations(user: dict = Depends(get_current_user)):
+async def force_run_migrations(user: dict = Depends(require_admin_user)):
     """Force run pending database migrations. Safe to call multiple times."""
     try:
         import asyncio

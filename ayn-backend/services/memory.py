@@ -2,8 +2,8 @@
 services/memory.py — port of supabase/functions/ayn-unified/memoryHandler.ts
 """
 import re
-import asyncio
-from core.db import get_db
+import json
+from core.database import execute
 
 
 async def extract_and_save_memories(user_id: str, response_text: str) -> None:
@@ -18,7 +18,6 @@ async def extract_and_save_memories(user_id: str, response_text: str) -> None:
     if not memories:
         return
 
-    db = get_db()
     for memory in memories:
         try:
             # Parse [MEMORY:type/key=value] format
@@ -40,18 +39,12 @@ async def extract_and_save_memories(user_id: str, response_text: str) -> None:
                 memory_key = '_'.join(memory.split()[:3]).lower().replace('=', '_')
                 value = memory
 
-            await asyncio.to_thread(
-                lambda mt=memory_type, mk=memory_key, v=value: db.table("user_memory").upsert(
-                    {
-                        "user_id": user_id,
-                        "memory_type": mt,
-                        "memory_key": mk,
-                        "memory_data": {"value": v},
-                        "updated_at": "now()",
-                    },
-                    on_conflict="user_id,memory_type,memory_key"
-                ).execute()
-            )
+            await execute("""
+                INSERT INTO user_memory (user_id, memory_type, memory_key, memory_data, updated_at)
+                VALUES ($1::uuid, $2, $3, $4::jsonb, NOW())
+                ON CONFLICT (user_id, memory_type, memory_key)
+                DO UPDATE SET memory_data = EXCLUDED.memory_data, updated_at = NOW()
+            """, user_id, memory_type, memory_key, json.dumps({"value": value}))
         except Exception as e:
             print(f"[memory] save failed: {e}")
 

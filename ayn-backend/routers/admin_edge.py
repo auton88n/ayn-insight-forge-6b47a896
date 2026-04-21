@@ -18,25 +18,12 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional, List
-from core.auth_new import get_current_user
 from core.database import fetch, fetchrow, fetchval, execute
+from core.security import require_admin_user
 from core.llm import lovable, gemini
 
 router = APIRouter(prefix="/admin/edge", tags=["admin-edge"])
 log = logging.getLogger("ayn.admin_edge")
-
-
-async def require_admin(current_user: dict = Depends(get_current_user)):
-    if current_user.get("is_admin") or current_user.get("user_id") == "internal":
-        return current_user
-    try:
-        row = await fetchrow("SELECT is_admin FROM users WHERE id=$1::uuid",
-                             current_user["user_id"])
-        if row and row["is_admin"]:
-            return current_user
-    except Exception:
-        pass
-    raise HTTPException(403, "Admin access required")
 
 
 # ── Admin AI Assistant ────────────────────────────────────────────────────────
@@ -50,7 +37,7 @@ class AdminAIRequest(BaseModel):
 
 @router.post("/admin-ai-assistant")
 async def admin_ai_assistant(req: AdminAIRequest,
-                              admin: dict = Depends(require_admin)):
+                              admin: dict = Depends(require_admin_user)):
     """Full admin AI assistant with system context gathering."""
     try:
         # Contract/NDA builder mode
@@ -174,7 +161,7 @@ Ask 2-3 questions at a time. When ready, output JSON in <NDA_DATA> tags."""
 
 # ── Contract PDF Generation ───────────────────────────────────────────────────
 @router.post("/generate-contract-pdf")
-async def generate_contract_pdf(body: dict, admin: dict = Depends(require_admin)):
+async def generate_contract_pdf(body: dict, admin: dict = Depends(require_admin_user)):
     """Generate contract HTML. Same as admin_fn.py version but under edge prefix."""
     order_id = body.get("orderId")
     if not order_id:
@@ -188,7 +175,7 @@ async def generate_contract_pdf(body: dict, admin: dict = Depends(require_admin)
 
 @router.post("/send-contract-email")
 @router.post("/send-contract-pdf")
-async def send_contract_email(body: dict, admin: dict = Depends(require_admin)):
+async def send_contract_email(body: dict, admin: dict = Depends(require_admin_user)):
     """Send contract email to client."""
     order_id = body.get("orderId")
     row = await fetchrow("SELECT * FROM custom_orders WHERE id=$1::uuid", order_id)
@@ -196,12 +183,12 @@ async def send_contract_email(body: dict, admin: dict = Depends(require_admin)):
         raise HTTPException(404, "Order not found")
     order = dict(row)
     from services.email import send_email
+    from services.email_queue import enqueue_email
     import asyncio
-    asyncio.create_task(send_email(
-        order.get("client_email", ""),
-        "contract",
-        {"order": order, "html": _build_contract_html(order)}
-    ))
+    payload = {"order": order, "html": _build_contract_html(order)}
+    queued = await enqueue_email(order.get("client_email", ""), "contract", payload)
+    if not queued:
+        asyncio.create_task(send_email(order.get("client_email", ""), "contract", payload))
     return {"success": True}
 
 
@@ -225,20 +212,24 @@ def _build_contract_html(order: dict) -> str:
 
 # ── NDA Emails ────────────────────────────────────────────────────────────────
 @router.post("/send-nda-email")
-async def send_nda_email(body: dict, admin: dict = Depends(require_admin)):
+async def send_nda_email(body: dict, admin: dict = Depends(require_admin_user)):
     nda_id = body.get("ndaId") or body.get("nda_id")
     row = await fetchrow("SELECT * FROM nda_agreements WHERE id=$1::uuid", nda_id)
     if not row:
         raise HTTPException(404, "NDA not found")
     nda = dict(row)
     from services.email import send_email
+    from services.email_queue import enqueue_email
     import asyncio
-    asyncio.create_task(send_email(nda.get("company_email", ""), "nda", {"nda": nda}))
+    payload = {"nda": nda}
+    queued = await enqueue_email(nda.get("company_email", ""), "nda", payload)
+    if not queued:
+        asyncio.create_task(send_email(nda.get("company_email", ""), "nda", payload))
     return {"success": True}
 
 
 @router.post("/send-nda-completion")
-async def send_nda_completion(body: dict, admin: dict = Depends(require_admin)):
+async def send_nda_completion(body: dict, admin: dict = Depends(require_admin_user)):
     nda_id = body.get("ndaId") or body.get("nda_id")
     row = await fetchrow("SELECT * FROM nda_agreements WHERE id=$1::uuid", nda_id)
     if not row:
@@ -246,8 +237,12 @@ async def send_nda_completion(body: dict, admin: dict = Depends(require_admin)):
     nda = dict(row)
     await execute("UPDATE nda_agreements SET status='signed' WHERE id=$1::uuid", nda_id)
     from services.email import send_email
+    from services.email_queue import enqueue_email
     import asyncio
-    asyncio.create_task(send_email(nda.get("company_email", ""), "nda_signed", {"nda": nda}))
+    payload = {"nda": nda}
+    queued = await enqueue_email(nda.get("company_email", ""), "nda_signed", payload)
+    if not queued:
+        asyncio.create_task(send_email(nda.get("company_email", ""), "nda_signed", payload))
     return {"success": True}
 
 
@@ -260,7 +255,7 @@ class DocumentRequest(BaseModel):
 
 @router.post("/generate-business-document")
 async def generate_business_document(req: DocumentRequest,
-                                      admin: dict = Depends(require_admin)):
+                                      admin: dict = Depends(require_admin_user)):
     """Generate any business document via AI."""
     prompt = f"""You are AYN's document specialist. Generate a professional {req.type} document.
 Data: {json.dumps(req.data, indent=2)}
@@ -280,7 +275,7 @@ class EngineeringChatRequest(BaseModel):
 
 @router.post("/engineering-ai-chat")
 async def engineering_ai_chat(req: EngineeringChatRequest,
-                               user: dict = Depends(get_current_user)):
+                               user: dict = Depends(require_admin_user)):
     """Engineering AI chat assistant."""
     system = """You are AYN's engineering AI assistant. You specialize in:
 - Structural and civil engineering calculations
@@ -306,7 +301,7 @@ class TestRequest(BaseModel):
 
 
 @router.post("/ai-bug-hunter")
-async def ai_bug_hunter(req: TestRequest, admin: dict = Depends(require_admin)):
+async def ai_bug_hunter(req: TestRequest, admin: dict = Depends(require_admin_user)):
     """AI bug hunting test runner."""
     prompt = f"""You are an expert QA engineer. Analyze the AYN platform for bugs and issues.
 Test type: {req.test_type}
@@ -328,7 +323,7 @@ Format as JSON: {{"bugs": [], "severity": "low|medium|high", "summary": ""}}"""
 
 
 @router.post("/ai-ayn-evaluator")
-async def ai_ayn_evaluator(req: TestRequest, admin: dict = Depends(require_admin)):
+async def ai_ayn_evaluator(req: TestRequest, admin: dict = Depends(require_admin_user)):
     """Evaluate AYN AI response quality."""
     prompt = f"""Evaluate AYN AI's response quality and accuracy.
 Context: {json.dumps(req.context)}
@@ -349,7 +344,7 @@ Return JSON: {{"scores": {{}}, "overall": 0, "feedback": ""}}"""
 
 
 @router.post("/ai-conversation-evaluator")
-async def ai_conversation_evaluator(req: TestRequest, admin: dict = Depends(require_admin)):
+async def ai_conversation_evaluator(req: TestRequest, admin: dict = Depends(require_admin_user)):
     """Evaluate conversation quality."""
     prompt = f"""Evaluate this conversation for quality.
 Context: {json.dumps(req.context)}
@@ -369,7 +364,7 @@ Return JSON: {{"quality_score": 0, "issues": [], "strengths": [], "recommendatio
 
 # ── Admin Command Center ──────────────────────────────────────────────────────
 @router.post("/admin-command-center")
-async def admin_command_center(body: dict, admin: dict = Depends(require_admin)):
+async def admin_command_center(body: dict, admin: dict = Depends(require_admin_user)):
     """Admin command center — execute admin commands via AI."""
     command = body.get("command", "")
     context = body.get("context", {})

@@ -18,11 +18,13 @@ from pydantic import BaseModel
 
 from core.database import fetch, fetchrow, execute, fetchval
 from services.email import send_email
+from services.email_queue import enqueue_email
 from core.auth_new import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, verify_access_token,
     get_current_user, get_user_id
 )
+from core.security import require_internal_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 log = logging.getLogger("ayn.auth")
@@ -100,7 +102,9 @@ async def register(req: RegisterRequest):
     log.info(f"[auth] Registered: {req.email}")
     # Send welcome email (fire and forget)
     import asyncio
-    asyncio.create_task(send_email(req.email.lower(), "welcome", {"userName": req.first_name or req.email.split("@")[0]}))
+    queued = await enqueue_email(req.email.lower(), "welcome", {"userName": req.first_name or req.email.split("@")[0]})
+    if not queued:
+        asyncio.create_task(send_email(req.email.lower(), "welcome", {"userName": req.first_name or req.email.split("@")[0]}))
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -239,10 +243,13 @@ async def forgot_password(req: ForgotPasswordRequest):
         """, user["id"], reset_token, expire)
         reset_url = f"https://aynn.io/reset-password?token={reset_token}"
         import asyncio
-        asyncio.create_task(send_email(req.email.lower(), "password_reset", {
+        payload = {
             "userName": user.get("first_name") or req.email.split("@")[0],
             "resetUrl": reset_url,
-        }))
+        }
+        queued = await enqueue_email(req.email.lower(), "password_reset", payload)
+        if not queued:
+            asyncio.create_task(send_email(req.email.lower(), "password_reset", payload))
         log.info(f"[auth] Password reset email sent: {req.email}")
     return {"ok": True, "message": "If that email exists, a reset link has been sent"}
 
@@ -291,7 +298,7 @@ class MigrateRequest(BaseModel):
     last_name: str = ""
 
 @router.post("/migrate")
-async def migrate_user(req: MigrateRequest):
+async def migrate_user(req: MigrateRequest, _: str = Depends(require_internal_service)):
     """Auto-migrate a Supabase user into Railway DB (no password needed).
     Called when existing users first hit the new system."""
     existing = await fetchval("SELECT id FROM users WHERE id = $1::uuid OR email = $2", req.user_id, req.email.lower())

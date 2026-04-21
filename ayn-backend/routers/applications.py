@@ -38,10 +38,12 @@ async def submit_application(req: ApplicationRequest,
             req.phone, req.message, json.dumps(req.custom_fields))
 
         from services.email import send_email
+        from services.email_queue import enqueue_email
         import asyncio
-        asyncio.create_task(send_email(req.email, "application_received", {
-            "userName": req.full_name, "service": req.service_type
-        }))
+        payload = {"userName": req.full_name, "service": req.service_type}
+        queued = await enqueue_email(req.email, "application_received", payload)
+        if not queued:
+            asyncio.create_task(send_email(req.email, "application_received", payload))
         return {"ok": True, "id": str(row["id"]) if row else None}
     except Exception as e:
         log.error(f"[applications] submit error: {e}")

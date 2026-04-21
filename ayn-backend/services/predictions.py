@@ -3,8 +3,9 @@ services/predictions.py — prediction engine and resolver
 Replaces: ayn-prediction-engine, ayn-prediction-resolver, ayn-resolution-judge
 """
 import logging
+import json
 from datetime import datetime, timezone
-from core.db import get_db
+from core.database import fetchrow, fetch, execute
 from core.llm import gemini_json
 
 log = logging.getLogger("ayn.predictions")
@@ -35,13 +36,12 @@ async def run_prediction_engine():
     log.info("🔮 Prediction engine starting...")
     try:
         import yfinance as yf
-        db = get_db()
 
         # Get market snapshot for context
-        snap = db.table("ayn_market_snapshot").select("snapshot").eq("singleton_key", 1).maybe_single().execute()
+        snap = await fetchrow("SELECT snapshot FROM ayn_market_snapshot WHERE singleton_key = 1")
         macro_ctx = ""
-        if snap.data:
-            snap_data = snap.data.get("snapshot", {})
+        if snap:
+            snap_data = snap.get("snapshot", {}) or {}
             macro = snap_data.get("macro", {})
             macro_ctx = f"Fed Rate: {macro.get('fed_funds_rate', {}).get('value', 'N/A')}%, " \
                         f"Inflation: {macro.get('inflation_cpi', {}).get('value', 'N/A')}%, " \
@@ -87,22 +87,27 @@ Return JSON:
                     pct = float(parsed.get("predicted_pct_change", 0))
                     predicted = baseline * (1 + pct / 100)
 
-                    db.table("ayn_predictions").insert({
-                        "asset": asset_cfg["asset"],
-                        "horizon": horizon_cfg["horizon"],
-                        "baseline_value": baseline,
-                        "predicted_value": round(predicted, 2),
-                        "predicted_low": round(predicted * 0.97, 2),
-                        "predicted_high": round(predicted * 1.03, 2),
-                        "predicted_direction": direction,
-                        "predicted_pct_change": pct,
-                        "confidence": parsed.get("confidence", 65),
-                        "reasoning": parsed.get("reasoning", ""),
-                        "status": "active",
-                        "generated_by": "python_prediction_engine_v1",
-                        "created_at": now,
-                        "target_date": now,  # approximate
-                    }).execute()
+                    await execute("""
+                        INSERT INTO ayn_predictions
+                            (asset, horizon, baseline_value, predicted_value, predicted_low, predicted_high,
+                             predicted_direction, predicted_pct_change, confidence, reasoning, status,
+                             generated_by, created_at, target_date)
+                        VALUES
+                            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', 'python_prediction_engine_v1', $11::timestamptz, $12::timestamptz)
+                    """,
+                        asset_cfg["asset"],
+                        horizon_cfg["horizon"],
+                        baseline,
+                        round(predicted, 2),
+                        round(predicted * 0.97, 2),
+                        round(predicted * 1.03, 2),
+                        direction,
+                        pct,
+                        parsed.get("confidence", 65),
+                        parsed.get("reasoning", ""),
+                        now,
+                        now,
+                    )
                     count += 1
 
             except Exception as e:
@@ -122,20 +127,14 @@ async def run_prediction_resolver():
     log.info("⚖️ Prediction resolver running...")
     try:
         import yfinance as yf
-        db = get_db()
 
         # Get active predictions older than their horizon
-        preds = (db.table("ayn_predictions")
-                 .select("*")
-                 .eq("status", "active")
-                 .limit(50)
-                 .execute())
-
-        if not preds.data:
+        preds = await fetch("SELECT * FROM ayn_predictions WHERE status='active' ORDER BY created_at ASC LIMIT 50")
+        if not preds:
             return
 
         resolved = 0
-        for pred in preds.data:
+        for pred in preds:
             try:
                 asset = pred.get("asset")
                 asset_map = {a["asset"]: a["symbol"] for a in ASSETS}
@@ -154,13 +153,21 @@ async def run_prediction_resolver():
                 actual_direction = "up" if actual_pct > 1 else "down" if actual_pct < -1 else "sideways"
                 correct = predicted_direction == actual_direction
 
-                db.table("ayn_predictions").update({
-                    "status": "resolved",
-                    "actual_value": round(current, 2),
-                    "actual_pct_change": round(actual_pct, 2),
-                    "was_correct": correct,
-                    "resolved_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", pred["id"]).execute()
+                await execute("""
+                    UPDATE ayn_predictions
+                       SET status = 'resolved',
+                           actual_value = $2,
+                           actual_pct_change = $3,
+                           was_correct = $4,
+                           resolved_at = $5::timestamptz
+                     WHERE id = $1::uuid
+                """,
+                    pred["id"],
+                    round(current, 2),
+                    round(actual_pct, 2),
+                    correct,
+                    datetime.now(timezone.utc).isoformat(),
+                )
                 resolved += 1
 
             except Exception:

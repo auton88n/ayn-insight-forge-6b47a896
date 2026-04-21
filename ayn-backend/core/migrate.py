@@ -4,67 +4,69 @@ Reads all SQL files from migrations/ and applies them if not already applied
 """
 import os
 import logging
-import asyncpg
-
 log = logging.getLogger("ayn.migrate")
 
 MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
 
 
-async def run_migrations(pool):
-    """Run all pending migrations in order."""
+MIGRATION_LOCK_KEY = 82411821
+
+
+async def run_migrations(pool, *, use_advisory_lock: bool = True, fail_if_locked: bool = False):
+    """Run all pending migrations in order.
+
+    Advisory lock prevents concurrent migration runners across multiple instances.
+    """
     async with pool.acquire() as conn:
+        lock_acquired = True
+        if use_advisory_lock:
+            lock_acquired = bool(await conn.fetchval("SELECT pg_try_advisory_lock($1)", MIGRATION_LOCK_KEY))
+            if not lock_acquired:
+                msg = "Another instance is already running migrations"
+                if fail_if_locked:
+                    raise RuntimeError(msg)
+                log.warning(f"[migrate] {msg}; skipping on this process")
+                return
+
         # Create migrations tracking table
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS _migrations (
-                id SERIAL PRIMARY KEY,
-                name TEXT UNIQUE NOT NULL,
-                applied_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS _migrations (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    applied_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
 
-        # Get list of already-applied migrations
-        applied = set(r["name"] for r in await conn.fetch("SELECT name FROM _migrations"))
+            # Get list of already-applied migrations
+            applied = set(r["name"] for r in await conn.fetch("SELECT name FROM _migrations"))
 
-        # Get SQL files in order
-        if not os.path.exists(MIGRATIONS_DIR):
-            log.warning(f"Migrations dir not found: {MIGRATIONS_DIR}")
-            return
+            # Get SQL files in order
+            if not os.path.exists(MIGRATIONS_DIR):
+                log.warning(f"Migrations dir not found: {MIGRATIONS_DIR}")
+                return
 
-        files = sorted([f for f in os.listdir(MIGRATIONS_DIR) if f.endswith(".sql")])
+            files = sorted([f for f in os.listdir(MIGRATIONS_DIR) if f.endswith(".sql")])
 
-        for filename in files:
-            if filename in applied:
-                log.info(f"[migrate] ✓ {filename} (already applied)")
-                continue
+            for filename in files:
+                if filename in applied:
+                    log.info(f"[migrate] ✓ {filename} (already applied)")
+                    continue
 
-            filepath = os.path.join(MIGRATIONS_DIR, filename)
-            with open(filepath, "r") as f:
-                sql = f.read()
+                filepath = os.path.join(MIGRATIONS_DIR, filename)
+                with open(filepath, "r") as f:
+                    sql = f.read()
 
-            try:
-                # Split into individual statements and execute each one
-                # This prevents one bad statement from failing the whole migration
-                import re as _re
-                statements = [s.strip() for s in _re.split(r';\s*\n', sql) if s.strip() and not s.strip().startswith('--')]
-                errors = []
-                for stmt in statements:
-                    if not stmt.strip():
-                        continue
-                    try:
-                        await conn.execute(stmt)
-                    except Exception as stmt_err:
-                        err_msg = str(stmt_err)
-                        # Ignore "already exists" errors - idempotent
-                        if "already exists" not in err_msg and "duplicate" not in err_msg.lower():
-                            errors.append(f"{stmt[:50]}: {err_msg[:80]}")
-                if errors:
-                    log.warning(f"[migrate] ⚠️  {filename} had {len(errors)} errors (non-fatal):")
-                    for e in errors[:5]:
-                        log.warning(f"  - {e}")
-                await conn.execute("INSERT INTO _migrations (name) VALUES ($1)", filename)
-                log.info(f"[migrate] ✅ Applied {filename} ({len(statements)} statements)")
-            except Exception as e:
-                log.error(f"[migrate] ❌ Failed {filename}: {e}")
+                try:
+                    async with conn.transaction():
+                        await conn.execute(sql)
+                        await conn.execute("INSERT INTO _migrations (name) VALUES ($1)", filename)
+                    log.info(f"[migrate] ✅ Applied {filename}")
+                except Exception as e:
+                    log.error(f"[migrate] ❌ Failed {filename}: {e}")
+                    raise
 
-        log.info("[migrate] ✅ All migrations complete")
+            log.info("[migrate] ✅ All migrations complete")
+        finally:
+            if use_advisory_lock and lock_acquired:
+                await conn.execute("SELECT pg_advisory_unlock($1)", MIGRATION_LOCK_KEY)
