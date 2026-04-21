@@ -267,7 +267,7 @@ class EngineeringChatRequest(BaseModel):
 
 @router.post("/engineering-ai-chat")
 async def engineering_ai_chat(req: EngineeringChatRequest,
-                               user: dict = Depends(get_current_user)):
+                               user: dict = Depends(require_admin_user)):
     """Engineering AI chat assistant."""
     system = """You are AYN's engineering AI assistant. You specialize in:
 - Structural and civil engineering calculations
