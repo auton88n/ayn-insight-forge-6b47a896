@@ -4,7 +4,6 @@ Replaces: supabase.channel().on('postgres_changes') realtime subscriptions
 """
 import logging
 import asyncio
-import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from core.auth_new import verify_access_token
 from core.database import fetchval
@@ -16,11 +15,17 @@ log = logging.getLogger("ayn.realtime")
 admin_connections: list[WebSocket] = []
 chat_connections: dict[str, list[WebSocket]] = {}
 prediction_connections: list[WebSocket] = []
+_predictions_broadcaster_task: asyncio.Task | None = None
 
 
 async def _auth_ws(websocket: WebSocket) -> str | None:
     """Authenticate a WebSocket connection via query param or first message."""
-    token = websocket.query_params.get("token")
+    auth_header = websocket.headers.get("authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header.removeprefix("Bearer ").strip()
+    if not token:
+        token = websocket.query_params.get("token")
     if token:
         try:
             payload = verify_access_token(token)
@@ -31,12 +36,51 @@ async def _auth_ws(websocket: WebSocket) -> str | None:
     return "anonymous"
 
 
+async def _predictions_broadcaster():
+    """Single broadcaster loop to avoid one DB polling loop per connection."""
+    global _predictions_broadcaster_task
+    try:
+        while prediction_connections:
+            try:
+                count = await fetchval(
+                    "SELECT COUNT(*) FROM ayn_world_predictions WHERE status='active'"
+                )
+                payload = {"type": "predictions_update", "count": count or 0}
+                dead = []
+                for ws in prediction_connections:
+                    try:
+                        await ws.send_json(payload)
+                    except Exception:
+                        dead.append(ws)
+                for ws in dead:
+                    if ws in prediction_connections:
+                        prediction_connections.remove(ws)
+            except Exception:
+                pass
+            await asyncio.sleep(60)
+    finally:
+        _predictions_broadcaster_task = None
+
+
+async def _is_admin(user_id: str) -> bool:
+    if user_id in ("anonymous", "internal"):
+        return False
+    try:
+        flag = await fetchval("SELECT is_admin FROM users WHERE id = $1::uuid", user_id)
+        return bool(flag)
+    except Exception:
+        return False
+
+
 @router.websocket("/admin")
 async def ws_admin(websocket: WebSocket):
     """Admin real-time updates. Replaces supabase.channel('admin')."""
     await websocket.accept()
     user_id = await _auth_ws(websocket)
     if not user_id:
+        return
+    if not await _is_admin(user_id):
+        await websocket.close(code=1008)
         return
     admin_connections.append(websocket)
     log.info(f"[ws] Admin connected: {user_id[:8]}")
@@ -84,19 +128,12 @@ async def ws_predictions(websocket: WebSocket):
     if not user_id:
         return
     prediction_connections.append(websocket)
+    global _predictions_broadcaster_task
+    if _predictions_broadcaster_task is None:
+        _predictions_broadcaster_task = asyncio.create_task(_predictions_broadcaster())
     try:
         while True:
-            await asyncio.sleep(60)
-            # Send latest predictions count
-            try:
-                count = await fetchval(
-                    "SELECT COUNT(*) FROM ayn_world_predictions WHERE status='active'")
-                await websocket.send_json({
-                    "type": "predictions_update",
-                    "count": count or 0
-                })
-            except Exception:
-                pass
+            await websocket.receive_text()
     except WebSocketDisconnect:
         if websocket in prediction_connections:
             prediction_connections.remove(websocket)

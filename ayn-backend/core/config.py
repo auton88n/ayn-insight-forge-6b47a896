@@ -16,7 +16,7 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 GEMINI_MODEL    = os.getenv("LLM_MODEL", "gemini-2.0-flash")
 
 # Lovable proxy — calls ayn-ai-proxy edge fn (LOVABLE_API_KEY stays in Supabase)
-PROXY_SECRET = os.getenv("AYN_PROXY_SECRET", "ayn-proxy-2024")
+PROXY_SECRET = os.getenv("AYN_PROXY_SECRET", "")
 PROXY_URL    = f"{SUPABASE_URL}/functions/v1/ayn-ai-proxy" if SUPABASE_URL else ""
 
 # Lovable model IDs (same as llmGateway.ts)

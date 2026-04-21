@@ -21,7 +21,9 @@ async function req<T = any>(method: string, path: string, body?: object): Promis
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || err.error || `${res.status}`);
   }
-  return res.json();
+  if (res.status === 204) return null as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
 }
 
 export const spineApi = {
@@ -29,7 +31,7 @@ export const spineApi = {
   getMe:        () => req<any>('GET', '/auth/me'),
   getLimits:    () => req<any>('GET', '/user/limits'),
   getProfile:   () => req<any>('GET', '/user/profile'),
-  updateProfile:(profile: object) => req('POST', '/user/profile', profile),
+  updateProfile:(profile: object) => req('PUT', '/user/profile', profile),
   acceptTerms:  (d: any) => req('POST', '/user/terms', d),
 
   // ── Memory ─────────────────────────────────────────────────────────────────

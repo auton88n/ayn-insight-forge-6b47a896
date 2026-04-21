@@ -8,8 +8,9 @@ Usage anywhere in the backend:
 import traceback
 import asyncio
 import logging
+import json
 from typing import Optional
-from core.db import get_db
+from core.database import execute
 
 log = logging.getLogger("ayn.errors")
 
@@ -25,21 +26,24 @@ async def log_error(
 ):
     """Log an error to Supabase error_logs table. Fire and forget."""
     try:
-        db = get_db()
         stack = traceback.format_exc() if error else None
         if stack and stack.strip() == "NoneType: None":
             stack = None
 
-        db.table("error_logs").insert({
-            "source": source,
-            "severity": severity,
-            "error_message": str(message)[:2000],
-            "error_stack": stack[:5000] if stack else None,
-            "endpoint": endpoint,
-            "context": context or {},
-            "user_id": user_id if user_id and user_id != "internal" else None,
-            "status": "open",
-        }).execute()
+        await execute("""
+            INSERT INTO error_logs
+                (source, severity, error_message, error_stack, endpoint, context, user_id, status, created_at)
+            VALUES
+                ($1, $2, $3, $4, $5, $6::jsonb, $7::uuid, 'open', NOW())
+        """,
+            source,
+            severity,
+            str(message)[:2000],
+            stack[:5000] if stack else None,
+            endpoint,
+            json.dumps(context or {}),
+            user_id if user_id and user_id != "internal" else None,
+        )
     except Exception as e:
         log.warning(f"[error_logger] Failed to log error: {e}")
 

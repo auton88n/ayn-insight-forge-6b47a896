@@ -4,27 +4,17 @@ routers/admin_routes.py — admin API (fully Railway Postgres, no Supabase)
 import hashlib
 import logging
 import json
+import os
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from core.auth_new import get_user_id, get_current_user
+from core.auth_new import get_user_id
+from core.security import require_admin_user
 from core.database import fetchrow, fetchval, execute, fetch
 from core.llm import gemini
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger("ayn.admin")
-
-
-async def require_admin(current_user: dict = Depends(get_current_user)):
-    if current_user.get("is_admin") or current_user.get("user_id") == "internal":
-        return current_user
-    try:
-        row = await fetchrow("SELECT is_admin FROM users WHERE id=$1::uuid", current_user["user_id"])
-        if row and row["is_admin"]:
-            return current_user
-    except Exception:
-        pass
-    raise HTTPException(403, "Admin access required")
 
 
 class PinRequest(BaseModel):
@@ -61,25 +51,31 @@ def _hash_pin(pin: str) -> str:
 
 # ── PIN ───────────────────────────────────────────────────────────────────────
 @router.post("/verify-pin")
-async def verify_admin_pin(req: PinRequest, user: dict = Depends(get_current_user)):
+async def verify_admin_pin(req: PinRequest, user: dict = Depends(require_admin_user)):
     try:
         record = await fetchrow(
             "SELECT value FROM app_settings WHERE key='admin_pin' LIMIT 1")
         stored = (record["value"] if record else "") or ""
         if not stored:
+            if os.getenv("APP_ENV", "development").lower() == "production":
+                raise HTTPException(503, "Admin PIN not initialized")
             valid = req.pin == "1234"
         else:
             valid = stored == _hash_pin(req.pin)
         return {"valid": valid, "success": valid, "lockoutRemaining": 0}
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"[admin] verify pin: {e}")
         raise HTTPException(500, str(e))
 
 
 @router.post("/set-pin")
-async def set_admin_pin(req: SetPinRequest, user_id: str = Depends(get_user_id)):
+async def set_admin_pin(req: SetPinRequest, user: dict = Depends(require_admin_user)):
     record = await fetchrow("SELECT value FROM app_settings WHERE key='admin_pin' LIMIT 1")
     stored = (record["value"] if record else "") or ""
+    if not stored and os.getenv("APP_ENV", "development").lower() == "production":
+        raise HTTPException(503, "Admin PIN not initialized")
     current_valid = (not stored and req.pin == "1234") or \
                     (stored and stored == _hash_pin(req.pin))
     if not current_valid:
@@ -95,7 +91,7 @@ async def set_admin_pin(req: SetPinRequest, user_id: str = Depends(get_user_id))
 
 # ── Credits / Users ───────────────────────────────────────────────────────────
 @router.post("/add-credits")
-async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_admin)):
+async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_admin_user)):
     await execute(
         "UPDATE user_ai_limits SET bonus_credits=COALESCE(bonus_credits,0)+$2, updated_at=NOW() "
         "WHERE user_id=$1::uuid", req.user_id, req.credits)
@@ -105,7 +101,7 @@ async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_adm
 
 
 @router.post("/unblock-user")
-async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_admin)):
+async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_admin_user)):
     await execute(
         "UPDATE user_sessions SET expires_at=NOW()-INTERVAL '1 second' WHERE user_id=$1::uuid",
         req.user_id)
@@ -113,7 +109,7 @@ async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_adm
 
 
 @router.get("/users")
-async def get_admin_users(user: dict = Depends(require_admin)):
+async def get_admin_users(user: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT u.id, u.email, u.first_name, u.last_name, u.created_at, u.is_admin,
                s.subscription_tier, s.status,
@@ -127,7 +123,7 @@ async def get_admin_users(user: dict = Depends(require_admin)):
 
 
 @router.get("/user-messages")
-async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(require_admin)):
+async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT id,content,role,created_at FROM messages "
         "WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT $2",
@@ -137,27 +133,27 @@ async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(
 
 # ── Support / Orders ──────────────────────────────────────────────────────────
 @router.get("/tickets")
-async def get_support_tickets(limit: int = 200, offset: int = 0, user: dict = Depends(require_admin)):
+async def get_support_tickets(limit: int = 200, offset: int = 0, user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM support_tickets ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)
     return {"tickets": [dict(r) for r in rows]}
 
 
 @router.get("/contact-messages")
-async def get_contact_messages(limit: int = 200, user: dict = Depends(require_admin)):
+async def get_contact_messages(limit: int = 200, user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT $1", limit)
     return {"messages": [dict(r) for r in rows]}
 
 
 @router.get("/orders")
-async def get_custom_orders(user: dict = Depends(require_admin)):
+async def get_custom_orders(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM custom_orders ORDER BY created_at DESC")
     return {"orders": [dict(r) for r in rows]}
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 @router.get("/stats")
-async def get_admin_stats(user: dict = Depends(require_admin)):
+async def get_admin_stats(user: dict = Depends(require_admin_user)):
     return {
         "total_users": await fetchval("SELECT COUNT(*) FROM users") or 0,
         "active_sessions": await fetchval(
@@ -169,7 +165,7 @@ async def get_admin_stats(user: dict = Depends(require_admin)):
 
 
 @router.get("/llm")
-async def get_llm_stats(user: dict = Depends(require_admin)):
+async def get_llm_stats(user: dict = Depends(require_admin_user)):
     logs = await fetch(
         "SELECT model_name,response_time_ms,was_fallback,created_at FROM llm_usage_logs "
         "ORDER BY created_at DESC LIMIT 100")
@@ -177,39 +173,39 @@ async def get_llm_stats(user: dict = Depends(require_admin)):
 
 
 @router.get("/test-results")
-async def get_test_results(user: dict = Depends(require_admin)):
+async def get_test_results(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM test_results ORDER BY created_at DESC LIMIT 50")
     return {"results": [dict(r) for r in rows]}
 
 
 @router.get("/rate-limits")
-async def get_rate_limits(user: dict = Depends(require_admin)):
+async def get_rate_limits(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM api_rate_limits ORDER BY updated_at DESC LIMIT 100")
     return {"rate_limits": [dict(r) for r in rows]}
 
 
 @router.get("/notification-log")
-async def get_notification_log(user: dict = Depends(require_admin)):
+async def get_notification_log(user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM admin_notification_log ORDER BY created_at DESC LIMIT 100")
     return {"logs": [dict(r) for r in rows]}
 
 
 @router.get("/ndas")
-async def get_ndas(user: dict = Depends(require_admin)):
+async def get_ndas(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM nda_agreements ORDER BY created_at DESC")
     return {"ndas": [dict(r) for r in rows]}
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
 @router.get("/config")
-async def get_system_config(user: dict = Depends(require_admin)):
+async def get_system_config(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM system_config")
     return {"config": [dict(r) for r in rows]}
 
 
 @router.post("/config")
-async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(require_admin)):
+async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(require_admin_user)):
     await execute(
         "INSERT INTO system_config (key,value) VALUES ($1,$2) "
         "ON CONFLICT (key) DO UPDATE SET value=$2",
@@ -219,7 +215,7 @@ async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(re
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
 @router.post("/ai-assistant")
-async def admin_ai(req: AIAssistantRequest, user: dict = Depends(require_admin)):
+async def admin_ai(req: AIAssistantRequest, user: dict = Depends(require_admin_user)):
     try:
         stats = {
             "total_users": await fetchval("SELECT COUNT(*) FROM users") or 0,
@@ -252,7 +248,7 @@ async def save_user_memory(req: MemoryRequest, user_id: str = Depends(get_user_i
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 @router.get("/analytics/summary")
-async def get_analytics_summary(days: int = 30, user: dict = Depends(require_admin)):
+async def get_analytics_summary(days: int = 30, user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM visitor_analytics ORDER BY created_at DESC LIMIT 500")
     return {"analytics": [dict(r) for r in rows], "days": days}

@@ -12,5 +12,4 @@ yfinance==0.2.50
 duckduckgo-search==6.3.7
 openai==1.57.0
 email-validator==2.1.0
-supabase==2.10.0
 python-multipart==0.0.9

@@ -23,6 +23,7 @@ from core.auth_new import (
     create_access_token, create_refresh_token, verify_access_token,
     get_current_user, get_user_id
 )
+from core.security import require_internal_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 log = logging.getLogger("ayn.auth")
@@ -291,7 +292,7 @@ class MigrateRequest(BaseModel):
     last_name: str = ""
 
 @router.post("/migrate")
-async def migrate_user(req: MigrateRequest):
+async def migrate_user(req: MigrateRequest, _: str = Depends(require_internal_service)):
     """Auto-migrate a Supabase user into Railway DB (no password needed).
     Called when existing users first hit the new system."""
     existing = await fetchval("SELECT id FROM users WHERE id = $1::uuid OR email = $2", req.user_id, req.email.lower())

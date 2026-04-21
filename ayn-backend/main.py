@@ -17,6 +17,7 @@ Endpoints:
 """
 
 import asyncio
+import os
 import logging
 from core.database import get_pool, close_pool
 from core.migrate import run_migrations
@@ -26,6 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from core.config import PORT, ALLOWED_ORIGINS
 from core.llm import check_health
+from core.rate_limit import rate_limit_middleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,9 +40,12 @@ log = logging.getLogger("ayn")
 async def lifespan(app: FastAPI):
     log.info("🚀 AYN Backend starting...")
 
-    # Start scheduler (cron jobs)
-    from core.scheduler import start_scheduler
-    start_scheduler()
+    # Start scheduler (cron jobs) only on designated worker
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() in ("1", "true", "yes"):
+        from core.scheduler import start_scheduler
+        start_scheduler()
+    else:
+        log.info("⏭️  Scheduler disabled on this instance (ENABLE_SCHEDULER=false)")
 
     # Pre-warm DB pool — creates min_size=3 connections immediately
     # This eliminates the "cold first request" latency spike
@@ -59,15 +64,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning(f"⚠️  Gemini client issue: {e}")
 
-    # Run database migrations in background (don't block startup)
-    import asyncio
-    async def run_migrations_bg():
-        try:
-            pool = await get_pool()
-            await run_migrations(pool)
-        except Exception as e:
-            log.warning(f"Migration warning: {e}")
-    asyncio.create_task(run_migrations_bg())
+    # Run database migrations before serving traffic
+    try:
+        pool = await get_pool()
+        await run_migrations(pool)
+    except Exception as e:
+        log.error(f"Migration failed: {e}")
+        raise
 
     log.info("✅ AYN Backend ready")
     yield
@@ -94,6 +97,7 @@ app.add_middleware(
 
 # Compress responses > 1KB — speeds up intelligence data transfers significantly
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.middleware("http")(rate_limit_middleware)
 
 # ── Global exception handler — log everything ────────────────────────────────
 from fastapi import Request as FastAPIRequest
@@ -119,7 +123,7 @@ async def global_error_handler(request: FastAPIRequest, exc: Exception):
         "spine-backend", f"{type(exc).__name__}: {exc}",
         error=exc, severity="error", endpoint=str(request.url.path)
     ))
-    return FJSONResponse({"error": str(exc)}, status_code=500)
+    return FJSONResponse({"error": "Internal server error"}, status_code=500)
 
 # ── Register routers ──────────────────────────────────────────────────────────
 from routers.auth import router as auth_router
@@ -151,7 +155,6 @@ from routers.admin import router as admin_router
 from routers.applications import router as applications_router
 from routers.admin_edge import router as admin_edge_router
 from routers.system import router as system_router
-from routers.system import router as system_router
 
 app.include_router(auth_router)
 app.include_router(generate_router)
@@ -181,7 +184,6 @@ app.include_router(sub_router)
 app.include_router(admin_router)
 app.include_router(applications_router)
 app.include_router(admin_edge_router)
-app.include_router(system_router)
 app.include_router(system_router)
 
 
@@ -262,13 +264,14 @@ if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
 
 
-@app.get("/chat-test")
-async def chat_test():
-    """No-auth test endpoint — confirm LLM is working."""
-    from core.llm import call_with_fallback
-    result = await call_with_fallback(
-        "chat",
-        [{"role": "user", "content": "Say hello in 5 words"}],
-        max_tokens=50,
-    )
-    return {"content": result.get("content"), "provider": result.get("provider")}
+if os.getenv("APP_ENV", "development").lower() != "production":
+    @app.get("/chat-test")
+    async def chat_test():
+        """No-auth test endpoint — only exposed outside production."""
+        from core.llm import call_with_fallback
+        result = await call_with_fallback(
+            "chat",
+            [{"role": "user", "content": "Say hello in 5 words"}],
+            max_tokens=50,
+        )
+        return {"content": result.get("content"), "provider": result.get("provider")}

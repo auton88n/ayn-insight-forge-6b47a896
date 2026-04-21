@@ -3,17 +3,39 @@ routers/payments.py — Stripe payment endpoints
 Replaces: create-checkout, customer-portal, stripe-webhook
 """
 import os
+import json
 import logging
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from core.auth_new import get_user_id
-from core.database import execute, fetchrow
+from core.security import require_admin_user
+from core.database import execute, fetchrow, fetchval
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 log = logging.getLogger("ayn.payments")
 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+
+async def _is_duplicate_webhook(event_id: str) -> bool:
+    if not event_id:
+        return False
+    row = await fetchval(
+        "SELECT COUNT(*) FROM payment_events WHERE event_type = 'webhook_processed' AND stripe_id = $1",
+        event_id,
+    )
+    return (row or 0) > 0
+
+
+async def _mark_webhook_processed(event_id: str):
+    if not event_id:
+        return
+    await execute("""
+        INSERT INTO payment_events (event_type, stripe_id, amount, currency, status, metadata, created_at)
+        VALUES ('webhook_processed', $1, 0, 'usd', 'ok', '{"source":"stripe"}'::jsonb, NOW())
+        ON CONFLICT (event_type, stripe_id) DO NOTHING
+    """, event_id)
 
 
 class CheckoutRequest(BaseModel):
@@ -83,6 +105,9 @@ async def stripe_webhook(request: Request):
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
     except Exception as e:
         raise HTTPException(400, str(e))
+    event_id = event.get("id", "")
+    if await _is_duplicate_webhook(event_id):
+        return {"ok": True, "duplicate": True}
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
@@ -104,6 +129,7 @@ async def stripe_webhook(request: Request):
             updated_at = NOW() WHERE stripe_customer_id = $1
         """, customer_id)
 
+    await _mark_webhook_processed(event_id)
     return {"ok": True}
 
 
@@ -127,7 +153,7 @@ async def get_stripe_balance(_: str = Depends(get_user_id)):
 
 
 @router.get("/admin/balance")
-async def get_admin_stripe_balance(_: str = Depends(get_user_id)):
+async def get_admin_stripe_balance(_: dict = Depends(require_admin_user)):
     """Admin: full balance + recent payouts."""
     if not STRIPE_SECRET_KEY:
         raise HTTPException(503, "Payment system not configured")
@@ -162,7 +188,7 @@ class RefundRequest(BaseModel):
 
 
 @router.post("/refund")
-async def issue_refund(req: RefundRequest, admin_id: str = Depends(get_user_id)):
+async def issue_refund(req: RefundRequest, admin_user: dict = Depends(require_admin_user)):
     """Issue a refund. Admin only."""
     if not STRIPE_SECRET_KEY:
         raise HTTPException(503, "Payment system not configured")
@@ -180,13 +206,18 @@ async def issue_refund(req: RefundRequest, admin_id: str = Depends(get_user_id))
         refund = stripe.Refund.create(**refund_params)
 
         # Log the refund
+        metadata = {
+            "payment_intent": req.payment_intent_id,
+            "reason": req.reason,
+            "admin": admin_user.get("user_id", ""),
+        }
         await execute("""
             INSERT INTO payment_events (event_type, stripe_id, amount, currency, status, metadata, created_at)
             VALUES ('refund', $1, $2, 'usd', $3, $4::jsonb, NOW())
         """, refund["id"],
             refund["amount"] / 100,
             refund["status"],
-            f'{{"payment_intent": "{req.payment_intent_id}", "reason": "{req.reason}", "admin": "{admin_id}"}}')
+            json.dumps(metadata))
 
         return {
             "ok": True,
@@ -201,7 +232,7 @@ async def issue_refund(req: RefundRequest, admin_id: str = Depends(get_user_id))
 
 
 @router.get("/admin/charges")
-async def get_recent_charges(_: str = Depends(get_user_id)):
+async def get_recent_charges(_: dict = Depends(require_admin_user)):
     """Admin: list recent charges with refund eligibility."""
     if not STRIPE_SECRET_KEY:
         raise HTTPException(503, "Payment system not configured")
@@ -228,7 +259,7 @@ async def get_recent_charges(_: str = Depends(get_user_id)):
 
 # ── Subscription Management ───────────────────────────────────────────────────
 @router.get("/admin/subscriptions")
-async def get_all_subscriptions(_: str = Depends(get_user_id)):
+async def get_all_subscriptions(_: dict = Depends(require_admin_user)):
     """Admin: all active Stripe subscriptions with user info."""
     if not STRIPE_SECRET_KEY:
         raise HTTPException(503, "Payment system not configured")
@@ -251,7 +282,7 @@ async def get_all_subscriptions(_: str = Depends(get_user_id)):
 
 
 @router.post("/admin/cancel/{subscription_id}")
-async def cancel_subscription(subscription_id: str, _: str = Depends(get_user_id)):
+async def cancel_subscription(subscription_id: str, _: dict = Depends(require_admin_user)):
     """Admin: cancel a subscription at period end."""
     if not STRIPE_SECRET_KEY:
         raise HTTPException(503, "Payment system not configured")
@@ -279,6 +310,9 @@ async def stripe_webhook_v2(request: Request):
         event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
     except Exception as e:
         raise HTTPException(400, str(e))
+    event_id = event.get("id", "")
+    if await _is_duplicate_webhook(event_id):
+        return {"ok": True, "duplicate": True}
 
     etype = event["type"]
     obj = event["data"]["object"]
@@ -358,5 +392,8 @@ async def stripe_webhook_v2(request: Request):
             f'{{"event_type": "{etype}"}}')
     except Exception:
         pass
+
+    await _mark_webhook_processed(event_id)
+    return {"ok": True}
 
     return {"ok": True}

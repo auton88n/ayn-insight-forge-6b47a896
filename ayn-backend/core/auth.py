@@ -3,13 +3,12 @@ core/auth.py — JWT verification for /chat endpoint
 All tokens are signed with AYN_JWT_SECRET (spine-issued).
 No Supabase dependency.
 """
-import jwt
 from fastapi import HTTPException, Header
 import os
+from core.auth_new import verify_access_token
 
 AYN_JWT_SECRET = os.getenv("AYN_JWT_SECRET", "")
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")  # kept for internal calls only
 
 
 def verify_token(authorization: str = Header(...)) -> str:
@@ -20,22 +19,17 @@ def verify_token(authorization: str = Header(...)) -> str:
     token = authorization.removeprefix("Bearer ").strip()
 
     # Internal service calls
-    if token in (SUPABASE_SERVICE_KEY, INTERNAL_SERVICE_KEY):
+    if INTERNAL_SERVICE_KEY and token == INTERNAL_SERVICE_KEY:
         return "internal"
 
     if not AYN_JWT_SECRET:
         raise HTTPException(500, "AYN_JWT_SECRET not configured")
 
-    try:
-        payload = jwt.decode(token, AYN_JWT_SECRET, algorithms=["HS256"])
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(401, "Invalid token payload")
-        return user_id
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Token expired")
-    except jwt.InvalidTokenError as e:
-        raise HTTPException(401, f"Invalid token: {e}")
+    payload = verify_access_token(token)
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(401, "Invalid token payload")
+    return user_id
 
 
 async def check_user_limit(user_id: str, intent: str) -> dict:

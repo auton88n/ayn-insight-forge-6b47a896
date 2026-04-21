@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 
-from core.database import fetchrow, execute, fetchval
+from core.database import fetchrow, execute
+from core.security import is_admin_user_id
 from core.auth_new import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, verify_access_token
@@ -39,40 +40,8 @@ class AdminRefreshRequest(BaseModel):
 # ── Admin check helper ─────────────────────────────────────────────────────────
 
 async def _is_admin(user_id: str, email: str) -> bool:
-    """Check if user is admin via email domain or explicit flag."""
-    # Email domain check (fast path)
-    if email.endswith('@aynn.io') or email.endswith('@ayn.io'):
-        return True
-    # Check app_settings for admin email list
-    try:
-        admin_emails = await fetchval(
-            "SELECT value FROM app_settings WHERE key = 'admin_emails'"
-        )
-        if admin_emails:
-            import json
-            emails = json.loads(admin_emails) if isinstance(admin_emails, str) else []
-            if email.lower() in [e.lower() for e in emails]:
-                return True
-    except Exception:
-        pass
-    # Check is_admin flag in users table (if column exists)
-    try:
-        flag = await fetchval(
-            "SELECT is_admin FROM users WHERE id = $1::uuid", user_id
-        )
-        if flag:
-            return True
-    except Exception:
-        pass
-    # Fallback: check if user is the only/first user (founder)
-    try:
-        count = await fetchval("SELECT COUNT(*) FROM users")
-        first = await fetchval("SELECT id FROM users ORDER BY created_at ASC LIMIT 1")
-        if str(first) == str(user_id):
-            return True
-    except Exception:
-        pass
-    return False
+    """Check admin status from explicit DB flag only."""
+    return await is_admin_user_id(user_id)
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
