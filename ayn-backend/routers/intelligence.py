@@ -21,8 +21,16 @@ async def get_all_intelligence(user_id: str = Depends(get_user_id_optional)):
     try:
         results = await asyncio.gather(
             fetchrow("SELECT snapshot, fetched_at, intelligence_brief FROM ayn_market_snapshot WHERE singleton_key = 1"),
-            fetch("SELECT * FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT 50"),
-            fetch("SELECT * FROM ayn_world_predictions WHERE status = 'active' ORDER BY created_at DESC LIMIT 100"),
+            fetch("SELECT *, title as headline FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT 50"),
+            fetch("""
+                SELECT *, 
+                       what_is_happening as thesis, 
+                       who_gets_hurt as who_loses, 
+                       confidence as graph_coherence
+                FROM ayn_world_predictions 
+                WHERE status = 'active' 
+                ORDER BY created_at DESC LIMIT 100
+            """),
             fetch("SELECT * FROM ayn_mind ORDER BY created_at DESC LIMIT 50"),
             fetch("SELECT * FROM ayn_opportunity_alerts ORDER BY created_at DESC LIMIT 30"),
             fetch("SELECT * FROM ayn_market_prices WHERE singleton_key = 1 LIMIT 1"),
@@ -68,12 +76,12 @@ async def get_world_signals(
 ):
     if severity:
         rows = await fetch(
-            "SELECT * FROM ayn_world_signals WHERE status = 'active' AND severity = $1 ORDER BY created_at DESC LIMIT $2",
+            "SELECT *, title as headline FROM ayn_world_signals WHERE status = 'active' AND severity = $1 ORDER BY created_at DESC LIMIT $2",
             severity, limit
         )
     else:
         rows = await fetch(
-            "SELECT * FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT $1",
+            "SELECT *, title as headline FROM ayn_world_signals WHERE status = 'active' ORDER BY created_at DESC LIMIT $1",
             limit
         )
     return rows
@@ -87,12 +95,14 @@ async def get_world_predictions(
 ):
     if domain:
         rows = await fetch(
-            "SELECT * FROM ayn_world_predictions WHERE status = 'active' AND domain = $1 ORDER BY created_at DESC LIMIT $2",
+            """SELECT *, what_is_happening as thesis, who_gets_hurt as who_loses, confidence as graph_coherence
+               FROM ayn_world_predictions WHERE status = 'active' AND domain = $1 ORDER BY created_at DESC LIMIT $2""",
             domain, limit
         )
     else:
         rows = await fetch(
-            "SELECT * FROM ayn_world_predictions WHERE status = 'active' ORDER BY created_at DESC LIMIT $1",
+            """SELECT *, what_is_happening as thesis, who_gets_hurt as who_loses, confidence as graph_coherence
+               FROM ayn_world_predictions WHERE status = 'active' ORDER BY created_at DESC LIMIT $1""",
             limit
         )
     return rows
