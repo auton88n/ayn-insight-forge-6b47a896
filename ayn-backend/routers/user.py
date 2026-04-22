@@ -75,6 +75,8 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
 
 
 class ProfileUpdateRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     contact_person: Optional[str] = None
     company_name: Optional[str] = None
     business_type: Optional[str] = None
@@ -93,7 +95,7 @@ async def update_profile(req: ProfileUpdateRequest, user_id: str = Depends(get_u
     set_parts = []
     values = [user_id]
     for i, (k, v) in enumerate(updates.items(), start=2):
-        set_parts.append(f"{k} = ${i}")
+        set_parts.append(f"\"{k}\" = ${i}")
         values.append(v)
     set_clause = ", ".join(set_parts) + ", updated_at = NOW()"
 
@@ -113,8 +115,14 @@ class TermsRequest(BaseModel):
     terms: bool = True
     ai_disclaimer: bool = True
 
+from fastapi import Request
+
 @router.post("/terms")
-async def accept_terms(req: TermsRequest, user_id: str = Depends(get_user_id)):
+async def accept_terms(req: TermsRequest, request: Request, user_id: str = Depends(get_user_id)):
+    """Accept terms and privacy policy — now with durable audit logging."""
+    user_agent = request.headers.get("user-agent", "")
+    
+    # 1. Update user settings (for UI state)
     await execute("""
         INSERT INTO user_settings (user_id, settings, updated_at)
         VALUES ($1, '{"has_accepted_terms": true}', NOW())
@@ -122,6 +130,16 @@ async def accept_terms(req: TermsRequest, user_id: str = Depends(get_user_id)):
         SET settings = user_settings.settings || '{"has_accepted_terms": true}',
             updated_at = NOW()
     """, user_id)
+
+    # 2. Add to durable audit log (for legal/compliance)
+    await execute("""
+        INSERT INTO terms_consent_log 
+            (user_id, terms_version, privacy_accepted, terms_accepted, ai_disclaimer_accepted, user_agent, accepted_at)
+        VALUES 
+            ($1::uuid, '2026-04-22', $2, $3, $4, $5, NOW())
+    """, user_id, req.privacy, req.terms, req.ai_disclaimer, user_agent)
+
+    log.info(f"[audit] Terms accepted by user {user_id[:8]}")
     return {"ok": True}
 
 
@@ -162,7 +180,7 @@ async def unpin_chat(session_id: str, user_id: str = Depends(get_user_id)):
     return {"ok": True}
 
 
-# ── Avatar Upload (base64 JSON) ──────────────────────────────────────────────
+# ── Avatar Upload (Supabase Storage) ─────────────────────────────────────────
 
 class AvatarRequest(BaseModel):
     avatar_data: str  # base64 encoded image
@@ -170,34 +188,44 @@ class AvatarRequest(BaseModel):
 
 @router.post("/avatar")
 async def upload_avatar(req: AvatarRequest, user_id: str = Depends(get_user_id)):
-    import os, base64
-    # Validate it's actual base64
-    try:
-        data = base64.b64decode(req.avatar_data)
-    except Exception:
-        raise HTTPException(400, "Invalid base64 data")
+    """Upload avatar to durable Railway Postgres storage."""
+    from core.storage_service import StorageService
     
-    ext = "jpg" if "jpeg" in req.mime_type else req.mime_type.split("/")[-1]
-    avatar_dir = "/tmp/avatars"
-    os.makedirs(avatar_dir, exist_ok=True)
-    filename = f"{user_id}.{ext}"
-    with open(f"{avatar_dir}/{filename}", 'wb') as f:
-        f.write(data)
+    result = await StorageService.upload_avatar(user_id, req.avatar_data, req.mime_type)
+    if not result.get("ok"):
+        raise HTTPException(500, result.get("error", "Avatar upload failed"))
     
-    avatar_url = f"https://spine.aynn.io/user/avatar/{filename}"
+    # Standardized proxy URL
+    avatar_url = f"/api/user/avatar/{user_id}"
+    
     await execute("UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2",
                   avatar_url, user_id)
+    
     return {"avatar_url": avatar_url, "ok": True}
 
 
-@router.get("/avatar/{filename}")
-async def get_avatar(filename: str):
-    import os
-    from fastapi.responses import FileResponse
-    path = f"/tmp/avatars/{filename}"
-    if not os.path.exists(path):
-        raise HTTPException(404, "Not found")
-    return FileResponse(path)
+@router.get("/avatar/{user_id}")
+async def get_avatar(user_id: str):
+    """
+    Serve avatar directly from Railway Postgres.
+    """
+    from core.storage_service import StorageService
+    from fastapi.responses import Response
+    
+    asset = await StorageService.get_avatar(user_id)
+    if not asset:
+        raise HTTPException(404, "Avatar not found")
+    
+    file_data, mime_type = asset
+    return Response(
+        content=file_data,
+        media_type=mime_type,
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Content-Disposition": f"inline; filename=avatar_{user_id[:8]}"
+        }
+    )
+
 
 
 # ── Contact form ──────────────────────────────────────────────────────────────
@@ -380,18 +408,40 @@ async def submit_beta_feedback(req: BetaFeedbackRequest, user_id: str = Depends(
         log.error(f"[beta-feedback] failed user={user_id[:8]}: {e}")
         raise HTTPException(500, str(e))
 
-@router.post("/profile")
-async def update_user_profile(body: dict, user_id: str = Depends(get_user_id)):
-    """Update user profile fields."""
+
+# ── Session Management ─────────────────────────────────────────────────────────
+
+@router.get("/sessions")
+async def get_user_sessions(user_id: str = Depends(get_user_id)):
+    """List active user sessions."""
     try:
-        allowed = {k: v for k, v in body.items() if k in ("first_name","last_name","company_name","business_type")}
-        if allowed:
-            sets = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(allowed.keys()))
-            vals = list(allowed.values())
-            await execute(
-                f"UPDATE users SET {sets}, updated_at = NOW() WHERE id = $1::uuid",
-                user_id, *vals
-            )
+        rows = await fetch(
+            "SELECT id, expires_at FROM user_sessions WHERE user_id=$1::uuid AND expires_at > NOW()", 
+            user_id
+        )
+        out = []
+        for r in (rows or []):
+            out.append({
+                "id": str(r["id"]),
+                "fingerprint_hash": str(r["id"])[:8],
+                "device_info": {"browser": "Active Browser", "os": "Authenticated OS", "ip": "Unknown"},
+                "first_seen": str(r["expires_at"]), # We just approximate for now as table only has expires_at
+                "last_seen": str(r["expires_at"]),
+                "login_count": 1,
+                "is_trusted": True
+            })
+        return out
+    except Exception as e:
+        return []
+
+@router.delete("/sessions/{session_id}")
+async def revoke_user_session(session_id: str, user_id: str = Depends(get_user_id)):
+    """Revoke a specific device session."""
+    try:
+        await execute(
+            "DELETE FROM user_sessions WHERE id=$1 AND user_id=$2::uuid", 
+            session_id, user_id
+        )
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))

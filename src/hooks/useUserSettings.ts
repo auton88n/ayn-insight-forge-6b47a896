@@ -42,16 +42,16 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
 
     try {
       // Parallel fetch: settings + sessions
-      const [settingsData, sessionsData] = await Promise.all([
-        spineApi.getProfile(),
-        spineApi.getLimits()
+      const [settingsRes, sessionsData] = await Promise.all([
+        spineApi.getSettings(),
+        spineApi.getDeviceSessions()
       ]);
 
-      // Process settings (settingsData is profile object from spine)
-      const fetched: any = settingsData || {};
+      // Process settings (settingsRes returns { settings: {} })
+      const fetched: any = settingsRes?.settings || {};
       setSettings({
-        id: fetched.id || userId,
-        user_id: fetched.user_id || userId,
+        id: userId,
+        user_id: userId,
         email_system_alerts: fetched.email_system_alerts ?? true,
         email_usage_warnings: fetched.email_usage_warnings ?? true,
         email_marketing: fetched.email_marketing ?? false,
@@ -92,7 +92,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
-      const data = await spineApi.getLimits();
+      const data = await spineApi.getDeviceSessions();
       
       const normalizedSessions: DeviceSession[] = (data || []).map((session: DeviceSession) => ({
         id: session.id,
@@ -116,9 +116,10 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
 
     setUpdating(true);
     try {
-      /* stored locally */;
+      const newSettings = { ...settings, ...updates };
+      await spineApi.saveSettings(newSettings);
 
-      setSettings({ ...settings, ...updates });
+      setSettings(newSettings);
       toast({
         title: 'Success',
         description: 'Settings saved successfully',
@@ -142,7 +143,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!accessToken) return;
     
     try {
-      /* stored locally */;
+      await spineApi.revokeDeviceSession(sessionId);
 
       setSessions(sessions.filter(s => s.id !== sessionId));
       toast({
@@ -166,6 +167,13 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
+      // First, revoke all known sessions except the current one might be implicitly revoked below
+      if (sessions && sessions.length > 0) {
+        await Promise.all(
+          sessions.map(s => spineApi.revokeDeviceSession(s.id).catch(() => {}))
+        );
+      }
+
       const { spineAuth } = await import('@/lib/spineAuth');
       await spineAuth.signOut();
       

@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { spineApi } from '@/lib/spineApi';
 
 const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
-const ENGINE_URL = 'https://engine.aynn.io';
 
 // ─── Emotion / category config ────────────────────────────────────────────────
 const EM: Record<string, { emoji:string; color:string; bg:string; border:string; label:string }> = {
@@ -567,18 +566,9 @@ export default function AgentSociety({
       setGenerateStep(steps[stepIdx]);
     }, 7000);
     try{
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 300000); // 5 min timeout
-      const res = await fetch(`${ENGINE_URL}/simulate`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({event:'Current global macro environment: US-China trade war, gold at record highs, Fed holding rates, geopolitical fragmentation accelerating'}),
-        signal: ctrl.signal
-      });
-      clearTimeout(t);
+      const data = await spineApi.simulate({event:'Current global macro environment: US-China trade war, gold at record highs, Fed holding rates, geopolitical fragmentation accelerating'});
       clearInterval(stepTimer);
       setGenerateStep('✅ Complete!');
-      if (!res.ok) return;
-      const data = await res.json();
       await loadData();
       if(data.conversation_id){
         setActiveConvId(data.conversation_id);
@@ -596,13 +586,11 @@ export default function AgentSociety({
     try{
       // Fetch conversations via spine
       const convData = await spineApi.getAgentConversations(20).catch(() => []);
-      // Fetch agent states — try engine first, fall back to spine
       let agentStatesList: any[] = [];
       try {
-        const agentRes = await fetch(`${ENGINE_URL}/agents`);
-        if (agentRes.ok) {
-          const agentData = await agentRes.json();
-          agentStatesList = (agentData.agents || []).map((a: any) => ({
+        const agentData = await spineApi.getAgents();
+        if (agentData?.agents) {
+          agentStatesList = agentData.agents.map((a: any) => ({
             agent_id: a.id, agent_name: a.name, agent_flag: a.flag,
             agent_category: a.category, agent_role: a.category,
             current_emotion: 'neutral', emotion_intensity: 50,
@@ -664,17 +652,10 @@ export default function AgentSociety({
     setSignalLoading(signal.id);
     setGenerating(true);
     try {
-      const ctrl2 = new AbortController();
-      const t2 = setTimeout(() => ctrl2.abort(), 300000);
-      const res = await fetch(`${ENGINE_URL}/simulate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: `${signal.headline}. Region: ${signal.region}. Severity: ${signal.severity}.`, signal_id: signal.id }),
-        signal: ctrl2.signal
+      const data = await spineApi.simulate({ 
+        event: `${signal.headline}. Region: ${signal.region}. Severity: ${signal.severity}.`, 
+        signal_id: signal.id 
       });
-      clearTimeout(t2);
-      if (!res.ok) return;
-      const data = await res.json();
       await loadData();
       if (data.conversation_id) {
         setActiveConvId(data.conversation_id);
@@ -716,31 +697,22 @@ export default function AgentSociety({
       setGenerateStep(steps[stepIdx]);
     }, 8000);
     try {
-      const ctrl3 = new AbortController();
-      const t3 = setTimeout(() => ctrl3.abort(), 300000);
-      const res = await fetch(`${ENGINE_URL}/simulate`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          event: godEyeInput,
-          use_reflection: useReflection,
-          use_ayn_data: useAynData,
-          focus_categories: focusCategories,
-          focus_races: focusRaces,
-          focus_countries: focusCountries,
-          focus_classes: focusClasses,
-          focus_genders: focusGenders,
-          crowd_size: crowdSize,
-          user_id: currentUserId,
-          visibility: simVisibility
-        }),
-        signal: ctrl3.signal
+      const data = await spineApi.simulate({
+        event: godEyeInput,
+        use_reflection: useReflection,
+        use_ayn_data: useAynData,
+        focus_categories: focusCategories,
+        focus_races: focusRaces,
+        focus_countries: focusCountries,
+        focus_classes: focusClasses,
+        focus_genders: focusGenders,
+        crowd_size: crowdSize,
+        user_id: currentUserId,
+        visibility: simVisibility
       });
-      clearTimeout(t3);
+      setGodEyeInput('');
       clearInterval(stepTimer);
       setGenerateStep('✅ Cascade complete!');
-      if (!res.ok) { toast({ title: "Snag!", description: "God's Eye injection failed.", variant: "destructive" }); return; }
-      const data = await res.json();
-      setGodEyeInput('');
       await loadData();
       if (data.conversation_id) { setActiveConvId(data.conversation_id); setMessages(data.messages || []); }
     } catch {
@@ -757,13 +729,10 @@ export default function AgentSociety({
     setChatHistory(prev => [...prev, userMsg]);
     setChatInput(''); setChatLoading(true);
     try {
-      const res = await fetch(`${ENGINE_URL}/chat`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ agent_id: chatAgent.agent_id, message: chatInput, history: chatHistory })
-      });
-      if (!res.ok) { toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" }); return; }
-      const data = await res.json();
+      const data = await spineApi.agentChat({ agent_id: chatAgent.agent_id, message: chatInput, history: chatHistory });
       if (data.response) setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+    } catch(e) {
+      toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" });
     } finally { setChatLoading(false); }
   };
 

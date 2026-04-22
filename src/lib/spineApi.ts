@@ -45,6 +45,8 @@ export const spineApi = {
   saveSettings:     (settings: object) => req('POST', '/user/settings', { settings }),
   getPreferences:   () => req<any>('GET', '/user/preferences'),
   savePreferences:  (prefs: object) => req('POST', '/user/preferences', prefs),
+  getDeviceSessions:() => req<any[]>('GET', '/user/sessions'),
+  revokeDeviceSession:(session_id: string) => req('DELETE', `/user/sessions/${session_id}`),
 
   // ── Beta Feedback ──────────────────────────────────────────────────────────
   submitBetaFeedback: (feedback: object) => req('POST', '/user/beta-feedback', feedback),
@@ -148,9 +150,9 @@ export const spineApi = {
     req('POST', '/marketing/generate-thread', { topic, tone, count }),
   postTweet:       (text: string) => req('POST', '/marketing/post', { text }),
   autoMarket:      () => req('POST', '/marketing/auto-market', {}),
-
   // ── World Intelligence ─────────────────────────────────────────────────────
   getAllIntelligence:        () => req<any>('GET', '/intelligence/all'),
+  getAgents:                 () => req<{ agents: any[] }>('GET', '/intelligence/agents'),
   getAccuracy:               () => req<any[]>('GET', '/intelligence/accuracy'),
   getPredictionOutcomes:     (limit = 200) => req<any[]>('GET', `/intelligence/prediction-outcomes?limit=${limit}`),
   getAgentConversations:     (limit = 20) => req<any[]>('GET', `/intelligence/agent-conversations?limit=${limit}`),
@@ -163,6 +165,9 @@ export const spineApi = {
     req<any[]>('GET', `/intelligence/world-events?simulation_run_id=${simulation_run_id}`),
   votePrediction:            (pred_id: string, vote: string, user_id: string) =>
     req('POST', '/intelligence/vote', { pred_id, vote, user_id }),
+  simulate:                  (payload: object) => req('POST', '/intelligence/simulate', payload),
+  agentChat:                 (payload: object) => req('POST', '/intelligence/chat', payload),
+
 
   // ── Generic request escape hatch ──────────────────────────────────────────
   req: <T = any>(method: string, path: string, body?: object) => req<T>(method, path, body),

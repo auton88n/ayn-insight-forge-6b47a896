@@ -81,10 +81,18 @@ async def get_current_user(authorization: str = Header(...)) -> dict:
         return {"user_id": "internal", "email": "internal@aynn.io"}
 
     payload = verify_access_token(token)
+    user_id = payload["sub"]
+
+    # Forensic verify activity status in DB
+    user = await fetchrow("SELECT is_active, is_admin FROM users WHERE id = $1::uuid", user_id)
+    if user and user["is_active"] is False:
+        log.warning(f"[auth] Blocked user attempt: {user_id}")
+        raise HTTPException(403, "Account disabled")
+
     return {
-        "user_id": payload["sub"],
+        "user_id": user_id,
         "email": payload.get("email", ""),
-        "is_admin": bool(payload.get("is_admin", False)),
+        "is_admin": user["is_admin"] if user else bool(payload.get("is_admin", False)),
     }
 
 

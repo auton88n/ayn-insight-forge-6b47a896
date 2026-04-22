@@ -39,6 +39,9 @@ OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "")
 # ── Railway PostgreSQL ────────────────────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "")  # Auto-set by Railway PostgreSQL plugin
 
+# ── Simulation Engine ────────────────────────────────────────────────────────
+ENGINE_URL = os.getenv("ENGINE_URL", "https://engine.aynn.io")
+
 # ── AYN Auth (self-hosted) ─────────────────────────────────────────────────────
 AYN_JWT_SECRET      = os.getenv("AYN_JWT_SECRET", "")
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")

@@ -74,6 +74,10 @@ async def admin_sse(
     try:
         payload = verify_access_token(token)
         user_id = payload["sub"]
+        if not payload.get("is_admin"):
+             raise HTTPException(403, "Admin access required for this stream")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(401, "Invalid token")
 

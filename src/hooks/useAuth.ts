@@ -83,10 +83,20 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
   }, [user?.id, session?.access_token]);
 
   // ── Accept terms ────────────────────────────────────────────────────────────
-  const acceptTerms = useCallback(async (_consent: { privacy: boolean; terms: boolean; aiDisclaimer: boolean }) => {
-    setHasAcceptedTerms(true);
-    localStorage.setItem(`terms_accepted_${user.id}`, 'true');
-    toast({ title: 'Welcome to AYN', description: 'Your AI companion is ready.' });
+  const acceptTerms = useCallback(async (consent: { privacy: boolean; terms: boolean; aiDisclaimer: boolean }) => {
+    try {
+      await spineApi.acceptTerms({
+        privacy: consent.privacy,
+        terms: consent.terms,
+        ai_disclaimer: consent.aiDisclaimer,
+      });
+      setHasAcceptedTerms(true);
+      localStorage.setItem(`terms_accepted_${user.id}`, 'true');
+      toast({ title: 'Welcome to AYN', description: 'Your AI companion is ready.' });
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('Failed to accept terms', error);
+      toast({ title: 'Error', description: 'Failed to record consent. Please try again.', variant: 'destructive' });
+    }
   }, [user.id, toast]);
 
   // ── Stubs for legacy callers ────────────────────────────────────────────────

@@ -84,19 +84,11 @@ const SupportManagement: React.FC = () => {
   useEffect(() => {
     fetchTickets();
 
-    // Real-time: AYN deletions & reply inserts
+    // Standardized SSE: Listen for any change to the 'support_tickets' table
     const channel = supabase
       .channel('support-realtime')
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'support_tickets' }, (payload: any) => {
-        setTickets(prev => prev.filter(t => t.id !== (payload.old as any)?.id));
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_tickets' }, (payload: any) => {
-        const updated = payload.new as Ticket;
-        setTickets(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_tickets' }, (payload: any) => {
-        const newTicket = payload.new as Ticket;
-        setTickets(prev => [newTicket, ...prev]);
+      .on('postgres_changes', { table: 'support_tickets' }, () => {
+        fetchTickets();
       })
       .subscribe();
 

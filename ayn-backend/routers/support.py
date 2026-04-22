@@ -63,9 +63,20 @@ async def contact(req: ContactRequest):
 
 
 # ── Support Tickets (user-facing) ─────────────────────────────────────────────
+@router.get("/tickets")
+async def list_tickets(user_id: str = Depends(get_user_id)):
+    """List all tickets for the current user."""
+    rows = await fetch(
+        "SELECT * FROM support_tickets WHERE user_id = $1::uuid ORDER BY created_at DESC",
+        user_id
+    )
+    return rows
+
+
 class TicketRequest(BaseModel):
     subject: str
-    message: str
+    message: str = ""
+    initial_message: str = ""  # Support both names
     category: str = "general"
     priority: str = "normal"
 
@@ -76,12 +87,19 @@ async def create_ticket(req: TicketRequest, user_id: str = Depends(get_user_id))
     from services.email import send_email
     from services.email_queue import enqueue_email
     import asyncio
+    
+    # Handle message name mismatch
+    msg = req.initial_message or req.message
+    if not msg:
+        from fastapi import HTTPException
+        raise HTTPException(400, "Message is required")
+
     try:
         row = await fetchrow("""
             INSERT INTO support_tickets (user_id, subject, message, category, priority, status, created_at, updated_at)
             VALUES ($1::uuid, $2, $3, $4, $5, 'open', NOW(), NOW())
             RETURNING id, subject, status
-        """, user_id, req.subject, req.message, req.category, req.priority)
+        """, user_id, req.subject, msg, req.category, req.priority)
         ticket = dict(row) if row else {}
         # Notify team
         payload = {"subject": req.subject, "ticket_id": str(ticket.get("id", ""))}
@@ -92,6 +110,7 @@ async def create_ticket(req: TicketRequest, user_id: str = Depends(get_user_id))
     except Exception as e:
         log.error(f"[support] create ticket: {e}")
         return {"ok": False, "error": str(e)}
+
 
 
 @router.get("/tickets/{ticket_id}")
@@ -111,7 +130,13 @@ async def get_ticket(ticket_id: str, user_id: str = Depends(get_user_id)):
 
 @router.get("/tickets/{ticket_id}/messages")
 async def get_ticket_messages(ticket_id: str, user_id: str = Depends(get_user_id)):
-    """Get messages for a ticket."""
+    """Get messages for a ticket. Verified ownership."""
+    # First, verify user owns this ticket
+    ticket = await fetchrow("SELECT id FROM support_tickets WHERE id=$1::uuid AND user_id=$2::uuid", ticket_id, user_id)
+    if not ticket:
+        from fastapi import HTTPException
+        raise HTTPException(403, "Ticket access denied")
+
     messages = await fetch(
         "SELECT * FROM ticket_messages WHERE ticket_id=$1::uuid ORDER BY created_at",
         ticket_id)
@@ -120,7 +145,13 @@ async def get_ticket_messages(ticket_id: str, user_id: str = Depends(get_user_id
 
 @router.post("/tickets/{ticket_id}")
 async def reply_to_ticket(ticket_id: str, body: dict, user_id: str = Depends(get_user_id)):
-    """User replies to a ticket."""
+    """User replies to a ticket. Verified ownership."""
+    # Verify user owns this ticket
+    ticket = await fetchrow("SELECT id FROM support_tickets WHERE id=$1::uuid AND user_id=$2::uuid", ticket_id, user_id)
+    if not ticket:
+        from fastapi import HTTPException
+        raise HTTPException(403, "Ticket access denied")
+
     message = body.get("message", "")
     if not message:
         from fastapi import HTTPException

@@ -263,15 +263,178 @@ async def create_custom_order(data: dict, admin=Depends(require_admin_user)):
 
 @router.patch("/custom-orders/{order_id}")
 async def update_custom_order(order_id: str, data: dict, _=Depends(require_admin_user)):
-    allowed = ['status', 'notes', 'client_signature_url', 'admin_signature_url', 
-               'stripe_payment_link', 'contract_pdf_url']
-    updates = {k: v for k, v in data.items() if k in allowed}
+    """Update custom order. Supports all fields from frontend."""
+    # Columns we allow updating
+    fields = [
+        'company_name', 'company_email', 'contact_person', 'company_phone',
+        'company_address', 'order_title', 'order_description', 'services',
+        'subtotal', 'discount_percent', 'tax_percent', 'total_amount',
+        'currency', 'status', 'notes', 'terms_and_conditions', 'privacy_notes',
+        'after_sale_services', 'delivery_timeline', 'stripe_payment_link',
+        'contract_pdf_url', 'admin_signature_url', 'client_signature_url'
+    ]
+    
+    updates = {}
+    for k, v in data.items():
+        if k in fields:
+            if k == 'services' and v is not None:
+                import json
+                updates[k] = json.dumps(v)
+            else:
+                updates[k] = v
+
     if not updates:
         return {"ok": True}
-    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates.keys()))
+
+    set_parts = []
+    values = [order_id]
+    for i, (k, v) in enumerate(updates.items(), start=2):
+        set_parts.append(f"{k} = ${i}")
+        values.append(v)
+    
+    set_clause = ", ".join(set_parts)
     await execute(f"UPDATE custom_orders SET {set_clause}, updated_at = NOW() WHERE id = $1",
-                  order_id, *updates.values())
+                  *values)
     return {"ok": True}
+
+
+@router.delete("/custom-orders/{order_id}")
+async def delete_custom_order(order_id: str, _=Depends(require_admin_user)):
+    await execute("DELETE FROM custom_orders WHERE id = $1", order_id)
+    return {"ok": True}
+
+
+@router.post("/custom-orders/{order_id}/mark-paid")
+async def mark_order_paid(order_id: str, _=Depends(require_admin_user)):
+    await execute("""
+        UPDATE custom_orders 
+        SET status = 'paid', updated_at = NOW() 
+        WHERE id = $1
+    """, order_id)
+    return {"ok": True}
+
+
+@router.post("/custom-orders/{order_id}/pdf")
+async def generate_order_pdf(order_id: str, _=Depends(require_admin_user)):
+    """
+    Generates a print-friendly HTML version of the contract.
+    The frontend uses window.print() on this.
+    """
+    row = await fetchrow("SELECT * FROM custom_orders WHERE id = $1", order_id)
+    if not row:
+        raise HTTPException(404, "Order not found")
+    
+    # Simple semantic HTML for the contract
+    # In a real production app, we would use a more sophisticated PDF generator
+    # But for Phase 7 restoration, we ensure functional parity.
+    html = f"""
+    <html>
+    <head>
+        <title>Contract - {row['order_title']}</title>
+        <style>
+            body {{ font-family: sans-serif; padding: 40px; line-height: 1.6; color: #333; }}
+            .header {{ display: flex; justify-content: space-between; margin-bottom: 40px; border-bottom: 2px solid #eee; padding-bottom: 20px; }}
+            .section {{ margin-bottom: 30px; }}
+            .section-title {{ font-weight: bold; font-size: 1.2em; border-bottom: 1px solid #eee; margin-bottom: 10px; }}
+            table {{ w-full; border-collapse: collapse; margin: 20px 0; }}
+            th, td {{ border: 1px solid #eee; padding: 10px; text-align: left; }}
+            th {{ background: #f9f9f9; }}
+            .total {{ text-align: right; font-size: 1.2em; font-weight: bold; margin-top: 20px; }}
+            .signature-box {{ display: flex; justify-content: space-between; margin-top: 60px; }}
+            .signature-line {{ border-top: 1px solid #333; width: 250px; padding-top: 10px; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <div>
+                <h1>AYN AI</h1>
+                <p>Agreement & Service Order</p>
+            </div>
+            <div style="text-align: right">
+                <p><strong>Order ID:</strong> {order_id[:8]}</p>
+                <p><strong>Date:</strong> {row['created_at'].strftime('%Y-%m-%d')}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Client Information</div>
+            <p><strong>{row['company_name']}</strong><br/>
+               Attn: {row['contact_person']}<br/>
+               {row['company_email']}<br/>
+               {row['company_phone'] or ''}<br/>
+               {row['company_address'] or ''}</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Order: {row['order_title']}</div>
+            <p>{row['order_description'] or 'No description provided.'}</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Services & Pricing</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Description</th>
+                        <th style="text-align: right">Price</th>
+                        <th style="text-align: center">Qty</th>
+                        <th style="text-align: right">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    
+    import json
+    services = json.loads(row['services']) if isinstance(row['services'], str) else row['services']
+    for s in services:
+        stotal = s.get('price', 0) * s.get('quantity', 1)
+        html += f"""
+                    <tr>
+                        <td>{s.get('name', '')}</td>
+                        <td>{s.get('description', '')}</td>
+                        <td style="text-align: right">{row['currency']} {s.get('price', 0):,.2f}</td>
+                        <td style="text-align: center">{s.get('quantity', 1)}</td>
+                        <td style="text-align: right">{row['currency']} {stotal:,.2f}</td>
+                    </tr>
+        """
+    
+    html += f"""
+                </tbody>
+            </table>
+            <div class="total">
+                <p>Subtotal: {row['currency']} {row['subtotal']:,.2f}</p>
+                {"<p>Discount: " + str(row['discount_percent']) + "%</p>" if row['discount_percent'] else ""}
+                <p>VAT ({row['tax_percent']}%): {row['currency']} {(row['total_amount'] - row['subtotal']):,.2f}</p>
+                <hr/>
+                <p style="font-size: 1.4em">Grand Total: {row['currency']} {row['total_amount']:,.2f}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Terms & Conditions</div>
+            <div style="font-size: 0.9em; white-space: pre-wrap;">{row['terms_and_conditions'] or 'Standard terms apply.'}</div>
+        </div>
+
+        <div class="signature-box">
+            <div class="signature-line">
+                <p>Authorized Signature (AYN)</p>
+                <p style="font-size: 0.8em; color: #666; margin-top: 20px;">{row['admin_signed_at'] or 'Pending'}</p>
+            </div>
+            <div class="signature-line">
+                <p>Client Signature ({row['company_name']})</p>
+                <p style="font-size: 0.8em; color: #666; margin-top: 20px;">{row['client_signed_at'] or 'Pending'}</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px; font-size: 0.8em; color: #999; text-align: center;">
+            <p>This is a legally binding agreement between AYN AI and the Client named above.</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return {"html": html, "ok": True}
 
 
 # ── NDA Management ─────────────────────────────────────────────────────────────

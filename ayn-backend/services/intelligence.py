@@ -50,7 +50,7 @@ def _parse_json(text: str):
     return None
 
 
-async def _db_write(table: str, rows: list, conflict_col: str = "id"):
+async def _db_insert_many(table: str, rows: list, conflict_col: str = "id"):
     """Insert rows into Railway Postgres."""
     from core.database import get_pool
     import json as _json
@@ -82,12 +82,12 @@ async def _db_write(table: str, rows: list, conflict_col: str = "id"):
                 if res != "INSERT 0 0":
                     written += 1
             except Exception as e:
-                log.debug(f"[db_write] {table} row error: {e}")
+                log.debug(f"[db_insert_many] {table} row error: {e}")
     return written
 
 
-async def _supabase_upsert(table: str, data: dict, conflict: str = "singleton_key"):
-    """Write singleton row to Railway Postgres."""
+async def _db_upsert(table: str, data: dict, conflict: str = "singleton_key"):
+    """Upsert singleton row to Railway Postgres (mirrors Supabase upsert)."""
     from core.database import get_pool
     import json as _json
     pool = await get_pool()
@@ -162,7 +162,7 @@ async def run_pulse_engine():
         except Exception:
             pass
 
-        await _supabase_upsert("ayn_market_snapshot", {
+        await _db_upsert("ayn_market_snapshot", {
             "singleton_key": 1,
             "snapshot": {"macro": macro, "markets": {"prices": prices, "sentiment": fg},
                          "fetched_at": datetime.now(timezone.utc).isoformat()},
@@ -203,7 +203,7 @@ async def run_market_prices():
             except Exception:
                 pass
 
-        await _supabase_upsert("ayn_market_prices", {
+        await _db_upsert("ayn_market_prices", {
             "singleton_key": 1,
             "narrative": narrative,
             "energy": {k: v for k, v in prices.items() if k in ("oil",)},
@@ -256,7 +256,7 @@ Return ONLY a JSON array of 5 strings:
             brief = []
 
         if brief:
-            await _supabase_upsert("ayn_market_snapshot", {
+            await _db_upsert("ayn_market_snapshot", {
                 "singleton_key": 1,
                 "intelligence_brief": brief,
                 "fetched_at": datetime.now(timezone.utc).isoformat(),
@@ -344,7 +344,7 @@ Return ONLY valid JSON array:
             "status": "active",
         } for s in signals if s.get("headline")]
 
-        written = await _db_write("ayn_world_signals", rows)
+        written = await _db_insert_many("ayn_world_signals", rows)
         log.info(f"✅ World signals — {written}/{len(rows)} written")
     except Exception as e:
         log.error(f"❌ World signals error: {e}")
@@ -437,7 +437,7 @@ Return ONLY valid JSON array:
                     "status": "active",
                 } for p in preds if p.get("title")]
 
-                written = await _db_write("ayn_world_predictions", rows)
+                written = await _db_insert_many("ayn_world_predictions", rows)
                 total_written += written
                 log.info(f"[predictions] {domain}: {written}/{len(rows)}")
                 await asyncio.sleep(1)  # Rate limit
@@ -633,7 +633,7 @@ Include ALL {len(CORE_AGENTS)} agents."""
                 "message_type": "primary",
             })
 
-        written = await _db_write("ayn_agent_messages", rows)
+        written = await _db_insert_many("ayn_agent_messages", rows)
         log.info(f"✅ Agent society — {written} messages written for conv {conv_id}")
     except Exception as e:
         log.error(f"❌ Agent society error: {e}")

@@ -18,6 +18,7 @@ from core.config import (
     SUPABASE_URL, PROXY_URL, PROXY_SECRET, SUPABASE_SERVICE_KEY,
     LOVABLE_MODELS,
 )
+from core.database import execute
 
 # ── Gemini direct client (shared singleton) ───────────────────────────────────
 _gemini_client: AsyncOpenAI | None = None
@@ -179,18 +180,41 @@ FALLBACK_CHAINS: dict[str, list[tuple[str, str]]] = {
 }
 
 
+async def _log_usage(user_id: str | None, model: str, elapsed_ms: int, was_fallback: bool, intent: str):
+    """Fire-and-forget usage log to Railway."""
+    try:
+        await execute(
+            "INSERT INTO llm_usage_logs (user_id, model_name, response_time_ms, was_fallback, intent_type) VALUES ($1, $2, $3, $4, $5)",
+            None if user_id in (None, "internal") else user_id,
+            model, elapsed_ms, was_fallback, intent
+        )
+    except Exception as e:
+        print(f"   ⚠️  [llm] usage log failed: {e}")
+
+async def _log_failure(user_id: str | None, provider: str, model: str, error: Exception):
+    """Fire-and-forget failure log to Railway."""
+    try:
+        await execute(
+            "INSERT INTO llm_failures (user_id, error_type, error_message) VALUES ($1, $2, $3)",
+            None if user_id in (None, "internal") else user_id,
+            "error", f"[{provider}/{model}] {str(error)[:480]}"
+        )
+    except Exception as e:
+        print(f"   ⚠️  [llm] failure log failed: {e}")
+
+
 async def call_with_fallback(
     intent: str,
     messages: list[dict],
     max_tokens: int = 2000,
     temperature: float = 0.7,
     tools: list | None = None,
-    db=None,
+    db=None,  # Deprecated — logs now go to Railway natively
     user_id: str | None = None,
 ) -> dict:
     """
     Try each provider in the chain, fall back on failure.
-    Logs usage + failures to Supabase (fire and forget).
+    Logs usage + failures to Railway Postgres (fire and forget).
     """
     chain = FALLBACK_CHAINS.get(intent, FALLBACK_CHAINS["chat"])
     last_err: Exception = RuntimeError("empty chain")
@@ -208,17 +232,7 @@ async def call_with_fallback(
             result["provider"] = provider
 
             # Log usage — fire and forget
-            if db:
-                try:
-                    db.table("llm_usage_logs").insert({
-                        "user_id": None if user_id in (None, "internal") else user_id,
-                        "model_name": model_key,
-                        "response_time_ms": elapsed,
-                        "was_fallback": i > 0,
-                        "intent_type": intent or "chat",
-                    }).execute()
-                except Exception:
-                    pass
+            asyncio.create_task(_log_usage(user_id, model_key, elapsed, i > 0, intent or "chat"))
 
             return result
 
@@ -226,15 +240,8 @@ async def call_with_fallback(
             print(f"   ⚠️  [{provider}/{model_key}] failed: {e}")
             last_err = e
 
-            if db:
-                try:
-                    db.table("llm_failures").insert({
-                        "user_id": None if user_id in (None, "internal") else user_id,
-                        "error_type": "error",
-                        "error_message": f"[{provider}/{model_key}] {str(e)[:480]}",
-                    }).execute()
-                except Exception:
-                    pass
+            # Log failure — fire and forget
+            asyncio.create_task(_log_failure(user_id, provider, model_key, e))
 
             if i < len(chain) - 1:
                 await asyncio.sleep(0.3)

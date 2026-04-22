@@ -32,6 +32,9 @@ class GiftCreditsRequest(BaseModel):
 class UnblockUserRequest(BaseModel):
     user_id: str
 
+class BlockUserRequest(BaseModel):
+    user_id: str
+
 class AIAssistantRequest(BaseModel):
     message: str
     context: str = ""
@@ -57,8 +60,9 @@ async def verify_admin_pin(req: PinRequest, user: dict = Depends(require_admin_u
             "SELECT value FROM app_settings WHERE key='admin_pin' LIMIT 1")
         stored = (record["value"] if record else "") or ""
         if not stored:
-            if os.getenv("APP_ENV", "development").lower() == "production":
-                raise HTTPException(503, "Admin PIN not initialized")
+            # ONLY allow default in dev. In prod, this is a hard 503 until seeded.
+            if os.getenv("APP_ENV", "development").lower() != "development":
+                raise HTTPException(503, "Admin PIN not initialized — contact system owner")
             valid = req.pin == "1234"
         else:
             valid = stored == _hash_pin(req.pin)
@@ -100,12 +104,20 @@ async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_adm
     return {"success": True, "new_balance": new_balance or 0}
 
 
+@router.post("/block-user")
+async def block_user(req: BlockUserRequest, user: dict = Depends(require_admin_user)):
+    """Deactivate user and kill all sessions."""
+    await execute("UPDATE users SET is_active=FALSE, updated_at=NOW() WHERE id=$1::uuid", req.user_id)
+    # Force logout by killing all sessions
+    await execute("DELETE FROM user_sessions WHERE user_id=$1::uuid", req.user_id)
+    return {"success": True, "status": "blocked"}
+
+
 @router.post("/unblock-user")
 async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_admin_user)):
-    await execute(
-        "UPDATE user_sessions SET expires_at=NOW()-INTERVAL '1 second' WHERE user_id=$1::uuid",
-        req.user_id)
-    return {"success": True}
+    """Reactivate user."""
+    await execute("UPDATE users SET is_active=TRUE, updated_at=NOW() WHERE id=$1::uuid", req.user_id)
+    return {"success": True, "status": "active"}
 
 
 @router.get("/users")

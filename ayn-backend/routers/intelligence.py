@@ -321,14 +321,45 @@ async def vote_prediction(req: VoteRequest, uid: str = Depends(get_user_id)):
         raise HTTPException(500, str(e))
 
 
+@router.get("/agents")
+async def proxy_get_agents():
+    """Proxy to simulation engine to get all agents with states."""
+    import httpx
+    from core.config import ENGINE_URL
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{ENGINE_URL}/agents")
+            if not r.is_success:
+                return {"agents": []}
+            return r.json()
+    except Exception:
+        return {"agents": []}
+
+
+@router.post("/chat")
+async def proxy_agent_chat(body: dict, user_id: str = Depends(get_user_id)):
+    """Proxy to simulation engine for agent chat."""
+    import httpx
+    from core.config import ENGINE_URL
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(f"{ENGINE_URL}/chat", json=body)
+            if not r.is_success:
+                raise HTTPException(r.status_code, r.text[:200])
+            return r.json()
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Agent is thinking too long")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 @router.post("/simulate")
 async def trigger_simulation(body: dict, user_id: str = Depends(get_user_id)):
     """
-    Proxy to simulation engine for WorldSimulator.tsx.
-    Delegates to /simulation/run.
+    Proxy to simulation engine for WorldSimulator.tsx and AgentSociety.tsx.
     """
-    import httpx, os
-    ENGINE_URL = os.getenv("ENGINE_URL", "https://engine.aynn.io")
+    import httpx
+    from core.config import ENGINE_URL
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             r = await client.post(
@@ -342,6 +373,7 @@ async def trigger_simulation(body: dict, user_id: str = Depends(get_user_id)):
         raise HTTPException(504, "Simulation timed out")
     except httpx.ConnectError:
         raise HTTPException(503, "Simulation engine unavailable")
+
 
 
 @router.get("/gpsjam")

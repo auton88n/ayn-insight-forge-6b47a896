@@ -6,13 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-// Emotion state now managed by Zustand store (src/stores/emotionStore.ts)
-// Sound state now managed by Zustand store (src/stores/soundStore.ts)
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
-// Debug state now managed by Zustand store (src/stores/debugStore.ts)
-
 import { PageLoader } from "@/components/ui/page-loader";
-// Skeleton layouts removed — using PageLoader for all route fallbacks
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { AnimatePresence } from 'framer-motion';
@@ -30,9 +25,6 @@ const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 
 const AIEmployee = lazy(() => import("./pages/services/AIEmployee"));
 const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
-// HIDDEN: Content Creator Sites and Engineering tools temporarily disabled
-// const InfluencerSites = lazy(() => import("./pages/services/InfluencerSites"));
-// const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
 const ServicesPage = lazy(() => import("./pages/Services"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const AIAgents = lazy(() => import("./pages/services/AIAgents"));
@@ -42,12 +34,6 @@ const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
 const Ticketing = lazy(() => import("./pages/services/Ticketing"));
 const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
 const Support = lazy(() => import("./pages/Support"));
-// HIDDEN: Engineering & Compliance features temporarily disabled
-// const Engineering = lazy(() => import("./pages/EngineeringWorkspacePage"));
-// const Compliance = lazy(() => import("./pages/CompliancePage"));
-// const AIGradingDesigner = lazy(() => import("./pages/AIGradingDesigner"));
-// HIDDEN: CivilEngineering service page temporarily disabled
-// const CivilEngineering = lazy(() => import('./pages/services/CivilEngineering'));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const DashboardPricing = lazy(() => import("./components/dashboard/DashboardPricing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
@@ -61,14 +47,15 @@ const AdminCustomOrders = lazy(() => import("./pages/AdminCustomOrders"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
 
-// Admin — lazy loaded so 3D/globe/main app code never loads for admin users
+// Admin Panel
 const AdminApp = lazy(() => import('./admin-app/AdminApp'));
+
+// Feature Gating
+const ComingSoon = lazy(() => import("./components/shared/ComingSoon"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Default freshness: 1 minute. Individual hooks override per CACHE_FRESHNESS class.
-      // See src/lib/cacheFreshness.ts for freshness tiers.
       staleTime: 60 * 1000,
       gcTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
@@ -79,31 +66,30 @@ const queryClient = new QueryClient({
 
 const AnimatedRoutes = () => {
   const location = useLocation();
-  
-  // Track page visits for analytics
   useVisitorTracking();
 
-  // Fast routes skip animation for instant navigation
   const fastRoutes = ['/settings', '/pricing', '/dashboard/pricing'];
   const isFastRoute = fastRoutes.some(route => location.pathname.startsWith(route));
   
   const routes = (
     <Routes location={location} key={isFastRoute ? 'fast' : location.pathname}>
       <Route path="/" element={<Suspense fallback={<PageLoader />}><PageTransition><Index /></PageTransition></Suspense>} />
-      {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
       <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
       <Route path="/dashboard/pricing" element={<Suspense fallback={<PageLoader />}><DashboardPricing /></Suspense>} />
-      
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><PageTransition><ResetPassword /></PageTransition></Suspense>} />
-      
       
       <Route path="/services" element={<Suspense fallback={<PageLoader />}><PageTransition><ServicesPage /></PageTransition></Suspense>} />
       <Route path="/services/ai-employee" element={<Suspense fallback={<PageLoader />}><PageTransition><AIEmployee /></PageTransition></Suspense>} />
       <Route path="/services/ai-employee/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><AIEmployeeApply /></PageTransition></Suspense>} />
-      {/* HIDDEN: Content Creator Sites temporarily disabled */}
-      <Route path="/services/content-creator-sites" element={<Navigate to="/services" replace />} />
-      <Route path="/services/content-creator-sites/apply" element={<Navigate to="/services" replace />} />
+      
+      {/* Ghost Routes -> ComingSoon */}
+      <Route path="/services/content-creator-sites" element={<Suspense fallback={<PageLoader />}><ComingSoon /></Suspense>} />
+      <Route path="/services/content-creator-sites/apply" element={<Suspense fallback={<PageLoader />}><ComingSoon /></Suspense>} />
+      <Route path="/engineering" element={<Suspense fallback={<PageLoader />}><ComingSoon /></Suspense>} />
+      <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><ComingSoon /></Suspense>} />
+      <Route path="/engineering/grading" element={<Suspense fallback={<PageLoader />}><ComingSoon /></Suspense>} />
+      
       <Route path="/services/ai-agents" element={<Suspense fallback={<PageLoader />}><PageTransition><AIAgents /></PageTransition></Suspense>} />
       <Route path="/services/ai-agents/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><AIAgentsApply /></PageTransition></Suspense>} />
       <Route path="/services/automation" element={<Suspense fallback={<PageLoader />}><PageTransition><Automation /></PageTransition></Suspense>} />
@@ -112,13 +98,7 @@ const AnimatedRoutes = () => {
       <Route path="/services/ticketing/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><TicketingApply /></PageTransition></Suspense>} />
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><PageTransition><ContactPage /></PageTransition></Suspense>} />
       <Route path="/support" element={<PageTransition><Support /></PageTransition>} />
-      {/* HIDDEN: Engineering & Compliance routes temporarily disabled
-      <Route path="/engineering" element={<Suspense fallback={<PageLoader />}><PageTransition><Engineering /></PageTransition></Suspense>} />
-      <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><PageTransition><Compliance /></PageTransition></Suspense>} />
-      <Route path="/engineering/grading" element={<Suspense fallback={<PageLoader />}><PageTransition><AIGradingDesigner /></PageTransition></Suspense>} />
-      */}
-      {/* HIDDEN: Civil engineering redirect disabled */}
-      {/* <Route path="/services/civil-engineering" element={<Navigate to="/" replace />} /> */}
+      
       <Route path="/approval-result" element={<PageTransition><ApprovalResult /></PageTransition>} />
       <Route path="/subscription-success" element={<PageTransition><SubscriptionSuccess /></PageTransition>} />
       <Route path="/subscription-canceled" element={<PageTransition><SubscriptionCanceled /></PageTransition>} />
@@ -127,22 +107,22 @@ const AnimatedRoutes = () => {
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/prediction-graph" element={<Suspense fallback={<PageLoader />}><PredictionGraphPage /></Suspense>} />
       <Route path="/prediction-control" element={<Suspense fallback={<PageLoader />}><PredictionControlPanel /></Suspense>} />
-      <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
-      <Route path="/manage-bae76e99d97e188b" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
-      <Route path="/manage-bae76e99d97e188b/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
-      <Route path="/admin" element={<Navigate to="/404" replace />} />
-      <Route path="/admin/*" element={<Navigate to="/404" replace />} />
-      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      
+      {/* Standard Admin Routes */}
+      <Route path="/admin" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
+      <Route path="/admin/*" element={<Suspense fallback={<PageLoader />}><AdminApp /></Suspense>} />
+      <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
+      
+      {/* Legacy Redirects */}
+      <Route path="/manage-bae76e99d97e188b/*" element={<Navigate to="/admin" replace />} />
+
       <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
     </Routes>
   );
 
-  // Skip AnimatePresence for fast routes
-  if (isFastRoute) {
-    return routes;
-  }
+  if (isFastRoute) return routes;
 
   return (
     <AnimatePresence mode="wait">
@@ -152,7 +132,6 @@ const AnimatedRoutes = () => {
 };
 
 const App = () => {
-  // Detect admin subdomain and serve admin panel
   return (
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
