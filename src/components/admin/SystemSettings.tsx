@@ -38,13 +38,18 @@ const BetaProgramSettings = () => {
 
   useEffect(() => {
     const loadConfig = async () => {
-      const data: any = await adminApi.getStats();
-      const configData = data?.config || [];
-      configData.forEach((item: any) => {
-        if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
-        else if (item.key === 'beta_feedback_reward') setFeedbackReward(parseInt(String(item.value)) || 5);
-      });
-      setLoading(false);
+      try {
+        const configData: any = await adminApi.getSystemConfig();
+        const data = Array.isArray(configData) ? configData : [];
+        data.forEach((item: any) => {
+          if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
+          else if (item.key === 'beta_feedback_reward') setFeedbackReward(parseInt(String(item.value)) || 5);
+        });
+      } catch (err) {
+        console.error('Failed to load beta config:', err);
+      } finally {
+        setLoading(false);
+      }
     };
     loadConfig();
   }, []);
@@ -256,30 +261,15 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
 
     setIsChangingPin(true);
     try {
-      // Hash the new PIN using SHA-256 (same as the PIN gate)
-      const msgBuffer = new TextEncoder().encode(newPin);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      // Update using the backend's canonical key
-      const { error } = await supabase
-        .from('app_settings')
-        .upsert({ key: 'admin_pin', value: hashHex, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-
-      if (error) throw error;
-
+      // Use the canonical backend helper
+      await adminApi.setAdminPin('', newPin); 
+      
       toast.success('PIN updated successfully!');
       setNewPin('');
       setConfirmPin('');
-
-      // Log the change
-      try {
-        /* spine */;
-      } catch {}
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error changing PIN:', error);
-      toast.error('Failed to update PIN');
+      toast.error('Failed to update PIN: ' + error.message);
     } finally {
       setIsChangingPin(false);
     }

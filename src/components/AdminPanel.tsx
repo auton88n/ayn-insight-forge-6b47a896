@@ -99,7 +99,7 @@ export const AdminPanel = ({
   const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
 
   // Parse system config from query
-  const configData = (systemConfigQuery.data as any)?.config || [];
+  const configData = systemConfigQuery.data || [];
   const configMap = new Map((Array.isArray(configData) ? configData : []).map((c: any) => [c.key, c.value]));
   const systemConfig: SystemConfig = {
     maintenanceMode: configMap.get('maintenance_mode') as boolean || false,

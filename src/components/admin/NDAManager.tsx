@@ -2,7 +2,7 @@ import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
-import { adminApi as supabase } from '@/lib/adminApi';
+
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -102,18 +102,11 @@ Be concise but thorough. Format clearly with emoji headers.`;
     setLoading(true);
     setAsked(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: buildContext() }],
-        }),
+      const data = await spineApi.req<{content: string}>('POST', '/admin/ai-proxy', {
+        action: 'reviewer',
+        messages: [{ role: 'user', content: buildContext() }]
       });
-      const data = await res.json();
-      const text = data.content?.find((b: any) => b.type === 'text')?.text || 'No response.';
-      setReview(text);
+      setReview(data.content || 'No response.');
     } catch (e: any) {
       setReview('Error running review: ' + e.message);
     } finally {
@@ -179,9 +172,14 @@ export const NDAManager = () => {
 
   const fetchNDAs = async () => {
     setLoading(true);
-    const { data, error } = await spineApi.req("GET", "/admin/ndas");
-    if (!error) setNdas((Array.isArray(data) ? data : []) as unknown as NDA[]);
-    setLoading(false);
+    try {
+      const data = await spineApi.req<NDA[]>("GET", "/admin/ndas");
+      setNdas(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchNDAs(); }, []);
@@ -212,11 +210,10 @@ export const NDAManager = () => {
     setSaving(true);
     try {
       if (editingNda) {
-        /* spine */;
+        await spineApi.req('PATCH', `/admin/ndas/${editingNda.id}`, form);
         toast({ title: 'NDA updated' });
       } else {
-        const signing_token = crypto.randomUUID();
-        /* spine */;
+        await spineApi.req('POST', '/admin/ndas', form);
         toast({ title: 'NDA created' });
       }
       setPanel('none');
@@ -231,15 +228,7 @@ export const NDAManager = () => {
   const handleSend = async (nda: NDA) => {
     setSending(nda.id);
     try {
-      const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`https://spine.aynn.io/admin/edge/send-nda-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ndaId: nda.id }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to send');
+      await spineApi.req('POST', `/admin/ndas/${nda.id}/send-email`);
       toast({ title: '📨 NDA sent', description: `Sent to ${nda.company_email}` });
       fetchNDAs();
     } catch (e: any) {
@@ -251,9 +240,13 @@ export const NDAManager = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this NDA?')) return;
-    /* spine */;
-    toast({ title: 'Deleted' });
-    fetchNDAs();
+    try {
+      await spineApi.req('DELETE', `/admin/ndas/${id}`);
+      toast({ title: 'Deleted' });
+      fetchNDAs();
+    } catch (e: any) {
+      toast({ title: 'Delete failed', description: e.message, variant: 'destructive' });
+    }
   };
 
   const TA = ({ field, rows = 3, placeholder = '' }: { field: keyof typeof form; rows?: number; placeholder?: string }) => (
@@ -497,22 +490,17 @@ export const NDAManager = () => {
                     {sending === viewingNda.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Send className="w-3.5 h-3.5 mr-1" />}
                     {viewingNda.email_sent_at ? 'Resend NDA' : 'Send NDA'}
                   </Button>
-                  {viewingNda.admin_signature_url && viewingNda.client_signature_url && (
                     <Button onClick={async () => {
-                      const { data: { session } } = await spineAuth.getSession();
-                      const token = session?.access_token || '';
-                      const res = await fetch(`https://spine.aynn.io/admin/edge/send-nda-completion`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ ndaId: viewingNda.id }),
-                      });
-                      const r = await res.json();
-                      if (r.success) toast({ title: '📨 Completion emails sent to both parties' });
-                      else toast({ title: 'Failed', description: r.error, variant: 'destructive' });
+                      try {
+                        const r = await spineApi.req<any>('POST', '/admin/ndas/send-completion', { ndaId: viewingNda.id });
+                        if (r.success || r.ok) toast({ title: '📨 Completion emails sent to both parties' });
+                        else toast({ title: 'Failed', description: r.error || 'Unknown error', variant: 'destructive' });
+                      } catch (err: any) {
+                        toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                      }
                     }} size="sm" className="bg-green-700 hover:bg-green-600 text-xs gap-1">
                       <CheckCircle className="w-3.5 h-3.5" /> Send Signed Copy
                     </Button>
-                  )}
                   <Button onClick={() => openForm(viewingNda)} size="sm" variant="outline"
                     className="border-white/10 text-white/50 text-xs">
                     <Edit className="w-3.5 h-3.5" />

@@ -165,7 +165,7 @@ export function useAdminRevenue() {
 }
 
 export function useAdminSystemMonitoring() {
-  return useQuery({ queryKey: adminKeys.systemMonitoring(), queryFn: () => adminApi.getHealth(), staleTime: FAST_STALE_TIME });
+  return useQuery({ queryKey: adminKeys.systemMonitoring(), queryFn: () => adminApi.getStats(), staleTime: FAST_STALE_TIME });
 }
 
 export function useAdminRateLimits() {

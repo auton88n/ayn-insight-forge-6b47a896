@@ -79,14 +79,26 @@ export const TwitterMarketingPanel = () => {
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      const body: Record<string, string> = {};
-      if (filterContentType !== 'all') body.content_type = filterContentType;
-      if (filterAudience !== 'all') body.target_audience = filterAudience;
+      const prompt = `Generate a high-engagement marketing tweet for AYN. 
+      Target Audience: ${filterAudience}
+      Content Type: ${filterContentType}
+      Brand Voice: Professional, Visionary, Honest.`;
 
-      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
-      if (error) throw error;
-      toast.success('Tweet generated!');
-      fetchPosts();
+      const res = await spineApi.req<{content: string}>('POST', '/admin/ai-proxy', {
+        action: 'tweet_generator',
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      if (res.content) {
+        await spineApi.req('POST', '/admin/twitter/posts', {
+          content: res.content,
+          target_audience: filterAudience === 'all' ? 'general' : filterAudience,
+          content_type: filterContentType === 'all' ? 'value' : filterContentType,
+          psychological_strategy: 'persuasion'
+        });
+        toast.success('Tweet generated!');
+        fetchPosts();
+      }
     } catch (err) {
       console.error('Generate error:', err);
       toast.error('Failed to generate tweet');

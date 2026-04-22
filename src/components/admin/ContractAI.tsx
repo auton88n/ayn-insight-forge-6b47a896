@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { spineApi } from '@/lib/spineApi';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, X, ChevronRight, FileText, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,23 +46,12 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
     setLoading(true);
 
     try {
-      // Use admin-ai-assistant which already has LOVABLE_API_KEY injected by Lovable
-      const res = await fetch(`https://spine.aynn.io/admin/edge/admin-ai-assistant`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('ayn_admin_token') || ''}`,
-        },
-        body: JSON.stringify({
-          action: 'contract_builder',
-          type,
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+      const data = await spineApi.req<{text: string}>('POST', '/admin/ai-proxy', {
+        action: 'contract_builder',
+        type,
+        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
-      const text = data.text || data.response || data.message || data.content || '';
+      const text = data.text || '';
 
       // Check if AI returned contract data
       const tag = type === 'contract' ? 'CONTRACT_DATA' : 'NDA_DATA';

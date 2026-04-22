@@ -86,38 +86,15 @@ function AIReviewer({ contractData }: { contractData: any }) {
   const runReview = async () => {
     setLoading(true); setAsked(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: `You are a legal contract AI reviewer. Review this service agreement for completeness, fairness, and legal protection of both parties.
-
-CONTRACT DETAILS:
-- Client: ${contractData.company_name}
-- Project: ${contractData.order_title}
-- Description: ${contractData.order_description || 'Not specified'}
-- System Plan: ${contractData.system_plan || 'Not specified'}
-- Payment Terms: ${contractData.payment_terms || 'Not specified'}
-- Delivery Timeline: ${contractData.delivery_timeline || 'Not specified'}
-- Warranty: ${contractData.warranty || 'Not specified'}
-- Termination: ${contractData.termination_clause || 'Not specified'}
-- Terms & Conditions: ${contractData.terms_and_conditions || 'Not specified'}
-- After-Sale Services: ${contractData.after_sale_services || 'Not specified'}
-- Governing Law: ${contractData.governing_law || 'Not specified'}
-
-Provide a structured review:
-1. ✅ What is well-covered
-2. ⚠️ Gaps or weaknesses
-3. 🔴 Critical issues that could expose either party
-4. 💡 Specific suggestions to strengthen it
-
-Be concise but thorough. Format clearly with emoji headers.` }],
-        }),
+      const res = await spineApi.req<{content: string}>('POST', '/admin/ai-proxy', {
+        action: 'reviewer',
+        messages: [{ role: 'user', content: `Review this service agreement:
+Client: ${contractData.company_name}
+Project: ${contractData.order_title}
+Description: ${contractData.order_description || 'Not specified'}
+...` }]
       });
-      const data = await res.json();
-      setReview(data.content?.find((b: any) => b.type === 'text')?.text || 'No response.');
+      setReview(res.content || 'No response.');
     } catch (e: any) { setReview('Error: ' + e.message); }
     finally { setLoading(false); }
   };
@@ -173,9 +150,8 @@ export const CustomOrders = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/orders");
-      if (error) throw error;
-      setOrders((Array.isArray(data) ? data : []) as unknown as CustomOrder[]);
+      const data = await spineApi.req<CustomOrder[]>("GET", "/admin/orders");
+      setOrders(Array.isArray(data) ? data : []);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
@@ -209,10 +185,10 @@ export const CustomOrders = () => {
       const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent);
       const payload = { ...form, subtotal, total_amount: total, status: editingOrder?.status || 'draft', services: form.services as any };
       if (editingOrder) {
-        /* spine */;
+        await spineApi.req('PATCH', `/admin/orders/${editingOrder.id}`, payload);
         toast({ title: 'Order updated' });
       } else {
-        /* spine */;
+        await spineApi.req('POST', '/admin/orders', payload);
         toast({ title: 'Order created' });
       }
       setPanel('none');
@@ -226,24 +202,19 @@ export const CustomOrders = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order?')) return;
-    /* spine */;
-    toast({ title: 'Deleted' });
-    fetchOrders();
+    try {
+      await spineApi.req('DELETE', `/admin/orders/${id}`);
+      toast({ title: 'Deleted' });
+      fetchOrders();
+    } catch (e: any) {
+      toast({ title: 'Delete failed', description: e.message, variant: 'destructive' });
+    }
   };
 
   const handleSendEmail = async (order: CustomOrder) => {
     setSendingEmail(order.id);
     try {
-      const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`https://spine.aynn.io/admin/edge/send-contract-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ orderId: order.id }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Send failed');
-      /* spine */;
+      await spineApi.req('POST', `/admin/orders/${order.id}/send-email`);
       toast({ title: '✅ Contract sent', description: `Sent to ${order.company_email}` });
       fetchOrders();
     } catch (e: any) {
@@ -256,17 +227,8 @@ export const CustomOrders = () => {
   const handleGeneratePdf = async (order: CustomOrder) => {
     setGeneratingPdf(order.id);
     try {
-      const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`https://spine.aynn.io/admin/edge/generate-contract-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ orderId: order.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'PDF generation failed');
+      const data = await spineApi.req<{html: string}>('POST', `/admin/orders/${order.id}/generate-pdf`);
       if (data?.html) {
-        // Use Blob URL — renders as a proper HTML page, not a download
         const blob = new Blob([data.html], { type: 'text/html;charset=utf-8' });
         const blobUrl = URL.createObjectURL(blob);
         const tab = window.open(blobUrl, '_blank');
@@ -283,24 +245,21 @@ export const CustomOrders = () => {
 
   const handleMarkPaid = async (id: string) => {
     setMarkingPaid(id);
-    /* spine */;
-    toast({ title: '✅ Marked as paid' });
-    fetchOrders();
-    setMarkingPaid(null);
+    try {
+      await spineApi.req('PATCH', `/admin/orders/${id}`, { status: 'paid' });
+      toast({ title: '✅ Marked as paid' });
+      fetchOrders();
+    } catch (e: any) {
+      toast({ title: 'Failed to mark paid', description: e.message, variant: 'destructive' });
+    } finally {
+      setMarkingPaid(null);
+    }
   };
 
   const handleSendPdf = async (order: CustomOrder) => {
     setSendingPdf(order.id);
     try {
-      const { data: { session } } = await spineAuth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`https://spine.aynn.io/admin/edge/send-contract-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ orderId: order.id }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to send PDF');
+      await spineApi.req('POST', `/admin/orders/${order.id}/send-pdf`);
       toast({ title: '📄 Contract PDF sent', description: `Sent to ${order.company_email}` });
     } catch (e: any) {
       toast({ title: 'Send PDF failed', description: e.message, variant: 'destructive' });

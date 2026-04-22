@@ -212,35 +212,14 @@ export function AdminAIAssistant() {
     setIsLoading(true);
 
     try {
-      const { data: { session } } = await spineAuth.getSession();
-      if (!session) {
-        toast.error('Not authenticated');
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await fetch(
-        `https://spine.aynn.io/admin/edge/admin-ai-assistant`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ message: text })
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to get response');
-      }
-
-      const data = await response.json();
+      const data = await spineApi.req<any>('POST', '/admin/ai-proxy', {
+        action: 'assistant',
+        messages: messages.concat([{ role: 'user', content: text }]).map(m => ({ role: m.role, content: m.content }))
+      });
       
-      // Update stats if returned
-      if (data.quickStats) {
-        setStats(data.quickStats);
-      }
+      // Update stats if returned (AI proxy returns {content, ok})
+      // But we can also manually refresh stats here
+      fetchStats();
       
       setMessages(prev => [...prev, {
         role: 'assistant',
