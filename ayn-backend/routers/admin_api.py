@@ -14,41 +14,62 @@ log = logging.getLogger("ayn.admin")
 
 # ── Dashboard Stats ────────────────────────────────────────────────────────────
 
-@router.get("/stats")
-async def get_stats(_=Depends(require_admin_user)):
-    try:
-        total_users = await fetchval("SELECT COUNT(*) FROM users") or 0
-        active_today = await fetchval("""
-            SELECT COUNT(DISTINCT user_id) FROM messages 
+        # Messages today vs total
+        today_messages = await fetchval("""
+            SELECT COUNT(*) FROM messages 
             WHERE created_at > NOW() - INTERVAL '24 hours'
         """) or 0
         total_messages = await fetchval("SELECT COUNT(*) FROM messages") or 0
-        new_today = await fetchval("""
-            SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '24 hours'
+        
+        active_30d = await fetchval("""
+            SELECT COUNT(DISTINCT user_id) FROM messages 
+            WHERE created_at > NOW() - INTERVAL '30 days'
+        """) or 0
+        
+        # Recent errors (24h) for SystemMonitoring
+        errors_24h = await fetchval("""
+            SELECT COUNT(*) FROM error_logs 
+            WHERE created_at > NOW() - INTERVAL '24 hours'
         """) or 0
         
         # Additional metrics for AdminStatsPanel
         blocked_users = await fetchval("SELECT COUNT(*) FROM users WHERE is_active = FALSE") or 0
         open_tickets = await fetchval("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'") or 0
+
+        # LLM Usage (24h)
+        llm_usage = await fetchval("""
+            SELECT COUNT(*) FROM llm_usage_logs 
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+        """) or 0
+        llm_fallbacks = await fetchval("""
+            SELECT COUNT(*) FROM llm_usage_logs 
+            WHERE created_at > NOW() - INTERVAL '24 hours' AND was_fallback = TRUE
+        """) or 0
         
         # Recent users for Dashboard
         recent_rows = await fetch("""
-            SELECT id, email, first_name || ' ' || last_name as display_name, created_at as signed_up_at, is_active
-            FROM users ORDER BY created_at DESC LIMIT 10
+            SELECT id, email, 
+                   COALESCE(first_name || ' ' || last_name, email) as display_name, 
+                   created_at as signed_up_at, 
+                   COALESCE(is_active, TRUE) as is_active
+            FROM users 
+            ORDER BY created_at DESC 
+            LIMIT 10
         """)
         recent_users = [dict(r) for r in recent_rows]
 
         return {
             "total_users": total_users,
-            "active_users": active_today,
-            "today_messages": active_today, # Dashboard uses this for "Messages Today"
+            "active_users_30d": active_30d,
+            "messages_today": today_messages,
+            "messages_total": total_messages,
             "new_users_today": new_today,
-            "systemHealth": 100,            # Fallback or placeholder for now
-            "testPassRate": 100,
-            "blockedUsers": blocked_users,
-            "openTickets": open_tickets,
-            "llmFallbackRate": 0,
-            "calcUsage24h": 0,
+            "errors_24h": errors_24h,
+            "system_health": 100,
+            "blocked_users": blocked_users,
+            "open_tickets": open_tickets,
+            "llm_usage_24h": llm_usage,
+            "llm_fallbacks_24h": llm_fallbacks,
             "recent_users": recent_users
         }
     except Exception as e:
@@ -65,15 +86,44 @@ async def get_stats(_=Depends(require_admin_user)):
 
 @router.get("/users")
 async def get_users(_=Depends(require_admin_user)):
+    # Comprehensive query to satisfy AdminUser frontend interface
     rows = await fetch("""
-        SELECT u.id, u.email, u.first_name, u.last_name, u.is_admin, u.created_at,
-               COALESCE(s.subscription_tier, 'free') as subscription_tier,
-               COALESCE(s.status, 'active') as subscription_status,
-               COALESCE(l.daily_messages, 5) as daily_messages,
-               COALESCE(l.current_daily_messages, 0) as current_daily_messages,
-               COALESCE(l.bonus_credits, 0) as bonus_credits,
-               (SELECT COUNT(*) FROM messages m WHERE m.user_id = u.id) as message_count
+        WITH user_stats AS (
+            SELECT 
+                user_id,
+                COUNT(*) as total_m,
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as m7,
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as m30,
+                COUNT(DISTINCT created_at::date) as active_days,
+                MAX(created_at) as last_act
+            FROM messages
+            GROUP BY user_id
+        )
+        SELECT 
+            u.id, 
+            u.email, 
+            COALESCE(u.first_name || ' ' || u.last_name, u.email) as display_name,
+            u.avatar_url,
+            u.auth_provider,
+            u.created_at as signed_up_at,
+            u.last_sign_in_at,
+            us.last_act as last_active_at,
+            u.email_verified,
+            u.contact_person,
+            u.company_name,
+            CASE WHEN u.is_admin THEN 'admin' ELSE 'user' END as role,
+            COALESCE(s.subscription_tier, 'free') as subscription_tier,
+            COALESCE(s.status, 'active') as subscription_status,
+            COALESCE(u.is_active, TRUE) as is_active,
+            COALESCE(l.current_daily_messages, 0) as current_month_usage,
+            COALESCE(l.daily_messages, 5) as monthly_limit,
+            COALESCE(us.total_m, 0) as total_messages,
+            COALESCE(us.m7, 0) as messages_7d,
+            COALESCE(us.m30, 0) as messages_30d,
+            COALESCE(us.active_days, 0) as active_days_total,
+            CASE WHEN us.last_act IS NOT NULL THEN EXTRACT(DAY FROM NOW() - us.last_act) ELSE NULL END as days_since_last_use
         FROM users u
+        LEFT JOIN user_stats us ON us.user_id = u.id
         LEFT JOIN user_subscriptions s ON s.user_id = u.id
         LEFT JOIN user_ai_limits l ON l.user_id = u.id
         ORDER BY u.created_at DESC
@@ -519,7 +569,7 @@ async def create_nda(data: dict, admin=Depends(require_admin_user)):
 
 # ── System Config ──────────────────────────────────────────────────────────────
 
-@router.get("/system-config")
+@router.get("/config")
 async def get_system_config(_=Depends(require_admin_user)):
     rows = await fetch("SELECT key, value, updated_at FROM system_config ORDER BY key")
     return rows or []
@@ -528,7 +578,7 @@ class SystemConfigRequest(BaseModel):
     key: str
     value: dict
 
-@router.post("/system-config")
+@router.post("/config")
 async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_admin_user)):
     import json
     await execute("""
@@ -549,7 +599,7 @@ async def get_service_applications(_=Depends(require_admin_user)):
 
 # ── LLM Usage Stats ────────────────────────────────────────────────────────────
 
-@router.get("/llm-stats")
+@router.get("/llm")
 async def get_llm_stats(_=Depends(require_admin_user)):
     rows = await fetch("""
         SELECT model_name, intent_type,
@@ -568,7 +618,7 @@ async def get_llm_stats(_=Depends(require_admin_user)):
 
 # ── Visitor Analytics ──────────────────────────────────────────────────────────
 
-@router.get("/visitor-analytics")
+@router.get("/analytics/summary")
 async def get_visitor_analytics(_=Depends(require_admin_user)):
     stats = await fetchrow("""
         SELECT 
@@ -587,6 +637,55 @@ async def get_visitor_analytics(_=Depends(require_admin_user)):
         GROUP BY page_path ORDER BY views DESC LIMIT 20
     """)
     return {"stats": dict(stats) if stats else {}, "top_pages": pages or []}
+
+
+# ── User Growth ───────────────────────────────────────────────────────────────
+
+@router.get("/user-growth")
+async def get_user_growth(_=Depends(require_admin_user)):
+    # Match UserGrowthChart.tsx expectation: signed_up_at
+    rows = await fetch("""
+        SELECT DATE(created_at) as signed_up_at, COUNT(*) as new_users
+        FROM users
+        WHERE created_at > NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at) 
+        ORDER BY signed_up_at ASC
+    """)
+    return rows or []
+
+
+# ── Churn Alerts ──────────────────────────────────────────────────────────────
+
+@router.get("/churn-alerts")
+async def get_churn_alerts(_=Depends(require_admin_user)):
+    # Match ChurnAlerts.tsx expectation: display_name, last_active_at, days_inactive
+    rows = await fetch("""
+        SELECT u.id, u.email, 
+               COALESCE(u.first_name || ' ' || u.last_name, u.email) as display_name,
+               sub.subscription_tier,
+               us.last_act as last_active_at,
+               COALESCE(us.total_m, 0) as total_messages,
+               COALESCE(us.m30, 0) as messages_30d,
+               CASE WHEN us.last_act IS NOT NULL 
+                    THEN EXTRACT(DAY FROM NOW() - us.last_act) 
+                    ELSE EXTRACT(DAY FROM NOW() - u.created_at) 
+               END as days_inactive
+        FROM users u
+        LEFT JOIN (
+            SELECT user_id, 
+                   COUNT(*) as total_m,
+                   COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as m30,
+                   MAX(created_at) as last_act
+            FROM messages
+            GROUP BY user_id
+        ) us ON us.user_id = u.id
+        LEFT JOIN user_subscriptions sub ON sub.user_id = u.id
+        WHERE u.created_at < NOW() - INTERVAL '7 days'
+        AND (us.last_act < NOW() - INTERVAL '7 days' OR us.last_act IS NULL)
+        ORDER BY days_inactive DESC
+        LIMIT 100
+    """)
+    return rows or []
 
 
 def json_or_null(val):

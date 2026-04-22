@@ -94,7 +94,7 @@ async def set_admin_pin(req: SetPinRequest, user: dict = Depends(require_admin_u
 
 
 # ── Credits / Users ───────────────────────────────────────────────────────────
-@router.post("/add-credits")
+@router.post("/legacy/add-credits")
 async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_admin_user)):
     await execute(
         "UPDATE user_ai_limits SET bonus_credits=COALESCE(bonus_credits,0)+$2, updated_at=NOW() "
@@ -104,7 +104,7 @@ async def gift_credits(req: GiftCreditsRequest, user: dict = Depends(require_adm
     return {"success": True, "new_balance": new_balance or 0}
 
 
-@router.post("/block-user")
+@router.post("/legacy/block-user")
 async def block_user(req: BlockUserRequest, user: dict = Depends(require_admin_user)):
     """Deactivate user and kill all sessions."""
     await execute("UPDATE users SET is_active=FALSE, updated_at=NOW() WHERE id=$1::uuid", req.user_id)
@@ -113,7 +113,7 @@ async def block_user(req: BlockUserRequest, user: dict = Depends(require_admin_u
     return {"success": True, "status": "blocked"}
 
 
-@router.post("/unblock-user")
+@router.post("/legacy/unblock-user")
 async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_admin_user)):
     """Reactivate user."""
     await execute("UPDATE users SET is_active=TRUE, updated_at=NOW() WHERE id=$1::uuid", req.user_id)
@@ -135,7 +135,7 @@ async def get_admin_users(user: dict = Depends(require_admin_user)):
     return {"users": [dict(r) for r in rows]}
 
 
-@router.get("/user-messages")
+@router.get("/legacy/user-messages")
 async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT id,content,role,created_at FROM messages "
@@ -145,14 +145,14 @@ async def get_user_messages(user_id: str, limit: int = 10, user: dict = Depends(
 
 
 # ── Support / Orders ──────────────────────────────────────────────────────────
-@router.get("/tickets")
+@router.get("/legacy/tickets")
 async def get_support_tickets(limit: int = 200, offset: int = 0, user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM support_tickets ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset)
     return {"tickets": [dict(r) for r in rows]}
 
 
-@router.get("/contact-messages")
+@router.get("/legacy/contact-messages")
 async def get_contact_messages(limit: int = 200, user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT $1", limit)
     return {"messages": [dict(r) for r in rows]}
@@ -179,7 +179,7 @@ async def get_admin_stats(user: dict = Depends(require_admin_user)):
     }
 
 
-@router.get("/llm")
+@router.get("/legacy/llm")
 async def get_llm_stats(user: dict = Depends(require_admin_user)):
     logs = await fetch(
         "SELECT model_name,response_time_ms,was_fallback,created_at FROM llm_usage_logs "
@@ -187,39 +187,39 @@ async def get_llm_stats(user: dict = Depends(require_admin_user)):
     return {"logs": [dict(r) for r in logs], "models": [], "total_cost": 0}
 
 
-@router.get("/test-results")
+@router.get("/legacy/test-results")
 async def get_test_results(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM test_results ORDER BY created_at DESC LIMIT 50")
     return {"results": [dict(r) for r in rows]}
 
 
-@router.get("/rate-limits")
+@router.get("/legacy/rate-limits")
 async def get_rate_limits(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM api_rate_limits ORDER BY updated_at DESC LIMIT 100")
     return {"rate_limits": [dict(r) for r in rows]}
 
 
-@router.get("/notification-log")
+@router.get("/legacy/notification-log")
 async def get_notification_log(user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM admin_notification_log ORDER BY created_at DESC LIMIT 100")
     return {"logs": [dict(r) for r in rows]}
 
 
-@router.get("/ndas")
+@router.get("/legacy/ndas")
 async def get_ndas(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM nda_agreements ORDER BY created_at DESC")
     return {"ndas": [dict(r) for r in rows]}
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-@router.get("/config")
+@router.get("/legacy/config")
 async def get_system_config(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM system_config")
     return {"config": [dict(r) for r in rows]}
 
 
-@router.post("/config")
+@router.post("/legacy/config")
 async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(require_admin_user)):
     await execute(
         "INSERT INTO system_config (key,value) VALUES ($1,$2) "
@@ -229,7 +229,7 @@ async def upsert_system_config(req: SystemConfigRequest, user: dict = Depends(re
 
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
-@router.post("/ai-assistant")
+@router.post("/legacy/ai-assistant")
 async def admin_ai(req: AIAssistantRequest, user: dict = Depends(require_admin_user)):
     try:
         stats = {
@@ -250,7 +250,7 @@ Be concise and specific."""
 
 
 # ── Memory ────────────────────────────────────────────────────────────────────
-@router.post("/user/memory")
+@router.post("/legacy/user/memory")
 async def save_user_memory(req: MemoryRequest, user_id: str = Depends(get_user_id)):
     await execute("""
         INSERT INTO user_memory (user_id, memory_key, memory_data, memory_type, updated_at)
@@ -262,7 +262,7 @@ async def save_user_memory(req: MemoryRequest, user_id: str = Depends(get_user_i
 
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
-@router.get("/analytics/summary")
+@router.get("/legacy/analytics/summary")
 async def get_analytics_summary(days: int = 30, user: dict = Depends(require_admin_user)):
     rows = await fetch(
         "SELECT * FROM visitor_analytics ORDER BY created_at DESC LIMIT 500")

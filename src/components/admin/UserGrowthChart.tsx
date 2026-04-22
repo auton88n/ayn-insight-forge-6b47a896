@@ -15,11 +15,18 @@ export const UserGrowthChart = () => {
     const rows = (Array.isArray(users) ? users : []) as { signed_up_at: string }[];
     const weekMap = new Map<string, number>();
     rows.forEach(r => {
-      const d = new Date(r.signed_up_at);
-      d.setHours(0,0,0,0);
-      d.setDate(d.getDate() - d.getDay());
-      const key = d.toISOString().slice(0, 10);
-      weekMap.set(key, (weekMap.get(key) || 0) + 1);
+      try {
+        const dateStr = r.signed_up_at;
+        if (!dateStr) return;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return;
+        d.setHours(0,0,0,0);
+        d.setDate(d.getDate() - d.getDay());
+        const key = d.toISOString().slice(0, 10);
+        weekMap.set(key, (weekMap.get(key) || 0) + 1);
+      } catch (e) {
+        console.warn('Invalid growth date:', r);
+      }
     });
     const sorted = Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     let cum = 0;
@@ -37,8 +44,13 @@ export const UserGrowthChart = () => {
   const growth = prevWeek > 0 ? Math.round(((lastWeek - prevWeek) / prevWeek) * 100) : 0;
 
   const formatWeek = (w: string) => {
-    const d = new Date(w);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    try {
+      const d = new Date(w);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return '—';
+    }
   };
 
   return (

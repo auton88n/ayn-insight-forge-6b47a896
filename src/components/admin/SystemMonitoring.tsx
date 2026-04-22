@@ -202,7 +202,16 @@ export const SystemMonitoring = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{event.label}</p>
                     <p className="text-xs text-muted-foreground truncate">{event.detail}</p>
-                    <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(event.created_at), { addSuffix: true })}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        try {
+                          const d = new Date(event.created_at);
+                          return isNaN(d.getTime()) ? 'Recently' : formatDistanceToNow(d, { addSuffix: true });
+                        } catch (e) {
+                          return 'Recently';
+                        }
+                      })()}
+                    </p>
                   </div>
                   <Badge variant="outline" className="text-xs shrink-0">{event.type === 'error' ? event.severity : event.type}</Badge>
                 </div>
