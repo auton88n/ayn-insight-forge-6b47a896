@@ -3,7 +3,7 @@ routers/admin_api.py — admin panel API endpoints
 Replaces all Supabase get_admin_* RPC functions
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from core.database import fetch, fetchrow, execute, fetchval
 from core.security import require_admin_user
@@ -1131,13 +1131,178 @@ async def ai_proxy(req: AIProxyRequest, admin=Depends(require_admin_user)):
         raise HTTPException(500, str(e))
 
 
-@router.get("/user-messages")
-async def get_user_messages(user_id: str, _=Depends(require_admin_user)):
-    rows = await fetch("""
-        SELECT m.*, cs.title as session_title
-        FROM messages m
-        JOIN chat_sessions cs ON cs.session_id = m.session_id
-        WHERE m.user_id = $1
-        ORDER BY m.created_at DESC LIMIT 200
-    """, user_id)
-    return rows or []
+# ── Specialized Admin Actions ───────────────────────────────────────────────
+
+@router.post("/unblock-user")
+async def unblock_user(req: dict, _=Depends(require_admin_user)):
+    """Restores user access by setting is_active=TRUE."""
+    user_id = req.get("user_id")
+    if not user_id:
+        raise HTTPException(400, "user_id required")
+    await execute("UPDATE users SET is_active = TRUE WHERE id = $1", user_id)
+    return {"ok": True}
+
+
+@router.post("/verify-pin")
+async def verify_admin_pin(req: dict, _=Depends(require_admin_user)):
+    """Verifies the administrative PIN for protected actions."""
+    pin = req.get("pin")
+    # In a real app, this would check against a hashed pin in system_config or a dedicated table.
+    # For now, we'll fetch 'admin_pin' from system_config.
+    stored_pin = await fetchval("SELECT value->>'pin' FROM system_config WHERE key = 'admin_pin'")
+    if not stored_pin:
+        # Default pin if none set (not recommended for prod, but for restoration)
+        return {"valid": pin == "1234"}
+    return {"valid": pin == stored_pin}
+
+
+@router.post("/set-pin")
+async def set_admin_pin(req: dict, admin=Depends(require_admin_user)):
+    """Updates the administrative PIN."""
+    import json
+    new_pin = req.get("new_pin")
+    if not new_pin:
+        raise HTTPException(400, "new_pin required")
+    await execute("""
+        INSERT INTO system_config (key, value, updated_by)
+        VALUES ('admin_pin', $1, $2)
+        ON CONFLICT (key) DO UPDATE SET value = $1, updated_by = $2
+    """, json.dumps({"pin": new_pin}), admin['user_id'])
+    return {"ok": True}
+
+
+@router.post("/ai-assistant")
+async def admin_ai_assistant(req: dict, admin=Depends(require_admin_user)):
+    """Internal AI assistant for administrators to query system state."""
+    from core.llm import call_with_fallback
+    message = req.get("message")
+    context = req.get("context", "")
+    
+    # Enrich with system stats for context
+    stats = await get_stats()
+    stats_json = json_or_null(stats)
+    
+    msgs = [
+        {"role": "system", "content": f"You are AYN's Admin Operations Assistant. System Stats: {stats_json}. Helper Context: {context}"},
+        {"role": "user", "content": message}
+    ]
+    
+    result = await call_with_fallback(intent="chat", messages=msgs, user_id=admin['user_id'])
+    return {"content": result["content"], "ok": True}
+
+
+# ── Generic DB & Function Proxies (The Shim Bridge) ───────────────────────────
+
+@router.api_route("/db/{table}", methods=["GET", "POST", "PATCH", "DELETE"])
+async def db_proxy(table: str, req: Request, _=Depends(require_admin_user)):
+    """
+    Generic bridge for adminApi.from(table) shim.
+    Supports basic PostgREST-style filtering.
+    """
+    method = req.method
+    params = dict(req.query_params)
+    
+    # 1. Parse filtering (PostgREST style: col=eq.val)
+    where_clauses = []
+    query_params = []
+    
+    # Reserved params
+    limit = params.pop("limit", 100)
+    offset = params.pop("offset", 0)
+    order = params.pop("order", None)
+    select = params.pop("select", "*") # We ignore select for now and return all as dicts
+
+    for col, filter_val in params.items():
+        if '.' in str(filter_val):
+            op, val = str(filter_val).split('.', 1)
+            op_map = {"eq": "=", "neq": "!=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "like": "ILIKE", "ilike": "ILIKE", "is": "IS"}
+            sql_op = op_map.get(op, "=")
+            query_params.append(val)
+            where_clauses.append(f"{col} {sql_op} ${len(query_params)}")
+        else:
+            query_params.append(filter_val)
+            where_clauses.append(f"{col} = ${len(query_params)}")
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    
+    # 2. Execution
+    try:
+        if method == "GET":
+            order_sql = ""
+            if order:
+                col, dir = order.split('.') if '.' in order else (order, "asc")
+                order_sql = f"ORDER BY {col} {dir}"
+            
+            sql = f"SELECT * FROM {table} {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}"
+            rows = await fetch(sql, *query_params)
+            return rows or []
+            
+        elif method == "POST":
+            # For simplicity, we assume single row OR list of rows
+            body = await req.json()
+            if isinstance(body, list):
+                # Bulk insert not fully implemented in this generic shim, just returning placeholder
+                return {"error": "Bulk insert via proxy not implemented"}
+            
+            cols = list(body.keys())
+            vals = list(body.values())
+            placeholders = ", ".join(f"${i+1}" for i in range(len(vals)))
+            col_names = ", ".join(cols)
+            
+            sql = f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) RETURNING *"
+            row = await fetchrow(sql, *vals)
+            return dict(row) if row else {}
+
+        elif method == "PATCH":
+            body = await req.json()
+            set_parts = []
+            update_vals = []
+            for i, (k, v) in enumerate(body.items(), start=len(query_params) + 1):
+                set_parts.append(f"{k} = ${i}")
+                update_vals.append(v)
+            
+            sql = f"UPDATE {table} SET {', '.join(set_parts)} {where_sql} RETURNING *"
+            rows = await fetch(sql, *(query_params + update_vals))
+            return rows or []
+
+        elif method == "DELETE":
+            sql = f"DELETE FROM {table} {where_sql}"
+            await execute(sql, *query_params)
+            return {"ok": True}
+
+    except Exception as e:
+        log.error(f"DB Proxy Error ({method} {table}): {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/db/rpc/{fn}")
+async def rpc_proxy(fn: str, args: dict = None, _=Depends(require_admin_user)):
+    """Generic bridge for adminApi.rpc(fn, args) shim."""
+    try:
+        args_json = json_or_null(args or {})
+        # Note: This is an insecure generic proxy. In production, we'd whitelist functions.
+        # But for restoration of admin features, we allow it behind require_admin_user.
+        sql = f"SELECT * FROM {fn}($1::json)"
+        rows = await fetch(sql, args_json)
+        return rows or []
+    except Exception as e:
+        log.error(f"RPC Proxy Error ({fn}): {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/fn/{name}")
+async def function_proxy(name: str, body: dict = None, admin=Depends(require_admin_user)):
+    """
+    Generic bridge for adminApi.invoke(name, body) shim.
+    Routes to internal logic or triggers based on 'name'.
+    """
+    # 1. Specialized handlers
+    if name == "generate-marketing-plan":
+        # Route to marketing service
+        return await ai_proxy(AIProxyRequest(action="marketing", messages=[{"role": "user", "content": f"Generate plan for: {body.get('topic')}"}]), admin)
+    
+    # 2. General fallback to AI Proxy if it looks like a generation task
+    if "generate" in name or "ai" in name:
+        return await ai_proxy(AIProxyRequest(action="assistant", messages=[{"role": "user", "content": str(body)}]), admin)
+        
+    return {"error": f"Function '{name}' not implemented in Railway backend"}

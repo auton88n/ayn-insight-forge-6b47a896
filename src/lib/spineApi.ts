@@ -194,7 +194,7 @@ export const adminApi = {
   // Subscriptions & Credits
   getSubscriptions:   () => req<any[]>('GET', '/admin/subscriptions'),
   giftCredits:        (user_id: string, amount: number, reason?: string) =>
-    req('POST', '/admin/add-credits', { user_id, credits: amount, reason }),
+    req('POST', '/admin/add-credits', { user_id, amount, reason }),
   unblockUser:        (user_id: string) => req('POST', '/admin/unblock-user', { user_id }),
 
   // Support Tickets
