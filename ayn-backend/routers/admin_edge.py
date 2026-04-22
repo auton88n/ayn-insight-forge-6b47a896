@@ -26,6 +26,47 @@ router = APIRouter(prefix="/admin/edge", tags=["admin-edge"])
 log = logging.getLogger("ayn.admin_edge")
 
 
+# ── Models ──────────────────────────────────────────────────────────────────
+
+class AdminAIRequest(BaseModel):
+    message: str
+    context: dict = {}
+    action: Optional[str] = None
+    type: Optional[str] = None
+    messages: Optional[List[dict]] = None
+
+class DevAgentRequest(BaseModel):
+    message: str
+    repos: Optional[List[dict]] = []
+    projects: Optional[List[str]] = []
+    github_token: Optional[str] = None
+    skills: Optional[str] = ""
+    stream: bool = False
+
+class AIProxyRequest(BaseModel):
+    action: str
+    messages: List[dict]
+    type: Optional[str] = None
+    brand_kit: Optional[dict] = None
+    context: Optional[dict] = None
+
+class DocumentRequest(BaseModel):
+    type: str
+    data: dict = {}
+    messages: Optional[List[dict]] = None
+
+class EngineeringChatRequest(BaseModel):
+    message: str
+    context: dict = {}
+    history: List[dict] = []
+
+class TestRequest(BaseModel):
+    test_type: str = "general"
+    target_url: str = "https://aynn.io"
+    context: dict = {}
+
+
+
 @router.post("/ai-proxy")
 async def ai_proxy(req: AIProxyRequest, admin: dict = Depends(require_admin_user)):
     """
@@ -144,27 +185,6 @@ async def _gather_db_schema() -> dict:
 
 
 # ── Admin AI Assistant ────────────────────────────────────────────────────────
-class AdminAIRequest(BaseModel):
-    message: str
-    context: dict = {}
-    action: Optional[str] = None
-    type: Optional[str] = None
-    messages: Optional[List[dict]] = None
-
-class DevAgentRequest(BaseModel):
-    message: str
-    repos: Optional[List[dict]] = []
-    projects: Optional[List[str]] = []
-    github_token: Optional[str] = None
-    skills: Optional[str] = ""
-    stream: bool = False
-
-class AIProxyRequest(BaseModel):
-    action: str
-    messages: List[dict]
-    type: Optional[str] = None
-    brand_kit: Optional[dict] = None
-    context: Optional[dict] = None
 
 
 @router.post("/admin-ai-assistant")
@@ -379,10 +399,6 @@ async def send_nda_completion(body: dict, admin: dict = Depends(require_admin_us
 
 
 # ── Business Document Generation ──────────────────────────────────────────────
-class DocumentRequest(BaseModel):
-    type: str
-    data: dict = {}
-    messages: Optional[List[dict]] = None
 
 
 @router.post("/generate-business-document")
@@ -399,10 +415,6 @@ Output complete, professional document content in HTML format."""
 
 
 # ── Engineering AI Chat ───────────────────────────────────────────────────────
-class EngineeringChatRequest(BaseModel):
-    message: str
-    context: dict = {}
-    history: List[dict] = []
 
 
 @router.post("/engineering-ai-chat")
@@ -426,10 +438,6 @@ Be precise, cite standards where relevant, and show calculation steps."""
 
 
 # ── AI Test Runners ───────────────────────────────────────────────────────────
-class TestRequest(BaseModel):
-    test_type: str = "general"
-    target_url: str = "https://aynn.io"
-    context: dict = {}
 
 
 @router.post("/ai-bug-hunter")
