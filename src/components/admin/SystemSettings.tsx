@@ -9,7 +9,6 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { adminApi as supabase } from '@/lib/adminApi';
 import { NotificationLogViewer } from './NotificationLogViewer';
 import { 
   AlertTriangle, 
@@ -57,7 +56,8 @@ const BetaProgramSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      /* spine */;
+      await adminApi.upsertSystemConfig('beta_mode', betaMode);
+      await adminApi.upsertSystemConfig('beta_feedback_reward', feedbackReward);
       toast.success('Beta settings saved');
     } catch (err) {
       toast.error('Failed to save beta settings');

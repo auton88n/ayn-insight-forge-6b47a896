@@ -202,6 +202,38 @@ def topup_receipt_email(user_name: str, credits: int, amount: str) -> dict:
     }
 
 
+def contract_email(client_name: str, order_title: str, html_content: str = None) -> dict:
+    return {
+        "subject": f"AYN AI Agreement: {order_title}",
+        "html": html_content or _html(f"""
+    <p style="font-size:18px;color:#333;margin-bottom:16px;">Hi {client_name},</p>
+    <p style="font-size:16px;color:#666;line-height:1.6;">
+        Please find the service agreement for <strong>{order_title}</strong> linked below.
+    </p>
+    <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:24px 0;">
+        <p style="font-size:14px;color:#374151;margin:0;">
+            This agreement outlines the scope of work and terms for our collaboration.
+        </p>
+    </div>""")
+    }
+
+
+def nda_email(client_name: str, purpose: str) -> dict:
+    return {
+        "subject": "AYN AI Non-Disclosure Agreement",
+        "html": _html(f"""
+    <p style="font-size:18px;color:#333;margin-bottom:16px;">Hi {client_name},</p>
+    <p style="font-size:16px;color:#666;line-height:1.6;">
+        As discussed, we'd like to put an NDA in place regarding <strong>{purpose}</strong>.
+    </p>
+    <div style="text-align:center;margin:32px 0;">
+        <a href="https://aynn.io/legal/sign-nda" style="background:#000;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:600;display:inline-block;">
+            Review & Sign NDA
+        </a>
+    </div>""")
+    }
+
+
 # ── Send function ──────────────────────────────────────────────────────────────
 
 async def send_email(to: str, template: str, data: dict) -> bool:
@@ -242,6 +274,15 @@ async def send_email(to: str, template: str, data: dict) -> bool:
         elif template == "topup_receipt":
             content = topup_receipt_email(
                 data.get("userName", ""), data.get("credits", 0), data.get("amount", "$10")
+            )
+        elif template == "contract":
+            content = contract_email(
+                data.get("userName", "Client"), data.get("orderTitle", "Order"),
+                data.get("html")
+            )
+        elif template == "nda":
+            content = nda_email(
+                data.get("userName", "Client"), data.get("purpose", "Agreement")
             )
         else:
             log.warning(f"[email] Unknown template: {template}")

@@ -259,10 +259,19 @@ export const adminApi = {
   autoMarket:         () => req('POST', '/marketing/auto-market', {}),
 
   // Engineering (admin tools)
-  engineeringAnalysis: (data: object, type: string) =>
-    req('POST', '/engineering/analyze', { data, type }),
   engineeringChat:    (message: string, context: string) =>
     req('POST', '/engineering/chat', { message, context }),
+
+  // Dev Agent
+  listDevConversations: () => req<any[]>('GET', '/admin/dev/conversations'),
+  createDevConversation:(title: string) => req('POST', '/admin/dev/conversations', { title }),
+  deleteDevConversation:(id: string) => req('DELETE', `/admin/dev/conversations/${id}`),
+  getDevMessages:        (cid: string) => req<any[]>('GET', `/admin/dev/conversations/${cid}/messages`),
+  saveDevMessage:        (cid: string, role: string, content: string) =>
+    req('POST', `/admin/dev/conversations/${cid}/messages`, { role, content }),
+  listDevSkills:         () => req<any[]>('GET', '/admin/dev/skills'),
+  toggleDevSkill:        (id: string, enabled: boolean) => req('PATCH', `/admin/dev/skills/${id}`, { enabled }),
+  devAgentChat:          (payload: object) => req('POST', '/admin/edge/dev-agent', payload),
 
   // Email (admin actions)
   sendTicketReply:    (ticket_id: string, content: string, user_email: string) =>

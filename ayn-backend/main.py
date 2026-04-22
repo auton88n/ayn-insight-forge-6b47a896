@@ -248,6 +248,7 @@ if RUNTIME.app_role in {"web", "all"}:
     from routers.applications import router as applications_router
     from routers.admin_edge import router as admin_edge_router
     from routers.admin_ops import router as admin_ops_router
+    from routers.admin_dev import router as admin_dev_router
     from routers.system import router as system_router
 
     app.include_router(auth_router)
@@ -277,6 +278,7 @@ if RUNTIME.app_role in {"web", "all"}:
     app.include_router(applications_router)
     app.include_router(admin_edge_router)
     app.include_router(admin_ops_router)
+    app.include_router(admin_dev_router)
     app.include_router(system_router)
 
 if should_serve_http(RUNTIME.app_role):
