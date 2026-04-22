@@ -36,7 +36,8 @@ async def run_scheduler_job(job_id: str, _: dict = Depends(require_admin_user)):
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
-@router.get("/users")
+# De-conflicted in favor of admin_api.py
+# @router.get("/users")
 async def list_users(limit: int = Query(50, le=200), offset: int = 0,
                      search: Optional[str] = None, _: dict = Depends(require_admin_user)):
     if search:
@@ -51,7 +52,8 @@ async def list_users(limit: int = Query(50, le=200), offset: int = 0,
     return {"users": [dict(r) for r in rows], "offset": offset, "limit": limit}
 
 
-@router.get("/users/{user_id}")
+# De-conflicted in favor of admin_api.py
+# @router.get("/users/{user_id}")
 async def get_user(user_id: str, _: dict = Depends(require_admin_user)):
     profile = await fetchrow("SELECT * FROM users WHERE id = $1::uuid", user_id)
     limits = await fetchrow("SELECT * FROM user_ai_limits WHERE user_id = $1::uuid", user_id)
@@ -239,7 +241,8 @@ async def reopen_errors(body: ErrorActionBody, _: dict = Depends(require_admin_u
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
-@router.get("/stats")
+# De-conflicted in favor of admin_api.py
+# @router.get("/stats")
 async def get_stats(_: dict = Depends(require_admin_user)):
     return {
         "users_total": await fetchval("SELECT COUNT(*) FROM users") or 0,

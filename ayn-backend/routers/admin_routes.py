@@ -120,7 +120,8 @@ async def unblock_user(req: UnblockUserRequest, user: dict = Depends(require_adm
     return {"success": True, "status": "active"}
 
 
-@router.get("/users")
+# De-conflicted in favor of admin_api.py
+# @router.get("/users")
 async def get_admin_users(user: dict = Depends(require_admin_user)):
     rows = await fetch("""
         SELECT u.id, u.email, u.first_name, u.last_name, u.created_at, u.is_admin,
@@ -157,14 +158,16 @@ async def get_contact_messages(limit: int = 200, user: dict = Depends(require_ad
     return {"messages": [dict(r) for r in rows]}
 
 
-@router.get("/orders")
+# De-conflicted in favor of admin_api.py
+# @router.get("/orders")
 async def get_custom_orders(user: dict = Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM custom_orders ORDER BY created_at DESC")
     return {"orders": [dict(r) for r in rows]}
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
-@router.get("/stats")
+# De-conflicted in favor of admin_api.py
+# @router.get("/stats")
 async def get_admin_stats(user: dict = Depends(require_admin_user)):
     return {
         "total_users": await fetchval("SELECT COUNT(*) FROM users") or 0,
