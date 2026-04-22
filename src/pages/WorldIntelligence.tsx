@@ -294,6 +294,7 @@ export default function WorldIntelligence() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dataStatus, setDataStatus] = useState<Record<string, string>>({});
   const currentTime = useRef(new Date()).current;
 
   // Navigation
@@ -391,7 +392,15 @@ export default function WorldIntelligence() {
 
       // Market snapshot: spine returns market_snapshot OR snapshot
       const snap = d.market_snapshot ?? d.snapshot;
-      if (snap) setSnapshot(snap);
+      if (snap) {
+        setSnapshot(snap);
+        // Extract data_status from nested snapshot.snapshot.data_status
+        const innerSnap = snap?.snapshot ?? snap;
+        const ds = innerSnap?.data_status;
+        if (ds && typeof ds === 'object') {
+          setDataStatus(ds as Record<string, string>);
+        }
+      }
 
       // Signals: spine returns world_signals; older code used `signals`
       const rawSignals = d.world_signals ?? d.signals;
@@ -436,13 +445,23 @@ export default function WorldIntelligence() {
   };
 
   // Derived data
-  const snap         = useMemo(() => safeObj(snapshot?.snapshot), [snapshot]);
+  const snap         = useMemo(() => safeObj(snapshot?.snapshot ?? snapshot), [snapshot]);
   const macro        = useMemo(() => safeObj(snap.macro), [snap]);
   const sentiment    = useMemo(() => safeObj(safeObj(snap.markets)?.sentiment), [snap]);
   const cryptoPrices = useMemo(() => safeObj(safeObj(safeObj(snap.markets)?.crypto)?.crypto_prices), [snap]);
   const sicIntel     = useMemo(() => safeObj(snap.sic_intel), [snap]);
+
+  // Data freshness: derive overall status from dataStatus map
+  const overallDataStatus = useMemo(() => {
+    const statuses = Object.values(dataStatus).filter(Boolean);
+    if (!statuses.length) return 'UNKNOWN';
+    if (statuses.every(s => s === 'FAILED' || s === 'NO_KEY')) return 'FAILED';
+    if (statuses.some(s => s === 'FRED' || s === 'yfinance' || s === 'PIONEX' || s === 'alternative.me' || s === 'AI')) return 'LIVE';
+    return 'STALE';
+  }, [dataStatus]);
+
   const briefItems   = useMemo(() => {
-    const fromDB = safeArr(snap.intelligence_brief);
+    const fromDB = safeArr(snap.intelligence_brief ?? snapshot?.intelligence_brief);
     if (fromDB.length) return fromDB;
     const items: string[] = [];
     if (sentiment.value != null) items.push(`Fear & Greed at ${sentiment.value} — ${sentiment.classification || 'monitoring'}.`);
@@ -671,8 +690,22 @@ export default function WorldIntelligence() {
                       <h2 className="text-sm font-semibold text-foreground">Intelligence Brief</h2>
                       <div className="flex-1" />
                       <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">Live</span>
+                        {overallDataStatus === 'LIVE' && <>
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">Live</span>
+                        </>}
+                        {overallDataStatus === 'STALE' && <>
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          <span className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">Stale</span>
+                        </>}
+                        {overallDataStatus === 'FAILED' && <>
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          <span className="text-[10px] text-red-400/70 uppercase tracking-wider font-semibold">Feed Failed</span>
+                        </>}
+                        {(overallDataStatus === 'UNKNOWN' || overallDataStatus === 'SEEDED') && <>
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                          <span className="text-[10px] text-orange-400/70 uppercase tracking-wider font-semibold">Seeded</span>
+                        </>}
                       </div>
                     </div>
                     <div className="p-5 space-y-2.5">

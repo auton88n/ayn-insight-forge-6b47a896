@@ -65,7 +65,39 @@ async def get_user(user_id: str, _=Depends(require_admin_user)):
         WHERE u.id = $1
     """, user_id)
     return dict(row) if row else {}
+class CreateUserRequest(BaseModel):
+    email: str
+    password: str
+    first_name: str = ""
+    last_name: str = ""
+    is_admin: bool = False
 
+@router.post("/users")
+async def create_user(req: CreateUserRequest, user_id: str = Depends(require_admin_user)):
+    from core.auth_new import hash_password
+    hashed = hash_password(req.password)
+    email = req.email.lower()
+    
+    # Check exists
+    existing = await fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if existing:
+        raise HTTPException(400, "User already exists")
+        
+    row = await fetchrow("""
+        INSERT INTO users (email, password_hash, first_name, last_name, is_admin)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+    """, email, hashed, req.first_name, req.last_name, req.is_admin)
+    
+    new_user_id = str(row["id"])
+    
+    if req.is_admin:
+        await execute("INSERT INTO admins (user_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING", new_user_id)
+        
+    await execute("INSERT INTO admin_audit_logs (actor, action, target, details) VALUES ($1, $2, $3, $4)",
+                  user_id, "create_user", email, f'{{"is_admin": {str(req.is_admin).lower()}}}')
+                  
+    return {"ok": True, "id": new_user_id}
 
 class GiftCreditsRequest(BaseModel):
     user_id: str
@@ -535,3 +567,177 @@ def json_or_null(val):
     if isinstance(val, str):
         return val
     return json.dumps(val)
+
+
+# ── Intelligence Cron — Manual Force Execution ─────────────────────────────────
+# Phase 2: Direct execution endpoints with DB write proof.
+# Each returns: {before_ts, after_ts, rows_before, rows_after, delta, source}
+
+@router.post("/run-pulse")
+async def run_pulse_forced(_=Depends(require_admin_user)):
+    """Force the pulse engine (market snapshot + intelligence brief). Returns DB write proof."""
+    import time
+    from core.database import fetchrow
+    from services.intelligence import run_pulse_engine
+
+    before = await fetchrow("SELECT fetched_at, snapshot FROM ayn_market_snapshot WHERE singleton_key = 1")
+    before_ts = str(before["fetched_at"]) if before else None
+
+    t0 = time.monotonic()
+    await run_pulse_engine()
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    after = await fetchrow("SELECT fetched_at, snapshot, intelligence_brief FROM ayn_market_snapshot WHERE singleton_key = 1")
+    after_ts = str(after["fetched_at"]) if after else None
+
+    return {
+        "job": "pulse-engine",
+        "table": "ayn_market_snapshot",
+        "before_ts": before_ts,
+        "after_ts": after_ts,
+        "changed": before_ts != after_ts,
+        "elapsed_ms": elapsed_ms,
+        "brief_items": len(after["intelligence_brief"] or []) if after else 0,
+        "snapshot_keys": list((after["snapshot"] or {}).keys()) if after else [],
+    }
+
+
+@router.post("/run-world-intel")
+async def run_world_intel_forced(_=Depends(require_admin_user)):
+    """Force world signals + country intelligence generation. Returns DB write proof."""
+    import time
+    from core.database import fetchval
+    from services.intelligence import run_market_prices, run_world_signals
+
+    signals_before = await fetchval("SELECT COUNT(*) FROM ayn_world_signals") or 0
+    countries_before = await fetchval("SELECT COUNT(*) FROM ayn_country_intelligence") or 0
+
+    t0 = time.monotonic()
+    await run_market_prices()   # signals need prices first
+    await run_world_signals()
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    signals_after = await fetchval("SELECT COUNT(*) FROM ayn_world_signals") or 0
+    countries_after = await fetchval("SELECT COUNT(*) FROM ayn_country_intelligence") or 0
+    latest_signal = await fetchval("SELECT MAX(created_at)::text FROM ayn_world_signals")
+
+    return {
+        "job": "world-intel",
+        "tables": ["ayn_world_signals", "ayn_market_prices"],
+        "signals_before": signals_before,
+        "signals_after": signals_after,
+        "signals_delta": signals_after - signals_before,
+        "countries_before": countries_before,
+        "countries_after": countries_after,
+        "latest_signal_ts": latest_signal,
+        "elapsed_ms": elapsed_ms,
+    }
+
+
+@router.post("/run-predictions")
+async def run_predictions_forced(_=Depends(require_admin_user)):
+    """Force prediction engine. Returns DB write proof with before/after counts."""
+    import time
+    from core.database import fetchval
+    from services.intelligence import run_prediction_engine
+
+    preds_before = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions WHERE status='active'") or 0
+    latest_before = await fetchval("SELECT MAX(created_at)::text FROM ayn_world_predictions")
+
+    t0 = time.monotonic()
+    await run_prediction_engine()
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+
+    preds_after = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions WHERE status='active'") or 0
+    latest_after = await fetchval("SELECT MAX(created_at)::text FROM ayn_world_predictions")
+
+    return {
+        "job": "predictions-daily",
+        "table": "ayn_world_predictions",
+        "active_before": preds_before,
+        "active_after": preds_after,
+        "delta": preds_after - preds_before,
+        "latest_before_ts": latest_before,
+        "latest_after_ts": latest_after,
+        "changed": latest_before != latest_after,
+        "elapsed_ms": elapsed_ms,
+    }
+
+
+@router.get("/scheduler-status")
+async def get_scheduler_status(_=Depends(require_admin_user)):
+    """Returns exact scheduler state: running jobs, last runs, success/failure counts."""
+    from core.scheduler import JOB_STATS, JOB_REGISTRY, get_scheduler
+
+    scheduler = get_scheduler()
+    is_running = scheduler.running
+
+    jobs = []
+    for job in scheduler.get_jobs():
+        stats = JOB_STATS.get(job.id, {})
+        jobs.append({
+            "id": job.id,
+            "next_run": str(job.next_run_time) if job.next_run_time else None,
+            "last_run": stats.get("last_run"),
+            "last_success": stats.get("last_success"),
+            "last_error": stats.get("last_error"),
+            "success_count": stats.get("success_count", 0),
+            "failure_count": stats.get("failure_count", 0),
+            "last_duration_ms": stats.get("last_duration_ms"),
+        })
+
+    return {
+        "scheduler_running": is_running,
+        "jobs": jobs,
+        "registered_jobs": list(JOB_REGISTRY.keys()),
+    }
+
+
+@router.get("/data-freshness")
+async def get_data_freshness(_=Depends(require_admin_user)):
+    """Returns per-table freshness status: LIVE / STALE / SEEDED / FAILED."""
+    import asyncio
+    from datetime import datetime, timezone, timedelta
+    from core.database import fetchrow, fetchval
+
+    now = datetime.now(timezone.utc)
+    STALE_THRESHOLD_HOURS = 6
+
+    results = await asyncio.gather(
+        fetchrow("SELECT fetched_at, intelligence_brief FROM ayn_market_snapshot WHERE singleton_key = 1"),
+        fetchval("SELECT MAX(created_at) FROM ayn_world_signals"),
+        fetchval("SELECT MAX(created_at) FROM ayn_world_predictions WHERE status='active'"),
+        fetchval("SELECT MAX(updated_at) FROM ayn_country_intelligence"),
+        return_exceptions=True
+    )
+
+    def classify(ts, stale_hours=STALE_THRESHOLD_HOURS, seeded_note=None):
+        if isinstance(ts, Exception) or ts is None:
+            return "FAILED", None
+        age_h = (now - ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else now - ts).total_seconds() / 3600
+        if seeded_note:
+            return "SEEDED", str(ts)
+        if age_h <= stale_hours:
+            return "LIVE", str(ts)
+        return "STALE", str(ts)
+
+    snap = results[0]
+    snap_ts = snap["fetched_at"] if snap and not isinstance(snap, Exception) else None
+    # Detect seeded: if snapshot was written by us manually recently
+    snap_status, snap_str = classify(snap_ts)
+
+    sig_ts = results[1]
+    sig_status, sig_str = classify(sig_ts)
+
+    pred_ts = results[2]
+    pred_status, pred_str = classify(pred_ts, stale_hours=24)
+
+    country_ts = results[3]
+    country_status, country_str = classify(country_ts)
+
+    return {
+        "ayn_market_snapshot": {"status": snap_status, "last_updated": snap_str},
+        "ayn_world_signals":   {"status": sig_status,  "last_updated": sig_str},
+        "ayn_world_predictions": {"status": pred_status, "last_updated": pred_str},
+        "ayn_country_intelligence": {"status": country_status, "last_updated": country_str},
+    }

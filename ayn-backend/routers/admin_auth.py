@@ -11,6 +11,7 @@ Frontend stores tokens under: ayn_admin_token / ayn_admin_refresh_token / ayn_ad
 
 This allows full removal of adminSupabase.ts from the frontend.
 """
+import os
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Header
@@ -35,6 +36,15 @@ class AdminLoginRequest(BaseModel):
 
 class AdminRefreshRequest(BaseModel):
     refresh_token: str
+
+class AdminBootstrapRequest(BaseModel):
+    bootstrap_key: str
+    email: str
+    new_password: str
+
+class AdminResetPasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
 
 
 # ── Admin check helper ─────────────────────────────────────────────────────────
@@ -166,3 +176,73 @@ async def admin_session(authorization: str = Header(...)):
             "is_admin": True,
         }
     }
+
+
+@router.post("/bootstrap")
+async def admin_bootstrap(req: AdminBootstrapRequest):
+    """
+    Emergency or single-use recovery endpoint.
+    Requires server-side env variable AYN_ADMIN_BOOTSTRAP_KEY matching the payload.
+    Sets/Creates an admin hash safely without exposing plaintext in DB.
+    """
+    secret = os.getenv("AYN_ADMIN_BOOTSTRAP_KEY", "")
+    if not secret or req.bootstrap_key != secret:
+        # Generic error against probing
+        raise HTTPException(403, "Access denied")
+    
+    hashed = hash_password(req.new_password)
+    email = req.email.lower()
+    
+    # Try inserting if not exist, or patch if exists
+    user = await fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user:
+        # Create minimal user proxy since it's bootstrap
+        row = await fetchrow(
+            "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id",
+            email, hashed
+        )
+        user_id = str(row["id"])
+    else:
+        user_id = str(user["id"])
+        await execute("UPDATE users SET password_hash = $1 WHERE id = $2::uuid", hashed, user_id)
+        
+    # Grant admin if not already
+    is_adm = await _is_admin(user_id, email)
+    if not is_adm:
+        await execute("INSERT INTO admins (user_id) VALUES ($1::uuid) ON CONFLICT DO NOTHING", user_id)
+        
+    # Log recovery
+    await execute("INSERT INTO admin_audit_logs (action, target, details) VALUES ($1, $2, $3)",
+                  "bootstrap_recovery", email, '{"reason": "admin_bootstrap_endpoint"}')
+        
+    log.info(f"[admin-auth] Successfully bootstrapped admin: {email}")
+    return {"ok": True, "message": "Admin credentials bootstrapped successfully"}
+
+
+@router.post("/password/reset")
+async def admin_reset_password(req: AdminResetPasswordRequest, authorization: str = Header(...)):
+    """
+    Secure password reset for currently logged in admin.
+    Requires old password to confirm identity.
+    """
+    session = await admin_session(authorization)
+    user_id = session["user"]["id"]
+    email = session["user"]["email"]
+    
+    user = await fetchrow("SELECT password_hash FROM users WHERE id = $1::uuid", user_id)
+    if not verify_password(req.old_password, user["password_hash"]):
+        await execute("INSERT INTO admin_audit_logs (actor, action, target) VALUES ($1, $2, $3)",
+                      user_id, "failed_password_reset", email)
+        raise HTTPException(401, "Invalid old password")
+        
+    hashed = hash_password(req.new_password)
+    await execute("UPDATE users SET password_hash = $1 WHERE id = $2::uuid", hashed, user_id)
+    
+    # Invalidate all sessions except the current one? Wait, just let them logout.
+    await execute("DELETE FROM user_sessions WHERE user_id = $1::uuid", user_id)
+    
+    await execute("INSERT INTO admin_audit_logs (actor, action, target) VALUES ($1, $2, $3)",
+                  user_id, "password_reset", email)
+                  
+    log.info(f"[admin-auth] Password reset for {email}")
+    return {"ok": True, "message": "Password updated successfully. Please log in again."}

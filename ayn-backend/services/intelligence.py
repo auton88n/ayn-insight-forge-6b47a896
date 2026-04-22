@@ -113,32 +113,50 @@ async def run_pulse_engine():
         import yfinance as yf
         import httpx
         FRED_KEY = os.getenv("FRED_API_KEY", "")
+        PIONEX_KEY = os.getenv("PIONEX_API_KEY", "")
         macro = {}
+        macro_source = "MISSING"
+
+        # 1. Fetch Macro from FRED (real data, no fallback masking)
         if FRED_KEY:
             series = {
                 "fed_funds_rate": "FEDFUNDS", "inflation_cpi": "CPIAUCSL",
                 "unemployment_rate": "UNRATE", "treasury_10yr": "DGS10",
                 "treasury_2yr": "DGS2",
             }
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                for label, sid in series.items():
-                    try:
-                        r = await client.get(
-                            "https://api.stlouisfed.org/fred/series/observations",
-                            params={"series_id": sid, "api_key": FRED_KEY,
-                                    "limit": 2, "sort_order": "desc", "file_type": "json"}
-                        )
-                        if r.is_success:
-                            obs = r.json().get("observations", [])
-                            if obs:
-                                val = float(obs[0]["value"])
-                                prev = float(obs[1]["value"]) if len(obs) > 1 else val
-                                macro[label] = {"value": val, "date": obs[0]["date"],
-                                                "trend": "rising" if val > prev else "falling"}
-                    except Exception:
-                        pass
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    for label, sid in series.items():
+                        try:
+                            r = await client.get(
+                                "https://api.stlouisfed.org/fred/series/observations",
+                                params={"series_id": sid, "api_key": FRED_KEY,
+                                        "limit": 2, "sort_order": "desc", "file_type": "json"}
+                            )
+                            if r.is_success:
+                                obs = r.json().get("observations", [])
+                                if obs:
+                                    val = float(obs[0]["value"])
+                                    prev = float(obs[1]["value"]) if len(obs) > 1 else val
+                                    macro[label] = {"value": val, "date": obs[0]["date"],
+                                                    "trend": "rising" if val > prev else "falling"}
+                        except Exception as e:
+                            log.warning(f"[pulse] FRED {label} failed: {e}")
+                if macro:
+                    macro_source = "FRED"
+                else:
+                    macro_source = "FRED_FAILED"
+            except Exception as e:
+                log.error(f"[pulse] FRED fetch error: {e}")
+                macro_source = "FRED_FAILED"
+        else:
+            log.warning("[pulse] FRED_API_KEY not set — macro data unavailable")
+            macro_source = "NO_KEY"
+
+        # 2. Fetch Prices from yfinance (real data — no hardcoded fallbacks)
         prices = {}
-        for key, sym in [("sp500", "^GSPC"), ("gold", "GC=F"), ("oil", "CL=F"), ("btc", "BTC-USD"),
+        prices_source = {}
+        for key, sym in [("sp500", "^GSPC"), ("gold", "GC=F"), ("oil", "CL=F"),
                           ("silver", "SI=F"), ("copper", "HG=F")]:
             try:
                 t = yf.Ticker(sym)
@@ -148,29 +166,125 @@ async def run_pulse_engine():
                     prev = float(h["Close"].iloc[-2]) if len(h) > 1 else cur
                     pct = round(((cur - prev) / prev) * 100, 2) if prev else 0
                     prices[key] = {"price": round(cur, 2), "change_pct": pct}
-            except Exception:
-                pass
+                    prices_source[key] = "yfinance"
+                else:
+                    prices_source[key] = "EMPTY"
+            except Exception as e:
+                log.warning(f"[pulse] yfinance {sym} failed: {e}")
+                prices_source[key] = "FAILED"
 
-        # Fear & Greed
+        # Pionex for BTC/ETH (real API, not placeholder)
+        btc_source = "MISSING"
+        if PIONEX_KEY:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    # Pionex public ticker endpoint
+                    r = await client.get(
+                        "https://api.pionex.com/api/v1/market/tickers",
+                        params={"symbol": "BTC_USDT"},
+                        headers={"PIONEX-KEY": PIONEX_KEY}
+                    )
+                    if r.is_success:
+                        data = r.json()
+                        tickers = data.get("data", {}).get("tickers", [])
+                        for t in tickers:
+                            if t.get("symbol") == "BTC_USDT":
+                                close = float(t.get("close", 0))
+                                open_p = float(t.get("open", close))
+                                pct = round(((close - open_p) / open_p) * 100, 2) if open_p else 0
+                                prices["btc"] = {"price": round(close, 2), "change_pct": pct}
+                                btc_source = "PIONEX"
+                                break
+                    else:
+                        log.warning(f"[pulse] Pionex BTC returned {r.status_code}")
+                        btc_source = "PIONEX_FAILED"
+            except Exception as e:
+                log.warning(f"[pulse] Pionex failed: {e}")
+                btc_source = "PIONEX_FAILED"
+        else:
+            # Fallback to yfinance for BTC (no key required)
+            try:
+                t = yf.Ticker("BTC-USD")
+                h = t.history(period="2d")
+                if not h.empty:
+                    cur = float(h["Close"].iloc[-1])
+                    prev = float(h["Close"].iloc[-2]) if len(h) > 1 else cur
+                    pct = round(((cur - prev) / prev) * 100, 2) if prev else 0
+                    prices["btc"] = {"price": round(cur, 2), "change_pct": pct}
+                    btc_source = "yfinance"
+            except Exception as e:
+                log.warning(f"[pulse] yfinance BTC failed: {e}")
+                btc_source = "FAILED"
+        prices_source["btc"] = btc_source
+
+        # 3. Fear & Greed (real API — no hardcoded fallback)
         fg = {}
+        fg_source = "FAILED"
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.get("https://api.alternative.me/fng/?limit=1")
                 if r.is_success:
                     d = r.json()["data"][0]
                     fg = {"value": int(d["value"]), "classification": d["value_classification"]}
-        except Exception:
-            pass
+                    fg_source = "alternative.me"
+                else:
+                    fg_source = "API_ERROR"
+        except Exception as e:
+            log.warning(f"[pulse] Fear&Greed failed: {e}")
+            fg_source = "FAILED"
+
+        # 4. Intelligence Brief via AI (only runs if we have actual price data)
+        brief = []
+        brief_source = "NONE"
+        if prices:
+            try:
+                prompt = (
+                    f"Today: {datetime.now(timezone.utc).date()}. "
+                    f"Macro: {macro}. Prices: {prices}. Sentiment: {fg}. "
+                    "Generate 3 sharp one-sentence intelligence brief statements as a JSON array of strings."
+                )
+                brief_text = await _ai(prompt, 500)
+                brief = _parse_json(brief_text)
+                if isinstance(brief, list) and brief:
+                    brief_source = "AI"
+                else:
+                    brief = []
+                    brief_source = "AI_PARSE_FAILED"
+            except Exception as e:
+                log.warning(f"[pulse] AI brief failed: {e}")
+                brief_source = "AI_FAILED"
+        else:
+            brief_source = "SKIPPED_NO_PRICES"
+
+        # 5. Write to DB — includes data_status so frontend knows what's real
+        data_status = {
+            "macro": macro_source,
+            "prices": prices_source,
+            "sentiment": fg_source,
+            "brief": brief_source,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "prices_count": len(prices),
+            "macro_count": len(macro),
+        }
 
         await _db_upsert("ayn_market_snapshot", {
             "singleton_key": 1,
-            "snapshot": {"macro": macro, "markets": {"prices": prices, "sentiment": fg},
-                         "fetched_at": datetime.now(timezone.utc).isoformat()},
+            "snapshot": {
+                "macro": macro,
+                "markets": {"prices": prices, "sentiment": fg},
+                "data_status": data_status,
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            },
+            "intelligence_brief": brief if brief else [],
             "fetched_at": datetime.now(timezone.utc).isoformat(),
         })
-        log.info(f"✅ Pulse engine complete — {len(prices)} prices, {len(macro)} macro")
+        log.info(
+            f"✅ Pulse engine — {len(prices)} prices ({prices_source}), "
+            f"{len(macro)} macro ({macro_source}), brief={brief_source}"
+        )
     except Exception as e:
         log.error(f"❌ Pulse engine error: {e}")
+
 
 
 # ──────────────────────────────────────────────
