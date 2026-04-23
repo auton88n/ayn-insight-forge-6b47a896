@@ -228,7 +228,7 @@ if RUNTIME.app_role in {"web", "all"}:
     from routers.storage import router as storage_router
     from routers.trading import router as trading_router
     from routers.email_router import router as email_router
-    from routers.admin_api import router as admin_api_router
+    from routers.admin_api import router as admin_api_router, analytics_alias_router
     from routers.admin_auth import router as admin_auth_router
     from routers.admin_ops import router as admin_ops_router
     from routers.admin_dev import router as admin_dev_router
@@ -255,6 +255,7 @@ if RUNTIME.app_role in {"web", "all"}:
     app.include_router(email_router)
     app.include_router(admin_auth_router)
     app.include_router(admin_api_router)
+    app.include_router(analytics_alias_router)
     app.include_router(admin_ops_router)
     app.include_router(admin_dev_router)
     app.include_router(analyze_router)

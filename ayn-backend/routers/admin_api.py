@@ -1487,3 +1487,93 @@ async def function_proxy(name: str, body: dict = None, admin=Depends(require_adm
         return await ai_proxy(AIProxyRequest(action="assistant", messages=[{"role": "user", "content": str(body)}]), admin)
         
     return {"error": f"Function '{name}' not implemented in Railway backend"}
+
+
+# ── Analytics alias (VisitorAnalytics.tsx calls /analytics/summary) ───────────
+from fastapi import APIRouter as _APIRouter
+
+analytics_alias_router = _APIRouter(prefix="/analytics", tags=["analytics-alias"])
+
+@analytics_alias_router.get("/summary")
+async def analytics_summary_alias(_=Depends(require_admin_user)):
+    """Alias for /admin/analytics/summary — VisitorAnalytics.tsx calls this."""
+    from core.database import fetch, fetchrow
+    try:
+        stats = await fetchrow("""
+            SELECT COUNT(DISTINCT visitor_id) as unique_visitors,
+                   COUNT(*) as total_pageviews,
+                   COUNT(DISTINCT CASE WHEN created_at > NOW() - INTERVAL '24 hours'
+                                       THEN visitor_id END) as visitors_today
+            FROM visitor_analytics WHERE created_at > NOW() - INTERVAL '30 days'
+        """)
+        pages = await fetch("""
+            SELECT page_path, COUNT(*) as views FROM visitor_analytics
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY page_path ORDER BY views DESC LIMIT 20
+        """)
+        return {"stats": dict(stats) if stats else {}, "top_pages": [dict(p) for p in pages]}
+    except Exception:
+        return {"stats": {}, "top_pages": []}
+
+
+# ── Predictions management ─────────────────────────────────────────────────────
+@router.get("/predictions/master")
+async def get_master_predictions(_=Depends(require_admin_user)):
+    rows = await fetch(
+        "SELECT * FROM ayn_world_predictions ORDER BY created_at DESC LIMIT 200")
+    return [dict(r) for r in rows]
+
+
+@router.get("/predictions/scorecard")
+async def get_predictions_scorecard(_=Depends(require_admin_user)):
+    total = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions") or 0
+    correct = await fetchval(
+        "SELECT COUNT(*) FROM ayn_world_predictions WHERE resolution_correct=TRUE") or 0
+    resolved = await fetchval(
+        "SELECT COUNT(*) FROM ayn_world_predictions WHERE status='resolved'") or 0
+    return {
+        "total": total, "resolved": resolved, "correct": correct,
+        "accuracy_pct": round((correct / resolved * 100) if resolved > 0 else 0, 1)
+    }
+
+
+@router.post("/predictions/run-checker")
+async def run_prediction_checker(_=Depends(require_admin_user)):
+    from core.scheduler import get_scheduler
+    import datetime
+    scheduler = get_scheduler()
+    job = scheduler.get_job("prediction-resolver") if scheduler else None
+    if job:
+        job.modify(next_run_time=datetime.datetime.now(datetime.timezone.utc))
+        return {"ok": True, "triggered": "prediction-resolver"}
+    return {"ok": False, "error": "Scheduler job not found"}
+
+
+@router.patch("/predictions/{prediction_id}")
+async def update_prediction(prediction_id: str, body: dict,
+                            _=Depends(require_admin_user)):
+    allowed = ["admin_notes", "check_status", "admin_override", "status",
+               "resolution_correct", "resolution_notes"]
+    cols = [k for k in allowed if k in body]
+    if not cols:
+        return {"ok": True}
+    import json as _json
+    sets = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols))
+    vals = [body[k] for k in cols]
+    await execute(
+        f'UPDATE ayn_world_predictions SET {sets} WHERE id=$1::uuid',
+        prediction_id, *vals)
+    return {"ok": True}
+
+
+# ── Unblock user ───────────────────────────────────────────────────────────────
+@router.post("/unblock-user")
+async def unblock_user(body: dict, _=Depends(require_admin_user)):
+    user_id = body.get("userId") or body.get("user_id")
+    if not user_id:
+        raise HTTPException(400, "user_id required")
+    await execute(
+        "DELETE FROM ip_blocks WHERE user_id=$1::uuid", user_id)
+    await execute(
+        "DELETE FROM rate_limits WHERE user_id=$1::uuid", user_id)
+    return {"ok": True, "unblocked": user_id}
