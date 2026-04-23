@@ -100,7 +100,59 @@ async def get_stats(_=Depends(require_admin_user)):
         }
 
 
-# ── Users ──────────────────────────────────────────────────────────────────────
+@router.get("/llm")
+async def get_llm_stats(_=Depends(require_admin_user)):
+    try:
+        today = await fetchval("SELECT COUNT(*) FROM llm_usage_logs WHERE created_at > NOW() - INTERVAL '24 hours'") or 0
+        week = await fetchval("SELECT COUNT(*) FROM llm_usage_logs WHERE created_at > NOW() - INTERVAL '7 days'") or 0
+        month = await fetchval("SELECT COUNT(*) FROM llm_usage_logs WHERE created_at > NOW() - INTERVAL '30 days'") or 0
+        
+        failures = await fetchval("""
+            SELECT COUNT(*) FROM llm_usage_logs 
+            WHERE created_at > NOW() - INTERVAL '24 hours' AND success = FALSE
+        """) or 0
+        
+        fallback = await fetchval("""
+            SELECT COUNT(*) FROM llm_usage_logs 
+            WHERE created_at > NOW() - INTERVAL '24 hours' AND was_fallback = TRUE
+        """) or 0
+        
+        by_model = await fetch("""
+            SELECT model, COUNT(*) as count, 
+                   SUM(input_tokens) as input_tokens, 
+                   SUM(output_tokens) as output_tokens
+            FROM llm_usage_logs 
+            WHERE created_at > NOW() - INTERVAL '30 days'
+            GROUP BY model
+        """)
+        
+        return {
+            "today_count": today,
+            "week_count": week,
+            "month_count": month,
+            "today_failures": failures,
+            "fallback_today": fallback,
+            "by_model": [dict(r) for r in by_model]
+        }
+    except Exception as e:
+        log.error(f"Error in get_llm_stats: {e}")
+        return {"today_count": 0, "week_count": 0, "month_count": 0, "today_failures": 0, "fallback_today": 0, "by_model": []}
+
+
+@router.get("/user-messages")
+async def get_user_messages(user_id: str, limit: int = 50, _=Depends(require_admin_user)):
+    try:
+        rows = await fetch("""
+            SELECT m.id, m.content, m.sender, m.created_at, m.session_id
+            FROM messages m
+            WHERE m.user_id = $1::uuid
+            ORDER BY m.created_at DESC
+            LIMIT $2
+        """, user_id, limit)
+        return rows or []
+    except Exception as e:
+        log.error(f"Error in get_user_messages: {e}")
+        return []
 
 @router.get("/users")
 async def get_users(_=Depends(require_admin_user)):
@@ -271,15 +323,39 @@ async def resolve_error(error_id: str, req: ResolveErrorRequest, _=Depends(requi
 
 @router.get("/subscriptions")
 async def get_subscriptions(_=Depends(require_admin_user)):
-    rows = await fetch("""
-        SELECT u.email, u.first_name, s.subscription_tier, s.status,
-               s.stripe_customer_id, s.stripe_subscription_id, 
-               s.current_period_end, s.updated_at
-        FROM user_subscriptions s
-        JOIN users u ON u.id = s.user_id
-        ORDER BY s.updated_at DESC
-    """)
-    return rows or []
+    try:
+        # Match RevenueDashboard.tsx expectation: id, display_name, email, auth_provider,
+        # subscription_tier, subscription_status, is_unlimited, total_messages, messages_30d,
+        # signed_up_at, last_active_at
+        rows = await fetch("""
+            SELECT 
+                u.id, 
+                COALESCE(u.first_name || ' ' || u.last_name, u.email) as display_name,
+                u.email,
+                u.auth_provider,
+                us.subscription_tier,
+                us.status as subscription_status,
+                (us.subscription_tier = 'unlimited') as is_unlimited,
+                COALESCE(stats.total_messages, 0) as total_messages,
+                COALESCE(stats.messages_30d, 0) as messages_30d,
+                u.created_at as signed_up_at,
+                u.last_active_at
+            FROM users u
+            LEFT JOIN user_subscriptions us ON us.user_id = u.id
+            LEFT JOIN (
+                SELECT 
+                    user_id, 
+                    COUNT(*) as total_messages,
+                    COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as messages_30d
+                FROM messages
+                GROUP BY user_id
+            ) stats ON stats.user_id = u.id
+            ORDER BY u.created_at DESC
+        """)
+        return rows or []
+    except Exception as e:
+        log.error(f"Error in get_subscriptions: {e}")
+        return []
 
 
 # ── Contact Messages ───────────────────────────────────────────────────────────
@@ -325,6 +401,52 @@ async def admin_health(_=Depends(require_admin_user)):
         "db": "railway_postgresql",
         "status": "healthy"
     }
+
+
+@router.get("/notification-log")
+async def get_notification_log(_=Depends(require_admin_user)):
+    try:
+        rows = await fetch("""
+            SELECT nl.*, u.email as user_email
+            FROM notification_log nl
+            LEFT JOIN users u ON u.id = nl.user_id
+            ORDER BY nl.created_at DESC LIMIT 100
+        """)
+        return rows or []
+    except Exception:
+        return []
+
+
+@router.get("/user-growth")
+async def get_user_growth(_=Depends(require_admin_user)):
+    try:
+        rows = await fetch("""
+            SELECT created_at::date as date, COUNT(*) as count
+            FROM users
+            WHERE created_at > NOW() - INTERVAL '30 days'
+            GROUP BY created_at::date
+            ORDER BY date ASC
+        """)
+        return rows or []
+    except Exception:
+        return []
+
+
+@router.get("/churn-alerts")
+async def get_churn_alerts(_=Depends(require_admin_user)):
+    try:
+        # Users who haven't messaged in 14 days but have a paid sub
+        rows = await fetch("""
+            SELECT u.id, u.email, u.last_active_at, us.subscription_tier
+            FROM users u
+            JOIN user_subscriptions us ON us.user_id = u.id
+            WHERE us.subscription_tier != 'free'
+              AND (u.last_active_at < NOW() - INTERVAL '14 days' OR u.last_active_at IS NULL)
+            ORDER BY u.last_active_at ASC NULLS FIRST
+        """)
+        return rows or []
+    except Exception:
+        return []
 
 
 # ── Support Tickets ────────────────────────────────────────────────────────────
@@ -720,23 +842,48 @@ async def get_llm_stats(_=Depends(require_admin_user)):
 
 @router.get("/analytics/summary")
 async def get_visitor_analytics(_=Depends(require_admin_user)):
-    stats = await fetchrow("""
-        SELECT 
-            COUNT(DISTINCT visitor_id) as unique_visitors,
-            COUNT(*) as total_pageviews,
-            COUNT(DISTINCT session_id) as sessions,
-            COUNT(DISTINCT CASE WHEN created_at > NOW() - INTERVAL '24 hours' 
-                                THEN visitor_id END) as visitors_today
-        FROM visitor_analytics
-        WHERE created_at > NOW() - INTERVAL '30 days'
-    """)
-    pages = await fetch("""
-        SELECT page_path, COUNT(*) as views
-        FROM visitor_analytics
-        WHERE created_at > NOW() - INTERVAL '7 days'
-        GROUP BY page_path ORDER BY views DESC LIMIT 20
-    """)
-    return {"stats": dict(stats) if stats else {}, "top_pages": pages or []}
+    try:
+        # Match GoogleAnalytics.tsx expectation: today_views, week_views, month_views, today_sessions, week_sessions, top_pages, by_country
+        today_views = await fetchval("SELECT COUNT(*) FROM visitor_analytics WHERE created_at > NOW() - INTERVAL '24 hours'") or 0
+        week_views = await fetchval("SELECT COUNT(*) FROM visitor_analytics WHERE created_at > NOW() - INTERVAL '7 days'") or 0
+        month_views = await fetchval("SELECT COUNT(*) FROM visitor_analytics WHERE created_at > NOW() - INTERVAL '30 days'") or 0
+        
+        today_sessions = await fetchval("SELECT COUNT(DISTINCT session_id) FROM visitor_analytics WHERE created_at > NOW() - INTERVAL '24 hours'") or 0
+        week_sessions = await fetchval("SELECT COUNT(DISTINCT session_id) FROM visitor_analytics WHERE created_at > NOW() - INTERVAL '7 days'") or 0
+        
+        total_views = await fetchval("SELECT COUNT(*) FROM visitor_analytics") or 0
+        
+        top_pages = await fetch("""
+            SELECT page_path, COUNT(*) as views
+            FROM visitor_analytics
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY page_path ORDER BY views DESC LIMIT 10
+        """)
+        
+        by_country = await fetch("""
+            SELECT country, COUNT(DISTINCT session_id) as sessions
+            FROM visitor_analytics
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+            GROUP BY country ORDER BY sessions DESC LIMIT 10
+        """)
+        
+        return {
+            "today_views": today_views,
+            "week_views": week_views,
+            "month_views": month_views,
+            "today_sessions": today_sessions,
+            "week_sessions": week_sessions,
+            "total_views": total_views,
+            "top_pages": [dict(r) for r in top_pages],
+            "by_country": [dict(r) for r in by_country]
+        }
+    except Exception as e:
+        log.error(f"Error in get_visitor_analytics: {e}")
+        return {
+            "today_views": 0, "week_views": 0, "month_views": 0,
+            "today_sessions": 0, "week_sessions": 0, "total_views": 0,
+            "top_pages": [], "by_country": []
+        }
 
 
 # ── User Growth ───────────────────────────────────────────────────────────────

@@ -73,13 +73,15 @@ interface AdminPanelProps {
   onBackClick?: () => void;
   isAdmin?: boolean;
   isDuty?: boolean;
+  onSignOut?: () => void;
 }
 
 export const AdminPanel = ({
   session,
   onBackClick,
   isAdmin = false,
-  isDuty = false
+  isDuty = false,
+  onSignOut
 }: AdminPanelProps) => {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -168,7 +170,7 @@ export const AdminPanel = ({
       {/* Header */}
       <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
-          <Button onClick={() => spineAuth.signOut()} variant="ghost" size="icon"
+          <Button onClick={() => onSignOut ? onSignOut() : spineAuth.signOut()} variant="ghost" size="icon"
             className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50"
             title="Sign Out">
             <LogOut className="w-5 h-5" />

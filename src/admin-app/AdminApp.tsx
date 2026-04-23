@@ -344,7 +344,7 @@ export default function AdminApp() {
 
   return (
     <Routes>
-      <Route path="/" element={<AdminPanel session={session as any} isAdmin={true} onBackClick={() => {}} />} />
+      <Route path="/" element={<AdminPanel session={session as any} isAdmin={true} onBackClick={() => {}} onSignOut={adminSignOut} />} />
       <Route path="/custom-orders" element={<AdminCustomOrders />} />
       <Route path="*" element={<Navigate to="/manage-bae76e99d97e188b" replace />} />
     </Routes>
