@@ -228,10 +228,10 @@ if RUNTIME.app_role in {"web", "all"}:
     from routers.storage import router as storage_router
     from routers.trading import router as trading_router
     from routers.email_router import router as email_router
+    from routers.admin_api import router as admin_api_router
     from routers.admin_auth import router as admin_auth_router
-    from routers.admin_db import router as admin_db_router
-    from routers.admin_fn import router as admin_fn_router
-    from routers.admin_routes import router as admin_routes_router
+    from routers.admin_ops import router as admin_ops_router
+    from routers.admin_dev import router as admin_dev_router
     from routers.analyze import router as analyze_router
     from routers.support import router as support_router
     from routers.files import router as files_router
@@ -239,16 +239,11 @@ if RUNTIME.app_role in {"web", "all"}:
     from routers.analytics import router as analytics_router
     from routers.chats import router as chats_router
     from routers.user import router as user_router
-    from routers.admin_api import router as admin_api_router
     from routers.chat import router as chat_router
     from routers.intelligence import router as intel_router
     from routers.simulation import router as sim_router
     from routers.subscriptions import router as sub_router
-    from routers.admin import router as admin_router
     from routers.applications import router as applications_router
-    from routers.admin_edge import router as admin_edge_router
-    from routers.admin_ops import router as admin_ops_router
-    from routers.admin_dev import router as admin_dev_router
     from routers.system import router as system_router
 
     app.include_router(auth_router)
@@ -260,9 +255,8 @@ if RUNTIME.app_role in {"web", "all"}:
     app.include_router(email_router)
     app.include_router(admin_auth_router)
     app.include_router(admin_api_router)
-    app.include_router(admin_db_router)
-    app.include_router(admin_fn_router)
-    app.include_router(admin_routes_router)
+    app.include_router(admin_ops_router)
+    app.include_router(admin_dev_router)
     app.include_router(analyze_router)
     app.include_router(support_router)
     app.include_router(files_router)
@@ -274,11 +268,7 @@ if RUNTIME.app_role in {"web", "all"}:
     app.include_router(intel_router)
     app.include_router(sim_router)
     app.include_router(sub_router)
-    app.include_router(admin_router)
     app.include_router(applications_router)
-    app.include_router(admin_edge_router)
-    app.include_router(admin_ops_router)
-    app.include_router(admin_dev_router)
     app.include_router(system_router)
 
 if should_serve_http(RUNTIME.app_role):

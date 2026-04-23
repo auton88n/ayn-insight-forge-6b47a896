@@ -247,4 +247,40 @@ export const adminApi = {
       return adminApi.invoke<T>(name, opts.body ?? {});
     },
   },
+
+  // ── Specialized Admin Actions ───────────────────────────────────────────────
+
+  /** Verifies the administrative PIN. */
+  verifyAdminPin(pin: string) {
+    return this._callRaw<{ valid: boolean; success: boolean }>('POST', 'verify-pin', { pin });
+  },
+
+  /** Updates the administrative PIN. */
+  setAdminPin(pin: string, new_pin: string) {
+    return this._callRaw<{ ok: boolean; success: boolean }>('POST', 'set-pin', { pin, new_pin });
+  },
+
+  /** Administrative AI Assistant. */
+  aiAssistant(message: string, context?: string) {
+    return this._callRaw<{ content: string; ok: boolean }>('POST', 'ai-assistant', { message, context });
+  },
+
+  /** Internal RAW call helper for non-db proxy routes. */
+  async _callRaw<T>(method: string, endpoint: string, body?: unknown): Promise<T> {
+    const token = getAdminToken();
+    const res = await fetch(`${SPINE_BASE}/admin/${endpoint}`, {
+      method: method,
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`adminApi raw ${method} ${endpoint} ${res.status}: ${text}`);
+    }
+    const text = await res.text();
+    return (text ? JSON.parse(text) : null) as T;
+  },
 };

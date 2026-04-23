@@ -3,10 +3,17 @@ routers/admin_api.py — admin panel API endpoints
 Replaces all Supabase get_admin_* RPC functions
 """
 import logging
+import hashlib
+import json
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from core.database import fetch, fetchrow, execute, fetchval
 from core.security import require_admin_user
+
+def _hash_pin(pin: str) -> str:
+    """Helper to SHA256 hash admin PIN."""
+    return hashlib.sha256(pin.encode()).hexdigest()
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger("ayn.admin")
@@ -408,7 +415,7 @@ async def get_notification_log(_=Depends(require_admin_user)):
     try:
         rows = await fetch("""
             SELECT nl.*, u.email as user_email
-            FROM notification_log nl
+            FROM admin_notification_log nl
             LEFT JOIN users u ON u.id = nl.user_id
             ORDER BY nl.created_at DESC LIMIT 100
         """)
@@ -793,21 +800,21 @@ async def delete_nda(nda_id: str, _=Depends(require_admin_user)):
 
 @router.get("/config")
 async def get_system_config(_=Depends(require_admin_user)):
-    rows = await fetch("SELECT key, value, updated_at FROM system_config ORDER BY key")
+    rows = await fetch("SELECT key, value, updated_at FROM app_settings ORDER BY key")
     return rows or []
 
 class SystemConfigRequest(BaseModel):
     key: str
-    value: dict
+    value: Any
 
 @router.post("/config")
 async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_admin_user)):
-    import json
+    # Standardizing on app_settings for all admin/app config
     await execute("""
-        INSERT INTO system_config (key, value, updated_by, updated_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = NOW()
-    """, req.key, json.dumps(req.value), admin['user_id'])
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+    """, req.key, str(req.value))
     return {"ok": True}
 
 
@@ -1280,40 +1287,69 @@ async def ai_proxy(req: AIProxyRequest, admin=Depends(require_admin_user)):
 
 # ── Specialized Admin Actions ───────────────────────────────────────────────
 
-@router.post("/unblock-user")
-async def unblock_user(req: dict, _=Depends(require_admin_user)):
-    """Restores user access by setting is_active=TRUE."""
-    user_id = req.get("user_id")
-    if not user_id:
-        raise HTTPException(400, "user_id required")
-    await execute("UPDATE users SET is_active = TRUE WHERE id = $1", user_id)
-    return {"ok": True}
+# ── PIN & Security ────────────────────────────────────────────────────────────
 
+class PinRequest(BaseModel):
+    pin: str
 
 @router.post("/verify-pin")
-async def verify_admin_pin(req: dict, _=Depends(require_admin_user)):
-    """Verifies the administrative PIN for protected actions."""
-    pin = req.get("pin")
-    # In a real app, this would check against a hashed pin in system_config or a dedicated table.
-    # For now, we'll fetch 'admin_pin' from system_config.
-    stored_pin = await fetchval("SELECT value->>'pin' FROM system_config WHERE key = 'admin_pin'")
-    is_valid = (pin == "1234") if not stored_pin else (pin == stored_pin)
-    return {"valid": is_valid, "success": is_valid}
+async def verify_admin_pin(req: PinRequest, _=Depends(require_admin_user)):
+    """Canonical PIN verification using SHA256 hashing and app_settings."""
+    try:
+        record = await fetchrow("SELECT value FROM app_settings WHERE key='admin_pin' LIMIT 1")
+        stored = (record["value"] if record else "") or ""
+        
+        # Fallback for dev / uninitialized
+        if not stored:
+            import os
+            if os.getenv("APP_ENV", "development").lower() != "development":
+                return {"valid": False, "success": False, "error": "Admin PIN not initialized"}
+            valid = req.pin == "1234"
+        else:
+            valid = stored == _hash_pin(req.pin)
+            
+        return {"valid": valid, "success": valid, "lockoutRemaining": 0}
+    except Exception as e:
+        log.error(f"[admin] verify pin error: {e}")
+        return {"valid": False, "success": False, "error": str(e)}
 
+class SetPinRequest(BaseModel):
+    pin: Optional[str] = None
+    new_pin: str
 
 @router.post("/set-pin")
-async def set_admin_pin(req: dict, admin=Depends(require_admin_user)):
-    """Updates the administrative PIN."""
-    import json
-    new_pin = req.get("new_pin")
-    if not new_pin:
-        raise HTTPException(400, "new_pin required")
-    await execute("""
-        INSERT INTO system_config (key, value, updated_by)
-        VALUES ('admin_pin', $1, $2)
-        ON CONFLICT (key) DO UPDATE SET value = $1, updated_by = $2
-    """, json.dumps({"pin": new_pin}), admin['user_id'])
-    return {"ok": True}
+async def set_admin_pin(req: SetPinRequest, _=Depends(require_admin_user)):
+    """Canonical PIN update using SHA256 hashing."""
+    try:
+        # Check if we should enforce current PIN. 
+        # If the UI doesn't provide it, we rely on the fact that the caller is already a verified admin.
+        if req.pin:
+            record = await fetchrow("SELECT value FROM app_settings WHERE key='admin_pin' LIMIT 1")
+            stored = (record["value"] if record else "") or ""
+            
+            if not stored:
+                current_valid = req.pin == "1234"
+            else:
+                current_valid = stored == _hash_pin(req.pin)
+                
+            if not current_valid:
+                raise HTTPException(403, "Current PIN incorrect")
+            
+        if len(req.new_pin) < 4:
+            raise HTTPException(400, "PIN must be at least 4 digits")
+            
+        await execute("""
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES ('admin_pin', $1, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+        """, _hash_pin(req.new_pin))
+        
+        return {"ok": True, "success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"[admin] set pin error: {e}")
+        raise HTTPException(500, str(e))
 
 
 @router.post("/ai-assistant")
