@@ -1297,10 +1297,8 @@ async def verify_admin_pin(req: dict, _=Depends(require_admin_user)):
     # In a real app, this would check against a hashed pin in system_config or a dedicated table.
     # For now, we'll fetch 'admin_pin' from system_config.
     stored_pin = await fetchval("SELECT value->>'pin' FROM system_config WHERE key = 'admin_pin'")
-    if not stored_pin:
-        # Default pin if none set (not recommended for prod, but for restoration)
-        return {"valid": pin == "1234"}
-    return {"valid": pin == stored_pin}
+    is_valid = (pin == "1234") if not stored_pin else (pin == stored_pin)
+    return {"valid": is_valid, "success": is_valid}
 
 
 @router.post("/set-pin")
