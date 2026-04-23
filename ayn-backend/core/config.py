@@ -48,5 +48,13 @@ INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
 
 # ── Server ────────────────────────────────────────────────────────────────────
 PORT            = int(os.getenv("PORT", 8080))
-ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS","https://aynn.io,https://www.aynn.io,https://ayn-insight-forge.lovable.app,http://localhost:5173,http://localhost:8080").split(",") if o.strip()]
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://aynn.io,https://www.aynn.io,https://ayn-insight-forge.lovable.app,"
+    "http://localhost:5173,http://localhost:3000,http://localhost:8080"
+).split(",") if o.strip()]
+
+# Always include core origins regardless of env var
+_CORE_ORIGINS = {"https://aynn.io", "https://www.aynn.io"}
+ALLOWED_ORIGINS = list(set(ALLOWED_ORIGINS) | _CORE_ORIGINS)
 PHASE_LABEL     = os.getenv("PHASE_LABEL", "phase6")

@@ -177,7 +177,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://([a-z0-9-]+\.)*(lovableproject\.com|lovable\.app|lovable\.dev|aynn\.io)",
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*(lovableproject\.com|lovable\.app|lovable\.dev|aynn\.io)|https://aynn\.io|https://www\.aynn\.io",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
