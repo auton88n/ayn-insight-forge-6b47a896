@@ -1577,3 +1577,103 @@ async def unblock_user(body: dict, _=Depends(require_admin_user)):
     await execute(
         "DELETE FROM rate_limits WHERE user_id=$1::uuid", user_id)
     return {"ok": True, "unblocked": user_id}
+
+
+# ── Error bulk resolve/reopen (pattern-based, no ID required) ─────────────────
+class ErrorBulkRequest(BaseModel):
+    pattern: Optional[str] = None
+    status: str = "resolved"
+    note: Optional[str] = None
+
+@router.post("/errors/resolve")
+async def bulk_resolve_errors(req: ErrorBulkRequest, _=Depends(require_admin_user)):
+    """Bulk resolve errors by pattern or all open errors."""
+    if req.pattern:
+        await execute(
+            "UPDATE error_logs SET status='resolved', resolved_at=NOW() WHERE message ILIKE $1",
+            f"%{req.pattern}%"
+        )
+    else:
+        await execute("UPDATE error_logs SET status='resolved', resolved_at=NOW() WHERE status='open'")
+    return {"ok": True}
+
+
+@router.post("/errors/reopen")
+async def bulk_reopen_errors(req: ErrorBulkRequest, _=Depends(require_admin_user)):
+    """Bulk reopen errors by pattern."""
+    if req.pattern:
+        await execute(
+            "UPDATE error_logs SET status='open', resolved_at=NULL WHERE message ILIKE $1",
+            f"%{req.pattern}%"
+        )
+    else:
+        await execute("UPDATE error_logs SET status='open', resolved_at=NULL WHERE status='resolved'")
+    return {"ok": True}
+
+
+# ── Predictions management ─────────────────────────────────────────────────────
+@router.get("/predictions/master")
+async def get_master_predictions(_=Depends(require_admin_user)):
+    rows = await fetch("SELECT * FROM ayn_world_predictions ORDER BY created_at DESC LIMIT 200")
+    return [dict(r) for r in rows]
+
+
+@router.get("/predictions/scorecard")
+async def get_predictions_scorecard(_=Depends(require_admin_user)):
+    total = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions") or 0
+    correct = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions WHERE resolution_correct=TRUE") or 0
+    resolved = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions WHERE status='resolved'") or 0
+    return {
+        "total": total, "resolved": resolved, "correct": correct,
+        "accuracy_pct": round((correct / resolved * 100) if resolved > 0 else 0, 1)
+    }
+
+
+@router.post("/predictions/run-checker")
+async def run_prediction_checker_v2(_=Depends(require_admin_user)):
+    from core.scheduler import get_scheduler
+    import datetime
+    scheduler = get_scheduler()
+    job = scheduler.get_job("prediction-resolver") if scheduler else None
+    if job:
+        job.modify(next_run_time=datetime.datetime.now(datetime.timezone.utc))
+        return {"ok": True, "triggered": "prediction-resolver"}
+    return {"ok": False, "error": "Scheduler job not found"}
+
+
+@router.patch("/predictions/{prediction_id}")
+async def update_prediction_v2(prediction_id: str, body: dict, _=Depends(require_admin_user)):
+    allowed = ["admin_notes", "check_status", "admin_override", "status",
+               "resolution_correct", "resolution_notes"]
+    cols = [k for k in allowed if k in body]
+    if not cols:
+        return {"ok": True}
+    sets = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols))
+    vals = [body[k] for k in cols]
+    await execute(f'UPDATE ayn_world_predictions SET {sets} WHERE id=$1::uuid', prediction_id, *vals)
+    return {"ok": True}
+
+
+# ── Scheduler status (CronControl) ────────────────────────────────────────────
+@router.get("/scheduler/status")
+async def get_scheduler_status_v2(_=Depends(require_admin_user)):
+    from core.scheduler import get_scheduler
+    scheduler = get_scheduler()
+    if not scheduler:
+        return {"running": False, "jobs": []}
+    jobs = [{"id": j.id, "name": j.name,
+             "next_run": str(j.next_run_time) if j.next_run_time else None}
+            for j in scheduler.get_jobs()]
+    return {"running": scheduler.running, "jobs": jobs}
+
+
+@router.post("/scheduler/run/{job_id}")
+async def run_scheduler_job_v2(job_id: str, _=Depends(require_admin_user)):
+    from core.scheduler import get_scheduler
+    import datetime
+    scheduler = get_scheduler()
+    job = scheduler.get_job(job_id) if scheduler else None
+    if not job:
+        raise HTTPException(404, f"Job '{job_id}' not found")
+    job.modify(next_run_time=datetime.datetime.now(datetime.timezone.utc))
+    return {"ok": True, "job": job_id}
