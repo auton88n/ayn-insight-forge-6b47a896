@@ -568,7 +568,7 @@ export function MessageFormatter({ content, className }: MessageFormatterProps) 
 
       {/* Image Lightbox Dialog */}
       <Dialog open={!!lightboxImage} onOpenChange={() => setLightboxImage(null)}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2 bg-black/95 border-none">
+        <DialogContent aria-describedby={undefined} className="max-w-[90vw] max-h-[90vh] p-2 bg-black/95 border-none">
           {lightboxImage && (
             <img
               src={lightboxImage.src}

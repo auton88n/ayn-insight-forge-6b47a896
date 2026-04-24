@@ -384,7 +384,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   if (resetEmailSent) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="bg-neutral-950 border border-white/20 backdrop-blur-xl shadow-2xl sm:max-w-md">
+        <DialogContent aria-describedby={undefined} className="bg-neutral-950 border border-white/20 backdrop-blur-xl shadow-2xl sm:max-w-md">
           <div className="flex flex-col items-center text-center py-6 space-y-6">
             {/* Success Icon */}
             <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
@@ -443,7 +443,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-neutral-950 border border-white/20 backdrop-blur-xl shadow-2xl sm:max-w-md">
+      <DialogContent aria-describedby={undefined} className="bg-neutral-950 border border-white/20 backdrop-blur-xl shadow-2xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center gradient-text-hero text-2xl">
             {t('auth.welcomeToAyn')}

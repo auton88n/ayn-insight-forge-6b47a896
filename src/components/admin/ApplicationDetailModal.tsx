@@ -106,7 +106,7 @@ export const ApplicationDetailModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent aria-describedby={undefined} className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="pr-8">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">

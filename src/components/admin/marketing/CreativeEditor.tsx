@@ -191,7 +191,7 @@ export const CreativeEditor = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[90vh] max-h-[850px] p-0 gap-0 overflow-hidden border-border/40">
+      <DialogContent aria-describedby={undefined} className="max-w-6xl h-[90vh] max-h-[850px] p-0 gap-0 overflow-hidden border-border/40">
         <div className="grid grid-cols-1 md:grid-cols-5 h-full">
           <div className="md:col-span-3 bg-muted/5 flex items-center justify-center p-8 border-r border-border/30 overflow-hidden relative">
             <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'linear-gradient(hsl(var(--primary)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary)) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />

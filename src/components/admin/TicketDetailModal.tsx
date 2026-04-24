@@ -228,7 +228,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent aria-describedby={undefined} className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div>

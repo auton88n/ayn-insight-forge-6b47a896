@@ -336,7 +336,7 @@ export const TwitterMarketingPanel = () => {
 
       {/* Image Preview Dialog */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-lg p-2">
+        <DialogContent aria-describedby={undefined} className="max-w-lg p-2">
           {previewImage && (
             <div className="space-y-2">
               <img src={previewImage} alt="Brand image preview" className="w-full rounded-lg" />

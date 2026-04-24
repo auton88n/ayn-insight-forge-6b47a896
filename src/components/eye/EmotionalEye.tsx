@@ -92,7 +92,8 @@ const EmotionalEyeComponent = ({
     high: 0.8,
   };
   
-  const baseGlowIntensity = ACTIVITY_GLOW[activityLevel];
+  const safeActivityLevel = activityLevel || 'idle';
+  const baseGlowIntensity = ACTIVITY_GLOW[safeActivityLevel];
   const glowIntensity = baseGlowIntensity;
 
   // Play blink sounds ONLY for significant blinks (user-triggered, not idle)
@@ -325,7 +326,7 @@ const EmotionalEyeComponent = ({
 
   // Calculate iris radius based on AI pupil reaction, behavior state, or current state
   const getIrisRadius = () => {
-    const activityBonus = ACTIVITY_PUPIL_BONUS[activityLevel];
+    const activityBonus = ACTIVITY_PUPIL_BONUS[safeActivityLevel];
     
     // AI empathy pupil reactions take highest priority
     switch (pupilReaction) {
@@ -359,7 +360,7 @@ const EmotionalEyeComponent = ({
     medium: 0.8,  // Slightly faster
     high: 0.6,    // Quick, energetic
   };
-  const breathingDuration = emotionConfig.breathingSpeed * ACTIVITY_BREATHING_MULT[activityLevel];
+  const breathingDuration = emotionConfig.breathingSpeed * ACTIVITY_BREATHING_MULT[safeActivityLevel];
 
   // Activity-based saturation boost (percentage increase)
   const ACTIVITY_SATURATION_BOOST = {
@@ -368,7 +369,7 @@ const EmotionalEyeComponent = ({
     medium: 12,
     high: 20,
   };
-  const saturationBoost = ACTIVITY_SATURATION_BOOST[activityLevel];
+  const saturationBoost = ACTIVITY_SATURATION_BOOST[safeActivityLevel];
 
   // Helper to boost HSL saturation
   const boostSaturation = (hslColor: string, boostPercent: number): string => {
@@ -503,8 +504,8 @@ const EmotionalEyeComponent = ({
               fill="#000000"
               animate={{
                 r: performanceConfig.shouldReduceAnimations 
-                  ? irisRadius 
-                  : [irisRadius, irisRadius * 1.06, irisRadius], // 6% dilation with breath
+                  ? (irisRadius || 28) 
+                  : [(irisRadius || 28), (irisRadius || 28) * 1.06, (irisRadius || 28)], // 6% dilation with breath
               }}
               transition={{
                 r: {

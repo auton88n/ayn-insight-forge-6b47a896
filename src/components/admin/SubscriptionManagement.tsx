@@ -313,7 +313,7 @@ export const SubscriptionManagement = () => {
 
       {/* Edit Dialog */}
       <Dialog open={!!editing} onOpenChange={o => !o && setEditing(null)}>
-        <DialogContent className="bg-[#0f0f0f] border-white/10 text-white max-w-md">
+        <DialogContent aria-describedby={undefined} className="bg-[#0f0f0f] border-white/10 text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white">
               Edit — {editing?.display_name}

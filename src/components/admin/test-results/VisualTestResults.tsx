@@ -423,7 +423,7 @@ export const VisualTestResults: React.FC<VisualTestResultsProps> = ({
 
       {/* Screenshot Preview Dialog */}
       <Dialog open={!!selectedScreenshot} onOpenChange={() => setSelectedScreenshot(null)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
+        <DialogContent aria-describedby={undefined} className="max-w-5xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectedScreenshot && getViewportIcon(selectedScreenshot.viewport)}
