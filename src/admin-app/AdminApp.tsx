@@ -10,9 +10,9 @@ const LOCKOUT_KEY = 'ayn_admin_lockout';
 const ATTEMPTS_KEY = 'ayn_admin_attempts';
 const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
 
-const ADMIN_TOKEN_KEY = 'ayn_admin_token';
-const ADMIN_REFRESH_KEY = 'ayn_admin_refresh_token';
-const ADMIN_USER_KEY = 'ayn_admin_user';
+// Use the SAME token as the main app — no separate admin login needed
+const MAIN_TOKEN_KEY = 'ayn_access_token';
+const MAIN_USER_KEY  = 'ayn_user';
 const SPINE_BASE = 'https://spine.aynn.io';
 
 interface AdminUser {
@@ -31,42 +31,36 @@ interface AdminSession {
 
 function readSession(): AdminSession | null {
   try {
-    const token = localStorage.getItem(ADMIN_TOKEN_KEY);
-    const refresh = localStorage.getItem(ADMIN_REFRESH_KEY);
-    const userRaw = localStorage.getItem(ADMIN_USER_KEY);
-    if (!token || !userRaw) return null;
-    const user = JSON.parse(userRaw) as AdminUser;
-    return { access_token: token, refresh_token: refresh ?? '', user };
+    // Try main app token first
+    const token = localStorage.getItem(MAIN_TOKEN_KEY);
+    const userRaw = localStorage.getItem(MAIN_USER_KEY);
+    if (token && userRaw) {
+      const user = JSON.parse(userRaw);
+      return {
+        access_token: token,
+        refresh_token: '',
+        user: {
+          id: user.id || user.sub || '',
+          email: user.email || '',
+          first_name: user.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
+          last_name: user.last_name || '',
+          is_admin: user.is_admin ?? false,
+        }
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-function writeSession(s: AdminSession) {
-  localStorage.setItem(ADMIN_TOKEN_KEY, s.access_token);
-  localStorage.setItem(ADMIN_REFRESH_KEY, s.refresh_token);
-  localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(s.user));
-}
-
 function clearSession() {
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
-  localStorage.removeItem(ADMIN_REFRESH_KEY);
-  localStorage.removeItem(ADMIN_USER_KEY);
   sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
 }
 
 async function adminSignOut() {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
-  try {
-    if (token) {
-      await fetch(`${SPINE_BASE}/admin/logout`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-    }
-  } catch { /* ignore */ }
   clearSession();
-  window.location.reload();
+  window.location.href = '/';
 }
 
 function Loader() {
@@ -77,7 +71,6 @@ function Loader() {
   );
 }
 
-// PIN screen — shown AFTER login since verify-admin-pin requires a JWT
 function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: () => void }) {
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
@@ -85,7 +78,6 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
-  const inputs = useState<(HTMLInputElement | null)[]>([])[0] as any;
   const inputRefs = { current: [] as (HTMLInputElement | null)[] };
 
   useEffect(() => {
@@ -128,12 +120,6 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
       const ok = r.ok && data?.success;
 
       if (!ok) {
-        if (data?.locked) {
-          const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
-          localStorage.setItem(LOCKOUT_KEY, until.toString());
-          setLockedUntil(until);
-          return;
-        }
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
         localStorage.setItem(ATTEMPTS_KEY, newAttempts.toString());
@@ -142,7 +128,6 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
           localStorage.setItem(LOCKOUT_KEY, until.toString());
           localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
           setLockedUntil(until);
-          try { await adminApi.invoke('admin-pin-alert', {}); } catch {}
         } else {
           setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`);
           setPin(['', '', '', '']);
@@ -216,59 +201,15 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
   );
 }
 
-function LoginScreen({ onSuccess }: { onSuccess: (s: AdminSession) => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('');
-    try {
-      const res = await fetch(`${SPINE_BASE}/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok) {
-        if (res.status === 403) setError('Access denied — admins only');
-        else setError(data?.error || data?.detail || 'Invalid credentials');
-        setLoading(false);
-        return;
-      }
-      const session: AdminSession = {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        user: data.user,
-      };
-      writeSession(session);
-      onSuccess(session);
-    } catch (err: any) {
-      setError(err?.message || 'Sign-in failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+function NotLoggedIn() {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-xl font-bold text-white mb-1">Admin access</div>
-          <div className="text-white/30 text-sm">Sign in to continue</div>
-        </div>
-        <form onSubmit={handleLogin} className="space-y-3">
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 text-sm" required />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 text-sm" required />
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          <button type="submit" disabled={loading}
-            className="w-full bg-white text-black rounded-xl py-3 text-sm font-medium hover:bg-white/90 disabled:opacity-50">
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
+      <div className="text-center">
+        <div className="text-white/70 text-lg mb-2">Admin Access</div>
+        <div className="text-white/30 text-sm mb-6">You need to be logged in to access the admin panel.</div>
+        <a href="/dashboard" className="text-white bg-white/10 hover:bg-white/20 px-6 py-3 rounded-xl text-sm transition-all">
+          Go to Dashboard →
+        </a>
       </div>
     </div>
   );
@@ -279,74 +220,83 @@ function AccessDenied() {
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
         <div className="text-white/50 mb-4">Access denied — admins only</div>
-        <button onClick={adminSignOut} className="text-white/30 text-sm underline">Sign out</button>
+        <a href="/dashboard" className="text-white/30 text-sm underline">Go back</a>
       </div>
     </div>
   );
 }
 
-type Step = 'checking' | 'login' | 'pin' | 'ready' | 'denied';
+type Step = 'checking' | 'not_logged_in' | 'pin' | 'ready' | 'denied';
 
 export default function AdminApp() {
   const [step, setStep] = useState<Step>('checking');
   const [session, setSession] = useState<AdminSession | null>(null);
 
-  const proceedFromSession = useCallback((s: AdminSession) => {
-    // Spine /admin/login already enforces is_admin. Skip straight to PIN
-    // unless this session was already PIN-verified.
-    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-    if (cached === s.user.id) setStep('ready');
-    else setStep('pin');
-  }, []);
-
   useEffect(() => {
     const s = readSession();
-    if (s) {
-      setSession(s);
-      proceedFromSession(s);
-    } else {
-      setStep('login');
+
+    if (!s || !s.access_token) {
+      setStep('not_logged_in');
+      return;
     }
 
-    // React to other tabs signing out / in.
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === ADMIN_TOKEN_KEY) {
-        if (!e.newValue) {
-          sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
-          setSession(null);
-          setStep('login');
-        } else {
-          const fresh = readSession();
-          if (fresh) {
-            setSession(fresh);
-            proceedFromSession(fresh);
-          }
+    // Check PIN cache
+    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
+    if (cached === s.user.id) {
+      setSession(s);
+      setStep('ready');
+      return;
+    }
+
+    // Verify token is admin via spine
+    fetch(`${SPINE_BASE}/admin/session`, {
+      headers: { 'Authorization': `Bearer ${s.access_token}` }
+    })
+      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          setStep('not_logged_in');
+          return;
         }
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [proceedFromSession]);
-
-  const handleLoginSuccess = useCallback((s: AdminSession) => {
-    setSession(s);
-    proceedFromSession(s);
-  }, [proceedFromSession]);
-
-  const handlePinSuccess = useCallback(() => {
-    setStep('ready');
+        if (!data?.user?.is_admin) {
+          setStep('denied');
+          return;
+        }
+        // Merge is_admin into session
+        const enriched: AdminSession = {
+          ...s,
+          user: { ...s.user, ...data.user, is_admin: true }
+        };
+        // Store as admin token so adminApi works
+        localStorage.setItem('ayn_admin_token', s.access_token);
+        setSession(enriched);
+        setStep('pin');
+      })
+      .catch(() => setStep('not_logged_in'));
   }, []);
 
   if (step === 'checking') return <Loader />;
-  if (step === 'login') return <LoginScreen onSuccess={handleLoginSuccess} />;
-  if (step === 'pin') return <PinScreen session={session!} onSuccess={handlePinSuccess} />;
+  if (step === 'not_logged_in') return <NotLoggedIn />;
   if (step === 'denied') return <AccessDenied />;
 
-  return (
-    <Routes>
-      <Route path="/" element={<AdminPanel session={session as any} isAdmin={true} onBackClick={() => {}} onSignOut={adminSignOut} />} />
-      <Route path="/custom-orders" element={<AdminCustomOrders />} />
-      <Route path="*" element={<Navigate to="/manage-bae76e99d97e188b" replace />} />
-    </Routes>
-  );
+  if (step === 'pin' && session) {
+    return (
+      <PinScreen
+        session={session}
+        onSuccess={() => setStep('ready')}
+      />
+    );
+  }
+
+  if (step === 'ready') {
+    return (
+      <Routes>
+        <Route path="/" element={<AdminPanel />} />
+        <Route path="/custom-orders" element={<AdminCustomOrders />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  return <Loader />;
 }

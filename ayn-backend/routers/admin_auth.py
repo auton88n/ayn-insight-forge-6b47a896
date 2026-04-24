@@ -157,15 +157,17 @@ async def admin_session(authorization: str = Header(...)):
     except HTTPException:
         raise HTTPException(401, "Invalid or expired token")
 
-    if not payload.get("is_admin"):
-        raise HTTPException(403, "Not an admin token")
-
     user = await fetchrow(
-        "SELECT id, email, first_name, last_name FROM users WHERE id = $1::uuid",
+        "SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = $1::uuid",
         payload["sub"]
     )
     if not user:
         raise HTTPException(401, "User not found")
+
+    # Accept if JWT has is_admin claim OR if DB says is_admin
+    is_admin = payload.get("is_admin") or user["is_admin"]
+    if not is_admin:
+        raise HTTPException(403, "Not an admin")
 
     return {
         "user": {
