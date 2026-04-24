@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { adminApi } from '@/lib/adminApi';
+import { supabase } from '@/integrations/supabase/client';
 import { Briefcase, Plus, Eye, EyeOff, Trash2, ExternalLink, Loader2, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -35,11 +35,15 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
     
     setIsLoading(true);
     try {
-      const { data } = await adminApi.from('engineering_portfolio')
+      const { data, error } = await supabase
+        .from('engineering_portfolio')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
-      const mappedItems: PortfolioItem[] = (data || []).map((item: any) => ({
+
+      if (error) throw error;
+      // Map data to ensure proper typing
+      const mappedItems: PortfolioItem[] = (data || []).map(item => ({
         ...item,
         key_specs: item.key_specs as Record<string, any> | null,
       }));
@@ -61,9 +65,12 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
 
   const togglePublic = async (itemId: string, currentState: boolean) => {
     try {
-      await adminApi.from('engineering_portfolio')
+      const { error } = await supabase
+        .from('engineering_portfolio')
         .update({ is_public: !currentState })
         .eq('id', itemId);
+
+      if (error) throw error;
 
       setItems(prev => 
         prev.map(item => 
@@ -91,9 +98,12 @@ const EngineeringPortfolio = ({ userId, onAddToPortfolio }: EngineeringPortfolio
 
   const deleteItem = async (itemId: string) => {
     try {
-      await adminApi.from('engineering_portfolio')
+      const { error } = await supabase
+        .from('engineering_portfolio')
         .delete()
         .eq('id', itemId);
+
+      if (error) throw error;
 
       setItems(prev => prev.filter(item => item.id !== itemId));
 

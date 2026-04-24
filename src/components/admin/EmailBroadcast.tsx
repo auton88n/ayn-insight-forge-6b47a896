@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { adminApi as supabase } from '@/lib/adminApi';
-import { spineApi } from '@/lib/spineApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Send, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,9 @@ export const EmailBroadcast = () => {
     try {
       for (let i = 0; i < recipients.length; i += 10) {
         await Promise.allSettled(recipients.slice(i, i + 10).map(r =>
-          spineApi.sendEmail(r.email, subject, 'broadcast', { userName: r.name, subject, message: body }).then(() => ok++)
+          supabase.functions.invoke('send-email', {
+            body: { to: r.email, emailType: 'broadcast', data: { userName: r.name, subject, message: body } }
+          }).then(res => { if (!res.error) ok++; })
         ));
       }
       toast.success(`Sent to ${ok}/${recipients.length}`);

@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import influencerWomanBg from '@/assets/influencer-woman-bg.jpg';
@@ -8,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/shared/SEO';
@@ -95,7 +95,26 @@ const InfluencerSites = () => {
     }
     setIsSubmitting(true);
     try {
-      await spineApi.contactUs(formData.fullName, formData.email, `[Influencer Sites] ${formData.message || ''}`);
+      const { error: dbError } = await supabase.from('service_applications').insert({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        message: formData.message || null,
+        service_type: 'content_creator',
+        status: 'new'
+      });
+      
+      if (dbError) throw dbError;
+
+      await supabase.functions.invoke('send-application-email', {
+        body: {
+          applicantName: formData.fullName,
+          applicantEmail: formData.email,
+          applicantPhone: formData.phone,
+          message: formData.message,
+          serviceType: 'Content Creator Sites'
+        }
+      });
       setIsSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (error) {

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { spineApi } from '@/lib/spineApi';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Send, Loader2, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormError } from '@/components/ui/form-error';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useFormValidation, aiAgentsSchema } from '@/hooks/useFormValidation';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -48,22 +48,39 @@ const AIAgentsApply = () => {
     setIsSubmitting(true);
 
     try {
-      await spineApi.req('POST', '/applications', {
-        service_type: 'ai_agents',
-        full_name: formData.fullName,
-        email: formData.email,
-        phone: formData.phone || null,
-        message: formData.message || null,
-        custom_fields: {
-          companyName: formData.companyName,
-          industry: formData.industry,
-          agentType: formData.agentType,
-          useCase: formData.useCase,
-          integrations: formData.integrations,
-          budget: formData.budget,
-          timeline: formData.timeline,
-        },
+      const { error: dbError } = await supabase
+        .from('service_applications')
+        .insert({
+          service_type: 'ai_agents',
+          full_name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone || null,
+          message: formData.message || null,
+          custom_fields: {
+            companyName: formData.companyName,
+            industry: formData.industry,
+            agentType: formData.agentType,
+            useCase: formData.useCase,
+            integrations: formData.integrations,
+            budget: formData.budget,
+            timeline: formData.timeline
+          }
+        });
+
+      if (dbError) throw dbError;
+
+      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
+        body: {
+          serviceType: 'Custom AI Agents',
+          applicantName: formData.fullName,
+          applicantEmail: formData.email,
+          formData: formData
+        }
       });
+      if (emailError) {
+        console.error('Email notification failed:', emailError);
+        // Don't throw — application was saved, just email failed
+      }
 
       setIsSubmitted(true);
       toast.success(t('common.success'), { description: 'Your application has been submitted.' });

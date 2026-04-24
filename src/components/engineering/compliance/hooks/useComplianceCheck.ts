@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { adminApi } from '@/lib/adminApi';
+import { supabase } from '@/integrations/supabase/client';
 import { runComplianceChecks, type BuildingCode, type ComplianceInput, type ComplianceResult } from '../utils/complianceEngine';
 
 export function useComplianceCheck() {
@@ -23,13 +23,17 @@ export function useComplianceCheck() {
     setError(null);
 
     try {
-      const { data: codes } = await adminApi.from('building_codes')
+      // Fetch building codes for this code system
+      const { data: codes, error: fetchError } = await supabase
+        .from('building_codes')
         .select('*')
         .eq('code_system', codeSystem);
 
+      if (fetchError) throw fetchError;
+
       const checkResults = runComplianceChecks(
         inputs,
-        (codes as BuildingCode[]) || [],
+        (codes as unknown as BuildingCode[]) || [],
         projectConfig
       );
 

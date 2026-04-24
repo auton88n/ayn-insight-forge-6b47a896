@@ -1,8 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { lazy, Suspense } from "react";
 import { useRef, useState, useEffect, useCallback, memo, useMemo } from "react";
-import { spineAuth } from '@/lib/spineAuth';
-import { spineApi } from '@/lib/spineApi';
 
 import { cn } from "@/lib/utils";
 import { StreamingMarkdown } from "@/components/eye/StreamingMarkdown";
@@ -35,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractBestDocumentLink, openDocumentUrl } from "@/lib/documentUrlUtils";
 import type { Message } from "@/types/dashboard.types";
@@ -215,11 +214,16 @@ const ResponseCardComponent = ({
       try {
         const {
           data: { user },
-        } = await spineAuth.getUser();
+        } = await supabase.auth.getUser();
         const rating = type === "up" ? "positive" : "negative";
         const preview = combinedContent.slice(0, 200) + (combinedContent.length > 200 ? "..." : "");
-        // TODO: spine migration — POST /user/feedback { rating, preview, user_id: user?.id }
-        await spineApi.req('POST', '/user/feedback', { rating, preview, user_id: user?.id }).catch(() => {});
+        const { error } = await supabase.from("message_ratings").insert({
+          user_id: user?.id || null,
+          session_id: sessionId || null,
+          message_preview: preview,
+          rating,
+        });
+        if (error) throw error;
         toast.success(type === "up" ? "Thanks for the feedback!" : "We'll work on improving");
       } catch (err) {
         console.error("Failed to save feedback:", err);

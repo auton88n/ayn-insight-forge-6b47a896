@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, ArrowLeft, MessageSquare, History, PanelLeft } from 'lucide-react';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import ChartUnifiedChat from '@/components/dashboard/ChartUnifiedChat';
@@ -44,13 +44,13 @@ const ChartAnalyzerPage = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) setUserId(user.id);
       setIsCheckingAuth(false);
     };
     checkAuth();
 
-    const { data: { subscription } } = spineAuth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user?.id);
     });
 

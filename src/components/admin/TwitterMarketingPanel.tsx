@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { spineApi } from '@/lib/spineApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import {
   Sparkles, Send, RefreshCw, Loader2, Clock, CheckCircle, XCircle,
   Brain, Target, BarChart3, Trash2, Edit3, Camera, Download
@@ -62,8 +62,14 @@ export const TwitterMarketingPanel = () => {
 
   const fetchPosts = useCallback(async () => {
     try {
-      const data = await spineApi.req<TwitterPost[]>('GET', '/admin/twitter/posts?limit=50');
-      setPosts(data || []);
+      const { data, error } = await supabase
+        .from('twitter_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setPosts((data as unknown as TwitterPost[]) || []);
     } catch (err) {
       console.error('Failed to fetch tweets:', err);
       toast.error('Failed to load tweets');
@@ -79,26 +85,14 @@ export const TwitterMarketingPanel = () => {
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      const prompt = `Generate a high-engagement marketing tweet for AYN. 
-      Target Audience: ${filterAudience}
-      Content Type: ${filterContentType}
-      Brand Voice: Professional, Visionary, Honest.`;
+      const body: Record<string, string> = {};
+      if (filterContentType !== 'all') body.content_type = filterContentType;
+      if (filterAudience !== 'all') body.target_audience = filterAudience;
 
-      const res = await spineApi.req<{content: string}>('POST', '/admin/ai-proxy', {
-        action: 'tweet_generator',
-        messages: [{ role: 'user', content: prompt }]
-      });
-
-      if (res.content) {
-        await spineApi.req('POST', '/admin/twitter/posts', {
-          content: res.content,
-          target_audience: filterAudience === 'all' ? 'general' : filterAudience,
-          content_type: filterContentType === 'all' ? 'value' : filterContentType,
-          psychological_strategy: 'persuasion'
-        });
-        toast.success('Tweet generated!');
-        fetchPosts();
-      }
+      const { data, error } = await supabase.functions.invoke('twitter-auto-market', { body });
+      if (error) throw error;
+      toast.success('Tweet generated!');
+      fetchPosts();
     } catch (err) {
       console.error('Generate error:', err);
       toast.error('Failed to generate tweet');
@@ -110,7 +104,9 @@ export const TwitterMarketingPanel = () => {
   const handlePost = async (post: TwitterPost) => {
     setIsPosting(post.id);
     try {
-      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
+      const { data, error } = await supabase.functions.invoke('twitter-post', {
+        body: { text: post.content, post_id: post.id },
+      });
       if (error) throw error;
       toast.success('Tweet posted to X!');
       fetchPosts();
@@ -124,7 +120,8 @@ export const TwitterMarketingPanel = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await spineApi.req('DELETE', `/admin/twitter/posts/${id}`);
+      const { error } = await supabase.from('twitter_posts').delete().eq('id', id);
+      if (error) throw error;
       setPosts((prev) => prev.filter((p) => p.id !== id));
       toast.success('Tweet deleted');
     } catch {
@@ -138,7 +135,11 @@ export const TwitterMarketingPanel = () => {
       return;
     }
     try {
-      await spineApi.req('PATCH', `/admin/twitter/posts/${id}`, { content: editContent });
+      const { error } = await supabase
+        .from('twitter_posts')
+        .update({ content: editContent })
+        .eq('id', id);
+      if (error) throw error;
       setPosts((prev) =>
         prev.map((p) => (p.id === id ? { ...p, content: editContent } : p))
       );

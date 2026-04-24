@@ -1,4 +1,3 @@
-import { spineApi, adminApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { NotificationLogViewer } from './NotificationLogViewer';
 import { 
   AlertTriangle, 
@@ -37,18 +37,13 @@ const BetaProgramSettings = () => {
 
   useEffect(() => {
     const loadConfig = async () => {
-      try {
-        const configData: any = await adminApi.getSystemConfig();
-        const data = Array.isArray(configData) ? configData : [];
-        data.forEach((item: any) => {
-          if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
-          else if (item.key === 'beta_feedback_reward') setFeedbackReward(parseInt(String(item.value)) || 5);
-        });
-      } catch (err) {
-        console.error('Failed to load beta config:', err);
-      } finally {
-        setLoading(false);
-      }
+      const { data } = await supabase.rpc('get_admin_system_config');
+      const configData = (data as any)?.config || [];
+      configData.forEach((item: any) => {
+        if (item.key === 'beta_mode') setBetaMode(item.value === true || item.value === 'true');
+        else if (item.key === 'beta_feedback_reward') setFeedbackReward(parseInt(String(item.value)) || 5);
+      });
+      setLoading(false);
     };
     loadConfig();
   }, []);
@@ -56,8 +51,10 @@ const BetaProgramSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await adminApi.upsertSystemConfig('beta_mode', betaMode);
-      await adminApi.upsertSystemConfig('beta_feedback_reward', feedbackReward);
+      await supabase.from('system_config').upsert([
+        { key: 'beta_mode', value: betaMode },
+        { key: 'beta_feedback_reward', value: feedbackReward }
+      ], { onConflict: 'key' });
       toast.success('Beta settings saved');
     } catch (err) {
       toast.error('Failed to save beta settings');
@@ -224,7 +221,14 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
     setIsSaving(true);
     try {
       if (localConfig.maintenanceMode && !systemConfig.maintenanceMode) {
-        const notifyError = null; // handled by spine
+        const { error: notifyError } = await supabase.functions.invoke('admin-notifications', {
+          body: {
+            type: 'maintenance_announcement',
+            message: localConfig.maintenanceMessage,
+            startTime: localConfig.maintenanceStartTime,
+            endTime: localConfig.maintenanceEndTime
+          }
+        });
         if (notifyError) {
           console.error('Failed to send maintenance notifications:', notifyError);
           toast.error('Maintenance enabled but failed to notify users');
@@ -261,15 +265,34 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
 
     setIsChangingPin(true);
     try {
-      // Use the canonical backend helper
-      await adminApi.setAdminPin('', newPin); 
-      
+      // Hash the new PIN using SHA-256 (same as the PIN gate)
+      const msgBuffer = new TextEncoder().encode(newPin);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Update directly in app_settings
+      const { error } = await supabase
+        .from('app_settings')
+        .upsert({ key: 'admin_pin_hash', value: hashHex, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+
+      if (error) throw error;
+
       toast.success('PIN updated successfully!');
       setNewPin('');
       setConfirmPin('');
-    } catch (error: any) {
+
+      // Log the change
+      try {
+        await supabase.from('security_logs').insert({
+          action: 'admin_pin_changed',
+          details: { changed_at: new Date().toISOString() },
+          severity: 'high'
+        } as any);
+      } catch {}
+    } catch (error) {
       console.error('Error changing PIN:', error);
-      toast.error('Failed to update PIN: ' + error.message);
+      toast.error('Failed to update PIN');
     } finally {
       setIsChangingPin(false);
     }

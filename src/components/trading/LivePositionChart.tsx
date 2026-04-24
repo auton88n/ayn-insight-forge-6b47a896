@@ -1,6 +1,6 @@
-import { spineApi } from '@/lib/spineApi';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time, LineStyle, CandlestickSeries as CandlestickSeriesDef } from 'lightweight-charts';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LivePositionChartProps {
   ticker: string;
@@ -179,16 +179,23 @@ export default function LivePositionChart({ ticker, entryPrice, stopLoss, tp1, t
 
     // Fetch historical klines
     try {
-      const data = await spineApi.getKlines(ticker, tf, 200);
-      if (data?.klines && data.klines.length > 0) {
+      const { data, error: fnErr } = await supabase.functions.invoke('get-klines', {
+        body: { symbol: ticker, interval: tf, limit: 100 },
+      });
+      if (fnErr) {
+        console.warn('[LivePositionChart] klines error (non-fatal):', fnErr);
+      } else if (data?.klines && data.klines.length > 0) {
         built.candleSeries.setData(data.klines as CandlestickData[]);
         built.chart.timeScale().fitContent();
-        const last: any = data.klines[data.klines.length - 1];
+        const last = data.klines[data.klines.length - 1];
         currentCandleRef.current = { ...last };
+        // Seed livePrice from the last known kline close so low-volume
+        // pairs always show a price even before WS trades arrive
         setLivePrice(last.close as number);
       }
     } catch (e: any) {
       console.warn('[LivePositionChart] klines fetch error (non-fatal):', e);
+      // Don't show error — chart will still work with live data only
     }
 
     setLoading(false);

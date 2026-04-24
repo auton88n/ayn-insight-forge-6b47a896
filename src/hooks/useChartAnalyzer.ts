@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
+import { API_ENDPOINTS } from '@/constants/apiEndpoints';
 import type { ChartAnalysisResult, ChartAnalyzerStep } from '@/types/chartAnalyzer.types';
 
 export function useChartAnalyzer() {
@@ -32,11 +32,29 @@ export function useChartAnalyzer() {
       const base64 = await fileToBase64(file);
 
       setStep('analyzing');
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Please log in to use Chart Analyzer');
 
-      const data = await spineApi.analyzeChart(base64, '', '');
-      setResult(data as ChartAnalysisResult);
+      const res = await supabase.functions.invoke(API_ENDPOINTS.ANALYZE_TRADING_CHART, {
+        body: { imageBase64: base64, sessionId: null },
+      });
+
+      if (res.error) {
+        // supabase.functions.invoke may put the parsed body in res.data even on error
+        const bodyError = res.data?.error;
+        // Also try to parse from the error context
+        let contextError: string | undefined;
+        try {
+          const ctx = (res.error as any)?.context;
+          if (ctx instanceof Response) {
+            const body = await ctx.json();
+            contextError = body?.error;
+          }
+        } catch {}
+        throw new Error(bodyError || contextError || res.error.message || 'Analysis failed');
+      }
+
+      setResult(res.data as ChartAnalysisResult);
       setStep('done');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Analysis failed';

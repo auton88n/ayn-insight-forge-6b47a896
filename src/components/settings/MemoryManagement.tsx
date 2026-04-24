@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Brain, 
   Trash2, 
@@ -77,18 +77,17 @@ export const MemoryManagement: React.FC<MemoryManagementProps> = ({ userId }) =>
     
     setLoading(true);
     try {
-      const data: any = await spineApi.getMemory();
-      const list: any[] = Array.isArray(data) ? data : (data?.memories || []);
-      setMemories(list.map((d: any) => ({
-        id: d.id,
-        memory_type: d.memory_type || d.type || 'profile',
-        memory_key: d.memory_key || d.key,
-        memory_data: typeof d.memory_data === 'object' && d.memory_data !== null
-          ? d.memory_data
-          : (typeof d.value === 'object' && d.value !== null ? d.value : { value: d.value }),
-        created_at: d.created_at || null,
-        expires_at: d.expires_at || null,
-        priority: d.priority ?? null,
+      const { data, error } = await supabase
+        .from('user_memory')
+        .select('*')
+        .eq('user_id', userId)
+        .order('priority', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setMemories((data || []).map(d => ({
+        ...d,
+        memory_data: typeof d.memory_data === 'object' && d.memory_data !== null ? d.memory_data as Record<string, any> : {}
       })));
     } catch (error) {
       console.error('Error fetching memories:', error);
@@ -111,13 +110,13 @@ export const MemoryManagement: React.FC<MemoryManagementProps> = ({ userId }) =>
   const handleDeleteMemory = async (memoryId: string) => {
     setDeletingId(memoryId);
     try {
-      // TODO(spine): /user/memory delete by id — currently uses key-based deletion
-      const target = memories.find(m => m.id === memoryId);
-      if (target?.memory_key) {
-        await spineApi.deleteMemory(target.memory_key);
-      } else {
-        await spineApi.req('DELETE', `/user/memory/by-id/${memoryId}`);
-      }
+      const { error } = await supabase
+        .from('user_memory')
+        .delete()
+        .eq('id', memoryId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
 
       setMemories(prev => prev.filter(m => m.id !== memoryId));
       toast({
@@ -139,8 +138,12 @@ export const MemoryManagement: React.FC<MemoryManagementProps> = ({ userId }) =>
   const handleClearAllMemories = async () => {
     setClearingAll(true);
     try {
-      // TODO(spine): /user/memory bulk-clear endpoint
-      await spineApi.req('DELETE', '/user/memory');
+      const { error } = await supabase
+        .from('user_memory')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
 
       setMemories([]);
       toast({

@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +14,7 @@ import {
   Clock,
   RefreshCw
 } from 'lucide-react';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Button } from '@/components/ui/button';
 import { format, subDays, startOfDay, startOfWeek, startOfMonth } from 'date-fns';
 
@@ -72,7 +71,7 @@ export const VisitorAnalytics = () => {
   const fetchAnalytics = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await spineApi.req("GET", "/analytics/summary");
+      const { data, error } = await supabase.rpc('get_admin_visitor_analytics', { p_days: 30 });
       if (error) throw error;
       const d = data as any;
 

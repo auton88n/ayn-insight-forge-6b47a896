@@ -161,13 +161,7 @@ export const AdminDashboard = () => {
                           {user.display_name || user.user_email?.split('@')[0] || 'Unknown'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {(() => {
-                            try {
-                              return format(new Date(user.created_at), 'MMM d, yyyy • h:mm a');
-                            } catch (e) {
-                              return 'Recently';
-                            }
-                          })()}
+                          {format(new Date(user.created_at), 'MMM d, yyyy • h:mm a')}
                         </p>
                       </div>
                     </div>

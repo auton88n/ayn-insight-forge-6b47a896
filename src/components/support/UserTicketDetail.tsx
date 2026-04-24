@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -69,16 +68,34 @@ export function UserTicketDetail({ ticketId, onBack }: UserTicketDetailProps) {
 
   const fetchTicketData = useCallback(async () => {
     try {
-      const data = await spineApi.req<{ ticket: Ticket & { has_unread_reply?: boolean }; messages: TicketMessage[] }>(
-        'GET',
-        `/support/tickets/${ticketId}`
-      );
+      const [ticketRes, messagesRes] = await Promise.all([
+        supabase
+          .from('support_tickets')
+          .select('*')
+          .eq('id', ticketId)
+          .maybeSingle(),
+        supabase
+          .from('ticket_messages')
+          .select('*')
+          .eq('ticket_id', ticketId)
+          .eq('is_internal_note', false)
+          .order('created_at', { ascending: true }),
+      ]);
 
-      setTicket(data.ticket);
-      setMessages(data.messages || []);
+      if (ticketRes.error) throw ticketRes.error;
+      if (messagesRes.error) throw messagesRes.error;
 
-      if (data.ticket?.has_unread_reply) {
-        await spineApi.req('POST', `/support/tickets/${ticketId}/mark-read`);
+      setTicket(ticketRes.data);
+      setMessages(messagesRes.data || []);
+
+      // Mark ticket as read when user opens it
+      if (ticketRes.data?.has_unread_reply) {
+        await supabase
+          .from('support_tickets')
+          .update({ has_unread_reply: false })
+          .eq('id', ticketId);
+        
+        // Show in-app notification that they have a new reply
         toast.info(t('common.success'));
       }
     } catch (error) {
@@ -98,12 +115,27 @@ export function UserTicketDetail({ ticketId, onBack }: UserTicketDetailProps) {
 
     setSending(true);
     try {
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      await spineApi.req('POST', `/support/tickets/${ticketId}/messages`, {
-        message: newMessage.trim(),
-      });
+      const { error } = await supabase
+        .from('ticket_messages')
+        .insert({
+          ticket_id: ticketId,
+          message: newMessage.trim(),
+          sender_type: 'user',
+          sender_id: user.id,
+        });
+
+      if (error) throw error;
+
+      // Update ticket status to open if it was waiting_reply
+      if (ticket.status === 'waiting_reply') {
+        await supabase
+          .from('support_tickets')
+          .update({ status: 'open' })
+          .eq('id', ticketId);
+      }
 
       setNewMessage('');
       fetchTicketData();
@@ -121,7 +153,12 @@ export function UserTicketDetail({ ticketId, onBack }: UserTicketDetailProps) {
 
     setClosing(true);
     try {
-      await spineApi.req('DELETE', `/support/tickets/${ticketId}`);
+      const { error } = await supabase
+        .from('support_tickets')
+        .delete()
+        .eq('id', ticketId);
+
+      if (error) throw error;
 
       toast.success(t('common.success'));
       onBack();

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -91,7 +90,8 @@ export default function AdminCustomOrders() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const data: any = await spineApi.req('GET', '/admin/custom-orders').catch(() => []);
+      const { data, error } = await supabase.from('custom_orders').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
       setOrders((data || []) as unknown as CustomOrder[]);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
@@ -137,7 +137,7 @@ export default function AdminCustomOrders() {
     setSaving(true);
     try {
       const { subtotal, total } = calc(form.services, form.discount_percent, form.tax_percent);
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       const payload = {
         company_name: form.company_name, company_email: form.company_email,
         contact_person: form.contact_person, company_phone: form.company_phone || null,
@@ -154,10 +154,12 @@ export default function AdminCustomOrders() {
         notes: form.notes || null, created_by: user?.id || null,
       };
       if (editingOrder) {
-        await spineApi.req('PATCH', `/admin/custom-orders/${editingOrder.id}`, payload);
+        const { error } = await supabase.from('custom_orders').update(payload).eq('id', editingOrder.id);
+        if (error) throw error;
         toast({ title: '✓ Order updated' });
       } else {
-        await spineApi.req('POST', '/admin/custom-orders', payload);
+        const { error } = await supabase.from('custom_orders').insert(payload);
+        if (error) throw error;
         toast({ title: '✓ Order created' });
       }
       setPanel('none'); setEditingOrder(null); fetchOrders();
@@ -168,18 +170,16 @@ export default function AdminCustomOrders() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order permanently?')) return;
-    try {
-      await spineApi.req('DELETE', `/admin/custom-orders/${id}`);
-      toast({ title: '✓ Deleted' }); fetchOrders();
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    }
+    const { error } = await supabase.from('custom_orders').delete().eq('id', id);
+    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    else { toast({ title: '✓ Deleted' }); fetchOrders(); }
   };
 
   const handleGeneratePdf = async (orderId: string) => {
     setGeneratingPdf(orderId);
     try {
-      const data: any = await spineApi.req('POST', `/admin/custom-orders/${orderId}/pdf`).catch(() => null);
+      const { data, error } = await supabase.functions.invoke('generate-contract-pdf', { body: { orderId } });
+      if (error) throw error;
       if (!data?.html) throw new Error('No HTML returned');
       const w = window.open('', '_blank');
       if (w) { w.document.write(data.html); w.document.close(); setTimeout(() => w.print(), 600); }
@@ -192,7 +192,7 @@ export default function AdminCustomOrders() {
   const handleSendEmail = async (orderId: string) => {
     setSendingEmail(orderId);
     try {
-      const error = null; // contract email sent by spine
+      const { error } = await supabase.functions.invoke('send-contract-email', { body: { orderId } });
       if (error) throw error;
       toast({ title: '✓ Email sent', description: 'Agreement sent to client' });
       fetchOrders();
@@ -204,7 +204,7 @@ export default function AdminCustomOrders() {
   const handleSendReceipt = async (orderId: string) => {
     setSendingReceipt(orderId);
     try {
-      const error = null; // receipt email sent by spine
+      const { error } = await supabase.functions.invoke('send-receipt-email', { body: { orderId } });
       if (error) throw error;
       toast({ title: '✓ Receipt sent', description: 'Payment receipt emailed to client' });
       fetchOrders();
@@ -216,7 +216,10 @@ export default function AdminCustomOrders() {
   const handleMarkPaid = async (orderId: string) => {
     setMarkingPaid(orderId);
     try {
-      await spineApi.req('POST', `/admin/custom-orders/${orderId}/mark-paid`, {});
+      const { error } = await supabase.from('custom_orders').update({
+        status: 'paid', paid_at: new Date().toISOString(),
+      }).eq('id', orderId);
+      if (error) throw error;
       toast({ title: '✓ Marked as paid' });
       fetchOrders();
     } catch (e: any) {
@@ -256,9 +259,12 @@ export default function AdminCustomOrders() {
     if (!canvasRef.current || !signingId) return;
     const dataUrl = canvasRef.current.toDataURL('image/png');
     try {
-      const base64 = dataUrl.split(',')[1];
+      const blob = await fetch(dataUrl).then(r => r.blob());
       const path = `signatures/admin_${signingId}_${Date.now()}.png`;
-      await spineApi.storageUpload('generated-files', path, base64, 'image/png');
+      const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
+      await supabase.from('custom_orders').update({ admin_signature_url: urlData.publicUrl, admin_signed_at: new Date().toISOString() }).eq('id', signingId);
       toast({ title: '✓ Signature applied' });
       setPanel('none'); setSigningId(null); fetchOrders();
     } catch (e: any) { toast({ title: 'Error', description: e.message, variant: 'destructive' }); }

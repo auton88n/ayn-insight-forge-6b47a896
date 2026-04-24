@@ -54,15 +54,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private async reportError(error: Error, errorInfo: ErrorInfo) {
     try {
-      const { spineApi } = await import('@/lib/spineApi');
-      await spineApi.logError(
-        (error.message || 'Unknown error').slice(0, 1000),
-        window.location.href,
-        {
-          stack: error.stack?.slice(0, 5000) || null,
-          component_stack: errorInfo.componentStack?.slice(0, 500),
-        }
-      ).catch(() => {});
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      await (supabase as any).from('error_logs').insert({
+        error_message: (error.message || 'Unknown error').slice(0, 1000),
+        error_stack: error.stack?.slice(0, 5000) || null,
+        component_stack: errorInfo.componentStack?.slice(0, 5000) || null,
+        url: window.location.href,
+        user_id: session?.user?.id || null,
+        user_agent: navigator.userAgent,
+      });
     } catch {
       // Silent failure — error reporting should never break the app
     }

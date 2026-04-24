@@ -1,3 +1,4 @@
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +18,7 @@ import {
   Lock,
   Zap
 } from 'lucide-react';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 // SUPABASE_URL and SUPABASE_ANON_KEY imported from central config
@@ -60,7 +61,7 @@ export function OWASPSecurityReport() {
       if (error) throw error;
       
       // Type-safe mapping using correct column names
-      const mappedResults: SecurityTestResult[] = (data || []).map((row: any) => ({
+      const mappedResults: SecurityTestResult[] = (data || []).map(row => ({
         name: row.test_name,
         category: row.test_suite,
         status: row.status as 'passed' | 'failed' | 'skipped',
@@ -77,12 +78,11 @@ export function OWASPSecurityReport() {
   const runOWASPScan = async () => {
     setLoading(true);
     try {
-      const adminToken = localStorage.getItem('ayn_admin_token') || '';
-      const response = await fetch(`https://spine.aynn.io/admin/edge/run-real-tests`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/run-real-tests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
         body: JSON.stringify({ suite: 'security' })
       });

@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { ArrowLeft, Calculator, Box, FileDown, Sparkles, Building2, Ruler, Layers, FileText, HardHat, CheckCircle2, Loader2, Car, Mountain } from 'lucide-react';
 import Building3DShowcase from '@/components/services/Building3DShowcase';
@@ -8,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/shared/SEO';
@@ -92,7 +92,31 @@ const CivilEngineering = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Civil Engineering] ${(formData as any).message || ''}`);
+      const { error: dbError } = await supabase.from('service_applications').insert({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        message: formData.message || null,
+        service_type: 'civil_engineering',
+        status: 'new'
+      });
+      if (dbError) throw dbError;
+      
+      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
+        body: {
+          applicantName: formData.fullName,
+          applicantEmail: formData.email,
+          serviceType: 'Civil Engineering Tools',
+          formData: {
+            'Full Name': formData.fullName,
+            'Email': formData.email,
+            'Phone': formData.phone || 'Not provided',
+            'Message': formData.message || 'No message provided'
+          }
+        }
+      });
+      if (emailError) console.error('Email error:', emailError);
+      
       setIsSuccess(true);
       toast({ title: t.successTitle, description: t.successDesc });
     } catch (error) {

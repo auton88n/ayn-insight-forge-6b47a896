@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { adminApi as supabase } from '@/lib/adminApi';
-
-interface Session { user: { id: string; email?: string }; access_token?: string }
+import { Session } from '@supabase/supabase-js';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import {
   Dialog,
   DialogContent,

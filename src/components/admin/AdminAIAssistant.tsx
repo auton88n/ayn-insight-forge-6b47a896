@@ -1,13 +1,10 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { adminApi } from '@/lib/spineApi';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -33,6 +30,7 @@ interface Message {
   timestamp?: Date;
 }
 
+import { SUPABASE_URL } from '@/config';
 
 // Typing indicator dots
 const TypingIndicator = () => (
@@ -135,7 +133,8 @@ export function AdminAIAssistant() {
   // Fetch stats directly from DB — fast, no AI call needed
   const fetchStats = useCallback(async () => {
     try {
-      const data = await adminApi.getStats();
+      const { data, error } = await supabase.rpc('get_admin_system_monitoring');
+      if (error) throw error;
       const d = data as any;
 
       const llmUsage = d.llm_usage_24h || 0;
@@ -212,14 +211,35 @@ export function AdminAIAssistant() {
     setIsLoading(true);
 
     try {
-      const data = await spineApi.req<any>('POST', '/admin/ai-proxy', {
-        action: 'assistant',
-        messages: messages.concat([{ role: 'user', content: text }]).map(m => ({ role: m.role, content: m.content }))
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Not authenticated');
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/admin-ai-assistant`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message: text })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await response.json();
       
-      // Update stats if returned (AI proxy returns {content, ok})
-      // But we can also manually refresh stats here
-      fetchStats();
+      // Update stats if returned
+      if (data.quickStats) {
+        setStats(data.quickStats);
+      }
       
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -241,7 +261,7 @@ export function AdminAIAssistant() {
 
   const executeAction = async (action: { type: string; params: string }) => {
     try {
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Not authenticated');
         return;
@@ -249,12 +269,15 @@ export function AdminAIAssistant() {
 
       switch (action.type) {
         case 'unblock_user':
-          await adminApi.unblockUser(action.params);
+          const { error: unblockError } = await supabase.rpc('admin_unblock_user', { 
+            p_user_id: action.params 
+          });
+          if (unblockError) throw unblockError;
           toast.success('User unblocked successfully');
           break;
           
         case 'run_tests':
-          await fetch(`https://spine.aynn.io/admin/edge/ai-comprehensive-tester`, {
+          await fetch(`${SUPABASE_URL}/functions/v1/ai-comprehensive-tester`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${session.access_token}`,

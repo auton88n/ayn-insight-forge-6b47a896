@@ -62,9 +62,7 @@ export type AdminTabId =
   | 'custom-orders'
   | 'nda'
   | 'document-studio'
-  | 'prediction-control'
-  | 'cron-control'
-  | 'operations';
+  | 'prediction-control';
 
 interface AdminSection {
   id: AdminTabId;
@@ -134,9 +132,7 @@ const sidebarGroups: SidebarGroup[] = [
       { id: 'ayn-logs',           title: 'AYN Logs',            icon: Activity,      gradient: 'from-orange-500 to-red-500',    adminOnly: true },
       { id: 'ayn-mind',           title: 'AYN Mind',            icon: Brain,         gradient: 'from-violet-500 to-purple-600', adminOnly: true },
       { id: 'prediction-control', title: 'Prediction Control',  icon: Shield,        gradient: 'from-emerald-500 to-teal-600', adminOnly: true },
-      { id: 'cron-control',       title: 'Cron Control',        icon: Activity,      gradient: 'from-cyan-500 to-blue-600',     adminOnly: true },
       { id: 'errors',             title: 'Error Monitor',       icon: AlertTriangle, gradient: 'from-red-500 to-rose-600',      adminOnly: true },
-      { id: 'operations',         title: 'Operations Center',   icon: Activity,      gradient: 'from-orange-500 to-amber-600',   adminOnly: true },
       { id: 'test-results',       title: 'Test Results',        icon: FlaskConical,  gradient: 'from-pink-500 to-rose-500',     adminOnly: true },
       { id: 'settings',           title: 'Settings',            icon: Settings,      gradient: 'from-slate-500 to-gray-500',    adminOnly: true },
     ],

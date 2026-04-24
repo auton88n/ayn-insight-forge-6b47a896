@@ -1,13 +1,13 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useMemo } from 'react';
 import { CheckCircle, Send, Loader2 } from 'lucide-react';
-import { Button, LiquidButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
@@ -68,7 +68,26 @@ const Contact = () => {
 
     setIsSubmitting(true);
     try {
-      await spineApi.contactUs(contactForm.name, contactForm.email, contactForm.message);
+      const { error: dbError } = await supabase.from('contact_messages').insert({
+        name: contactForm.name.trim(),
+        email: contactForm.email.trim(),
+        message: contactForm.message.trim(),
+      });
+      if (dbError) {
+        if (import.meta.env.DEV) console.error('Database error:', dbError);
+        throw new Error('Failed to save message');
+      }
+
+      const { error: emailError } = await supabase.functions.invoke('send-contact-email', {
+        body: {
+          name: contactForm.name.trim(),
+          email: contactForm.email.trim(),
+          message: contactForm.message.trim(),
+        },
+      });
+      if (emailError && import.meta.env.DEV) {
+        console.error('Email error:', emailError);
+      }
 
       setIsSubmitted(true);
       setContactForm({ name: '', email: '', message: '' });
@@ -195,11 +214,11 @@ const Contact = () => {
                   {contactErrors.message && <p className="text-sm text-destructive animate-slide-down-fade">{contactErrors.message}</p>}
                 </div>
 
-                <LiquidButton
+                <Button
                   type="submit"
                   size="lg"
                   disabled={isSubmitting}
-                  className="w-full"
+                  className={cn('w-full h-14 rounded-none font-mono uppercase tracking-wider transition-all duration-300', 'hover:shadow-2xl')}
                 >
                   {isSubmitting ? (
                     <>
@@ -212,7 +231,7 @@ const Contact = () => {
                       <Send className="ml-2 h-5 w-5" />
                     </>
                   )}
-                </LiquidButton>
+                </Button>
               </form>
             )}
           </div>

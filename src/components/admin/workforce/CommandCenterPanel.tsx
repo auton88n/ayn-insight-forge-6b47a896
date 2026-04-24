@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -24,6 +23,7 @@ import {
   History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SUPABASE_URL } from '@/config';
 
 interface ChatMessage {
   id: string;
@@ -97,7 +97,13 @@ function buildEnrichedContent(msg: ChatMessage): string {
 // ─── Helper: Save message to DB ───
 async function persistMessage(adminId: string, msg: ChatMessage) {
   try {
-    /* spine */;
+    await supabase.from('admin_ai_conversations').insert({
+      admin_id: adminId,
+      role: msg.role,
+      message: msg.content || '',
+      context: msg.tool_results ? { tool_results: msg.tool_results } as any : null,
+      actions_taken: msg.agent ? { agent: msg.agent } as any : null,
+    });
   } catch {
     // Silent fail — don't block UI
   }
@@ -116,7 +122,7 @@ export function CommandCenterPanel() {
 
   // ─── Load conversation history from DB ───
   const loadHistory = useCallback(async () => {
-    const { data: { session } } = await spineAuth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
     try {
@@ -147,10 +153,10 @@ export function CommandCenterPanel() {
 
   // ─── Load directives ───
   const loadDirectives = useCallback(async () => {
-    const { data: { session } } = await spineAuth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     try {
-      const res = await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'list_directives' }),
@@ -165,7 +171,7 @@ export function CommandCenterPanel() {
     let channel: any = null;
 
     const setupRealtime = async () => {
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       channel = supabase
@@ -267,7 +273,7 @@ export function CommandCenterPanel() {
     setMessages(prev => [...prev, userMsg, tempMsg]);
 
     try {
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast.error('Not authenticated'); return; }
 
       // Persist user message
@@ -283,7 +289,7 @@ export function CommandCenterPanel() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000); // 2min timeout
 
-      const res = await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -338,9 +344,9 @@ export function CommandCenterPanel() {
   const handleAddDirective = async () => {
     if (!newDirective.trim()) return;
     try {
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
+      await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'chat', message: `Save this as a directive: ${newDirective.trim()}`, history: [] }),
@@ -353,9 +359,9 @@ export function CommandCenterPanel() {
 
   const handleDeleteDirective = async (id: string) => {
     try {
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      await fetch(`https://spine.aynn.io/admin/edge/admin-command-center`, {
+      await fetch(`${SUPABASE_URL}/functions/v1/admin-command-center`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'delete_directive', id }),
@@ -368,9 +374,9 @@ export function CommandCenterPanel() {
   const handleClearChat = async () => {
     setMessages([]);
     // Optionally clear DB too
-    const { data: { session } } = await spineAuth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      /* spine */;
+      await supabase.from('admin_ai_conversations').delete().eq('admin_id', session.user.id);
     }
   };
 

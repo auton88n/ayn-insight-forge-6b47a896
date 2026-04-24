@@ -1,9 +1,9 @@
-import { spineApi } from '@/lib/spineApi';
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { Sparkles, Zap, Infinity as InfinityIcon, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInDays, format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
 interface UsageCardProps {
@@ -74,9 +74,15 @@ export const UsageCard = ({
   const fetchCredits = async () => {
     if (!userId) return;
     try {
-      const limitsData = await spineApi.getLimits();
-const limits = limitsData;
-const tier = limitsData?.subscription_tier || 'free';
+      const [limitsRes, subRes] = await Promise.all([
+        supabase.from('user_ai_limits').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.from('user_subscriptions').select('subscription_tier').eq('user_id', userId).maybeSingle(),
+      ]);
+
+      const limits = limitsRes.data;
+      if (limitsRes.error || !limits) return;
+
+      const tier = subRes.data?.subscription_tier || 'free';
       const isFree = tier === 'free';
       const isUnlimited = limits.is_unlimited === true;
 
@@ -120,11 +126,20 @@ const tier = limitsData?.subscription_tier || 'free';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, propRemaining]);
 
-  // Realtime subscription removed — usage now refreshed via polling/spineApi
+  // Realtime subscription for instant updates
   useEffect(() => {
     if (!userId) return;
-    const interval = setInterval(() => fetchCredits(), 30000);
-    return () => clearInterval(interval);
+
+    const channel = supabase
+      .channel(`usage-card-${userId.slice(0, 8)}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_ai_limits', filter: `user_id=eq.${userId}` },
+        () => fetchCredits()
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 

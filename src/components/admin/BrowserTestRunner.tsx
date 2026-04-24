@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { browserTestRunner, BrowserTestResult, TestProgress } from '@/lib/browserTestRunner';
 import { userJourneyTests, getTestsByCategory } from '@/lib/userJourneyTests';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import {
   Collapsible,

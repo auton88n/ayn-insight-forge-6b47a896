@@ -1,63 +1,73 @@
 import { useState, useEffect } from 'react';
-import { spineAuth, SpineUser, SpineSession, tokenStore } from '@/lib/spineAuth';
-import { AYNLoader } from '@/components/ui/page-loader';
+import { supabase } from '@/integrations/supabase/client';
+import type { User, Session } from '@supabase/supabase-js';
+import { AYNLoader, DashboardLoader } from '@/components/ui/page-loader';
 import { lazy, Suspense } from 'react';
 
+// Lazy load Dashboard (authenticated users), direct import LandingPage (most common first view)
 import LandingPage from '@/components/LandingPage';
 const Dashboard = lazy(() => import('@/components/Dashboard'));
 
 const Index = () => {
-  const [user, setUser] = useState<SpineUser | null>(null);
-  const [session, setSession] = useState<SpineSession | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(false); // Start false - show landing page immediately
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
+    // Skip auth handling if on password reset flow - let ResetPassword page handle it
+    const isRecoveryFlow = window.location.pathname === '/reset-password' ||
+                           window.location.hash.includes('type=recovery') ||
+                           (window.location.pathname === '/reset-password' && new URLSearchParams(window.location.search).has('code'));
 
-    // Step 1: Check if we already have a spine session in localStorage (instant)
-    const storedToken = tokenStore.getAccessToken();
-    const storedUser = tokenStore.getUser();
-
-    if (storedToken && storedUser) {
-      // We have a session — validate it's not expired
-      try {
-        const payload = JSON.parse(atob(storedToken.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          // Token still valid — show dashboard immediately
-          if (mounted) {
-            setUser(storedUser);
-            setSession({ access_token: storedToken, refresh_token: tokenStore.getRefreshToken()!, user: storedUser, expires_in: 86400, token_type: 'bearer' });
-            setIsInitialized(true);
-          }
-          return;
-        }
-      } catch {}
+    if (isRecoveryFlow) {
+      if (import.meta.env.DEV) {
+        console.log('[Index] Recovery flow detected, skipping auth intercept');
+      }
+      return;
     }
 
-    // Step 2: Try refreshing the token
-    spineAuth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      if (data.session) {
-        setUser(data.session.user);
-        setSession(data.session);
-      }
-      setIsInitialized(true);
-    }).catch(() => {
-      if (mounted) setIsInitialized(true);
-    });
+    let mounted = true;
 
-    // Step 3: Listen for auth state changes (login/logout)
-    const { data: { subscription } } = spineAuth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-      if (event === 'SIGNED_IN' && session) {
-        setUser(session.user);
-        setSession(session);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setSession(null);
+    const initializeAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (mounted && data.session) {
+          setSession(data.session);
+          setUser(data.session.user);
+          setLoading(true);
+        }
+      } catch {
+        // Silent failure - show landing page
+      } finally {
+        if (mounted) {
+          setIsInitialized(true);
+        }
       }
-      setIsInitialized(true);
-    });
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+
+        if (event === 'SIGNED_IN' && session) {
+          setSession(session);
+          setUser(session.user);
+          setLoading(true);
+          setIsInitialized(true);
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+        } else if ((event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session) {
+          setSession(session);
+          setUser(session.user);
+        }
+      }
+    );
 
     return () => {
       mounted = false;
@@ -65,13 +75,18 @@ const Index = () => {
     };
   }, []);
 
-  if (!isInitialized) return <AYNLoader />;
-  if (!user || !session) return <LandingPage />;
+  // Show loader only during initial check OR when transitioning to dashboard
+  if (!isInitialized || (loading && !user)) {
+    return <AYNLoader />;
+  }
 
-  return (
-    <Suspense fallback={<AYNLoader />}>
+  // Show dashboard if authenticated, landing page otherwise
+  return user && session ? (
+    <Suspense fallback={<DashboardLoader />}>
       <Dashboard user={user} session={session} />
     </Suspense>
+  ) : (
+    <LandingPage />
   );
 };
 

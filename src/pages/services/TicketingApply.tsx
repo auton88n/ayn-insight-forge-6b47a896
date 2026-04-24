@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Check, Ticket } from 'lucide-react';
@@ -9,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
 import { motion } from 'framer-motion';
 
@@ -75,7 +75,36 @@ const TicketingApply = () => {
     setIsSubmitting(true);
     
     try {
-      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Ticketing Apply] ${JSON.stringify(formData)}`);
+      const { error: dbError } = await supabase.from('service_applications').insert({
+        service_type: 'ticketing',
+        full_name: formData.fullName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone?.trim() || null,
+        message: JSON.stringify({
+          eventType: formData.eventType,
+          expectedAttendees: formData.expectedAttendees,
+          eventsPerYear: formData.eventsPerYear,
+          additionalInfo: formData.message
+        })
+      });
+
+      if (dbError) throw dbError;
+
+      await supabase.functions.invoke('send-application-email', {
+        body: {
+          service: 'Smart Ticketing System - Detailed Application',
+          name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          details: {
+            eventType: formData.eventType,
+            expectedAttendees: formData.expectedAttendees,
+            eventsPerYear: formData.eventsPerYear,
+            additionalInfo: formData.message
+          }
+        }
+      });
+
       setIsSuccess(true);
       toast({
         title: t.successTitle,

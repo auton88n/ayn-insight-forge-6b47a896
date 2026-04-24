@@ -1,11 +1,11 @@
-import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
+import { User, Session } from '@supabase/supabase-js';
 import { DashboardContainer } from './dashboard/DashboardContainer';
 import { TermsModal } from '@/components/shared/TermsModal';
 import { AdminPinGate } from './admin/AdminPinGate';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { AlertTriangle, Clock } from 'lucide-react';
 const AdminPanel = lazy(() => import('./AdminPanel').then(m => ({ default: m.AdminPanel })));
 
@@ -59,18 +59,27 @@ export default function Dashboard({ user, session }: DashboardProps) {
 
     const loadMaintenanceConfig = async () => {
       try {
-        // TODO(spine): /system/config?keys=... — public maintenance/beta config
-        const data: any = await spineApi.req('GET', '/system/config?keys=maintenance_mode,maintenance_message,maintenance_start_time,maintenance_end_time,pre_maintenance_notice,pre_maintenance_message,beta_mode,beta_feedback_reward');
+        const { data, error } = await supabase
+          .from('system_config')
+          .select('key, value')
+          .in('key', [
+            'maintenance_mode',
+            'maintenance_message',
+            'maintenance_start_time',
+            'maintenance_end_time',
+            'pre_maintenance_notice',
+            'pre_maintenance_message',
+            'beta_mode',
+            'beta_feedback_reward'
+          ]);
 
-        const list: any[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.items)
-            ? data.items
-            : data?.config
-              ? Object.entries(data.config).map(([key, value]) => ({ key, value }))
-              : [];
-        if (list.length > 0) {
-          const configMap = new Map(list.map((c: any) => [c.key, c.value]));
+        if (error) {
+          console.error('Error loading maintenance config:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const configMap = new Map(data.map(c => [c.key, c.value]));
           setMaintenanceConfig({
             enabled: configMap.get('maintenance_mode') === true || configMap.get('maintenance_mode') === 'true',
             message: (configMap.get('maintenance_message') as string) || 'System is currently under maintenance.',
@@ -85,15 +94,38 @@ export default function Dashboard({ user, session }: DashboardProps) {
           });
         }
       } catch (error) {
-        // Silent — defaults are safe
+        console.error('Error loading maintenance config:', error);
       }
     };
 
     loadMaintenanceConfig();
 
-    // Realtime replaced with 60s polling (spine has no realtime channel)
-    const interval = setInterval(loadMaintenanceConfig, 60000);
-    return () => clearInterval(interval);
+    // Set up realtime subscription to listen for any maintenance config changes
+    const channel = supabase
+      .channel('maintenance_config_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'system_config'
+        },
+        (payload) => {
+          // Check if the changed key is maintenance or beta related
+          if (payload.new && typeof payload.new === 'object' && 'key' in payload.new) {
+            const key = payload.new.key as string;
+            if (key.startsWith('maintenance_') || key.startsWith('pre_maintenance_') || key.startsWith('beta_')) {
+              // Re-fetch all config on any related key change
+              loadMaintenanceConfig();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [session?.access_token]);
 
   // Handle admin panel access with PIN

@@ -1,4 +1,4 @@
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import type { EmailType } from '@/lib/email-templates';
 
 interface SendEmailResponse {
@@ -21,7 +21,17 @@ export const useEmail = () => {
     userId?: string
   ): Promise<SendEmailResponse> => {
     try {
-      const response = await spineApi.sendEmail(to, emailType, emailType, data || {}) as any;
+      const { data: response, error } = await supabase.functions.invoke('send-email', {
+        body: { to, emailType, data, userId }
+      });
+
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.error('[useEmail] Error sending email:', error);
+        }
+        return { success: false, error: error.message };
+      }
+
       return { success: true, id: response?.id };
     } catch (err) {
       if (import.meta.env.DEV) {

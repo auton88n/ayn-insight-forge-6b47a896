@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { ChecklistGroup } from './ui/ChecklistGroup';
 
 interface AnalysisOptions {
@@ -100,8 +100,11 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
           setFileContent(content);
           
           try {
-            const data: any = await spineApi.engineeringAnalysis({ content, fileName: file.name }, 'dxf');
-
+            const { data, error } = await supabase.functions.invoke('parse-dxf-design', {
+              body: { fileContent: content, fileType: 'dxf' }
+            });
+            
+            if (error) throw error;
             if (!data.success) throw new Error(data.error);
             
             setParsedData(data);
@@ -144,8 +147,11 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
           });
           
           try {
-            const data: any = await spineApi.engineeringAnalysis({ base64, fileName: file.name }, 'pdf');
-
+            const { data, error } = await supabase.functions.invoke('parse-pdf-drawing', {
+              body: { pdfBase64: base64, fileName: file.name }
+            });
+            
+            if (error) throw error;
             if (!data.success) throw new Error(data.error);
             
             setParsedData(data);
@@ -213,8 +219,15 @@ export const DesignReviewMode: React.FC<DesignReviewModeProps> = ({
 
     setIsAnalyzing(true);
     try {
-      const data: any = await spineApi.engineeringAnalysis({ parsed: parsedData, fileName: uploadedFile?.name }, 'autocad');
+      const { data, error } = await supabase.functions.invoke('analyze-autocad-design', {
+        body: {
+          parsedData: parsedData.data,
+          analysisOptions,
+          userRequirements,
+        }
+      });
 
+      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       onAnalysisComplete({

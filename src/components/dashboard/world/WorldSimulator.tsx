@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 
 
@@ -115,7 +114,11 @@ function WorldSimulator({ signals }: { signals: any[] }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await spineApi.getWorldSimulations(10).catch(() => []);
+        const { data } = await supabase
+          .from('ayn_world_simulations' as any)
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
         const results = (data || []) as any[];
         if (results.length) {
           setSimulations(results);
@@ -132,7 +135,11 @@ function WorldSimulator({ signals }: { signals: any[] }) {
     const load = async () => {
       setLoadingCascade(true);
       try {
-        const data = await spineApi.getWorldEvents(activeSimId).catch(() => []);
+        const { data } = await supabase
+          .from('ayn_world_events' as any)
+          .select('*')
+          .eq('simulation_run_id', activeSimId)
+          .order('cascade_depth', { ascending: true });
         setCascadeEvents(data || []);
       } catch {} finally { setLoadingCascade(false); }
     };
@@ -142,15 +149,21 @@ function WorldSimulator({ signals }: { signals: any[] }) {
   const runSim = async (signalId?: string) => {
     setSimulating(true);
     try {
-      // TODO(spine): confirm /intelligence/simulate route exists; using escape-hatch req() for now
-      const result: any = await spineApi.req(
-        'POST',
-        '/intelligence/simulate',
-        signalId ? { mode: 'simulate_signal', signal_id: signalId } : { mode: 'simulate_signal' }
-      ).catch((e: unknown) => { console.error(e); return null; });
-      if (result?.simulation_id) {
-        setSimulations([]);
-        setActiveSimId(result.simulation_id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/ayn-world-simulator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signalId ? { mode: 'simulate_signal', signal_id: signalId } : { mode: 'simulate_signal' }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.simulation_id) {
+          // Reload simulations
+          const { data } = await supabase.from('ayn_world_simulations' as any).select('*').order('created_at', { ascending: false }).limit(10);
+          setSimulations(data || []);
+          setActiveSimId(result.simulation_id);
+        }
       }
     } catch(e) { console.error(e); } finally { setSimulating(false); }
   };

@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
-import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
-import { spineAuth } from '@/lib/spineAuth';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 import { SidebarProvider, Sidebar as ShadcnSidebar, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
@@ -212,12 +212,26 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
     setSelectedMode('General');
   }, [chatSession, messagesHook]);
 
-  // Handle logout via spine
+  // Handle logout with timeout to prevent hanging
   const handleLogout = useCallback(async () => {
-    try { await spineAuth.signOut(); } catch {}
-    localStorage.clear();
-    sessionStorage.clear();
-    window.location.href = '/';
+    try {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Sign out timeout')), 2000);
+      });
+      
+      // Use local scope to clear local session without requiring server validation
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        timeoutPromise
+      ]);
+    } catch (error) {
+      console.log('Logout timeout or error, forcing local cleanup');
+    } finally {
+      // Always force local logout by clearing storage
+      localStorage.removeItem('sb-dfkoxuokfkttjhfjcecx-auth-token');
+      sessionStorage.clear();
+      window.location.href = '/';
+    }
   }, []);
 
 
@@ -442,7 +456,6 @@ const DashboardContent = ({
           selectedChats={chatSession.selectedChats}
           remaining={usageTracking.remaining}
           totalLimit={usageTracking.totalLimit}
-          bonusCredits={usageTracking.bonusCredits ?? 0}
           allowed={usageTracking.allowed}
           isFree={usageTracking.isFree}
           isUnlimited={usageTracking.isUnlimited}

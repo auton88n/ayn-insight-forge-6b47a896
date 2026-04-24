@@ -1,11 +1,10 @@
-import { spineApi, adminApi } from '@/lib/spineApi';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Send, Sparkles, Globe, Loader2, Calendar, Hash, ImageIcon, Download } from 'lucide-react';
 import { AynEyeIcon } from './AynEyeIcon';
-
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import type { BrandKitState } from './CompactBrandBar';
 
@@ -130,7 +129,8 @@ export const MarketingCoPilot = ({ brandKit, activeView, onBrandKitUpdate, onCam
 
   const handleBrandScan = useCallback(async (url: string) => {
     try {
-      const data: any = await adminApi.brandScan(url);
+      const { data, error } = await supabase.functions.invoke('twitter-brand-scan', { body: { url } });
+      if (error) throw error;
       if (data?.brand_dna?.colors && onBrandKitUpdate) {
         const mapped = data.brand_dna.colors.slice(0, 5).map((c: { name?: string; hex?: string; role?: string }, i: number) => ({
           name: c.name || c.role || `Color ${i + 1}`,
@@ -154,22 +154,28 @@ export const MarketingCoPilot = ({ brandKit, activeView, onBrandKitUpdate, onCam
     setIsLoading(true);
 
     try {
-      const data = await spineApi.req<any>('POST', '/admin/ai-proxy', {
-        action: 'marketing',
-        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        brand_kit: brandKit
+      const { data, error } = await supabase.functions.invoke('twitter-creative-chat', {
+        body: {
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          brand_kit: brandKit || undefined,
+        },
       });
 
+      if (error) throw error;
       if (data?.error) { toast.error(data.error); setIsLoading(false); return; }
 
-      // Handle scan URL
+      // Handle scan URL — never show raw [SCAN_URL] tag
       if (data.type === 'scan_url' && data.scan_url) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.message || 'scanning that site now...' }]);
         const brandDNA = await handleBrandScan(data.scan_url);
         if (brandDNA) {
           const followUp: ChatMessage = { role: 'user', content: `[BRAND_DNA_RESULT] ${JSON.stringify(brandDNA)}. Suggest visuals based on this.` };
+          const updatedMsgs = [...newMessages, { role: 'assistant' as const, content: data.message }, followUp];
           setMessages(prev => [...prev, followUp]);
-          sendMessage(followUp.content);
+          const { data: followData } = await supabase.functions.invoke('twitter-creative-chat', {
+            body: { messages: updatedMsgs.map(m => ({ role: m.role, content: m.content })), brand_kit: brandKit || undefined },
+          });
+          if (followData) setMessages(prev => [...prev, { role: 'assistant', content: followData.message || 'got the DNA. what should we build?', image_url: followData.image_url }]);
         }
         setIsLoading(false);
         return;
@@ -201,10 +207,10 @@ export const MarketingCoPilot = ({ brandKit, activeView, onBrandKitUpdate, onCam
         return;
       }
 
-      // Default: text + optional image
+      // Default: text + optional image (SHOW the image inline, not just a checkmark)
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.message || data.content || 'hmm, something went off. try again?',
+        content: data.message || 'hmm, something went off. try again?',
         image_url: data.image_url,
       }]);
     } catch (err) {

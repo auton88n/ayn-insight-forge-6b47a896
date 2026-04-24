@@ -1,6 +1,5 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
 import { validateFile as validateFileSecurity } from '@/lib/fileValidation';
@@ -93,12 +92,16 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
       setUploadProgress(5);
 
       // CRITICAL: Refresh session if token is expiring soon
-      const { data: sessionData } = await spineAuth.getSession();
+      const { data: sessionData } = await supabase.auth.getSession();
       setUploadProgress(10);
       
       if (sessionData?.session) {
-        // SpineSession uses expires_in (seconds from issuance) — refresh proactively
-        // The auto-refresh interval in spineAuth handles most cases.
+        const expiresAt = sessionData.session.expires_at;
+        const fiveMinutesFromNow = Math.floor(Date.now() / 1000) + 300;
+        
+        if (expiresAt && expiresAt < fiveMinutesFromNow) {
+          await supabase.auth.refreshSession();
+        }
       }
       setUploadProgress(15);
 
@@ -122,18 +125,27 @@ export const useFileUpload = (userId: string): UseFileUploadReturn => {
         setUploadProgress(prev => Math.min(prev + 5, 90));
       }, 200);
 
-      // Upload via spine
-      const data = await spineApi.uploadFile(base64, processedFile.name, processedFile.type, processedFile.size);
+      // Upload via edge function
+      const { data, error } = await supabase.functions.invoke('file-upload', {
+        body: {
+          file: base64,
+          fileName: processedFile.name,
+          fileType: processedFile.type,
+          userId
+        }
+      });
 
       clearInterval(progressInterval);
+
+      if (error) throw error;
 
       setUploadProgress(100);
       setUploadFailed(false);
 
       return {
-        url: data.url,
-        name: data.name,
-        type: data.type,
+        url: data.fileUrl,
+        name: data.fileName,
+        type: data.fileType,
         size: processedFile.size
       };
     } catch (error) {

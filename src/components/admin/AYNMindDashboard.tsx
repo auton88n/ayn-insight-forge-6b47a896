@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -121,7 +121,7 @@ export const AYNMindDashboard = () => {
 
     const channel = supabase
       .channel('ayn-mind-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ayn_mind' }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ayn_mind' }, (payload) => {
         const newEntry = payload.new as MindEntry;
         if (ENTRY_TYPES.includes(newEntry.type)) {
           setEntries(prev => [newEntry, ...prev]);

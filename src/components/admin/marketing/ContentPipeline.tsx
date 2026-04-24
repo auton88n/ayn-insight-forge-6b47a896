@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { spineApi } from '@/lib/spineApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -158,8 +158,13 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
 
   const fetchPosts = useCallback(async () => {
     try {
-      const data = await spineApi.req<TwitterPost[]>('GET', '/admin/twitter/posts?limit=100');
-      setPosts(data || []);
+      const { data, error } = await supabase
+        .from('twitter_posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      setPosts((data as unknown as TwitterPost[]) || []);
     } catch { toast.error('Failed to load posts'); }
     finally { setIsLoading(false); }
   }, []);
@@ -176,7 +181,7 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
       if (mode === 'campaign') body.campaign_plan = true;
       if (mode === 'image') body.image_only = true;
 
-      const data = { success: false, message: 'Twitter integration requires configuration' }; const error = null;
+      const { data, error } = await supabase.functions.invoke('twitter-auto-market', { body });
       if (error) throw error;
       
       const modeLabels: Record<string, string> = {
@@ -194,7 +199,7 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   const handlePost = async (post: TwitterPost) => {
     setIsPosting(post.id);
     try {
-      const error = null; // Twitter requires separate API configuration
+      const { error } = await supabase.functions.invoke('twitter-post', { body: { text: post.content, post_id: post.id } });
       if (error) throw error;
       toast.success('Posted to X!');
       fetchPosts();
@@ -203,14 +208,15 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   };
 
   const handleRetry = async (post: TwitterPost) => {
-    try { await spineApi.req('POST', `/admin/twitter/posts/${post.id}/retry`, {}); } catch {}
+    await supabase.from('twitter_posts').update({ status: 'draft', error_message: null }).eq('id', post.id);
     toast.success('Moved back to drafts');
     fetchPosts();
   };
 
   const handleSchedule = async (post: TwitterPost, scheduledAt: string) => {
     try {
-      await spineApi.req('POST', `/admin/twitter/posts/${post.id}/schedule`, { scheduled_at: scheduledAt });
+      const { error } = await supabase.from('twitter_posts').update({ status: 'scheduled', scheduled_at: scheduledAt }).eq('id', post.id);
+      if (error) throw error;
       toast.success(`Scheduled for ${format(new Date(scheduledAt), 'MMM d, h:mm a')}`);
       fetchPosts();
     } catch { toast.error('Failed to schedule'); }
@@ -218,7 +224,8 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
 
   const handleDelete = async (id: string) => {
     try {
-      await spineApi.req('DELETE', `/admin/twitter/posts/${id}`);
+      const { error } = await supabase.from('twitter_posts').delete().eq('id', id);
+      if (error) throw error;
       setPosts(prev => prev.filter(p => p.id !== id));
       toast.success('Deleted');
     } catch { toast.error('Failed to delete'); }
@@ -227,7 +234,8 @@ export const ContentPipeline = ({ onOpenCreativeEditor }: ContentPipelineProps) 
   const handleSaveEdit = async (id: string) => {
     if (editContent.length > 280) { toast.error('Exceeds 280 chars'); return; }
     try {
-      await spineApi.req('PATCH', `/admin/twitter/posts/${id}`, { content: editContent });
+      const { error } = await supabase.from('twitter_posts').update({ content: editContent }).eq('id', id);
+      if (error) throw error;
       setPosts(prev => prev.map(p => p.id === id ? { ...p, content: editContent } : p));
       setEditingId(null);
       toast.success('Updated');

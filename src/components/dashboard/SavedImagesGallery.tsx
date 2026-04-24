@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,30 +38,42 @@ export function SavedImagesGallery({ open, onOpenChange }: SavedImagesGalleryPro
   const loadImages = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data: any = await spineApi.storageList('generated-images', '');
-      const list: any[] = Array.isArray(data) ? data : (data?.files || []);
+      const { data, error } = await supabase.storage
+        .from('generated-images')
+        .list('', {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
 
-      const imageFiles = await Promise.all(
-        list
-          .filter((file: any) => file.name?.match(/\.(png|jpg|jpeg|gif|webp)$/i))
-          .map(async (file: any) => {
-            const urlRes: any = await spineApi.storageGetUrl('generated-images', file.name).catch(() => ({ public_url: '' }));
-            return {
-              name: file.name,
-              url: urlRes?.public_url || '',
-              created_at: file.created_at || new Date().toISOString(),
-            };
-          })
-      );
+      if (error) {
+        console.error('Error loading images:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load images',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Filter for image files only and get public URLs
+      const imageFiles = (data || [])
+        .filter(file => file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i))
+        .map(file => {
+          const { data: urlData } = supabase.storage
+            .from('generated-images')
+            .getPublicUrl(file.name);
+          
+          return {
+            name: file.name,
+            url: urlData.publicUrl,
+            created_at: file.created_at || new Date().toISOString()
+          };
+        });
 
       setImages(imageFiles);
     } catch (err) {
-      console.error('Error loading images:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to load images',
-        variant: 'destructive'
-      });
+      console.error('Error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +88,13 @@ export function SavedImagesGallery({ open, onOpenChange }: SavedImagesGalleryPro
   const handleDelete = async (imageName: string) => {
     setDeletingImage(imageName);
     try {
-      await spineApi.storageDelete('generated-images', imageName);
+      const { error } = await supabase.storage
+        .from('generated-images')
+        .remove([imageName]);
+
+      if (error) {
+        throw error;
+      }
 
       setImages(prev => prev.filter(img => img.name !== imageName));
       if (selectedImage?.name === imageName) {

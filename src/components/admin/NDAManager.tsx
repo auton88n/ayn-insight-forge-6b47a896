@@ -1,8 +1,7 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
-
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -102,11 +101,18 @@ Be concise but thorough. Format clearly with emoji headers.`;
     setLoading(true);
     setAsked(true);
     try {
-      const data = await spineApi.req<{content: string}>('POST', '/admin/ai-proxy', {
-        action: 'reviewer',
-        messages: [{ role: 'user', content: buildContext() }]
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: buildContext() }],
+        }),
       });
-      setReview(data.content || 'No response.');
+      const data = await res.json();
+      const text = data.content?.find((b: any) => b.type === 'text')?.text || 'No response.';
+      setReview(text);
     } catch (e: any) {
       setReview('Error running review: ' + e.message);
     } finally {
@@ -172,14 +178,9 @@ export const NDAManager = () => {
 
   const fetchNDAs = async () => {
     setLoading(true);
-    try {
-      const data = await spineApi.req<NDA[]>("GET", "/admin/ndas");
-      setNdas(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+    const { data, error } = await supabase.rpc('get_admin_nda_agreements');
+    if (!error) setNdas((Array.isArray(data) ? data : []) as unknown as NDA[]);
+    setLoading(false);
   };
 
   useEffect(() => { fetchNDAs(); }, []);
@@ -210,10 +211,11 @@ export const NDAManager = () => {
     setSaving(true);
     try {
       if (editingNda) {
-        await spineApi.req('PATCH', `/admin/ndas/${editingNda.id}`, form);
+        await supabase.from('nda_agreements').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editingNda.id);
         toast({ title: 'NDA updated' });
       } else {
-        await spineApi.req('POST', '/admin/ndas', form);
+        const signing_token = crypto.randomUUID();
+        await supabase.from('nda_agreements').insert({ ...form, status: 'draft', signing_token });
         toast({ title: 'NDA created' });
       }
       setPanel('none');
@@ -228,7 +230,15 @@ export const NDAManager = () => {
   const handleSend = async (nda: NDA) => {
     setSending(nda.id);
     try {
-      await spineApi.req('POST', `/admin/ndas/${nda.id}/send-email`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ndaId: nda.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to send');
       toast({ title: '📨 NDA sent', description: `Sent to ${nda.company_email}` });
       fetchNDAs();
     } catch (e: any) {
@@ -240,13 +250,9 @@ export const NDAManager = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this NDA?')) return;
-    try {
-      await spineApi.req('DELETE', `/admin/ndas/${id}`);
-      toast({ title: 'Deleted' });
-      fetchNDAs();
-    } catch (e: any) {
-      toast({ title: 'Delete failed', description: e.message, variant: 'destructive' });
-    }
+    await supabase.from('nda_agreements').delete().eq('id', id);
+    toast({ title: 'Deleted' });
+    fetchNDAs();
   };
 
   const TA = ({ field, rows = 3, placeholder = '' }: { field: keyof typeof form; rows?: number; placeholder?: string }) => (
@@ -490,17 +496,22 @@ export const NDAManager = () => {
                     {sending === viewingNda.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Send className="w-3.5 h-3.5 mr-1" />}
                     {viewingNda.email_sent_at ? 'Resend NDA' : 'Send NDA'}
                   </Button>
+                  {viewingNda.admin_signature_url && viewingNda.client_signature_url && (
                     <Button onClick={async () => {
-                      try {
-                        const r = await spineApi.req<any>('POST', '/admin/ndas/send-completion', { ndaId: viewingNda.id });
-                        if (r.success || r.ok) toast({ title: '📨 Completion emails sent to both parties' });
-                        else toast({ title: 'Failed', description: r.error || 'Unknown error', variant: 'destructive' });
-                      } catch (err: any) {
-                        toast({ title: 'Error', description: err.message, variant: 'destructive' });
-                      }
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const token = session?.access_token || SUPABASE_ANON_KEY;
+                      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-nda-completion`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ ndaId: viewingNda.id }),
+                      });
+                      const r = await res.json();
+                      if (r.success) toast({ title: '📨 Completion emails sent to both parties' });
+                      else toast({ title: 'Failed', description: r.error, variant: 'destructive' });
                     }} size="sm" className="bg-green-700 hover:bg-green-600 text-xs gap-1">
                       <CheckCircle className="w-3.5 h-3.5" /> Send Signed Copy
                     </Button>
+                  )}
                   <Button onClick={() => openForm(viewingNda)} size="sm" variant="outline"
                     className="border-white/10 text-white/50 text-xs">
                     <Edit className="w-3.5 h-3.5" />

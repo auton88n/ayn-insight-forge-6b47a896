@@ -487,67 +487,49 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          is_private: boolean | null
-          metadata: Json | null
-          originality_check: Json | null
           signal_headline: string | null
           signal_id: string | null
           signal_region: string | null
           signal_severity: string | null
           signal_type: string | null
           simulation_run_id: string | null
-          simulation_type: string | null
           status: string | null
           topic: string
           topic_summary: string | null
           triggered_by: string | null
           updated_at: string | null
-          user_id: string | null
-          visibility: string | null
           world_event_id: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
-          is_private?: boolean | null
-          metadata?: Json | null
-          originality_check?: Json | null
           signal_headline?: string | null
           signal_id?: string | null
           signal_region?: string | null
           signal_severity?: string | null
           signal_type?: string | null
           simulation_run_id?: string | null
-          simulation_type?: string | null
           status?: string | null
           topic: string
           topic_summary?: string | null
           triggered_by?: string | null
           updated_at?: string | null
-          user_id?: string | null
-          visibility?: string | null
           world_event_id?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
-          is_private?: boolean | null
-          metadata?: Json | null
-          originality_check?: Json | null
           signal_headline?: string | null
           signal_id?: string | null
           signal_region?: string | null
           signal_severity?: string | null
           signal_type?: string | null
           simulation_run_id?: string | null
-          simulation_type?: string | null
           status?: string | null
           topic?: string
           topic_summary?: string | null
           triggered_by?: string | null
           updated_at?: string | null
-          user_id?: string | null
-          visibility?: string | null
           world_event_id?: string | null
         }
         Relationships: [
@@ -616,54 +598,12 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_agent_memory_log: {
-        Row: {
-          agent_id: string
-          cascade_id: string | null
-          created_at: string | null
-          emotional_impact: string | null
-          event_summary: string
-          event_title: string | null
-          event_type: string
-          id: string
-        }
-        Insert: {
-          agent_id: string
-          cascade_id?: string | null
-          created_at?: string | null
-          emotional_impact?: string | null
-          event_summary: string
-          event_title?: string | null
-          event_type: string
-          id?: string
-        }
-        Update: {
-          agent_id?: string
-          cascade_id?: string | null
-          created_at?: string | null
-          emotional_impact?: string | null
-          event_summary?: string
-          event_title?: string | null
-          event_type?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ayn_agent_memory_log_cascade_id_fkey"
-            columns: ["cascade_id"]
-            isOneToOne: false
-            referencedRelation: "ayn_agent_conversations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ayn_agent_messages: {
         Row: {
           agent_flag: string | null
           agent_id: string
           agent_name: string
           agent_role: string
-          cascade_round: number | null
           confidence_level: number | null
           conversation_id: string | null
           created_at: string | null
@@ -682,7 +622,6 @@ export type Database = {
           agent_id: string
           agent_name: string
           agent_role: string
-          cascade_round?: number | null
           confidence_level?: number | null
           conversation_id?: string | null
           created_at?: string | null
@@ -701,7 +640,6 @@ export type Database = {
           agent_id?: string
           agent_name?: string
           agent_role?: string
-          cascade_round?: number | null
           confidence_level?: number | null
           conversation_id?: string | null
           created_at?: string | null
@@ -724,54 +662,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ayn_agent_opinion_shifts: {
-        Row: {
-          agent_id: string
-          agent_name: string
-          belief_score: number | null
-          conversation_id: string | null
-          created_at: string | null
-          emotion: string | null
-          emotion_intensity: number | null
-          id: string
-          round_number: number
-          shift_trigger: string | null
-          shifted_from: string | null
-          stance: string | null
-          user_id: string | null
-        }
-        Insert: {
-          agent_id: string
-          agent_name: string
-          belief_score?: number | null
-          conversation_id?: string | null
-          created_at?: string | null
-          emotion?: string | null
-          emotion_intensity?: number | null
-          id?: string
-          round_number: number
-          shift_trigger?: string | null
-          shifted_from?: string | null
-          stance?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          agent_id?: string
-          agent_name?: string
-          belief_score?: number | null
-          conversation_id?: string | null
-          created_at?: string | null
-          emotion?: string | null
-          emotion_intensity?: number | null
-          id?: string
-          round_number?: number
-          shift_trigger?: string | null
-          shifted_from?: string | null
-          stance?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
       }
       ayn_agent_relationships: {
         Row: {
@@ -852,157 +742,67 @@ export type Database = {
       }
       ayn_agent_states: {
         Row: {
-          age: number | null
           agent_category: string | null
           agent_flag: string | null
           agent_id: string
           agent_name: string
           agent_role: string | null
-          behavioral_bias: string | null
           confidence: number | null
           country: string | null
           current_emotion: string | null
           emotion_intensity: number | null
-          exposed_to: Json | null
-          full_persona: string | null
-          gender: string | null
           id: string
-          initialized: boolean | null
-          interested_topics: Json | null
           key_concern: string | null
           last_action: string | null
           loses_from: string | null
-          mbti: string | null
-          memory_events: Json | null
-          memory_summary: string | null
           personality_summary: string | null
-          population_represented: number | null
-          profession: string | null
-          region: string | null
-          relationship_map: Json | null
           social_class: string | null
           stance_summary: string | null
           stress_level: number | null
-          typical_actions: Json | null
           updated_at: string | null
           wins_from: string | null
         }
         Insert: {
-          age?: number | null
           agent_category?: string | null
           agent_flag?: string | null
           agent_id: string
           agent_name: string
           agent_role?: string | null
-          behavioral_bias?: string | null
           confidence?: number | null
           country?: string | null
           current_emotion?: string | null
           emotion_intensity?: number | null
-          exposed_to?: Json | null
-          full_persona?: string | null
-          gender?: string | null
           id?: string
-          initialized?: boolean | null
-          interested_topics?: Json | null
           key_concern?: string | null
           last_action?: string | null
           loses_from?: string | null
-          mbti?: string | null
-          memory_events?: Json | null
-          memory_summary?: string | null
           personality_summary?: string | null
-          population_represented?: number | null
-          profession?: string | null
-          region?: string | null
-          relationship_map?: Json | null
           social_class?: string | null
           stance_summary?: string | null
           stress_level?: number | null
-          typical_actions?: Json | null
           updated_at?: string | null
           wins_from?: string | null
         }
         Update: {
-          age?: number | null
           agent_category?: string | null
           agent_flag?: string | null
           agent_id?: string
           agent_name?: string
           agent_role?: string | null
-          behavioral_bias?: string | null
           confidence?: number | null
           country?: string | null
           current_emotion?: string | null
           emotion_intensity?: number | null
-          exposed_to?: Json | null
-          full_persona?: string | null
-          gender?: string | null
           id?: string
-          initialized?: boolean | null
-          interested_topics?: Json | null
           key_concern?: string | null
           last_action?: string | null
           loses_from?: string | null
-          mbti?: string | null
-          memory_events?: Json | null
-          memory_summary?: string | null
           personality_summary?: string | null
-          population_represented?: number | null
-          profession?: string | null
-          region?: string | null
-          relationship_map?: Json | null
           social_class?: string | null
           stance_summary?: string | null
           stress_level?: number | null
-          typical_actions?: Json | null
           updated_at?: string | null
           wins_from?: string | null
-        }
-        Relationships: []
-      }
-      ayn_backtests: {
-        Row: {
-          accuracy_score: number | null
-          actual_outcome: string
-          ayn_prediction: Json | null
-          claude_accuracy_score: number | null
-          claude_prediction: string | null
-          created_at: string | null
-          event_date: string
-          event_description: string
-          event_title: string
-          id: string
-          is_published: boolean | null
-          signal_type: string | null
-        }
-        Insert: {
-          accuracy_score?: number | null
-          actual_outcome: string
-          ayn_prediction?: Json | null
-          claude_accuracy_score?: number | null
-          claude_prediction?: string | null
-          created_at?: string | null
-          event_date: string
-          event_description: string
-          event_title: string
-          id?: string
-          is_published?: boolean | null
-          signal_type?: string | null
-        }
-        Update: {
-          accuracy_score?: number | null
-          actual_outcome?: string
-          ayn_prediction?: Json | null
-          claude_accuracy_score?: number | null
-          claude_prediction?: string | null
-          created_at?: string | null
-          event_date?: string
-          event_description?: string
-          event_title?: string
-          id?: string
-          is_published?: boolean | null
-          signal_type?: string | null
         }
         Relationships: []
       }
@@ -1428,108 +1228,6 @@ export type Database = {
           social_instability_risk?: number | null
           supply_chain_risk?: number | null
           verdict?: string | null
-        }
-        Relationships: []
-      }
-      ayn_crowd_panel: {
-        Row: {
-          age: number
-          behavioral_bias: string | null
-          children: number | null
-          city_type: string | null
-          country: string
-          created_at: string | null
-          education: string | null
-          employment: string | null
-          ethnicity: string | null
-          exposed_to: string[] | null
-          family_status: string | null
-          fears: string | null
-          gender: string
-          has_debt: boolean | null
-          has_property: boolean | null
-          has_savings: boolean | null
-          id: string
-          income_usd_annual: number | null
-          inner_thoughts: string[] | null
-          is_active: boolean | null
-          last_used_at: string | null
-          media_diet: string | null
-          name: string
-          political_lean: string | null
-          profession: string | null
-          race: string
-          region: string | null
-          religion: string | null
-          social_class: string
-          times_used: number | null
-          voice_sample: string[] | null
-        }
-        Insert: {
-          age: number
-          behavioral_bias?: string | null
-          children?: number | null
-          city_type?: string | null
-          country: string
-          created_at?: string | null
-          education?: string | null
-          employment?: string | null
-          ethnicity?: string | null
-          exposed_to?: string[] | null
-          family_status?: string | null
-          fears?: string | null
-          gender: string
-          has_debt?: boolean | null
-          has_property?: boolean | null
-          has_savings?: boolean | null
-          id?: string
-          income_usd_annual?: number | null
-          inner_thoughts?: string[] | null
-          is_active?: boolean | null
-          last_used_at?: string | null
-          media_diet?: string | null
-          name: string
-          political_lean?: string | null
-          profession?: string | null
-          race: string
-          region?: string | null
-          religion?: string | null
-          social_class: string
-          times_used?: number | null
-          voice_sample?: string[] | null
-        }
-        Update: {
-          age?: number
-          behavioral_bias?: string | null
-          children?: number | null
-          city_type?: string | null
-          country?: string
-          created_at?: string | null
-          education?: string | null
-          employment?: string | null
-          ethnicity?: string | null
-          exposed_to?: string[] | null
-          family_status?: string | null
-          fears?: string | null
-          gender?: string
-          has_debt?: boolean | null
-          has_property?: boolean | null
-          has_savings?: boolean | null
-          id?: string
-          income_usd_annual?: number | null
-          inner_thoughts?: string[] | null
-          is_active?: boolean | null
-          last_used_at?: string | null
-          media_diet?: string | null
-          name?: string
-          political_lean?: string | null
-          profession?: string | null
-          race?: string
-          region?: string | null
-          religion?: string | null
-          social_class?: string
-          times_used?: number | null
-          voice_sample?: string[] | null
         }
         Relationships: []
       }
@@ -2336,108 +2034,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_kg_edges: {
-        Row: {
-          context: string | null
-          created_at: string | null
-          direction: string | null
-          event_trigger: string | null
-          id: string
-          relationship: string
-          source_id: string
-          strength: number | null
-          target_id: string
-        }
-        Insert: {
-          context?: string | null
-          created_at?: string | null
-          direction?: string | null
-          event_trigger?: string | null
-          id?: string
-          relationship: string
-          source_id: string
-          strength?: number | null
-          target_id: string
-        }
-        Update: {
-          context?: string | null
-          created_at?: string | null
-          direction?: string | null
-          event_trigger?: string | null
-          id?: string
-          relationship?: string
-          source_id?: string
-          strength?: number | null
-          target_id?: string
-        }
-        Relationships: []
-      }
-      ayn_kg_nodes: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          entity_id: string
-          entity_name: string
-          entity_type: string
-          id: string
-          properties: Json | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          entity_id: string
-          entity_name: string
-          entity_type: string
-          id?: string
-          properties?: Json | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          entity_id?: string
-          entity_name?: string
-          entity_type?: string
-          id?: string
-          properties?: Json | null
-        }
-        Relationships: []
-      }
-      ayn_kg_snapshots: {
-        Row: {
-          conversation_id: string | null
-          created_at: string | null
-          edges: Json
-          event: string
-          id: string
-          nodes: Json
-          ontology_summary: string | null
-          signal_type: string | null
-          user_id: string | null
-        }
-        Insert: {
-          conversation_id?: string | null
-          created_at?: string | null
-          edges: Json
-          event: string
-          id?: string
-          nodes: Json
-          ontology_summary?: string | null
-          signal_type?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          conversation_id?: string | null
-          created_at?: string | null
-          edges?: Json
-          event?: string
-          id?: string
-          nodes?: Json
-          ontology_summary?: string | null
-          signal_type?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       ayn_lean_context: {
         Row: {
           brief: string
@@ -2720,51 +2316,6 @@ export type Database = {
           urgency?: string
           who_benefits?: string
           why_now?: string
-        }
-        Relationships: []
-      }
-      ayn_platform_states: {
-        Row: {
-          conversation_id: string | null
-          created_at: string | null
-          dominant_sentiment: string | null
-          engagement_score: number | null
-          id: string
-          platform: string
-          round_number: number | null
-          thread_count: number | null
-          trending_topics: string[] | null
-          user_id: string | null
-          viral_post_agent: string | null
-          viral_post_content: string | null
-        }
-        Insert: {
-          conversation_id?: string | null
-          created_at?: string | null
-          dominant_sentiment?: string | null
-          engagement_score?: number | null
-          id?: string
-          platform: string
-          round_number?: number | null
-          thread_count?: number | null
-          trending_topics?: string[] | null
-          user_id?: string | null
-          viral_post_agent?: string | null
-          viral_post_content?: string | null
-        }
-        Update: {
-          conversation_id?: string | null
-          created_at?: string | null
-          dominant_sentiment?: string | null
-          engagement_score?: number | null
-          id?: string
-          platform?: string
-          round_number?: number | null
-          thread_count?: number | null
-          trending_topics?: string[] | null
-          user_id?: string | null
-          viral_post_agent?: string | null
-          viral_post_content?: string | null
         }
         Relationships: []
       }
@@ -3390,66 +2941,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_private_simulations: {
-        Row: {
-          completed_at: string | null
-          confidence_pct: number | null
-          consensus_score: number | null
-          created_at: string | null
-          id: string
-          idea_description: string
-          is_private: boolean | null
-          originality_report: Json | null
-          recommendation: string | null
-          simulation_result: Json | null
-          simulation_type: string
-          status: string | null
-          target_market: string | null
-          title: string
-          top_objections: Json | null
-          top_opportunities: Json | null
-          user_id: string
-        }
-        Insert: {
-          completed_at?: string | null
-          confidence_pct?: number | null
-          consensus_score?: number | null
-          created_at?: string | null
-          id?: string
-          idea_description: string
-          is_private?: boolean | null
-          originality_report?: Json | null
-          recommendation?: string | null
-          simulation_result?: Json | null
-          simulation_type?: string
-          status?: string | null
-          target_market?: string | null
-          title: string
-          top_objections?: Json | null
-          top_opportunities?: Json | null
-          user_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          confidence_pct?: number | null
-          consensus_score?: number | null
-          created_at?: string | null
-          id?: string
-          idea_description?: string
-          is_private?: boolean | null
-          originality_report?: Json | null
-          recommendation?: string | null
-          simulation_result?: Json | null
-          simulation_type?: string
-          status?: string | null
-          target_market?: string | null
-          title?: string
-          top_objections?: Json | null
-          top_opportunities?: Json | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       ayn_real_estate: {
         Row: {
           commercial: Json | null
@@ -3688,86 +3179,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ayn_simulation_reports: {
-        Row: {
-          bear_predictions: Json | null
-          bull_predictions: Json | null
-          coalitions: Json | null
-          confidence_level: string | null
-          conflict_agents: string[] | null
-          conflict_summary: string | null
-          consensus_agents: string[] | null
-          consensus_prediction: string | null
-          consensus_view: string | null
-          conversation_id: string | null
-          created_at: string | null
-          event: string
-          id: string
-          key_opportunities: string[] | null
-          key_risks: string[] | null
-          narrative: string | null
-          prediction_range: string | null
-          signal_type: string | null
-          tipping_point_agent: string | null
-          tipping_point_reason: string | null
-          user_id: string | null
-        }
-        Insert: {
-          bear_predictions?: Json | null
-          bull_predictions?: Json | null
-          coalitions?: Json | null
-          confidence_level?: string | null
-          conflict_agents?: string[] | null
-          conflict_summary?: string | null
-          consensus_agents?: string[] | null
-          consensus_prediction?: string | null
-          consensus_view?: string | null
-          conversation_id?: string | null
-          created_at?: string | null
-          event: string
-          id?: string
-          key_opportunities?: string[] | null
-          key_risks?: string[] | null
-          narrative?: string | null
-          prediction_range?: string | null
-          signal_type?: string | null
-          tipping_point_agent?: string | null
-          tipping_point_reason?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          bear_predictions?: Json | null
-          bull_predictions?: Json | null
-          coalitions?: Json | null
-          confidence_level?: string | null
-          conflict_agents?: string[] | null
-          conflict_summary?: string | null
-          consensus_agents?: string[] | null
-          consensus_prediction?: string | null
-          consensus_view?: string | null
-          conversation_id?: string | null
-          created_at?: string | null
-          event?: string
-          id?: string
-          key_opportunities?: string[] | null
-          key_risks?: string[] | null
-          narrative?: string | null
-          prediction_range?: string | null
-          signal_type?: string | null
-          tipping_point_agent?: string | null
-          tipping_point_reason?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ayn_simulation_reports_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "ayn_agent_conversations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ayn_snapshot_history: {
         Row: {
           brief_items: number | null
@@ -3834,60 +3245,6 @@ export type Database = {
           yield_curve_signal?: string | null
           yield_spread_2_10?: number | null
           yield_spread_3m_10?: number | null
-        }
-        Relationships: []
-      }
-      ayn_social_interactions: {
-        Row: {
-          agent_id: string
-          agent_name: string
-          content: string
-          conversation_id: string | null
-          created_at: string | null
-          id: string
-          interaction_type: string
-          parent_id: string | null
-          platform: string
-          round_number: number | null
-          sentiment: string | null
-          target_agent_id: string | null
-          target_agent_name: string | null
-          thread_id: string | null
-          user_id: string | null
-        }
-        Insert: {
-          agent_id: string
-          agent_name: string
-          content: string
-          conversation_id?: string | null
-          created_at?: string | null
-          id?: string
-          interaction_type: string
-          parent_id?: string | null
-          platform: string
-          round_number?: number | null
-          sentiment?: string | null
-          target_agent_id?: string | null
-          target_agent_name?: string | null
-          thread_id?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          agent_id?: string
-          agent_name?: string
-          content?: string
-          conversation_id?: string | null
-          created_at?: string | null
-          id?: string
-          interaction_type?: string
-          parent_id?: string | null
-          platform?: string
-          round_number?: number | null
-          sentiment?: string | null
-          target_agent_id?: string | null
-          target_agent_name?: string | null
-          thread_id?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -6114,18 +5471,13 @@ export type Database = {
       error_logs: {
         Row: {
           component_stack: string | null
-          context: Json | null
           created_at: string | null
-          endpoint: string | null
           error_message: string
           error_stack: string | null
           fix_applied: string | null
           id: string
-          request_id: string | null
           resolved_at: string | null
           resolved_note: string | null
-          severity: string | null
-          source: string | null
           status: string | null
           updated_at: string | null
           url: string | null
@@ -6134,18 +5486,13 @@ export type Database = {
         }
         Insert: {
           component_stack?: string | null
-          context?: Json | null
           created_at?: string | null
-          endpoint?: string | null
           error_message: string
           error_stack?: string | null
           fix_applied?: string | null
           id?: string
-          request_id?: string | null
           resolved_at?: string | null
           resolved_note?: string | null
-          severity?: string | null
-          source?: string | null
           status?: string | null
           updated_at?: string | null
           url?: string | null
@@ -6154,18 +5501,13 @@ export type Database = {
         }
         Update: {
           component_stack?: string | null
-          context?: Json | null
           created_at?: string | null
-          endpoint?: string | null
           error_message?: string
           error_stack?: string | null
           fix_applied?: string | null
           id?: string
-          request_id?: string | null
           resolved_at?: string | null
           resolved_note?: string | null
-          severity?: string | null
-          source?: string | null
           status?: string | null
           updated_at?: string | null
           url?: string | null
@@ -8665,7 +8007,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_user_status: { Args: { uid: string }; Returns: Json }
       has_active_access: { Args: { _user_id: string }; Returns: boolean }
       has_duty_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
@@ -8675,15 +8016,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      increment_engineering_daily: { Args: { uid: string }; Returns: undefined }
-      increment_engineering_monthly: {
-        Args: { uid: string }
-        Returns: undefined
-      }
       increment_faq_helpful: { Args: { faq_id: string }; Returns: undefined }
       increment_faq_view: { Args: { faq_id: string }; Returns: undefined }
-      increment_messages_daily: { Args: { uid: string }; Returns: undefined }
-      increment_messages_monthly: { Args: { uid: string }; Returns: undefined }
       increment_template_usage: {
         Args: { template_id: string }
         Returns: undefined

@@ -152,7 +152,7 @@ export function HeatMap2D({
     if(jamCells.length>0){ setShowJam(true); return; } // already loaded
     setJamLoading(true);
     try{
-      const res=await fetch(`https://spine.aynn.io/intelligence/gpsjam`);
+      const res=await fetch(`${SUPA}/functions/v1/ayn-gpsjam`);
       if(res.ok){
         const d=await res.json();
         setJamCells((d.cells||[]).filter((c:GpsHexCell)=>c.boundary&&c.boundary.length>2));
@@ -182,8 +182,8 @@ export function HeatMap2D({
       ...pt, lat:pt.coordinates[1], lng:pt.coordinates[0],
       color:`rgba(${r},${g},${b},0.8)`,
       ringColor:`rgba(${r},${g},${b},0.3)`,
-      size:pt.risk==='critical'?0.85:pt.risk==='high'?0.72:pt.risk==='cyber'||pt.risk==='nuclear'?0.65:0.55,
-      altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.08:0.05,
+      size:pt.risk==='critical'?0.45:pt.risk==='high'?0.38:pt.risk==='cyber'||pt.risk==='nuclear'?0.35:0.28,
+      altitude:pt.risk==='critical'||pt.risk==='nuclear'?0.04:0.025,
     };
   }),[filtered]);
 
@@ -494,8 +494,8 @@ export function HeatMap2D({
           </div>
         )}
 
-        {/* Legend — bottom right, raised above mobile nav */}
-        <div style={{position:'absolute',bottom:80,right:12,zIndex:10,pointerEvents:'none',
+        {/* Legend — bottom right */}
+        <div style={{position:'absolute',bottom:12,right:12,zIndex:10,pointerEvents:'none',
           background:'rgba(0,2,14,0.93)',border:'1px solid rgba(255,255,255,0.08)',
           borderRadius:9,padding:'8px 12px',backdropFilter:'blur(10px)'}}>
           <div style={{fontSize:6,fontFamily:'monospace',color:'rgba(255,255,255,0.2)',letterSpacing:'0.18em',marginBottom:6}}>SIGNAL KEY</div>

@@ -4,10 +4,11 @@ import { Brain, Menu, LogIn, LogOut, User } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Button, LiquidButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { spineAuth, type SpineUser } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navLinks = [
 { path: '/', en: 'Home', fr: 'Accueil', ar: 'الرئيسية' },
@@ -23,14 +24,14 @@ export const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [user, setUser] = useState<SpineUser | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
-    const { data: { subscription } } = spineAuth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
-    spineAuth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
 
@@ -38,7 +39,7 @@ export const Header = () => {
   }, []);
 
   const handleSignOut = async () => {
-    await spineAuth.signOut();
+    await supabase.auth.signOut();
     setUser(null);
   };
 
@@ -74,7 +75,7 @@ export const Header = () => {
             <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
               <Brain className="w-5 h-5 text-background" />
             </div>
-            <span className="text-xl font-bold text-foreground">AYN</span>
+            <span className="text-xl font-bold">AYN</span>
           </Link>
 
           {/* Desktop nav */}
@@ -85,9 +86,9 @@ export const Header = () => {
               to={link.path}
               onClick={(e) => handleNavClick(e, link.path)}
               className={cn(
-                'relative transition-colors py-1',
+                'transition-colors',
                 isActive(link.path) ?
-                'text-foreground after:content-[""] after:absolute after:left-0 after:right-0 after:-bottom-0.5 after:h-[2px] after:bg-ayn after:rounded-full' :
+                'text-foreground' :
                 'text-muted-foreground hover:text-foreground'
               )}>
               
@@ -115,9 +116,9 @@ export const Header = () => {
                   </Button>
                 </div> :
 
-              <LiquidButton size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5">
+              <Button variant="default" size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5">
                   {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
-                </LiquidButton>
+                </Button>
               }
             </div>
 
@@ -135,7 +136,7 @@ export const Header = () => {
                       <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center">
                         <Brain className="w-6 h-6 text-background" />
                       </div>
-                      <span className="text-2xl font-bold text-foreground">AYN</span>
+                      <span className="text-2xl font-bold">AYN</span>
                     </div>
                     <div className="flex flex-col gap-1">
                       {navLinks.map((link) =>
@@ -171,10 +172,10 @@ export const Header = () => {
                       </div> :
 
                     <div className="px-3">
-                        <LiquidButton className="w-full" onClick={() => setShowAuthModal(true)}>
+                        <Button className="w-full" onClick={() => setShowAuthModal(true)}>
                           <LogIn className="h-4 w-4 mr-2" />
                           {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
-                        </LiquidButton>
+                        </Button>
                       </div>
                     }
                   </div>

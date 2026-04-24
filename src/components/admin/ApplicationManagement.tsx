@@ -1,8 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { adminApi as supabase } from '@/lib/adminApi';
-
-interface Session { user: { id: string; email?: string }; access_token?: string }
+import { Session } from '@supabase/supabase-js';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -202,7 +201,15 @@ export const ApplicationManagement = ({ session, applications, onRefresh }: Appl
     }
     
     // Security: Log individual application detail access
-    /* spine */;
+    supabase.from('security_logs').insert({
+      action: 'service_application_detail_view',
+      details: {
+        application_id: app.id,
+        email_masked: app.email.substring(0, 2) + '***@' + app.email.split('@')[1],
+        timestamp: new Date().toISOString()
+      },
+      severity: 'high'
+    });
     
     setSelectedApplication(app);
   };

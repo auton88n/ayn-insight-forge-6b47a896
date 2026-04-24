@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -29,6 +28,7 @@ const Visualization3DFallback = () => (
   <div className="h-[300px] bg-muted rounded-lg animate-pulse" />
 );
 
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -238,7 +238,15 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleExportDXF = async () => {
     setIsExportingDXF(true);
     try {
-      const data: any = await spineApi.generateDxf({ type: result.type, inputs: result.inputs, outputs: result.outputs });
+      const { data, error } = await supabase.functions.invoke('generate-dxf', {
+        body: {
+          type: result.type,
+          inputs: result.inputs,
+          outputs: result.outputs,
+        },
+      });
+
+      if (error) throw error;
 
       // Download the DXF file
       const blob = new Blob([data.dxfContent], { type: 'application/dxf' });
@@ -299,7 +307,15 @@ export const CalculationResults = ({ result, onNewCalculation }: CalculationResu
   const handleAIAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const data: any = await spineApi.engineeringAnalysis(result as any, (result?.type as string) || '');
+      const { data, error } = await supabase.functions.invoke('engineering-ai-analysis', {
+        body: {
+          type: result.type,
+          inputs: result.inputs,
+          outputs: result.outputs,
+        },
+      });
+
+      if (error) throw error;
 
       setAiAnalysis(data);
       toast.success('AI analysis complete!');

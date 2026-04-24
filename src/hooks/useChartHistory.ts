@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import type { ChartHistoryItem, ChartHistoryFilter, ChartAnalysisResult } from '@/types/chartAnalyzer.types';
 
 const PAGE_SIZE = 10;
@@ -63,22 +62,30 @@ export function useChartHistory() {
   const fetchHistory = useCallback(async (offset = 0, append = false) => {
     setLoading(true);
     try {
-      const { data: { session } } = await spineAuth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      // TODO(spine): /user/chart-analyses?offset=&limit=&ticker=&asset_type=&signal=
-      const params = new URLSearchParams({
-        offset: String(offset),
-        limit: String(PAGE_SIZE),
-      });
-      if (filter.ticker) params.set('ticker', filter.ticker);
-      if (filter.assetType) params.set('asset_type', filter.assetType);
-      if (filter.signal) params.set('signal', filter.signal);
+      let query = supabase
+        .from('chart_analyses')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
 
-      const data: any = await spineApi.req('GET', `/user/chart-analyses?${params.toString()}`);
-      const list: any[] = Array.isArray(data) ? data : (data?.items || []);
+      if (filter.ticker) {
+        query = query.ilike('ticker', `%${filter.ticker}%`);
+      }
+      if (filter.assetType) {
+        query = query.eq('asset_type', filter.assetType);
+      }
+      if (filter.signal) {
+        query = query.eq('prediction_signal', filter.signal);
+      }
 
-      const mapped = list.map(mapRowToHistoryItem);
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const mapped = (data || []).map(mapRowToHistoryItem);
       setHasMore(mapped.length === PAGE_SIZE);
 
       if (append) {
@@ -101,8 +108,8 @@ export function useChartHistory() {
 
   const deleteItem = useCallback(async (id: string) => {
     try {
-      // TODO: spine endpoint for chart-analysis delete
-      // await spineApi.req('DELETE', `/chart-analysis/${id}`);
+      const { error } = await supabase.from('chart_analyses').delete().eq('id', id);
+      if (error) throw error;
       setItems(prev => prev.filter(item => item.id !== id));
       if (selectedItem?.id === id) setSelectedItem(null);
     } catch (err) {

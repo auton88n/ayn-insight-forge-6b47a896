@@ -1,3 +1,4 @@
+import { supabaseApi } from '@/lib/supabaseApi';
 
 /**
  * Generate a simple device fingerprint from browser data
@@ -97,9 +98,18 @@ export const trackDeviceLogin = async (userId: string, accessToken: string) => {
     const deviceInfo = getDeviceInfo();
     const now = new Date().toISOString();
     
-    // TODO: spine migration — POST /user/device-track
+    // Use REST API for both operations in parallel
     await Promise.all([
-      Promise.resolve({ fingerprintHash, deviceInfo, userId, accessToken, now }),
+      supabaseApi.rpc('record_device_fingerprint', accessToken, {
+        _user_id: userId,
+        _fingerprint_hash: fingerprintHash,
+        _device_info: deviceInfo
+      }),
+      supabaseApi.patch(
+        `profiles?user_id=eq.${userId}`,
+        accessToken,
+        { last_login: now }
+      )
     ]);
     
   } catch {

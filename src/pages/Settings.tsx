@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { SpineUser as User, SpineSession as Session } from '@/lib/spineAuth';
-import { spineAuth } from '@/lib/spineAuth';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { SettingsLayout } from '@/components/settings/SettingsLayout';
 import { AccountPreferences } from '@/components/settings/AccountPreferences';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
@@ -18,7 +18,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    spineAuth.getSession().then(({ data: { session: currentSession } }) => {
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       if (!currentSession?.user) {
         navigate('/');
         return;
@@ -28,7 +28,7 @@ const Settings = () => {
       setLoading(false);
     });
 
-    const { data: { subscription } } = spineAuth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session?.user) {
         navigate('/');
       }
@@ -63,7 +63,7 @@ const Settings = () => {
         {{
           account: <AccountPreferences userId={user.id} userEmail={user.email || ''} accessToken={session.access_token} />,
           notifications: <NotificationSettings userId={user.id} accessToken={session.access_token} />,
-          privacy: <PrivacySettings userId={user.id} session={session as any} />,
+          privacy: <PrivacySettings userId={user.id} session={session} />,
           sessions: <SessionManagement userId={user.id} userEmail={user.email || ''} accessToken={session.access_token} />,
           memory: <MemoryManagement userId={user.id} />,
         }}

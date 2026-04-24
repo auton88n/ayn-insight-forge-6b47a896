@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { usePinnedChats } from '@/hooks/usePinnedChats';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 
 // Moved outside to prevent recreation on each render
 interface ProfileTriggerButtonProps extends React.ComponentPropsWithoutRef<'button'> {
@@ -101,7 +101,6 @@ export const Sidebar = ({
   selectedChats,
   remaining = 0,
   totalLimit = 5,
-  bonusCredits = 0,
   allowed = true,
   isFree = true,
   isUnlimited: isUnlimitedProp = false,
@@ -152,12 +151,17 @@ export const Sidebar = ({
   useEffect(() => {
     if (!userId) return;
     
-    // Non-blocking fetch — tier comes from /user/limits
+    // Non-blocking fetch
     const fetchTier = async () => {
       try {
-        const data: any = await spineApi.getLimits();
-        const tier = data?.tier || data?.subscription_tier;
-        if (tier) setSubscriptionTier(tier);
+        const { data } = await supabase
+          .from('user_subscriptions')
+          .select('subscription_tier')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (data?.subscription_tier) {
+          setSubscriptionTier(data.subscription_tier);
+        }
       } catch {
         // Silent failure - default to free
       }
@@ -343,7 +347,6 @@ export const Sidebar = ({
               <CreditUpgradeCard 
                 remaining={remaining}
                 totalLimit={totalLimit}
-                bonusCredits={bonusCredits}
                 allowed={allowed}
                 resetsAt={resetsAt}
                 tier={subscriptionTier || tierProp}

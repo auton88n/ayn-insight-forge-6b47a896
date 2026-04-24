@@ -1,10 +1,9 @@
-import { spineApi } from '@/lib/spineApi';
 // Thin wrapper that embeds AdminCustomOrders into the admin panel tab
 // Strips the standalone page's back button/navigation
-import { spineAuth } from '@/lib/spineAuth';
 import { ContractAI } from './ContractAI';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -86,15 +85,38 @@ function AIReviewer({ contractData }: { contractData: any }) {
   const runReview = async () => {
     setLoading(true); setAsked(true);
     try {
-      const res = await spineApi.req<{content: string}>('POST', '/admin/ai-proxy', {
-        action: 'reviewer',
-        messages: [{ role: 'user', content: `Review this service agreement:
-Client: ${contractData.company_name}
-Project: ${contractData.order_title}
-Description: ${contractData.order_description || 'Not specified'}
-...` }]
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: `You are a legal contract AI reviewer. Review this service agreement for completeness, fairness, and legal protection of both parties.
+
+CONTRACT DETAILS:
+- Client: ${contractData.company_name}
+- Project: ${contractData.order_title}
+- Description: ${contractData.order_description || 'Not specified'}
+- System Plan: ${contractData.system_plan || 'Not specified'}
+- Payment Terms: ${contractData.payment_terms || 'Not specified'}
+- Delivery Timeline: ${contractData.delivery_timeline || 'Not specified'}
+- Warranty: ${contractData.warranty || 'Not specified'}
+- Termination: ${contractData.termination_clause || 'Not specified'}
+- Terms & Conditions: ${contractData.terms_and_conditions || 'Not specified'}
+- After-Sale Services: ${contractData.after_sale_services || 'Not specified'}
+- Governing Law: ${contractData.governing_law || 'Not specified'}
+
+Provide a structured review:
+1. ✅ What is well-covered
+2. ⚠️ Gaps or weaknesses
+3. 🔴 Critical issues that could expose either party
+4. 💡 Specific suggestions to strengthen it
+
+Be concise but thorough. Format clearly with emoji headers.` }],
+        }),
       });
-      setReview(res.content || 'No response.');
+      const data = await res.json();
+      setReview(data.content?.find((b: any) => b.type === 'text')?.text || 'No response.');
     } catch (e: any) { setReview('Error: ' + e.message); }
     finally { setLoading(false); }
   };
@@ -150,8 +172,9 @@ export const CustomOrders = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const data = await spineApi.req<CustomOrder[]>("GET", "/admin/orders");
-      setOrders(Array.isArray(data) ? data : []);
+      const { data, error } = await supabase.rpc('get_admin_custom_orders');
+      if (error) throw error;
+      setOrders((Array.isArray(data) ? data : []) as unknown as CustomOrder[]);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     } finally {
@@ -185,10 +208,10 @@ export const CustomOrders = () => {
       const { subtotal, total } = calcTotals(form.services, form.discount_percent, form.tax_percent);
       const payload = { ...form, subtotal, total_amount: total, status: editingOrder?.status || 'draft', services: form.services as any };
       if (editingOrder) {
-        await spineApi.req('PATCH', `/admin/orders/${editingOrder.id}`, payload);
+        await supabase.from('custom_orders').update(payload as any).eq('id', editingOrder.id);
         toast({ title: 'Order updated' });
       } else {
-        await spineApi.req('POST', '/admin/orders', payload);
+        await supabase.from('custom_orders').insert(payload as any);
         toast({ title: 'Order created' });
       }
       setPanel('none');
@@ -202,19 +225,24 @@ export const CustomOrders = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this order?')) return;
-    try {
-      await spineApi.req('DELETE', `/admin/orders/${id}`);
-      toast({ title: 'Deleted' });
-      fetchOrders();
-    } catch (e: any) {
-      toast({ title: 'Delete failed', description: e.message, variant: 'destructive' });
-    }
+    await supabase.from('custom_orders').delete().eq('id', id);
+    toast({ title: 'Deleted' });
+    fetchOrders();
   };
 
   const handleSendEmail = async (order: CustomOrder) => {
     setSendingEmail(order.id);
     try {
-      await spineApi.req('POST', `/admin/orders/${order.id}/send-email`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Send failed');
+      await supabase.from('custom_orders').update({ status: 'sent', email_sent_at: new Date().toISOString() }).eq('id', order.id);
       toast({ title: '✅ Contract sent', description: `Sent to ${order.company_email}` });
       fetchOrders();
     } catch (e: any) {
@@ -227,8 +255,17 @@ export const CustomOrders = () => {
   const handleGeneratePdf = async (order: CustomOrder) => {
     setGeneratingPdf(order.id);
     try {
-      const data = await spineApi.req<{html: string}>('POST', `/admin/orders/${order.id}/generate-pdf`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-contract-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'PDF generation failed');
       if (data?.html) {
+        // Use Blob URL — renders as a proper HTML page, not a download
         const blob = new Blob([data.html], { type: 'text/html;charset=utf-8' });
         const blobUrl = URL.createObjectURL(blob);
         const tab = window.open(blobUrl, '_blank');
@@ -245,21 +282,24 @@ export const CustomOrders = () => {
 
   const handleMarkPaid = async (id: string) => {
     setMarkingPaid(id);
-    try {
-      await spineApi.req('PATCH', `/admin/orders/${id}`, { status: 'paid' });
-      toast({ title: '✅ Marked as paid' });
-      fetchOrders();
-    } catch (e: any) {
-      toast({ title: 'Failed to mark paid', description: e.message, variant: 'destructive' });
-    } finally {
-      setMarkingPaid(null);
-    }
+    await supabase.from('custom_orders').update({ status: 'paid' }).eq('id', id);
+    toast({ title: '✅ Marked as paid' });
+    fetchOrders();
+    setMarkingPaid(null);
   };
 
   const handleSendPdf = async (order: CustomOrder) => {
     setSendingPdf(order.id);
     try {
-      await spineApi.req('POST', `/admin/orders/${order.id}/send-pdf`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || SUPABASE_ANON_KEY;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/send-contract-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to send PDF');
       toast({ title: '📄 Contract PDF sent', description: `Sent to ${order.company_email}` });
     } catch (e: any) {
       toast({ title: 'Send PDF failed', description: e.message, variant: 'destructive' });

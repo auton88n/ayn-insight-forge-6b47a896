@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button, LiquidButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Building, User, KeyRound, CheckCircle2, ArrowLeft, Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -104,17 +104,34 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     setIsResettingPassword(true);
     try {
-      // Call spine reset password
+      // Check if email is registered before sending reset
+      const { data: checkData } = await supabase.functions.invoke('check-email-exists', {
+        body: { email: email.trim().toLowerCase() },
+      });
+
+      if (checkData && checkData.exists === false) {
+        toast({
+          title: t('auth.emailNotRegistered'),
+          description: t('auth.emailNotRegisteredDesc'),
+          variant: "destructive"
+        });
+        setIsResettingPassword(false);
+        return;
+      }
+
+      // Call Supabase's built-in reset (required - contains the actual reset link)
       localStorage.setItem('password_reset_email', email.trim().toLowerCase());
-      const { error } = await spineAuth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
       if (error) {
         // Check for rate limit error
         const errorCode = (error as { code?: string }).code;
         const isRateLimited = 
           errorCode === 'over_email_send_rate_limit' ||
-          ((error as any)?.message || '').toLowerCase().includes('rate limit') ||
-          ((error as any)?.message || '').toLowerCase().includes('too many requests') ||
+          error.message?.toLowerCase().includes('rate limit') ||
+          error.message?.toLowerCase().includes('too many requests') ||
           (error as { status?: number }).status === 429;
         
         if (isRateLimited) {
@@ -129,7 +146,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         } else {
           toast({
             title: t('common.error'),
-            description: ((error as any)?.message || 'An error occurred'),
+            description: error.message,
             variant: "destructive"
           });
         }
@@ -168,7 +185,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   };
 
   const handleGoogleSignIn = async () => {
-    const { error } = await spineAuth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
@@ -177,7 +194,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     if (error) {
       toast({
         title: t('auth.authError'),
-        description: ((error as any)?.message || 'An error occurred'),
+        description: error.message,
         variant: 'destructive',
       });
     }
@@ -196,29 +213,17 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     setIsLoading(true);
     try {
-      const { error } = await spineAuth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        // If login fails, show helpful migration message
-        if (((error as any)?.message || '').toLowerCase().includes('invalid') || 
-            ((error as any)?.message || '').toLowerCase().includes('not found') ||
-            ((error as any)?.message || '').toLowerCase().includes('incorrect')) {
-          toast({
-            title: 'Account Not Found',
-            description: 'Please sign up for a new account. If you had an account before, create a new one with the same email — your data will be restored.',
-            variant: 'destructive'
-          });
-          setIsLoading(false);
-          return;
-        }
         // Special handling: email not confirmed
         const code = (error as { code?: string }).code;
-        if (code === 'email_not_confirmed' || /email not confirmed/i.test((error as any)?.message || '')) {
+        if (code === 'email_not_confirmed' || /email not confirmed/i.test(error.message)) {
           try {
-            const { error: resendError } = await spineAuth.resend({
+            const { error: resendError } = await supabase.auth.resend({
               type: 'signup',
               email,
               options: { emailRedirectTo: `${window.location.origin}/` }
@@ -229,7 +234,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               const resendCode = (resendError as { code?: string }).code;
               const isRateLimited = 
                 resendCode === 'over_email_send_rate_limit' ||
-                ((resendError as any)?.message || '').toLowerCase().includes('rate limit') ||
+                resendError.message?.toLowerCase().includes('rate limit') ||
                 (resendError as { status?: number }).status === 429;
               
               if (isRateLimited) {
@@ -258,7 +263,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           }
         } else {
           // Parse error for user-friendly message
-          const errorMsg = ((error as any)?.message || '').toLowerCase() || '';
+          const errorMsg = error.message?.toLowerCase() || '';
           const friendlyDesc = errorMsg.includes('invalid login') || errorMsg.includes('invalid credentials')
             ? t('error.invalidCredentialsDesc')
             : error.message;
@@ -311,7 +316,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await spineAuth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -326,10 +331,10 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       if (error) {
         toast({
           title: t('auth.registrationError'),
-          description: ((error as any)?.message || 'An error occurred'),
+          description: error.message,
           variant: "destructive"
         });
-      } else if ((data.user as any)?.identities?.length === 0) {
+      } else if (data.user?.identities?.length === 0) {
         // User already exists - Supabase doesn't return error for security
         toast({
           title: t('auth.emailAlreadyRegistered'),
@@ -339,7 +344,13 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       } else {
         // Send welcome email (async, don't block signup)
         try {
-          // welcome email sent by spine on register
+          await supabase.functions.invoke('send-email', {
+            body: {
+              to: email,
+              emailType: 'welcome',
+              data: { userName: fullName || 'there' }
+            }
+          });
           console.log('[AuthModal] Welcome email sent');
         } catch (emailError) {
           console.warn('[AuthModal] Welcome email failed:', emailError);
@@ -507,14 +518,15 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                 />
               </div>
 
-              <LiquidButton
+              <Button
                 type="submit"
+                variant="default"
                 className="w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('auth.signIn')}
-              </LiquidButton>
+              </Button>
               
             </form>
           </TabsContent>
@@ -636,14 +648,15 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                 </label>
               </div>
 
-              <LiquidButton
+              <Button
                 type="submit"
+                variant="default"
                 className="w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('auth.signUp')}
-              </LiquidButton>
+              </Button>
             </form>
           </TabsContent>
         </Tabs>

@@ -21,7 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { CalculatorType } from '@/lib/engineeringKnowledge';
 
 interface Suggestion {
@@ -249,7 +250,21 @@ export const AICalculatorAssistant: React.FC<AICalculatorAssistantProps> = ({
   const requestAIOptimization = async () => {
     setIsAnalyzing(true);
     try {
-      const data: any = await spineApi.engineeringAgent('optimize', { inputs });
+      const { data, error } = await supabase.functions.invoke('engineering-ai-chat', {
+        body: {
+          calculatorType,
+          currentInputs: inputs,
+          currentOutputs: outputs,
+          messages: [
+            {
+              role: 'user',
+              content: `Analyze my current inputs and provide specific optimized values. Return a JSON object with suggested field values and reasons. Current inputs: ${JSON.stringify(inputs)}`,
+            },
+          ],
+        },
+      });
+
+      if (error) throw error;
       if (data?.suggestions) {
         setSuggestions(data.suggestions);
       }
@@ -275,12 +290,12 @@ export const AICalculatorAssistant: React.FC<AICalculatorAssistantProps> = ({
 
     try {
       const response = await fetch(
-        `https://spine.aynn.io/admin/edge/engineering-ai-chat`,
+        `${SUPABASE_URL}/functions/v1/engineering-ai-chat`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${(await import('@/lib/spineAuth')).spineAuth.getAccessToken() || ''}`,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
             calculatorType,

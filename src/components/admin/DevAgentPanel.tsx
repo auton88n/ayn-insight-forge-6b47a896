@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { adminApi } from '@/lib/spineApi';
-import { AYN_BACKEND_URL } from '@/config';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +13,9 @@ import {
   PenSquare, ChevronLeft, Settings2, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const AGENT_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/ayn-dev-agent';
+const SUPA_URL  = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
 interface Repo { owner: string; repo: string }
 interface Msg  { role: 'user' | 'agent'; text: string; id: string }
@@ -77,53 +79,88 @@ export function DevAgentPanel() {
   // Load conversations and skills on mount
   useEffect(() => { loadConversations(); loadSkills(); }, []);
 
+  const serviceHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return {
+      Authorization: `Bearer ${session?.access_token ?? ''}`,
+      apikey: session?.access_token ?? '',
+      'Content-Type': 'application/json',
+    };
+  };
+
   const loadConversations = async () => {
-    try {
-      const data = await adminApi.listDevConversations();
-      setConversations(data || []);
-    } catch (err) {
-      console.error('Error loading conversations:', err);
-    }
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?order=updated_at.desc&limit=50`, {
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
+    });
+    if (res.ok) setConversations(await res.json());
   };
 
   const loadSkills = async () => {
-    try {
-      const data = await adminApi.listDevSkills();
-      setSkills(data || []);
-    } catch (err) {
-      console.error('Error loading skills:', err);
-    }
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_skills?order=category`, {
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
+    });
+    if (res.ok) setSkills(await res.json());
   };
 
   const loadConversation = async (id: string, title: string) => {
-    try {
-      const rows = await adminApi.getDevMessages(id);
-      setMsgs(rows.map((r: any) => ({ id: r.id, role: r.role as 'user' | 'agent', text: r.content })));
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_messages?conversation_id=eq.${id}&order=created_at`, {
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
+    });
+    if (res.ok) {
+      const rows: Array<{ id: string; role: string; content: string }> = await res.json();
+      setMsgs(rows.map(r => ({ id: r.id, role: r.role as 'user' | 'agent', text: r.content })));
       setConvId(id);
       setConvTitle(title);
       setTab('chat');
-    } catch (err) {
-      console.error('Error loading conversation:', err);
     }
   };
 
   const createConversation = async (firstMsg: string): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
     const title = firstMsg.slice(0, 60) + (firstMsg.length > 60 ? '...' : '');
-    const conv = await adminApi.createDevConversation(title);
+    const res = await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations`, {
+      method: 'POST',
+      headers: { ...(await serviceHeaders()), Prefer: 'return=representation', Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
+      body: JSON.stringify({ title }),
+    });
+    const [conv] = await res.json();
     return conv.id;
   };
 
   const saveMessage = async (cid: string, role: string, content: string) => {
-    await adminApi.saveDevMessage(cid, role, content);
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: cid, role, content }),
+    });
+    // update conversation updated_at
+    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?id=eq.${cid}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updated_at: new Date().toISOString() }),
+    });
   };
 
   const toggleSkill = async (id: string, enabled: boolean) => {
-    await adminApi.toggleDevSkill(id, enabled);
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_skills?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
     setSkills(s => s.map(sk => sk.id === id ? { ...sk, enabled } : sk));
   };
 
   const deleteConversation = async (id: string) => {
-    await adminApi.deleteDevConversation(id);
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(`${SUPA_URL}/rest/v1/ayn_dev_conversations?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${session?.access_token}`, apikey: session?.access_token ?? '' },
+    });
     setConversations(c => c.filter(x => x.id !== id));
     if (convId === id) newChat();
   };
@@ -179,16 +216,16 @@ export function DevAgentPanel() {
     const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
 
     try {
-      const env_projects = projects.length > 0 ? projects : ['dfkoxuokfkttjhfjcecx'];
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+
+      // Get enabled skill contents to inject
       const enabledSkills = skills.filter(s => s.enabled).map(s => (s as any).content ?? '').join('\n\n---\n\n');
 
-      const res = await fetch(`${AYN_BACKEND_URL}/admin/edge/dev-agent`, {
+      const res = await fetch(AGENT_URL, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('ayn_admin_token')}`
-        },
-        body: JSON.stringify({ message: msg, repos, projects: env_projects, github_token: ghToken, skills: enabledSkills, stream: true }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: msg, repos, projects, github_token: ghToken, skills: enabledSkills, stream: true }),
         signal: controller.signal,
       });
 

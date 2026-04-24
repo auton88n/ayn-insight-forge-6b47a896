@@ -1,7 +1,6 @@
-import { spineApi } from '@/lib/spineApi';
 import { useEffect, useState, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import {
   ArrowLeft, RefreshCw, Globe2, Radio, Activity,
   ChevronRight, Shield, Building2, Flame, Target,
@@ -34,64 +33,10 @@ interface Prediction {
   fusion_method?: string; boost_factor?: string | null; generated_by?: string | null;
 }
 interface WorldSignal {
-  id: string;
-  signal_type?: string;
-  category?: string | null;
-  severity: string;
-  headline: string;
-  title?: string | null;
-  summary?: string;
-  region: string;
-  affected_regions?: string[] | null;
-  countries_involved: string[];
-  impact_level?: string | null;
-  impact_on_oil?: string;
-  impact_on_gold?: string;
-  impact_on_btc?: string;
-  market_impact?: any;
-  confidence_impact?: number;
-  ancient_parallel?: string | null;
+  id: string; signal_type: string; severity: string; headline: string;
+  summary?: string; region: string; countries_involved: string[];
+  impact_on_oil: string; impact_on_gold: string; impact_on_btc: string;
   created_at: string;
-}
-
-/** Normalize raw API signal rows: derive headline/severity/region when missing. */
-function normalizeSignal(raw: any): WorldSignal {
-  const summary: string = raw?.summary || '';
-  const headline: string =
-    raw?.headline ||
-    raw?.title ||
-    (summary ? summary.split(/(?<=[.!?])\s+/)[0].slice(0, 120) : 'Live signal');
-
-  let severity: string = raw?.severity || raw?.impact_level || '';
-  if (!severity) {
-    const ci = Number(raw?.confidence_impact ?? 0);
-    if (ci >= 10) severity = 'critical';
-    else if (ci >= 7) severity = 'high';
-    else if (ci >= 4) severity = 'medium';
-    else severity = 'low';
-  }
-
-  const countries: string[] = Array.isArray(raw?.countries_involved)
-    ? raw.countries_involved
-    : Array.isArray(raw?.affected_regions) ? raw.affected_regions : [];
-
-  const region: string =
-    raw?.region ||
-    (Array.isArray(raw?.affected_regions) && raw.affected_regions[0]) ||
-    countries[0] ||
-    'global';
-
-  const mi = raw?.market_impact || {};
-  return {
-    ...raw,
-    headline,
-    severity,
-    region,
-    countries_involved: countries,
-    impact_on_oil: raw?.impact_on_oil ?? mi.oil,
-    impact_on_gold: raw?.impact_on_gold ?? mi.gold,
-    impact_on_btc: raw?.impact_on_btc ?? mi.btc,
-  };
 }
 interface WorldPrediction {
   id: string; domain: string; region: string; title: string;
@@ -167,15 +112,14 @@ const SIC_COORDS: Record<string, [number, number]> = {
   ZAF:[22.9,-30.5],CAN:[-106.3,56.1],AUS:[133.7,-25.2],
 };
 
-type ViewSection = 'overview' | 'signals' | 'ayn-predictions' | 'market-forecasts' | 'countries' | 'agents';
+type ViewSection = 'overview' | 'signals' | 'predictions' | 'countries' | 'agents';
 
 const NAV_ITEMS: { id: ViewSection; icon: typeof LayoutDashboard; label: string }[] = [
-  { id: 'overview',         icon: LayoutDashboard, label: 'Overview' },
-  { id: 'signals',          icon: Signal,          label: 'Signals' },
-  { id: 'ayn-predictions',  icon: Network,         label: 'AYN Predictions' },
-  { id: 'market-forecasts', icon: BarChart3,       label: 'Market Forecasts' },
-  { id: 'countries',        icon: MapPin,          label: 'Countries' },
-  { id: 'agents',           icon: Users,           label: 'Agents' },
+  { id: 'overview',    icon: LayoutDashboard, label: 'Overview' },
+  { id: 'signals',     icon: Signal,          label: 'Signals' },
+  { id: 'predictions', icon: Target,          label: 'Predictions' },
+  { id: 'countries',   icon: MapPin,          label: 'Countries' },
+  { id: 'agents',      icon: Users,           label: 'Agents' },
 ];
 
 // ─── Premium Glass Card ──────────────────────────────────────────────────────
@@ -294,7 +238,6 @@ export default function WorldIntelligence() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dataStatus, setDataStatus] = useState<Record<string, string>>({});
   const currentTime = useRef(new Date()).current;
 
   // Navigation
@@ -323,112 +266,100 @@ export default function WorldIntelligence() {
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  // Auto-select first conversation — always pick newest
+  // Auto-select first conversation when agent conversations load
   useEffect(() => {
-    if (agentConversations.length > 0) {
-      if (!agentActiveConvId) {
-        setAgentActiveConvId(agentConversations[0].id);
-        return;
-      }
-      const exists = agentConversations.find((c: any) => c.id === agentActiveConvId);
-      if (!exists) setAgentActiveConvId(agentConversations[0].id);
+    if (agentConversations.length > 0 && !agentActiveConvId) {
+      setAgentActiveConvId(agentConversations[0].id);
     }
-  }, [agentConversations]);
-  useEffect(() => { spineAuth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
+  }, [agentConversations, agentActiveConvId]);
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id)); }, []);
 
   const fetchSnapshot = useCallback(async () => {
     try {
-      const d = await spineApi.getAllIntelligence();
-      if (d.snapshot) setSnapshot(d.snapshot);
+      const { data } = await supabase.from('ayn_market_snapshot').select('snapshot,fetched_at').eq('singleton_key', 1).single();
+      if (data) setSnapshot(data);
     } catch {}
   }, []);
 
   const fetchPredictions = useCallback(async () => {
     try {
-      const d = await spineApi.getAllIntelligence();
-      const consensus = d.consensus_predictions || [];
-      const calibration = d.calibration || [];
+      const { data: calibData } = await supabase.from('ayn_accuracy_calibration' as any).select('asset,real_accuracy_pct,reliability_tier,should_show_uncertainty,calibration_factor');
       const calibMap: Record<string, any> = {};
-      for (const cal of calibration) calibMap[cal.asset] = cal;
-      if (!consensus.length) return;
-      const voteCounts = d.vote_counts || [];
-      const vMap = Object.fromEntries((voteCounts).map((v: any) => [v.prediction_id, v]));
-      const preds = consensus.map((c: any) => {
-        // Spine returns rows from ayn_predictions which use predicted_* fields,
-        // but legacy ayn_consensus_predictions used consensus_* fields. Accept both.
-        const pct = Number(c.consensus_pct_change ?? c.predicted_pct_change ?? 0);
-        const dir = (c.consensus_direction ?? c.predicted_direction ?? 'sideways').toString().toLowerCase();
-        const baseline = Number(c.baseline_value ?? 0);
-        const predictedValue = c.predicted_value != null ? Number(c.predicted_value) : baseline * (1 + pct / 100);
-        const lo = c.predicted_low != null ? Number(c.predicted_low) : baseline * (1 + pct / 100 - 0.03);
-        const hi = c.predicted_high != null ? Number(c.predicted_high) : baseline * (1 + pct / 100 + 0.03);
-        return {
-          id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
-          baseline_value: baseline,
-          predicted_value: predictedValue,
-          predicted_low: lo,
-          predicted_high: hi,
-          predicted_direction: dir as 'up' | 'down' | 'sideways',
-          predicted_pct_change: pct,
-          confidence: Number(c.consensus_confidence ?? c.confidence ?? 50),
-          calibration: calibMap[c.asset] || null,
-          reasoning: c.ayn_reasoning || c.reasoning || '',
-          generated_by: c.generated_by || 'spine',
-          agree_count: vMap[c.id]?.agree_count || 0,
-          disagree_count: vMap[c.id]?.disagree_count || 0,
-          user_vote: null,
-        };
-      });
-      setPredictions(preds);
+      for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
+      const { data: consensus } = await supabase.from('ayn_consensus_predictions' as any)
+        .select('id,asset,horizon,target_date,baseline_value,consensus_direction,consensus_pct_change,consensus_confidence,consensus_strength,ayn_reasoning,agreement,fusion_method,boost_factor')
+        .eq('status', 'active').order('consensus_confidence', { ascending: false }).limit(60);
+      const { data: aynPreds } = await supabase.from('ayn_predictions')
+        .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning,generated_by')
+        .eq('status', 'active').in('generated_by', ['ayn_prediction_engine_v10', 'ayn_prediction_engine_v9'])
+        .order('confidence', { ascending: false }).limit(60);
+      const preds = (consensus && consensus.length > 0)
+        ? (consensus as any[]).map(c => ({
+            id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
+            baseline_value: Number(c.baseline_value),
+            predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
+            predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
+            predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
+            predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
+            predicted_pct_change: Number(c.consensus_pct_change),
+            confidence: Number(c.consensus_confidence || 50),
+            calibration: calibMap[c.asset] || null,
+            reasoning: c.ayn_reasoning || '',
+            generated_by: 'consensus', consensus_strength: c.consensus_strength,
+            agreement: c.agreement, fusion_method: c.fusion_method, boost_factor: c.boost_factor,
+            agree_count: 0, disagree_count: 0, user_vote: null,
+          }))
+        : (aynPreds || []).map(p => ({
+            ...p, baseline_value: Number(p.baseline_value), predicted_value: Number(p.predicted_value),
+            predicted_low: Number(p.predicted_low), predicted_high: Number(p.predicted_high),
+            predicted_pct_change: Number(p.predicted_pct_change),
+            predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
+            confidence: Number(p.confidence || 50), calibration: calibMap[p.asset] || null,
+            agree_count: 0, disagree_count: 0, user_vote: null,
+          }));
+      if (!preds.length) return;
+      const { data: voteCounts } = await supabase.from('ayn_prediction_vote_counts' as any).select('prediction_id,agree_count,disagree_count');
+      let userVoteMap: Record<string, 'agree' | 'disagree'> = {};
+      if (userId) {
+        const { data: uv } = await supabase.from('ayn_prediction_votes').select('prediction_id,vote').eq('user_id', userId).in('prediction_id', preds.map(p => p.id));
+        if (uv) userVoteMap = Object.fromEntries(uv.map(v => [v.prediction_id, v.vote as 'agree' | 'disagree']));
+      }
+      const vMap = Object.fromEntries((voteCounts || []).map((v: any) => [v.prediction_id, v]));
+      setPredictions(preds.map(p => ({ ...p, agree_count: vMap[p.id]?.agree_count || 0, disagree_count: vMap[p.id]?.disagree_count || 0, user_vote: (userVoteMap[p.id] || null) as any })));
     } catch (e) { console.error('predictions:', e); }
+  }, [userId]);
+
+  const fetchSignals = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('ayn_world_signals').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(30);
+      if (data) setSignals(data as WorldSignal[]);
+    } catch {}
   }, []);
 
-  // Fetch all world intelligence data in one parallel request via spine.aynn.io
-  // The spine API returns: market_snapshot, world_signals, world_predictions,
-  // country_intelligence, master_predictions, mind, market_prices, etc.
-  const fetchAllIntelligence = useCallback(async () => {
+  const fetchMasterPreds = useCallback(async () => {
     try {
-      const d: any = await spineApi.getAllIntelligence();
+      const { data } = await (supabase.from('ayn_master_predictions' as any)
+        .select('*').order('created_at', { ascending: false }).limit(8) as any);
+      if (data) setMasterPreds(data as MasterPrediction[]);
+    } catch {}
+  }, []);
 
-      // Market snapshot: spine returns market_snapshot OR snapshot
-      const snap = d.market_snapshot ?? d.snapshot;
-      if (snap) {
-        setSnapshot(snap);
-        // Extract data_status from nested snapshot.snapshot.data_status
-        const innerSnap = snap?.snapshot ?? snap;
-        const ds = innerSnap?.data_status;
-        if (ds && typeof ds === 'object') {
-          setDataStatus(ds as Record<string, string>);
-        }
-      }
-
-      // Signals: spine returns world_signals; older code used `signals`
-      const rawSignals = d.world_signals ?? d.signals;
-      if (Array.isArray(rawSignals) && rawSignals.length) {
-        setSignals(rawSignals.map(normalizeSignal));
-      }
-
-      // Master predictions
-      if (Array.isArray(d.master_predictions) && d.master_predictions.length) {
-        setMasterPreds(d.master_predictions);
-      }
-
-      // Country intelligence: spine returns country_intelligence; older code used country_intel
-      const rawCountries = d.country_intelligence ?? d.country_intel;
-      if (Array.isArray(rawCountries) && rawCountries.length) {
-        setCountryIntel(rawCountries);
-      }
-    } catch (e) {
-      console.warn('[WorldIntelligence] fetchAllIntelligence failed:', e);
-    }
+  const fetchCountryIntel = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('ayn_country_intelligence').select('country_code,country_name,intelligence_brief,economy,hot_sectors,opportunities').limit(20);
+      if (data) setCountryIntel(data as CountryIntel[]);
+    } catch {}
   }, []);
 
   useEffect(() => {
-    fetchAllIntelligence().finally(() => setLoading(false));
-    fetchPredictions();
-    const poll = setInterval(fetchAllIntelligence, 5 * 60 * 1000);
+    fetchSnapshot().finally(() => setLoading(false));
+    setTimeout(() => fetchSignals(), 200);
+    setTimeout(() => fetchMasterPreds(), 600);
+    setTimeout(() => fetchPredictions(), 600);
+    setTimeout(() => fetchCountryIntel(), 900);
+    const poll = setInterval(fetchSnapshot, 5 * 60 * 1000);
     return () => clearInterval(poll);
-  }, [fetchAllIntelligence, fetchPredictions]);
+  }, [fetchSnapshot, fetchSignals, fetchPredictions, fetchCountryIntel]);
 
   const handleVote = async (predId: string, vote: 'agree' | 'disagree') => {
     if (!userId || votingId) return;
@@ -436,32 +367,22 @@ export default function WorldIntelligence() {
     try {
       const existing = predictions.find(p => p.id === predId);
       if (existing?.user_vote === vote) {
-        await spineApi.votePrediction(predId, 'remove', userId);
+        await supabase.from('ayn_prediction_votes').delete().eq('prediction_id', predId).eq('user_id', userId);
       } else {
-        await spineApi.votePrediction(predId, vote, userId);
+        await supabase.from('ayn_prediction_votes').upsert({ prediction_id: predId, user_id: userId, vote }, { onConflict: 'prediction_id,user_id' });
       }
       await fetchPredictions();
     } finally { setVotingId(null); }
   };
 
   // Derived data
-  const snap         = useMemo(() => safeObj(snapshot?.snapshot ?? snapshot), [snapshot]);
+  const snap         = useMemo(() => safeObj(snapshot?.snapshot), [snapshot]);
   const macro        = useMemo(() => safeObj(snap.macro), [snap]);
   const sentiment    = useMemo(() => safeObj(safeObj(snap.markets)?.sentiment), [snap]);
   const cryptoPrices = useMemo(() => safeObj(safeObj(safeObj(snap.markets)?.crypto)?.crypto_prices), [snap]);
   const sicIntel     = useMemo(() => safeObj(snap.sic_intel), [snap]);
-
-  // Data freshness: derive overall status from dataStatus map
-  const overallDataStatus = useMemo(() => {
-    const statuses = Object.values(dataStatus).filter(Boolean);
-    if (!statuses.length) return 'UNKNOWN';
-    if (statuses.every(s => s === 'FAILED' || s === 'NO_KEY')) return 'FAILED';
-    if (statuses.some(s => s === 'FRED' || s === 'yfinance' || s === 'PIONEX' || s === 'alternative.me' || s === 'AI')) return 'LIVE';
-    return 'STALE';
-  }, [dataStatus]);
-
   const briefItems   = useMemo(() => {
-    const fromDB = safeArr(snap.intelligence_brief ?? snapshot?.intelligence_brief);
+    const fromDB = safeArr(snap.intelligence_brief);
     if (fromDB.length) return fromDB;
     const items: string[] = [];
     if (sentiment.value != null) items.push(`Fear & Greed at ${sentiment.value} — ${sentiment.classification || 'monitoring'}.`);
@@ -513,7 +434,7 @@ export default function WorldIntelligence() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    Promise.all([fetchAllIntelligence(), fetchPredictions()]).finally(() => setRefreshing(false));
+    Promise.all([fetchSnapshot(), fetchSignals(), fetchPredictions(), fetchMasterPreds()]).finally(() => setRefreshing(false));
   };
 
   // ─── Loading state ──────────────────────────────────────────────────────────
@@ -598,7 +519,7 @@ export default function WorldIntelligence() {
           <nav className="flex-1 py-3 px-3 space-y-0.5">
             {NAV_ITEMS.map(item => {
               const isActive = activeSection === item.id;
-              const count = item.id === 'signals' ? signals.length : item.id === 'ayn-predictions' ? masterPreds.length : item.id === 'market-forecasts' ? filteredPreds.length : item.id === 'countries' ? countryIntel.length : undefined;
+              const count = item.id === 'signals' ? signals.length : item.id === 'predictions' ? masterPreds.length + filteredPreds.length : item.id === 'countries' ? countryIntel.length : undefined;
               return (
                 <button key={item.id} onClick={() => setActiveSection(item.id)}
                   title={sidebarCollapsed ? item.label : undefined}
@@ -690,22 +611,8 @@ export default function WorldIntelligence() {
                       <h2 className="text-sm font-semibold text-foreground">Intelligence Brief</h2>
                       <div className="flex-1" />
                       <div className="flex items-center gap-1.5">
-                        {overallDataStatus === 'LIVE' && <>
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">Live</span>
-                        </>}
-                        {overallDataStatus === 'STALE' && <>
-                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                          <span className="text-[10px] text-amber-400/70 uppercase tracking-wider font-semibold">Stale</span>
-                        </>}
-                        {overallDataStatus === 'FAILED' && <>
-                          <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                          <span className="text-[10px] text-red-400/70 uppercase tracking-wider font-semibold">Feed Failed</span>
-                        </>}
-                        {(overallDataStatus === 'UNKNOWN' || overallDataStatus === 'SEEDED') && <>
-                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                          <span className="text-[10px] text-orange-400/70 uppercase tracking-wider font-semibold">Seeded</span>
-                        </>}
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] text-emerald-400/70 uppercase tracking-wider font-semibold">Live</span>
                       </div>
                     </div>
                     <div className="p-5 space-y-2.5">
@@ -875,9 +782,9 @@ export default function WorldIntelligence() {
               </motion.div>
             )}
 
-            {/* ════════ AYN PREDICTIONS ════════ */}
-            {activeSection === 'ayn-predictions' && (
-              <motion.div key="ayn-predictions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+            {/* ════════ PREDICTIONS ════════ */}
+            {activeSection === 'predictions' && (
+              <motion.div key="predictions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
                 className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
 
                 {/* Graph Intelligence */}
@@ -1040,13 +947,9 @@ export default function WorldIntelligence() {
                     </>
                   )}
                 </section>
-              </motion.div>
-            )}
 
-            {/* ════════ MARKET FORECASTS ════════ */}
-            {activeSection === 'market-forecasts' && (
-              <motion.div key="market-forecasts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
+                {/* Separator */}
+                <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
 
                 {/* Price Predictions */}
                 <section>

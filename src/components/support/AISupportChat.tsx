@@ -4,7 +4,7 @@ import { Send, Brain, User, Ticket, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MessageFormatter } from '@/components/shared/MessageFormatter';
 
@@ -57,7 +57,12 @@ const AISupportChat: React.FC<AISupportChatProps> = ({ onNeedTicket }) => {
         content: m.content,
       }));
 
-      const data: any = await (spineApi as any).supportBot?.(userMessage.content, '') ?? { answer: 'Support is temporarily unavailable.', needsHumanSupport: true }; const error = null;
+      const { data, error } = await supabase.functions.invoke('support-bot', {
+        body: {
+          message: userMessage.content,
+          conversationHistory,
+        },
+      });
 
       if (error) throw error;
 

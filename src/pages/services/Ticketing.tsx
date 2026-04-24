@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, QrCode, Smartphone, BarChart3, Calendar, Wifi, Palette, Check, Loader2, Ticket, ShieldCheck, Users, Brain, MessageCircle, Crown, Megaphone } from 'lucide-react';
@@ -9,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
 import TicketingMockup from '@/components/services/TicketingMockup';
 
@@ -134,7 +134,26 @@ const Ticketing = () => {
     setIsSubmitting(true);
     
     try {
-      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Ticketing] ${(formData as any).message || ''}`);
+      const { error: dbError } = await supabase.from('service_applications').insert({
+        service_type: 'ticketing',
+        full_name: formData.fullName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone?.trim() || null,
+        message: formData.message?.trim() || null
+      });
+
+      if (dbError) throw dbError;
+
+      await supabase.functions.invoke('send-application-email', {
+        body: {
+          service: 'Smart Ticketing System',
+          name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          message: formData.message
+        }
+      });
+
       setIsSuccess(true);
       toast({
         title: language === 'ar' ? 'تم الإرسال بنجاح' : 'Application Submitted',

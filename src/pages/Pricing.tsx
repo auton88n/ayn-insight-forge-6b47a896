@@ -1,11 +1,10 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { Check, Crown, Zap, Building2, Sparkles, Loader2, Shield, CreditCard, ChevronDown, Brain, Star } from 'lucide-react';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
-import { Button, LiquidButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -16,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useSubscription, SUBSCRIPTION_TIERS, SubscriptionTier } from '@/contexts/SubscriptionContext';
 import { SEO } from '@/components/shared/SEO';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const tierIcons: Record<SubscriptionTier, React.ReactNode> = {
@@ -91,7 +91,12 @@ const Pricing = () => {
     }
     setIsSubmitting(true);
     try {
-      await spineApi.contactUs(enterpriseForm.companyName, enterpriseForm.email, enterpriseForm.requirements || 'Enterprise inquiry');
+      const { error } = await supabase.from('contact_messages').insert({
+        name: enterpriseForm.companyName,
+        email: enterpriseForm.email,
+        message: `[ENTERPRISE INQUIRY]\n\n${enterpriseForm.requirements || 'User requested Enterprise pricing information'}`
+      });
+      if (error) throw error;
       toast.success('Thank you! Our team will contact you within 24 hours.');
       setShowEnterpriseModal(false);
       setEnterpriseForm({ companyName: '', email: '', requirements: '' });

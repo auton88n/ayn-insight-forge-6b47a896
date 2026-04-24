@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getErrorMessage, ErrorCodes } from '@/lib/errorMessages';
 
 // Tier configuration — aligned with Stripe products and backend
-export const TOPUP_PRICE_ID = 'price_1TMmFEDBJlSjDe8AgtoXfL4F';
-export const TOPUP_CREDITS = 100;
+export const TOPUP_PRICE_ID = 'price_placeholder_topup_10usd_500msg';
+export const TOPUP_CREDITS = 500;
 export const TOPUP_PRICE = 10;
 
 export const SUBSCRIPTION_TIERS = {
@@ -117,7 +116,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
 
     const verifySubscription = async () => {
       try {
-        const { data: { session } } = await spineAuth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           setState(prev => ({
             ...prev,
@@ -151,7 +150,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
         }
       }
 
-      const data = await spineApi.getLimits(); const error = null;
+      const { data, error } = await supabase.functions.invoke('check-subscription');
       
       if (error) {
         if (import.meta.env.DEV) {
@@ -205,12 +204,14 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     }
 
     try {
-      const data = await spineApi.createCheckout(priceId);
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { priceId },
+      });
+
+      if (error) throw error;
 
       if (data?.url) {
         window.open(data.url, '_blank');
-      } else {
-        throw new Error('No checkout URL returned');
       }
     } catch (err) {
       if (import.meta.env.DEV) {
@@ -222,7 +223,13 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
 
   const startTopUp = useCallback(async () => {
     try {
-      const data = await spineApi.createCheckout(TOPUP_PRICE_ID); const error = null;
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { 
+          priceId: TOPUP_PRICE_ID,
+          mode: 'payment',
+          credits: TOPUP_CREDITS
+        },
+      });
 
       if (error) throw error;
 
@@ -239,7 +246,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
 
   const openCustomerPortal = useCallback(async () => {
     try {
-      const data = await spineApi.customerPortal(); const error = null;
+      const { data, error } = await supabase.functions.invoke('customer-portal');
 
       if (error) throw error;
 
@@ -258,7 +265,7 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
   useEffect(() => {
     checkSubscription();
 
-    const { data: { subscription } } = spineAuth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       checkSubscription();
     });
 
@@ -267,14 +274,37 @@ export const SubscriptionProvider = ({ children }: SubscriptionProviderProps) =>
     };
   }, [checkSubscription]);
 
-  // Polling fallback for subscription changes (replaces Supabase realtime)
+  // Realtime listener for subscription changes
   useEffect(() => {
-    const interval = setInterval(() => {
-      sessionStorage.removeItem('subscription_cache');
-      checkSubscription();
-    }, 60000); // 60s polling
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    return () => clearInterval(interval);
+    const setupRealtime = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+
+      channel = supabase
+        .channel(`sub-${session.user.id.slice(0, 8)}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_subscriptions',
+            filter: `user_id=eq.${session.user.id}`
+          },
+          () => {
+            sessionStorage.removeItem('subscription_cache');
+            checkSubscription();
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [checkSubscription]);
 
   return (

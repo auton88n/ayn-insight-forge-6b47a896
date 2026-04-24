@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Mountain, Sparkles, PlusCircle, FileSearch } from 'lucide-react';
@@ -9,6 +8,7 @@ import { GradingResults } from '@/components/engineering/GradingResults';
 import { GradingComplianceDisplay } from '@/components/engineering/GradingComplianceDisplay';
 import { DesignReviewMode } from '@/components/engineering/DesignReviewMode';
 import { DesignAnalysisResults } from '@/components/engineering/DesignAnalysisResults';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { type GradingRegion } from '@/lib/gradingStandards';
 
@@ -83,8 +83,16 @@ const GradingDesignerPanel: React.FC<GradingDesignerPanelProps> = ({ onInputChan
 
     setIsGenerating(true);
     try {
-      const data: any = await spineApi.engineeringAnalysis({ points, terrainAnalysis, projectName }, 'grading');
+      const { data, error } = await supabase.functions.invoke('generate-grading-design', {
+        body: { 
+          points, 
+          terrainAnalysis, 
+          requirements: requirements || 'Standard site grading for construction with proper drainage',
+          region: gradingRegion,
+        }
+      });
 
+      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       setDesign(data.design);
@@ -124,8 +132,15 @@ const GradingDesignerPanel: React.FC<GradingDesignerPanelProps> = ({ onInputChan
 
     setIsApplyingOptimizations(true);
     try {
-      const data: any = await spineApi.engineeringAnalysis({ parsedData: analysisResult.parsedData, optimizations }, 'optimize');
+      const { data, error } = await supabase.functions.invoke('apply-design-optimizations', {
+        body: {
+          parsedData: analysisResult.parsedData,
+          optimizations,
+          projectName,
+        }
+      });
 
+      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       // Download the optimized DXF

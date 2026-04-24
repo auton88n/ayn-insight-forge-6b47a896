@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HardHat } from 'lucide-react';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { EngineeringWorkspace } from '@/components/engineering/workspace/EngineeringWorkspace';
 import { EngineeringSessionProvider } from '@/contexts/EngineeringSessionContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -15,7 +15,7 @@ const EngineeringWorkspacePage = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
       }
@@ -23,7 +23,7 @@ const EngineeringWorkspacePage = () => {
     };
     checkAuth();
 
-    const { data: { subscription } } = spineAuth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUserId(session.user.id);
       } else {

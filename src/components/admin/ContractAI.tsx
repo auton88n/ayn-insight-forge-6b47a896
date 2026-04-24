@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { spineApi } from '@/lib/spineApi';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, X, ChevronRight, FileText, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,12 +46,23 @@ export function ContractAI({ type, onFill, onClose }: ContractAIProps) {
     setLoading(true);
 
     try {
-      const data = await spineApi.req<{text: string}>('POST', '/admin/ai-proxy', {
-        action: 'contract_builder',
-        type,
-        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+      // Use admin-ai-assistant which already has LOVABLE_API_KEY injected by Lovable
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-ai-assistant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          action: 'contract_builder',
+          type,
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
       });
-      const text = data.text || '';
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      const text = data.text || data.response || data.message || data.content || '';
 
       // Check if AI returned contract data
       const tag = type === 'contract' ? 'CONTRACT_DATA' : 'NDA_DATA';

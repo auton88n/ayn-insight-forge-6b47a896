@@ -1,11 +1,10 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { 
   Mail, 
   ChevronDown, 
@@ -47,7 +46,7 @@ export const NotificationLogViewer = () => {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/notification-log");
+      const { data, error } = await supabase.rpc('get_admin_notification_log');
       if (error) throw error;
       setLogs((data || []) as NotificationLog[]);
     } catch (error) {

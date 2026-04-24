@@ -7,8 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface TicketFormProps {
@@ -39,7 +38,7 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
 
     try {
       // Get current user if logged in
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
       // Create ticket
       const ticketData: Record<string, unknown> = {
@@ -59,15 +58,39 @@ const TicketForm: React.FC<TicketFormProps> = ({ onSuccess }) => {
         ticketData.guest_name = formData.name;
       }
 
-      const ticket = await spineApi.req<{ id: string }>('POST', '/support/tickets', {
-        ...ticketData,
-        initial_message: formData.message,
-      });
-      if (!ticket?.id) throw new Error('Ticket creation failed');
+      const { data: ticket, error: ticketError } = await supabase
+        .from('support_tickets')
+        .insert(ticketData as never)
+        .select()
+        .single();
+
+      if (ticketError) throw ticketError;
+
+      // Add initial message
+      const { error: messageError } = await supabase
+        .from('ticket_messages')
+        .insert({
+          ticket_id: ticket.id,
+          sender_type: 'user',
+          sender_id: user?.id || null,
+          message: formData.message,
+        });
+
+      if (messageError) throw messageError;
 
       // Send email notification to admin (non-blocking)
       try {
-        // ticket notification handled by spine backend
+        await supabase.functions.invoke('send-ticket-notification', {
+          body: {
+            ticketId: ticket.id,
+            subject: formData.subject,
+            message: formData.message,
+            category: formData.category,
+            priority: formData.priority,
+            userName: formData.name || user?.email?.split('@')[0] || undefined,
+            userEmail: formData.email || user?.email || undefined,
+          },
+        });
       } catch (emailError) {
         if (import.meta.env.DEV) {
           console.error('Failed to send notification email:', emailError);

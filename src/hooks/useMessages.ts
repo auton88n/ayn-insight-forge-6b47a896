@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react';
-import type { SpineSession as Session } from '@/lib/spineAuth';
+import { Session } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 import { chatRateLimiter } from '@/lib/rateLimiter';
 import { offlineQueue } from '@/lib/offlineQueue';
-import { AYN_BACKEND_URL } from '@/config';
 import type {
   Message,
   FileAttachment,
@@ -15,6 +14,7 @@ import type {
   LABResponse
 } from '@/types/dashboard.types';
 
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { detectIntent } from '@/hooks/chat/useIntentDetection';
 import { parseSSEStream, fetchWithRetry } from '@/hooks/chat/useSSEStream';
 import { useMessagePersistence } from '@/hooks/chat/useMessagePersistence';
@@ -84,8 +84,8 @@ export const useMessages = (
     // Usage check (skip for unlimited)
     let latestToken = session.access_token;
     try {
-      const { spineAuth } = await import('@/lib/spineAuth');
-      const { data: { session: freshSession } } = await spineAuth.getSession();
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
       if (freshSession?.access_token) latestToken = freshSession.access_token;
     } catch { /* ignore */ }
 
@@ -141,22 +141,15 @@ export const useMessages = (
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-      // Route to Python backend if configured, otherwise Supabase edge function
-      const chatUrl = AYN_BACKEND_URL
-        ? `${AYN_BACKEND_URL}/chat`
-        : `https://spine.aynn.io/chat`;
-
-      const chatHeaders: Record<string, string> = AYN_BACKEND_URL
-        ? {
-            'Authorization': `Bearer ${latestToken}`,
-            'Content-Type': 'application/json',
-          }: {'Authorization': `Bearer ${latestToken}`, 'Content-Type': 'application/json'};
-
-      const webhookResponse = await fetchWithRetry(chatUrl, {
+      const webhookResponse = await fetchWithRetry(`${SUPABASE_URL}/functions/v1/ayn-unified`, {
         method: 'POST',
         signal: controller.signal,
-        headers: chatHeaders,
-        body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: AYN_BACKEND_URL ? false : !requiresNonStreaming, sessionId })
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${latestToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: !requiresNonStreaming, sessionId })
       });
 
       clearTimeout(timeoutId);

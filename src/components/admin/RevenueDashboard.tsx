@@ -77,11 +77,13 @@ export const RevenueDashboard = () => {
           ))}
         </div>
         <div className="text-white/20 text-xs">
-          Manage secrets in{' '}
-          <span className="text-blue-400/70">
-            Railway Dashboard → Variables
-          </span>
-          {' '}or via System Settings — webhook URL: <code className="text-white/30">spine.aynn.io/payments/webhook/v2</code>
+          Add both secrets at{' '}
+          <a href="https://supabase.com/dashboard/project/dfkoxuokfkttjhfjcecx/settings/functions" 
+             target="_blank" rel="noopener noreferrer"
+             className="text-blue-400/70 hover:text-blue-400 underline">
+            Supabase → Settings → Edge Functions → Secrets
+          </a>
+          {' '}— webhook URL: <code className="text-white/30">supabase.co/functions/v1/stripe-webhook</code>
         </div>
       </div>
 

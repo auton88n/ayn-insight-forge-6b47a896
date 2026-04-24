@@ -1,14 +1,12 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useLayoutEffect, lazy, Suspense, useCallback } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import type { SpineSession } from '@/lib/spineAuth';
+import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LogOut, Sun, Moon, RefreshCw, Sparkles } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import {
@@ -49,8 +47,6 @@ const DocumentStudio = lazy(() => import('@/components/admin/DocumentStudio').th
 const TermsConsentViewer = lazy(() => import('@/components/admin/TermsConsentViewer').then(m => ({ default: m.TermsConsentViewer })));
 const CommandCenterPanel = lazy(() => import('@/components/admin/workforce/CommandCenterPanel').then(m => ({ default: m.CommandCenterPanel })));
 const PredictionControlPanel = lazy(() => import('@/pages/PredictionControlPanel'));
-const CronControl = lazy(() => import('@/components/admin/CronControl').then(m => ({ default: m.CronControl })));
-const OperationsCenter = lazy(() => import('@/components/admin/OperationsCenter'));
 
 // ── Suspense fallback with proper skeleton ──────────────────
 const TabFallback = () => <div className="py-8"><AdminSkeleton variant="table" /></div>;
@@ -69,19 +65,17 @@ interface SystemConfig {
   sessionTimeout: number;
 }
 interface AdminPanelProps {
-  session: SpineSession;
+  session: Session;
   onBackClick?: () => void;
   isAdmin?: boolean;
   isDuty?: boolean;
-  onSignOut?: () => void;
 }
 
 export const AdminPanel = ({
   session,
   onBackClick,
   isAdmin = false,
-  isDuty = false,
-  onSignOut
+  isDuty = false
 }: AdminPanelProps) => {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -101,7 +95,7 @@ export const AdminPanel = ({
   const applications = Array.isArray(applicationsQuery.data) ? applicationsQuery.data : [];
 
   // Parse system config from query
-  const configData = systemConfigQuery.data || [];
+  const configData = (systemConfigQuery.data as any)?.config || [];
   const configMap = new Map((Array.isArray(configData) ? configData : []).map((c: any) => [c.key, c.value]));
   const systemConfig: SystemConfig = {
     maintenanceMode: configMap.get('maintenance_mode') as boolean || false,
@@ -152,7 +146,11 @@ export const AdminPanel = ({
       for (const [key, value] of Object.entries(updates)) {
         const dbKey = keyMap[key];
         if (dbKey) {
-          await spineApi.req("POST", "/admin/config", { key: dbKey, value });
+          const { error } = await supabase.rpc('admin_upsert_system_config', {
+            p_key: dbKey,
+            p_value: JSON.stringify(value),
+          });
+          if (error) throw new Error(`Failed to update ${dbKey}: ${error.message}`);
         }
       }
       queryClient.invalidateQueries({ queryKey: adminKeys.systemConfig() });
@@ -170,7 +168,7 @@ export const AdminPanel = ({
       {/* Header */}
       <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-background">
         <div className="flex items-center gap-4">
-          <Button onClick={() => onSignOut ? onSignOut() : spineAuth.signOut()} variant="ghost" size="icon"
+          <Button onClick={() => supabase.auth.signOut()} variant="ghost" size="icon"
             className="w-10 h-10 rounded-xl hover:bg-muted/50 border border-border/50"
             title="Sign Out">
             <LogOut className="w-5 h-5" />
@@ -220,10 +218,10 @@ export const AdminPanel = ({
               <ErrorBoundary>
                 {activeTab === 'overview' && <Suspense fallback={<TabFallback />}><AdminDashboard /></Suspense>}
                 {activeTab === 'google-analytics' && <Suspense fallback={<TabFallback />}><GoogleAnalytics /></Suspense>}
-                {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session as any} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
+                {activeTab === 'applications' && <Suspense fallback={<TabFallback />}><ApplicationManagement session={session} applications={applications as any} onRefresh={() => queryClient.invalidateQueries({ queryKey: adminKeys.applications() })} /></Suspense>}
                 {activeTab === 'support' && <Suspense fallback={<TabFallback />}><SupportManagement /></Suspense>}
                 {activeTab === 'users' && <Suspense fallback={<TabFallback />}><UserManagement /></Suspense>}
-                {activeTab === 'rate-limits' && <Suspense fallback={<TabFallback />}><RateLimitMonitoring session={session as any} /></Suspense>}
+                {activeTab === 'rate-limits' && <Suspense fallback={<TabFallback />}><RateLimitMonitoring session={session} /></Suspense>}
                 {activeTab === 'settings' && <Suspense fallback={<TabFallback />}><SystemSettings systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} /></Suspense>}
                 {activeTab === 'ai-costs' && <Suspense fallback={<TabFallback />}><AICostDashboard /></Suspense>}
                 {activeTab === 'ai-limits' && <Suspense fallback={<TabFallback />}><UserAILimits /></Suspense>}
@@ -246,8 +244,6 @@ export const AdminPanel = ({
                 {activeTab === 'custom-orders' && <Suspense fallback={<TabFallback />}><CustomOrders /></Suspense>}
                 {activeTab === 'document-studio' && <Suspense fallback={<TabFallback />}><DocumentStudio /></Suspense>}
                 {activeTab === 'prediction-control' && <Suspense fallback={<TabFallback />}><PredictionControlPanel /></Suspense>}
-                {activeTab === 'cron-control' && <Suspense fallback={<TabFallback />}><CronControl /></Suspense>}
-                {activeTab === 'operations' && <Suspense fallback={<TabFallback />}><OperationsCenter /></Suspense>}
               </ErrorBoundary>
             </div>
           </div>

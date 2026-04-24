@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -30,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import TicketDetailModal from './TicketDetailModal';
 import ContactMessagesView from './ContactMessagesView';
@@ -84,11 +83,19 @@ const SupportManagement: React.FC = () => {
   useEffect(() => {
     fetchTickets();
 
-    // Standardized SSE: Listen for any change to the 'support_tickets' table
+    // Real-time: AYN deletions & reply inserts
     const channel = supabase
       .channel('support-realtime')
-      .on('postgres_changes', { table: 'support_tickets' }, () => {
-        fetchTickets();
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'support_tickets' }, (payload) => {
+        setTickets(prev => prev.filter(t => t.id !== (payload.old as any)?.id));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_tickets' }, (payload) => {
+        const updated = payload.new as Ticket;
+        setTickets(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_tickets' }, (payload) => {
+        const newTicket = payload.new as Ticket;
+        setTickets(prev => [newTicket, ...prev]);
       })
       .subscribe();
 
@@ -98,7 +105,7 @@ const SupportManagement: React.FC = () => {
   const fetchTickets = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/tickets");
+      const { data, error } = await supabase.rpc('get_admin_support_tickets', { p_limit: 200, p_offset: 0 });
       if (error) throw error;
       const result = data as any;
       setTickets(result?.tickets || []);

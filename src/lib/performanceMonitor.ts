@@ -1,3 +1,4 @@
+import { SUPABASE_URL } from '@/config';
 
 /**
  * Reports Core Web Vitals (TTFB, DCL, Load) to the report-vitals edge function.
@@ -20,7 +21,7 @@ export function initPerformanceMonitoring() {
           connection: (navigator as any).connection?.effectiveType || 'unknown',
         };
         navigator.sendBeacon?.(
-          `https://spine.aynn.io/admin/edge/report-vitals`,
+          `${SUPABASE_URL}/functions/v1/report-vitals`,
           JSON.stringify(metrics)
         );
       } catch { /* silent */ }

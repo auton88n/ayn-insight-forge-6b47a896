@@ -25,6 +25,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { toast } from '@/hooks/use-toast';
 import { CalculatorType } from '@/lib/engineeringKnowledge';
 import { MessageFormatter } from '@/components/shared/MessageFormatter';
@@ -267,12 +269,12 @@ export const EngineeringAIChat = ({
       }));
 
       const response = await fetch(
-        `https://spine.aynn.io/admin/edge/engineering-ai-chat`,
+        `${SUPABASE_URL}/functions/v1/engineering-ai-chat`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await import('@/lib/spineAuth')).spineAuth.getAccessToken() || ''}`,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
             calculatorType,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { TUTORIAL_STEPS, TutorialState } from '@/types/tutorial.types';
 
 const STORAGE_KEY = 'ayn_tutorial_completed';
@@ -27,17 +27,19 @@ export const useTutorial = (userId?: string) => {
       }
 
       if (userId) {
-        try {
-          const settings: any = await spineApi.getSettings();
-          if (settings?.has_completed_tutorial) {
-            localStorage.setItem(STORAGE_KEY, 'true');
-            setState(prev => ({ ...prev, isCompleted: true }));
-            setIsFirstTimeUser(false);
-          } else {
-            setIsFirstTimeUser(true);
-          }
-        } catch {
-          // If settings fetch fails, treat as first-time
+        const { data } = await supabase
+          .from('user_settings')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        const settings = data as { has_completed_tutorial?: boolean } | null;
+        if (settings?.has_completed_tutorial) {
+          localStorage.setItem(STORAGE_KEY, 'true');
+          setState(prev => ({ ...prev, isCompleted: true }));
+          setIsFirstTimeUser(false);
+        } else {
+          // First time user - but don't show welcome automatically
           setIsFirstTimeUser(true);
         }
       }
@@ -86,11 +88,15 @@ export const useTutorial = (userId?: string) => {
     setIsFirstTimeUser(false);
 
     if (userId) {
-      try {
-        await spineApi.saveSettings({ has_completed_tutorial: true });
-      } catch (err) {
-        console.error('Failed to save tutorial completion:', err);
-      }
+      await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: userId,
+          has_completed_tutorial: true,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
     }
   }, [userId]);
 

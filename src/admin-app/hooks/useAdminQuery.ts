@@ -1,16 +1,60 @@
 /**
  * Admin data-fetching hooks using React Query.
- * All backed by real spine endpoints - zero empty stubs.
+ * Replaces manual useState + useEffect + supabase.rpc() patterns
+ * with cached, stale-while-revalidate, background-refetch queries.
+ * 
+ * Benefits:
+ * - Tab-switch is instant (data served from cache)
+ * - Background refetch keeps data fresh
+ * - No duplicate requests
+ * - Skeleton loading states (isLoading only on first fetch)
+ * - invalidateQueries replaces refreshKey unmount hack
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminSupabase as supabase } from '../adminSupabase';
 import { toast } from 'sonner';
-import { adminApi } from '@/lib/spineApi';
 
-// Shared stale times
-const ADMIN_STALE_TIME = 5 * 60 * 1000;   // 5 min
-const FAST_STALE_TIME  = 60 * 1000;        // 1 min
+// ─── Generic RPC wrapper ────────────────────────────────────
+type RpcName = string;
 
-// ─── Query keys ──────────────────────────────────────────────
+async function adminRpc<T = unknown>(
+  fnName: RpcName,
+  params?: Record<string, unknown>
+): Promise<T> {
+  // Explicitly get the admin session and set the auth header
+  // This prevents the "Multiple GoTrueClient" issue where the main app's
+  // session could override the admin session at the PostgREST level
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !session?.access_token) {
+    throw new Error('Admin session expired. Please log in again.');
+  }
+
+  // Use fetch directly with explicit Authorization header to bypass GoTrueClient conflicts
+  const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${session.access_token}`,
+      'Prefer': 'return=representation',
+    },
+    body: params ? JSON.stringify(params) : '{}',
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    console.error(`[adminRpc] ${fnName} failed (${response.status}):`, errorBody);
+    throw new Error(errorBody.message || `RPC ${fnName} failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data as T;
+}
+
+// ─── Admin query keys (centralized for easy invalidation) ───
 export const adminKeys = {
   all: ['admin'] as const,
   dashboard: () => [...adminKeys.all, 'dashboard'] as const,
@@ -40,161 +84,267 @@ export const adminKeys = {
   notificationLog: () => [...adminKeys.all, 'notificationLog'] as const,
   revenue: () => [...adminKeys.all, 'revenue'] as const,
   systemMonitoring: () => [...adminKeys.all, 'systemMonitoring'] as const,
-  operations: () => [...adminKeys.all, 'operations'] as const,
   rateLimits: () => [...adminKeys.all, 'rateLimits'] as const,
   twitterPosts: () => [...adminKeys.all, 'twitterPosts'] as const,
 } as const;
 
-// ─── Hooks ───────────────────────────────────────────────────
+// Shared stale time: 5 min for admin data (it's not real-time critical)
+const ADMIN_STALE_TIME = 5 * 60 * 1000;
+// Faster stale time for real-time-ish data  
+const FAST_STALE_TIME = 60 * 1000;
+
+// ─── Individual query hooks ─────────────────────────────────
 
 export function useAdminDashboard() {
-  return useQuery({ queryKey: adminKeys.dashboard(), queryFn: () => adminApi.getStats(), staleTime: FAST_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.dashboard(),
+    queryFn: () => adminRpc('get_admin_dashboard_stats'),
+    staleTime: FAST_STALE_TIME,
+  });
 }
 
 export function useAdminUsers() {
-  return useQuery({ queryKey: adminKeys.users(), queryFn: () => adminApi.getUsers(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.users(),
+    queryFn: () => adminRpc('get_admin_users'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminApplications() {
-  return useQuery({ queryKey: adminKeys.applications(), queryFn: () => adminApi.getServiceApplications(), staleTime: FAST_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.applications(),
+    queryFn: () => adminRpc('get_admin_applications'),
+    staleTime: FAST_STALE_TIME,
+  });
 }
 
 export function useAdminSystemConfig() {
-  return useQuery({ queryKey: adminKeys.systemConfig(), queryFn: () => adminApi.getSystemConfig(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.systemConfig(),
+    queryFn: () => adminRpc('get_admin_system_config'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminSupportTickets() {
-  return useQuery({ queryKey: adminKeys.supportTickets(), queryFn: () => adminApi.getSupportTickets(), staleTime: FAST_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.supportTickets(),
+    queryFn: () => adminRpc('get_admin_support_tickets', { p_limit: 200, p_offset: 0 }),
+    staleTime: FAST_STALE_TIME,
+  });
 }
 
 export function useAdminAnalytics(days = 30) {
-  return useQuery({ queryKey: adminKeys.analytics(days), queryFn: () => adminApi.getVisitorAnalytics(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.analytics(days),
+    queryFn: () => adminRpc('get_admin_visitor_analytics', { p_days: days }),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminAICosts() {
-  return useQuery({ queryKey: adminKeys.aiCosts(), queryFn: () => adminApi.getLlmStats(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.aiCosts(),
+    queryFn: () => adminRpc('get_admin_ai_cost_stats'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminAILimits() {
-  return useQuery({ queryKey: adminKeys.aiLimits(), queryFn: () => adminApi.getUsers(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.aiLimits(),
+    queryFn: () => adminRpc('get_admin_ai_limits'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminErrorMonitoring() {
   return useQuery({
     queryKey: adminKeys.errorMonitoring(),
-    queryFn: () => adminApi.getErrors(undefined, 'open').then((errors: any) => ({ errors, resolutions: [] })),
+    queryFn: () => adminRpc('get_admin_error_monitoring', { p_limit: 500 }),
     staleTime: ADMIN_STALE_TIME,
   });
 }
 
-export function useRawErrorLogs(source?: string) {
+export function useAdminActivityLog() {
   return useQuery({
-    queryKey: [...adminKeys.errorMonitoring(), 'raw', source],
-    queryFn: () => adminApi.getErrors(source, 'open'),
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    queryKey: adminKeys.activityLog(),
+    queryFn: () => adminRpc('get_admin_activity_log', { p_limit: 500 }),
+    staleTime: FAST_STALE_TIME,
   });
 }
 
-export function useAdminActivityLog() {
-  return useQuery({ queryKey: adminKeys.activityLog(), queryFn: () => adminApi.req('GET', '/admin/activity-log'), staleTime: FAST_STALE_TIME });
-}
-
 export function useAdminConversations() {
-  return useQuery({ queryKey: adminKeys.conversations(), queryFn: () => adminApi.getConversations(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.conversations(),
+    queryFn: () => adminRpc('get_admin_conversations'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminSubscriptions() {
-  return useQuery({ queryKey: adminKeys.subscriptions(), queryFn: () => adminApi.getSubscriptions(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.subscriptions(),
+    queryFn: () => adminRpc('get_admin_subscriptions'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminCreditGifts() {
-  return useQuery({ queryKey: adminKeys.creditGifts(), queryFn: () => adminApi.req('GET', '/admin/credit-gifts'), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.creditGifts(),
+    queryFn: () => adminRpc('get_admin_credit_gifts'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminBetaFeedback() {
-  return useQuery({ queryKey: adminKeys.betaFeedback(), queryFn: () => adminApi.getBetaFeedback(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.betaFeedback(),
+    queryFn: () => adminRpc('get_admin_beta_feedback'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminMessageFeedback() {
-  return useQuery({ queryKey: adminKeys.messageFeedback(), queryFn: () => adminApi.req('GET', '/admin/message-ratings'), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.messageFeedback(),
+    queryFn: () => adminRpc('get_admin_message_ratings'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminTestResults() {
-  return useQuery({ queryKey: adminKeys.testResults(), queryFn: () => adminApi.getTestResults(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.testResults(),
+    queryFn: () => adminRpc('get_admin_test_results_data'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminUserGrowth() {
-  return useQuery({ queryKey: adminKeys.userGrowth(), queryFn: () => adminApi.req('GET', '/admin/user-growth'), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.userGrowth(),
+    queryFn: () => adminRpc('get_admin_user_growth'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminChurnAlerts() {
-  return useQuery({ queryKey: adminKeys.churnAlerts(), queryFn: () => adminApi.req('GET', '/admin/churn-alerts'), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.churnAlerts(),
+    queryFn: () => adminRpc('get_admin_churn_alerts'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminLLMManagement() {
-  return useQuery({ queryKey: adminKeys.llmManagement(), queryFn: () => adminApi.getLlmStats(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.llmManagement(),
+    queryFn: () => adminRpc('get_admin_llm_management'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminNDAList() {
-  return useQuery({ queryKey: adminKeys.ndaAgreements(), queryFn: () => adminApi.getNdaAgreements(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.ndaAgreements(),
+    queryFn: () => adminRpc('get_admin_nda_agreements'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminCustomOrders() {
-  return useQuery({ queryKey: adminKeys.customOrders(), queryFn: () => adminApi.getCustomOrders(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.customOrders(),
+    queryFn: () => adminRpc('get_admin_custom_orders'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminEmailBroadcast() {
-  return useQuery({ queryKey: adminKeys.emailBroadcast(), queryFn: () => adminApi.getUsers(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.emailBroadcast(),
+    queryFn: () => adminRpc('get_admin_email_broadcast_users'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminContactMessages() {
-  return useQuery({ queryKey: adminKeys.contactMessages(), queryFn: () => adminApi.getContactMessages(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.contactMessages(),
+    queryFn: () => adminRpc('get_admin_contact_messages', { p_limit: 200 }),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminTermsConsent() {
-  return useQuery({ queryKey: adminKeys.termsConsent(), queryFn: () => adminApi.req('GET', '/admin/terms-consent'), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.termsConsent(),
+    queryFn: () => adminRpc('get_admin_terms_consent'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminNotificationLog() {
-  return useQuery({ queryKey: adminKeys.notificationLog(), queryFn: () => adminApi.getNotificationLog(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.notificationLog(),
+    queryFn: () => adminRpc('get_admin_notification_log'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminRevenue() {
-  return useQuery({ queryKey: adminKeys.revenue(), queryFn: () => adminApi.getSubscriptions(), staleTime: ADMIN_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.revenue(),
+    queryFn: () => adminRpc('get_admin_subscriptions'),
+    staleTime: ADMIN_STALE_TIME,
+  });
 }
 
 export function useAdminSystemMonitoring() {
-  return useQuery({ queryKey: adminKeys.systemMonitoring(), queryFn: () => adminApi.getStats(), staleTime: FAST_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.systemMonitoring(),
+    queryFn: () => adminRpc('get_admin_system_monitoring'),
+    staleTime: FAST_STALE_TIME,
+  });
 }
 
 export function useAdminRateLimits() {
-  return useQuery({ queryKey: adminKeys.rateLimits(), queryFn: () => adminApi.getRateLimits(), staleTime: FAST_STALE_TIME });
-}
-
-export function useAdminOperations() {
-  return useQuery({ queryKey: adminKeys.operations(), queryFn: () => adminApi.getOperationsSummary(), staleTime: FAST_STALE_TIME });
+  return useQuery({
+    queryKey: adminKeys.rateLimits(),
+    queryFn: () => adminRpc('get_admin_rate_limit_stats'),
+    staleTime: FAST_STALE_TIME,
+  });
 }
 
 export function useAdminUserMessages(userId: string | null) {
   return useQuery({
     queryKey: [...adminKeys.conversations(), 'user', userId],
-    queryFn: () => adminApi.getUserMessages(userId!),
+    queryFn: () => adminRpc('get_admin_user_messages', { p_user_id: userId, p_limit: 200 }),
     enabled: !!userId,
     staleTime: FAST_STALE_TIME,
   });
 }
 
-// ─── Refresh helper ──────────────────────────────────────────
+// ─── Refresh helper (replaces refreshKey) ───────────────────
 export function useAdminRefresh() {
   const queryClient = useQueryClient();
+
   return {
-    refreshAll: () => queryClient.invalidateQueries({ queryKey: adminKeys.all }),
-    refresh: (key: readonly unknown[]) => queryClient.invalidateQueries({ queryKey: key }),
+    /** Invalidate everything — all admin data refetches in background */
+    refreshAll: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.all });
+    },
+    /** Invalidate specific section */
+    refresh: (key: readonly unknown[]) => {
+      queryClient.invalidateQueries({ queryKey: key });
+    },
   };
 }
 
-// ─── Mutation hook ───────────────────────────────────────────
+// ─── Mutation hooks (for writes) ────────────────────────────
 export function useAdminMutation<TVariables = unknown>(
   mutationFn: (vars: TVariables) => Promise<unknown>,
   invalidateKeys?: readonly unknown[],
@@ -204,9 +354,15 @@ export function useAdminMutation<TVariables = unknown>(
   return useMutation({
     mutationFn,
     onSuccess: () => {
-      if (invalidateKeys) queryClient.invalidateQueries({ queryKey: invalidateKeys });
-      if (successMessage) toast.success(successMessage);
+      if (invalidateKeys) {
+        queryClient.invalidateQueries({ queryKey: invalidateKeys });
+      }
+      if (successMessage) {
+        toast.success(successMessage);
+      }
     },
-    onError: (err: Error) => toast.error(err.message || 'Operation failed'),
+    onError: (err: Error) => {
+      toast.error(err.message || 'Operation failed');
+    },
   });
 }

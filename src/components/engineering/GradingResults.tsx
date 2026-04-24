@@ -1,9 +1,9 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { Download, TrendingUp, TrendingDown, FileText, AlertTriangle, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { StationDataTable } from './StationDataTable';
 const ElevationProfile = lazy(() => import('./ElevationProfile').then(m => ({ default: m.ElevationProfile })));
@@ -69,8 +69,11 @@ export const GradingResults: React.FC<GradingResultsProps> = ({
   const handleExportDXF = async () => {
     setExporting(true);
     try {
-      const data: any = await spineApi.generateDxf({ points: fglPoints, fglPoints, design, projectName });
+      const { data, error } = await supabase.functions.invoke('generate-grading-dxf', {
+        body: { points: fglPoints, design, projectName }
+      });
 
+      if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
       const blob = new Blob([data.dxfContent], { type: 'application/dxf' });

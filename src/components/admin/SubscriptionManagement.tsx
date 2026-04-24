@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { spineApi } from '@/lib/spineApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import { Search, RefreshCw, Edit2, Mail, Shield, Chrome, Users, Crown, Zap, Infinity as InfinityIcon, User, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -108,12 +108,30 @@ export const SubscriptionManagement = () => {
       const limit = useCustom ? customLimit : (tierData?.limits?.monthlyCredits ?? 50);
       const isUnlimited = newTier === 'unlimited' || newTier === 'enterprise';
 
-      // Update subscription via spine
-      await spineApi.req('PATCH', `/admin/users/${editing.id}/subscription`, {
-        tier: newTier,
-        monthly_limit: limit,
+      // Update user_subscriptions
+      const { error: subErr } = await supabase.from('user_subscriptions').upsert({
+        user_id: editing.id,
+        subscription_tier: newTier,
+        status: newTier === 'free' ? 'inactive' : 'active',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      if (subErr) throw subErr;
+
+      // Update user_ai_limits (the real enforced system)
+      const { error: limErr } = await supabase.from('user_ai_limits').upsert({
+        user_id: editing.id,
+        monthly_messages: isUnlimited ? 999999 : limit,
+        daily_messages: isUnlimited ? 999999 : Math.floor(limit / 30),
         is_unlimited: isUnlimited,
-      });
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      if (limErr) throw limErr;
+
+      // Update access_grants for backward compat
+      await supabase.from('access_grants').update({
+        monthly_limit: isUnlimited ? -1 : limit,
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', editing.id);
 
       toast.success(`${editing.display_name} updated to ${newTier}`);
       setEditing(null);

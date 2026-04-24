@@ -19,15 +19,7 @@ function riskLevel(u: ChurnUser): { label: string; color: string } {
 export const ChurnAlerts = () => {
   const queryClient = useQueryClient();
   const { data: rawData, isLoading: loading } = useAdminChurnAlerts();
-  const users = useMemo(() => {
-    const arr = Array.isArray(rawData) ? rawData : [];
-    return arr.map((u: any) => ({
-      ...u,
-      display_name: u.display_name || u.email || 'Unknown',
-      days_inactive: Number(u.days_inactive || 0),
-      total_messages: Number(u.total_messages || 0)
-    })) as ChurnUser[];
-  }, [rawData]);
+  const users = useMemo(() => (Array.isArray(rawData) ? rawData : []) as unknown as ChurnUser[], [rawData]);
   const [threshold, setThreshold] = useState(14);
 
   const neverUsed = users.filter(u => u.total_messages === 0).length;

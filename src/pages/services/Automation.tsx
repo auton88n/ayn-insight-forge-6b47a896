@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { ArrowLeft, Brain, Zap, Clock, Settings, Link2, BarChart3, Shield, Bell, FileText, Mail, Calendar, Database, Share2, Workflow, Play, CheckCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/shared/SEO';
@@ -110,7 +110,33 @@ const Automation = () => {
     setIsSubmitting(true);
 
     try {
-      await spineApi.contactUs((formData as any).fullName || '', (formData as any).email || '', `[Automation] ${(formData as any).message || ''}`);
+      const { error: dbError } = await supabase.from('service_applications').insert({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        message: formData.message || null,
+        service_type: 'automation',
+        status: 'new'
+      });
+
+      if (dbError) throw dbError;
+
+      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
+        body: {
+          applicantName: formData.fullName,
+          applicantEmail: formData.email,
+          serviceType: 'Process Automation',
+          formData: {
+            'Full Name': formData.fullName,
+            'Email': formData.email,
+            'Phone': formData.phone || 'Not provided',
+            'Message': formData.message || 'No message provided'
+          }
+        }
+      });
+
+      if (emailError) console.error('Email error:', emailError);
+
       setIsSuccess(true);
       toast({
         title: language === 'ar' ? 'تم إرسال الطلب' : language === 'fr' ? 'Demande soumise' : 'Application submitted',

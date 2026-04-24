@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -18,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 interface ContactMessage {
@@ -64,14 +63,14 @@ const ContactMessagesView: React.FC = () => {
 
     const channel = supabase
       .channel('contacts-realtime')
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'contact_messages' }, (payload: any) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'contact_messages' }, (payload) => {
         setMessages(prev => prev.filter(m => m.id !== (payload.old as any)?.id));
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_messages' }, (payload: any) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'contact_messages' }, (payload) => {
         const updated = payload.new as ContactMessage;
         setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_messages' }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'contact_messages' }, (payload) => {
         setMessages(prev => [payload.new as ContactMessage, ...prev]);
       })
       .subscribe();
@@ -82,7 +81,7 @@ const ContactMessagesView: React.FC = () => {
   const fetchMessages = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/contact-messages");
+      const { data, error } = await supabase.rpc('get_admin_contact_messages', { p_limit: 200 });
       if (error) throw error;
       setMessages((Array.isArray(data) ? data : []) as ContactMessage[]);
     } catch (error) {

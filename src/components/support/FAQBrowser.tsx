@@ -4,7 +4,7 @@ import { Search, ChevronDown, ThumbsUp, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { MessageFormatter } from '@/components/shared/MessageFormatter';
 
 interface FAQItem {
@@ -29,7 +29,13 @@ const FAQBrowser: React.FC = () => {
 
   const fetchFAQs = async () => {
     try {
-      const data = await spineApi.req<FAQItem[]>('GET', '/support/faq?published=true');
+      const { data, error } = await supabase
+        .from('faq_items')
+        .select('*')
+        .eq('is_published', true)
+        .order('order_index');
+
+      if (error) throw error;
       setFaqs(data || []);
     } catch (error) {
       console.error('Error fetching FAQs:', error);
@@ -48,7 +54,7 @@ const FAQBrowser: React.FC = () => {
 
     // Increment view count
     try {
-      await null /* FAQ view increment */;
+      await supabase.rpc('increment_faq_view', { faq_id: faqId });
     } catch (error) {
       console.error('Error incrementing view:', error);
     }
@@ -58,7 +64,7 @@ const FAQBrowser: React.FC = () => {
     if (helpfulClicked.has(faqId)) return;
 
     try {
-      await null /* FAQ helpful increment */;
+      await supabase.rpc('increment_faq_helpful', { faq_id: faqId });
       setHelpfulClicked(prev => new Set([...prev, faqId]));
       setFaqs(prev => prev.map(faq => 
         faq.id === faqId 

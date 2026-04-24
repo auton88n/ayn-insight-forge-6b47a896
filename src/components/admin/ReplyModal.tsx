@@ -1,8 +1,6 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState } from 'react';
-import { adminApi as supabase } from '@/lib/adminApi';
-
-interface Session { user: { id: string; email?: string }; access_token?: string }
+import { Session } from '@supabase/supabase-js';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import {
   Dialog,
   DialogContent,
@@ -63,9 +61,20 @@ export const ReplyModal = ({
     setIsSending(true);
 
     try {
-      const data: any = await spineApi.sendReplyEmail(application.id, message, application.email);
+      const { data, error } = await supabase.functions.invoke('send-reply-email', {
+        body: {
+          applicationId: application.id,
+          recipientEmail: application.email,
+          recipientName: application.full_name,
+          subject,
+          message,
+          serviceType: getServiceLabel(application.service_type),
+        },
+      });
 
-      if (data?.success !== false) {
+      if (error) throw error;
+
+      if (data?.success) {
         toast.success('Reply sent successfully');
         onSuccess();
       } else {

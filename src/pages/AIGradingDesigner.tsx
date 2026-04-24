@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Mountain, Sparkles, PlusCircle, FileSearch } from 'lucide-react';
@@ -14,6 +13,7 @@ import { GradingResults } from '@/components/engineering/GradingResults';
 import { GradingComplianceDisplay } from '@/components/engineering/GradingComplianceDisplay';
 import { DesignReviewMode } from '@/components/engineering/DesignReviewMode';
 import { DesignAnalysisResults } from '@/components/engineering/DesignAnalysisResults';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { SEO } from '@/components/shared/SEO';
 import { type GradingRegion } from '@/lib/gradingStandards';
@@ -82,8 +82,17 @@ const AIGradingDesigner: React.FC = () => {
 
     setIsGenerating(true);
     try {
-      const data: any = await spineApi.engineeringAnalysis({ points, terrainAnalysis }, 'grading');
-      if (!data?.success) throw new Error(data?.error || 'Generation failed');
+      const { data, error } = await supabase.functions.invoke('generate-grading-design', {
+        body: { 
+          points, 
+          terrainAnalysis, 
+          requirements: requirements || 'Standard site grading for construction with proper drainage',
+          region: gradingRegion,
+        }
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
 
       setDesign(data.design);
       setCostBreakdown(data.costBreakdown);
@@ -115,8 +124,16 @@ const AIGradingDesigner: React.FC = () => {
 
     setIsApplyingOptimizations(true);
     try {
-      const data: any = await spineApi.engineeringAnalysis({ analysisResult, optimizations }, 'optimize');
-      if (!data?.success) throw new Error(data?.error || 'Optimization failed');
+      const { data, error } = await supabase.functions.invoke('apply-design-optimizations', {
+        body: {
+          parsedData: analysisResult.parsedData,
+          optimizations,
+          projectName,
+        }
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
 
       // Download the optimized DXF
       const blob = new Blob([data.dxfContent], { type: 'application/dxf' });

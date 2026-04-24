@@ -1,9 +1,9 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, useCallback } from 'react';
 import { ComplianceResultCard } from '../ComplianceResultCard';
 import { ComplianceSummaryBadge } from '../ComplianceSummaryBadge';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, FileDown, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { ComplianceResult } from '../utils/complianceEngine';
 
@@ -55,7 +55,18 @@ export const ResultsStep: React.FC<Props> = ({ results, passed, failed, warnings
     try {
       toast.loading('Generating PDF report...', { id: 'compliance-pdf' });
 
-      const data: any = await spineApi.generateCompliancePdf({ results, passed, failed, warnings, codeSystem });
+      const { data, error } = await supabase.functions.invoke('generate-compliance-pdf', {
+        body: {
+          results,
+          passed,
+          failed,
+          warnings,
+          codeSystem,
+          projectName: `${codeSystem === 'IRC_2024' ? 'IRC 2024' : 'NBC 2025'} Compliance Report`,
+        },
+      });
+
+      if (error) throw error;
 
       // Create an isolated iframe to avoid affecting the main page
       const iframe = document.createElement('iframe');

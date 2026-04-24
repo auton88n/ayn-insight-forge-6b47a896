@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Brain, ArrowLeft, ArrowRight, Users, Headphones, TrendingUp, Calculator, FileText, MessageCircle, Clock, DollarSign, Heart, Plane, GraduationCap, CheckCircle, Loader2, Sparkles } from 'lucide-react';
@@ -7,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/shared/SEO';
@@ -93,7 +93,29 @@ const AIEmployee = () => {
     }
     setIsSubmitting(true);
     try {
-      await spineApi.contactUs(formData.fullName, formData.email, `[AI Employee] ${formData.message || ''}`);
+      const { error: dbError } = await supabase.from('service_applications').insert({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || null,
+        message: formData.message || null,
+        service_type: 'ai_employee',
+        status: 'new'
+      });
+      
+      if (dbError) throw dbError;
+      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
+        body: {
+          applicantName: formData.fullName,
+          applicantEmail: formData.email,
+          applicantPhone: formData.phone,
+          message: formData.message,
+          serviceType: 'AI Employee'
+        }
+      });
+      if (emailError) {
+        console.error('Email notification failed:', emailError);
+        // Don't throw — application was saved, just email failed
+      }
       setIsSuccess(true);
       setFormData({ fullName: '', email: '', phone: '', message: '' });
     } catch (error) {

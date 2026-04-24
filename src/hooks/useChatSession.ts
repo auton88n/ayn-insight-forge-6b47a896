@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { SpineSession as Session } from '@/lib/spineAuth';
-import { spineApi } from '@/lib/spineApi';
+import { Session } from '@supabase/supabase-js';
+import { supabaseApi } from '@/lib/supabaseApi';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatHistory, Message, UseChatSessionReturn } from '@/types/dashboard.types';
 
@@ -9,7 +9,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
   const [recentChats, setRecentChats] = useState<ChatHistory[]>([]);
   const [selectedChats, setSelectedChats] = useState<Set<number>>(new Set());
   const [showChatSelection, setShowChatSelection] = useState(false);
-  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [isLoadingChats, setIsLoadingChats] = useState(true);
   const lastInitializedUserId = useRef<string | null>(null);
   const { toast } = useToast();
 
@@ -21,15 +21,15 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     }
     
     try {
-      // Fetch chat sessions from spine
-      let sessionsData: any[] = [];
-      try {
-        sessionsData = await spineApi.listChats();
-      } catch (e: any) {
-        // 401 = not logged in yet, just show empty
-        setRecentChats([]);
-        return;
-      }
+      // Lightweight query: only fetch chat_sessions metadata (no messages needed for sidebar)
+      const sessionsData = await supabaseApi.get<Array<{
+        session_id: string;
+        title: string;
+        updated_at: string;
+      }>>(
+        `chat_sessions?user_id=eq.${userId}&select=session_id,title,updated_at&order=updated_at.desc&limit=10`,
+        session.access_token
+      );
 
       if (!sessionsData || sessionsData.length === 0) {
         setRecentChats([]);
@@ -105,9 +105,22 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
 
       if (session) {
         // Delete messages and chat_sessions records in parallel
-        await Promise.all(
-          sessionIdsToDelete.map(sessionId => spineApi.deleteSession(sessionId))
-        );
+        await Promise.all([
+          // Delete messages
+          ...messageIdsToDelete.map(id =>
+            supabaseApi.delete(
+              `messages?id=eq.${id}&user_id=eq.${userId}`,
+              session.access_token
+            )
+          ),
+          // Delete chat_sessions records
+          ...sessionIdsToDelete.map(sessionId =>
+            supabaseApi.delete(
+              `chat_sessions?session_id=eq.${sessionId}&user_id=eq.${userId}`,
+              session.access_token
+            )
+          )
+        ]);
       }
 
       // Clear local state first
@@ -157,8 +170,16 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     
     try {
       // Delete both messages and chat_sessions in parallel
-      const allChats = await spineApi.listChats();
-      await Promise.all(allChats.map((ch: any) => spineApi.deleteSession(ch.session_id)));
+      await Promise.all([
+        supabaseApi.delete(
+          `messages?user_id=eq.${userId}`,
+          session.access_token
+        ),
+        supabaseApi.delete(
+          `chat_sessions?user_id=eq.${userId}`,
+          session.access_token
+        )
+      ]);
 
       // Clear local state
       setRecentChats([]);
@@ -189,32 +210,40 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
       // Mark as initialized immediately to prevent duplicate calls
       lastInitializedUserId.current = userId;
       
-      // No session = not logged in, stop loading
-      if (!userId || userId === 'undefined' || userId === 'null') {
+      // Skip if no session available - only set new ID if we don't have one
+      if (!session) {
+        if (!currentSessionId) {
+          setCurrentSessionId(crypto.randomUUID());
+        }
         setIsLoadingChats(false);
         return;
       }
       
       setIsLoadingChats(true);
-      // Safety timeout — never spin forever
-      const safetyTimer = setTimeout(() => setIsLoadingChats(false), 5000);
       
       try {
         // PARALLEL QUERIES - lightweight: session ID + chat_sessions metadata only
         const [latestSessionData, sessionsData] = await Promise.all([
           // Query 1: Get latest session_id
-          spineApi.getLatestSession(),
-          // Query 2: Get chat sessions
-          spineApi.listChats()
+          supabaseApi.get<Array<{ session_id: string }>>(
+            `messages?user_id=eq.${userId}&select=session_id&order=created_at.desc&limit=1`,
+            session.access_token,
+            { signal: controller.signal }
+          ),
+          // Query 2: Get chat_sessions with titles (lightweight, no messages)
+          supabaseApi.get<Array<{ session_id: string; title: string; updated_at: string }>>(
+            `chat_sessions?user_id=eq.${userId}&select=session_id,title,updated_at&order=updated_at.desc&limit=10`,
+            session.access_token,
+            { signal: controller.signal }
+          )
         ]);
         
         if (controller.signal.aborted) return;
         
         // Set current session ID - ONLY if not already set
         if (!currentSessionId) {
-          const latestId = (latestSessionData as any)?.session_id || null;
-          if (latestId) {
-            setCurrentSessionId(latestId);
+          if (latestSessionData && latestSessionData.length > 0 && latestSessionData[0].session_id) {
+            setCurrentSessionId(latestSessionData[0].session_id);
           } else {
             setCurrentSessionId(crypto.randomUUID());
           }
@@ -248,7 +277,6 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         }
         setRecentChats([]);
       } finally {
-        clearTimeout(safetyTimer);
         if (!controller.signal.aborted) {
           setIsLoadingChats(false);
         }
@@ -258,8 +286,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     initializeSession();
     
     return () => controller.abort();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, session]);
+  }, [userId, session, currentSessionId]);
 
   return {
     currentSessionId,

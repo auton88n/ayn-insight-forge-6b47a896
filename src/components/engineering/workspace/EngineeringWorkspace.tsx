@@ -13,7 +13,7 @@ import { useEngineeringHistory } from '@/hooks/useEngineeringHistory';
 import { useEngineeringSessionOptional } from '@/contexts/EngineeringSessionContext';
 import { SEO } from '@/components/shared/SEO';
 import { cn } from '@/lib/utils';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 import { type BuildingCodeId, type NBCCVersion } from '@/lib/buildingCodes';
 import { toast } from 'sonner';
 
@@ -125,7 +125,19 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
           hasSavedSessionRef.current = true;
           
           // Fire and forget - don't block unmount
-          spineApi.saveMemory(`engineering_session_${userId}`, context);
+          supabase.rpc('upsert_user_memory', {
+            _user_id: userId,
+            _memory_type: 'project',
+            _memory_key: `eng_session_${Date.now()}`,
+            _memory_data: {
+              calculators: calcUsed,
+              lastCalculator: (context as any).activeCalculator,
+              calculationsRun: (context as any).calculationsRun || 0,
+              sessionDuration,
+              date: new Date().toISOString()
+            },
+            _priority: 2
+          });
         }
       }
     };
@@ -210,7 +222,17 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
       tempDiv.style.background = 'white';
       
       // Fetch HTML from edge function
-      const data: any = await spineApi.generateEngineeringPdf({ calculator: selectedCalculator, outputs: currentOutputs, result: calculationResult });
+      const { data, error } = await supabase.functions.invoke('generate-engineering-pdf', {
+        body: {
+          type: selectedCalculator,
+          inputs: currentInputs,
+          outputs: currentOutputs || calculationResult?.outputs || {},
+          buildingCode: selectedBuildingCode,
+          projectName: `${selectedCalculator.charAt(0).toUpperCase() + selectedCalculator.slice(1).replace('_', ' ')} Design`,
+        }
+      });
+
+      if (error) throw error;
       
       // Parse and inject HTML content with styles
       const parser = new DOMParser();
@@ -281,7 +303,13 @@ export const EngineeringWorkspace: React.FC<EngineeringWorkspaceProps> = ({ user
     try {
       toast.loading('Generating DXF file...', { id: 'dxf-export' });
       
-      const data: any = await spineApi.generateDxf({ calculator: selectedCalculator, inputs: currentInputs, outputs: currentOutputs, result: calculationResult }); const error = null;
+      const { data, error } = await supabase.functions.invoke('generate-dxf', {
+        body: {
+          type: selectedCalculator,
+          inputs: currentInputs,
+          outputs: currentOutputs || calculationResult?.outputs || {},
+        }
+      });
 
       if (error) throw error;
 

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { adminApi } from '@/lib/adminApi';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export interface ComplianceProject {
@@ -42,6 +42,7 @@ export function useComplianceProject(userId: string) {
   const updateProject = useCallback((updates: Partial<ComplianceProject>) => {
     setProject(prev => {
       const next = { ...prev, ...updates };
+      // Auto-select code system based on country
       if (updates.location_country === 'US') next.code_system = 'IRC_2024';
       if (updates.location_country === 'CA') next.code_system = 'NBC_2025';
       return next;
@@ -51,12 +52,16 @@ export function useComplianceProject(userId: string) {
   const saveProject = useCallback(async () => {
     setSaving(true);
     try {
-      const { data: rows } = await adminApi.from('compliance_projects').insert([project]);
-      const row = Array.isArray(rows) ? rows[0] : rows;
-      const id = row?.id as string | undefined;
-      if (id) setProject(prev => ({ ...prev, id }));
+      const { data, error } = await supabase
+        .from('compliance_projects')
+        .insert(project as any)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      setProject(prev => ({ ...prev, id: (data as any).id }));
       toast.success('Project saved');
-      return id ?? null;
+      return (data as any).id as string;
     } catch (err) {
       toast.error('Failed to save project');
       return null;

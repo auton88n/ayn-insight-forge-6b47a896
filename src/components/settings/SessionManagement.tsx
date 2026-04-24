@@ -16,6 +16,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Monitor, Smartphone, Tablet, LogOut } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 

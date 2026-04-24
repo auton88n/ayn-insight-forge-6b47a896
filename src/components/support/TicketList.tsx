@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -50,10 +49,16 @@ export function TicketList({ onNewTicket, onSelectTicket }: TicketListProps) {
 
   const fetchTickets = async () => {
     try {
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const data = await spineApi.req<SupportTicket[]>('GET', '/support/tickets');
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
       setTickets(data || []);
     } catch (error) {
       console.error('Error fetching tickets:', error);

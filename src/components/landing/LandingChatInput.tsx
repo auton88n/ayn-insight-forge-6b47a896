@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
-import { LiquidButton } from '@/components/ui/button';
 import { ArrowUp, Plus, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -81,11 +80,10 @@ export const LandingChatInput: React.FC<LandingChatInputProps> = ({ onSendAttemp
         className={cn(
           "relative rounded-2xl overflow-hidden",
           "bg-background/95 backdrop-blur-xl",
-          "border border-ayn/40",
-          "shadow-[0_0_24px_-4px_hsl(var(--ayn-orange)/0.35)]",
+          "border border-border/50",
+          "shadow-lg shadow-black/5",
           "transition-all duration-300",
-          "hover:border-ayn/70 hover:shadow-[0_0_32px_-2px_hsl(var(--ayn-orange)/0.55)]",
-          "focus-within:border-ayn focus-within:shadow-[0_0_36px_-2px_hsl(var(--ayn-orange)/0.65)]"
+          "hover:border-border hover:shadow-xl"
         )}
       >
         {/* Row 1: Input Area */}
@@ -110,20 +108,23 @@ export const LandingChatInput: React.FC<LandingChatInputProps> = ({ onSendAttemp
 
           <AnimatePresence>
             {inputMessage.trim() && (
-              <motion.div
+              <motion.button
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ duration: 0.15 }}
+                onClick={handleSend}
+                className={cn(
+                  "flex-shrink-0 w-9 h-9 rounded-xl",
+                  "flex items-center justify-center",
+                  "bg-foreground text-background",
+                  "transition-all duration-200",
+                  "hover:scale-105 hover:shadow-lg",
+                  "active:scale-95"
+                )}
               >
-                <LiquidButton
-                  size="icon"
-                  onClick={handleSend}
-                  aria-label="Send"
-                >
-                  <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-                </LiquidButton>
-              </motion.div>
+                <ArrowUp className="w-5 h-5" strokeWidth={2.5} />
+              </motion.button>
             )}
           </AnimatePresence>
         </div>

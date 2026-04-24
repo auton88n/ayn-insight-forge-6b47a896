@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { adminApi } from '@/lib/adminApi';
+import { Session } from '@supabase/supabase-js';
+import { adminSupabase } from './adminSupabase';
 import { AdminPanel } from '@/components/AdminPanel';
 import AdminCustomOrders from '@/pages/AdminCustomOrders';
 
@@ -10,59 +11,6 @@ const LOCKOUT_KEY = 'ayn_admin_lockout';
 const ATTEMPTS_KEY = 'ayn_admin_attempts';
 const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
 
-// Use the SAME token as the main app — no separate admin login needed
-const MAIN_TOKEN_KEY = 'ayn_access_token';
-const MAIN_USER_KEY  = 'ayn_user';
-const SPINE_BASE = 'https://spine.aynn.io';
-
-interface AdminUser {
-  id: string;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-  is_admin: boolean;
-}
-
-interface AdminSession {
-  access_token: string;
-  refresh_token: string;
-  user: AdminUser;
-}
-
-function readSession(): AdminSession | null {
-  try {
-    // Try main app token first
-    const token = localStorage.getItem(MAIN_TOKEN_KEY);
-    const userRaw = localStorage.getItem(MAIN_USER_KEY);
-    if (token && userRaw) {
-      const user = JSON.parse(userRaw);
-      return {
-        access_token: token,
-        refresh_token: '',
-        user: {
-          id: user.id || user.sub || '',
-          email: user.email || '',
-          first_name: user.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
-          last_name: user.last_name || '',
-          is_admin: user.is_admin ?? false,
-        }
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function clearSession() {
-  sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
-}
-
-async function adminSignOut() {
-  clearSession();
-  window.location.href = '/';
-}
-
 function Loader() {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center">
@@ -71,14 +19,15 @@ function Loader() {
   );
 }
 
-function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: () => void }) {
+// PIN screen — shown AFTER login since verify-admin-pin requires a JWT
+function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => void }) {
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
-  const inputRefs = { current: [] as (HTMLInputElement | null)[] };
+  const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     const lockout = localStorage.getItem(LOCKOUT_KEY);
@@ -89,7 +38,8 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
       if (Date.now() < until) setLockedUntil(until);
       else { localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY); }
     }
-    setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    // Focus first input
+    setTimeout(() => inputs.current[0]?.focus(), 100);
   }, []);
 
   useEffect(() => {
@@ -108,18 +58,19 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
     if (lockedUntil || checking) return;
     setChecking(true);
     try {
-      const r = await fetch(`${SPINE_BASE}/admin/verify-pin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ pin: fullPin }),
+      // Use the edge function — requires authenticated session
+      const { data, error: fnError } = await adminSupabase.functions.invoke('verify-admin-pin', {
+        body: { pin: fullPin },
       });
-      const data = await r.json().catch(() => ({} as any));
-      const ok = r.ok && data?.success;
 
-      if (!ok) {
+      if (fnError || !data?.success) {
+        if (data?.locked) {
+          // Server-side lockout
+          const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
+          localStorage.setItem(LOCKOUT_KEY, until.toString());
+          setLockedUntil(until);
+          return;
+        }
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
         localStorage.setItem(ATTEMPTS_KEY, newAttempts.toString());
@@ -128,21 +79,21 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
           localStorage.setItem(LOCKOUT_KEY, until.toString());
           localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
           setLockedUntil(until);
+          try { await adminSupabase.functions.invoke('admin-pin-alert', { body: {} }); } catch {}
         } else {
           setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`);
           setPin(['', '', '', '']);
-          setTimeout(() => inputRefs.current[0]?.focus(), 100);
+          setTimeout(() => inputs.current[0]?.focus(), 100);
         }
       } else {
-        localStorage.removeItem(LOCKOUT_KEY);
-        localStorage.removeItem(ATTEMPTS_KEY);
+        localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
         sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
         onSuccess();
       }
     } catch {
       setError('Unable to verify PIN. Please try again.');
       setPin(['', '', '', '']);
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      setTimeout(() => inputs.current[0]?.focus(), 100);
     } finally {
       setChecking(false);
     }
@@ -151,12 +102,12 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
   const handleChange = (i: number, val: string) => {
     if (lockedUntil || !/^\d*$/.test(val) || checking) return;
     const newPin = [...pin]; newPin[i] = val.slice(-1); setPin(newPin); setError('');
-    if (val && i < 3) inputRefs.current[i + 1]?.focus();
+    if (val && i < 3) inputs.current[i + 1]?.focus();
     if (newPin.every(d => d !== '')) checkPin(newPin.join(''));
   };
 
   const handleKey = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !pin[i] && i > 0) inputRefs.current[i - 1]?.focus();
+    if (e.key === 'Backspace' && !pin[i] && i > 0) inputs.current[i - 1]?.focus();
   };
 
   const mins = Math.floor(countdown / 60);
@@ -181,7 +132,7 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
             <div className="text-white/50 text-sm mb-8">Enter admin PIN</div>
             <div className="flex gap-3 justify-center mb-4">
               {pin.map((digit, i) => (
-                <input key={i} ref={el => inputRefs.current[i] = el} type="password" inputMode="numeric"
+                <input key={i} ref={el => inputs.current[i] = el} type="password" inputMode="numeric"
                   maxLength={1} value={digit} onChange={e => handleChange(i, e.target.value)}
                   onKeyDown={e => handleKey(i, e)}
                   disabled={checking}
@@ -191,7 +142,7 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
             </div>
             {checking && <p className="text-white/30 text-xs">Verifying...</p>}
             {error && !checking && <p className="text-red-400 text-xs">{error}</p>}
-            <button onClick={adminSignOut} className="text-white/20 text-xs mt-6 underline">
+            <button onClick={() => { adminSupabase.auth.signOut(); }} className="text-white/20 text-xs mt-6 underline">
               Sign out
             </button>
           </>
@@ -201,15 +152,38 @@ function PinScreen({ session, onSuccess }: { session: AdminSession; onSuccess: (
   );
 }
 
-function NotLoggedIn() {
+function LoginScreen({ onSuccess }: { onSuccess: (s: Session) => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true); setError('');
+    const { data, error } = await adminSupabase.auth.signInWithPassword({ email, password });
+    if (error) { setError(error.message); setLoading(false); return; }
+    if (data.session) onSuccess(data.session);
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="text-center">
-        <div className="text-white/70 text-lg mb-2">Admin Access</div>
-        <div className="text-white/30 text-sm mb-6">You need to be logged in to access the admin panel.</div>
-        <a href="/dashboard" className="text-white bg-white/10 hover:bg-white/20 px-6 py-3 rounded-xl text-sm transition-all">
-          Go to Dashboard →
-        </a>
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="text-xl font-bold text-white mb-1">Admin access</div>
+          <div className="text-white/30 text-sm">Sign in to continue</div>
+        </div>
+        <form onSubmit={handleLogin} className="space-y-3">
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 text-sm" required />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 text-sm" required />
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full bg-white text-black rounded-xl py-3 text-sm font-medium hover:bg-white/90 disabled:opacity-50">
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -220,83 +194,74 @@ function AccessDenied() {
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
         <div className="text-white/50 mb-4">Access denied — admins only</div>
-        <a href="/dashboard" className="text-white/30 text-sm underline">Go back</a>
+        <button onClick={() => adminSupabase.auth.signOut()} className="text-white/30 text-sm underline">Sign out</button>
       </div>
     </div>
   );
 }
 
-type Step = 'checking' | 'not_logged_in' | 'pin' | 'ready' | 'denied';
+type Step = 'checking' | 'login' | 'pin' | 'ready' | 'denied';
 
 export default function AdminApp() {
   const [step, setStep] = useState<Step>('checking');
-  const [session, setSession] = useState<AdminSession | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+
+  const checkAdmin = useCallback(async (s: Session) => {
+    // Check sessionStorage cache first — skip DB call if already verified this session
+    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
+    if (cached === s.user.id) { setStep('ready'); return; }
+    try {
+      const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
+      if (data?.role === 'admin' || data?.role === 'duty') {
+        // Verified as admin — now require PIN
+        setStep('pin');
+      } else {
+        setStep('denied');
+      }
+    } catch { setStep('denied'); }
+  }, []);
 
   useEffect(() => {
-    const s = readSession();
+    adminSupabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSession(session);
+        // If already PIN-verified this session, go straight to ready
+        const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
+        if (cached === session.user.id) { setStep('ready'); }
+        else { checkAdmin(session); }
+      } else {
+        setStep('login');
+      }
+    });
 
-    if (!s || !s.access_token) {
-      setStep('not_logged_in');
-      return;
-    }
+    const { data: { subscription } } = adminSupabase.auth.onAuthStateChange((_e, s) => {
+      if (!s) {
+        sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
+        setStep('login'); setSession(null);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [checkAdmin]);
 
-    // Check PIN cache
-    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-    if (cached === s.user.id) {
-      setSession(s);
-      setStep('ready');
-      return;
-    }
+  const handleLoginSuccess = useCallback((s: Session) => {
+    setSession(s);
+    checkAdmin(s);
+  }, [checkAdmin]);
 
-    // Verify token is admin via spine
-    fetch(`${SPINE_BASE}/admin/session`, {
-      headers: { 'Authorization': `Bearer ${s.access_token}` }
-    })
-      .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-      .then(({ ok, data }) => {
-        if (!ok) {
-          setStep('not_logged_in');
-          return;
-        }
-        if (!data?.user?.is_admin) {
-          setStep('denied');
-          return;
-        }
-        // Merge is_admin into session
-        const enriched: AdminSession = {
-          ...s,
-          user: { ...s.user, ...data.user, is_admin: true }
-        };
-        // Store as admin token so adminApi works
-        localStorage.setItem('ayn_admin_token', s.access_token);
-        setSession(enriched);
-        setStep('pin');
-      })
-      .catch(() => setStep('not_logged_in'));
+  const handlePinSuccess = useCallback(() => {
+    setStep('ready');
   }, []);
 
   if (step === 'checking') return <Loader />;
-  if (step === 'not_logged_in') return <NotLoggedIn />;
+  if (step === 'login') return <LoginScreen onSuccess={handleLoginSuccess} />;
+  if (step === 'pin') return <PinScreen session={session!} onSuccess={handlePinSuccess} />;
   if (step === 'denied') return <AccessDenied />;
 
-  if (step === 'pin' && session) {
-    return (
-      <PinScreen
-        session={session}
-        onSuccess={() => setStep('ready')}
-      />
-    );
-  }
-
-  if (step === 'ready') {
-    return (
-      <Routes>
-        <Route path="/" element={<AdminPanel />} />
-        <Route path="/custom-orders" element={<AdminCustomOrders />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    );
-  }
-
-  return <Loader />;
+  return (
+    <Routes>
+      <Route path="/" element={<AdminPanel session={session!} isAdmin={true} onBackClick={() => {}} />} />
+      <Route path="/custom-orders" element={<AdminCustomOrders />} />
+      <Route path="*" element={<Navigate to="/manage-bae76e99d97e188b" replace />} />
+    </Routes>
+  );
 }

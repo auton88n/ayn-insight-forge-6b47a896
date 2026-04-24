@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { 
   CheckCircle, 
   XCircle, 
@@ -91,6 +90,7 @@ interface BugReport {
   suggestedFix: string;
 }
 
+import { SUPABASE_URL } from '@/config';
 
 /**
  * Safely fetch JSON from an edge function with proper content-type validation
@@ -258,7 +258,7 @@ const TestResultsDashboard: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/test-results");
+      const { data, error } = await supabase.rpc('get_admin_test_results_data');
       if (error) throw error;
       const d = data as any;
 
@@ -312,17 +312,35 @@ const TestResultsDashboard: React.FC = () => {
           totalDuration: number;
         };
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/run-real-tests`, {
+      }>(`${SUPABASE_URL}/functions/v1/run-real-tests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ suite: config.suite }),
       });
       
       if (result.success && result.results && result.summary) {
-        /* spine */;
+        await supabase.from('test_runs').insert({
+          id: runId,
+          run_name: config.name,
+          total_tests: result.summary.total,
+          passed_tests: result.summary.passed,
+          failed_tests: result.summary.failed,
+          skipped_tests: 0,
+          duration_ms: result.summary.totalDuration,
+          environment: 'production',
+          completed_at: new Date().toISOString(),
+        });
 
         for (const testResult of result.results) {
-          /* spine */;
+          await supabase.from('test_results').insert({
+            run_id: runId,
+            test_suite: testResult.category,
+            test_name: testResult.name,
+            status: testResult.status,
+            duration_ms: testResult.duration_ms,
+            error_message: testResult.error_message,
+            browser: 'Edge Function',
+          });
         }
 
         const passRate = result.summary.passRate;
@@ -357,7 +375,7 @@ const TestResultsDashboard: React.FC = () => {
         analysis?: string;
         modelUsed?: string;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-bug-hunter`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-bug-hunter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -409,7 +427,7 @@ const TestResultsDashboard: React.FC = () => {
         }>;
         analysis?: string;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-comprehensive-tester`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-comprehensive-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ concurrency: 3 }),
@@ -475,7 +493,7 @@ const TestResultsDashboard: React.FC = () => {
         }>;
         analysis?: string;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-ux-tester`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-ux-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
@@ -536,7 +554,7 @@ const TestResultsDashboard: React.FC = () => {
         byIntent?: Record<string, unknown>;
         sloTargets?: Record<string, { ttft: number; total: number }>;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-response-time-tester`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-response-time-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intents: ['chat', 'engineering'], iterations: 2 }),
@@ -576,7 +594,7 @@ const TestResultsDashboard: React.FC = () => {
         byCategory?: Record<string, unknown>;
         improvements?: string[];
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-ayn-evaluator`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-ayn-evaluator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -619,7 +637,7 @@ const TestResultsDashboard: React.FC = () => {
         results?: Array<{ path: string; name: string; status: 'passed' | 'warning' | 'failed'; analysisMethod: string; issues: Array<{ type: string; severity: string; description: string; element?: string; suggestion: string }>; metrics: { htmlSize: number; loadTime: number; elementsCount: number; imagesCount: number; linksCount: number; formsCount: number } }>;
         aiAnalysis?: string;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-visual-tester`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-visual-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -665,7 +683,7 @@ const TestResultsDashboard: React.FC = () => {
         byCategory?: Record<string, { passed: number; failed: number; skipped: number }>;
         failures?: Array<{ endpoint: string; category: string; httpStatus: number; error?: string; payload?: unknown }>;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-crash-tester`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-crash-tester`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -717,7 +735,7 @@ const TestResultsDashboard: React.FC = () => {
         emotionCoverage?: Record<string, { tested: boolean; matched: boolean }>;
         personalityScore?: number;
         error?: string;
-      }>(`https://spine.aynn.io/admin/edge/ai-conversation-evaluator`, {
+      }>(`${SUPABASE_URL}/functions/v1/ai-conversation-evaluator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quick }),

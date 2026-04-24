@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { 
   Bot, 
   RefreshCw, 
@@ -70,7 +69,7 @@ export function LLMManagement() {
 
   const fetchModels = async () => {
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/llm");
+      const { data, error } = await supabase.rpc('get_admin_llm_management');
       if (error) throw error;
       const d = data as any;
 

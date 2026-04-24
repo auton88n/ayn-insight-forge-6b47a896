@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { cn, debounce } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +16,7 @@ import { useBubbleAnimation } from "@/hooks/useBubbleAnimation";
 import { useAYNEmotion, AYNEmotion } from "@/stores/emotionStore";
 import { useSoundStore } from "@/stores/soundStore";
 import { getBubbleType } from "@/lib/emotionMapping";
+import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticFeedback } from "@/lib/haptics";
 import { useEmotionOrchestrator } from "@/hooks/useEmotionOrchestrator";
@@ -335,7 +335,13 @@ export const CenterStageLayout = ({
   // Fetch dynamic suggestions
   const fetchDynamicSuggestions = useCallback(async (userMessage: string, aynResponse: string, mode: AIMode) => {
     try {
-      const data: any = await spineApi.getSuggestions(userMessage || aynResponse || 'chat', (mode as string) || 'chat');
+      const { data, error } = await supabase.functions.invoke("generate-suggestions", {
+        body: { lastUserMessage: userMessage, lastAynResponse: aynResponse, mode },
+      });
+      if (error) {
+        if (import.meta.env.DEV) console.error("Failed to fetch suggestions:", error);
+        return DEFAULT_SUGGESTIONS;
+      }
       return data?.suggestions || DEFAULT_SUGGESTIONS;
     } catch (err) {
       if (import.meta.env.DEV) console.error("Error fetching suggestions:", err);

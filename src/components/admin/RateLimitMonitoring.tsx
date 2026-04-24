@@ -1,9 +1,7 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { adminApi as supabase } from '@/lib/adminApi';
-
-interface Session { user: { id: string; email?: string }; access_token?: string }
+import { Session } from '@supabase/supabase-js';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,7 +61,7 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const { data, error } = await spineApi.req("GET", "/admin/rate-limits");
+      const { data, error } = await supabase.rpc('get_admin_rate_limit_stats');
       if (error) throw error;
       // RPC now returns user_name and user_email directly — no second query needed
       setStats(Array.isArray(data) ? data as RateLimitStat[] : []);
@@ -85,7 +83,10 @@ export const RateLimitMonitoring = ({ session }: RateLimitMonitoringProps) => {
 
   const handleUnblock = async (userId: string, endpoint: string) => {
     try {
-      const { error } = await spineApi.req("POST", "/admin/unblock-user", { userId });
+      const { error } = await supabase.rpc('admin_unblock_user', {
+        p_user_id: userId,
+        p_endpoint: endpoint
+      });
       if (error) throw error;
       toast.success('User unblocked');
       fetchStats();

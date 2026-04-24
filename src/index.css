@@ -207,10 +207,6 @@ button, a, input, textarea, select {
 
 @layer base {
   :root {
-    /* AYN brand orange — matches the eye iris exactly */
-    --ayn-orange: 25 100% 60%;
-    --ayn-orange-hover: 25 100% 55%;
-
     /* Premium Black & White Light Mode */
     --background: 0 0% 100%;           /* Pure white #FFFFFF */
     --foreground: 0 0% 4%;             /* Near black #0a0a0a */

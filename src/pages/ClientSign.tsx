@@ -1,7 +1,7 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-
+import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
 interface ServiceItem { name: string; description: string; price: number; quantity: number; }
 interface Order {
@@ -128,12 +128,12 @@ export default function ClientSign() {
   const fetchOrder = useCallback(async () => {
     if (!token || token.length < 10) return;
     try {
-      const data: any = null; const error: any = null;
+      const { data, error } = await supabase.from('custom_orders').select('*').eq('signing_token', token).single();
       if (error || !data) throw new Error('Contract not found');
       setOrder(data as unknown as Order);
       if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
       if (!data.client_viewed_at) {
-        /* spine migration pending */;
+        await supabase.from('custom_orders').update({ client_viewed_at: new Date().toISOString(), status: data.status === 'sent' ? 'viewed' : data.status }).eq('signing_token', token);
       }
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }, [token]);
@@ -142,15 +142,17 @@ export default function ClientSign() {
 
   const saveSignature = async (dataUrl: string, party: 'admin' | 'client') => {
     if (!order) return;
-    const base64 = dataUrl.split(',')[1];
+    const blob = await fetch(dataUrl).then(r => r.blob());
     const path = `signatures/order_${order.id}_${party}_${Date.now()}.png`;
-    await spineApi.storageUpload('generated-files', path, base64, 'image/png');
-    const { public_url: sigUrl } = await spineApi.storageGetUrl('generated-files', path);
+    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
+    if (upErr) throw upErr;
+    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
+    const sigUrl = urlData.publicUrl;
     const now = new Date().toISOString();
     const updates: any = party === 'admin'
       ? { admin_signature_url: sigUrl, admin_signed_at: now }
       : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    /* spine migration pending */;
+    await supabase.from('custom_orders').update(updates).eq('signing_token', token as string);
     const updated = { ...order, ...updates };
     setOrder(updated);
     if (updated.admin_signature_url && updated.client_signature_url) {

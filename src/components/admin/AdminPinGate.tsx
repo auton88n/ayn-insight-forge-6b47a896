@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Lock, Delete, Loader2, ShieldAlert } from 'lucide-react';
-import { adminApi } from '@/lib/spineApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 
 interface AdminPinGateProps {
   open: boolean;
@@ -55,20 +55,24 @@ export function AdminPinGate({ open, onSuccess, onCancel }: AdminPinGateProps) {
     setError('');
 
     try {
-      const data: any = await adminApi.verifyAdminPin(pin);
+      const { data, error: fnError } = await supabase.functions.invoke('verify-admin-pin', {
+        body: { pin }
+      });
 
-      if (data?.valid || data?.success) {
+      if (fnError) throw fnError;
+
+      if (data?.success) {
         toast.success('Access granted');
         setPin('');
         setAttempts(0);
         onSuccess();
       } else if (data?.locked) {
         setIsLocked(true);
-        setError(`Too many attempts. Locked for ${Math.ceil((data.lockoutRemaining ?? 0) / 60)} minutes.`);
+        setError(`Too many attempts. Locked for ${Math.ceil(data.lockoutRemaining / 60)} minutes.`);
         setTimeout(() => {
           setIsLocked(false);
           setAttempts(0);
-        }, (data.lockoutRemaining ?? 60) * 1000);
+        }, data.lockoutRemaining * 1000);
       } else {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);

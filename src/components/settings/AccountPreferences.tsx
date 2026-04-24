@@ -6,8 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ProfileAvatarUpload } from '@/components/dashboard/ProfileAvatarUpload';
 import { UsageCard } from '@/components/dashboard/UsageCard';
@@ -51,22 +50,24 @@ export const AccountPreferences = ({ userId, userEmail, accessToken }: AccountPr
     }
     
     const loadProfile = async () => {
-      try {
-        const data: any = await spineApi.getProfile();
-        if (data) {
-          const profileData = {
-            contact_person: data.contact_person || '',
-            company_name: data.company_name || '',
-            business_type: data.business_type || '',
-            business_context: data.business_context || '',
-            avatar_url: data.avatar_url || '',
-          };
-          setProfile(profileData);
-          setOriginalProfile(profileData);
-        }
-      } catch (err) {
-        console.error('Error loading profile:', err);
+      const { data } = await supabase
+        .from('profiles')
+        .select('contact_person, company_name, business_type, business_context, avatar_url')
+        .eq('user_id', userId)
+        .single();
+
+      if (data) {
+        const profileData = {
+          contact_person: data.contact_person || '',
+          company_name: data.company_name || '',
+          business_type: data.business_type || '',
+          business_context: (data as any).business_context || '',
+          avatar_url: data.avatar_url || '',
+        };
+        setProfile(profileData);
+        setOriginalProfile(profileData);
       }
+
       setLoading(false);
     };
 
@@ -81,19 +82,20 @@ export const AccountPreferences = ({ userId, userEmail, accessToken }: AccountPr
 
   // Function to refresh profile after avatar update
   const refreshProfile = async () => {
-    try {
-      const data: any = await spineApi.getProfile();
-      if (data) {
-        setProfile(prev => ({
-          ...prev,
-          contact_person: data.contact_person || '',
-          company_name: data.company_name || '',
-          business_type: data.business_type || '',
-          avatar_url: data.avatar_url || '',
-        }));
-      }
-    } catch (err) {
-      console.error('Error refreshing profile:', err);
+    const { data } = await supabase
+      .from('profiles')
+      .select('contact_person, company_name, business_type, avatar_url')
+      .eq('user_id', userId)
+      .single();
+    
+    if (data) {
+      setProfile(prev => ({
+        ...prev,
+        contact_person: data.contact_person || '',
+        company_name: data.company_name || '',
+        business_type: data.business_type || '',
+        avatar_url: data.avatar_url || '',
+      }));
     }
   };
 
@@ -102,12 +104,17 @@ export const AccountPreferences = ({ userId, userEmail, accessToken }: AccountPr
     
     setSaving(true);
     try {
-      await spineApi.updateProfile({
-        contact_person: profile.contact_person,
-        company_name: profile.company_name,
-        business_type: profile.business_type,
-        business_context: profile.business_context,
-      });
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          contact_person: profile.contact_person,
+          company_name: profile.company_name,
+          business_type: profile.business_type,
+          business_context: profile.business_context,
+        } as any)
+        .eq('user_id', userId);
+
+      if (error) throw error;
 
       setOriginalProfile(profile);
       registerFormChange('account', false);
@@ -339,7 +346,9 @@ export const AccountPreferences = ({ userId, userEmail, accessToken }: AccountPr
                   setChangingPassword(true);
                   if (!userEmail) throw new Error('No email found');
                   localStorage.setItem('password_reset_email', userEmail.trim().toLowerCase());
-                  const { error } = await spineAuth.resetPasswordForEmail(userEmail);
+                  const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
                   if (error) throw error;
                   toast({
                     title: t('common.success'),

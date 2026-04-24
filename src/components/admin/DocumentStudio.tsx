@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 
 const DOC_TYPES = [
   { value: 'Business Plan', label: 'Business Plan' },
@@ -36,9 +37,9 @@ export const DocumentStudio = () => {
     if (!prompt.trim()) { toast.error('Please describe what you need'); return; }
     setIsGenerating(true);
     try {
-      const res = await fetch(`https://spine.aynn.io/admin/edge/generate-business-document`, {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-business-document`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ayn_admin_token') || ''}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ prompt: prompt.trim(), documentType: docType }),
       });
       if (!res.ok) {

@@ -1,8 +1,8 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useCallback, useState } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { validateFileExtension, scanForMaliciousContent } from '@/lib/fileValidation';
 
@@ -102,9 +102,13 @@ export const SurveyUploader: React.FC<SurveyUploaderProps> = ({
 
     try {
       const content = await file.text();
+      
+      const { data, error } = await supabase.functions.invoke('parse-survey-file', {
+        body: { content, fileName: file.name }
+      });
 
-      const data: any = await spineApi.engineeringAnalysis({ content, fileName: file.name }, 'survey');
-
+      if (error) throw error;
+      
       if (!data.success) {
         throw new Error(data.error || 'Failed to parse file');
       }

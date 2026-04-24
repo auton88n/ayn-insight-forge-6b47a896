@@ -6,12 +6,11 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { differenceInDays, differenceInHours } from 'date-fns';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CreditUpgradeCardProps {
   remaining?: number;
   totalLimit?: number;
-  bonusCredits?: number;
   allowed?: boolean;
   resetsAt?: string | null;
   tier?: string;
@@ -42,7 +41,6 @@ export const CreditUpgradeCard = ({
   // These are fallback props — component will override with live data
   remaining: propRemaining,
   totalLimit: propTotalLimit,
-  bonusCredits: propBonusCredits = 0,
   allowed: propAllowed,
   resetsAt: propResetsAt,
   tier: propTier,
@@ -58,13 +56,13 @@ export const CreditUpgradeCard = ({
     if (!userId) return;
     const check = async () => {
       try {
-        // TODO(spine): /user/beta-feedback/exists — returns { exists: boolean }
-        const data: any = await spineApi.req('GET', '/user/beta-feedback/exists');
-        setHasSubmittedFeedback(!!data?.exists);
-      } catch (error) {
-        // Silent fallback — assume not submitted
-        setHasSubmittedFeedback(false);
-      }
+        const { data } = await supabase
+          .from('beta_feedback')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+        setHasSubmittedFeedback(data ? data.length > 0 : false);
+      } catch (error) { console.error("Error checking beta feedback:", error); }
     };
     check();
   }, [userId]);
@@ -237,44 +235,16 @@ export const CreditUpgradeCard = ({
         </div>
       </div>
 
-      {/* Progress Bar — white for base credits, blue for bonus */}
+      {/* Progress Bar */}
       <div className="flex items-center gap-2">
         <div className="flex-1">
-          {propBonusCredits > 0 ? (() => {
-            const baseLimit = totalLimit - propBonusCredits;
-            const baseRemaining = Math.min(remaining, baseLimit);
-            const bonusRemaining = Math.max(0, remaining - baseLimit);
-            const basePct = baseLimit > 0 ? Math.min((baseRemaining / totalLimit) * 100, 100) : 0;
-            const bonusPct = Math.min((bonusRemaining / totalLimit) * 100, 100);
-            return (
-              <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden flex">
-                {/* Blue segment = bonus credits remaining */}
-                {bonusPct > 0 && (
-                  <div
-                    className="h-full bg-blue-400 rounded-l-full transition-all duration-300"
-                    style={{ width: `${bonusPct}%` }}
-                  />
-                )}
-                {/* White segment = base daily credits remaining */}
-                {basePct > 0 && (
-                  <div
-                    className={cn(
-                      "h-full transition-all duration-300",
-                      bonusPct > 0 ? "" : "rounded-l-full",
-                      "rounded-r-full",
-                      isLow ? "bg-destructive" : "bg-white/80"
-                    )}
-                    style={{ width: `${basePct}%` }}
-                  />
-                )}
-              </div>
-            );
-          })() : (
-            <Progress
-              value={100 - percentage}
-              className={cn("h-1.5", isLow && "[&>div]:bg-destructive")}
-            />
-          )}
+          <Progress
+            value={100 - percentage}
+            className={cn(
+              "h-1.5",
+              isLow && "[&>div]:bg-destructive"
+            )}
+          />
         </div>
         {formattedResetTime && (
           <span className="text-xs text-muted-foreground whitespace-nowrap">

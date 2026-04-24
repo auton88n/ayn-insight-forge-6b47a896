@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, forwardRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
-import { Button, LiquidButton } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, ChevronDown, ArrowUp, FileText, X, Image as ImageIcon, AlertTriangle, MessageSquarePlus, Loader2, FileImage, FileCode, FileSpreadsheet, FileArchive, FileAudio, FileVideo, File, RefreshCw, Check, Volume2, VolumeX, Brain, Sparkles, Mic, MicOff, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -476,30 +476,21 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
 
           {/* Send button - flexbox aligned to bottom */}
           <AnimatePresence>
-            {(inputMessage.trim() || selectedFile) && !isDisabled && (
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-                className="shrink-0 mb-1"
-              >
-                <LiquidButton
-                  size="sm"
-                  onClick={handleSend}
-                  disabled={isDisabled || isUploading}
-                  className={cn(
-                    "w-10 h-10 px-0",
-                    "disabled:cursor-not-allowed",
-                    isUploading && "opacity-70 cursor-wait"
-                  )}
-                >
-                  {isUploading
-                    ? <Loader2 className="w-5 h-5 animate-spin" />
-                    : <ArrowUp className="w-5 h-5" strokeWidth={2.5} />}
-                </LiquidButton>
-              </motion.div>
-            )}
+            {(inputMessage.trim() || selectedFile) && !isDisabled && <motion.button initial={{
+            scale: 0,
+            opacity: 0
+          }} animate={{
+            scale: 1,
+            opacity: 1
+          }} exit={{
+            scale: 0,
+            opacity: 0
+          }} transition={{
+            duration: 0.15,
+            ease: "easeOut"
+          }} onClick={handleSend} disabled={isDisabled || isUploading} className={cn("shrink-0 mb-1", "w-10 h-10 rounded-xl", "flex items-center justify-center", "transition-all duration-200", "shadow-lg hover:shadow-xl", "disabled:cursor-not-allowed disabled:hover:scale-100", isUploading ? "bg-muted cursor-wait opacity-70" : cn("hover:scale-105 active:scale-95", getSendButtonClass(selectedMode)))}>
+                {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <ArrowUp className="w-5 h-5" strokeWidth={2.5} />}
+              </motion.button>}
           </AnimatePresence>
         </div>
 

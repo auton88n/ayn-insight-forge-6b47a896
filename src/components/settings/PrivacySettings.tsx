@@ -5,15 +5,14 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserSettings } from '@/hooks/useUserSettings';
-import { spineAuth } from '@/lib/spineAuth';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
+import { supabaseApi } from '@/lib/supabaseApi';
 
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Session } from '@supabase/supabase-js';
 import { MemoryManagement } from './MemoryManagement';
-
-interface Session { user: { id: string; email?: string }; access_token: string }
 
 interface PrivacySettingsProps {
   userId: string;
@@ -32,9 +31,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
     if (!userId) return;
 
     try {
-      // Delete all sessions via spine — get list first then delete each
-const sessions = await spineApi.listChats();
-await Promise.all(sessions.map((s: any) => spineApi.deleteSession(s.session_id)));
+      await supabaseApi.delete(`messages?user_id=eq.${userId}`, token);
 
       toast({
         title: t('common.success'),
@@ -54,11 +51,25 @@ await Promise.all(sessions.map((s: any) => spineApi.deleteSession(s.session_id))
     if (!userId) return;
 
     try {
-      // TODO(spine): /user/account DELETE — fully removes account
-      await spineApi.req('DELETE', '/user/account');
+      // Call edge function to fully delete account including auth.users
+      const response = await fetch(
+        'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/delete-account',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete account');
+      }
 
       // Sign out locally and redirect
-      await spineAuth.signOut();
+      await supabase.auth.signOut();
       
       toast({
         title: t('common.success'),

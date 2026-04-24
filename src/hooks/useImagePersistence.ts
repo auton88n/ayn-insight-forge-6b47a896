@@ -1,6 +1,5 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback } from 'react';
-
+import { supabase } from '@/integrations/supabase/client';
 
 // Cache for URL mappings to avoid re-saving
 const urlCache = new Map<string, string>();
@@ -35,7 +34,16 @@ export const useImagePersistence = () => {
     setError(null);
 
     try {
-      const data = await spineApi.saveImage(imageUrl, '');
+      const { data, error: fnError } = await supabase.functions.invoke('save-generated-image', {
+        body: { imageUrl: normalizedUrl }
+      });
+
+      if (fnError) {
+        // Cache negative result to avoid repeated retries
+        urlCache.set(normalizedUrl, normalizedUrl);
+        throw new Error(fnError.message);
+      }
+
       if (data?.error) {
         urlCache.set(normalizedUrl, normalizedUrl);
         throw new Error(data.error);
@@ -98,16 +106,15 @@ export const persistDalleImage = async (imageUrl: string): Promise<string> => {
     return urlCache.get(normalizedUrl)!;
   }
 
-  let data: any = null;
-  try {
-    data = await spineApi.saveImage(imageUrl, '');
-  } catch (err) {
-    if (import.meta.env.DEV) console.error('Failed to persist image:', err);
-    urlCache.set(normalizedUrl, normalizedUrl);
-    if (normalizedUrl !== imageUrl) urlCache.set(imageUrl, normalizedUrl);
-    return normalizedUrl;
-  }
-  if (data?.error) {
+  const { data, error } = await supabase.functions.invoke('save-generated-image', {
+    body: { imageUrl: normalizedUrl }
+  });
+
+  // Best-effort: never throw, and cache failures to avoid retry loops
+  if (error || data?.error) {
+    if (import.meta.env.DEV) {
+      console.error('Failed to persist image:', error || data?.error);
+    }
     urlCache.set(normalizedUrl, normalizedUrl);
     if (normalizedUrl !== imageUrl) urlCache.set(imageUrl, normalizedUrl);
     return normalizedUrl;

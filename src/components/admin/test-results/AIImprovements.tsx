@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Lightbulb, Play, Loader2, AlertCircle, Clock, Zap } from 'lucide-react';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 interface Improvement {
@@ -24,7 +24,7 @@ const AIImprovements: React.FC = () => {
   const runAnalysis = async () => {
     setIsRunning(true);
     try {
-      const data: { improvements: any[]; aiAnalysis?: string } = { improvements: [], aiAnalysis: 'Analysis requires configuration' }; const error = null;
+      const { data, error } = await supabase.functions.invoke('ai-improvement-advisor', { body: {} });
       if (error) throw error;
       
       setImprovements(data.improvements || []);

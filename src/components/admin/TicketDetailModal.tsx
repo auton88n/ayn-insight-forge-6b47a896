@@ -1,6 +1,4 @@
-import { spineApi } from '@/lib/spineApi';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
 import { motion } from 'framer-motion';
 import { 
   X, 
@@ -20,7 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { adminApi as supabase } from '@/lib/adminApi';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 
 interface Ticket {
@@ -103,7 +101,7 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
 
     setIsSending(true);
     try {
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase
         .from('ticket_messages')
@@ -139,7 +137,15 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
       // Send email notification to user (if not internal note)
       if (!isInternalNote && ticket.guest_email) {
         try {
-          await spineApi.sendTicketReply(ticket.id, newMessage.trim(), ticket.guest_email);
+          await supabase.functions.invoke('send-ticket-reply', {
+            body: {
+              ticketId: ticket.id,
+              userEmail: ticket.guest_email,
+              userName: ticket.guest_name || 'User',
+              subject: ticket.subject,
+              message: newMessage.trim(),
+            },
+          });
         } catch (emailError) {
           console.error('Failed to send email notification:', emailError);
         }
@@ -181,9 +187,19 @@ const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
         .reverse()
         .find(m => m.sender_type === 'user')?.message || '';
 
-      const data: any = await spineApi.supportBot(lastUserMessage, '');
+      const { data, error } = await supabase.functions.invoke('support-bot', {
+        body: {
+          message: lastUserMessage,
+          conversationHistory: messages.map(m => ({
+            role: m.sender_type === 'user' ? 'user' : 'assistant',
+            content: m.message,
+          })),
+        },
+      });
 
-      setNewMessage(data?.answer || data?.message || '');
+      if (error) throw error;
+      
+      setNewMessage(data.answer);
       toast.success('AI draft generated');
     } catch (error) {
       console.error('Error generating AI response:', error);

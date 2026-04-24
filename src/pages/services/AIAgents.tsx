@@ -1,5 +1,4 @@
 import { useState, memo } from 'react';
-import { spineApi } from '@/lib/spineApi';
 import { ArrowLeft, Brain, MessageSquare, Zap, Globe, Users, BarChart3, Clock, Bot, Headphones, Languages, UserCheck, Shield, Sparkles, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
@@ -7,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/shared/SEO';
@@ -108,15 +108,34 @@ const AIAgents = () => {
     setIsSubmitting(true);
 
     try {
-      await spineApi.req('POST', '/applications', {
-        full_name: formData.fullName,
-        email: formData.email,
-        phone: formData.phone || null,
-        message: formData.message || null,
-        service_type: 'ai_agents',
+      const { error: dbError } = await supabase
+        .from('service_applications')
+        .insert({
+          full_name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone || null,
+          message: formData.message || null,
+          service_type: 'ai_agents',
+          status: 'new'
+        });
+
+      if (dbError) throw dbError;
+
+      const { error: emailError } = await supabase.functions.invoke('send-application-email', {
+        body: {
+          applicantName: formData.fullName,
+          applicantEmail: formData.email,
+          serviceType: 'AI Agents',
+          formData: {
+            'Full Name': formData.fullName,
+            'Email': formData.email,
+            'Phone': formData.phone || 'Not provided',
+            'Message': formData.message || 'No message provided'
+          }
+        }
       });
 
-      try { await spineApi.contactUs(formData.fullName, formData.email, formData.message || ''); } catch (e) { console.error('Email error:', e); }
+      if (emailError) console.error('Email error:', emailError);
 
       setIsSuccess(true);
       toast({

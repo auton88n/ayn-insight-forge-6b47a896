@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { adminApi } from '@/lib/adminApi';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ClimateZone {
   id: string;
@@ -24,16 +24,13 @@ export function useClimateZone(country: string) {
   useEffect(() => {
     if (!country) return;
     setLoading(true);
-    adminApi.from('climate_zones')
+    supabase
+      .from('climate_zones')
       .select('*')
       .eq('country', country)
-      .order('region', { ascending: true })
-      .then(({ data }: { data: ClimateZone[] | null }) => {
-        setZones(data || []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setZones([]);
+      .order('region')
+      .then(({ data }) => {
+        setZones((data as unknown as ClimateZone[]) || []);
         setLoading(false);
       });
   }, [country]);

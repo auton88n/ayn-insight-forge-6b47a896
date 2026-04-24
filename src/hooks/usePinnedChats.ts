@@ -1,5 +1,5 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useEffect } from 'react';
+import { supabaseApi } from '@/lib/supabaseApi';
 
 interface UsePinnedChatsReturn {
   pinnedChats: Set<string>;
@@ -28,7 +28,10 @@ export const usePinnedChats = (
       }
 
       try {
-        const data = await spineApi.getPinnedChats();
+        const data = await supabaseApi.get<Array<{ session_id: string }>>(
+          `favorite_chats?user_id=eq.${userId}&select=session_id`,
+          accessToken
+        );
 
         if (data && data.length > 0) {
           setPinnedChats(new Set(data.map(item => item.session_id)));
@@ -68,9 +71,20 @@ export const usePinnedChats = (
         const pinsToMigrate = localPins.filter(pin => !pinnedChats.has(pin));
         
         if (pinsToMigrate.length > 0) {
-          // Insert missing pins into spine
+          // Insert missing pins into database
           await Promise.all(
-            pinsToMigrate.map(sessionId => spineApi.pinChat(sessionId, '').catch(() => {}))
+            pinsToMigrate.map(sessionId =>
+              supabaseApi.post(
+                'favorite_chats',
+                accessToken,
+                {
+                  user_id: userId,
+                  session_id: sessionId,
+                  chat_title: 'Pinned Chat',
+                  chat_data: {}
+                }
+              )
+            )
           );
 
           // Update local state
@@ -114,9 +128,23 @@ export const usePinnedChats = (
 
     try {
       if (currentlyPinned) {
-        await spineApi.unpinChat(sessionId);
+        // Remove from database
+        await supabaseApi.delete(
+          `favorite_chats?user_id=eq.${userId}&session_id=eq.${sessionId}`,
+          accessToken
+        );
       } else {
-        await spineApi.pinChat(sessionId, '');
+        // Add to database
+        await supabaseApi.post(
+          'favorite_chats',
+          accessToken,
+          {
+            user_id: userId,
+            session_id: sessionId,
+            chat_title: 'Pinned Chat',
+            chat_data: {}
+          }
+        );
       }
     } catch (error) {
       console.error('[usePinnedChats] Toggle error:', error);

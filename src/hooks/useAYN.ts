@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { spineAuth } from '@/lib/spineAuth';
-const SPINE_URL = 'https://spine.aynn.io';
+import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL } from '@/config';
 
 interface AYNMessage {
   role: 'user' | 'assistant' | 'system';
@@ -74,14 +74,17 @@ export function useAYN(options: UseAYNOptions = {}) {
       const messages: AYNMessage[] = context?.conversationHistory || [];
       messages.push({ role: 'user', content: message });
 
-      const token = await spineAuth.getAccessToken();
-      const spineRes = await fetch(`${SPINE_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token || ''}` },
-        body: JSON.stringify({ messages, intent: '', stream: false })
+      const { data, error: invokeError } = await supabase.functions.invoke('ayn-unified', {
+        body: {
+          messages,
+          intent: context?.intent,
+          language: context?.language,
+          context: {
+            fileContext: context?.fileContext,
+          },
+          stream: false,
+        },
       });
-      const data = await spineRes.json();
-      const invokeError = spineRes.ok ? null : data;
 
       if (invokeError) {
         // Handle upgrade-required (403) as a normal response instead of throwing
@@ -130,7 +133,7 @@ export function useAYN(options: UseAYNOptions = {}) {
       const messages: AYNMessage[] = context?.conversationHistory || [];
       messages.push({ role: 'user', content: message });
 
-      const { data: sessionData } = await spineAuth.getSession();
+      const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
 
       if (!token) {
@@ -138,7 +141,7 @@ export function useAYN(options: UseAYNOptions = {}) {
       }
 
       const response = await fetch(
-        `https://spine.aynn.io/chat`,
+        `${SUPABASE_URL}/functions/v1/ayn-unified`,
         {
           method: 'POST',
           headers: {

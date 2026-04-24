@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 
 
 function AccuracyScoreboard() {
@@ -8,7 +8,11 @@ function AccuracyScoreboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const rows = await spineApi.getPredictionOutcomes(200).catch(() => []);
+        const { data: rows } = await supabase
+          .from('ayn_prediction_outcomes')
+          .select('was_direction_correct, accuracy_score, actual_date, actual_direction, actual_pct_change, value_error_pct, prediction_id, ayn_predictions(asset, horizon, predicted_direction, predicted_pct_change)')
+          .order('actual_date', { ascending: false })
+          .limit(200);
 
         if (!rows?.length) return;
 

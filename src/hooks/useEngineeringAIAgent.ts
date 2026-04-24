@@ -1,7 +1,5 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { adminApi } from '@/lib/adminApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getHandlingMessage, RATE_LIMIT_MESSAGE } from '@/lib/errorMessages';
 
@@ -78,7 +76,7 @@ export const useEngineeringAIAgent = ({
   // Get current user
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await spineAuth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       setUserId(user?.id || null);
     };
     getUser();
@@ -90,14 +88,22 @@ export const useEngineeringAIAgent = ({
       if (!userId) return;
       
       try {
-        const { data } = await adminApi.from('messages')
+        const { data, error } = await supabase
+          .from('messages')
           .select('*')
           .eq('session_id', engineeringSessionId)
           .eq('mode_used', 'engineering')
           .order('created_at', { ascending: true });
-
+        
+        if (error) {
+          if (import.meta.env.DEV) {
+            console.error('Error loading engineering messages:', error);
+          }
+          return;
+        }
+        
         if (data && data.length > 0) {
-          setMessages(data.map((m: any) => ({
+          setMessages(data.map(m => ({
             id: m.id,
             role: m.sender === 'user' ? 'user' : 'assistant' as const,
             content: m.content,
@@ -122,15 +128,26 @@ export const useEngineeringAIAgent = ({
     if (!userId) return null;
     
     try {
-      const { data: rows } = await adminApi.from('messages').insert([{
-        user_id: userId,
-        content,
-        sender,
-        session_id: engineeringSessionId,
-        mode_used: 'engineering',
-      }]);
-      const row = Array.isArray(rows) ? rows[0] : rows;
-      return row?.id || null;
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          user_id: userId,
+          content,
+          sender,
+          session_id: engineeringSessionId,
+          mode_used: 'engineering'
+        })
+        .select('id')
+        .single();
+      
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.error('Error saving message:', error);
+        }
+        return null;
+      }
+      
+      return data?.id || null;
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Failed to save message:', err);
@@ -263,7 +280,20 @@ export const useEngineeringAIAgent = ({
       // Get session context if available
       const sessionContext = (window as any).__engineeringSessionContext?.();
 
-      const data = await spineApi.engineeringAgent(question.trim(), sessionContext || {}) as any;
+      const { data, error } = await supabase.functions.invoke('engineering-ai-agent', {
+        body: {
+          calculatorType,
+          currentInputs,
+          currentOutputs,
+          question: question.trim(),
+          messages: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+          allCalculatorStates: sessionContext?.allCalculatorStates || {},
+          recentActions: sessionContext?.recentActions || [],
+          sessionInfo: sessionContext?.sessionInfo || {},
+        },
+      });
+
+      if (error) throw error;
 
       // Execute any actions from the AI
       let executedActions: AIAction[] = [];

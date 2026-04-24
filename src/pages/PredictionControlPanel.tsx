@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { spineApi } from '@/lib/spineApi';
-import { spineAuth } from '@/lib/spineAuth';
+import { supabase } from '@/integrations/supabase/client';
 import {
   ArrowLeft, RefreshCw, CheckCircle2, XCircle, AlertTriangle,
   Clock, TrendingUp, TrendingDown, Eye, Zap, Shield,
@@ -61,16 +60,12 @@ export default function PredictionControlPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [preds, sc] = await Promise.all([
-        spineApi.req<MasterPrediction[]>('GET', '/admin/predictions/master').catch(() => []),
-        spineApi.req<Scorecard>('GET', '/admin/predictions/scorecard').catch(() => null),
-      ]);
-      if (preds) setPredictions(preds);
-      if (sc) setScorecard(sc);
-    } catch (e) {
-      console.error('[PredictionControlPanel] load error:', e);
-    }
+    const [{ data: preds }, { data: sc }] = await Promise.all([
+      (supabase.from('ayn_master_predictions' as any).select('*').order('created_at', { ascending: false }) as any),
+      (supabase.from('ayn_prediction_scorecard' as any).select('*').maybeSingle() as any)
+    ]);
+    if (preds) setPredictions(preds as MasterPrediction[]);
+    if (sc) setScorecard(sc as unknown as Scorecard);
     setLoading(false);
   }, []);
 
@@ -78,16 +73,24 @@ export default function PredictionControlPanel() {
 
   const runChecker = async () => {
     setRunning(true);
-    try {
-      await spineApi.req('POST', '/admin/predictions/run-checker', { source: 'admin_manual' });
-    } catch {}
+    await (supabase.rpc('trigger_prediction_checker' as any) as any).catch(() => {});
+    // Trigger via net.http_post equivalent — use edge function directly
+    await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://dfkoxuokfkttjhfjcecx.supabase.co'}/functions/v1/ayn-prediction-checker`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+      body: JSON.stringify({ source: 'admin_manual' })
+    }).catch(() => {});
     setTimeout(() => { load(); setRunning(false); }, 45000);
   };
 
   const saveOverride = async (id: string) => {
-    try {
-      await spineApi.req('PATCH', `/admin/predictions/${id}`, { admin_notes: editNotes, check_status: editStatus, admin_override: true });
-    } catch {}
+    await (supabase.from('ayn_master_predictions' as any).update({
+      check_status: editStatus,
+      admin_notes: editNotes,
+      admin_override: true,
+      verified_correct: editStatus === 'correct' ? true : editStatus === 'wrong' ? false : null,
+      verified_at: new Date().toISOString(),
+    } as any).eq('id', id) as any);
     setEditingId(null);
     load();
   };

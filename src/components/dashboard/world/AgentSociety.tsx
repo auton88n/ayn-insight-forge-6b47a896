@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { spineApi } from '@/lib/spineApi';
+import { supabase } from '@/integrations/supabase/client';
 
 const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
@@ -512,21 +512,9 @@ export default function AgentSociety({
   const [hoveredAgent, setHoveredAgent]   = useState<string|null>(null);
   const [activeCategory, setActiveCategory] = useState('all');
   const [generating, setGenerating]       = useState(false);
-  const [generateStep, setGenerateStep]   = useState('');
   const [loadingMsgs, setLoadingMsgs]     = useState(false);
   const [godEyeOpen, setGodEyeOpen]       = useState(false);
   const [godEyeInput, setGodEyeInput]     = useState('');
-  const [focusCategories, setFocusCategories] = useState<string[]>([]);
-  const [focusRaces, setFocusRaces]           = useState<string[]>([]);
-  const [focusCountries, setFocusCountries]   = useState<string[]>([]);
-  const [focusClasses, setFocusClasses]       = useState<string[]>([]);
-  const [focusGenders, setFocusGenders]       = useState<string[]>([]);
-  const [crowdSize, setCrowdSize]             = useState<number>(15);
-  const [showDemoFilters, setShowDemoFilters] = useState(false);
-  const [currentUserId, setCurrentUserId]   = useState<string|null>(null);
-  const [simVisibility, setSimVisibility]   = useState<'private'|'public'>('private');
-  const [useReflection, setUseReflection] = useState(false);
-  const [useAynData, setUseAynData]       = useState(true);
   const [chatAgent, setChatAgent]         = useState<any|null>(null);
   const [chatHistory, setChatHistory]     = useState<{role:string;content:string}[]>([]);
   const [chatInput, setChatInput]         = useState('');
@@ -550,78 +538,38 @@ export default function AgentSociety({
 
   const generate=useCallback(async()=>{
     setGenerating(true);
-    setGenerateStep('🌐 Scanning world signals...');
-    // Animate steps while backend runs
-    const steps = [
-      '🌐 Scanning world signals...',
-      '🧠 Loading agent memories...',
-      '⚡ Round 1 — Primary actors reacting...',
-      '🔗 Round 2 — Transmission effects spreading...',
-      '👥 Round 3 — Human behavioral shifts...',
-      '📊 Generating cascade summary...',
-    ];
-    let stepIdx = 0;
-    const stepTimer = setInterval(() => {
-      stepIdx = Math.min(stepIdx + 1, steps.length - 1);
-      setGenerateStep(steps[stepIdx]);
-    }, 7000);
     try{
-      const data = await spineApi.simulate({event:'Current global macro environment: US-China trade war, gold at record highs, Fed holding rates, geopolitical fragmentation accelerating'});
-      clearInterval(stepTimer);
-      setGenerateStep('✅ Complete!');
+      const body:any={mode:'generate_conversation'};
+      if(activeCategory!=='all')body.category=activeCategory;
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
+      });
+      if (!res.ok) return;
+      const data = await res.json();
       await loadData();
       if(data.conversation_id){
         setActiveConvId(data.conversation_id);
         setMessages(data.messages||[]);
       }
-    } catch(e) {
-      clearInterval(stepTimer);
-      setGenerateStep('❌ Error — try again');
     } finally {
-      setTimeout(()=>{ setGenerating(false); setGenerateStep(''); }, 800);
+      setGenerating(false);
     }
   },[activeCategory]);
 
   const loadData=useCallback(async()=>{
     try{
-      // Fetch conversations via spine
-      const convData = await spineApi.getAgentConversations(20).catch(() => []);
-      let agentStatesList: any[] = [];
-      try {
-        const agentData = await spineApi.getAgents();
-        if (agentData?.agents) {
-          agentStatesList = agentData.agents.map((a: any) => ({
-            agent_id: a.id, agent_name: a.name, agent_flag: a.flag,
-            agent_category: a.category, agent_role: a.category,
-            current_emotion: 'neutral', emotion_intensity: 50,
-            belief_score: a.belief_score || 0
-          }));
-        }
-      } catch {}
-      // Fallback: load from spine if engine returned nothing
-      if (agentStatesList.length === 0) {
-        const statesData = await spineApi.getAgentStates(100).catch(() => []);
-        agentStatesList = statesData || [];
-      }
-      const data: any = {
-        conversations: convData || [],
-        agent_states: agentStatesList,
-        categories: [
-          { id:'all',label:'All' },
-          { id:'government',label:'Governments',icon:'🏛' },
-          { id:'central_bank',label:'Central Banks',icon:'🏦' },
-          { id:'stock_market',label:'Markets',icon:'📈' },
-          { id:'bank',label:'Banks',icon:'🏢' },
-          { id:'company',label:'Companies',icon:'💼' },
-          { id:'social_class',label:'People',icon:'👥' },
-        ]
-      };
+      const res=await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({mode:'get_conversations'})
+      });
+      if(!res.ok)return;
+      const data=await res.json();
       const convs = data.conversations||[];
       setConversations(convs);
       onConversationsChange?.(convs);
       setAgentStates(data.agent_states||[]);
       setCategories(data.categories||[]);
-      if(data.conversations?.length){ if(!activeConvId) setActiveConvId(data.conversations[0].id); }
+      if(data.conversations?.length&&!activeConvId)setActiveConvId(data.conversations[0].id);
       // Auto-activate if no conversations exist
       if ((!data.conversations || data.conversations.length === 0) && !autoActivated.current) {
         autoActivated.current = true;
@@ -637,7 +585,12 @@ export default function AgentSociety({
   useEffect(()=>{
     const fetchSignals = async () => {
       try {
-        const data = await spineApi.getCriticalSignals(8).catch(() => []);
+        const { data } = await supabase
+          .from('ayn_world_signals')
+          .select('id,signal_type,severity,headline,region,impact_on_oil,impact_on_gold,impact_on_btc,created_at')
+          .in('severity', ['critical', 'high'])
+          .order('created_at', { ascending: false })
+          .limit(8);
         if (data) setLiveSignals(data);
       } catch {}
     };
@@ -652,10 +605,13 @@ export default function AgentSociety({
     setSignalLoading(signal.id);
     setGenerating(true);
     try {
-      const data = await spineApi.simulate({ 
-        event: `${signal.headline}. Region: ${signal.region}. Severity: ${signal.severity}.`, 
-        signal_id: signal.id 
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'generate_from_signal', signal_id: signal.id })
       });
+      if (!res.ok) return;
+      const data = await res.json();
       await loadData();
       if (data.conversation_id) {
         setActiveConvId(data.conversation_id);
@@ -672,8 +628,11 @@ export default function AgentSociety({
     const fetchMsgs = async () => {
       setLoadingMsgs(true);
       try {
-        const msgData = await spineApi.getAgentMessages(activeConvId, 500).catch(() => []);
-        if (msgData) setMessages(msgData);
+        const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({mode:'get_messages',conversation_id:activeConvId})
+        });
+        if (res.ok) { const data = await res.json(); setMessages(data.messages || []); }
       } catch {} finally { setLoadingMsgs(false); }
     };
     fetchMsgs();
@@ -682,45 +641,17 @@ export default function AgentSociety({
   const injectGodEye = async () => {
     if (!godEyeInput.trim()) return;
     setGenerating(true);
-    setGodEyeOpen(false);
-    const steps = [
-      '🌐 Injecting event into world simulation...',
-      '⚡ Round 1 — Primary actors reacting...',
-      '🔗 Round 2 — Transmission effects spreading...',
-      '👥 Round 3 — Human behavioral shifts...',
-      '📊 Generating cascade summary...',
-    ];
-    let stepIdx = 0;
-    setGenerateStep(steps[0]);
-    const stepTimer = setInterval(() => {
-      stepIdx = Math.min(stepIdx + 1, steps.length - 1);
-      setGenerateStep(steps[stepIdx]);
-    }, 8000);
     try {
-      const data = await spineApi.simulate({
-        event: godEyeInput,
-        use_reflection: useReflection,
-        use_ayn_data: useAynData,
-        focus_categories: focusCategories,
-        focus_races: focusRaces,
-        focus_countries: focusCountries,
-        focus_classes: focusClasses,
-        focus_genders: focusGenders,
-        crowd_size: crowdSize,
-        user_id: currentUserId,
-        visibility: simVisibility
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ mode: 'inject_event', event: godEyeInput })
       });
-      setGodEyeInput('');
-      clearInterval(stepTimer);
-      setGenerateStep('✅ Cascade complete!');
+      if (!res.ok) { toast({ title: "Snag!", description: "God's Eye injection failed.", variant: "destructive" }); return; }
+      const data = await res.json();
+      setGodEyeInput(''); setGodEyeOpen(false);
       await loadData();
       if (data.conversation_id) { setActiveConvId(data.conversation_id); setMessages(data.messages || []); }
-    } catch {
-      clearInterval(stepTimer);
-      setGenerateStep('❌ Error — try again');
-    } finally {
-      setTimeout(() => { setGenerating(false); setGenerateStep(''); }, 800);
-    }
+    } finally { setGenerating(false); }
   };
 
   const chatWithAgent = async () => {
@@ -729,10 +660,13 @@ export default function AgentSociety({
     setChatHistory(prev => [...prev, userMsg]);
     setChatInput(''); setChatLoading(true);
     try {
-      const data = await spineApi.agentChat({ agent_id: chatAgent.agent_id, message: chatInput, history: chatHistory });
+      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ mode: 'chat', agent_id: chatAgent.agent_id, message: chatInput, history: chatHistory })
+      });
+      if (!res.ok) { toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" }); return; }
+      const data = await res.json();
       if (data.response) setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
-    } catch(e) {
-      toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" });
     } finally { setChatLoading(false); }
   };
 
@@ -779,34 +713,9 @@ export default function AgentSociety({
           <button onClick={generate} disabled={generating}
             className="text-[10px] font-mono font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-40 uppercase tracking-wider"
             style={{color:'#a855f7',background:'rgba(168,85,247,0.12)',border:'1px solid rgba(168,85,247,0.28)'}}>
-            {generating?'⟳':'⚡ New'}
+            {generating?'⟳ Generating...':'⚡ New'}
           </button>
         </div>
-
-        {/* ── Generation Progress Bar ── */}
-        {generating && generateStep && (
-          <div style={{
-            margin: '0 0 8px 0',
-            padding: '8px 12px',
-            background: 'rgba(168,85,247,0.08)',
-            border: '1px solid rgba(168,85,247,0.25)',
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
-            <span style={{fontSize:11,color:'rgba(168,85,247,0.9)',fontFamily:'monospace',flex:1}}>{generateStep}</span>
-            <span style={{display:'flex',gap:3}}>
-              {[0,1,2].map(i=>(
-                <span key={i} style={{
-                  width:4,height:4,borderRadius:'50%',
-                  background:'rgba(168,85,247,0.7)',
-                  animation:`pulse 1.2s ease-in-out ${i*0.3}s infinite`,
-                }}/>
-              ))}
-            </span>
-          </div>
-        )}
 
         {/* ── Status Bar ── */}
         <StatusBar agentCount={agentStates.length} avgTension={avgTension} hasPanic={hasPanic} messageCount={messages.length} />
@@ -1019,288 +928,13 @@ export default function AgentSociety({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            {/* Quick suggestions */}
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                'Fed cuts rates by 75bps in emergency meeting',
-                'China invades Taiwan — war begins',
-                'Oil spikes to $150 after Iran blocks Strait of Hormuz',
-                'Bitcoin ETF inflows hit $5B in one day',
-                'US imposes 100% tariffs on all Chinese goods',
-                'Gold hits $4,000 as dollar collapses',
-              ].map(s => (
-                <button key={s} onClick={()=>setGodEyeInput(s)}
-                  className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all text-left"
-                  style={{
-                    color: godEyeInput===s ? '#fbbf24' : 'rgba(251,191,36,0.5)',
-                    background: godEyeInput===s ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.05)',
-                    border: `1px solid ${godEyeInput===s ? 'rgba(251,191,36,0.4)' : 'rgba(251,191,36,0.15)'}`,
-                  }}>
-                  {s.length > 38 ? s.slice(0,38)+'…' : s}
-                </button>
-              ))}
-            </div>
             <textarea
               value={godEyeInput} onChange={e=>setGodEyeInput(e.target.value)}
-              placeholder="or type your own event..."
+              placeholder="e.g. Fed cuts 75bps in emergency meeting..."
               rows={3}
               className="w-full bg-transparent text-sm font-mono text-white/80 placeholder-white/25 outline-none p-4 rounded-xl resize-none"
               style={{border:'1px solid rgba(251,191,36,0.25)'}}
             />
-            {/* Focus system */}
-            <div className="space-y-3">
-              {/* Agent category focus */}
-              <div>
-                <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest mb-1.5">Agent categories</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'government', label: '🏛 Govts', color: '#60a5fa' },
-                    { id: 'central_bank', label: '🏦 Central Banks', color: '#34d399' },
-                    { id: 'market', label: '📈 Markets', color: '#fbbf24' },
-                    { id: 'company', label: '🏢 Companies', color: '#f472b6' },
-                    { id: 'social_class', label: '👥 People', color: '#a78bfa' },
-                    { id: 'media', label: '📡 Media', color: '#fb923c' },
-                    { id: 'bank', label: '💰 Banks', color: '#4ade80' },
-                  ].map(cat => {
-                    const active = focusCategories.includes(cat.id);
-                    return (
-                      <button key={cat.id}
-                        onClick={() => setFocusCategories(prev =>
-                          prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]
-                        )}
-                        className="text-[10px] font-mono px-2.5 py-1 rounded-lg transition-all"
-                        style={{
-                          color: active ? cat.color : `${cat.color}55`,
-                          background: active ? `${cat.color}18` : 'transparent',
-                          border: `1px solid ${active ? `${cat.color}55` : `${cat.color}20`}`,
-                        }}>
-                        {cat.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Demographic / Sampling focus toggle */}
-              <div>
-                <button
-                  onClick={() => setShowDemoFilters(!showDemoFilters)}
-                  className="text-[9px] font-mono uppercase tracking-widest flex items-center gap-1.5 transition-colors"
-                  style={{color: showDemoFilters ? 'rgba(167,139,250,0.8)' : 'rgba(255,255,255,0.3)'}}>
-                  {showDemoFilters ? '▼' : '▶'} Demographic & Geographic Sampling
-                  {(focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length) > 0 && (
-                    <span style={{color:'#a78bfa',background:'rgba(167,139,250,0.15)',padding:'1px 6px',borderRadius:4,fontSize:9}}>
-                      {focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length} active
-                    </span>
-                  )}
-                </button>
-
-                {showDemoFilters && (
-                  <div className="mt-2 space-y-2.5 pl-3" style={{borderLeft:'1px solid rgba(167,139,250,0.2)'}}>
-
-                    {/* Race / Ethnicity */}
-                    <div>
-                      <p className="text-[9px] font-mono text-white/25 mb-1">Race / Ethnicity</p>
-                      <div className="flex flex-wrap gap-1">
-                        {[
-                          {id:'arab', label:'Arab'},
-                          {id:'black', label:'Black'},
-                          {id:'white', label:'White'},
-                          {id:'east_asian', label:'East Asian'},
-                          {id:'south_asian', label:'South Asian'},
-                          {id:'latino', label:'Latino'},
-                          {id:'southeast_asian', label:'SE Asian'},
-                          {id:'indigenous', label:'Indigenous'},
-                          {id:'mixed', label:'Mixed'},
-                        ].map(r => {
-                          const active = focusRaces.includes(r.id);
-                          return (
-                            <button key={r.id}
-                              onClick={() => setFocusRaces(prev => prev.includes(r.id) ? prev.filter(x=>x!==r.id) : [...prev, r.id])}
-                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
-                              style={{
-                                color: active ? '#c4b5fd' : 'rgba(196,181,253,0.4)',
-                                background: active ? 'rgba(167,139,250,0.15)' : 'transparent',
-                                border: `1px solid ${active ? 'rgba(167,139,250,0.4)' : 'rgba(167,139,250,0.15)'}`,
-                              }}>
-                              {r.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Gender */}
-                    <div>
-                      <p className="text-[9px] font-mono text-white/25 mb-1">Gender</p>
-                      <div className="flex flex-wrap gap-1">
-                        {[{id:'female',label:'Female'},{id:'male',label:'Male'},{id:'nonbinary',label:'Non-binary'}].map(g => {
-                          const active = focusGenders.includes(g.id);
-                          return (
-                            <button key={g.id}
-                              onClick={() => setFocusGenders(prev => prev.includes(g.id) ? prev.filter(x=>x!==g.id) : [...prev, g.id])}
-                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
-                              style={{
-                                color: active ? '#f9a8d4' : 'rgba(249,168,212,0.4)',
-                                background: active ? 'rgba(244,114,182,0.12)' : 'transparent',
-                                border: `1px solid ${active ? 'rgba(244,114,182,0.35)' : 'rgba(244,114,182,0.15)'}`,
-                              }}>
-                              {g.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Social Class */}
-                    <div>
-                      <p className="text-[9px] font-mono text-white/25 mb-1">Economic class</p>
-                      <div className="flex flex-wrap gap-1">
-                        {[
-                          {id:'poor',label:'Poor'},
-                          {id:'working',label:'Working'},
-                          {id:'lower_middle',label:'Lower Middle'},
-                          {id:'middle',label:'Middle'},
-                          {id:'upper_middle',label:'Upper Middle'},
-                          {id:'wealthy',label:'Wealthy'},
-                        ].map(c => {
-                          const active = focusClasses.includes(c.id);
-                          return (
-                            <button key={c.id}
-                              onClick={() => setFocusClasses(prev => prev.includes(c.id) ? prev.filter(x=>x!==c.id) : [...prev, c.id])}
-                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
-                              style={{
-                                color: active ? '#6ee7b7' : 'rgba(110,231,183,0.4)',
-                                background: active ? 'rgba(52,211,153,0.12)' : 'transparent',
-                                border: `1px solid ${active ? 'rgba(52,211,153,0.35)' : 'rgba(52,211,153,0.15)'}`,
-                              }}>
-                              {c.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Countries */}
-                    <div>
-                      <p className="text-[9px] font-mono text-white/25 mb-1">Countries / Regions</p>
-                      <div className="flex flex-wrap gap-1">
-                        {[
-                          {id:'Saudi Arabia',label:'🇸🇦 Saudi'},
-                          {id:'UAE',label:'🇦🇪 UAE'},
-                          {id:'Egypt',label:'🇪🇬 Egypt'},
-                          {id:'Nigeria',label:'🇳🇬 Nigeria'},
-                          {id:'South Africa',label:'🇿🇦 S.Africa'},
-                          {id:'Kenya',label:'🇰🇪 Kenya'},
-                          {id:'USA',label:'🇺🇸 USA'},
-                          {id:'UK',label:'🇬🇧 UK'},
-                          {id:'Germany',label:'🇩🇪 Germany'},
-                          {id:'India',label:'🇮🇳 India'},
-                          {id:'China',label:'🇨🇳 China'},
-                          {id:'Brazil',label:'🇧🇷 Brazil'},
-                          {id:'Indonesia',label:'🇮🇩 Indonesia'},
-                          {id:'Turkey',label:'🇹🇷 Turkey'},
-                          {id:'Russia',label:'🇷🇺 Russia'},
-                          {id:'Japan',label:'🇯🇵 Japan'},
-                          {id:'Pakistan',label:'🇵🇰 Pakistan'},
-                          {id:'Mexico',label:'🇲🇽 Mexico'},
-                        ].map(co => {
-                          const active = focusCountries.includes(co.id);
-                          return (
-                            <button key={co.id}
-                              onClick={() => setFocusCountries(prev => prev.includes(co.id) ? prev.filter(x=>x!==co.id) : [...prev, co.id])}
-                              className="text-[10px] font-mono px-2 py-0.5 rounded transition-all"
-                              style={{
-                                color: active ? '#fcd34d' : 'rgba(252,211,77,0.4)',
-                                background: active ? 'rgba(251,191,36,0.12)' : 'transparent',
-                                border: `1px solid ${active ? 'rgba(251,191,36,0.35)' : 'rgba(251,191,36,0.15)'}`,
-                              }}>
-                              {co.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Crowd size slider */}
-                    <div>
-                      <p className="text-[9px] font-mono text-white/25 mb-1">
-                        Crowd panel size — {crowdSize} personas sampled
-                      </p>
-                      <input type="range" min={5} max={100} step={5} value={crowdSize}
-                        onChange={e => setCrowdSize(Number(e.target.value))}
-                        className="w-full"
-                        style={{accentColor:'#a78bfa'}}
-                      />
-                      <div className="flex justify-between text-[9px] font-mono text-white/20 mt-0.5">
-                        <span>5 (fast)</span><span>50 (balanced)</span><span>100 (deep)</span>
-                      </div>
-                    </div>
-
-                    {/* Clear all */}
-                    {(focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length) > 0 && (
-                      <button
-                        onClick={() => { setFocusRaces([]); setFocusCountries([]); setFocusClasses([]); setFocusGenders([]); }}
-                        className="text-[9px] font-mono underline"
-                        style={{color:'rgba(255,255,255,0.25)'}}>
-                        clear demographic filters
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Active focus summary */}
-              {(focusCategories.length + focusRaces.length + focusCountries.length + focusClasses.length + focusGenders.length) > 0 && (
-                <div className="text-[9px] font-mono px-2.5 py-1.5 rounded-lg" style={{background:'rgba(251,191,36,0.06)',border:'1px solid rgba(251,191,36,0.15)',color:'rgba(251,191,36,0.6)'}}>
-                  ⚡ Focus active: {[
-                    focusCategories.length > 0 && `${focusCategories.length} categories`,
-                    focusRaces.length > 0 && `${focusRaces.join(', ')}`,
-                    focusCountries.length > 0 && focusCountries.join(', '),
-                    focusClasses.length > 0 && focusClasses.join(', '),
-                    focusGenders.length > 0 && focusGenders.join(', '),
-                  ].filter(Boolean).join(' · ')}
-                  <button onClick={() => {
-                    setFocusCategories([]); setFocusRaces([]); setFocusCountries([]);
-                    setFocusClasses([]); setFocusGenders([]); setCrowdSize(15);
-                  }} className="ml-2 underline" style={{color:'rgba(255,255,255,0.3)'}}>clear all</button>
-                </div>
-              )}
-            </div>
-
-            {/* Power options */}
-            <div className="flex gap-3 flex-wrap">
-              <button
-                onClick={() => setSimVisibility(v => v === 'private' ? 'public' : 'private')}
-                className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
-                style={{
-                  color: simVisibility === 'public' ? '#60a5fa' : 'rgba(255,255,255,0.3)',
-                  background: simVisibility === 'public' ? 'rgba(96,165,250,0.1)' : 'transparent',
-                  border: `1px solid ${simVisibility === 'public' ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                }}>
-                {simVisibility === 'public' ? '🌐 Public' : '🔒 Private'}
-              </button>
-              <button
-                onClick={() => setUseAynData(!useAynData)}
-                className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
-                style={{
-                  color: useAynData ? '#34d399' : 'rgba(52,211,153,0.4)',
-                  background: useAynData ? 'rgba(52,211,153,0.1)' : 'transparent',
-                  border: `1px solid ${useAynData ? 'rgba(52,211,153,0.4)' : 'rgba(52,211,153,0.15)'}`,
-                }}>
-                {useAynData ? '✅' : '○'} AYN Live Data
-              </button>
-              <button
-                onClick={() => setUseReflection(!useReflection)}
-                className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg transition-all"
-                style={{
-                  color: useReflection ? '#a78bfa' : 'rgba(167,139,250,0.4)',
-                  background: useReflection ? 'rgba(167,139,250,0.1)' : 'transparent',
-                  border: `1px solid ${useReflection ? 'rgba(167,139,250,0.4)' : 'rgba(167,139,250,0.15)'}`,
-                }}>
-                {useReflection ? '✅' : '○'} Reflection Pass (+30s)
-              </button>
-            </div>
             <div className="flex gap-2 justify-end">
               <button onClick={()=>setGodEyeOpen(false)}
                 className="text-xs font-mono font-bold px-4 py-2.5 rounded-lg text-white/40 hover:text-white/60 transition-colors">
@@ -1309,7 +943,7 @@ export default function AgentSociety({
               <button onClick={injectGodEye} disabled={generating||!godEyeInput.trim()}
                 className="text-xs font-mono font-bold px-5 py-2.5 rounded-lg disabled:opacity-40 transition-all"
                 style={{color:'#fbbf24',background:'rgba(251,191,36,0.15)',border:'1px solid rgba(251,191,36,0.35)'}}>
-                {generating ? '⟳ Simulating...' : '⚡ INJECT EVENT'}
+                ⚡ INJECT EVENT
               </button>
             </div>
           </div>

@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Search, RefreshCw, Mail, Activity, TrendingUp, Clock, Shield, User } from 'lucide-react';
 import { useAdminUsers, adminKeys } from '@/admin-app/hooks/useAdminQuery';
 import { useQueryClient } from '@tanstack/react-query';
-import { adminApi } from '@/lib/spineApi';
-import { toast } from 'sonner';
 
 interface AdminUser {
   id: string;
@@ -35,32 +33,20 @@ interface AdminUser {
 
 function timeAgo(date: string | null): string {
   if (!date) return 'Never';
-  try {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return 'Never';
-    const diff = Date.now() - d.getTime();
-    const mins = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    if (mins < 2) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 30) return `${days}d ago`;
-    return `${Math.floor(days / 30)}mo ago`;
-  } catch (e) {
-    return 'Never';
-  }
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 2) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
 }
 
 function formatDate(date: string | null): string {
   if (!date) return '—';
-  try {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch (e) {
-    return '—';
-  }
+  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function activityLevel(user: AdminUser): { label: string; color: string } {
@@ -74,23 +60,7 @@ function activityLevel(user: AdminUser): { label: string; color: string } {
 export const UserManagement = () => {
   const queryClient = useQueryClient();
   const { data: rawUsers, isLoading: loading } = useAdminUsers();
-  const users = useMemo(() => {
-    const arr = Array.isArray(rawUsers) ? rawUsers : [];
-    return arr.map((u: any) => ({
-      ...u,
-      id: u.id || '',
-      email: u.email || '',
-      display_name: u.display_name || u.email || 'Unknown',
-      total_messages: Number(u.total_messages || 0),
-      messages_7d: Number(u.messages_7d || 0),
-      messages_30d: Number(u.messages_30d || 0),
-      active_days_total: Number(u.active_days_total || 0),
-      signed_up_at: u.signed_up_at || new Date().toISOString(),
-      is_active: !!u.is_active,
-      subscription_tier: u.subscription_tier || 'free'
-    })) as AdminUser[];
-  }, [rawUsers]);
-
+  const users = useMemo(() => (Array.isArray(rawUsers) ? rawUsers : []) as unknown as AdminUser[], [rawUsers]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'never'>('all');
   const [sortBy, setSortBy] = useState<'signed_up' | 'last_active' | 'messages' | 'name'>('signed_up');
@@ -100,26 +70,22 @@ export const UserManagement = () => {
     .filter(u => {
       const q = search.toLowerCase();
       const matchSearch = !q ||
-        (u.email || '').toLowerCase().includes(q) ||
-        (u.display_name || '').toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.display_name.toLowerCase().includes(q) ||
         (u.company_name || '').toLowerCase().includes(q);
-
-      const m7 = u.messages_7d || 0;
-      const total = u.total_messages || 0;
-      const m30 = u.messages_30d || 0;
 
       const matchFilter =
         filter === 'all' ? true :
-        filter === 'active' ? m7 > 0 :
-        filter === 'inactive' ? (total > 0 && m30 === 0) :
-        filter === 'never' ? total === 0 : true;
+        filter === 'active' ? u.messages_7d > 0 :
+        filter === 'inactive' ? (u.total_messages > 0 && u.messages_30d === 0) :
+        filter === 'never' ? u.total_messages === 0 : true;
 
       return matchSearch && matchFilter;
     })
     .sort((a, b) => {
       if (sortBy === 'last_active') return (b.last_active_at || '0').localeCompare(a.last_active_at || '0');
-      if (sortBy === 'messages') return (b.total_messages || 0) - (a.total_messages || 0);
-      if (sortBy === 'name') return (a.display_name || '').localeCompare(b.display_name || '');
+      if (sortBy === 'messages') return b.total_messages - a.total_messages;
+      if (sortBy === 'name') return a.display_name.localeCompare(b.display_name);
       return (b.signed_up_at || '').localeCompare(a.signed_up_at || '');
     });
 
@@ -274,7 +240,7 @@ export const UserManagement = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-white text-sm font-medium">{(user.total_messages || 0).toLocaleString()}</div>
+                      <div className="text-white text-sm font-medium">{user.total_messages.toLocaleString()}</div>
                       <div className="text-white/30 text-xs">
                         {user.messages_7d > 0 && <span className="text-green-400">{user.messages_7d} this week</span>}
                         {user.messages_7d === 0 && user.messages_30d > 0 && <span className="text-yellow-400/70">{user.messages_30d} this month</span>}
@@ -333,51 +299,6 @@ export const UserManagement = () => {
                               )}
                             </div>
                           </div>
-                        </div>
-                        
-                        {/* Admin Action Buttons */}
-                        <div className="mt-6 pt-4 border-t border-white/5 flex gap-3">
-                          {!user.is_active && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs gap-1.5"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  await adminApi.unblockUser(user.id);
-                                  toast.success('User unblocked');
-                                  queryClient.invalidateQueries({ queryKey: adminKeys.users() });
-                                } catch (err: any) {
-                                  toast.error('Failed to unblock: ' + err.message);
-                                }
-                              }}
-                            >
-                              <Shield className="w-3.5 h-3.5" />
-                              Unblock User
-                            </Button>
-                          )}
-                          
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs gap-1.5"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const amount = prompt('Enter credit amount to gift:');
-                              if (!amount || isNaN(parseInt(amount))) return;
-                              try {
-                                await adminApi.giftCredits(user.id, parseInt(amount), 'Admin gift');
-                                toast.success(`${amount} credits gifted to ${user.email}`);
-                                queryClient.invalidateQueries({ queryKey: adminKeys.users() });
-                              } catch (err: any) {
-                                toast.error('Failed to gift credits: ' + err.message);
-                              }
-                            }}
-                          >
-                            <TrendingUp className="w-3.5 h-3.5" />
-                            Gift Credits
-                          </Button>
                         </div>
                       </td>
                     </tr>

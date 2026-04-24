@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
-import { spineApi } from '@/lib/spineApi';
+import { useState, useMemo } from 'react';
+import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AlertTriangle, RefreshCw, Bug, Clock, User, ChevronDown, ChevronRight, CheckCircle, EyeOff, Wrench, Lightbulb, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAdminErrorMonitoring, useRawErrorLogs, adminKeys } from '@/admin-app/hooks/useAdminQuery';
+import { useAdminErrorMonitoring, adminKeys } from '@/admin-app/hooks/useAdminQuery';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface ErrorGroup {
@@ -81,8 +81,6 @@ export const ErrorMonitoring = () => {
   const [showResolved, setShowResolved] = useState(false);
   const [fixingError, setFixingError] = useState<string | null>(null);
   const [noteInput, setNoteInput] = useState('');
-  const [liveSource, setLiveSource] = useState<string | undefined>(undefined);
-  const { data: liveErrors = [], refetch: refetchLive } = useRawErrorLogs(liveSource);
 
   const { groups, totalErrors } = useMemo(() => {
     let rows = ((rpcData as any)?.errors || []);
@@ -124,25 +122,29 @@ export const ErrorMonitoring = () => {
   }, [rpcData, timeRange]);
 
   const updateResolution = async (pattern: string, status: 'resolved' | 'ignored', note: string) => {
-    try {
-      await spineApi.req('POST', '/admin/errors/resolve', { pattern, status, note });
-      toast.success(status === 'resolved' ? '✅ Marked as resolved' : '🙈 Ignored');
-      setFixingError(null);
-      setNoteInput('');
-      queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
-    } catch (e: any) {
-      toast.error('Failed to update: ' + (e?.message || 'unknown'));
-    }
+    const { error } = await supabase.from('error_group_resolutions').upsert({
+      error_pattern: pattern,
+      status,
+      resolution_note: note,
+      resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'error_pattern' });
+
+    if (error) { toast.error('Failed to update: ' + error.message); return; }
+
+    toast.success(status === 'resolved' ? '✅ Marked as resolved' : '🙈 Ignored');
+    setFixingError(null);
+    setNoteInput('');
+    queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
   };
 
   const reopen = async (pattern: string) => {
-    try {
-      await spineApi.req('POST', '/admin/errors/reopen', { pattern });
-      toast.success('Reopened');
-      queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
-    } catch {
-      toast.error('Failed');
-    }
+    const { error } = await supabase.from('error_group_resolutions')
+      .update({ status: 'open', resolved_at: null, updated_at: new Date().toISOString() })
+      .eq('error_pattern', pattern);
+    if (error) { toast.error('Failed'); return; }
+    toast.success('Reopened');
+    queryClient.invalidateQueries({ queryKey: adminKeys.errorMonitoring() });
   };
 
   const severityColor = (count: number, status: string) => {
@@ -156,14 +158,6 @@ export const ErrorMonitoring = () => {
   const visible = groups.filter(g => showResolved || g.status === 'open');
   const openCount = groups.filter(g => g.status === 'open').length;
   const resolvedCount = groups.filter(g => g.status === 'resolved').length;
-
-  const sourceColors: Record<string, string> = {
-    'spine-backend': 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    'spine-chat': 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-    'spine-validation': 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
-    'edge-function': 'text-orange-400 bg-orange-500/10 border-orange-500/20',
-    'frontend': 'text-red-400 bg-red-500/10 border-red-500/20',
-  };
 
   return (
     <div className="p-6 space-y-5">
@@ -191,66 +185,6 @@ export const ErrorMonitoring = () => {
       </div>
 
       {/* Summary cards */}
-      {/* Live Backend Errors — spine + edge functions */}
-      <div className="border border-white/10 rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-orange-400" />
-            <span className="text-white/80 text-sm font-medium">Live Backend Errors</span>
-            {liveErrors.filter((e: any) => e.status === 'open').length > 0 && (
-              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                {liveErrors.filter((e: any) => e.status === 'open').length} open
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Source filter tabs */}
-            {['All', 'spine-chat', 'spine-backend', 'edge-function', 'frontend'].map(s => (
-              <button
-                key={s}
-                onClick={() => setLiveSource(s === 'All' ? undefined : s)}
-                className={`text-xs px-2 py-1 rounded border transition-colors ${
-                  (s === 'All' ? !liveSource : liveSource === s)
-                    ? 'bg-white/20 text-white border-white/30'
-                    : 'text-white/40 border-white/10 hover:border-white/20'
-                }`}
-              >{s}</button>
-            ))}
-            <button onClick={() => refetchLive()} className="text-white/30 hover:text-white/60 transition-colors">
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-        <div className="max-h-72 overflow-y-auto divide-y divide-white/5">
-          {liveErrors.length === 0 ? (
-            <div className="text-center py-8 text-white/20 text-sm">No errors — all good ✅</div>
-          ) : liveErrors.slice(0, 50).map((err: any) => (
-            <div key={err.id} className="px-4 py-2.5 hover:bg-white/5 transition-colors">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${sourceColors[err.source] || 'text-white/40 bg-white/5 border-white/10'}`}>
-                      {err.source}
-                    </span>
-                    {err.endpoint && (
-                      <span className="text-[10px] text-white/30 font-mono">{err.endpoint}</span>
-                    )}
-                    {err.severity === 'error' && (
-                      <span className="text-[10px] text-red-400">● error</span>
-                    )}
-                  </div>
-                  <p className="text-white/70 text-xs truncate">{err.error_message}</p>
-                  {err.error_stack && (
-                    <p className="text-white/30 text-[10px] font-mono truncate mt-0.5">{err.error_stack.split('\n')[0]}</p>
-                  )}
-                </div>
-                <div className="text-white/30 text-[10px] whitespace-nowrap">{timeAgo(err.created_at)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
           <div className="text-red-400 text-2xl font-bold">{groups.filter(g => g.count > 100 && g.status === 'open').length}</div>

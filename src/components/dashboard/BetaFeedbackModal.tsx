@@ -1,4 +1,3 @@
-import { spineApi } from '@/lib/spineApi';
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Star, Gift, Loader2, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -63,24 +63,35 @@ export const BetaFeedbackModal = ({
 
     setIsSubmitting(true);
     try {
-      // Submit feedback + bonus credits via spine
-      // Backend rejects nulls for optional fields — omit them entirely instead
-      const payload: Record<string, unknown> = {
-        overall_rating: rating,
-        favorite_features: selectedFeatures,
-        credits_awarded: rewardAmount,
-      };
-      const trimmedImprovements = improvements.trim();
-      const trimmedBugs = bugs.trim();
-      if (trimmedImprovements) payload.improvement_suggestions = trimmedImprovements;
-      if (trimmedBugs) payload.bugs_encountered = trimmedBugs;
-      if (wouldRecommend !== null) payload.would_recommend = wouldRecommend;
+      // Insert feedback
+      const { error: feedbackError } = await supabase
+        .from('beta_feedback')
+        .insert({
+          user_id: userId,
+          overall_rating: rating,
+          favorite_features: selectedFeatures,
+          improvement_suggestions: improvements.trim() || null,
+          bugs_encountered: bugs.trim() || null,
+          would_recommend: wouldRecommend,
+          credits_awarded: rewardAmount
+        });
 
-      await spineApi.submitBetaFeedback(payload);
+      if (feedbackError) throw feedbackError;
 
-      // Trigger credit refresh immediately + again after a short delay
-      onCreditsUpdated?.();
-      setTimeout(() => onCreditsUpdated?.(), 800);
+      // Add bonus credits
+      const { error: creditsError } = await supabase.rpc('add_bonus_credits', {
+        p_user_id: userId,
+        p_amount: rewardAmount,
+        p_reason: 'Beta feedback survey completion',
+        p_gift_type: 'feedback_reward'
+      });
+
+      if (creditsError) throw creditsError;
+
+      // Trigger credit refresh after a short delay to ensure DB commit
+      setTimeout(() => {
+        onCreditsUpdated?.();
+      }, 500);
 
       setStep('success');
       onSuccess?.();
