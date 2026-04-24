@@ -1,4 +1,3 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -78,11 +77,12 @@ export function OWASPSecurityReport() {
   const runOWASPScan = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/run-real-tests`, {
+      const adminToken = localStorage.getItem('ayn_admin_token') || '';
+      const response = await fetch(`https://spine.aynn.io/admin/edge/run-real-tests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'Authorization': `Bearer ${adminToken}`
         },
         body: JSON.stringify({ suite: 'security' })
       });

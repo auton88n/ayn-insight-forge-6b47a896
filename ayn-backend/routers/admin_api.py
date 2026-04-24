@@ -824,27 +824,6 @@ async def upsert_system_config(req: SystemConfigRequest, admin=Depends(require_a
 async def get_service_applications(_=Depends(require_admin_user)):
     rows = await fetch("SELECT * FROM service_applications ORDER BY created_at DESC")
     return rows or []
-
-
-# ── LLM Usage Stats ────────────────────────────────────────────────────────────
-
-@router.get("/llm")
-async def get_llm_stats(_=Depends(require_admin_user)):
-    rows = await fetch("""
-        SELECT model_name, intent_type,
-               COUNT(*) as request_count,
-               SUM(input_tokens) as total_input_tokens,
-               SUM(output_tokens) as total_output_tokens,
-               SUM(cost_sar) as total_cost_sar,
-               AVG(response_time_ms) as avg_response_ms
-        FROM llm_usage_logs
-        WHERE created_at > NOW() - INTERVAL '30 days'
-        GROUP BY model_name, intent_type
-        ORDER BY request_count DESC
-    """)
-    return rows or []
-
-
 # ── Visitor Analytics ──────────────────────────────────────────────────────────
 
 @router.get("/analytics/summary")
@@ -891,68 +870,6 @@ async def get_visitor_analytics(_=Depends(require_admin_user)):
             "today_sessions": 0, "week_sessions": 0, "total_views": 0,
             "top_pages": [], "by_country": []
         }
-
-
-# ── User Growth ───────────────────────────────────────────────────────────────
-
-@router.get("/user-growth")
-async def get_user_growth(_=Depends(require_admin_user)):
-    # Match UserGrowthChart.tsx expectation: signed_up_at
-    rows = await fetch("""
-        SELECT DATE(created_at) as signed_up_at, COUNT(*) as new_users
-        FROM users
-        WHERE created_at > NOW() - INTERVAL '30 days'
-        GROUP BY DATE(created_at) 
-        ORDER BY signed_up_at ASC
-    """)
-    return rows or []
-
-
-# ── Churn Alerts ──────────────────────────────────────────────────────────────
-
-@router.get("/churn-alerts")
-async def get_churn_alerts(_=Depends(require_admin_user)):
-    # Match ChurnAlerts.tsx expectation: display_name, last_active_at, days_inactive
-    rows = await fetch("""
-        SELECT u.id, u.email, 
-               COALESCE(u.first_name || ' ' || u.last_name, u.email) as display_name,
-               sub.subscription_tier,
-               us.last_act as last_active_at,
-               COALESCE(us.total_m, 0) as total_messages,
-               COALESCE(us.m30, 0) as messages_30d,
-               CASE WHEN us.last_act IS NOT NULL 
-                    THEN EXTRACT(DAY FROM NOW() - us.last_act) 
-                    ELSE EXTRACT(DAY FROM NOW() - u.created_at) 
-               END as days_inactive
-        FROM users u
-        LEFT JOIN (
-            SELECT user_id, 
-                   COUNT(*) as total_m,
-                   COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as m30,
-                   MAX(created_at) as last_act
-            FROM messages
-            GROUP BY user_id
-        ) us ON us.user_id = u.id
-        LEFT JOIN user_subscriptions sub ON sub.user_id = u.id
-        WHERE u.created_at < NOW() - INTERVAL '7 days'
-        AND (us.last_act < NOW() - INTERVAL '7 days' OR us.last_act IS NULL)
-        ORDER BY days_inactive DESC
-        LIMIT 100
-    """)
-    return rows or []
-
-
-def json_or_null(val):
-    import json
-    if val is None:
-        return None
-    if isinstance(val, str):
-        return val
-    return json.dumps(val)
-
-
-# ── Intelligence Cron — Manual Force Execution ─────────────────────────────────
-# Phase 2: Direct execution endpoints with DB write proof.
 # Each returns: {before_ts, after_ts, rows_before, rows_after, delta, source}
 
 @router.post("/run-pulse")
@@ -1609,62 +1526,6 @@ async def bulk_reopen_errors(req: ErrorBulkRequest, _=Depends(require_admin_user
     else:
         await execute("UPDATE error_logs SET status='open', resolved_at=NULL WHERE status='resolved'")
     return {"ok": True}
-
-
-# ── Predictions management ─────────────────────────────────────────────────────
-@router.get("/predictions/master")
-async def get_master_predictions(_=Depends(require_admin_user)):
-    rows = await fetch("SELECT * FROM ayn_world_predictions ORDER BY created_at DESC LIMIT 200")
-    return [dict(r) for r in rows]
-
-
-@router.get("/predictions/scorecard")
-async def get_predictions_scorecard(_=Depends(require_admin_user)):
-    total = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions") or 0
-    correct = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions WHERE resolution_correct=TRUE") or 0
-    resolved = await fetchval("SELECT COUNT(*) FROM ayn_world_predictions WHERE status='resolved'") or 0
-    return {
-        "total": total, "resolved": resolved, "correct": correct,
-        "accuracy_pct": round((correct / resolved * 100) if resolved > 0 else 0, 1)
-    }
-
-
-@router.post("/predictions/run-checker")
-async def run_prediction_checker_v2(_=Depends(require_admin_user)):
-    from core.scheduler import get_scheduler
-    import datetime
-    scheduler = get_scheduler()
-    job = scheduler.get_job("prediction-resolver") if scheduler else None
-    if job:
-        job.modify(next_run_time=datetime.datetime.now(datetime.timezone.utc))
-        return {"ok": True, "triggered": "prediction-resolver"}
-    return {"ok": False, "error": "Scheduler job not found"}
-
-
-@router.patch("/predictions/{prediction_id}")
-async def update_prediction_v2(prediction_id: str, body: dict, _=Depends(require_admin_user)):
-    allowed = ["admin_notes", "check_status", "admin_override", "status",
-               "resolution_correct", "resolution_notes"]
-    cols = [k for k in allowed if k in body]
-    if not cols:
-        return {"ok": True}
-    sets = ", ".join(f'"{c}"=${i+2}' for i, c in enumerate(cols))
-    vals = [body[k] for k in cols]
-    await execute(f'UPDATE ayn_world_predictions SET {sets} WHERE id=$1::uuid', prediction_id, *vals)
-    return {"ok": True}
-
-
-# ── Scheduler status (CronControl) ────────────────────────────────────────────
-@router.get("/scheduler/status")
-async def get_scheduler_status_v2(_=Depends(require_admin_user)):
-    from core.scheduler import get_scheduler
-    scheduler = get_scheduler()
-    if not scheduler:
-        return {"running": False, "jobs": []}
-    jobs = [{"id": j.id, "name": j.name,
-             "next_run": str(j.next_run_time) if j.next_run_time else None}
-            for j in scheduler.get_jobs()]
-    return {"running": scheduler.running, "jobs": jobs}
 
 
 @router.post("/scheduler/run/{job_id}")

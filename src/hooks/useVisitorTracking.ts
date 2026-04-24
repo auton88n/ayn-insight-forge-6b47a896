@@ -7,8 +7,8 @@ const SESSION_ID_KEY = 'ayn_session_id';
 // Use relative path for API calls - proxied through same origin in production
 // Falls back to direct Supabase URL only in development
 const API_BASE = import.meta.env.DEV 
-  ? 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1'
-  : 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/api';
+  ? 'https://spine.aynn.io'
+  : 'https://spine.aynn.io';
 
 // Generate a random ID
 function generateId(): string {
@@ -77,7 +77,7 @@ export function useVisitorTracking() {
         };
 
         // Use sendBeacon for better reliability, fallback to fetch
-        const url = `${API_BASE}/track-visit`;
+        const url = `${API_BASE}/analytics/track`;
         const body = JSON.stringify(payload);
 
         if (navigator.sendBeacon) {
