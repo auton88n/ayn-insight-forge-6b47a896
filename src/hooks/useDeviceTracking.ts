@@ -98,18 +98,18 @@ export const trackDeviceLogin = async (userId: string, accessToken: string) => {
     const deviceInfo = getDeviceInfo();
     const now = new Date().toISOString();
     
-    // Use REST API for both operations in parallel
-    await Promise.all([
+    // Use REST API for both operations in parallel — both fail silently
+    await Promise.allSettled([
       supabaseApi.rpc('record_device_fingerprint', accessToken, {
         _user_id: userId,
         _fingerprint_hash: fingerprintHash,
         _device_info: deviceInfo
-      }),
+      }).catch(() => null),
       supabaseApi.patch(
         `profiles?user_id=eq.${userId}`,
         accessToken,
         { last_login: now }
-      )
+      ).catch(() => null)
     ]);
     
   } catch {
