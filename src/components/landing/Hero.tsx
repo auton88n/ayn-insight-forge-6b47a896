@@ -113,7 +113,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
                   style={{ transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
                 >
                   <Brain
-                    className="text-white/90"
+                    className="text-orange-400"
                     style={{
                       width: isHovered ? '40%' : '36%',
                       height: isHovered ? '40%' : '36%',
