@@ -18,10 +18,10 @@ export interface EmotionConfig {
 export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   // 😌 Soft Ocean Blue - peaceful, balanced like still water
   calm: {
-    color: 'hsl(193, 38%, 47%)',      // #4A90A4
-    glowColor: 'hsl(193, 45%, 60%)',
-    ringClass: 'ring-cyan-400/40 dark:ring-cyan-400/35',
-    glowClass: 'shadow-[0_0_50px_hsl(193,38%,47%,0.45)] dark:shadow-[0_0_60px_hsl(193,45%,50%,0.5)]',
+    color: 'hsl(28, 100%, 55%)',
+    glowColor: 'hsl(28, 100%, 65%)',
+    ringClass: 'ring-orange-400/40 dark:ring-orange-400/35',
+    glowClass: 'shadow-[0_0_50px_hsl(28,100%,55%,0.45)] dark:shadow-[0_0_60px_hsl(28,100%,55%,0.5)]',
     irisScale: 1,
     breathingSpeed: 5.5,  // Slow, peaceful breathing
     particleType: 'sparkle',
@@ -29,10 +29,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 🤗 Deep Warm Rose - nurturing warmth for empathy
   comfort: {
-    color: 'hsl(349, 49%, 69%)',      // #D98695
-    glowColor: 'hsl(349, 55%, 78%)',
-    ringClass: 'ring-rose-300/40 dark:ring-rose-400/35',
-    glowClass: 'shadow-[0_0_50px_hsl(349,49%,69%,0.45)] dark:shadow-[0_0_60px_hsl(349,55%,65%,0.5)]',
+    color: 'hsl(28, 100%, 60%)',
+    glowColor: 'hsl(28, 100%, 70%)',
+    ringClass: 'ring-orange-300/40 dark:ring-orange-400/35',
+    glowClass: 'shadow-[0_0_50px_hsl(28,100%,60%,0.45)] dark:shadow-[0_0_60px_hsl(28,100%,60%,0.5)]',
     irisScale: 1.02,
     breathingSpeed: 4.5,  // Warm, soothing breathing
     particleType: 'sparkle',
@@ -40,10 +40,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 💪 Soft Rose-Beige - supportive encouragement
   supportive: {
-    color: 'hsl(10, 61%, 78%)',       // #E8A598
-    glowColor: 'hsl(10, 65%, 85%)',
-    ringClass: 'ring-orange-200/40 dark:ring-orange-300/35',
-    glowClass: 'shadow-[0_0_45px_hsl(10,61%,78%,0.4)] dark:shadow-[0_0_55px_hsl(10,65%,75%,0.45)]',
+    color: 'hsl(28, 100%, 65%)',
+    glowColor: 'hsl(28, 100%, 72%)',
+    ringClass: 'ring-orange-300/40 dark:ring-orange-300/35',
+    glowClass: 'shadow-[0_0_45px_hsl(28,100%,65%,0.4)] dark:shadow-[0_0_55px_hsl(28,100%,65%,0.45)]',
     irisScale: 1.05,
     breathingSpeed: 4,
     particleType: 'sparkle',
@@ -51,10 +51,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 😊 Warm Peach-Gold - sunshine, joy, warmth
   happy: {
-    color: 'hsl(36, 100%, 65%)',      // #FFB84D
-    glowColor: 'hsl(36, 100%, 75%)',
-    ringClass: 'ring-amber-400/50 dark:ring-amber-400/45',
-    glowClass: 'shadow-[0_0_50px_hsl(36,100%,65%,0.5)] dark:shadow-[0_0_60px_hsl(36,100%,60%,0.5)]',
+    color: 'hsl(28, 100%, 58%)',
+    glowColor: 'hsl(28, 100%, 68%)',
+    ringClass: 'ring-orange-400/50 dark:ring-orange-400/45',
+    glowClass: 'shadow-[0_0_50px_hsl(28,100%,58%,0.5)] dark:shadow-[0_0_60px_hsl(28,100%,58%,0.5)]',
     irisScale: 1.05,
     breathingSpeed: 3.5,  // Content, relaxed
     particleType: 'sparkle',
@@ -62,10 +62,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 🤩 Electric Coral - energy, enthusiasm
   excited: {
-    color: 'hsl(0, 100%, 67%)',       // #FF5757
-    glowColor: 'hsl(0, 100%, 80%)',
-    ringClass: 'ring-red-400/50 dark:ring-red-400/45',
-    glowClass: 'shadow-[0_0_60px_hsl(0,100%,67%,0.55)] dark:shadow-[0_0_70px_hsl(0,100%,60%,0.55)]',
+    color: 'hsl(28, 100%, 50%)',
+    glowColor: 'hsl(28, 100%, 62%)',
+    ringClass: 'ring-orange-500/50 dark:ring-orange-500/45',
+    glowClass: 'shadow-[0_0_60px_hsl(28,100%,50%,0.55)] dark:shadow-[0_0_70px_hsl(28,100%,50%,0.55)]',
     irisScale: 1.15,
     breathingSpeed: 2,    // Fast, energetic
     particleType: 'energy',
@@ -73,10 +73,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 🤔 Royal Indigo - deep contemplation
   thinking: {
-    color: 'hsl(239, 82%, 61%)',      // #4B4DED
-    glowColor: 'hsl(239, 85%, 75%)',
-    ringClass: 'ring-indigo-500/50 dark:ring-indigo-400/45',
-    glowClass: 'shadow-[0_0_50px_hsl(239,82%,61%,0.5)] dark:shadow-[0_0_60px_hsl(239,85%,55%,0.5)]',
+    color: 'hsl(28, 90%, 48%)',
+    glowColor: 'hsl(28, 90%, 60%)',
+    ringClass: 'ring-orange-500/50 dark:ring-orange-400/45',
+    glowClass: 'shadow-[0_0_50px_hsl(28,90%,48%,0.5)] dark:shadow-[0_0_60px_hsl(28,90%,48%,0.5)]',
     irisScale: 0.85,
     breathingSpeed: 3,    // Alert, engaged
     particleType: 'orbit',
@@ -84,10 +84,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 😤 Hot Orange-Red - tension without aggression
   frustrated: {
-    color: 'hsl(6, 78%, 57%)',        // #E74C3C
-    glowColor: 'hsl(6, 80%, 70%)',
-    ringClass: 'ring-red-500/40 dark:ring-red-500/35',
-    glowClass: 'shadow-[0_0_45px_hsl(6,78%,57%,0.4)] dark:shadow-[0_0_55px_hsl(6,80%,50%,0.45)]',
+    color: 'hsl(20, 100%, 48%)',
+    glowColor: 'hsl(20, 100%, 60%)',
+    ringClass: 'ring-orange-600/40 dark:ring-orange-600/35',
+    glowClass: 'shadow-[0_0_45px_hsl(20,100%,48%,0.4)] dark:shadow-[0_0_55px_hsl(20,100%,48%,0.45)]',
     irisScale: 0.9,
     breathingSpeed: 1.8,  // Quick, tense
     particleType: 'energy',
@@ -95,10 +95,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 🧐 Bright Magenta - wonder, exploration
   curious: {
-    color: 'hsl(282, 56%, 62%)',      // #B565D8
-    glowColor: 'hsl(282, 60%, 75%)',
-    ringClass: 'ring-purple-400/45 dark:ring-purple-400/40',
-    glowClass: 'shadow-[0_0_50px_hsl(282,56%,62%,0.45)] dark:shadow-[0_0_60px_hsl(282,60%,55%,0.5)]',
+    color: 'hsl(28, 100%, 55%)',
+    glowColor: 'hsl(28, 100%, 65%)',
+    ringClass: 'ring-orange-400/45 dark:ring-orange-400/40',
+    glowClass: 'shadow-[0_0_50px_hsl(28,100%,55%,0.45)] dark:shadow-[0_0_60px_hsl(28,100%,55%,0.5)]',
     irisScale: 1.1,
     breathingSpeed: 2.8,  // Alert, exploratory
     particleType: 'sparkle',
@@ -106,10 +106,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 😢 Muted Lavender - melancholy, understanding
   sad: {
-    color: 'hsl(271, 11%, 59%)',      // #9B8FA6
-    glowColor: 'hsl(271, 15%, 70%)',
-    ringClass: 'ring-purple-300/30 dark:ring-purple-300/25',
-    glowClass: 'shadow-[0_0_35px_hsl(271,11%,59%,0.3)] dark:shadow-[0_0_45px_hsl(271,15%,55%,0.35)]',
+    color: 'hsl(28, 60%, 52%)',
+    glowColor: 'hsl(28, 60%, 62%)',
+    ringClass: 'ring-orange-300/30 dark:ring-orange-300/25',
+    glowClass: 'shadow-[0_0_35px_hsl(28,60%,52%,0.3)] dark:shadow-[0_0_45px_hsl(28,60%,52%,0.35)]',
     irisScale: 0.9,
     breathingSpeed: 6,    // Slow, subdued
     particleType: 'orbit',
@@ -117,10 +117,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 😠 Deep Crimson - intensity, distinct from frustrated
   mad: {
-    color: 'hsl(354, 80%, 42%)',      // #C21626
-    glowColor: 'hsl(354, 85%, 55%)',
-    ringClass: 'ring-red-700/50 dark:ring-red-600/45',
-    glowClass: 'shadow-[0_0_50px_hsl(354,80%,42%,0.5)] dark:shadow-[0_0_60px_hsl(354,85%,40%,0.5)]',
+    color: 'hsl(15, 100%, 45%)',
+    glowColor: 'hsl(15, 100%, 55%)',
+    ringClass: 'ring-orange-700/50 dark:ring-orange-600/45',
+    glowClass: 'shadow-[0_0_50px_hsl(15,100%,45%,0.5)] dark:shadow-[0_0_60px_hsl(15,100%,45%,0.5)]',
     irisScale: 0.8,
     breathingSpeed: 1.5,  // Rapid, intense
     particleType: 'energy',
@@ -128,10 +128,10 @@ export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   },
   // 😑 Muted Slate-Blue - low energy but present
   bored: {
-    color: 'hsl(197, 9%, 58%)',       // #8A979C
-    glowColor: 'hsl(197, 12%, 68%)',
-    ringClass: 'ring-slate-400/25 dark:ring-slate-400/20',
-    glowClass: 'shadow-[0_0_25px_hsl(197,9%,58%,0.2)] dark:shadow-[0_0_35px_hsl(197,12%,55%,0.25)]',
+    color: 'hsl(28, 40%, 50%)',
+    glowColor: 'hsl(28, 40%, 60%)',
+    ringClass: 'ring-orange-300/25 dark:ring-orange-300/20',
+    glowClass: 'shadow-[0_0_25px_hsl(28,40%,50%,0.2)] dark:shadow-[0_0_35px_hsl(28,40%,50%,0.25)]',
     irisScale: 0.95,
     breathingSpeed: 7,    // Very slow, lethargic
     particleType: 'orbit',

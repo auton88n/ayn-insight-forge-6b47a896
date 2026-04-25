@@ -369,14 +369,26 @@ export const Sidebar = ({
               onClick={() => navigate('/world-intelligence')}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 transition-all duration-200 group shadow-md shadow-orange-400/20"
             >
-              <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center">
-                <Activity className="w-4 h-4 text-black" />
+              {/* Micro-agent particle sphere */}
+              <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center shrink-0">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  {/* Central sphere */}
+                  <circle cx="10" cy="10" r="2.5" fill="black" opacity="0.7"/>
+                  {/* Orbiting particles */}
+                  <circle cx="10" cy="3.5" r="1.2" fill="black" opacity="0.8"/>
+                  <circle cx="16.5" cy="10" r="1" fill="black" opacity="0.6"/>
+                  <circle cx="10" cy="16.5" r="1.2" fill="black" opacity="0.8"/>
+                  <circle cx="3.5" cy="10" r="1" fill="black" opacity="0.6"/>
+                  {/* Diagonal particles */}
+                  <circle cx="14.8" cy="5.2" r="0.8" fill="black" opacity="0.5"/>
+                  <circle cx="14.8" cy="14.8" r="0.8" fill="black" opacity="0.5"/>
+                  <circle cx="5.2" cy="14.8" r="0.8" fill="black" opacity="0.5"/>
+                  <circle cx="5.2" cy="5.2" r="0.8" fill="black" opacity="0.5"/>
+                  {/* Orbit ring */}
+                  <circle cx="10" cy="10" r="6.5" stroke="black" strokeWidth="0.5" strokeOpacity="0.3" strokeDasharray="1.5 1.5"/>
+                </svg>
               </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-semibold text-black">Sphere</p>
-                <p className="text-[10px] text-black/60">Live global insights</p>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-black/40 animate-pulse" />
+              <span className="text-sm font-semibold text-black">Sphere</span>
             </button>
           </SidebarGroupContent>
         </SidebarGroup>
