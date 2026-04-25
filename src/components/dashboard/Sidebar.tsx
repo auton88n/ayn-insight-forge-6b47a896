@@ -362,7 +362,7 @@ export const Sidebar = ({
         )}
 
         
-        {/* World Intelligence Button */}
+        {/* Spheres Button */}
         <SidebarGroup className="flex-shrink-0 px-4 pb-2">
           <SidebarGroupContent>
             <button
@@ -379,7 +379,7 @@ export const Sidebar = ({
                 <Activity className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-semibold text-foreground">World Intelligence</p>
+                <p className="text-xs font-semibold text-foreground">Spheres</p>
                 <p className="text-[10px] text-muted-foreground">Live global insights</p>
               </div>
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

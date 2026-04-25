@@ -320,7 +320,7 @@ export default function WorldIntelligence() {
           <div className="hidden sm:block w-px h-6 bg-white/[0.06]" />
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-            <h1 className="text-sm font-display font-bold tracking-tight truncate">World Intelligence</h1>
+            <h1 className="text-sm font-display font-bold tracking-tight truncate">Spheres</h1>
           </div>
         </div>
 
