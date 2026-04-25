@@ -86,9 +86,9 @@ export const Header = () => {
               to={link.path}
               onClick={(e) => handleNavClick(e, link.path)}
               className={cn(
-                'transition-colors relative pb-0.5',
+                'transition-colors',
                 isActive(link.path) ?
-                'text-foreground after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-orange-400 after:rounded-full' :
+                'text-foreground' :
                 'text-muted-foreground hover:text-foreground'
               )}>
               
@@ -116,7 +116,7 @@ export const Header = () => {
                   </Button>
                 </div> :
 
-              <Button variant="default" size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5 bg-orange-400 hover:bg-orange-500 text-black font-semibold rounded-full px-5">
+              <Button variant="default" size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5">
                   {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
                 </Button>
               }

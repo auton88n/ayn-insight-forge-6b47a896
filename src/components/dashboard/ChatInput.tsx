@@ -83,8 +83,14 @@ const defaultModes = [{
   icon: '🧠'
 }];
 const placeholders = ["Ask me anything...", "What's on your mind?", "How can I help you today?", "Type your question here..."];
-const getSendButtonClass = (_mode: string) => {
-  return 'bg-orange-400 hover:bg-orange-500 text-black';
+const getSendButtonClass = (mode: string) => {
+  const modeName = mode.toLowerCase();
+  if (modeName.includes('general')) return 'bg-foreground text-background';
+  if (modeName.includes('research')) return 'bg-green-600 text-white';
+  if (modeName.includes('pdf')) return 'bg-purple-600 text-white';
+  if (modeName.includes('vision')) return 'bg-orange-600 text-white';
+  if (modeName.includes('civil')) return 'bg-teal-600 text-white';
+  return 'bg-foreground text-background';
 };
 // Get file extension from filename
 const getFileExtension = (filename: string): string => {
@@ -569,10 +575,10 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
               onClick={onStartNewChat}
               disabled={!onStartNewChat}
               className={cn(
-                "inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm transition-all",
+                "inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full border text-xs sm:text-sm transition-all",
                 hasReachedLimit
-                  ? "bg-orange-400 text-black border-orange-400 animate-pulse shadow-md"
-                  : "bg-orange-400 hover:bg-orange-500 text-black border-orange-400"
+                  ? "bg-foreground text-background border-foreground animate-pulse shadow-md"
+                  : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
               )}
             >
               <Plus className="w-3.5 h-3.5" />
