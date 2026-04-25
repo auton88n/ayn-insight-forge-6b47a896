@@ -326,7 +326,7 @@ const EmotionalEyeComponent = ({
 
   // Calculate iris radius based on AI pupil reaction, behavior state, or current state
   const getIrisRadius = () => {
-    const activityBonus = ACTIVITY_PUPIL_BONUS[safeActivityLevel];
+    const activityBonus = ACTIVITY_PUPIL_BONUS[safeActivityLevel] ?? 0;
     
     // AI empathy pupil reactions take highest priority
     switch (pupilReaction) {
