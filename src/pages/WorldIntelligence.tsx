@@ -59,13 +59,11 @@ const SIC_COORDS: Record<string, [number, number]> = {
   ZAF:[22.9,-30.5],CAN:[-106.3,56.1],AUS:[133.7,-25.2],
 };
 
-type ViewSection = 'overview' | 'signals' | 'countries' | 'agents';
+type ViewSection = 'overview' | 'agents';
 
 const NAV_ITEMS: { id: ViewSection; icon: typeof LayoutDashboard; label: string }[] = [
-  { id: 'overview',    icon: LayoutDashboard, label: 'Overview' },
-  { id: 'signals',     icon: Signal,          label: 'Signals' },
-  { id: 'countries',   icon: MapPin,          label: 'Countries' },
-  { id: 'agents',      icon: Users,           label: 'Agents' },
+  { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
+  { id: 'agents',   icon: Users,           label: 'Agents' },
 ];
 
 // ─── Premium Glass Card ──────────────────────────────────────────────────────
@@ -376,7 +374,7 @@ export default function WorldIntelligence() {
           <nav className="flex-1 py-3 px-3 space-y-0.5">
             {NAV_ITEMS.map(item => {
               const isActive = activeSection === item.id;
-              const count = item.id === 'signals' ? signals.length : item.id === 'countries' ? countryIntel.length : undefined;
+              const count = undefined;
               return (
                 <button key={item.id} onClick={() => setActiveSection(item.id)}
                   title={sidebarCollapsed ? item.label : undefined}
@@ -560,13 +558,9 @@ export default function WorldIntelligence() {
                     </div>
                   </GlassCard>
                 )}
-              </motion.div>
-            )}
 
-            {/* ════════ SIGNALS ════════ */}
-            {activeSection === 'signals' && (
-              <motion.div key="signals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
+                {/* ════════ SIGNALS ════════ */}
+                <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
                 <SectionHeader icon={AlertTriangle} label="Intelligence" title="Live World Signals" description="Real-time geopolitical, economic, and market signals from global sources." count={signals.length} />
                 {signals.length > 0 ? (
                   <>
@@ -631,19 +625,14 @@ export default function WorldIntelligence() {
                   </div>
                   </>
                 ) : (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <Signal className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Signal className="w-10 h-10 mx-auto mb-3 opacity-20" />
                     <p className="text-sm">No active signals at this time</p>
                   </div>
                 )}
-              </motion.div>
-            )}
 
-            {/* ════════ PREDICTIONS ════════ */}
-            {/* ════════ COUNTRIES ════════ */}
-            {activeSection === 'countries' && (
-              <motion.div key="countries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
+                {/* ════════ COUNTRIES ════════ */}
+                <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
                 <SectionHeader icon={Building2} label="Dossiers" title="Country Intelligence" description="Economic profiles, hot sectors, and opportunity maps for monitored countries." count={countryIntel.length} />
                 {countryIntel.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -691,8 +680,8 @@ export default function WorldIntelligence() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <MapPin className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                  <div className="text-center py-12 text-muted-foreground">
+                    <MapPin className="w-10 h-10 mx-auto mb-3 opacity-20" />
                     <p className="text-sm">No country data available</p>
                   </div>
                 )}
