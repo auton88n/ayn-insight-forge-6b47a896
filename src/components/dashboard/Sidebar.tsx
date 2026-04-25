@@ -367,22 +367,16 @@ export const Sidebar = ({
           <SidebarGroupContent>
             <button
               onClick={() => navigate('/world-intelligence')}
-              className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl",
-                "bg-gradient-to-r from-amber-500/10 to-red-500/10",
-                "border border-amber-500/20 hover:border-amber-500/40",
-                "hover:from-amber-500/15 hover:to-red-500/15",
-                "transition-all duration-300 group"
-              )}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-orange-400 hover:bg-orange-500 transition-all duration-200 group shadow-md shadow-orange-400/20"
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center shadow-md shadow-amber-500/20">
-                <Activity className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center">
+                <Activity className="w-4 h-4 text-black" />
               </div>
               <div className="flex-1 text-left min-w-0">
-                <p className="text-xs font-semibold text-foreground">Spheres</p>
-                <p className="text-[10px] text-muted-foreground">Live global insights</p>
+                <p className="text-xs font-semibold text-black">Sphere</p>
+                <p className="text-[10px] text-black/60">Live global insights</p>
               </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="w-1.5 h-1.5 rounded-full bg-black/40 animate-pulse" />
             </button>
           </SidebarGroupContent>
         </SidebarGroup>
