@@ -1,4 +1,4 @@
-// Self-hosted fonts via @fontsource (replaces Google Fonts CDN)
+// v2026.04.25 — orange emotion palette
 import '@fontsource/syne/400.css';
 import '@fontsource/syne/500.css';
 import '@fontsource/syne/600.css';
