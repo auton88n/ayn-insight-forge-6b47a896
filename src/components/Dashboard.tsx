@@ -59,6 +59,8 @@ export default function Dashboard({ user, session }: DashboardProps) {
 
     const loadMaintenanceConfig = async () => {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
         const { data, error } = await supabase
           .from('system_config')
           .select('key, value')
@@ -71,12 +73,11 @@ export default function Dashboard({ user, session }: DashboardProps) {
             'pre_maintenance_message',
             'beta_mode',
             'beta_feedback_reward'
-          ]);
+          ])
+          .abortSignal(controller.signal);
+        clearTimeout(timeout);
 
-        if (error) {
-          console.error('Error loading maintenance config:', error);
-          return;
-        }
+        if (error) return; // Silently skip — not critical
 
         if (data && data.length > 0) {
           const configMap = new Map(data.map(c => [c.key, c.value]));
@@ -93,8 +94,8 @@ export default function Dashboard({ user, session }: DashboardProps) {
             feedbackReward: parseInt(String(configMap.get('beta_feedback_reward'))) || 5
           });
         }
-      } catch (error) {
-        console.error('Error loading maintenance config:', error);
+      } catch {
+        // Network error — not critical, skip silently
       }
     };
 
