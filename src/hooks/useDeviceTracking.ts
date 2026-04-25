@@ -96,15 +96,16 @@ export const trackDeviceLogin = async (userId: string, accessToken: string) => {
   try {
     const fingerprintHash = generateFingerprint();
     const deviceInfo = getDeviceInfo();
-    const now = new Date().toISOString();
     
-    // Use REST API for both operations in parallel — both fail silently
-    await Promise.allSettled([
+    // Fire and forget with 3s timeout — never blocks login flow
+    const timeout = new Promise(resolve => setTimeout(resolve, 3000));
+    await Promise.race([
       supabaseApi.rpc('record_device_fingerprint', accessToken, {
         _user_id: userId,
         _fingerprint_hash: fingerprintHash,
         _device_info: deviceInfo
       }).catch(() => null),
+      timeout
     ]);
     
   } catch {
