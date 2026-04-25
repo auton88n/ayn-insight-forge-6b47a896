@@ -23,7 +23,7 @@ import {
   Gift,
   Sparkles,
   ThumbsUp,
-  Twitter,
+
   Activity,
   Brain,
   FilePen,
@@ -52,7 +52,7 @@ export type AdminTabId =
   | 'credit-history'
   | 'beta-feedback'
   | 'message-feedback'
-  | 'twitter-marketing'
+
   | 'terms-consent'
   | 'ayn-logs'
   | 'ayn-mind'
@@ -108,7 +108,6 @@ const sidebarGroups: SidebarGroup[] = [
       { id: 'support',           title: 'Support',           icon: MessageSquare, gradient: 'from-purple-500 to-pink-500',    adminOnly: false },
       { id: 'conversations',     title: 'Conversations',     icon: MessageCircle, gradient: 'from-blue-500 to-indigo-600',    adminOnly: true },
       { id: 'email-broadcast',   title: 'Email Broadcast',   icon: SendIcon,      gradient: 'from-cyan-500 to-blue-500',      adminOnly: true },
-      { id: 'twitter-marketing', title: 'Twitter Marketing', icon: Twitter,       gradient: 'from-sky-500 to-blue-600',       adminOnly: true },
       { id: 'beta-feedback',     title: 'Beta Feedback',     icon: Sparkles,      gradient: 'from-amber-500 to-yellow-500',   adminOnly: true },
       { id: 'message-feedback',  title: 'Message Feedback',  icon: ThumbsUp,      gradient: 'from-rose-500 to-pink-500',      adminOnly: true },
     ],

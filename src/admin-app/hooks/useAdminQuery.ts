@@ -85,7 +85,6 @@ export const adminKeys = {
   revenue: () => [...adminKeys.all, 'revenue'] as const,
   systemMonitoring: () => [...adminKeys.all, 'systemMonitoring'] as const,
   rateLimits: () => [...adminKeys.all, 'rateLimits'] as const,
-  twitterPosts: () => [...adminKeys.all, 'twitterPosts'] as const,
 } as const;
 
 // Shared stale time: 5 min for admin data (it's not real-time critical)

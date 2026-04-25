@@ -18,10 +18,10 @@ export interface EmotionConfig {
 export const EMOTION_CONFIGS: Record<AYNEmotion, EmotionConfig> = {
   // 😌 Soft Ocean Blue - peaceful, balanced like still water
   calm: {
-    color: 'hsl(28, 100%, 55%)',
-    glowColor: 'hsl(28, 100%, 65%)',
-    ringClass: 'ring-orange-400/40 dark:ring-orange-400/35',
-    glowClass: 'shadow-[0_0_50px_hsl(28,100%,55%,0.45)] dark:shadow-[0_0_60px_hsl(28,100%,55%,0.5)]',
+    color: 'hsl(193, 38%, 47%)',      // #4A90A4
+    glowColor: 'hsl(193, 45%, 60%)',
+    ringClass: 'ring-cyan-400/40 dark:ring-cyan-400/35',
+    glowClass: 'shadow-[0_0_50px_hsl(193,38%,47%,0.45)] dark:shadow-[0_0_60px_hsl(193,45%,50%,0.5)]',
     irisScale: 1,
     breathingSpeed: 5.5,  // Slow, peaceful breathing
     particleType: 'sparkle',

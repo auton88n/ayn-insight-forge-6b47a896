@@ -34,7 +34,6 @@ const SubscriptionManagement = lazy(() => import('@/components/admin/Subscriptio
 const CreditGiftHistory = lazy(() => import('@/components/admin/CreditGiftHistory').then(m => ({ default: m.CreditGiftHistory })));
 const BetaFeedbackViewer = lazy(() => import('@/components/admin/BetaFeedbackViewer').then(m => ({ default: m.BetaFeedbackViewer })));
 const MessageFeedbackViewer = lazy(() => import('@/components/admin/MessageFeedbackViewer').then(m => ({ default: m.MessageFeedbackViewer })));
-const MarketingCommandCenter = lazy(() => import('@/components/admin/marketing/MarketingCommandCenter').then(m => ({ default: m.MarketingCommandCenter })));
 const AYNActivityLog = lazy(() => import('@/components/admin/AYNActivityLog').then(m => ({ default: m.AYNActivityLog })));
 const ErrorMonitoring = lazy(() => import('@/components/admin/ErrorMonitoring').then(m => ({ default: m.ErrorMonitoring })));
 const RevenueDashboard = lazy(() => import('@/components/admin/RevenueDashboard').then(m => ({ default: m.RevenueDashboard })));
@@ -231,7 +230,6 @@ export const AdminPanel = ({
                 {activeTab === 'beta-feedback' && <Suspense fallback={<TabFallback />}><BetaFeedbackViewer /></Suspense>}
                 {activeTab === 'message-feedback' && <Suspense fallback={<TabFallback />}><MessageFeedbackViewer /></Suspense>}
                 {activeTab === 'test-results' && <Suspense fallback={<TabFallback />}><TestResultsDashboard /></Suspense>}
-                {activeTab === 'twitter-marketing' && <Suspense fallback={<TabFallback />}><MarketingCommandCenter /></Suspense>}
                 {activeTab === 'terms-consent' && <Suspense fallback={<TabFallback />}><TermsConsentViewer /></Suspense>}
                 {activeTab === 'ayn-logs' && <Suspense fallback={<TabFallback />}><AYNActivityLog /></Suspense>}
                 {activeTab === 'ayn-mind' && <Suspense fallback={<TabFallback />}><CommandCenterPanel /></Suspense>}
