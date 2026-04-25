@@ -44,8 +44,6 @@ const CustomOrders = lazy(() => import('@/components/admin/CustomOrders').then(m
 const NDAManager = lazy(() => import('@/components/admin/NDAManager').then(m => ({ default: m.NDAManager })));
 const DocumentStudio = lazy(() => import('@/components/admin/DocumentStudio').then(m => ({ default: m.DocumentStudio })));
 const TermsConsentViewer = lazy(() => import('@/components/admin/TermsConsentViewer').then(m => ({ default: m.TermsConsentViewer })));
-const CommandCenterPanel = lazy(() => import('@/components/admin/workforce/CommandCenterPanel').then(m => ({ default: m.CommandCenterPanel })));
-const PredictionControlPanel = lazy(() => import('@/pages/PredictionControlPanel'));
 
 // ── Suspense fallback with proper skeleton ──────────────────
 const TabFallback = () => <div className="py-8"><AdminSkeleton variant="table" /></div>;
@@ -232,7 +230,6 @@ export const AdminPanel = ({
                 {activeTab === 'test-results' && <Suspense fallback={<TabFallback />}><TestResultsDashboard /></Suspense>}
                 {activeTab === 'terms-consent' && <Suspense fallback={<TabFallback />}><TermsConsentViewer /></Suspense>}
                 {activeTab === 'ayn-logs' && <Suspense fallback={<TabFallback />}><AYNActivityLog /></Suspense>}
-                {activeTab === 'ayn-mind' && <Suspense fallback={<TabFallback />}><CommandCenterPanel /></Suspense>}
                 {activeTab === 'errors' && <Suspense fallback={<TabFallback />}><ErrorMonitoring /></Suspense>}
                 {activeTab === 'revenue' && <Suspense fallback={<TabFallback />}><RevenueDashboard /></Suspense>}
                 {activeTab === 'conversations' && <Suspense fallback={<TabFallback />}><ConversationViewer /></Suspense>}
@@ -241,7 +238,6 @@ export const AdminPanel = ({
                 {activeTab === 'nda' && <Suspense fallback={<TabFallback />}><NDAManager /></Suspense>}
                 {activeTab === 'custom-orders' && <Suspense fallback={<TabFallback />}><CustomOrders /></Suspense>}
                 {activeTab === 'document-studio' && <Suspense fallback={<TabFallback />}><DocumentStudio /></Suspense>}
-                {activeTab === 'prediction-control' && <Suspense fallback={<TabFallback />}><PredictionControlPanel /></Suspense>}
               </ErrorBoundary>
             </div>
           </div>
