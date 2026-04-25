@@ -105,11 +105,6 @@ export const trackDeviceLogin = async (userId: string, accessToken: string) => {
         _fingerprint_hash: fingerprintHash,
         _device_info: deviceInfo
       }).catch(() => null),
-      supabaseApi.patch(
-        `profiles?user_id=eq.${userId}`,
-        accessToken,
-        { last_login: now }
-      ).catch(() => null)
     ]);
     
   } catch {

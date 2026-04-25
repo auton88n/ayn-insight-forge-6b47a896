@@ -500,12 +500,12 @@ const EmotionalEyeComponent = ({
             <motion.circle 
               cx="50" 
               cy="50" 
-              r={irisRadius}
+              r={irisRadius ?? 28}
               fill="#000000"
               animate={{
                 r: performanceConfig.shouldReduceAnimations 
-                  ? (irisRadius || 28) 
-                  : [(irisRadius || 28), (irisRadius || 28) * 1.06, (irisRadius || 28)], // 6% dilation with breath
+                  ? (irisRadius ?? 28) 
+                  : [(irisRadius ?? 28), (irisRadius ?? 28) * 1.06, (irisRadius ?? 28)], // 6% dilation with breath
               }}
               transition={{
                 r: {
