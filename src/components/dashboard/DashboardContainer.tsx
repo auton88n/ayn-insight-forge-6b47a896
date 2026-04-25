@@ -133,6 +133,9 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
     const attachment = fileUpload.uploadedAttachment;
     
     try {
+      // Ensure we have a valid session ID before saving anything
+      chatSession.ensureSessionId();
+
       // Send message with attachment
       await messagesHook.sendMessage(content, attachment);
       

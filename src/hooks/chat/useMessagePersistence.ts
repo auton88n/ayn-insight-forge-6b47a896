@@ -162,8 +162,9 @@ export function useMessagePersistence(
   ) => {
     const s = sessionRef.current;
     const uid = userIdRef.current;
-    const sid = sessionIdRef.current;
+    const sid = sessionIdRef.current || crypto.randomUUID(); // Never save with empty session_id
     if (!s) return false;
+    if (!uid) return false;
 
     let token = s.access_token;
     try {
