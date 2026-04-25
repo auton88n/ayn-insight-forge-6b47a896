@@ -19,45 +19,11 @@ const AgentSociety       = lazy(() => import('@/components/dashboard/world/Agent
 const AgentConvViewer    = lazy(() => import('@/components/dashboard/world/AgentConvViewer'));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Prediction {
-  id: string; asset: string; horizon: string; target_date: string;
-  baseline_value: number; predicted_value: number;
-  predicted_low: number; predicted_high: number;
-  predicted_direction: 'up' | 'down' | 'sideways';
-  predicted_pct_change: number; confidence: number; reasoning: string;
-  calibration?: any; agree_count?: number; disagree_count?: number;
-  user_vote?: 'agree' | 'disagree' | null;
-  consensus_strength?: string; agreement?: boolean | null;
-  fusion_method?: string; boost_factor?: string | null; generated_by?: string | null;
-}
 interface WorldSignal {
   id: string; signal_type: string; severity: string; headline: string;
   summary?: string; region: string; countries_involved: string[];
   impact_on_oil: string; impact_on_gold: string; impact_on_btc: string;
   created_at: string;
-}
-interface WorldPrediction {
-  id: string; domain: string; region: string; title: string;
-  confidence: number; probability: string;
-  what_is_happening: string; what_it_means: string;
-  who_wins: string; who_gets_hurt: string;
-  historical_parallel: string; what_to_do_now: string;
-  actionable_move?: string; financial_trigger?: string;
-  escalation_risk?: string; conflict_signals?: Record<string, string>;
-  key_drivers: string[]; main_risks: string[];
-}
-interface MasterPrediction {
-  id: string; run_id: string; created_at: string;
-  title: string; thesis: string; horizon: string;
-  probability_pct: number; confidence: number;
-  who_wins: string; who_wins_detail: string;
-  who_loses: string; who_loses_detail: string;
-  actionable_move: string; what_to_watch: string;
-  driving_signals: Array<{signal: string; value: string; direction: string}>;
-  contradicting: Array<{signal: string; reason: string}>;
-  historical_anchor: string; wisdom_applied: string;
-  domain: string; region: string; tags: string[];
-  graph_coherence: number; signal_quality: number;
 }
 interface CountryIntel {
   country_code: string; country_name: string;
@@ -86,23 +52,6 @@ function timeAgo(d: string | null): string {
   return `${Math.floor(m / 60)}h ago`;
 }
 
-const DOMAIN_COLOR: Record<string, string> = {
-  warnings: '#ef4444', conflicts: '#ef4444', geopolitics: '#f97316',
-  economy: '#f59e0b', technology: '#a78bfa', jobs: '#60a5fa',
-  regions: '#06b6d4', business: '#34d399',
-  markets: '#60a5fa', energy: '#34d399', society: '#f472b6',
-  demographics: '#94a3b8', opportunities: '#4ade80',
-};
-const ASSET_META: Record<string, { label: string; icon: string }> = {
-  gold:    { label: 'Gold',    icon: '🥇' },
-  silver:  { label: 'Silver',  icon: '🥈' },
-  oil:     { label: 'Brent',   icon: '🛢️' },
-  btc:     { label: 'Bitcoin', icon: '₿'  },
-  eth:     { label: 'ETH',     icon: 'Ξ'  },
-  copper:  { label: 'Copper',  icon: '🔶' },
-  wheat:   { label: 'Wheat',   icon: '🌾' },
-  usd_jpy: { label: 'USD/JPY', icon: '¥'  },
-};
 const SIC_COORDS: Record<string, [number, number]> = {
   USA:[-95.7,37.0],CHN:[104.1,35.8],EU:[10.4,51.1],GBR:[-3.4,55.3],
   SAU:[45.0,23.8],ARE:[53.8,23.4],JPN:[138.2,36.2],IND:[78.9,20.5],
@@ -244,11 +193,7 @@ export default function WorldIntelligence() {
 
   // Data
   const [snapshot, setSnapshot] = useState<any>(null);
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [signals, setSignals] = useState<WorldSignal[]>([]);
-  const [masterPreds, setMasterPreds] = useState<MasterPrediction[]>([]);
-  const [selectedMaster, setSelectedMaster] = useState<MasterPrediction | null>(null);
-  const [masterFilter, setMasterFilter] = useState<string>('all');
   const [signalFilter, setSignalFilter] = useState<string>('all');
   const [countryIntel, setCountryIntel] = useState<CountryIntel[]>([]);
   const [userId, setUserId] = useState<string | undefined>();
@@ -256,9 +201,6 @@ export default function WorldIntelligence() {
   const [agentActiveConvId, setAgentActiveConvId] = useState<string | null>(null);
 
   // UI
-  const [activeHorizon, setActiveHorizon] = useState<'1_week' | '1_month' | '1_year'>('1_week');
-  const [assetFilter, setAssetFilter] = useState('all');
-  const [votingId, setVotingId] = useState<string | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<CountryIntel | null>(null);
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
@@ -278,66 +220,10 @@ export default function WorldIntelligence() {
     } catch {}
   }, []);
 
-  const fetchPredictions = useCallback(async () => {
-    try {
-      const { data: calibData } = await supabase.from('ayn_accuracy_calibration' as any).select('asset,real_accuracy_pct,reliability_tier,should_show_uncertainty,calibration_factor');
-      const calibMap: Record<string, any> = {};
-      for (const c of (calibData || []) as any[]) calibMap[c.asset] = c;
-      const { data: consensus } = await supabase.from('ayn_consensus_predictions' as any)
-        .select('id,asset,horizon,target_date,baseline_value,consensus_direction,consensus_pct_change,consensus_confidence,consensus_strength,ayn_reasoning,agreement,fusion_method,boost_factor')
-        .eq('status', 'active').order('consensus_confidence', { ascending: false }).limit(60);
-      const { data: aynPreds } = await supabase.from('ayn_predictions')
-        .select('id,asset,horizon,target_date,baseline_value,predicted_value,predicted_low,predicted_high,predicted_direction,predicted_pct_change,confidence,reasoning,generated_by')
-        .eq('status', 'active').in('generated_by', ['ayn_prediction_engine_v10', 'ayn_prediction_engine_v9'])
-        .order('confidence', { ascending: false }).limit(60);
-      const preds = (consensus && consensus.length > 0)
-        ? (consensus as any[]).map(c => ({
-            id: c.id, asset: c.asset, horizon: c.horizon, target_date: c.target_date,
-            baseline_value: Number(c.baseline_value),
-            predicted_value: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100),
-            predicted_low: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 - 0.03),
-            predicted_high: Number(c.baseline_value) * (1 + Number(c.consensus_pct_change) / 100 + 0.03),
-            predicted_direction: c.consensus_direction?.toLowerCase() as 'up' | 'down' | 'sideways',
-            predicted_pct_change: Number(c.consensus_pct_change),
-            confidence: Number(c.consensus_confidence || 50),
-            calibration: calibMap[c.asset] || null,
-            reasoning: c.ayn_reasoning || '',
-            generated_by: 'consensus', consensus_strength: c.consensus_strength,
-            agreement: c.agreement, fusion_method: c.fusion_method, boost_factor: c.boost_factor,
-            agree_count: 0, disagree_count: 0, user_vote: null,
-          }))
-        : (aynPreds || []).map(p => ({
-            ...p, baseline_value: Number(p.baseline_value), predicted_value: Number(p.predicted_value),
-            predicted_low: Number(p.predicted_low), predicted_high: Number(p.predicted_high),
-            predicted_pct_change: Number(p.predicted_pct_change),
-            predicted_direction: (p.predicted_direction || 'sideways') as 'up' | 'down' | 'sideways',
-            confidence: Number(p.confidence || 50), calibration: calibMap[p.asset] || null,
-            agree_count: 0, disagree_count: 0, user_vote: null,
-          }));
-      if (!preds.length) return;
-      const { data: voteCounts } = await supabase.from('ayn_prediction_vote_counts' as any).select('prediction_id,agree_count,disagree_count');
-      let userVoteMap: Record<string, 'agree' | 'disagree'> = {};
-      if (userId) {
-        const { data: uv } = await supabase.from('ayn_prediction_votes').select('prediction_id,vote').eq('user_id', userId).in('prediction_id', preds.map(p => p.id));
-        if (uv) userVoteMap = Object.fromEntries(uv.map(v => [v.prediction_id, v.vote as 'agree' | 'disagree']));
-      }
-      const vMap = Object.fromEntries((voteCounts || []).map((v: any) => [v.prediction_id, v]));
-      setPredictions(preds.map(p => ({ ...p, agree_count: vMap[p.id]?.agree_count || 0, disagree_count: vMap[p.id]?.disagree_count || 0, user_vote: (userVoteMap[p.id] || null) as any })));
-    } catch (e) { console.error('predictions:', e); }
-  }, [userId]);
-
   const fetchSignals = useCallback(async () => {
     try {
       const { data } = await supabase.from('ayn_world_signals').select('*').eq('status', 'active').order('created_at', { ascending: false }).limit(30);
       if (data) setSignals(data as WorldSignal[]);
-    } catch {}
-  }, []);
-
-  const fetchMasterPreds = useCallback(async () => {
-    try {
-      const { data } = await (supabase.from('ayn_master_predictions' as any)
-        .select('*').order('created_at', { ascending: false }).limit(8) as any);
-      if (data) setMasterPreds(data as MasterPrediction[]);
     } catch {}
   }, []);
 
@@ -351,27 +237,10 @@ export default function WorldIntelligence() {
   useEffect(() => {
     fetchSnapshot().finally(() => setLoading(false));
     setTimeout(() => fetchSignals(), 200);
-    setTimeout(() => fetchMasterPreds(), 600);
-    setTimeout(() => fetchPredictions(), 600);
-    setTimeout(() => fetchCountryIntel(), 900);
+    setTimeout(() => fetchCountryIntel(), 600);
     const poll = setInterval(fetchSnapshot, 5 * 60 * 1000);
     return () => clearInterval(poll);
-  }, [fetchSnapshot, fetchSignals, fetchPredictions, fetchCountryIntel]);
-
-  const handleVote = async (predId: string, vote: 'agree' | 'disagree') => {
-    if (!userId || votingId) return;
-    setVotingId(predId);
-    try {
-      const existing = predictions.find(p => p.id === predId);
-      if (existing?.user_vote === vote) {
-        await supabase.from('ayn_prediction_votes').delete().eq('prediction_id', predId).eq('user_id', userId);
-      } else {
-        await supabase.from('ayn_prediction_votes').upsert({ prediction_id: predId, user_id: userId, vote }, { onConflict: 'prediction_id,user_id' });
-      }
-      await fetchPredictions();
-    } finally { setVotingId(null); }
-  };
-
+  }, [fetchSnapshot, fetchSignals, fetchCountryIntel]);
   // Derived data
   const snap         = useMemo(() => safeObj(snapshot?.snapshot), [snapshot]);
   const macro        = useMemo(() => safeObj(snap.macro), [snap]);
@@ -399,15 +268,6 @@ export default function WorldIntelligence() {
     if (sentiment.value) items.push({ label: 'F&G', value: `${sentiment.value}` });
     return items;
   }, [cryptoPrices, macro, sentiment]);
-
-  const filteredPreds = useMemo(() => {
-    const seen = new Set<string>();
-    const ORDER = ['btc', 'eth', 'gold', 'silver', 'oil', 'copper', 'wheat', 'usd_jpy'];
-    return predictions
-      .filter(p => p.horizon === activeHorizon && (assetFilter === 'all' || p.asset === assetFilter))
-      .filter(p => { const k = `${p.asset}-${p.horizon}`; if (seen.has(k)) return false; seen.add(k); return true; })
-      .sort((a, b) => { const ai = ORDER.indexOf(a.asset); const bi = ORDER.indexOf(b.asset); if (ai === -1 && bi === -1) return 0; if (ai === -1) return 1; if (bi === -1) return -1; return ai - bi; });
-  }, [predictions, activeHorizon, assetFilter]);
 
   const mapPoints: MapPoint[] = useMemo(() => {
     const pts: MapPoint[] = [...INTELLIGENCE_SEEDS];

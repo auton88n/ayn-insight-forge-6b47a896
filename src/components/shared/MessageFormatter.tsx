@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import 'highlight.js/styles/github-dark.min.css';
 import { cn } from '@/lib/utils';
 import { sanitizeUserInput, isValidUserInput } from '@/lib/security';
 import { Copy, Check, AlertCircle, Loader2, Download } from 'lucide-react';
@@ -298,6 +297,7 @@ export function MessageFormatter({ content, className }: MessageFormatterProps) 
 
   return (
     <>
+      <style>{`.hljs{background:#0d1117;color:#e6edf3;border-radius:0.5rem;padding:1rem;overflow-x:auto}.hljs-keyword,.hljs-selector-tag,.hljs-built_in,.hljs-name,.hljs-tag{color:#ff7b72}.hljs-string,.hljs-title,.hljs-section,.hljs-attribute,.hljs-literal,.hljs-template-tag,.hljs-template-variable,.hljs-type,.hljs-addition{color:#a5d6ff}.hljs-comment,.hljs-quote,.hljs-deletion,.hljs-meta{color:#8b949e}.hljs-number,.hljs-regexp,.hljs-variable,.hljs-link{color:#79c0ff}.hljs-attr,.hljs-variable,.hljs-template-variable,.hljs-type,.hljs-selector-class,.hljs-selector-attr,.hljs-selector-pseudo{color:#ffa657}.hljs-function,.hljs-class{color:#d2a8ff}`}</style>
        <div 
         className={cn("space-y-4 leading-relaxed break-words max-w-none", className)}
         dir={isRTL ? 'rtl' : 'ltr'}
