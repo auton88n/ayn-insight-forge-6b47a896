@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
   ArrowLeft, RefreshCw, Globe2, Radio, Activity,
-  ChevronRight, Shield, Building2, Flame, Target,
+  ChevronRight, Shield, Building2, Flame,
   AlertTriangle, Users, Zap, TrendingUp, BarChart3,
-  Network, TrendingDown, Eye, LayoutDashboard, Signal,
+  Network, LayoutDashboard, Signal,
   MapPin, ChevronLeft, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,8 +15,6 @@ import { HeatMap2D, MapPoint } from '@/components/dashboard/HeatMap2D';
 import { INTELLIGENCE_SEEDS, THREAT_TICKER } from '@/data/mapSeeds';
 import { SpotlightCard, BorderBeam } from '@/components/ui/premium';
 
-const AccuracyScoreboard = lazy(() => import('@/components/dashboard/world/AccuracyScoreboard'));
-const PredictionCard     = lazy(() => import('@/components/dashboard/world/PredictionCard'));
 const AgentSociety       = lazy(() => import('@/components/dashboard/world/AgentSociety'));
 const AgentConvViewer    = lazy(() => import('@/components/dashboard/world/AgentConvViewer'));
 
@@ -112,12 +110,11 @@ const SIC_COORDS: Record<string, [number, number]> = {
   ZAF:[22.9,-30.5],CAN:[-106.3,56.1],AUS:[133.7,-25.2],
 };
 
-type ViewSection = 'overview' | 'signals' | 'predictions' | 'countries' | 'agents';
+type ViewSection = 'overview' | 'signals' | 'countries' | 'agents';
 
 const NAV_ITEMS: { id: ViewSection; icon: typeof LayoutDashboard; label: string }[] = [
   { id: 'overview',    icon: LayoutDashboard, label: 'Overview' },
   { id: 'signals',     icon: Signal,          label: 'Signals' },
-  { id: 'predictions', icon: Target,          label: 'Predictions' },
   { id: 'countries',   icon: MapPin,          label: 'Countries' },
   { id: 'agents',      icon: Users,           label: 'Agents' },
 ];
@@ -519,7 +516,7 @@ export default function WorldIntelligence() {
           <nav className="flex-1 py-3 px-3 space-y-0.5">
             {NAV_ITEMS.map(item => {
               const isActive = activeSection === item.id;
-              const count = item.id === 'signals' ? signals.length : item.id === 'predictions' ? masterPreds.length + filteredPreds.length : item.id === 'countries' ? countryIntel.length : undefined;
+              const count = item.id === 'signals' ? signals.length : item.id === 'countries' ? countryIntel.length : undefined;
               return (
                 <button key={item.id} onClick={() => setActiveSection(item.id)}
                   title={sidebarCollapsed ? item.label : undefined}
@@ -783,216 +780,6 @@ export default function WorldIntelligence() {
             )}
 
             {/* ════════ PREDICTIONS ════════ */}
-            {activeSection === 'predictions' && (
-              <motion.div key="predictions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-                className="p-6 sm:p-8 lg:p-10 pb-16 space-y-8 max-w-[1400px] mx-auto">
-
-                {/* Graph Intelligence */}
-                <section>
-                  <SectionHeader icon={Network} title="AYN Predictions" count={masterPreds.length} />
-
-                  {masterPreds.length === 0 ? (
-                    <GlassCard hover={false} className="p-10 text-center">
-                      <Network className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
-                      <p className="text-sm text-muted-foreground mb-1">Graph engine connects signals, prices, and patterns to generate predictions</p>
-                      <p className="text-xs text-muted-foreground/40">Runs every 4 hours automatically</p>
-                    </GlassCard>
-                  ) : (
-                    <>
-                      {/* Category filter */}
-                      {(() => {
-                        const CATS = [
-                          { id: 'all', label: 'All', color: '#a78bfa' },
-                          { id: 'markets', label: 'Markets', color: '#60a5fa' },
-                          { id: 'geopolitics', label: 'Geopolitics', color: '#f97316' },
-                          { id: 'conflicts', label: 'Conflicts', color: '#ef4444' },
-                          { id: 'economy', label: 'Economy', color: '#f59e0b' },
-                          { id: 'energy', label: 'Energy', color: '#34d399' },
-                          { id: 'technology', label: 'Tech', color: '#a78bfa' },
-                          { id: 'society', label: 'Society', color: '#f472b6' },
-                        ];
-                        const activeDomains = new Set(masterPreds.map(p => p.domain?.toLowerCase()));
-                        const visible = CATS.filter(c => c.id === 'all' || activeDomains.has(c.id));
-                        return (
-                          <div className="flex gap-2.5 flex-wrap mb-6">
-                            {visible.map(cat => {
-                              const count = cat.id === 'all' ? masterPreds.length : masterPreds.filter(p => p.domain?.toLowerCase() === cat.id).length;
-                              const isActive = masterFilter === cat.id;
-                              return (
-                                <button key={cat.id} onClick={() => setMasterFilter(cat.id)}
-                                  className={cn("px-4 py-2 rounded-xl text-xs font-medium transition-all duration-200 border",
-                                    isActive ? "bg-primary/10 text-primary border-primary/20 shadow-[0_0_8px_rgba(14,165,233,0.1)]" : "border-white/[0.06] text-muted-foreground hover:text-foreground hover:bg-white/[0.04]")}>
-                                  {cat.label} <span className="opacity-50 ml-1">{count}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-
-                      <div className="space-y-5">
-                        {masterPreds
-                          .filter(mp => masterFilter === 'all' || mp.domain?.toLowerCase() === masterFilter)
-                          .map((mp, idx) => {
-                          const coherenceColor = mp.graph_coherence >= 80 ? 'text-emerald-400' : mp.graph_coherence >= 60 ? 'text-amber-400' : 'text-red-400';
-                          const domainCol = DOMAIN_COLOR[mp.domain?.toLowerCase()] || '#a78bfa';
-                          const isSelected = selectedMaster?.id === mp.id;
-                          return (
-                            <motion.div key={mp.id}
-                              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}>
-                              <SpotlightCard
-                                className={cn("rounded-2xl border bg-white/[0.03] backdrop-blur-xl overflow-hidden cursor-pointer transition-all duration-300",
-                                  isSelected ? "border-primary/20 shadow-[0_16px_48px_rgba(0,0,0,0.4)]" : "border-white/[0.06] hover:border-white/[0.1] hover:-translate-y-0.5 hover:shadow-[0_16px_48px_rgba(0,0,0,0.3)]")}
-                                onClick={() => setSelectedMaster(isSelected ? null : mp)}>
-                                <div className="p-6">
-                                  <div className="flex items-start justify-between gap-3 mb-4">
-                                    <div className="flex items-center gap-2.5 flex-wrap">
-                                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full border"
-                                        style={{ color: domainCol, borderColor: `${domainCol}30`, backgroundColor: `${domainCol}10` }}>
-                                        {mp.domain}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground/50">{mp.region}</span>
-                                      <span className="text-xs text-muted-foreground/40">{mp.horizon?.replace(/_/g, ' ')}</span>
-                                    </div>
-                                    <div className="flex items-center gap-5 shrink-0">
-                                      <div className="text-right">
-                                        <p className={cn("text-sm font-bold", coherenceColor)}>{mp.graph_coherence}%</p>
-                                        <p className="text-[10px] text-muted-foreground/40">coherence</p>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="text-lg font-bold text-foreground">{mp.probability_pct}%</p>
-                                        <p className="text-[10px] text-muted-foreground/40">probability</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <h3 className="text-base font-semibold text-foreground leading-snug mb-2.5">{mp.title}</h3>
-                                  <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2 mb-5">{mp.thesis}</p>
-                                  <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <GlassCard hover={false} className="p-4 border-t-2 border-t-emerald-500/30">
-                                      <div className="flex items-center gap-1.5 mb-2">
-                                        <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                                        <span className="text-[10px] font-semibold text-emerald-400 uppercase">Winners</span>
-                                      </div>
-                                      <p className="text-xs text-muted-foreground/70 leading-relaxed">{mp.who_wins}</p>
-                                    </GlassCard>
-                                    <GlassCard hover={false} className="p-4 border-t-2 border-t-red-500/30">
-                                      <div className="flex items-center gap-1.5 mb-2">
-                                        <TrendingDown className="w-3.5 h-3.5 text-red-400" />
-                                        <span className="text-[10px] font-semibold text-red-400 uppercase">Losers</span>
-                                      </div>
-                                      <p className="text-xs text-muted-foreground/70 leading-relaxed">{mp.who_loses}</p>
-                                    </GlassCard>
-                                  </div>
-                                  <div className="relative rounded-xl p-4 bg-primary/5 border border-primary/15 overflow-hidden">
-                                    <BorderBeam colorFrom="rgba(14,165,233,0.5)" colorTo="transparent" duration={8} size={60} />
-                                    <div className="flex items-center gap-1.5 mb-2 relative z-10">
-                                      <Zap className="w-3.5 h-3.5 text-primary" />
-                                      <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">Your Move</span>
-                                    </div>
-                                    <p className="text-sm font-medium text-foreground relative z-10">{mp.actionable_move}</p>
-                                  </div>
-                                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.04]">
-                                    <div className="flex gap-1.5 flex-wrap">
-                                      {mp.driving_signals?.slice(0, 3).map((s: any, i: number) => (
-                                        <span key={i} className={cn('text-[10px] px-2.5 py-1 rounded-full border',
-                                          s.direction === 'bullish' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                          s.direction === 'bearish' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                                          'bg-white/[0.04] border-white/[0.06] text-muted-foreground')}>{s.signal}</span>
-                                      ))}
-                                    </div>
-                                    <span className="text-xs text-muted-foreground/40">{isSelected ? 'Collapse ↑' : 'Details →'}</span>
-                                  </div>
-                                </div>
-                                <AnimatePresence>
-                                  {isSelected && (
-                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}
-                                      className="border-t border-white/[0.04] bg-white/[0.02] overflow-hidden">
-                                      <div className="p-6 pb-10 space-y-5">
-                                        {mp.who_wins_detail && (<div><p className="text-[10px] text-emerald-400 uppercase font-semibold mb-1.5 tracking-wider">Why they win</p><p className="text-sm text-muted-foreground/70 leading-relaxed">{mp.who_wins_detail}</p></div>)}
-                                        {mp.who_loses_detail && (<div><p className="text-[10px] text-red-400 uppercase font-semibold mb-1.5 tracking-wider">Why they lose</p><p className="text-sm text-muted-foreground/70 leading-relaxed">{mp.who_loses_detail}</p></div>)}
-                                        {mp.what_to_watch && (
-                                          <GlassCard hover={false} className="p-5 border-t-2 border-t-amber-500/30">
-                                            <div className="flex items-center gap-1.5 mb-2"><Eye className="w-3.5 h-3.5 text-amber-400" /><span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">Watch For</span></div>
-                                            <p className="text-sm text-muted-foreground/70">{mp.what_to_watch}</p>
-                                          </GlassCard>
-                                        )}
-                                        {mp.historical_anchor && (
-                                          <GlassCard hover={false} className="p-5 border-t-2 border-t-purple-500/30">
-                                            <p className="text-[10px] text-purple-400 uppercase font-semibold mb-1.5 tracking-wider">Historical Pattern</p>
-                                            <p className="text-sm text-muted-foreground/70">{mp.historical_anchor}</p>
-                                          </GlassCard>
-                                        )}
-                                        {mp.contradicting?.length > 0 && (
-                                          <div>
-                                            <p className="text-[10px] text-amber-400 uppercase font-semibold mb-3 tracking-wider">Risks to This Thesis</p>
-                                            <div className="space-y-2">
-                                              {mp.contradicting.map((c: any, i: number) => (
-                                                <p key={i} className="text-sm text-muted-foreground/70"><span className="font-medium text-amber-400">{c.signal}</span> — {c.reason}</p>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </SpotlightCard>
-                            </motion.div>
-                          );
-                        })}
-                        {masterPreds.filter(mp => masterFilter === 'all' || mp.domain?.toLowerCase() === masterFilter).length === 0 && (
-                          <div className="text-center py-16 text-muted-foreground/50 text-sm">No predictions in this category</div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </section>
-
-                {/* Separator */}
-                <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-
-                {/* Price Predictions */}
-                <section>
-                  <SectionHeader icon={BarChart3} label="Market Forecasts" title="Price Predictions" description="AI-powered consensus forecasts across major asset classes." count={filteredPreds.length} />
-
-                  <Suspense fallback={<div className="h-20 animate-pulse rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-4" />}>
-                    <AccuracyScoreboard />
-                  </Suspense>
-
-                  {/* Horizon + asset filters */}
-                  <div className="flex flex-wrap gap-3 my-6">
-                    <div className="flex gap-1 p-1.5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                      {(['1_week', '1_month', '1_year'] as const).map(h => (
-                        <button key={h} onClick={() => setActiveHorizon(h)}
-                          className={cn('px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200',
-                            activeHorizon === h ? 'bg-primary/10 text-primary shadow-[0_0_8px_rgba(14,165,233,0.1)]' : 'text-muted-foreground hover:text-foreground')}>
-                          {h === '1_week' ? '1 Week' : h === '1_month' ? '1 Month' : '1 Year'}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-1 p-1.5 rounded-xl border border-white/[0.06] bg-white/[0.02] flex-wrap">
-                      <button onClick={() => setAssetFilter('all')} className={cn('px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200', assetFilter === 'all' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground')}>All</button>
-                      {Object.entries(ASSET_META).map(([a, m]) => (
-                        <button key={a} onClick={() => setAssetFilter(a)} title={m.label} className={cn('px-3 py-2 rounded-lg text-sm transition-all duration-200', assetFilter === a ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground')}>{m.icon}</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {filteredPreds.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                      {filteredPreds.map(p => (
-                        <Suspense key={p.id} fallback={<div className="h-28 animate-pulse rounded-2xl bg-white/[0.03] border border-white/[0.06]" />}>
-                          <PredictionCard pred={p} onVote={handleVote} userId={userId} voting={votingId === p.id} />
-                        </Suspense>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-16 text-muted-foreground/50 text-sm">No predictions for this filter</div>
-                  )}
-                </section>
-              </motion.div>
-            )}
-
             {/* ════════ COUNTRIES ════════ */}
             {activeSection === 'countries' && (
               <motion.div key="countries" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
