@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +20,22 @@ import PageTransition from "@/components/shared/PageTransition";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 import { HelmetProvider } from 'react-helmet-async';
+
+// Silently preload the most-visited pages 2s after app loads
+// so navigation feels instant on first click
+function PreloadRoutes() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      import('./pages/WorldIntelligence');
+      import('./pages/Settings');
+      import('./pages/Pricing');
+      import('./pages/Services');
+      import('./pages/Support');
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+  return null;
+}
 
 // Lazy load all route pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -161,6 +177,7 @@ const App = () => {
                     <Sonner />
                     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                       <ScrollToTop />
+                      <PreloadRoutes />
                       <ErrorBoundary>
                         <Suspense fallback={<PageLoader />}>
                           <AnimatedRoutes />
