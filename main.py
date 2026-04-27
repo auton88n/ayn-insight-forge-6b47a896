@@ -19,6 +19,8 @@ from openai import AsyncOpenAI
 
 load_dotenv()
 
+from simulations_router import router as simulations_router
+
 # ── Config ────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
 LLM_BASE_URL    = os.getenv("LLM_BASE_URL", None)
