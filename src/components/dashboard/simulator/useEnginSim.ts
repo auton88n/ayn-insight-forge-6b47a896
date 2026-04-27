@@ -86,7 +86,7 @@ export function useEnginSim() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Engine unavailable';
-      toast.error('Engin offline', { description: 'Could not reach engin.aynn.io. Check VITE_ENGIN_URL or backend status.' });
+      toast.error('Engine offline', { description: 'Could not reach engine.aynn.io. Check VITE_ENGIN_URL or backend status.' });
       setS(p => ({ ...p, loading: false, error: msg, stage: 'seed' }));
     }
   }, []);
