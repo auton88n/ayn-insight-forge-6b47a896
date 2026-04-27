@@ -1,59 +1,128 @@
+# Rebuild /world-intelligence as a MiroFish-Style Swarm Simulator
 
+The current Agents page (AgentSociety + WorldSimulator) is hardcoded to a fixed 80-persona Supabase model and points at `ayn-world-simulator` edge function and `ayn_world_*` Supabase tables — none of which match your real Python backend at `engin.aynn.io`. We'll replace it with a MiroFish-style flow wired to engin.
 
-# Plan — Fix dashboard crash (1 file, 1 line)
+---
 
-## Root cause
-`src/components/shared/MessageFormatter.tsx` line 6 imports a CSS file from a package that isn't installed:
+## What the new page does (MiroFish workflow)
 
-```ts
-import 'highlight.js/styles/github-dark.min.css';
+```text
+①  SEED            ②  GRAPH          ③  SIMULATE       ④  REPORT       ⑤  CHAT
+─────────         ─────────         ─────────         ─────────       ─────────
+paste/upload  →   entities &    →   N-round agent →   prediction  →   talk to
++ question        relationships     interactions      + drivers       any agent
+                  visualized        stream live       + confidence    or ReportAgent
 ```
 
-The project only has `rehype-highlight` in `package.json` — not `highlight.js` itself. Vite throws "Failed to resolve import" → the module can't compile → `Dashboard.tsx` dynamic import fails → **the entire dashboard fails to load**.
+A single console page. Stage stepper at top. Center canvas changes per stage. Left rail = agent roster. Bottom = live signals ticker.
 
-That's why:
-- World Intelligence sections don't work
-- Admin panel doesn't open
-- Settings don't open
-- Buttons do nothing
-- Bonus credits display is missing
-- The page feels stuck/laggy (it's actually crashed and the ErrorBoundary is rendering)
+---
 
-The chat itself (the eye + input) works because that part is rendered by the loading wrapper in `Index.tsx`, before Dashboard is reached.
+## The mismatch we're fixing
 
-## Fix (1 file)
+Current code calls things that no longer exist on your backend:
 
-**`src/components/shared/MessageFormatter.tsx`** — replace the broken import with the bundled CSS that lives inside `rehype-highlight`'s peer dep, OR simply remove the import and use a self-contained `<style>` block already used elsewhere.
+| Current (broken) | New |
+|---|---|
+| `supabase.functions.invoke('ayn-world-simulator')` | `POST {ENGIN_URL}/simulations` |
+| `from('ayn_world_simulations')` / `ayn_world_events` | `GET {ENGIN_URL}/simulations/:id` + `/stream` (SSE) |
+| Hardcoded 80 personas in `RAW_POS` | `GET /simulations/:id/agents` from engin |
+| `fetchPredictions` / `fetchMasterPreds` (undefined → build error) | removed |
+| `setActiveSection('signals')` (not in union → build error) | replaced by stage state machine |
+| Runtime 404 "Edge function not found" | gone, no Supabase function calls |
 
-The cleanest fix: install `highlight.js` as a real dependency so the existing import resolves. It's a tiny, well-maintained library that `rehype-highlight` is already designed to pair with.
+---
 
-```
-bun add highlight.js
-```
+## Backend contract (engin.aynn.io)
 
-No code changes needed — the import on line 6 will then resolve correctly and Dashboard will load again.
+Frontend will call a single client `src/lib/enginApi.ts` against `VITE_ENGIN_URL` (default `https://engin.aynn.io`). Auth: forwards the Supabase access token as `Authorization: Bearer <jwt>` (matches existing spineApi pattern). If your Python uses different paths or an API-key header, only this one file changes — send me the OpenAPI and I'll adapt.
 
-## Why not just delete the import?
-Code blocks in chat (when AYN replies with code) would render unstyled. The whole point of `MessageFormatter` is to syntax-highlight markdown code fences. Installing `highlight.js` keeps that working and matches the existing `rehype-highlight` integration.
+| Method | Path | Body / Returns |
+|---|---|---|
+| POST | `/simulations` | `{seed, question, rounds?, agents?}` → `{sim_id, status}` |
+| GET  | `/simulations/:id` | status + meta |
+| GET  | `/simulations/:id/graph` | `{nodes:[], edges:[]}` |
+| GET  | `/simulations/:id/agents` | persona list `{id, name, category, country, emotion}` |
+| GET  | `/simulations/:id/stream` | **SSE**: `turn`, `signal`, `emotion`, `done` events |
+| GET  | `/simulations/:id/report` | structured prediction |
+| POST | `/simulations/:id/agents/:agentId/chat` | chat with one agent |
+| POST | `/simulations/:id/report/chat` | chat with ReportAgent |
+| POST | `/simulations/:id/inject` | god-view variable injection mid-run |
 
-## After the fix
-- Dashboard loads ✓
-- World Intelligence sections work ✓
-- Admin panel opens ✓
-- Settings open ✓
-- All buttons work ✓
-- Bonus credits display restored ✓
-- "Lag" disappears (the ErrorBoundary won't be re-mounting on every navigation) ✓
+If a route is missing, the UI degrades to a skeleton + "engine route not available" toast. We'll list any gaps so you can add them on the Python side.
 
-## What this does NOT fix
-The two real performance/correctness items I noticed while debugging — both are minor and separate:
-1. `/user/limits` polls every 60 seconds even when nothing changed (unnecessary network noise)
-2. Bonus credits show `0` in the API response — that's a backend data issue (your account literally has `bonus_credits: 0` in `/user/limits`), not a frontend bug
+---
 
-If you want me to also (a) reduce the polling and (b) investigate why bonus credits aren't being credited to your account, say so after the dashboard fix lands and I'll address them as a separate change.
+## Frontend changes
 
-## Files changed
-- `package.json` (adds `highlight.js` dependency — done via package install, no manual edit)
+**Replace (rewrite):**
+- `src/pages/WorldIntelligence.tsx` — new five-stage shell. Removes the broken `fetchPredictions` / `fetchMasterPreds` references and the stale `'signals'` section. Removes Supabase fetches.
 
-That's it. One install, everything comes back.
+**New under `src/components/dashboard/simulator/`:**
+- `SimulatorShell.tsx` — stage stepper + 3-column layout
+- `SeedInput.tsx` — textarea, file drop (PDF/CSV/MD), preset chips, prediction question
+- `GraphCanvas.tsx` — force-directed graph (reuses `@react-three/fiber@^8.18` + `@react-three/drei@^9.122` already in project)
+- `SimulationView.tsx` — live network + turn counter + emotion heatmap
+- `AgentRoster.tsx` — left rail with category filters (matches the look in your screenshot: ALL/GOVERNMENTS/CENTRAL BANKS/MARKETS/BANKS/COMPANIES/PEOPLE)
+- `SignalsTicker.tsx` — bottom live stream
+- `ReportPanel.tsx` — outcome cards, drivers, confidence bars
+- `AgentChatDrawer.tsx` — slide-in chat with selected agent or ReportAgent
+- `useEnginSim.ts` — hook orchestrating create → poll → SSE → report
 
+**New API client:**
+- `src/lib/enginApi.ts` — REST + SSE parser (mirrors the proven SSE pattern in `src/hooks/chat/useSSEStream.ts`)
+
+**Config:**
+- `src/config.ts` — add `ENGIN_URL` (default `https://engin.aynn.io`, override `VITE_ENGIN_URL`)
+
+**Move to legacy (kept in repo, not imported):**
+- `AgentSociety.tsx`, `WorldSimulator.tsx`, `AgentConvViewer.tsx`, `AccuracyScoreboard.tsx`, `PredictionCard.tsx` → `src/components/dashboard/world/_legacy/`. Easy to restore if needed; deletable later.
+
+---
+
+## Visual redesign
+
+Aligned with your screenshot reference and existing `world-intelligence/dashboard-aesthetic` memory:
+
+- Stage stepper across the top with neon progress dots
+- Glass cards, thin top-light borders (existing `GlassCard`)
+- Agent roster pill chips: `ALL 87`, `GOVERNMENTS 27`, `CENTRAL BANKS 7`, `MARKETS 10`, `BANKS 8`, `COMPANIES 11`, `PEOPLE 31`
+- Network graph as the hero (force-directed, agents pulse on emotion change)
+- Right column: agent list with country flag, category icon, emotion bar (Confident/Worried/Excited)
+- Bottom: `LIVE SIGNALS — click to react` ticker
+- Typography: Syne (display), JetBrains Mono (telemetry), Inter (body)
+- Palette: existing dark `#0a0a0f`, cyan/violet primaries, emotion accents from current `EM` map
+
+---
+
+## Bug fixes included
+
+- Build error: `Cannot find name 'fetchPredictions'` (line 292) → removed.
+- Build error: `Cannot find name 'fetchMasterPreds'` (line 292) → removed.
+- Build error: `'signals' not assignable to ViewSection` (line 529) → replaced by `SimStage` union.
+- Runtime: `Edge function returned 404` → no more `ayn-world-simulator` calls.
+
+---
+
+## Out of scope
+
+- No changes to your Python service (you confirmed engin.aynn.io is the existing backend).
+- No changes to auth, billing, admin, other dashboard pages.
+- Keeps `ws-relay`, `ayn-ai-proxy` and other intentional Supabase functions untouched.
+- ReportAgent prompt engineering stays server-side.
+
+---
+
+## Open items (won't block start)
+
+1. `engin.aynn.io` did not respond from the sandbox (likely IP-restricted or browser-only). Plan assumes it works from the user's browser. If routes differ, send the OpenAPI and only `enginApi.ts` changes.
+2. Auth scheme: defaulting to `Authorization: Bearer <supabase-jwt>` (matches spineApi). Tell me if engin uses an API key header instead.
+
+---
+
+## Deliverable
+
+After approval:
+- `/world-intelligence` shows the new MiroFish-style simulator immediately (no new route).
+- Preset seed ("Suez bypass becomes permanent") runs end-to-end against engin: graph builds, simulation streams, report renders, agents are chattable.
+- Build is green. Runtime 404 gone.
