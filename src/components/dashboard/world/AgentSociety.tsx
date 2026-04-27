@@ -16,7 +16,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 
-const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
+const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co'; // kept for Supabase direct queries
+const ENGINE_URL = 'https://engine.aynn.io'; // Python simulation engine
 
 // ─── Emotion / category config ────────────────────────────────────────────────
 const EM: Record<string, { emoji:string; color:string; bg:string; border:string; label:string }> = {
@@ -541,8 +542,9 @@ export default function AgentSociety({
     try{
       const body:any={mode:'generate_conversation'};
       if(activeCategory!=='all')body.category=activeCategory;
-      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)
+      const res = await fetch(`${ENGINE_URL}/simulate`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({event:body.event||'Current global macro environment: US-China trade war, gold surging, Fed holding rates, geopolitical fragmentation accelerating'})
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -558,16 +560,24 @@ export default function AgentSociety({
 
   const loadData=useCallback(async()=>{
     try{
-      const res=await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({mode:'get_conversations'})
-      });
-      if(!res.ok)return;
-      const data=await res.json();
+      // Fetch conversations and agents in parallel from Python engine
+      const [convRes, agentRes] = await Promise.all([
+        fetch(`${ENGINE_URL}/conversations`,{method:'GET'}),
+        fetch(`${ENGINE_URL}/agents`,{method:'GET'}),
+      ]);
+      const data = convRes.ok ? await convRes.json() : {};
+      const agentData = agentRes.ok ? await agentRes.json() : {};
       const convs = data.conversations||[];
       setConversations(convs);
       onConversationsChange?.(convs);
-      setAgentStates(data.agent_states||[]);
+      // Map engine agents to agent_states shape
+      const agents = (agentData.agents||[]).map((a:any)=>({
+        agent_id: a.id, agent_name: a.name, agent_flag: a.flag,
+        agent_category: a.category, agent_role: a.category,
+        current_emotion: 'neutral', emotion_intensity: 50,
+        key_concern: '', last_action: '', stance_summary: '',
+      }));
+      setAgentStates(agents);
       setCategories(data.categories||[]);
       if(data.conversations?.length&&!activeConvId)setActiveConvId(data.conversations[0].id);
       // Auto-activate if no conversations exist
@@ -605,10 +615,10 @@ export default function AgentSociety({
     setSignalLoading(signal.id);
     setGenerating(true);
     try {
-      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`, {
+      const res = await fetch(`${ENGINE_URL}/inject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'generate_from_signal', signal_id: signal.id })
+        body: JSON.stringify({ mode: 'inject_event', signal_id: signal.id, signal_headline: signal.headline, signal_summary: signal.summary||'' })
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -628,10 +638,7 @@ export default function AgentSociety({
     const fetchMsgs = async () => {
       setLoadingMsgs(true);
       try {
-        const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
-          method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({mode:'get_messages',conversation_id:activeConvId})
-        });
+        const res = await fetch(`${ENGINE_URL}/conversations/${activeConvId}/messages`,{method:'GET'});
         if (res.ok) { const data = await res.json(); setMessages(data.messages || []); }
       } catch {} finally { setLoadingMsgs(false); }
     };
@@ -642,7 +649,7 @@ export default function AgentSociety({
     if (!godEyeInput.trim()) return;
     setGenerating(true);
     try {
-      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+      const res = await fetch(`${ENGINE_URL}/inject`,{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ mode: 'inject_event', event: godEyeInput })
       });
@@ -660,9 +667,9 @@ export default function AgentSociety({
     setChatHistory(prev => [...prev, userMsg]);
     setChatInput(''); setChatLoading(true);
     try {
-      const res = await fetch(`${SUPA_URL}/functions/v1/ayn-agent-society`,{
+      const res = await fetch(`${ENGINE_URL}/chat`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ mode: 'chat', agent_id: chatAgent.agent_id, message: chatInput, history: chatHistory })
+        body:JSON.stringify({ agent_id: chatAgent.agent_id, message: chatInput, history: chatHistory })
       });
       if (!res.ok) { toast({ title: "Connection Lost", description: `${chatAgent.agent_name} is not responding.`, variant: "destructive" }); return; }
       const data = await res.json();

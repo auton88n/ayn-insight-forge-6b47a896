@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
+const ENGINE_URL = 'https://engine.aynn.io';
 
 const EM: Record<string, {color:string;bg:string;border:string;emoji:string;label:string}> = {
   neutral:    {color:'#94a3b8',bg:'rgba(148,163,184,0.08)',border:'rgba(148,163,184,0.2)',emoji:'😐',label:'Neutral'},
@@ -83,14 +84,9 @@ export default function AgentConvViewer({ convId }: { convId: string }) {
     setError(null);
     setMessages([]);
 
-    fetch(`${SUPABASE_URL}/functions/v1/ayn-agent-society`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ mode: 'get_messages', conversation_id: convId })
+    fetch(`${ENGINE_URL}/conversations/${convId}/messages`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     })
       .then(r => r.json())
       .then(data => { setMessages(data.messages || []); })
