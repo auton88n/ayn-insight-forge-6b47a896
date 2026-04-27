@@ -13,7 +13,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 # ── LLM ───────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-GEMINI_MODEL    = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL    = os.getenv("LLM_MODEL", "gemini-2.5-flash")
 
 # Lovable proxy — calls ayn-ai-proxy edge fn (LOVABLE_API_KEY stays in Supabase)
 PROXY_SECRET = os.getenv("AYN_PROXY_SECRET", "")

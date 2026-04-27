@@ -13,16 +13,9 @@ from datetime import datetime, timezone, date
 log = logging.getLogger("ayn.intelligence")
 
 async def _ai(prompt: str, max_tokens: int = 3000) -> str:
-    """Call AI via ayn-ai-proxy (Lovable gateway) with Gemini fallback."""
-    from core.llm import lovable, gemini
+    """Call AI via Gemini direct."""
+    from core.llm import gemini
     messages = [{"role": "user", "content": prompt}]
-    # Try Lovable proxy first (LOVABLE_API_KEY stays in Supabase)
-    try:
-        result = await lovable(messages, model="intelligence", max_tokens=max_tokens, temperature=0.25, timeout=55.0)
-        return result.get("content", "")
-    except Exception as e:
-        log.debug(f"[ai] Lovable proxy failed ({e}), falling back to Gemini direct")
-    # Fallback: Gemini direct
     result = await gemini(messages, max_tokens=max_tokens, temperature=0.25)
     return result.get("content", "")
 

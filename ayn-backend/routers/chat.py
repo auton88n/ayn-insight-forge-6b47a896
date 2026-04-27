@@ -227,6 +227,6 @@ async def chat(body: ChatBody, request: Request, user_id: str = Depends(verify_t
         "content": clean_content,
         "model": "AYN",
         "intent": intent,
-        "provider": first_result.get("provider", "lovable"),
+        "provider": first_result.get("provider", "gemini"),
         "was_fallback": first_result.get("was_fallback", False),
     }
