@@ -11,3 +11,10 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
  */
 export const AYN_BACKEND_URL =
   (import.meta.env?.VITE_AYN_BACKEND_URL as string | undefined) || 'https://spine.aynn.io';
+
+/**
+ * AYN ENGIN — Python swarm-simulation engine (MiroFish-style).
+ * Override at build time with VITE_ENGIN_URL.
+ */
+export const ENGIN_URL =
+  (import.meta.env?.VITE_ENGIN_URL as string | undefined) || 'https://engin.aynn.io';
