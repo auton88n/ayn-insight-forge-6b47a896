@@ -160,20 +160,20 @@ async def gemini_json(
 # Chains: Lovable first (fast, cheap), Gemini direct as fallback (no timeout)
 FALLBACK_CHAINS: dict[str, list[tuple[str, str]]] = {
     # (provider, model_key)
-    "chat":                 [("lovable", "chat"),     ("gemini", "gemini-2.5-flash")],
-    "deep":                 [("lovable", "deep"),     ("gemini", "gemini-2.5-flash")],
-    "engineering":          [("lovable", "chat"),     ("lovable", "deep"),     ("gemini", "gemini-2.5-flash")],
-    "files":                [("lovable", "chat"),     ("gemini", "gemini-2.5-flash")],
-    "search":               [("lovable", "chat"),     ("gemini", "gemini-2.5-flash")],
-    "trading-coach":        [("lovable", "chat"),     ("lovable", "standard"), ("gemini", "gemini-2.5-flash")],
-    "business-intelligence":[("lovable", "chat"),     ("lovable", "deep"),     ("gemini", "gemini-2.5-flash")],
-    "document":             [("lovable", "deep"),     ("lovable", "chat"),     ("gemini", "gemini-2.5-flash")],
+    "chat":                 [("gemini", "gemini-2.5-flash")],
+    "deep":                 [("gemini", "gemini-2.5-flash")],
+    "engineering":          [("gemini", "gemini-2.5-flash")],
+    "files":                [("gemini", "gemini-2.5-flash")],
+    "search":               [("gemini", "gemini-2.5-flash")],
+    "trading-coach":        [("gemini", "gemini-2.5-flash")],
+    "business-intelligence":[("gemini", "gemini-2.5-flash")],
+    "document":             [("gemini", "gemini-2.5-flash")],
     # Simulation — Gemini direct first (long calls, no timeout risk)
-    "simulation":           [("gemini", "gemini-2.5-flash"), ("lovable", "chat")],
-    "synthesis":            [("gemini", "gemini-2.5-flash"), ("lovable", "deep")],
-    "agent_reaction":       [("lovable", "fast"),     ("lovable", "chat"),     ("gemini", "gemini-2.5-flash")],
-    "classify":             [("lovable", "fast"),     ("gemini", "gemini-2.5-flash")],
-    "intelligence":         [("gemini", "gemini-2.5-flash"), ("lovable", "chat")],
+    "simulation":           [("gemini", "gemini-2.5-flash")],
+    "synthesis":            [("gemini", "gemini-2.5-flash")],
+    "agent_reaction":       [("gemini", "gemini-2.5-flash")],
+    "classify":             [("gemini", "gemini-2.5-flash")],
+    "intelligence":         [("gemini", "gemini-2.5-flash")],
 }
 
 
