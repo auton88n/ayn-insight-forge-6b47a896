@@ -17,4 +17,4 @@ export const AYN_BACKEND_URL =
  * Override at build time with VITE_ENGIN_URL.
  */
 export const ENGIN_URL =
-  (import.meta.env?.VITE_ENGIN_URL as string | undefined) || 'https://engin.aynn.io';
+  (import.meta.env?.VITE_ENGIN_URL as string | undefined) || 'https://engine.aynn.io';
