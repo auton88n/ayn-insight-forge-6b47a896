@@ -1,9 +1,15 @@
 /**
- * enginApi.ts — Client for the AYN ENGIN Python swarm-simulation backend
- * (MiroFish-style: Seed → Graph → Simulate → Report → Chat).
+ * enginApi.ts — Client for the AYN ENGIN Python swarm-simulation backend.
  *
- * Single source of truth for all calls to engin.aynn.io. If the Python
- * routes change, only this file changes.
+ * The deployed backend at engine.aynn.io is a synchronous single-session
+ * engine with flat routes:
+ *   POST /simulate   — run a full simulation (synchronous, ~15-20s)
+ *   GET  /agents     — list all 77 world agents
+ *   POST /chat       — chat with a specific agent
+ *   POST /inject     — inject a signal into the engine
+ *   GET  /health     — health check
+ *
+ * This file maps the backend's response shapes into the types the UI expects.
  */
 import { ENGIN_URL } from '@/config';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,7 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type AgentCategory =
   | 'government' | 'central_bank' | 'market' | 'bank'
-  | 'company' | 'person' | 'institution' | 'other';
+  | 'company' | 'person' | 'institution' | 'stock_market' | 'other';
 
 export interface EnginAgent {
   id: string;
@@ -20,8 +26,10 @@ export interface EnginAgent {
   country?: string;          // ISO3
   flag?: string;             // emoji or url
   emotion?: string;          // confident | worried | excited | …
-  emotion_intensity?: number;// 0-1
+  emotion_intensity?: number;// 0-100 from backend, normalized to 0-1 in adapter
   bio?: string;
+  belief_score?: number;
+  memory_count?: number;
 }
 
 export interface GraphNode { id: string; label: string; type?: string; weight?: number }
@@ -67,6 +75,63 @@ export interface CreateSimInput {
   agents?: number;
 }
 
+// ─── Backend response types ─────────────────────────────────────────────────
+
+/** Raw message from POST /simulate */
+interface BackendAgentMessage {
+  agent_id: string;
+  agent_name: string;
+  agent_flag?: string;
+  agent_category?: string;
+  round: number;
+  public_statement?: string;
+  inner_thought?: string;
+  concrete_action?: string;
+  numerical_prediction?: string;
+  belief_score?: number;
+  belief_score_change?: number;
+  emotion?: string;
+  emotion_intensity?: number;
+  response_time_seconds?: number;
+}
+
+/** Raw synthesis from POST /simulate */
+interface BackendSynthesis {
+  headline_outcome?: string;
+  probability?: string;
+  confidence_score?: number;
+  top_predictions?: { prediction: string; probability: number; rationale?: string }[];
+  winners?: string[];
+  losers?: string[];
+  key_risks?: string[];
+  watch_indicators?: string[];
+  human_impact?: string;
+  error?: string;
+}
+
+/** Full response from POST /simulate */
+export interface BackendSimResult {
+  conversation_id: string;
+  event: string;
+  signal_type?: string;
+  messages: BackendAgentMessage[];
+  synthesis: BackendSynthesis;
+  predictions: unknown[];
+  avg_belief_score: number;
+  financial_snapshot: Record<string, unknown>;
+  duration_seconds: number;
+}
+
+/** Raw agent from GET /agents */
+interface BackendAgent {
+  id: string;
+  name: string;
+  flag?: string;
+  category?: string;
+  belief_score?: number;
+  memory_count?: number;
+}
+
 // ─── Auth ───────────────────────────────────────────────────────────────────
 async function authHeaders(): Promise<Record<string, string>> {
   try {
@@ -108,61 +173,247 @@ async function call<T>(
   return (await res.json()) as T;
 }
 
+// ─── Adapters ───────────────────────────────────────────────────────────────
+
+/** Convert backend agent list into frontend EnginAgent[] */
+function adaptAgents(raw: BackendAgent[]): EnginAgent[] {
+  return raw.map(a => ({
+    id: a.id,
+    name: a.name,
+    flag: a.flag,
+    category: (a.category || 'other') as AgentCategory,
+    belief_score: a.belief_score ?? 0,
+    memory_count: a.memory_count ?? 0,
+  }));
+}
+
+/** Merge per-round messages into enriched agents with last emotion */
+function enrichAgentsFromMessages(
+  baseAgents: EnginAgent[],
+  messages: BackendAgentMessage[],
+): { agents: EnginAgent[]; emotions: Record<string, { emotion: string; intensity?: number }> } {
+  const emotionMap: Record<string, { emotion: string; intensity?: number }> = {};
+  const agentData: Record<string, Partial<EnginAgent>> = {};
+
+  for (const msg of messages) {
+    // Keep latest round per agent
+    agentData[msg.agent_id] = {
+      emotion: msg.emotion || 'neutral',
+      emotion_intensity: (msg.emotion_intensity ?? 50) / 100,
+      bio: msg.public_statement || undefined,
+    };
+    emotionMap[msg.agent_id] = {
+      emotion: msg.emotion || 'neutral',
+      intensity: (msg.emotion_intensity ?? 50) / 100,
+    };
+  }
+
+  const agents = baseAgents.map(a => ({
+    ...a,
+    ...(agentData[a.id] || {}),
+  }));
+
+  return { agents, emotions: emotionMap };
+}
+
+/** Build a synthetic graph from agents that spoke in the simulation */
+function buildGraphFromMessages(messages: BackendAgentMessage[]): EnginGraph {
+  const agentIds = [...new Set(messages.map(m => m.agent_id))];
+  const nodes: GraphNode[] = agentIds.map(id => {
+    const msg = messages.find(m => m.agent_id === id);
+    return { id, label: msg?.agent_name || id, type: msg?.agent_category };
+  });
+
+  // Create edges between agents that spoke in the same round
+  const rounds = new Map<number, string[]>();
+  for (const m of messages) {
+    const list = rounds.get(m.round) || [];
+    list.push(m.agent_id);
+    rounds.set(m.round, list);
+  }
+
+  const edgeSet = new Set<string>();
+  const edges: GraphEdge[] = [];
+  for (const ids of rounds.values()) {
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const key = [ids[i], ids[j]].sort().join('::');
+        if (!edgeSet.has(key)) {
+          edgeSet.add(key);
+          edges.push({ source: ids[i], target: ids[j], type: 'round-peer' });
+        }
+      }
+    }
+  }
+
+  return { nodes, edges };
+}
+
+/** Extract signals from agent messages (notable statements) */
+function extractSignals(messages: BackendAgentMessage[], event: string): EnginSignal[] {
+  const signals: EnginSignal[] = [];
+  const seen = new Set<string>();
+
+  for (const msg of messages) {
+    if (!msg.concrete_action || msg.concrete_action === 'Waiting for more information') continue;
+    const key = `${msg.agent_id}-${msg.round}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const intensity = (msg.emotion_intensity ?? 50);
+    const severity: EnginSignal['severity'] =
+      intensity >= 80 ? 'critical' :
+      intensity >= 60 ? 'high' :
+      intensity >= 40 ? 'medium' : 'low';
+
+    signals.push({
+      id: key,
+      turn: msg.round,
+      severity,
+      headline: `${msg.agent_name}: ${msg.concrete_action}`,
+      summary: msg.public_statement || undefined,
+      tags: [msg.agent_category || 'other', msg.emotion || 'neutral'],
+    });
+  }
+
+  return signals.slice(0, 50);
+}
+
+/** Convert backend synthesis into frontend EnginReport */
+function adaptReport(synthesis: BackendSynthesis, question: string, messages: BackendAgentMessage[]): EnginReport {
+  const confidence = (synthesis.confidence_score ?? 50) / 100;
+
+  // Build outcomes from top_predictions
+  const outcomes = (synthesis.top_predictions || []).map(p => ({
+    label: p.prediction,
+    probability: (p.probability ?? 50) / 100,
+    rationale: p.rationale,
+  }));
+
+  // Build drivers from winners/losers/key_risks
+  const drivers: EnginReport['drivers'] = [];
+  for (const w of synthesis.winners || []) {
+    drivers.push({ label: w, weight: 0.7, direction: 'up' as const });
+  }
+  for (const l of synthesis.losers || []) {
+    drivers.push({ label: l, weight: 0.6, direction: 'down' as const });
+  }
+  for (const r of synthesis.key_risks || []) {
+    drivers.push({ label: r, weight: 0.5, direction: 'neutral' as const });
+  }
+
+  // Summary from headline + human_impact
+  const summaryParts = [synthesis.headline_outcome, synthesis.human_impact].filter(Boolean);
+  const summary = summaryParts.join(' — ') || 'Simulation complete — see individual agent responses.';
+
+  // Build dissent from agents with strong negative emotions
+  const dissent = messages
+    .filter(m => ['worried', 'panicked', 'angry', 'suspicious'].includes(m.emotion || ''))
+    .slice(0, 5)
+    .map(m => ({
+      agent_id: m.agent_id,
+      agent_name: m.agent_name,
+      view: m.public_statement || m.inner_thought || '',
+    }));
+
+  return {
+    question,
+    outcomes,
+    drivers,
+    confidence,
+    summary,
+    dissent: dissent.length > 0 ? dissent : undefined,
+  };
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 export const enginApi = {
-  async createSimulation(input: CreateSimInput): Promise<SimulationMeta> {
-    return call('POST', '/simulations', input);
-  },
-  async getSimulation(simId: string): Promise<SimulationMeta> {
-    return call('GET', `/simulations/${simId}`);
-  },
-  async getGraph(simId: string): Promise<EnginGraph> {
-    return call('GET', `/simulations/${simId}/graph`);
-  },
-  async getAgents(simId: string): Promise<EnginAgent[]> {
-    return call('GET', `/simulations/${simId}/agents`);
-  },
-  async getReport(simId: string): Promise<EnginReport> {
-    return call('GET', `/simulations/${simId}/report`);
-  },
-  async chatWithAgent(simId: string, agentId: string, message: string): Promise<{ reply: string }> {
-    return call('POST', `/simulations/${simId}/agents/${agentId}/chat`, { message });
-  },
-  async chatWithReport(simId: string, message: string): Promise<{ reply: string }> {
-    return call('POST', `/simulations/${simId}/report/chat`, { message });
-  },
-  async inject(simId: string, variable: string, value: unknown): Promise<{ ok: true }> {
-    return call('POST', `/simulations/${simId}/inject`, { variable, value });
+  /**
+   * Fetch all world agents from GET /agents.
+   * Returns the full roster (77 agents). No sim_id needed.
+   */
+  async getAgents(): Promise<EnginAgent[]> {
+    const raw = await call<{ agents: BackendAgent[] }>('GET', '/agents');
+    return adaptAgents(raw.agents);
   },
 
   /**
-   * Open SSE stream of simulation events. Returns the EventSource so the
-   * caller can close it. Falls back gracefully if endpoint missing.
+   * Run a full synchronous simulation via POST /simulate.
+   * Takes ~15-20s. Returns the complete result including messages, synthesis, etc.
    */
-  openStream(
-    simId: string,
-    handlers: {
-      onTurn?: (e: { turn: number; total: number }) => void;
-      onSignal?: (e: EnginSignal) => void;
-      onEmotion?: (e: { agent_id: string; emotion: string; intensity?: number }) => void;
-      onDone?: (e: { report?: EnginReport }) => void;
-      onError?: (err: Event) => void;
-    },
-  ): EventSource | null {
-    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return null;
-    const url = `${ENGIN_URL}/simulations/${simId}/stream`;
-    let es: EventSource;
-    try { es = new EventSource(url, { withCredentials: false }); } catch { return null; }
+  async runSimulation(
+    input: CreateSimInput,
+    signal?: AbortSignal,
+  ): Promise<{
+    result: BackendSimResult;
+    agents: EnginAgent[];
+    emotions: Record<string, { emotion: string; intensity?: number }>;
+    graph: EnginGraph;
+    signals: EnginSignal[];
+    report: EnginReport;
+  }> {
+    // Combine seed + question into the "event" field the backend expects
+    const event = `${input.seed}\n\nQuestion: ${input.question}`;
 
-    const safeJSON = <T,>(d: string): T | null => { try { return JSON.parse(d) as T; } catch { return null; } };
+    const result = await call<BackendSimResult>('POST', '/simulate', {
+      event,
+      mode: 'full',
+    }, signal);
 
-    es.addEventListener('turn',    (ev: MessageEvent) => { const d = safeJSON<{ turn: number; total: number }>(ev.data); if (d) handlers.onTurn?.(d); });
-    es.addEventListener('signal',  (ev: MessageEvent) => { const d = safeJSON<EnginSignal>(ev.data);                if (d) handlers.onSignal?.(d); });
-    es.addEventListener('emotion', (ev: MessageEvent) => { const d = safeJSON<{ agent_id: string; emotion: string; intensity?: number }>(ev.data); if (d) handlers.onEmotion?.(d); });
-    es.addEventListener('done',    (ev: MessageEvent) => { const d = safeJSON<{ report?: EnginReport }>(ev.data) || {}; handlers.onDone?.(d); es.close(); });
-    es.onerror = (e) => { handlers.onError?.(e); };
+    // Fetch base agents first, then enrich with simulation data
+    let baseAgents: EnginAgent[];
+    try {
+      baseAgents = await this.getAgents();
+    } catch {
+      // If /agents fails, build from messages
+      baseAgents = [...new Set(result.messages.map(m => m.agent_id))].map(id => {
+        const msg = result.messages.find(m => m.agent_id === id)!;
+        return {
+          id,
+          name: msg.agent_name,
+          flag: msg.agent_flag,
+          category: (msg.agent_category || 'other') as AgentCategory,
+        };
+      });
+    }
 
-    return es;
+    const { agents, emotions } = enrichAgentsFromMessages(baseAgents, result.messages);
+    const graph = buildGraphFromMessages(result.messages);
+    const signals = extractSignals(result.messages, result.event);
+    const report = adaptReport(result.synthesis, input.question, result.messages);
+
+    return { result, agents, emotions, graph, signals, report };
+  },
+
+  /**
+   * Chat with a specific agent via POST /chat.
+   */
+  async chatWithAgent(agentId: string, message: string, history: { role: string; content: string }[] = []): Promise<{ reply: string }> {
+    const res = await call<{ reply?: string; response?: string; message?: string }>('POST', '/chat', {
+      agent_id: agentId,
+      message,
+      history,
+    });
+    return { reply: res.reply || res.response || res.message || '[no response]' };
+  },
+
+  /**
+   * Inject a signal into the engine via POST /inject.
+   */
+  async inject(event: string, signalHeadline?: string): Promise<{ ok: true }> {
+    await call('POST', '/inject', {
+      mode: 'inject_event',
+      event,
+      signal_headline: signalHeadline,
+    });
+    return { ok: true };
+  },
+
+  /**
+   * Health check via GET /health.
+   */
+  async health(): Promise<{ status: string; engine_ready: boolean; agent_count: number }> {
+    return call('GET', '/health');
   },
 };
 

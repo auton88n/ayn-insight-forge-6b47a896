@@ -35,9 +35,11 @@ export function AgentChatDrawer({ simId, target, onClose }: Props) {
     setInput('');
     setSending(true);
     try {
-      const res = target.kind === 'report'
-        ? await enginApi.chatWithReport(simId, text)
-        : await enginApi.chatWithAgent(simId, target.agent.id, text);
+      // The backend uses POST /chat with {agent_id, message, history}
+      // For report chat, we use a special meta agent id
+      const agentId = target.kind === 'report' ? '__report__' : target.agent.id;
+      const history = msgs.map(m => ({ role: m.role, content: m.text }));
+      const res = await enginApi.chatWithAgent(agentId, text, history);
       setMsgs(p => [...p, { role: 'assistant', text: res.reply }]);
     } catch {
       toast.error('Engin chat unavailable');
