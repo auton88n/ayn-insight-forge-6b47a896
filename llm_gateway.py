@@ -28,11 +28,15 @@ from typing import Optional, Literal
 from dataclasses import dataclass
 
 # ── Config from env ───────────────────────────────────────────────────────────
-LOVABLE_API_KEY = os.getenv("LOVABLE_API_KEY", "")   # Add this to Railway
+# LOVABLE_API_KEY lives in Supabase secrets only — engine routes through ayn-ai-proxy
+SUPABASE_URL    = os.getenv("SUPABASE_URL", "")        # Already in Railway
+SUPABASE_ANON   = os.getenv("SUPABASE_ANON_KEY", "")  # Already in Railway
+AYN_PROXY_SECRET = os.getenv("AYN_PROXY_SECRET", "ayn-proxy-2024")
 GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")    # Already in Railway
 
 # ── Provider URLs ─────────────────────────────────────────────────────────────
-LOVABLE_URL  = "https://ai.gateway.lovable.dev/v1/chat/completions"
+# Routes through Supabase ayn-ai-proxy → Lovable gateway (LOVABLE_API_KEY stays in Supabase)
+LOVABLE_URL  = f"{os.getenv(chr(39).join(["SUPABASE","URL"]), chr(39))}/functions/v1/ayn-ai-proxy"
 GEMINI_URL   = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # ── Model definitions ─────────────────────────────────────────────────────────
@@ -125,8 +129,8 @@ async def _call_lovable(
     Goes through: Python backend → Supabase ayn-ai-proxy edge fn → ai.gateway.lovable.dev
     Timeout ~52s — safe margin below Supabase's 60s hard limit.
     """
-    if not LOVABLE_API_KEY:
-        raise RuntimeError("LOVABLE_API_KEY not set")
+    if not SUPABASE_URL:
+        raise RuntimeError("SUPABASE_URL not set")
 
     body = {
         "model": model.model_id,
@@ -141,7 +145,7 @@ async def _call_lovable(
         r = await client.post(
             LOVABLE_URL,
             headers={
-                "Authorization": f"Bearer {LOVABLE_API_KEY}",
+                "x-proxy-secret": AYN_PROXY_SECRET,
                 "Content-Type": "application/json",
             },
             json=body,
