@@ -28,12 +28,17 @@ export interface BetaConfig {
   feedbackReward: number;
 }
 
+// Module-level cache: avoids re-fetching system_config (and re-flashing
+// initial state) every time <Dashboard> remounts after a route change.
+let cachedMaintenance: MaintenanceConfig | null = null;
+let cachedBeta: BetaConfig | null = null;
+
 export default function Dashboard({ user, session }: DashboardProps) {
   const auth = useAuth(user, session);
   const [activeView, setActiveView] = useState<'chat' | 'admin'>('chat');
   const [showPinGate, setShowPinGate] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>({
+  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>(cachedMaintenance ?? {
     enabled: false,
     message: 'System is currently under maintenance.',
     startTime: '',
@@ -41,7 +46,7 @@ export default function Dashboard({ user, session }: DashboardProps) {
     preMaintenanceNotice: false,
     preMaintenanceMessage: ''
   });
-  const [betaConfig, setBetaConfig] = useState<BetaConfig>({
+  const [betaConfig, setBetaConfig] = useState<BetaConfig>(cachedBeta ?? {
     enabled: false,
     feedbackReward: 5
   });
