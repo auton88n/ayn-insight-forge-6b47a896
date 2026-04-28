@@ -119,14 +119,12 @@ async def root():
 
 @app.get("/health")
 async def health():
+    """Fast healthcheck — Railway requires response in <30s."""
     engine = get_engine()
-    from llm_gateway import check_providers
-    providers = await check_providers()
     return {
         "status": "healthy",
         "engine_ready": engine is not None,
         "agent_count": len(engine.agents) if engine else 0,
-        "providers": providers,
     }
 
 

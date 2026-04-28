@@ -149,3 +149,53 @@ async def get_live_context(event: str) -> str:
     except Exception as e:
         print(f"  ⚠️  Live context failed: {e}")
         return ""
+
+
+# ── Event Classification ───────────────────────────────────────────────────────
+
+EVENT_KEYWORDS = {
+    "gold_surge":      ["gold", "precious metal", "safe haven", "xau"],
+    "oil_shock":       ["oil", "crude", "opec", "petroleum", "brent", "wti", "energy"],
+    "rate_hike":       ["fed", "rate", "interest", "central bank", "boe", "ecb", "rba", "monetary"],
+    "geopolitical":    ["war", "conflict", "sanction", "military", "attack", "coup", "crisis", "iran", "russia", "ukraine", "hamas", "israel", "taiwan"],
+    "crypto":          ["bitcoin", "btc", "crypto", "ethereum", "blockchain", "defi", "stablecoin"],
+    "equity_crash":    ["crash", "stock", "equity", "s&p", "nasdaq", "dow", "bear market", "recession"],
+    "trade_war":       ["tariff", "trade war", "import duty", "export ban", "sanctions", "protectionism"],
+    "ai_disruption":   ["ai", "artificial intelligence", "llm", "openai", "automation", "robot"],
+    "climate":         ["climate", "carbon", "flood", "drought", "hurricane", "wildfire", "emissions"],
+    "pandemic":        ["pandemic", "virus", "outbreak", "disease", "covid", "vaccine", "who"],
+    "political":       ["election", "president", "prime minister", "government", "parliament", "policy", "democrat", "republican"],
+}
+
+ROUTING_MAP = {
+    "gold_surge":      ["central_banks", "markets", "wealth_funds"],
+    "oil_shock":       ["energy_markets", "governments", "industry"],
+    "rate_hike":       ["central_banks", "banks", "markets"],
+    "geopolitical":    ["governments", "military", "diplomacy"],
+    "crypto":          ["markets", "tech", "regulators"],
+    "equity_crash":    ["markets", "banks", "wealth_funds"],
+    "trade_war":       ["governments", "industry", "markets"],
+    "ai_disruption":   ["tech", "labor", "regulators"],
+    "climate":         ["governments", "industry", "social"],
+    "pandemic":        ["governments", "health", "social"],
+    "political":       ["governments", "social", "markets"],
+    "general":         ["markets", "governments", "social"],
+}
+
+
+async def classify_event(event: str) -> dict:
+    """
+    Classify an event into a signal type for agent routing.
+    Uses keyword matching — fast, no LLM call needed.
+    """
+    event_lower = event.lower()
+    for signal_type, keywords in EVENT_KEYWORDS.items():
+        if any(kw in event_lower for kw in keywords):
+            return {
+                "signal_type": signal_type,
+                "routing": ROUTING_MAP.get(signal_type, ROUTING_MAP["general"]),
+            }
+    return {
+        "signal_type": "general",
+        "routing": ROUTING_MAP["general"],
+    }
