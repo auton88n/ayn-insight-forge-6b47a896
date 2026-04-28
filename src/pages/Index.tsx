@@ -8,11 +8,18 @@ import { lazy, Suspense } from 'react';
 import LandingPage from '@/components/LandingPage';
 const Dashboard = lazy(() => import('@/components/Dashboard'));
 
+// Module-level cache: once auth has resolved, subsequent re-mounts of <Index>
+// (e.g. navigating back to "/" from another route) reuse the result so we
+// don't replay the AYNLoader flash on every return.
+let cachedSession: Session | null = null;
+let cachedUser: User | null = null;
+let cachedInitialized = false;
+
 const Index = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(false); // Start false - show landing page immediately
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [user, setUser] = useState<User | null>(cachedUser);
+  const [session, setSession] = useState<Session | null>(cachedSession);
+  const [loading, setLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(cachedInitialized);
 
   useEffect(() => {
     // Skip auth handling if on password reset flow - let ResetPassword page handle it
