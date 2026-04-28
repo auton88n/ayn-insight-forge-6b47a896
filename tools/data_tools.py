@@ -1,210 +1,151 @@
 """
-Real Data Tools — gives agents actual market data and news.
+AYN Data Tools — Financial data + news search
 
-This is the key difference from the Supabase version:
-- Agents get REAL prices, not hallucinated ones
-- Agents get REAL news context
-- This grounds the simulation in reality
+Financial data:  Direct Yahoo Finance query2 API via httpx (reliable, no yfinance)
+News search:     DuckDuckGo via duckduckgo_search
 """
 
 import asyncio
-from datetime import datetime, timedelta
-from typing import Optional
 import httpx
+import os
+from typing import Optional
+
+
+# ── Financial Data ────────────────────────────────────────────────────────────
+
+SYMBOLS = {
+    "gold":         "GC=F",
+    "oil":          "CL=F",
+    "sp500":        "^GSPC",
+    "bitcoin":      "BTC-USD",
+    "dollar_index": "DX-Y.NYB",
+    "vix":          "^VIX",
+    "10yr_yield":   "^TNX",
+    "euro_usd":     "EURUSD=X",
+}
+
+YAHOO_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
+}
+
+
+async def _fetch_ticker(session: httpx.AsyncClient, name: str, symbol: str) -> tuple[str, dict]:
+    """Fetch a single ticker from Yahoo Finance query2 API."""
+    try:
+        url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+        r = await session.get(
+            url,
+            params={"interval": "1d", "range": "5d"},
+            headers=YAHOO_HEADERS,
+            timeout=8.0,
+        )
+        if not r.is_success:
+            return name, {}
+
+        body = r.json()
+        result = body.get("chart", {}).get("result", [])
+        if not result:
+            return name, {}
+
+        closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
+        closes = [c for c in closes if c is not None]
+        if not closes:
+            return name, {}
+
+        current = closes[-1]
+        prev = closes[-2] if len(closes) > 1 else current
+        change_pct = ((current - prev) / prev) * 100 if prev else 0
+
+        return name, {
+            "price": round(current, 4),
+            "change_pct": round(change_pct, 2),
+            "symbol": symbol,
+        }
+
+    except Exception as e:
+        print(f"  ⚠️  Ticker {symbol} failed: {e}")
+        return name, {}
 
 
 async def get_financial_data(event: str) -> dict:
     """
-    Get real financial data relevant to the event.
-    Returns prices for key assets: gold, oil, S&P500, BTC, dollar index.
-    Uses yfinance via a simple HTTP approach.
+    Fetch real-time financial data for key global assets.
+    Uses Yahoo Finance query2 API directly — no yfinance dependency.
+    All tickers fetched in parallel for speed.
     """
     try:
-        import yfinance as yf
+        async with httpx.AsyncClient() as session:
+            tasks = [_fetch_ticker(session, name, sym) for name, sym in SYMBOLS.items()]
+            results = await asyncio.gather(*tasks)
 
-        symbols = {
-            "gold": "GC=F",
-            "oil": "CL=F",
-            "sp500": "^GSPC",
-            "bitcoin": "BTC-USD",
-            "dollar_index": "DX-Y.NYB",
-            "vix": "^VIX",
-            "10yr_yield": "^TNX",
-            "euro_usd": "EURUSD=X",
-        }
+        data = {name: val for name, val in results if val}
 
-        data = {}
-        for name, symbol in symbols.items():
-            try:
-                ticker = yf.Ticker(symbol)
-                hist = ticker.history(period="5d")
-                if not hist.empty:
-                    current = float(hist["Close"].iloc[-1])
-                    prev = float(hist["Close"].iloc[-2]) if len(hist) > 1 else current
-                    change_pct = ((current - prev) / prev) * 100 if prev != 0 else 0
-                    data[name] = {
-                        "price": round(current, 2),
-                        "change_pct": round(change_pct, 2),
-                        "symbol": symbol
-                    }
-            except Exception:
-                pass
+        if data:
+            print(f"  💰 Price anchor: " + " | ".join(
+                f"{k.capitalize()}: ${v['price']}" for k, v in list(data.items())[:4]
+            ) + "...")
+        else:
+            print("  ⚠️  No financial data retrieved — Yahoo Finance may be rate limiting")
 
         return data
 
-    except ImportError:
-        # yfinance not installed — return mock data structure
-        return {
-            "note": "yfinance not available — install with: pip install yfinance",
-            "gold": {"price": 3100, "change_pct": 0},
-            "oil": {"price": 82, "change_pct": 0},
-            "sp500": {"price": 5200, "change_pct": 0},
-            "bitcoin": {"price": 71000, "change_pct": 0},
-        }
     except Exception as e:
+        print(f"  ❌ Financial data fetch error: {e}")
         return {"error": str(e)}
 
 
-async def search_news(query: str, max_results: int = 5) -> str:
+# ── News Search ───────────────────────────────────────────────────────────────
+
+async def search_news(query: str, max_results: int = 5) -> list[dict]:
     """
-    Search for real news about the event.
-    Uses DuckDuckGo search (no API key needed).
+    Search for recent news about a topic using DuckDuckGo.
+    Returns list of {title, snippet, url} dicts.
     """
     try:
         from duckduckgo_search import DDGS
-        
         with DDGS() as ddgs:
-            results = list(ddgs.news(
-                keywords=query,
-                max_results=max_results,
-                timelimit="m"  # Last month
-            ))
-        
-        if not results:
-            # Try broader search
-            with DDGS() as ddgs:
-                results = list(ddgs.text(
-                    keywords=query,
-                    max_results=max_results
-                ))
-
-        if results:
-            summaries = []
-            for r in results[:3]:
-                title = r.get("title", "")
-                body = r.get("body", r.get("snippet", ""))[:150]
-                summaries.append(f"• {title}: {body}")
-            return "\n".join(summaries)
-        
-        return "No recent news found for this event."
-
+            results = list(ddgs.news(query, max_results=max_results))
+        print(f"  🔍 Searching news context...")
+        return [
+            {
+                "title": r.get("title", ""),
+                "snippet": r.get("body", "")[:200],
+                "url": r.get("url", ""),
+                "date": r.get("date", ""),
+            }
+            for r in results
+        ]
     except ImportError:
-        return "DuckDuckGo search not available — install with: pip install duckduckgo-search"
+        print("  ⚠️  duckduckgo_search not installed")
+        return []
     except Exception as e:
-        return f"Search unavailable: {str(e)}"
+        print(f"  ⚠️  News search failed: {e}")
+        return []
 
 
-async def classify_event(event: str) -> dict:
+async def get_live_context(event: str) -> str:
     """
-    Classify an event to determine:
-    - What type of event it is
-    - Which agents should react (dynamic, not hardcoded)
-    - What economic layers are most affected
+    Build a live context string combining news search results.
+    Used to ground agents in current real-world information.
     """
-    event_lower = event.lower()
+    try:
+        news = await search_news(event[:100], max_results=4)
+        if not news:
+            return ""
 
-    # Signal type
-    if any(w in event_lower for w in ["oil", "opec", "crude", "energy", "aramco"]):
-        signal_type = "oil_spike"
-    elif any(w in event_lower for w in ["gold", "precious", "de-dollar"]):
-        signal_type = "gold_surge"
-    elif any(w in event_lower for w in ["rate hike", "tighten", "hawkish", "inflation"]):
-        signal_type = "rate_hike"
-    elif any(w in event_lower for w in ["rate cut", "pivot", "dovish", "qe"]):
-        signal_type = "rate_cut"
-    elif any(w in event_lower for w in ["war", "invad", "attack", "missile", "military", "conflict"]):
-        signal_type = "geopolitical"
-    elif any(w in event_lower for w in ["crypto", "bitcoin", "ftx", "exchange", "defi"]):
-        signal_type = "crypto_crisis"
-    elif any(w in event_lower for w in ["bank fail", "svb", "credit suisse", "banking"]):
-        signal_type = "banking_crisis"
-    elif any(w in event_lower for w in ["currency", "peso", "lira", "default", "debt"]):
-        signal_type = "currency_crash"
-    elif any(w in event_lower for w in ["recession", "gdp", "unemployment", "layoff"]):
-        signal_type = "recession"
-    elif any(w in event_lower for w in ["tariff", "trade war", "sanction", "export control"]):
-        signal_type = "trade_war"
-    elif any(w in event_lower for w in ["ai", "chip", "nvidia", "openai", "automation"]):
-        signal_type = "ai_disruption"
-    elif any(w in event_lower for w in ["food", "wheat", "hunger", "famine"]):
-        signal_type = "food_crisis"
-    elif any(w in event_lower for w in ["election", "president", "government", "minister"]):
-        signal_type = "political"
-    else:
-        signal_type = "general"
+        context_parts = []
+        for item in news:
+            if item.get("title"):
+                context_parts.append(f"• {item['title']}: {item['snippet']}")
 
-    # Dynamic agent routing based on signal type
-    # This replaces the hardcoded IMPACT_ROUTES in the Supabase version
-    routing = {
-        "oil_spike": {
-            "layer1_economic": ["oil_market", "natgas_market", "gold_market"],
-            "layer2_institutional": ["fed", "ecb", "russia", "saudi", "opec_org", "aramco"],
-            "layer3_emotional": ["eu_middle", "us_working", "global_south_poor", "arab_street"],
-            "layer4_social": ["african_urban_youth", "pakistani_poor", "se_asian_factory"],
-            "layer5_behavioral": ["us_middle", "latin_american_middle", "china_middle"],
-        },
-        "rate_hike": {
-            "layer1_economic": ["sp500", "gold_market", "crypto_mkt", "copper_market"],
-            "layer2_institutional": ["fed", "ecb", "boj", "jpmorgan", "blackrock", "goldman"],
-            "layer3_emotional": ["us_middle", "us_working", "china_middle"],
-            "layer4_social": ["global_south_poor", "latin_american_middle"],
-            "layer5_behavioral": ["us_upper", "eu_middle", "india_middle"],
-        },
-        "banking_crisis": {
-            "layer1_economic": ["sp500", "gold_market", "crypto_mkt"],
-            "layer2_institutional": ["fed", "jpmorgan", "blackrock", "goldman", "deutsche_bank", "moodys"],
-            "layer3_emotional": ["us_middle", "us_working", "eu_middle"],
-            "layer4_social": ["african_urban_youth", "global_south_poor"],
-            "layer5_behavioral": ["us_upper", "latin_american_middle"],
-        },
-        "crypto_crisis": {
-            "layer1_economic": ["crypto_mkt", "sp500", "gold_market"],
-            "layer2_institutional": ["fed", "jpmorgan", "blackrock", "moodys"],
-            "layer3_emotional": ["us_working", "us_middle", "african_urban_youth"],
-            "layer4_social": ["latin_american_middle", "china_middle"],
-            "layer5_behavioral": ["us_upper", "india_middle"],
-        },
-        "geopolitical": {
-            "layer1_economic": ["oil_market", "gold_market", "wheat_market", "natgas_market"],
-            "layer2_institutional": ["usa", "russia", "china", "nato", "un_security", "israel", "iran"],
-            "layer3_emotional": ["arab_street", "eu_middle", "russian_working_class"],
-            "layer4_social": ["global_south_poor", "african_urban_youth", "se_asian_factory"],
-            "layer5_behavioral": ["us_middle", "us_working", "latin_american_middle"],
-        },
-        "currency_crash": {
-            "layer1_economic": ["gold_market", "sp500", "crypto_mkt"],
-            "layer2_institutional": ["fed", "imf_worldbank", "pboc", "moodys", "hedge_funds"],
-            "layer3_emotional": ["global_south_poor", "argentina", "latin_american_middle"],
-            "layer4_social": ["pakistani_poor", "african_urban_youth"],
-            "layer5_behavioral": ["us_upper", "china_middle", "india_middle"],
-        },
-        "trade_war": {
-            "layer1_economic": ["sp500", "copper_market", "rare_earth_market", "gold_market"],
-            "layer2_institutional": ["usa", "china", "wto", "nvidia", "apple", "tesla_byd"],
-            "layer3_emotional": ["china_middle", "se_asian_factory", "us_working"],
-            "layer4_social": ["african_urban_youth", "latin_american_middle"],
-            "layer5_behavioral": ["us_middle", "india_middle", "eu_middle"],
-        },
-        "general": {
-            "layer1_economic": ["gold_market", "sp500", "oil_market"],
-            "layer2_institutional": ["fed", "usa", "china", "jpmorgan"],
-            "layer3_emotional": ["us_middle", "eu_middle", "global_south_poor"],
-            "layer4_social": ["arab_street", "african_urban_youth"],
-            "layer5_behavioral": ["us_working", "latin_american_middle"],
-        }
-    }
+        context = "\n".join(context_parts)
+        print(f"  ✅ Live context: {len(context)} chars")
+        return context
 
-    return {
-        "signal_type": signal_type,
-        "routing": routing.get(signal_type, routing["general"])
-    }
+    except Exception as e:
+        print(f"  ⚠️  Live context failed: {e}")
+        return ""

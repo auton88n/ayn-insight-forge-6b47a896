@@ -197,7 +197,7 @@ IMPORTANT: numerical_prediction MUST have a specific number and timeframe. NOT '
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.8,
-                max_tokens=500,
+                max_tokens=800,
             )
             result = llm_result["parsed"]
 
