@@ -26,11 +26,23 @@ import { HelmetProvider } from 'react-helmet-async';
 function PreloadRoutes() {
   useEffect(() => {
     const timer = setTimeout(() => {
+      // Warm chunks for the routes users actually click between, so
+      // navigations don't flash the Suspense PageLoader.
       import('./pages/WorldIntelligence');
       import('./pages/Settings');
       import('./pages/Pricing');
       import('./pages/Services');
       import('./pages/Support');
+      import('./pages/Contact');
+      import('./pages/Terms');
+      import('./pages/Privacy');
+      import('./pages/services/AIAgents');
+      import('./pages/services/Automation');
+      import('./pages/services/Ticketing');
+      import('./pages/services/AIEmployee');
+      import('./pages/SubscriptionSuccess');
+      import('./pages/SubscriptionCanceled');
+      import('./pages/ResetPassword');
     }, 2000);
     return () => clearTimeout(timer);
   }, []);

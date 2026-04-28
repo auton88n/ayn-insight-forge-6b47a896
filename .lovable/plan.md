@@ -1,128 +1,68 @@
-# Rebuild /world-intelligence as a MiroFish-Style Swarm Simulator
+## Goal
+Fix the "page not found" when going back from `/world-intelligence` (the "Sphere" / World Simulator), and remove the inter-page lag/loader flashes — without touching any feature behavior.
 
-The current Agents page (AgentSociety + WorldSimulator) is hardcoded to a fixed 80-persona Supabase model and points at `ayn-world-simulator` edge function and `ayn_world_*` Supabase tables — none of which match your real Python backend at `engin.aynn.io`. We'll replace it with a MiroFish-style flow wired to engin.
+## Findings
 
----
-
-## What the new page does (MiroFish workflow)
-
-```text
-①  SEED            ②  GRAPH          ③  SIMULATE       ④  REPORT       ⑤  CHAT
-─────────         ─────────         ─────────         ─────────       ─────────
-paste/upload  →   entities &    →   N-round agent →   prediction  →   talk to
-+ question        relationships     interactions      + drivers       any agent
-                  visualized        stream live       + confidence    or ReportAgent
+**1. "Page not found" when going back to dashboard (root cause)**
+In `src/pages/WorldIntelligence.tsx` line 38 the back-arrow does:
 ```
+navigate('/dashboard')
+```
+But `/dashboard` is **not registered** in `src/App.tsx`. The dashboard is rendered at `/` (via `Index.tsx`, which mounts `<Dashboard>` when a session exists). So router falls through to `<Route path="*" element={NotFound}/>`. That's the 404 you see.
 
-A single console page. Stage stepper at top. Center canvas changes per stage. Left rail = agent roster. Bottom = live signals ticker.
+There is exactly one offender (verified with ripgrep) — only this one button is broken. Other in-app links to the dashboard already use `/`.
 
----
+**2. Lag / "loading for a while" / having to refresh between pages**
+Three independent contributors:
 
-## The mismatch we're fixing
+a. `AnimatePresence mode="wait"` in `App.tsx` makes React Router wait for the *outgoing* page's exit animation before mounting the new one. But `PageTransition` was already stripped down to a plain `<div>` (no animation). So we pay the wait with zero visual benefit — every navigation feels delayed by one frame batch + a Suspense fallback flash.
 
-Current code calls things that no longer exist on your backend:
+b. Almost every route is `lazy(...)` but only 5 are preloaded after 2s (`PreloadRoutes` in `App.tsx`). First click on any other route triggers a network fetch + the `<PageLoader />` flash ("Loading…" with brain). That's the "loading for a while" you described.
 
-| Current (broken) | New |
-|---|---|
-| `supabase.functions.invoke('ayn-world-simulator')` | `POST {ENGIN_URL}/simulations` |
-| `from('ayn_world_simulations')` / `ayn_world_events` | `GET {ENGIN_URL}/simulations/:id` + `/stream` (SSE) |
-| Hardcoded 80 personas in `RAW_POS` | `GET /simulations/:id/agents` from engin |
-| `fetchPredictions` / `fetchMasterPreds` (undefined → build error) | removed |
-| `setActiveSection('signals')` (not in union → build error) | replaced by stage state machine |
-| Runtime 404 "Edge function not found" | gone, no Supabase function calls |
+c. `/` is `<Index>` which conditionally mounts `<Dashboard>` only after `supabase.auth.getSession()` resolves. Every time you return from `/world-intelligence` → `/`, `Dashboard` and all its children (sidebar, query subscriptions, realtime channel, maintenance config fetch) **fully unmount and remount**, replaying their loaders. That's why a refresh "fixes" it visually — it's the same cold-start either way.
 
----
+## Changes (no feature changes, no UI changes)
 
-## Backend contract (engin.aynn.io)
+### A. Fix the broken back navigation
+- `src/pages/WorldIntelligence.tsx`: change `navigate('/dashboard')` → `navigate('/')`. One-line fix.
+- Add a guard in `App.tsx`: register `/dashboard` as `<Navigate to="/" replace />` so any future stray link (or external bookmark) lands on the real dashboard instead of 404.
 
-Frontend will call a single client `src/lib/enginApi.ts` against `VITE_ENGIN_URL` (default `https://engin.aynn.io`). Auth: forwards the Supabase access token as `Authorization: Bearer <jwt>` (matches existing spineApi pattern). If your Python uses different paths or an API-key header, only this one file changes — send me the OpenAPI and I'll adapt.
+### B. Remove the wasted page-transition wait
+Since `PageTransition` is already a no-op div, drop the `AnimatePresence mode="wait"` wrapper in `AnimatedRoutes` and the `<PageTransition>` wrappers around routes. Render `<Routes>` directly. Net effect: navigations commit immediately; no animation is removed because there isn't one.
+- File: `src/App.tsx` (only `AnimatedRoutes`).
+- `PageTransition.tsx` and the `framer-motion`/`AnimatePresence` import stay (used elsewhere, e.g. the agent chat drawer).
 
-| Method | Path | Body / Returns |
-|---|---|---|
-| POST | `/simulations` | `{seed, question, rounds?, agents?}` → `{sim_id, status}` |
-| GET  | `/simulations/:id` | status + meta |
-| GET  | `/simulations/:id/graph` | `{nodes:[], edges:[]}` |
-| GET  | `/simulations/:id/agents` | persona list `{id, name, category, country, emotion}` |
-| GET  | `/simulations/:id/stream` | **SSE**: `turn`, `signal`, `emotion`, `done` events |
-| GET  | `/simulations/:id/report` | structured prediction |
-| POST | `/simulations/:id/agents/:agentId/chat` | chat with one agent |
-| POST | `/simulations/:id/report/chat` | chat with ReportAgent |
-| POST | `/simulations/:id/inject` | god-view variable injection mid-run |
+### C. Cut the Suspense flash on common navigations
+Expand `PreloadRoutes` in `App.tsx` to also warm:
+`Services`, services subpages (`AIAgents`, `Automation`, `Ticketing`, `AIEmployee`), `Contact`, `Terms`, `Privacy`, `SubscriptionSuccess`, `SubscriptionCanceled`, `ResetPassword`. Still done after 2s on idle, so first paint stays fast. This eliminates the "Loading…" brain flash on the routes you actually use.
 
-If a route is missing, the UI degrades to a skeleton + "engine route not available" toast. We'll list any gaps so you can add them on the Python side.
+### D. Stop re-mounting the Dashboard on every return-to-root
+In `src/pages/Index.tsx`:
+- Cache the resolved auth result in module scope so a re-mount of `<Index>` after navigating back doesn't restart the `getSession()` promise from zero (no UX flicker).
+- Keep behavior identical for signed-out users (still see landing page) and for signed-in users (still see Dashboard) — only the loading flash on return navigation goes away.
 
----
+In `src/components/Dashboard.tsx`:
+- The `system_config` fetch + realtime subscription currently run on *every* mount. Move the realtime channel subscription out so it survives within the session (lift to module-level singleton or to `App.tsx` where session lives). If lifting is too invasive, at minimum gate the fetch with `sessionStorage` so the second mount uses cached config and skips the network round-trip.
 
-## Frontend changes
+### E. Sanity sweep
+- `rg -n "navigate\(['\"]\/dashboard"` to confirm no other broken targets after the fix.
+- Verify there are no `<Link to="/dashboard">` or `href="/dashboard"` anywhere (already checked: none).
 
-**Replace (rewrite):**
-- `src/pages/WorldIntelligence.tsx` — new five-stage shell. Removes the broken `fetchPredictions` / `fetchMasterPreds` references and the stale `'signals'` section. Removes Supabase fetches.
+## What is explicitly NOT changing
+- No feature logic changes (auth, chat, simulator, admin, billing untouched).
+- No visual redesign. Same fonts, same colors, same layout.
+- No removal of routes or pages.
+- No router type swap (still `BrowserRouter`).
+- World Simulator engine behavior and `engine.aynn.io` wiring are untouched.
 
-**New under `src/components/dashboard/simulator/`:**
-- `SimulatorShell.tsx` — stage stepper + 3-column layout
-- `SeedInput.tsx` — textarea, file drop (PDF/CSV/MD), preset chips, prediction question
-- `GraphCanvas.tsx` — force-directed graph (reuses `@react-three/fiber@^8.18` + `@react-three/drei@^9.122` already in project)
-- `SimulationView.tsx` — live network + turn counter + emotion heatmap
-- `AgentRoster.tsx` — left rail with category filters (matches the look in your screenshot: ALL/GOVERNMENTS/CENTRAL BANKS/MARKETS/BANKS/COMPANIES/PEOPLE)
-- `SignalsTicker.tsx` — bottom live stream
-- `ReportPanel.tsx` — outcome cards, drivers, confidence bars
-- `AgentChatDrawer.tsx` — slide-in chat with selected agent or ReportAgent
-- `useEnginSim.ts` — hook orchestrating create → poll → SSE → report
+## Files to edit
+1. `src/pages/WorldIntelligence.tsx` — fix back nav target.
+2. `src/App.tsx` — add `/dashboard` redirect, drop `AnimatePresence`/`PageTransition` wrappers from routes, expand `PreloadRoutes` list.
+3. `src/pages/Index.tsx` — cache initial auth resolution to avoid re-mount flash.
+4. `src/components/Dashboard.tsx` — cache `system_config` per-session, dedupe realtime subscription on remount.
 
-**New API client:**
-- `src/lib/enginApi.ts` — REST + SSE parser (mirrors the proven SSE pattern in `src/hooks/chat/useSSEStream.ts`)
-
-**Config:**
-- `src/config.ts` — add `ENGIN_URL` (default `https://engin.aynn.io`, override `VITE_ENGIN_URL`)
-
-**Move to legacy (kept in repo, not imported):**
-- `AgentSociety.tsx`, `WorldSimulator.tsx`, `AgentConvViewer.tsx`, `AccuracyScoreboard.tsx`, `PredictionCard.tsx` → `src/components/dashboard/world/_legacy/`. Easy to restore if needed; deletable later.
-
----
-
-## Visual redesign
-
-Aligned with your screenshot reference and existing `world-intelligence/dashboard-aesthetic` memory:
-
-- Stage stepper across the top with neon progress dots
-- Glass cards, thin top-light borders (existing `GlassCard`)
-- Agent roster pill chips: `ALL 87`, `GOVERNMENTS 27`, `CENTRAL BANKS 7`, `MARKETS 10`, `BANKS 8`, `COMPANIES 11`, `PEOPLE 31`
-- Network graph as the hero (force-directed, agents pulse on emotion change)
-- Right column: agent list with country flag, category icon, emotion bar (Confident/Worried/Excited)
-- Bottom: `LIVE SIGNALS — click to react` ticker
-- Typography: Syne (display), JetBrains Mono (telemetry), Inter (body)
-- Palette: existing dark `#0a0a0f`, cyan/violet primaries, emotion accents from current `EM` map
-
----
-
-## Bug fixes included
-
-- Build error: `Cannot find name 'fetchPredictions'` (line 292) → removed.
-- Build error: `Cannot find name 'fetchMasterPreds'` (line 292) → removed.
-- Build error: `'signals' not assignable to ViewSection` (line 529) → replaced by `SimStage` union.
-- Runtime: `Edge function returned 404` → no more `ayn-world-simulator` calls.
-
----
-
-## Out of scope
-
-- No changes to your Python service (you confirmed engin.aynn.io is the existing backend).
-- No changes to auth, billing, admin, other dashboard pages.
-- Keeps `ws-relay`, `ayn-ai-proxy` and other intentional Supabase functions untouched.
-- ReportAgent prompt engineering stays server-side.
-
----
-
-## Open items (won't block start)
-
-1. `engin.aynn.io` did not respond from the sandbox (likely IP-restricted or browser-only). Plan assumes it works from the user's browser. If routes differ, send the OpenAPI and only `enginApi.ts` changes.
-2. Auth scheme: defaulting to `Authorization: Bearer <supabase-jwt>` (matches spineApi). Tell me if engin uses an API key header instead.
-
----
-
-## Deliverable
-
-After approval:
-- `/world-intelligence` shows the new MiroFish-style simulator immediately (no new route).
-- Preset seed ("Suez bypass becomes permanent") runs end-to-end against engin: graph builds, simulation streams, report renders, agents are chattable.
-- Build is green. Runtime 404 gone.
+## Expected result
+- Back arrow on World Simulator returns to the dashboard, not 404.
+- No more `<PageLoader>` brain flash when moving between previously-visited pages.
+- Returning to the dashboard from another route is instant (no "Loading Dashboard…" flicker), no manual refresh needed.
+- Zero behavioral changes to any feature.
