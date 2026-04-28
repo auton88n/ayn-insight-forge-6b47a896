@@ -26,6 +26,9 @@ class CreateSimInput(BaseModel):
     question: str
     rounds: Optional[int] = 3
     agents: Optional[int] = 20
+    report_type: Optional[str] = 'full'   # government|marketing|investment|social|full
+    depth: Optional[str] = 'standard'     # quick|standard|deep
+    user_target: Optional[dict] = None    # demographic filters
 
 
 class ChatInput(BaseModel):
@@ -79,9 +82,12 @@ async def create_simulation(body: CreateSimInput):
         rounds_total=body.rounds or 3,
     )
     meta["agent_count"] = len(engine.agents)
+    meta["report_type"] = body.report_type or 'full'
+    meta["depth"] = body.depth or 'standard'
     _sims[sim_id] = {
         "meta": meta,
         "event": event,
+        "user_target": body.user_target,
         "result": None,
         "graph": None,
         "agents": None,
@@ -102,7 +108,13 @@ async def _run_sim(sim_id: str, event: str, engine):
         return
     try:
         sim["meta"]["status"] = "running"
-        result = await engine.run_simulation(event=event, signal_id=None)
+        result = await engine.run_simulation(
+            event=event,
+            signal_id=None,
+            report_type=sim['meta'].get('report_type','full'),
+            depth=sim['meta'].get('depth','standard'),
+            user_target=sim.get('user_target'),
+        )
         sim["result"] = result
         sim["meta"]["status"] = "completed"
         sim["meta"]["rounds_done"] = sim["meta"]["rounds_total"]

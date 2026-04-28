@@ -92,6 +92,9 @@ class SimulationRequest(BaseModel):
     event: str
     signal_id: Optional[str] = None
     mode: str = "full"
+    report_type: str = "full"      # government|marketing|investment|social|full
+    depth: str = "standard"        # quick|standard|deep
+    user_target: Optional[dict] = None  # {region, religion, ethnicity, income_level, age_min, age_max, gender}
 
 
 class ChatRequest(BaseModel):
@@ -145,6 +148,9 @@ async def simulate(request: SimulationRequest):
         result = await engine.run_simulation(
             event=request.event,
             signal_id=request.signal_id,
+            report_type=request.report_type,
+            depth=request.depth,
+            user_target=request.user_target,
         )
         return result
     except Exception as e:
@@ -165,7 +171,12 @@ async def inject_signal(request: InjectSignalRequest):
         raise HTTPException(400, "No event provided")
 
     try:
-        result = await engine.run_simulation(event=event, signal_id=request.signal_id)
+        result = await engine.run_simulation(
+            event=event,
+            signal_id=request.signal_id,
+            report_type='government',
+            depth='standard',
+        )
         return result
     except Exception as e:
         raise HTTPException(500, str(e))
