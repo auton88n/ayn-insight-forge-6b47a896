@@ -32,10 +32,10 @@ function PreloadRoutes() {
     };
     const idleId = 'requestIdleCallback' in window
       ? window.requestIdleCallback(preload, { timeout: 3000 })
-      : window.setTimeout(preload, 3000);
+      : globalThis.setTimeout(preload, 3000);
     return () => {
       if ('cancelIdleCallback' in window) window.cancelIdleCallback(idleId as number);
-      else window.clearTimeout(idleId as number);
+      else globalThis.clearTimeout(idleId as number);
     };
   }, []);
   return null;
