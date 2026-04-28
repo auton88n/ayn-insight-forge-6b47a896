@@ -1,15 +1,13 @@
 /**
- * useEnginSim — orchestrates the simulator lifecycle:
- *   idle (seed) → graph (loading agents) → simulate (running) → completed (report)
- *
- * The backend at engine.aynn.io is synchronous — POST /simulate takes ~15-20s
- * and returns the full result. We simulate turn progress client-side for UX.
+ * useEnginSim — orchestrates the MiroFish-style simulator lifecycle:
+ *   idle → building_graph → running → completed
+ * Wraps enginApi with React state.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   enginApi, EnginAgent, EnginGraph, EnginReport, EnginSignal,
-  SimulationMeta, CreateSimInput, BackendSimResult,
+  SimulationMeta, CreateSimInput,
 } from '@/lib/enginApi';
 
 export type SimStage = 'seed' | 'graph' | 'simulate' | 'report' | 'chat';
@@ -26,8 +24,6 @@ export interface SimState {
   report: EnginReport | null;
   loading: boolean;
   error: string | null;
-  /** The raw backend result, kept for reference (e.g. conversation_id for chat) */
-  rawResult: BackendSimResult | null;
 }
 
 const initial: SimState = {
@@ -35,120 +31,66 @@ const initial: SimState = {
   meta: null, graph: null, agents: [], signals: [], emotions: {},
   turn: 0, totalTurns: 0, report: null,
   loading: false, error: null,
-  rawResult: null,
 };
 
 export function useEnginSim() {
   const [s, setS] = useState<SimState>(initial);
-  const abortRef = useRef<AbortController | null>(null);
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const esRef = useRef<EventSource | null>(null);
 
   const reset = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    if (tickRef.current) clearInterval(tickRef.current);
-    tickRef.current = null;
+    esRef.current?.close();
+    esRef.current = null;
     setS(initial);
   }, []);
 
-  // Cleanup on unmount
-  useEffect(() => () => {
-    abortRef.current?.abort();
-    if (tickRef.current) clearInterval(tickRef.current);
-  }, []);
+  useEffect(() => () => { esRef.current?.close(); }, []);
 
   const goToStage = useCallback((stage: SimStage) => setS(p => ({ ...p, stage })), []);
 
   const start = useCallback(async (input: CreateSimInput) => {
-    // Abort any previous run
-    abortRef.current?.abort();
-    if (tickRef.current) clearInterval(tickRef.current);
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const estimatedTurns = input.rounds || 20;
-    setS(p => ({
-      ...p,
-      loading: true,
-      error: null,
-      stage: 'graph',
-      totalTurns: estimatedTurns,
-      turn: 0,
-    }));
-
+    setS(p => ({ ...p, loading: true, error: null, stage: 'graph' }));
     try {
-      // 1. Immediately fetch the agent roster to populate the sidebar
-      let baseAgents: EnginAgent[] = [];
-      try {
-        baseAgents = await enginApi.getAgents();
-        setS(p => ({
-          ...p,
-          agents: baseAgents,
-          stage: 'simulate',
-        }));
-      } catch {
-        // Non-fatal — we'll get agents from the simulation result
-        setS(p => ({ ...p, stage: 'simulate' }));
-      }
+      const meta = await enginApi.createSimulation(input);
+      setS(p => ({ ...p, meta, totalTurns: meta.rounds_total || input.rounds || 0 }));
 
-      // 2. Start client-side progress ticker while we wait for the sync call
-      const startTime = Date.now();
-      const estimatedMs = 18_000; // ~18 seconds typical
-      tickRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / estimatedMs, 0.95);
-        const fakeTurn = Math.floor(progress * estimatedTurns);
-        setS(p => ({ ...p, turn: Math.max(p.turn, fakeTurn) }));
-      }, 500);
+      // Build graph + agents in parallel (best-effort)
+      const [graph, agents] = await Promise.all([
+        enginApi.getGraph(meta.sim_id).catch(() => ({ nodes: [], edges: [] }) as EnginGraph),
+        enginApi.getAgents(meta.sim_id).catch(() => [] as EnginAgent[]),
+      ]);
+      setS(p => ({ ...p, graph, agents, stage: 'simulate' }));
 
-      // 3. Run the simulation (synchronous ~15-20s call)
-      const { agents, emotions, graph, signals, report, result } =
-        await enginApi.runSimulation(input, controller.signal);
-
-      // 4. Clear the ticker
-      if (tickRef.current) clearInterval(tickRef.current);
-      tickRef.current = null;
-
-      // 5. Update state with full results
-      setS(p => ({
-        ...p,
-        agents,
-        emotions,
-        graph,
-        signals,
-        report,
-        rawResult: result,
-        meta: {
-          sim_id: result.conversation_id,
-          status: 'completed',
-          question: input.question,
-          seed_excerpt: input.seed.slice(0, 120),
-          rounds_total: estimatedTurns,
-          rounds_done: estimatedTurns,
-          agent_count: agents.length,
-          created_at: new Date().toISOString(),
+      // Open SSE
+      const es = enginApi.openStream(meta.sim_id, {
+        onTurn:    (e) => setS(p => ({ ...p, turn: e.turn, totalTurns: e.total || p.totalTurns })),
+        onSignal:  (sig) => setS(p => ({ ...p, signals: [sig, ...p.signals].slice(0, 50) })),
+        onEmotion: (e) => setS(p => ({ ...p, emotions: { ...p.emotions, [e.agent_id]: { emotion: e.emotion, intensity: e.intensity } } })),
+        onDone:    async ({ report }) => {
+          let final = report;
+          if (!final) {
+            try { final = await enginApi.getReport(meta.sim_id); } catch {/* ignore */}
+          }
+          setS(p => ({ ...p, report: final ?? p.report, stage: 'report', loading: false }));
         },
-        turn: estimatedTurns,
-        totalTurns: estimatedTurns,
-        stage: 'report',
-        loading: false,
-      }));
-
-      toast.success('Simulation complete', {
-        description: `${agents.length} agents responded in ${result.duration_seconds}s`,
+        onError:   () => {/* SSE closes automatically; we leave state as-is */},
       });
+      esRef.current = es;
+      if (!es) {
+        // SSE unavailable — poll the report endpoint as a fallback
+        try {
+          const rep = await enginApi.getReport(meta.sim_id);
+          setS(p => ({ ...p, report: rep, stage: 'report', loading: false }));
+        } catch {
+          setS(p => ({ ...p, loading: false }));
+        }
+      }
     } catch (err: unknown) {
-      if (tickRef.current) clearInterval(tickRef.current);
-      tickRef.current = null;
-
-      // Don't show error if we aborted intentionally
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-
       const msg = err instanceof Error ? err.message : 'Engine unavailable';
-      toast.error('Engine offline', {
-        description: 'Could not reach engine.aynn.io. Check VITE_ENGIN_URL or backend status.',
-      });
+      const isCors = msg === 'Failed to fetch' || msg.includes('NetworkError') || msg.includes('CORS');
+      const description = isCors
+        ? 'CORS error — engine.aynn.io is running but blocked the request. Check Railway ALLOWED_ORIGINS env var includes https://aynn.io'
+        : `Engine error: ${msg}`;
+      toast.error('Engine offline', { description });
       setS(p => ({ ...p, loading: false, error: msg, stage: 'seed' }));
     }
   }, []);
