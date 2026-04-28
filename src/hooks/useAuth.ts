@@ -195,10 +195,14 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         if (!isMounted) return;
 
         const [subData, roleData, profileData, settingsData] = results;
+        let resolvedAccess = false;
+        let resolvedMonthUsage = 0;
+        let resolvedMonthlyLimit: number | null = null;
+        let resolvedUsageResetDate: string | null = null;
 
         // Access: any authenticated user with a subscription row has access
         if (subData && subData.length > 0) {
-          setHasAccess(true);
+          resolvedAccess = true;
         } else {
             // Fallback to access_grants for legacy users
             try {
@@ -208,21 +212,24 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
               );
               if (accessData && accessData.length > 0) {
                 const record = accessData[0];
-                const isActive = record.is_active &&
+                resolvedAccess = record.is_active &&
                   (!record.expires_at || new Date(record.expires_at) > new Date());
-                setHasAccess(isActive);
-                setCurrentMonthUsage(record.current_month_usage ?? 0);
-                setMonthlyLimit(record.monthly_limit ?? null);
-                setUsageResetDate(record.usage_reset_date ?? null);
+                resolvedMonthUsage = record.current_month_usage ?? 0;
+                resolvedMonthlyLimit = record.monthly_limit ?? null;
+                resolvedUsageResetDate = record.usage_reset_date ?? null;
               } else {
                 // Authenticated but no rows anywhere — give access (legitimate new user)
-                setHasAccess(true);
+                resolvedAccess = true;
               }
             } catch {
               // Fail closed — deny access on errors
-              setHasAccess(false);
+              resolvedAccess = false;
             }
           }
+        setHasAccess(resolvedAccess);
+        setCurrentMonthUsage(resolvedMonthUsage);
+        setMonthlyLimit(resolvedMonthlyLimit);
+        setUsageResetDate(resolvedUsageResetDate);
 
         // Admin/duty role
         if (roleData) {
@@ -254,14 +261,14 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         }
 
         const nextCache: AuthCacheEntry = {
-          hasAccess: subData && subData.length > 0 ? true : hasAccess,
+          hasAccess: resolvedAccess,
           hasAcceptedTerms: resolvedTermsAccepted,
           isAdmin: roleData?.[0]?.role === 'admin',
           isDuty: roleData?.[0]?.role === 'duty',
           userProfile: profileData && profileData.length > 0 ? (profileData[0] as UserProfile) : null,
-          currentMonthUsage,
-          monthlyLimit,
-          usageResetDate,
+          currentMonthUsage: resolvedMonthUsage,
+          monthlyLimit: resolvedMonthlyLimit,
+          usageResetDate: resolvedUsageResetDate,
           updatedAt: Date.now(),
         };
         authCache.set(user.id, nextCache);
