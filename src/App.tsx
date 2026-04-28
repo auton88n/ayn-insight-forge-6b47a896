@@ -19,30 +19,24 @@ import { ScrollToTop } from "@/components/shared/ScrollToTop";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 import { HelmetProvider } from 'react-helmet-async';
 
-// Silently preload the most-visited pages 2s after app loads
-// so navigation feels instant on first click
+// Warm only the routes used inside the dashboard. Preloading the whole site
+// caused script/network contention and made page-to-page movement feel laggy.
 function PreloadRoutes() {
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const preload = () => {
       // Warm chunks for the routes users actually click between, so
       // navigations don't flash the Suspense PageLoader.
       import('./pages/WorldIntelligence');
       import('./pages/Settings');
       import('./pages/Pricing');
-      import('./pages/Services');
-      import('./pages/Support');
-      import('./pages/Contact');
-      import('./pages/Terms');
-      import('./pages/Privacy');
-      import('./pages/services/AIAgents');
-      import('./pages/services/Automation');
-      import('./pages/services/Ticketing');
-      import('./pages/services/AIEmployee');
-      import('./pages/SubscriptionSuccess');
-      import('./pages/SubscriptionCanceled');
-      import('./pages/ResetPassword');
-    }, 2000);
-    return () => clearTimeout(timer);
+    };
+    const idleId = 'requestIdleCallback' in window
+      ? window.requestIdleCallback(preload, { timeout: 3000 })
+      : window.setTimeout(preload, 3000);
+    return () => {
+      if ('cancelIdleCallback' in window) window.cancelIdleCallback(idleId as number);
+      else window.clearTimeout(idleId as number);
+    };
   }, []);
   return null;
 }
@@ -112,7 +106,7 @@ const AnimatedRoutes = () => {
   const isFastRoute = fastRoutes.some(route => location.pathname.startsWith(route));
   
   const routes = (
-    <Routes location={location} key={isFastRoute ? 'fast' : location.pathname}>
+    <Routes location={location}>
       <Route path="/" element={<Suspense fallback={<PageLoader />}><Index /></Suspense>} />
       {/* Guard: stray /dashboard links bounce to the real dashboard at / */}
       <Route path="/dashboard" element={<Navigate to="/" replace />} />
