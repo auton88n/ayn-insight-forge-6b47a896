@@ -15,8 +15,6 @@ import { PageLoader } from "@/components/ui/page-loader";
 // Skeleton layouts removed — using PageLoader for all route fallbacks
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
-import { AnimatePresence } from 'framer-motion';
-import PageTransition from "@/components/shared/PageTransition";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
 import { useVisitorTracking } from "@/hooks/useVisitorTracking";
 import { HelmetProvider } from 'react-helmet-async';
