@@ -78,8 +78,7 @@ export default function WorldIntelligence() {
                 agents={state.agents}
                 graph={state.graph}
                 emotions={state.emotions}
-                turn={state.turn}
-                totalTurns={state.totalTurns}
+                loading={state.loading}
                 onSelectAgent={(id) => {
                   const agent = state.agents.find(a => a.id === id);
                   if (agent) setChatTarget({ kind: 'agent', agent });
