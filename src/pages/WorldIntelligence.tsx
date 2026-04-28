@@ -35,7 +35,7 @@ export default function WorldIntelligence() {
 
       {/* Top bar */}
       <header className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-        <button onClick={() => navigate('/dashboard')}
+        <button onClick={() => navigate('/')}
           className="p-2 rounded-xl bg-card/40 border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 transition-all">
           <ArrowLeft className="w-4 h-4" />
         </button>

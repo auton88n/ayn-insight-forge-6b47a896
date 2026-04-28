@@ -28,12 +28,17 @@ export interface BetaConfig {
   feedbackReward: number;
 }
 
+// Module-level cache: avoids re-fetching system_config (and re-flashing
+// initial state) every time <Dashboard> remounts after a route change.
+let cachedMaintenance: MaintenanceConfig | null = null;
+let cachedBeta: BetaConfig | null = null;
+
 export default function Dashboard({ user, session }: DashboardProps) {
   const auth = useAuth(user, session);
   const [activeView, setActiveView] = useState<'chat' | 'admin'>('chat');
   const [showPinGate, setShowPinGate] = useState(false);
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
-  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>({
+  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>(cachedMaintenance ?? {
     enabled: false,
     message: 'System is currently under maintenance.',
     startTime: '',
@@ -41,7 +46,7 @@ export default function Dashboard({ user, session }: DashboardProps) {
     preMaintenanceNotice: false,
     preMaintenanceMessage: ''
   });
-  const [betaConfig, setBetaConfig] = useState<BetaConfig>({
+  const [betaConfig, setBetaConfig] = useState<BetaConfig>(cachedBeta ?? {
     enabled: false,
     feedbackReward: 5
   });
@@ -81,25 +86,33 @@ export default function Dashboard({ user, session }: DashboardProps) {
 
         if (data && data.length > 0) {
           const configMap = new Map(data.map(c => [c.key, c.value]));
-          setMaintenanceConfig({
+          const nextMaintenance: MaintenanceConfig = {
             enabled: configMap.get('maintenance_mode') === true || configMap.get('maintenance_mode') === 'true',
             message: (configMap.get('maintenance_message') as string) || 'System is currently under maintenance.',
             startTime: (configMap.get('maintenance_start_time') as string) || '',
             endTime: (configMap.get('maintenance_end_time') as string) || '',
             preMaintenanceNotice: configMap.get('pre_maintenance_notice') === true || configMap.get('pre_maintenance_notice') === 'true',
             preMaintenanceMessage: (configMap.get('pre_maintenance_message') as string) || ''
-          });
-          setBetaConfig({
+          };
+          const nextBeta: BetaConfig = {
             enabled: configMap.get('beta_mode') === true || configMap.get('beta_mode') === 'true',
             feedbackReward: parseInt(String(configMap.get('beta_feedback_reward'))) || 5
-          });
+          };
+          cachedMaintenance = nextMaintenance;
+          cachedBeta = nextBeta;
+          setMaintenanceConfig(nextMaintenance);
+          setBetaConfig(nextBeta);
         }
       } catch {
         // Network error — not critical, skip silently
       }
     };
 
-    loadMaintenanceConfig();
+    // First mount: fetch from network. Subsequent mounts reuse cached state
+    // and rely on the realtime subscription below for any changes.
+    if (!cachedMaintenance) {
+      loadMaintenanceConfig();
+    }
 
     // Set up realtime subscription to listen for any maintenance config changes
     const channel = supabase

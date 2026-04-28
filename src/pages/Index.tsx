@@ -8,11 +8,18 @@ import { lazy, Suspense } from 'react';
 import LandingPage from '@/components/LandingPage';
 const Dashboard = lazy(() => import('@/components/Dashboard'));
 
+// Module-level cache: once auth has resolved, subsequent re-mounts of <Index>
+// (e.g. navigating back to "/" from another route) reuse the result so we
+// don't replay the AYNLoader flash on every return.
+let cachedSession: Session | null = null;
+let cachedUser: User | null = null;
+let cachedInitialized = false;
+
 const Index = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(false); // Start false - show landing page immediately
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [user, setUser] = useState<User | null>(cachedUser);
+  const [session, setSession] = useState<Session | null>(cachedSession);
+  const [loading, setLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(cachedInitialized);
 
   useEffect(() => {
     // Skip auth handling if on password reset flow - let ResetPassword page handle it
@@ -30,9 +37,14 @@ const Index = () => {
     let mounted = true;
 
     const initializeAuth = async () => {
+      // Already resolved in a previous mount — skip the network round-trip
+      // and the loader flash. onAuthStateChange below still keeps us in sync.
+      if (cachedInitialized) return;
       try {
         const { data } = await supabase.auth.getSession();
         if (mounted && data.session) {
+          cachedSession = data.session;
+          cachedUser = data.session.user;
           setSession(data.session);
           setUser(data.session.user);
           setLoading(true);
@@ -41,6 +53,7 @@ const Index = () => {
         // Silent failure - show landing page
       } finally {
         if (mounted) {
+          cachedInitialized = true;
           setIsInitialized(true);
         }
       }
@@ -54,15 +67,22 @@ const Index = () => {
         if (!mounted) return;
 
         if (event === 'SIGNED_IN' && session) {
+          cachedSession = session;
+          cachedUser = session.user;
+          cachedInitialized = true;
           setSession(session);
           setUser(session.user);
           setLoading(true);
           setIsInitialized(true);
         } else if (event === 'SIGNED_OUT') {
+          cachedSession = null;
+          cachedUser = null;
           setSession(null);
           setUser(null);
           setLoading(false);
         } else if ((event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session) {
+          cachedSession = session;
+          cachedUser = session.user;
           setSession(session);
           setUser(session.user);
         }
