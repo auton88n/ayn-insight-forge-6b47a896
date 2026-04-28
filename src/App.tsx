@@ -115,41 +115,43 @@ const AnimatedRoutes = () => {
   
   const routes = (
     <Routes location={location} key={isFastRoute ? 'fast' : location.pathname}>
-      <Route path="/" element={<Suspense fallback={<PageLoader />}><PageTransition><Index /></PageTransition></Suspense>} />
+      <Route path="/" element={<Suspense fallback={<PageLoader />}><Index /></Suspense>} />
+      {/* Guard: stray /dashboard links bounce to the real dashboard at / */}
+      <Route path="/dashboard" element={<Navigate to="/" replace />} />
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
       <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
       <Route path="/dashboard/pricing" element={<Suspense fallback={<PageLoader />}><DashboardPricing /></Suspense>} />
-      
-      <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><PageTransition><ResetPassword /></PageTransition></Suspense>} />
-      
-      
-      <Route path="/services" element={<Suspense fallback={<PageLoader />}><PageTransition><ServicesPage /></PageTransition></Suspense>} />
-      <Route path="/services/ai-employee" element={<Suspense fallback={<PageLoader />}><PageTransition><AIEmployee /></PageTransition></Suspense>} />
-      <Route path="/services/ai-employee/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><AIEmployeeApply /></PageTransition></Suspense>} />
+
+      <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
+
+
+      <Route path="/services" element={<Suspense fallback={<PageLoader />}><ServicesPage /></Suspense>} />
+      <Route path="/services/ai-employee" element={<Suspense fallback={<PageLoader />}><AIEmployee /></Suspense>} />
+      <Route path="/services/ai-employee/apply" element={<Suspense fallback={<PageLoader />}><AIEmployeeApply /></Suspense>} />
       {/* HIDDEN: Content Creator Sites temporarily disabled */}
       <Route path="/services/content-creator-sites" element={<Navigate to="/services" replace />} />
       <Route path="/services/content-creator-sites/apply" element={<Navigate to="/services" replace />} />
-      <Route path="/services/ai-agents" element={<Suspense fallback={<PageLoader />}><PageTransition><AIAgents /></PageTransition></Suspense>} />
-      <Route path="/services/ai-agents/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><AIAgentsApply /></PageTransition></Suspense>} />
-      <Route path="/services/automation" element={<Suspense fallback={<PageLoader />}><PageTransition><Automation /></PageTransition></Suspense>} />
-      <Route path="/services/automation/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><AutomationApply /></PageTransition></Suspense>} />
-      <Route path="/services/ticketing" element={<Suspense fallback={<PageLoader />}><PageTransition><Ticketing /></PageTransition></Suspense>} />
-      <Route path="/services/ticketing/apply" element={<Suspense fallback={<PageLoader />}><PageTransition><TicketingApply /></PageTransition></Suspense>} />
-      <Route path="/contact" element={<Suspense fallback={<PageLoader />}><PageTransition><ContactPage /></PageTransition></Suspense>} />
-      <Route path="/support" element={<PageTransition><Support /></PageTransition>} />
+      <Route path="/services/ai-agents" element={<Suspense fallback={<PageLoader />}><AIAgents /></Suspense>} />
+      <Route path="/services/ai-agents/apply" element={<Suspense fallback={<PageLoader />}><AIAgentsApply /></Suspense>} />
+      <Route path="/services/automation" element={<Suspense fallback={<PageLoader />}><Automation /></Suspense>} />
+      <Route path="/services/automation/apply" element={<Suspense fallback={<PageLoader />}><AutomationApply /></Suspense>} />
+      <Route path="/services/ticketing" element={<Suspense fallback={<PageLoader />}><Ticketing /></Suspense>} />
+      <Route path="/services/ticketing/apply" element={<Suspense fallback={<PageLoader />}><TicketingApply /></Suspense>} />
+      <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
+      <Route path="/support" element={<Support />} />
       {/* HIDDEN: Engineering & Compliance routes temporarily disabled
-      <Route path="/engineering" element={<Suspense fallback={<PageLoader />}><PageTransition><Engineering /></PageTransition></Suspense>} />
-      <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><PageTransition><Compliance /></PageTransition></Suspense>} />
-      <Route path="/engineering/grading" element={<Suspense fallback={<PageLoader />}><PageTransition><AIGradingDesigner /></PageTransition></Suspense>} />
+      <Route path="/engineering" element={<Suspense fallback={<PageLoader />}><Engineering /></Suspense>} />
+      <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><Compliance /></Suspense>} />
+      <Route path="/engineering/grading" element={<Suspense fallback={<PageLoader />}><AIGradingDesigner /></Suspense>} />
       */}
       {/* HIDDEN: Civil engineering redirect disabled */}
       {/* <Route path="/services/civil-engineering" element={<Navigate to="/" replace />} /> */}
-      <Route path="/approval-result" element={<PageTransition><ApprovalResult /></PageTransition>} />
-      <Route path="/subscription-success" element={<PageTransition><SubscriptionSuccess /></PageTransition>} />
-      <Route path="/subscription-canceled" element={<PageTransition><SubscriptionCanceled /></PageTransition>} />
-      <Route path="/terms" element={<PageTransition><Terms /></PageTransition>} />
-      <Route path="/privacy" element={<PageTransition><Privacy /></PageTransition>} />
+      <Route path="/approval-result" element={<ApprovalResult />} />
+      <Route path="/subscription-success" element={<SubscriptionSuccess />} />
+      <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
@@ -159,20 +161,14 @@ const AnimatedRoutes = () => {
       <Route path="/admin" element={<Navigate to="/404" replace />} />
       <Route path="/admin/*" element={<Navigate to="/404" replace />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-      <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 
-  // Skip AnimatePresence for fast routes
-  if (isFastRoute) {
-    return routes;
-  }
-
-  return (
-    <AnimatePresence mode="wait">
-      {routes}
-    </AnimatePresence>
-  );
+  // PageTransition was a no-op wrapper and AnimatePresence mode="wait" was
+  // delaying every navigation by waiting for an exit animation that doesn't
+  // exist. Render routes directly for instant navigation.
+  return routes;
 };
 
 const App = () => {
