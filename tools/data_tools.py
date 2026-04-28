@@ -152,50 +152,124 @@ async def get_live_context(event: str) -> str:
 
 
 # ── Event Classification ───────────────────────────────────────────────────────
+# Agent ID lists by category (from agent_configs.py)
+_GOVERNMENTS   = ['usa','china','russia','eu','saudi','iran','india','ukraine','turkey','japan',
+                  'argentina','nigeria','egypt','north_korea','vietnam','pakistan','israel',
+                  'south_africa','colombia','ethiopia','imf_worldbank','nato','un_security',
+                  'opec_org','brics','wto']
+_CENTRAL_BANKS = ['fed','ecb','pboc','boj','boe','rbi','snb','saudi_cb']
+_MARKETS       = ['gold_market','oil_market','sp500','crypto_mkt','copper_market',
+                  'wheat_market','natgas_market','rare_earth_market']
+_BANKS         = ['jpmorgan','blackrock','goldman','icbc','deutsche_bank','adia',
+                  'hedge_funds','moodys','temasek','bnp_paribas']
+_COMPANIES     = ['nvidia','apple','aramco','defense_sector','big_pharma','big_ag',
+                  'maersk','microsoft','tesla_byd','big_tech_ai','houthi_proxy','rating_agencies']
+_SOCIAL        = ['us_middle','us_working','us_upper','global_south_poor','eu_middle',
+                  'china_middle','india_middle','pakistani_poor','african_urban_youth',
+                  'latin_american_middle','se_asian_factory','arab_street','russian_working_class']
 
-EVENT_KEYWORDS = {
-    "gold_surge":      ["gold", "precious metal", "safe haven", "xau"],
-    "oil_shock":       ["oil", "crude", "opec", "petroleum", "brent", "wti", "energy"],
-    "rate_hike":       ["fed", "rate", "interest", "central bank", "boe", "ecb", "rba", "monetary"],
-    "geopolitical":    ["war", "conflict", "sanction", "military", "attack", "coup", "crisis", "iran", "russia", "ukraine", "hamas", "israel", "taiwan"],
-    "crypto":          ["bitcoin", "btc", "crypto", "ethereum", "blockchain", "defi", "stablecoin"],
-    "equity_crash":    ["crash", "stock", "equity", "s&p", "nasdaq", "dow", "bear market", "recession"],
-    "trade_war":       ["tariff", "trade war", "import duty", "export ban", "sanctions", "protectionism"],
-    "ai_disruption":   ["ai", "artificial intelligence", "llm", "openai", "automation", "robot"],
-    "climate":         ["climate", "carbon", "flood", "drought", "hurricane", "wildfire", "emissions"],
-    "pandemic":        ["pandemic", "virus", "outbreak", "disease", "covid", "vaccine", "who"],
-    "political":       ["election", "president", "prime minister", "government", "parliament", "policy", "democrat", "republican"],
+# Pre-built routing templates per signal type
+# Each key maps to a list of agent IDs for that simulation layer
+_ROUTING_TEMPLATES = {
+    "gold_surge": {
+        "layer1_economic":      _MARKETS + _CENTRAL_BANKS[:4],
+        "layer2_institutional": _CENTRAL_BANKS + _BANKS[:4],
+        "layer3_emotional":     _MARKETS[:4] + _BANKS[:3],
+        "layer4_social":        _SOCIAL[:6],
+        "layer5_behavioral":    _GOVERNMENTS[:4] + _SOCIAL[:4],
+        "layer6_synthesis":     _MARKETS[:3] + _CENTRAL_BANKS[:3],
+    },
+    "oil_shock": {
+        "layer1_economic":      _MARKETS[:4] + ['aramco','opec_org'],
+        "layer2_institutional": _GOVERNMENTS[:6] + _CENTRAL_BANKS[:3],
+        "layer3_emotional":     _COMPANIES[:4] + _SOCIAL[:4],
+        "layer4_social":        _SOCIAL[:6],
+        "layer5_behavioral":    _GOVERNMENTS[:5] + _BANKS[:3],
+        "layer6_synthesis":     _MARKETS[:3] + _GOVERNMENTS[:3],
+    },
+    "rate_hike": {
+        "layer1_economic":      _CENTRAL_BANKS + _MARKETS[:4],
+        "layer2_institutional": _BANKS + _COMPANIES[:4],
+        "layer3_emotional":     _MARKETS[:4] + _SOCIAL[:4],
+        "layer4_social":        _SOCIAL[:6],
+        "layer5_behavioral":    _GOVERNMENTS[:4] + _CENTRAL_BANKS[:3],
+        "layer6_synthesis":     _CENTRAL_BANKS[:4] + _MARKETS[:3],
+    },
+    "geopolitical": {
+        "layer1_economic":      _GOVERNMENTS[:8] + _MARKETS[:3],
+        "layer2_institutional": _GOVERNMENTS[:6] + ['nato','un_security'],
+        "layer3_emotional":     _SOCIAL[:6] + _GOVERNMENTS[:4],
+        "layer4_social":        _SOCIAL[:8],
+        "layer5_behavioral":    _GOVERNMENTS[:6] + _BANKS[:3],
+        "layer6_synthesis":     _GOVERNMENTS[:4] + _MARKETS[:3],
+    },
+    "crypto": {
+        "layer1_economic":      ['crypto_mkt','sp500'] + _CENTRAL_BANKS[:3] + _BANKS[:3],
+        "layer2_institutional": _GOVERNMENTS[:4] + _BANKS[:4],
+        "layer3_emotional":     _MARKETS[:4] + _SOCIAL[:4],
+        "layer4_social":        _SOCIAL[:6],
+        "layer5_behavioral":    _CENTRAL_BANKS + _GOVERNMENTS[:3],
+        "layer6_synthesis":     ['crypto_mkt'] + _CENTRAL_BANKS[:3] + _BANKS[:3],
+    },
+    "trade_war": {
+        "layer1_economic":      _GOVERNMENTS[:6] + _MARKETS[:4],
+        "layer2_institutional": _COMPANIES[:6] + _BANKS[:4],
+        "layer3_emotional":     _SOCIAL[:6] + _GOVERNMENTS[:4],
+        "layer4_social":        _SOCIAL[:8],
+        "layer5_behavioral":    _GOVERNMENTS[:6] + _COMPANIES[:4],
+        "layer6_synthesis":     _GOVERNMENTS[:4] + _MARKETS[:3],
+    },
+    "ai_disruption": {
+        "layer1_economic":      ['nvidia','microsoft','big_tech_ai','apple'] + _MARKETS[:3],
+        "layer2_institutional": _GOVERNMENTS[:5] + _COMPANIES[:5],
+        "layer3_emotional":     _SOCIAL[:6] + _COMPANIES[:4],
+        "layer4_social":        _SOCIAL[:8],
+        "layer5_behavioral":    _GOVERNMENTS[:4] + _CENTRAL_BANKS[:3],
+        "layer6_synthesis":     ['nvidia','big_tech_ai'] + _GOVERNMENTS[:3] + _MARKETS[:3],
+    },
+    "general": {
+        "layer1_economic":      _MARKETS + _CENTRAL_BANKS[:4],
+        "layer2_institutional": _GOVERNMENTS[:6] + _BANKS[:4],
+        "layer3_emotional":     _COMPANIES[:4] + _SOCIAL[:4],
+        "layer4_social":        _SOCIAL[:6],
+        "layer5_behavioral":    _GOVERNMENTS[:4] + _BANKS[:3],
+        "layer6_synthesis":     _MARKETS[:3] + _GOVERNMENTS[:3],
+    },
 }
 
-ROUTING_MAP = {
-    "gold_surge":      ["central_banks", "markets", "wealth_funds"],
-    "oil_shock":       ["energy_markets", "governments", "industry"],
-    "rate_hike":       ["central_banks", "banks", "markets"],
-    "geopolitical":    ["governments", "military", "diplomacy"],
-    "crypto":          ["markets", "tech", "regulators"],
-    "equity_crash":    ["markets", "banks", "wealth_funds"],
-    "trade_war":       ["governments", "industry", "markets"],
-    "ai_disruption":   ["tech", "labor", "regulators"],
-    "climate":         ["governments", "industry", "social"],
-    "pandemic":        ["governments", "health", "social"],
-    "political":       ["governments", "social", "markets"],
-    "general":         ["markets", "governments", "social"],
+EVENT_KEYWORDS = {
+    "gold_surge":    ["gold", "precious metal", "safe haven", "xau"],
+    "oil_shock":     ["oil", "crude", "opec", "petroleum", "brent", "wti", "energy"],
+    "rate_hike":     ["fed", "rate", "interest", "central bank", "boe", "ecb", "rba", "monetary"],
+    "geopolitical":  ["war", "conflict", "sanction", "military", "attack", "coup", "crisis",
+                      "iran", "russia", "ukraine", "hamas", "israel", "taiwan", "suez"],
+    "crypto":        ["bitcoin", "btc", "crypto", "ethereum", "blockchain", "defi"],
+    "equity_crash":  ["crash", "stock", "equity", "s&p", "nasdaq", "bear market", "recession"],
+    "trade_war":     ["tariff", "trade war", "import duty", "export ban", "protectionism"],
+    "ai_disruption": ["ai", "artificial intelligence", "llm", "openai", "automation", "robot"],
 }
 
 
 async def classify_event(event: str) -> dict:
     """
-    Classify an event into a signal type for agent routing.
-    Uses keyword matching — fast, no LLM call needed.
+    Classify an event and return a routing dict with layer-keyed agent ID lists.
+    Returns:
+        {
+            "signal_type": "gold_surge",
+            "routing": {
+                "layer1_economic": [...agent_ids],
+                "layer2_institutional": [...agent_ids],
+                ...
+            }
+        }
     """
     event_lower = event.lower()
-    for signal_type, keywords in EVENT_KEYWORDS.items():
+    signal_type = "general"
+    for st, keywords in EVENT_KEYWORDS.items():
         if any(kw in event_lower for kw in keywords):
-            return {
-                "signal_type": signal_type,
-                "routing": ROUTING_MAP.get(signal_type, ROUTING_MAP["general"]),
-            }
-    return {
-        "signal_type": "general",
-        "routing": ROUTING_MAP["general"],
-    }
+            signal_type = st
+            break
+
+    routing = _ROUTING_TEMPLATES.get(signal_type, _ROUTING_TEMPLATES["general"])
+    print(f"  🗺️  Routing: {signal_type} → {sum(len(v) for v in routing.values())} agent slots")
+    return {"signal_type": signal_type, "routing": routing}
