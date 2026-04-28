@@ -86,18 +86,22 @@ export default function Dashboard({ user, session }: DashboardProps) {
 
         if (data && data.length > 0) {
           const configMap = new Map(data.map(c => [c.key, c.value]));
-          setMaintenanceConfig({
+          const nextMaintenance: MaintenanceConfig = {
             enabled: configMap.get('maintenance_mode') === true || configMap.get('maintenance_mode') === 'true',
             message: (configMap.get('maintenance_message') as string) || 'System is currently under maintenance.',
             startTime: (configMap.get('maintenance_start_time') as string) || '',
             endTime: (configMap.get('maintenance_end_time') as string) || '',
             preMaintenanceNotice: configMap.get('pre_maintenance_notice') === true || configMap.get('pre_maintenance_notice') === 'true',
             preMaintenanceMessage: (configMap.get('pre_maintenance_message') as string) || ''
-          });
-          setBetaConfig({
+          };
+          const nextBeta: BetaConfig = {
             enabled: configMap.get('beta_mode') === true || configMap.get('beta_mode') === 'true',
             feedbackReward: parseInt(String(configMap.get('beta_feedback_reward'))) || 5
-          });
+          };
+          cachedMaintenance = nextMaintenance;
+          cachedBeta = nextBeta;
+          setMaintenanceConfig(nextMaintenance);
+          setBetaConfig(nextBeta);
         }
       } catch {
         // Network error — not critical, skip silently
