@@ -108,7 +108,11 @@ export default function Dashboard({ user, session }: DashboardProps) {
       }
     };
 
-    loadMaintenanceConfig();
+    // First mount: fetch from network. Subsequent mounts reuse cached state
+    // and rely on the realtime subscription below for any changes.
+    if (!cachedMaintenance) {
+      loadMaintenanceConfig();
+    }
 
     // Set up realtime subscription to listen for any maintenance config changes
     const channel = supabase
