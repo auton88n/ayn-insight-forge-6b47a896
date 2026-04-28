@@ -74,12 +74,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# If ALLOWED_ORIGINS is "*" keep it as wildcard, else use the list
+_origins = ALLOWED_ORIGINS if ALLOWED_ORIGINS != ["*"] else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_origins,
+    allow_origin_regex=r"https?://(.*\.)?aynn\.io|http://localhost(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
