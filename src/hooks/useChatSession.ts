@@ -83,12 +83,20 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
   const startNewChat = useCallback(() => {
     const newSessionId = crypto.randomUUID();
     setCurrentSessionId(newSessionId);
+    if (userId) {
+      const cached = getCachedRecentChats(userId);
+      recentChatCache.set(userId, {
+        chats: cached?.chats ?? recentChats,
+        sessionId: newSessionId,
+        updatedAt: Date.now(),
+      });
+    }
     
     toast({
       title: 'New Chat',
       description: 'You can now start a fresh conversation with AYN.',
     });
-  }, [toast]);
+  }, [toast, userId, recentChats]);
 
   // Ensure we have a valid session ID (generate one if empty, but DON'T change existing)
   const ensureSessionId = useCallback(() => {
@@ -103,6 +111,13 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
   // Load an existing chat
   const loadChat = useCallback((chatHistory: ChatHistory): Message[] => {
     setCurrentSessionId(chatHistory.sessionId as `${string}-${string}-${string}-${string}-${string}`);
+    if (userId) {
+      recentChatCache.set(userId, {
+        chats: recentChats,
+        sessionId: chatHistory.sessionId,
+        updatedAt: Date.now(),
+      });
+    }
     
     toast({
       title: 'Chat Loaded',
@@ -110,7 +125,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     });
 
     return chatHistory.messages;
-  }, [toast]);
+  }, [toast, userId, recentChats]);
 
   // Delete selected chats (messages and session records)
   const deleteSelectedChats = useCallback(async () => {
@@ -211,6 +226,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
 
       // Clear local state
       setRecentChats([]);
+      recentChatCache.set(userId, { chats: [], sessionId: currentSessionIdRef.current, updatedAt: Date.now() });
       setSelectedChats(new Set());
       setShowChatSelection(false);
 
