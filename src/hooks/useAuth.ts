@@ -6,16 +6,38 @@ import type { UserProfile, UseAuthReturn } from '@/types/dashboard.types';
 
 import { supabaseApi } from '@/lib/supabaseApi';
 
+type AuthCacheEntry = {
+  hasAccess: boolean;
+  hasAcceptedTerms: boolean;
+  isAdmin: boolean;
+  isDuty: boolean;
+  userProfile: UserProfile | null;
+  currentMonthUsage: number;
+  monthlyLimit: number | null;
+  usageResetDate: string | null;
+  updatedAt: number;
+};
+
+const AUTH_CACHE_TTL = 5 * 60 * 1000;
+const authCache = new Map<string, AuthCacheEntry>();
+
+const getCachedAuth = (userId: string) => {
+  const cached = authCache.get(userId);
+  if (!cached || Date.now() - cached.updatedAt > AUTH_CACHE_TTL) return null;
+  return cached;
+};
+
 export const useAuth = (user: User, session: Session): UseAuthReturn => {
-  const [hasAccess, setHasAccess] = useState(false);
-  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isDuty, setIsDuty] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [currentMonthUsage, setCurrentMonthUsage] = useState(0);
-  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
-  const [usageResetDate, setUsageResetDate] = useState<string | null>(null);
+  const cached = user?.id ? getCachedAuth(user.id) : null;
+  const [hasAccess, setHasAccess] = useState(cached?.hasAccess ?? false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(cached?.hasAcceptedTerms ?? false);
+  const [isAdmin, setIsAdmin] = useState(cached?.isAdmin ?? false);
+  const [isDuty, setIsDuty] = useState(cached?.isDuty ?? false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(cached?.userProfile ?? null);
+  const [isAuthLoading, setIsAuthLoading] = useState(!cached);
+  const [currentMonthUsage, setCurrentMonthUsage] = useState(cached?.currentMonthUsage ?? 0);
+  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(cached?.monthlyLimit ?? null);
+  const [usageResetDate, setUsageResetDate] = useState<string | null>(cached?.usageResetDate ?? null);
   const { toast } = useToast();
   
   const hasTrackedDevice = useRef(false);
