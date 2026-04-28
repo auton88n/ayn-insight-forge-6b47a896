@@ -247,6 +247,14 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         return;
       }
       
+      const cached = getCachedRecentChats(userId);
+      if (cached) {
+        setRecentChats(cached.chats);
+        if (!currentSessionIdRef.current && cached.sessionId) setCurrentSessionId(cached.sessionId);
+        setIsLoadingChats(false);
+        return;
+      }
+
       setIsLoadingChats(true);
       
       try {
@@ -269,12 +277,14 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         if (controller.signal.aborted) return;
         
         // Set current session ID - ONLY if not already set
-        if (!currentSessionId) {
+        let resolvedSessionId = currentSessionIdRef.current;
+        if (!resolvedSessionId) {
           if (latestSessionData && latestSessionData.length > 0 && latestSessionData[0].session_id) {
-            setCurrentSessionId(latestSessionData[0].session_id);
+            resolvedSessionId = latestSessionData[0].session_id;
           } else {
-            setCurrentSessionId(crypto.randomUUID());
+            resolvedSessionId = crypto.randomUUID();
           }
+          setCurrentSessionId(resolvedSessionId);
         }
         
         // Build sidebar from chat_sessions metadata directly
@@ -288,8 +298,10 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
           }));
 
           setRecentChats(chatHistories);
+          recentChatCache.set(userId, { chats: chatHistories, sessionId: resolvedSessionId, updatedAt: Date.now() });
         } else {
           setRecentChats([]);
+          recentChatCache.set(userId, { chats: [], sessionId: resolvedSessionId, updatedAt: Date.now() });
         }
       } catch (error) {
         // Silently ignore AbortError (expected on unmount)
@@ -300,7 +312,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         }
         console.error('[useChatSession] Initialization error:', error);
         // Only set new session ID on error if we don't have one
-        if (!currentSessionId) {
+        if (!currentSessionIdRef.current) {
           setCurrentSessionId(crypto.randomUUID());
         }
         setRecentChats([]);
