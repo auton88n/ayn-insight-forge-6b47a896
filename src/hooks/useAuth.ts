@@ -6,16 +6,38 @@ import type { UserProfile, UseAuthReturn } from '@/types/dashboard.types';
 
 import { supabaseApi } from '@/lib/supabaseApi';
 
+type AuthCacheEntry = {
+  hasAccess: boolean;
+  hasAcceptedTerms: boolean;
+  isAdmin: boolean;
+  isDuty: boolean;
+  userProfile: UserProfile | null;
+  currentMonthUsage: number;
+  monthlyLimit: number | null;
+  usageResetDate: string | null;
+  updatedAt: number;
+};
+
+const AUTH_CACHE_TTL = 5 * 60 * 1000;
+const authCache = new Map<string, AuthCacheEntry>();
+
+const getCachedAuth = (userId: string) => {
+  const cached = authCache.get(userId);
+  if (!cached || Date.now() - cached.updatedAt > AUTH_CACHE_TTL) return null;
+  return cached;
+};
+
 export const useAuth = (user: User, session: Session): UseAuthReturn => {
-  const [hasAccess, setHasAccess] = useState(false);
-  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isDuty, setIsDuty] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [currentMonthUsage, setCurrentMonthUsage] = useState(0);
-  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(null);
-  const [usageResetDate, setUsageResetDate] = useState<string | null>(null);
+  const cached = user?.id ? getCachedAuth(user.id) : null;
+  const [hasAccess, setHasAccess] = useState(cached?.hasAccess ?? false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(cached?.hasAcceptedTerms ?? false);
+  const [isAdmin, setIsAdmin] = useState(cached?.isAdmin ?? false);
+  const [isDuty, setIsDuty] = useState(cached?.isDuty ?? false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(cached?.userProfile ?? null);
+  const [isAuthLoading, setIsAuthLoading] = useState(!cached);
+  const [currentMonthUsage, setCurrentMonthUsage] = useState(cached?.currentMonthUsage ?? 0);
+  const [monthlyLimit, setMonthlyLimit] = useState<number | null>(cached?.monthlyLimit ?? null);
+  const [usageResetDate, setUsageResetDate] = useState<string | null>(cached?.usageResetDate ?? null);
   const { toast } = useToast();
   
   const hasTrackedDevice = useRef(false);
@@ -173,10 +195,14 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         if (!isMounted) return;
 
         const [subData, roleData, profileData, settingsData] = results;
+        let resolvedAccess = false;
+        let resolvedMonthUsage = 0;
+        let resolvedMonthlyLimit: number | null = null;
+        let resolvedUsageResetDate: string | null = null;
 
         // Access: any authenticated user with a subscription row has access
         if (subData && subData.length > 0) {
-          setHasAccess(true);
+          resolvedAccess = true;
         } else {
             // Fallback to access_grants for legacy users
             try {
@@ -186,21 +212,24 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
               );
               if (accessData && accessData.length > 0) {
                 const record = accessData[0];
-                const isActive = record.is_active &&
+                resolvedAccess = record.is_active &&
                   (!record.expires_at || new Date(record.expires_at) > new Date());
-                setHasAccess(isActive);
-                setCurrentMonthUsage(record.current_month_usage ?? 0);
-                setMonthlyLimit(record.monthly_limit ?? null);
-                setUsageResetDate(record.usage_reset_date ?? null);
+                resolvedMonthUsage = record.current_month_usage ?? 0;
+                resolvedMonthlyLimit = record.monthly_limit ?? null;
+                resolvedUsageResetDate = record.usage_reset_date ?? null;
               } else {
                 // Authenticated but no rows anywhere — give access (legitimate new user)
-                setHasAccess(true);
+                resolvedAccess = true;
               }
             } catch {
               // Fail closed — deny access on errors
-              setHasAccess(false);
+              resolvedAccess = false;
             }
           }
+        setHasAccess(resolvedAccess);
+        setCurrentMonthUsage(resolvedMonthUsage);
+        setMonthlyLimit(resolvedMonthlyLimit);
+        setUsageResetDate(resolvedUsageResetDate);
 
         // Admin/duty role
         if (roleData) {
@@ -215,8 +244,10 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         }
 
         // Terms
+        let resolvedTermsAccepted = false;
         if (settingsData) {
           const dbTermsAccepted = settingsData?.[0]?.has_accepted_terms ?? false;
+          resolvedTermsAccepted = dbTermsAccepted;
           setHasAcceptedTerms(dbTermsAccepted);
           if (dbTermsAccepted) {
             localStorage.setItem(`terms_accepted_${user.id}`, 'true');
@@ -225,8 +256,22 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
           }
         } else {
           const localTermsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
+          resolvedTermsAccepted = localTermsAccepted;
           setHasAcceptedTerms(localTermsAccepted);
         }
+
+        const nextCache: AuthCacheEntry = {
+          hasAccess: resolvedAccess,
+          hasAcceptedTerms: resolvedTermsAccepted,
+          isAdmin: roleData?.[0]?.role === 'admin',
+          isDuty: roleData?.[0]?.role === 'duty',
+          userProfile: profileData && profileData.length > 0 ? (profileData[0] as UserProfile) : null,
+          currentMonthUsage: resolvedMonthUsage,
+          monthlyLimit: resolvedMonthlyLimit,
+          usageResetDate: resolvedUsageResetDate,
+          updatedAt: Date.now(),
+        };
+        authCache.set(user.id, nextCache);
 
       } catch (error) {
         if (import.meta.env.DEV) {

@@ -4,21 +4,40 @@ import { supabaseApi } from '@/lib/supabaseApi';
 import { useToast } from '@/hooks/use-toast';
 import type { ChatHistory, Message, UseChatSessionReturn } from '@/types/dashboard.types';
 
+const RECENT_CHAT_CACHE_TTL = 5 * 60 * 1000;
+const recentChatCache = new Map<string, { chats: ChatHistory[]; sessionId: string; updatedAt: number }>();
+
+const getCachedRecentChats = (userId: string) => {
+  const cached = recentChatCache.get(userId);
+  if (!cached || Date.now() - cached.updatedAt > RECENT_CHAT_CACHE_TTL) return null;
+  return cached;
+};
+
 export const useChatSession = (userId: string, session: Session | null): UseChatSessionReturn => {
-  const [currentSessionId, setCurrentSessionId] = useState<string>('');
-  const [recentChats, setRecentChats] = useState<ChatHistory[]>([]);
+  const cached = userId ? getCachedRecentChats(userId) : null;
+  const [currentSessionId, setCurrentSessionId] = useState<string>(cached?.sessionId ?? '');
+  const [recentChats, setRecentChats] = useState<ChatHistory[]>(cached?.chats ?? []);
   const [selectedChats, setSelectedChats] = useState<Set<number>>(new Set());
   const [showChatSelection, setShowChatSelection] = useState(false);
-  const [isLoadingChats, setIsLoadingChats] = useState(true);
+  const [isLoadingChats, setIsLoadingChats] = useState(!cached);
   const lastInitializedUserId = useRef<string | null>(null);
+  const currentSessionIdRef = useRef(currentSessionId);
   const { toast } = useToast();
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
 
   // Load recent chat history using direct REST API with stored titles
   const loadRecentChats = useCallback(async () => {
     if (!userId || !session) {
       console.warn('[useChatSession] No userId or session available');
+      setIsLoadingChats(false);
       return;
     }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
     
     try {
       // Lightweight query: only fetch chat_sessions metadata (no messages needed for sidebar)
@@ -28,11 +47,13 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         updated_at: string;
       }>>(
         `chat_sessions?user_id=eq.${userId}&select=session_id,title,updated_at&order=updated_at.desc&limit=10`,
-        session.access_token
+        session.access_token,
+        { signal: controller.signal }
       );
 
       if (!sessionsData || sessionsData.length === 0) {
         setRecentChats([]);
+        recentChatCache.set(userId, { chats: [], sessionId: currentSessionIdRef.current, updatedAt: Date.now() });
         return;
       }
 
@@ -46,8 +67,15 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
       }));
 
       setRecentChats(chatHistories);
-    } catch {
+      recentChatCache.set(userId, { chats: chatHistories, sessionId: currentSessionIdRef.current, updatedAt: Date.now() });
+    } catch (error) {
       // Error loading chats
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        console.error('[useChatSession] Error loading recent chats:', error);
+      }
+    } finally {
+      clearTimeout(timeout);
+      setIsLoadingChats(false);
     }
   }, [userId, session]);
 
@@ -55,12 +83,20 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
   const startNewChat = useCallback(() => {
     const newSessionId = crypto.randomUUID();
     setCurrentSessionId(newSessionId);
+    if (userId) {
+      const cached = getCachedRecentChats(userId);
+      recentChatCache.set(userId, {
+        chats: cached?.chats ?? recentChats,
+        sessionId: newSessionId,
+        updatedAt: Date.now(),
+      });
+    }
     
     toast({
       title: 'New Chat',
       description: 'You can now start a fresh conversation with AYN.',
     });
-  }, [toast]);
+  }, [toast, userId, recentChats]);
 
   // Ensure we have a valid session ID (generate one if empty, but DON'T change existing)
   const ensureSessionId = useCallback(() => {
@@ -75,6 +111,13 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
   // Load an existing chat
   const loadChat = useCallback((chatHistory: ChatHistory): Message[] => {
     setCurrentSessionId(chatHistory.sessionId as `${string}-${string}-${string}-${string}-${string}`);
+    if (userId) {
+      recentChatCache.set(userId, {
+        chats: recentChats,
+        sessionId: chatHistory.sessionId,
+        updatedAt: Date.now(),
+      });
+    }
     
     toast({
       title: 'Chat Loaded',
@@ -82,7 +125,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
     });
 
     return chatHistory.messages;
-  }, [toast]);
+  }, [toast, userId, recentChats]);
 
   // Delete selected chats (messages and session records)
   const deleteSelectedChats = useCallback(async () => {
@@ -183,6 +226,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
 
       // Clear local state
       setRecentChats([]);
+      recentChatCache.set(userId, { chats: [], sessionId: currentSessionIdRef.current, updatedAt: Date.now() });
       setSelectedChats(new Set());
       setShowChatSelection(false);
 
@@ -219,6 +263,14 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         return;
       }
       
+      const cached = getCachedRecentChats(userId);
+      if (cached) {
+        setRecentChats(cached.chats);
+        if (!currentSessionIdRef.current && cached.sessionId) setCurrentSessionId(cached.sessionId);
+        setIsLoadingChats(false);
+        return;
+      }
+
       setIsLoadingChats(true);
       
       try {
@@ -241,12 +293,14 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         if (controller.signal.aborted) return;
         
         // Set current session ID - ONLY if not already set
-        if (!currentSessionId) {
+        let resolvedSessionId = currentSessionIdRef.current;
+        if (!resolvedSessionId) {
           if (latestSessionData && latestSessionData.length > 0 && latestSessionData[0].session_id) {
-            setCurrentSessionId(latestSessionData[0].session_id);
+            resolvedSessionId = latestSessionData[0].session_id;
           } else {
-            setCurrentSessionId(crypto.randomUUID());
+            resolvedSessionId = crypto.randomUUID();
           }
+          setCurrentSessionId(resolvedSessionId);
         }
         
         // Build sidebar from chat_sessions metadata directly
@@ -260,8 +314,10 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
           }));
 
           setRecentChats(chatHistories);
+          recentChatCache.set(userId, { chats: chatHistories, sessionId: resolvedSessionId, updatedAt: Date.now() });
         } else {
           setRecentChats([]);
+          recentChatCache.set(userId, { chats: [], sessionId: resolvedSessionId, updatedAt: Date.now() });
         }
       } catch (error) {
         // Silently ignore AbortError (expected on unmount)
@@ -272,7 +328,7 @@ export const useChatSession = (userId: string, session: Session | null): UseChat
         }
         console.error('[useChatSession] Initialization error:', error);
         // Only set new session ID on error if we don't have one
-        if (!currentSessionId) {
+        if (!currentSessionIdRef.current) {
           setCurrentSessionId(crypto.randomUUID());
         }
         setRecentChats([]);
