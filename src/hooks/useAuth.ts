@@ -237,8 +237,10 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         }
 
         // Terms
+        let resolvedTermsAccepted = false;
         if (settingsData) {
           const dbTermsAccepted = settingsData?.[0]?.has_accepted_terms ?? false;
+          resolvedTermsAccepted = dbTermsAccepted;
           setHasAcceptedTerms(dbTermsAccepted);
           if (dbTermsAccepted) {
             localStorage.setItem(`terms_accepted_${user.id}`, 'true');
@@ -247,8 +249,22 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
           }
         } else {
           const localTermsAccepted = localStorage.getItem(`terms_accepted_${user.id}`) === 'true';
+          resolvedTermsAccepted = localTermsAccepted;
           setHasAcceptedTerms(localTermsAccepted);
         }
+
+        const nextCache: AuthCacheEntry = {
+          hasAccess: subData && subData.length > 0 ? true : hasAccess,
+          hasAcceptedTerms: resolvedTermsAccepted,
+          isAdmin: roleData?.[0]?.role === 'admin',
+          isDuty: roleData?.[0]?.role === 'duty',
+          userProfile: profileData && profileData.length > 0 ? (profileData[0] as UserProfile) : null,
+          currentMonthUsage,
+          monthlyLimit,
+          usageResetDate,
+          updatedAt: Date.now(),
+        };
+        authCache.set(user.id, nextCache);
 
       } catch (error) {
         if (import.meta.env.DEV) {
