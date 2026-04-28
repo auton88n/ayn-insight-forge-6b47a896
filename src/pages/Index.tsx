@@ -37,9 +37,14 @@ const Index = () => {
     let mounted = true;
 
     const initializeAuth = async () => {
+      // Already resolved in a previous mount — skip the network round-trip
+      // and the loader flash. onAuthStateChange below still keeps us in sync.
+      if (cachedInitialized) return;
       try {
         const { data } = await supabase.auth.getSession();
         if (mounted && data.session) {
+          cachedSession = data.session;
+          cachedUser = data.session.user;
           setSession(data.session);
           setUser(data.session.user);
           setLoading(true);
@@ -48,6 +53,7 @@ const Index = () => {
         // Silent failure - show landing page
       } finally {
         if (mounted) {
+          cachedInitialized = true;
           setIsInitialized(true);
         }
       }
@@ -61,15 +67,22 @@ const Index = () => {
         if (!mounted) return;
 
         if (event === 'SIGNED_IN' && session) {
+          cachedSession = session;
+          cachedUser = session.user;
+          cachedInitialized = true;
           setSession(session);
           setUser(session.user);
           setLoading(true);
           setIsInitialized(true);
         } else if (event === 'SIGNED_OUT') {
+          cachedSession = null;
+          cachedUser = null;
           setSession(null);
           setUser(null);
           setLoading(false);
         } else if ((event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session) {
+          cachedSession = session;
+          cachedUser = session.user;
           setSession(session);
           setUser(session.user);
         }
