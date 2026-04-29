@@ -16,8 +16,10 @@ import { supabase } from '@/integrations/supabase/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type AgentCategory =
-  | 'government' | 'central_bank' | 'market' | 'bank'
-  | 'company' | 'person' | 'institution' | 'stock_market' | 'other';
+  | 'social_class' | 'government' | 'company' | 'market'
+  | 'bank' | 'central_bank' | 'media'
+  // legacy / fallback values (kept so old data still types-checks)
+  | 'person' | 'institution' | 'stock_market' | 'other';
 
 export interface EnginAgent {
   id: string;
