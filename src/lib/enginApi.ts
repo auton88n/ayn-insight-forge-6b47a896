@@ -73,6 +73,9 @@ export interface CreateSimInput {
   question: string;
   rounds?: number;
   agents?: number;
+  report_type?: string;   // government|marketing|investment|social|full
+  depth?: string;         // quick|standard|deep
+  user_target?: Record<string, string | number | null>;
 }
 
 // ─── Backend response types ─────────────────────────────────────────────────
