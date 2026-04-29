@@ -1,28 +1,42 @@
 /**
- * GraphCanvas v4 — Minimal network graph.
- * Small dots + thin connecting lines. No emojis. No glow. Clean.
- * Inspired by: sparse force-directed graph like image 2.
+ * GraphCanvas v5 — Professional intelligence-grade network visualization.
+ *
+ * Aesthetic direction: "classified data terminal" — deep space dark,
+ * near-invisible connections, 1px nodes with depth through opacity not size.
+ * Think: Palantir, Bloomberg Terminal, NSA PRISM visualization.
+ *
+ * Rules:
+ *  - Node radius: 1.5px (persona) to 2.5px (institutional). Never larger.
+ *  - Line opacity: 0.06–0.18. Never a bright cyan grid.
+ *  - Color is desaturated by 60% — hints of category, not screaming it.
+ *  - Depth illusion via z-layering: dim background nodes, bright foreground.
+ *  - On hover: one node brightens + label appears. Nothing else.
  */
 import { useEffect, useRef, useMemo } from 'react';
 import { EnginAgent, EnginGraph } from '@/lib/enginApi';
 
-const CAT_COLOR: Record<string, string> = {
-  government:   '#3b82f6',
-  central_bank: '#f59e0b',
-  stock_market: '#10b981',
-  bank:         '#8b5cf6',
-  company:      '#06b6d4',
-  media:        '#ef4444',
-  religion:     '#f97316',
-  social_class: '#84cc16',
-  persona:      '#ec4899',
-  other:        '#64748b',
+// Desaturated, deep — not game colors
+const CAT_HUE: Record<string, [number, number, number]> = {
+  government:   [210, 60, 55],   // steel blue
+  central_bank: [42,  55, 60],   // muted amber
+  stock_market: [158, 45, 50],   // seafoam
+  bank:         [270, 40, 55],   // muted violet
+  company:      [195, 50, 55],   // teal
+  media:        [0,   50, 55],   // brick
+  religion:     [28,  45, 55],   // terracotta
+  social_class: [88,  40, 50],   // olive
+  persona:      [330, 35, 55],   // dusty rose
+  other:        [220, 15, 40],   // slate
 };
+
+function hsl(h: number, s: number, l: number, a = 1) {
+  return `hsla(${h},${s}%,${l}%,${a})`;
+}
 
 interface Node {
   id: string; cat: string; label: string;
   x: number; y: number; vx: number; vy: number;
-  r: number; mass: number;
+  r: number; mass: number; depth: number; // 0–1, affects opacity
 }
 
 interface Props {
@@ -66,19 +80,23 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
     const W = () => canvas.clientWidth;
     const H = () => canvas.clientHeight;
 
-    // Init nodes — scattered randomly, tiny dots
+    // Init nodes — scattered with random depth
     if (agents.length && nodesRef.current.length !== agents.length) {
-      nodesRef.current = agents.map(a => ({
-        id:    a.id,
-        cat:   a.category || 'other',
-        label: a.name,
-        x:  W() * 0.1 + Math.random() * W() * 0.8,
-        y:  H() * 0.1 + Math.random() * H() * 0.8,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        r:  a.category === 'persona' ? 2.5 : 3.5,
-        mass: a.category === 'persona' ? 0.8 : 1.2,
-      }));
+      nodesRef.current = agents.map(a => {
+        const isPerson = a.category === 'persona' || a.category === 'social_class';
+        return {
+          id:    a.id,
+          cat:   a.category || 'other',
+          label: a.name,
+          x:  W() * 0.08 + Math.random() * W() * 0.84,
+          y:  H() * 0.08 + Math.random() * H() * 0.84,
+          vx: (Math.random() - 0.5) * 0.2,
+          vy: (Math.random() - 0.5) * 0.2,
+          r:  isPerson ? 1.5 : 2.2,
+          mass: isPerson ? 0.7 : 1.3,
+          depth: Math.random(), // random z-depth for atmosphere
+        };
+      });
     }
 
     const idxOf = new Map(nodesRef.current.map((n, i) => [n.id, i]));
@@ -89,7 +107,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
       for (const n of nodesRef.current) {
-        if (Math.hypot(n.x - mx, n.y - my) < n.r + 8) { onSelect(n.id); break; }
+        if (Math.hypot(n.x - mx, n.y - my) < Math.max(n.r + 6, 12)) {
+          onSelect(n.id);
+          break;
+        }
       }
     };
     const handleMove = (e: MouseEvent) => {
@@ -97,7 +118,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
       hoveredRef.current = null;
       for (const n of nodesRef.current) {
-        if (Math.hypot(n.x - mx, n.y - my) < n.r + 10) { hoveredRef.current = n.id; break; }
+        if (Math.hypot(n.x - mx, n.y - my) < Math.max(n.r + 10, 14)) {
+          hoveredRef.current = n.id;
+          break;
+        }
       }
     };
     canvas.addEventListener('click', handleClick);
@@ -105,17 +129,21 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
 
     const draw = () => {
       frameRef.current++;
+      const t = frameRef.current;
       const w = canvas.clientWidth, h = canvas.clientHeight;
       const nodes = nodesRef.current;
-      ctx.clearRect(0, 0, w, h);
+
+      // Deep dark background — not pure black, very subtle blue tint
+      ctx.fillStyle = '#060810';
+      ctx.fillRect(0, 0, w, h);
 
       if (!nodes.length) { rafRef.current = requestAnimationFrame(draw); return; }
 
-      // ── Force simulation (light) ────────────────────────────────────────
-      const REPEL  = 900;
-      const SPRING = 0.002;
-      const DAMP   = 0.90;
-      const CENTER = 0.0003;
+      // ── Force simulation ──────────────────────────────────────────────────
+      const REPEL  = 1200;
+      const SPRING = 0.0015;
+      const DAMP   = 0.92;
+      const CENTER = 0.00025;
 
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
@@ -125,7 +153,7 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
           if (i === j) continue;
           const b = nodes[j];
           const dx = a.x - b.x, dy = a.y - b.y;
-          const d2 = dx*dx + dy*dy + 1;
+          const d2 = Math.max(dx*dx + dy*dy, 1);
           const d  = Math.sqrt(d2);
           const f  = REPEL / d2;
           fx += f * dx / d;
@@ -139,18 +167,18 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
           if (!other) return;
           const dx = other.x - a.x, dy = other.y - a.y;
           const d  = Math.hypot(dx, dy) || 1;
-          const f  = (d - 140) * SPRING;
+          const f  = (d - 160) * SPRING;
           fx += f * dx / d;
           fy += f * dy / d;
         });
 
-        // Proximity attraction (sparse connections)
+        // Proximity cohesion for nearby same-category nodes
         for (let j = 0; j < nodes.length; j++) {
-          if (i === j) continue;
+          if (i === j || nodes[j].cat !== a.cat) continue;
           const b = nodes[j];
           const d = Math.hypot(a.x-b.x, a.y-b.y);
-          if (d < 90 && d > 0) {
-            const f = (d - 90) * 0.0005;
+          if (d < 120 && d > 0) {
+            const f = (d - 120) * 0.0003;
             fx += f * (b.x - a.x) / d;
             fy += f * (b.y - a.y) / d;
           }
@@ -162,109 +190,125 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
         a.vx = (a.vx + fx / a.mass) * DAMP;
         a.vy = (a.vy + fy / a.mass) * DAMP;
         const spd = Math.hypot(a.vx, a.vy);
-        if (spd > 1.5) { a.vx = a.vx/spd*1.5; a.vy = a.vy/spd*1.5; }
+        if (spd > 1.2) { a.vx = a.vx/spd*1.2; a.vy = a.vy/spd*1.2; }
 
         a.x += a.vx; a.y += a.vy;
-        const pad = 8;
-        if (a.x < pad) { a.x = pad; a.vx *= -0.5; }
-        if (a.x > w-pad) { a.x = w-pad; a.vx *= -0.5; }
-        if (a.y < pad) { a.y = pad; a.vy *= -0.5; }
-        if (a.y > h-pad) { a.y = h-pad; a.vy *= -0.5; }
+        const pad = 6;
+        if (a.x < pad) { a.x = pad; a.vx *= -0.4; }
+        if (a.x > w-pad) { a.x = w-pad; a.vx *= -0.4; }
+        if (a.y < pad) { a.y = pad; a.vy *= -0.4; }
+        if (a.y > h-pad) { a.y = h-pad; a.vy *= -0.4; }
       }
 
-      // ── Draw edges — graph edges ────────────────────────────────────────
-      ctx.lineWidth = 0.6;
+      // ── Draw graph edges (very faint) ─────────────────────────────────────
       edgeSet.forEach(e => {
         const si = idxOf.get(e.s), ti = idxOf.get(e.t);
         if (si == null || ti == null) return;
         const a = nodes[si], b = nodes[ti];
         const dist = Math.hypot(a.x-b.x, a.y-b.y);
-        if (dist > 350) return;
-        const alpha = (1 - dist/350) * 0.25;
+        if (dist > 400) return;
+        const alpha = (1 - dist/400) * 0.14;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = `#06b6d4${Math.round(alpha*255).toString(16).padStart(2,'0')}`;
+        ctx.strokeStyle = `rgba(100,160,220,${alpha})`;
+        ctx.lineWidth = 0.4;
         ctx.stroke();
       });
 
-      // ── Draw proximity edges ────────────────────────────────────────────
+      // ── Proximity edges (ultra faint) ─────────────────────────────────────
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i+1; j < nodes.length; j++) {
           const a = nodes[i], b = nodes[j];
           const dist = Math.hypot(a.x-b.x, a.y-b.y);
-          if (dist > 80) continue;
-          const alpha = (1 - dist/80) * 0.18;
+          if (dist > 65) continue;
+          const alpha = (1 - dist/65) * 0.09;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, b.y);
-          ctx.strokeStyle = `#94a3b8${Math.round(alpha*255).toString(16).padStart(2,'0')}`;
-          ctx.lineWidth = 0.5;
+          ctx.strokeStyle = `rgba(150,165,185,${alpha})`;
+          ctx.lineWidth = 0.3;
           ctx.stroke();
         }
       }
 
-      // ── Draw nodes — small clean dots ───────────────────────────────────
-      nodes.forEach(n => {
-        const em = emotions[n.id];
-        const color = CAT_COLOR[n.cat] || '#64748b';
-        const isHovered = hoveredRef.current === n.id;
-        const r = n.r * (isHovered ? 2 : 1);
+      // ── Draw nodes ────────────────────────────────────────────────────────
+      const hovered = hoveredRef.current;
 
+      nodes.forEach(n => {
+        const [h_hue, h_sat, h_lit] = CAT_HUE[n.cat] || CAT_HUE.other;
+        const isHovered = hovered === n.id;
+        const em = emotions[n.id];
+
+        // Depth-based opacity — far nodes are dimmer
+        const depthOpacity = 0.35 + n.depth * 0.5;
+        const opacity = isHovered ? 1 : depthOpacity;
+
+        // Pulsing breath for active nodes
+        const breath = 1 + 0.06 * Math.sin(t * 0.04 + n.x * 0.03);
+        const r = n.r * (isHovered ? 2.5 : breath);
+
+        // Emotion modifies lightness only
+        let lit = h_lit;
+        if (em) {
+          const emBoost: Record<string,number> = {
+            panic:8, fear:5, anger:7, excited:10, optimistic:6
+          };
+          lit += (emBoost[em.emotion] || 0);
+        }
+
+        // Draw dot — single clean circle, no glow
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI*2);
-        ctx.fillStyle = color + (isHovered ? 'ff' : 'cc');
+        ctx.fillStyle = hsl(h_hue, h_sat, lit, opacity);
         ctx.fill();
 
-        // Subtle emotion ring (no glow, just a thin stroke)
-        if (em && em.emotion !== 'neutral') {
-          const emColors: Record<string,string> = {
-            panic:'#ef4444', fear:'#f97316', anger:'#dc2626',
-            excited:'#fbbf24', optimistic:'#10b981', cautious:'#8b5cf6',
-          };
-          const emColor = emColors[em.emotion];
-          if (emColor) {
-            ctx.beginPath();
-            ctx.arc(n.x, n.y, r + 2, 0, Math.PI*2);
-            ctx.strokeStyle = emColor + '80';
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-          }
-        }
-
-        // Label only on hover
+        // Hover state: outer ring only
         if (isHovered) {
-          const label = n.label.length > 20 ? n.label.slice(0,19)+'…' : n.label;
-          ctx.font = '10px monospace';
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r + 3, 0, Math.PI*2);
+          ctx.strokeStyle = hsl(h_hue, h_sat, lit + 20, 0.4);
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+
+          // Label — mono, small, offset above
+          ctx.font = '10px "JetBrains Mono", monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
-          ctx.fillStyle = '#ffffffbb';
-          ctx.fillText(label, n.x, n.y - r - 3);
+          ctx.fillStyle = hsl(h_hue, 20, 80, 0.9);
+          ctx.fillText(n.label.length > 22 ? n.label.slice(0,21)+'…' : n.label, n.x, n.y - r - 5);
+
+          // Category label below
+          ctx.font = '8px "JetBrains Mono", monospace';
+          ctx.fillStyle = hsl(h_hue, 20, 60, 0.5);
+          ctx.textBaseline = 'top';
+          ctx.fillText(n.cat.replace('_',' '), n.x, n.y + r + 4);
         }
       });
 
-      // ── Bottom legend ────────────────────────────────────────────────────
-      const cats = [...new Set(nodes.map(n => n.cat))].filter(c => c !== 'other');
-      const legendY = h - 10;
-      let legendX = 10;
-      ctx.font = '9px monospace';
+      // ── Minimal category key — bottom left, very dim ───────────────────────
+      const cats = [...new Set(nodes.map(n => n.cat))];
+      let kx = 10;
+      const ky = h - 12;
+      ctx.font = '8px "JetBrains Mono", monospace';
       ctx.textBaseline = 'middle';
-      cats.slice(0, 6).forEach(cat => {
-        const color = CAT_COLOR[cat] || '#64748b';
+      cats.slice(0, 7).forEach(cat => {
+        const [ch, cs, cl] = CAT_HUE[cat] || CAT_HUE.other;
         ctx.beginPath();
-        ctx.arc(legendX + 4, legendY, 3, 0, Math.PI*2);
-        ctx.fillStyle = color + 'cc';
+        ctx.arc(kx + 3, ky, 2, 0, Math.PI*2);
+        ctx.fillStyle = hsl(ch, cs, cl, 0.5);
         ctx.fill();
         ctx.textAlign = 'left';
-        ctx.fillStyle = '#ffffff30';
-        ctx.fillText(cat.replace('_',' '), legendX + 10, legendY);
-        legendX += ctx.measureText(cat.replace('_',' ')).width + 20;
+        ctx.fillStyle = `rgba(120,130,150,0.35)`;
+        const label = cat.replace('_',' ');
+        ctx.fillText(label, kx + 8, ky);
+        kx += ctx.measureText(label).width + 18;
       });
 
-      // Node count
+      // Node count — far right, very dim
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#ffffff20';
-      ctx.fillText(`${nodes.length} agents`, w - 8, h - 10);
+      ctx.fillStyle = 'rgba(100,110,130,0.25)';
+      ctx.fillText(`${nodes.length}`, w - 8, ky);
 
       rafRef.current = requestAnimationFrame(draw);
     };
@@ -280,7 +324,7 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
   }, [agents, edgeSet, emotions, onSelect]);
 
   return (
-    <div ref={wrapRef} className="w-full h-full">
+    <div ref={wrapRef} className="w-full h-full rounded-xl overflow-hidden">
       <canvas ref={canvasRef} className="w-full h-full cursor-crosshair" />
     </div>
   );
