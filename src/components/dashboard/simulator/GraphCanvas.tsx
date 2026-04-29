@@ -88,10 +88,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
           id:    a.id,
           cat:   a.category || 'other',
           label: a.name,
-          x:  W() * 0.08 + Math.random() * W() * 0.84,
-          y:  H() * 0.08 + Math.random() * H() * 0.84,
-          vx: (Math.random() - 0.5) * 0.2,
-          vy: (Math.random() - 0.5) * 0.2,
+          x:  W() * 0.15 + Math.random() * W() * 0.70,
+          y:  H() * 0.15 + Math.random() * H() * 0.70,
+          vx: (Math.random() - 0.5) * 0.6,
+          vy: (Math.random() - 0.5) * 0.6,
           r:  isPerson ? 1.5 : 2.2,
           mass: isPerson ? 0.7 : 1.3,
           depth: Math.random(), // random z-depth for atmosphere
@@ -143,7 +143,7 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
       const REPEL  = 1200;
       const SPRING = 0.0015;
       const DAMP   = 0.92;
-      const CENTER = 0.00025;
+      const CENTER = 0.00008;
 
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
@@ -187,17 +187,23 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
         fx += (w/2 - a.x) * CENTER;
         fy += (h/2 - a.y) * CENTER;
 
+        // Soft boundary repulsion — pushes away from edges smoothly
+        const EDGE = 80;
+        const edgeF = 0.8;
+        if (a.x < EDGE) fx += edgeF * (EDGE - a.x) / EDGE;
+        if (a.x > w - EDGE) fx -= edgeF * (a.x - (w - EDGE)) / EDGE;
+        if (a.y < EDGE) fy += edgeF * (EDGE - a.y) / EDGE;
+        if (a.y > h - EDGE) fy -= edgeF * (a.y - (h - EDGE)) / EDGE;
+
         a.vx = (a.vx + fx / a.mass) * DAMP;
         a.vy = (a.vy + fy / a.mass) * DAMP;
         const spd = Math.hypot(a.vx, a.vy);
         if (spd > 1.2) { a.vx = a.vx/spd*1.2; a.vy = a.vy/spd*1.2; }
 
         a.x += a.vx; a.y += a.vy;
-        const pad = 6;
-        if (a.x < pad) { a.x = pad; a.vx *= -0.4; }
-        if (a.x > w-pad) { a.x = w-pad; a.vx *= -0.4; }
-        if (a.y < pad) { a.y = pad; a.vy *= -0.4; }
-        if (a.y > h-pad) { a.y = h-pad; a.vy *= -0.4; }
+        // Hard clamp only as absolute last resort — far outside canvas
+        a.x = Math.max(-20, Math.min(w + 20, a.x));
+        a.y = Math.max(-20, Math.min(h + 20, a.y));
       }
 
       // ── Draw graph edges (very faint) ─────────────────────────────────────
