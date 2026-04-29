@@ -1,168 +1,96 @@
 /**
- * AgentParticleField — Live particle visualization of the 87-agent society.
- * Each particle = one agent. Color = category. Size = activity level.
- * Pulses and connects as agents react during simulation.
+ * AgentParticleField v2 — same clean dot aesthetic as GraphCanvas.
+ * Small colored dots + thin lines. No emoji. No glow. Minimal.
  */
 import { useEffect, useRef } from 'react';
 import { EnginAgent } from '@/lib/enginApi';
 
+const CAT_COLOR: Record<string, string> = {
+  government:   '#3b82f6',
+  central_bank: '#f59e0b',
+  stock_market: '#10b981',
+  bank:         '#8b5cf6',
+  company:      '#06b6d4',
+  media:        '#ef4444',
+  religion:     '#f97316',
+  social_class: '#84cc16',
+  persona:      '#ec4899',
+  other:        '#64748b',
+};
+
 interface Props {
-  agents: EnginAgent[];
+  agents:   EnginAgent[];
   emotions: Record<string, { emotion: string; intensity?: number }>;
-  loading: boolean;
+  loading:  boolean;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  government:   '#3b82f6', // blue
-  central_bank: '#f59e0b', // amber
-  stock_market: '#10b981', // emerald
-  bank:         '#8b5cf6', // violet
-  company:      '#06b6d4', // cyan
-  media:        '#ef4444', // red
-  religion:     '#f97316', // orange
-  social_class: '#84cc16', // lime
-  persona:      '#ec4899', // pink
-};
-
-const EMOTION_INTENSITY: Record<string, number> = {
-  panic: 1.8, fear: 1.5, anger: 1.6, excited: 1.7,
-  optimistic: 1.3, cautious: 1.0, neutral: 0.8, calm: 0.7,
-};
-
 export function AgentParticleField({ agents, emotions, loading }: Props) {
-  const canvasRef  = useRef<HTMLCanvasElement>(null);
-  const animRef    = useRef<number>(0);
-  const nodesRef   = useRef<AgentNode[]>([]);
-  const frameRef   = useRef(0);
-
-  interface AgentNode {
-    id: string; name: string; category: string; flag: string;
-    x: number; y: number; vx: number; vy: number;
-    r: number; color: string; alpha: number;
-    emotion: string; intensity: number;
-    connections: number[];
-  }
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef   = useRef<number>(0);
+  const nodesRef  = useRef<{id:string;cat:string;x:number;y:number;vx:number;vy:number}[]>([]);
+  const frameRef  = useRef(0);
 
   useEffect(() => {
-    if (!agents.length) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const W = canvas.width  = canvas.offsetWidth;
-    const H = canvas.height = canvas.offsetHeight;
+    if (!canvas || !agents.length) return;
 
-    // Build nodes from agents
-    nodesRef.current = agents.map((a, i) => {
-      const angle = (i / agents.length) * Math.PI * 2;
-      const r_orbit = Math.random() * 0.35 + 0.15; // 15-50% from center
-      const em = emotions[a.id] || { emotion: 'neutral', intensity: 0.5 };
-      const emIntensity = EMOTION_INTENSITY[em.emotion] || 1;
-      return {
-        id: a.id,
-        name: a.name,
-        category: a.category || 'persona',
-        flag: a.flag || '🌐',
-        x: W / 2 + Math.cos(angle) * W * r_orbit,
-        y: H / 2 + Math.sin(angle) * H * r_orbit,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        r: a.category === 'persona' ? 3 : 5,
-        color: CATEGORY_COLORS[a.category] || '#94a3b8',
-        alpha: 0.7,
-        emotion: em.emotion,
-        intensity: emIntensity,
-        connections: [],
-      };
-    });
-
-    // Build sparse connection graph
-    nodesRef.current.forEach((node, i) => {
-      const maxConn = node.category === 'persona' ? 2 : 4;
-      for (let j = 0; j < maxConn; j++) {
-        const target = Math.floor(Math.random() * nodesRef.current.length);
-        if (target !== i) node.connections.push(target);
-      }
-    });
-
+    const W = canvas.offsetWidth;
+    const H = canvas.offsetHeight;
+    canvas.width  = W;
+    canvas.height = H;
     const ctx = canvas.getContext('2d')!;
+
+    nodesRef.current = agents.map(a => ({
+      id:  a.id,
+      cat: a.category || 'other',
+      x:   W * 0.1 + Math.random() * W * 0.8,
+      y:   H * 0.1 + Math.random() * H * 0.8,
+      vx:  (Math.random() - 0.5) * 0.4,
+      vy:  (Math.random() - 0.5) * 0.4,
+    }));
 
     const draw = () => {
       frameRef.current++;
       ctx.clearRect(0, 0, W, H);
-
       const nodes = nodesRef.current;
-      const t = frameRef.current;
-      const pulse = loading ? 1 + 0.3 * Math.sin(t * 0.05) : 1;
 
-      // Draw connections
-      nodes.forEach((node, i) => {
-        node.connections.forEach(j => {
-          const other = nodes[j];
-          if (!other) return;
-          const dist = Math.hypot(node.x - other.x, node.y - other.y);
-          if (dist > 250) return;
-          const alpha = (1 - dist / 250) * 0.15 * (loading ? pulse : 1);
-          ctx.beginPath();
-          ctx.moveTo(node.x, node.y);
-          ctx.lineTo(other.x, other.y);
-          ctx.strokeStyle = `${node.color}${Math.round(alpha * 255).toString(16).padStart(2,'0')}`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
-        });
-      });
-
-      // Draw nodes
-      nodes.forEach(node => {
-        // Update position
-        node.x += node.vx;
-        node.y += node.vy;
-
-        // Soft boundary
-        if (node.x < 20 || node.x > W - 20) node.vx *= -0.8;
-        if (node.y < 20 || node.y > H - 20) node.vy *= -0.8;
-
-        // Gentle gravity toward center when loading
+      nodes.forEach(n => {
         if (loading) {
-          node.vx += (W/2 - node.x) * 0.0001;
-          node.vy += (H/2 - node.y) * 0.0001;
+          n.vx += (W/2 - n.x) * 0.00008;
+          n.vy += (H/2 - n.y) * 0.00008;
         }
-
-        // Speed cap
-        const speed = Math.hypot(node.vx, node.vy);
-        if (speed > 1.5) { node.vx = (node.vx/speed)*1.5; node.vy = (node.vy/speed)*1.5; }
-
-        const r = node.r * node.intensity * pulse;
-        const alpha = node.alpha * (loading ? pulse : 1);
-
-        // Glow
-        const grd = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, r * 3);
-        grd.addColorStop(0, `${node.color}60`);
-        grd.addColorStop(1, `${node.color}00`);
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, r * 3, 0, Math.PI * 2);
-        ctx.fillStyle = grd;
-        ctx.fill();
-
-        // Core
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = `${node.color}${Math.round(alpha * 255).toString(16).padStart(2,'0')}`;
-        ctx.fill();
-
-        // Flag label for institutional agents
-        if (node.category !== 'persona' && node.r >= 5) {
-          ctx.font = `${Math.round(r * 2)}px serif`;
-          ctx.fillText(node.flag, node.x - r, node.y + r * 0.4);
-        }
+        n.vx *= 0.92; n.vy *= 0.92;
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 4 || n.x > W-4) n.vx *= -0.8;
+        if (n.y < 4 || n.y > H-4) n.vy *= -0.8;
       });
 
-      // "SIMULATING" pulse overlay
-      if (loading) {
-        ctx.font = '10px monospace';
-        ctx.fillStyle = `rgba(6,182,212,${0.3 + 0.2 * Math.sin(t * 0.08)})`;
-        ctx.textAlign = 'center';
-        ctx.fillText('● SIMULATION RUNNING', W / 2, H - 16);
-        ctx.textAlign = 'left';
+      // Proximity lines
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i+1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          const d = Math.hypot(a.x-b.x, a.y-b.y);
+          if (d > 75) continue;
+          const alpha = (1 - d/75) * (loading ? 0.22 : 0.12);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = `#06b6d4${Math.round(alpha*255).toString(16).padStart(2,'0')}`;
+          ctx.stroke();
+        }
       }
+
+      // Dots
+      nodes.forEach(n => {
+        const em    = emotions[n.id];
+        const color = CAT_COLOR[n.cat] || '#64748b';
+        const r = 2.5;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r, 0, Math.PI*2);
+        ctx.fillStyle = color + (loading ? 'ee' : 'aa');
+        ctx.fill();
+      });
 
       animRef.current = requestAnimationFrame(draw);
     };
@@ -172,25 +100,13 @@ export function AgentParticleField({ agents, emotions, loading }: Props) {
   }, [agents, emotions, loading]);
 
   return (
-    <div className="relative w-full h-full min-h-[400px]">
+    <div className="relative w-full h-full">
       <canvas ref={canvasRef} className="w-full h-full" />
-
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
-        {Object.entries(CATEGORY_COLORS).slice(0, 5).map(([cat, color]) => (
-          <div key={cat} className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-            <span className="text-[9px] font-mono text-muted-foreground/50 capitalize">
-              {cat.replace('_', ' ')}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Agent count */}
-      <div className="absolute top-3 right-4 text-[10px] font-mono text-muted-foreground/40">
-        {agents.length} agents active
-      </div>
+      {loading && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-mono text-cyan-400/50 uppercase tracking-[0.3em] animate-pulse">
+          simulation running
+        </div>
+      )}
     </div>
   );
 }
