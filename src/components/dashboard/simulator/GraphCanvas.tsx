@@ -83,7 +83,7 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
     // Init nodes — scattered with random depth
     if (agents.length && nodesRef.current.length !== agents.length) {
       nodesRef.current = agents.map(a => {
-        const isPerson = a.category === 'persona' || a.category === 'social_class';
+        const isPerson = a.category === 'social_class' || a.category === 'person';
         return {
           id:    a.id,
           cat:   a.category || 'other',

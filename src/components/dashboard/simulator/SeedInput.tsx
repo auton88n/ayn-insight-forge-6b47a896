@@ -72,7 +72,7 @@ export function SeedInput({ loading, onStart }: Props) {
   }, []);
 
   const destroyParticles = () => {
-    try { window.pJSDom?.forEach(p => p.pJS.fn.vendors.destroypJS()); (window as Record<string,unknown>).pJSDom = []; } catch {}
+    try { window.pJSDom?.forEach(p => p.pJS.fn.vendors.destroypJS()); (window as unknown as Record<string,unknown>).pJSDom = []; } catch {}
   };
 
   const initParticles = () => {
@@ -193,7 +193,7 @@ export function SeedInput({ loading, onStart }: Props) {
             </span>
           </h2>
           <p className="text-sm text-muted-foreground/70 max-w-xl mx-auto">
-            {activeRT.agents} agents across governments, markets, religions, and real people —
+            225 agents across governments, markets, religions, and real people,
             each with their own culture, age, class, and perspective.
           </p>
         </div>
