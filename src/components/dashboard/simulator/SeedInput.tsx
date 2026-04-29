@@ -370,5 +370,3 @@ function FilterSelect({ label, value, onChange, options }: {
     </div>
   );
 }
-EOSX
-echo "✅ SeedInput.tsx rewritten"

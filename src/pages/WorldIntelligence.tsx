@@ -104,9 +104,9 @@ export default function WorldIntelligence() {
 
       {/* Chat drawer */}
       <AnimatePresence>
-        {chatTarget && state.meta && (
+        {chatTarget && (
           <AgentChatDrawer
-            simId={state.meta.sim_id}
+            simId={null}
             target={chatTarget}
             onClose={() => setChatTarget(null)}
           />

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 type Target = { kind: 'agent'; agent: EnginAgent } | { kind: 'report' };
 
 interface Props {
-  simId: string;
+  simId: string | null;
   target: Target;
   onClose: () => void;
 }
