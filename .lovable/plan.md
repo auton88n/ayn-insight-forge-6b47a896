@@ -1,68 +1,85 @@
-## Goal
-Fix the "page not found" when going back from `/world-intelligence` (the "Sphere" / World Simulator), and remove the inter-page lag/loader flashes — without touching any feature behavior.
+# World Simulation v2 — Native Edge Function Engine (MicroFish-style)
 
-## Findings
+Replace the Python `engine.aynn.io` backend with Supabase Edge Functions powered by the Lovable AI Gateway (`google/gemini-2.5-flash`). Scale to **225 agent personas** across the 6 real categories you described, wire in the **7-layer pipeline** that's only decorative today, and add a **"Feed Agents the News"** button so users can broadcast any signal/event/product to the whole society with one click.
 
-**1. "Page not found" when going back to dashboard (root cause)**
-In `src/pages/WorldIntelligence.tsx` line 38 the back-arrow does:
+---
+
+## What's wrong today
+
+- Frontend talks to `engine.aynn.io` (Python on Railway). It's flaky, CORS-prone, and the agent roster doesn't match your real 225-persona deployment.
+- `useEnginSim` shows a 7-layer legend in the UI but the backend doesn't actually run 7 layers — it just calls one `/simulate` endpoint and renders a stepper.
+- No "feed news → all agents react" path. The "pull live signal" button only fills the textbox.
+- Categories shown in UI (`government, central_bank, market, bank, company, person, …`) don't match what you actually want: **Social classes (74), Governments (65), Companies (35), Markets (16), Banks (15), Central banks (10), Media (10)**.
+
+---
+
+## What we'll build
+
+### 1. Persona library (data, not code)
+A new file `supabase/functions/_shared/personas.ts` exporting **225 personas** in the 6+1 categories you listed. Each persona has:
+`id, name, category, subcategory, country, region, age, gender, ethnicity, religion, income_class, occupation, culture, flag, bio, beliefs, biases, speaking_style`.
+
+This is the single source of truth, shared by every edge function. No DB seed needed for v1 — flat TS array keeps cold-starts fast.
+
+### 2. Seven Edge Functions (one per layer)
+Each function takes a small payload, runs Gemini with persona context, returns structured JSON. They are chained by an orchestrator.
+
+| # | Function | Layer | What it does |
+|---|----------|-------|--------------|
+| 1 | `sim-roster` | — | Picks the right N personas for the seed + user filters (region, religion, income, age, gender) |
+| 2 | `sim-layer-economic` | L1 Economic | Markets, banks, central banks react: prices, flows, policy |
+| 3 | `sim-layer-institutional` | L2 Institutional | Governments + media react: policy moves, narratives |
+| 4 | `sim-layer-elite` | L3 Elite | Companies + power players react: strategic moves |
+| 5 | `sim-layer-narrative` | L4 Narrative | Media agents shape the story across regions |
+| 6 | `sim-layer-community` | L5 Community | Social-class personas react inside their cultures |
+| 7 | `sim-layer-human` | L6 Human | Individual emotional + behavioral reactions |
+| 8 | `sim-synthesize` | L7 Synthesis | Combines all layers into the final report (outcomes, drivers, winners/losers, dissent) |
+
+Plus two utilities:
+- `sim-feed-news` — the **"Feed the Agents" button**. Takes any signal/headline/event and broadcasts it to all active personas, updating their belief/emotion state in `agent_society_state` table.
+- `sim-agent-chat` — chat with one persona (replaces `/chat` on Python).
+
+All 9 use Lovable AI Gateway (`google/gemini-2.5-flash`, free during promo). No external Python.
+
+### 3. Database (one migration)
+```text
+agent_society_runs        — one row per simulation (user_id, seed, question, report, status)
+agent_society_messages    — per-layer per-agent statements (run_id, layer, persona_id, content, emotion)
+agent_society_state       — current emotion/belief per persona per user (so news feeds persist)
+agent_society_news_feed   — every news item the user has fed into the society
 ```
-navigate('/dashboard')
-```
-But `/dashboard` is **not registered** in `src/App.tsx`. The dashboard is rendered at `/` (via `Index.tsx`, which mounts `<Dashboard>` when a session exists). So router falls through to `<Route path="*" element={NotFound}/>`. That's the 404 you see.
+RLS: users see their own; messages readable when parent run is theirs.
 
-There is exactly one offender (verified with ripgrep) — only this one button is broken. Other in-app links to the dashboard already use `/`.
+### 4. Frontend rewire
+- `src/lib/enginApi.ts` → swap `fetch(ENGIN_URL/...)` for `supabase.functions.invoke('sim-*', ...)`. Keep the same return shape so existing UI keeps working.
+- `useEnginSim` becomes a real 7-step pipeline: it now calls layers in order, streams stage updates, and lights up the existing 7-layer legend for real.
+- New "**Feed the Agents**" button in `SeedInput` (next to "pull live signal"): one click → calls `sim-feed-news` with the latest headline → toast shows "225 agents updated".
+- `AgentRoster` filter chips updated to the real 6 categories: `social_class, government, company, market, bank, central_bank, media`.
+- Update default agent counts: Quick=50, Standard=120, Deep=225 (full society).
 
-**2. Lag / "loading for a while" / having to refresh between pages**
-Three independent contributors:
+### 5. Cleanup
+- Keep `ENGIN_URL` in `src/config.ts` as a fallback flag, but default everything to edge functions.
+- Delete dead Python references in `useEnginSim` error messages (CORS hint).
 
-a. `AnimatePresence mode="wait"` in `App.tsx` makes React Router wait for the *outgoing* page's exit animation before mounting the new one. But `PageTransition` was already stripped down to a plain `<div>` (no animation). So we pay the wait with zero visual benefit — every navigation feels delayed by one frame batch + a Suspense fallback flash.
+---
 
-b. Almost every route is `lazy(...)` but only 5 are preloaded after 2s (`PreloadRoutes` in `App.tsx`). First click on any other route triggers a network fetch + the `<PageLoader />` flash ("Loading…" with brain). That's the "loading for a while" you described.
+## Technical details
 
-c. `/` is `<Index>` which conditionally mounts `<Dashboard>` only after `supabase.auth.getSession()` resolves. Every time you return from `/world-intelligence` → `/`, `Dashboard` and all its children (sidebar, query subscriptions, realtime channel, maintenance config fetch) **fully unmount and remount**, replaying their loaders. That's why a refresh "fixes" it visually — it's the same cold-start either way.
+**Why edge functions over Python**: same model (Gemini), no Railway cold-starts, no CORS, free via Lovable Gateway, scales horizontally per layer.
 
-## Changes (no feature changes, no UI changes)
+**Cost control**: Layers run sequentially but agents inside a layer are batched into one Gemini call ("here are 30 personas, give me each one's reaction in JSON"). 225 agents ≈ 8–12 Gemini calls per full sim, well under the per-user quota.
 
-### A. Fix the broken back navigation
-- `src/pages/WorldIntelligence.tsx`: change `navigate('/dashboard')` → `navigate('/')`. One-line fix.
-- Add a guard in `App.tsx`: register `/dashboard` as `<Navigate to="/" replace />` so any future stray link (or external bookmark) lands on the real dashboard instead of 404.
+**Streaming UX**: orchestrator (`useEnginSim`) flips `stage` after each layer resolves so the existing stepper + layer-progress bars become live indicators, not decoration.
 
-### B. Remove the wasted page-transition wait
-Since `PageTransition` is already a no-op div, drop the `AnimatePresence mode="wait"` wrapper in `AnimatedRoutes` and the `<PageTransition>` wrappers around routes. Render `<Routes>` directly. Net effect: navigations commit immediately; no animation is removed because there isn't one.
-- File: `src/App.tsx` (only `AnimatedRoutes`).
-- `PageTransition.tsx` and the `framer-motion`/`AnimatePresence` import stay (used elsewhere, e.g. the agent chat drawer).
+**Persona seeding**: 225 personas hand-curated to match your Python deployment list (US gen-Z urban black woman, Saudi post-reform young woman, Brazil favela, Vatican, SWIFT, Lazarus Group, ransomware gangs, carbon market, Fox/BBC/Al Jazeera/CGTN/TikTok algorithm, etc.).
 
-### C. Cut the Suspense flash on common navigations
-Expand `PreloadRoutes` in `App.tsx` to also warm:
-`Services`, services subpages (`AIAgents`, `Automation`, `Ticketing`, `AIEmployee`), `Contact`, `Terms`, `Privacy`, `SubscriptionSuccess`, `SubscriptionCanceled`, `ResetPassword`. Still done after 2s on idle, so first paint stays fast. This eliminates the "Loading…" brain flash on the routes you actually use.
+**Feed-news flow**: `sim-feed-news` does a single Gemini batch call → "given this news, update the emotion/belief of these 225 personas in 1 line each" → upserts to `agent_society_state`. Subsequent simulations read this state so the world "remembers" what it's been told.
 
-### D. Stop re-mounting the Dashboard on every return-to-root
-In `src/pages/Index.tsx`:
-- Cache the resolved auth result in module scope so a re-mount of `<Index>` after navigating back doesn't restart the `getSession()` promise from zero (no UX flicker).
-- Keep behavior identical for signed-out users (still see landing page) and for signed-in users (still see Dashboard) — only the loading flash on return navigation goes away.
+---
 
-In `src/components/Dashboard.tsx`:
-- The `system_config` fetch + realtime subscription currently run on *every* mount. Move the realtime channel subscription out so it survives within the session (lift to module-level singleton or to `App.tsx` where session lives). If lifting is too invasive, at minimum gate the fetch with `sessionStorage` so the second mount uses cached config and skips the network round-trip.
+## Out of scope (for this round)
+- Live agent-to-agent chat between simulations (we keep round-based statements).
+- Real-time streaming of layer output token-by-token (we resolve layer-by-layer instead, which is fast enough).
+- Migrating historical conversations from the Python backend.
 
-### E. Sanity sweep
-- `rg -n "navigate\(['\"]\/dashboard"` to confirm no other broken targets after the fix.
-- Verify there are no `<Link to="/dashboard">` or `href="/dashboard"` anywhere (already checked: none).
-
-## What is explicitly NOT changing
-- No feature logic changes (auth, chat, simulator, admin, billing untouched).
-- No visual redesign. Same fonts, same colors, same layout.
-- No removal of routes or pages.
-- No router type swap (still `BrowserRouter`).
-- World Simulator engine behavior and `engine.aynn.io` wiring are untouched.
-
-## Files to edit
-1. `src/pages/WorldIntelligence.tsx` — fix back nav target.
-2. `src/App.tsx` — add `/dashboard` redirect, drop `AnimatePresence`/`PageTransition` wrappers from routes, expand `PreloadRoutes` list.
-3. `src/pages/Index.tsx` — cache initial auth resolution to avoid re-mount flash.
-4. `src/components/Dashboard.tsx` — cache `system_config` per-session, dedupe realtime subscription on remount.
-
-## Expected result
-- Back arrow on World Simulator returns to the dashboard, not 404.
-- No more `<PageLoader>` brain flash when moving between previously-visited pages.
-- Returning to the dashboard from another route is instant (no "Loading Dashboard…" flicker), no manual refresh needed.
-- Zero behavioral changes to any feature.
+Approve and I'll implement everything in one pass: migration → 9 edge functions → personas file → enginApi rewrite → useEnginSim pipeline → SeedInput "Feed the Agents" button → roster categories.
