@@ -15,16 +15,14 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from openai import AsyncOpenAI
 
 load_dotenv()
 
 from simulations_router import router as simulations_router
 
 # ── Config ────────────────────────────────────────────────────────────────────
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
 LLM_BASE_URL    = os.getenv("LLM_BASE_URL", None)
-LLM_MODEL       = os.getenv("LLM_MODEL", "gpt-4o-mini")
+LLM_MODEL       = os.getenv("LLM_MODEL", "google/gemini-3-flash-preview")
 SUPABASE_URL    = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY    = os.getenv("SUPABASE_SERVICE_KEY", "")
 PORT            = int(os.getenv("PORT", 8000))
@@ -43,15 +41,10 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Starting AYN Simulation Engine...")
     print(f"   LLM model  : {LLM_MODEL}")
-    print(f"   LLM base   : {LLM_BASE_URL or 'OpenAI default'}")
+    print(f"   LLM route  : ayn-ai-proxy edge function → Lovable gateway")
     print(f"   Supabase   : {SUPABASE_URL[:40]}..." if SUPABASE_URL else "   Supabase   : NOT SET ⚠️")
 
-    llm_kwargs: dict = {"api_key": OPENAI_API_KEY}
-    if LLM_BASE_URL:
-        llm_kwargs["base_url"] = LLM_BASE_URL
-
-    llm_client = AsyncOpenAI(**llm_kwargs)
-
+    # LLM calls route through ayn-ai-proxy edge function — no OpenAI client needed here
     from layers.simulation_engine import SimulationEngine
 
     _engine = SimulationEngine()
@@ -209,13 +202,9 @@ async def chat_with_agent(request: ChatRequest):
     try:
         memories = await agent.get_relevant_memories(request.message)
 
-        llm_kwargs: dict = {"api_key": OPENAI_API_KEY}
-        if LLM_BASE_URL:
-            llm_kwargs["base_url"] = LLM_BASE_URL
-        llm = AsyncOpenAI(**llm_kwargs)
-
-        response = await llm.chat.completions.create(
-            model=LLM_MODEL,
+        from llm_gateway import call_with_fallback
+        result = await call_with_fallback(
+            intent="chat",
             messages=[
                 {"role": "system", "content": agent._build_system_prompt(memories)},
                 *request.history[-10:],
@@ -226,7 +215,7 @@ async def chat_with_agent(request: ChatRequest):
         )
 
         return {
-            "response": response.choices[0].message.content,
+            "response": result.get("content", ""),
             "agent_id": request.agent_id,
             "agent_name": agent.name,
             "agent_flag": agent.flag,

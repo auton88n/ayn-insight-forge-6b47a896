@@ -133,10 +133,16 @@ RULES — NEVER BREAK THESE:
     async def react(
         self,
         event: str,
-        economic_data: dict,
-        prior_round_messages: list[dict],
-        round_number: int,
-        real_world_data: str = ""
+        layer: int = 1,
+        financial_data: dict = None,
+        world_context: str = "",
+        prior_messages_text: str = "",
+        conv_id: str = None,
+        # legacy params (kept for backward compat)
+        economic_data: dict = None,
+        prior_round_messages: list = None,
+        round_number: int = None,
+        real_world_data: str = "",
     ) -> dict:
         """
         Core method — agent reacts to an event with full context.
@@ -153,25 +159,31 @@ RULES — NEVER BREAK THESE:
         # Get relevant memories
         memories = await self.get_relevant_memories(event)
 
-        # Build context from prior round messages
-        prior_context = ""
-        if prior_round_messages:
-            prior_context = "\n\nWHAT OTHER AGENTS SAID IN THE PRIOR ROUND:\n"
-            for msg in prior_round_messages[-6:]:  # Last 6 messages
-                prior_context += f"- {msg.get('agent_name', '?')}: \"{msg.get('public_statement', '')[:100]}\"\n"
+        # Support both old and new parameter names
+        fin_data = financial_data or economic_data or {}
+        ctx = world_context or real_world_data or ""
+        rnd = round_number or layer or 1
 
-        # Build economic context
-        econ_context = ""
-        if economic_data:
-            econ_context = f"\n\nREAL ECONOMIC DATA:\n{json.dumps(economic_data, indent=2)[:500]}"
+        # Build prior context from either text or message list
+        prior_text = prior_messages_text or ""
+        if not prior_text and prior_round_messages:
+            prior_text = "\n".join([
+                f"{m.get('agent_name','?')} ({m.get('agent_category','')}): {m.get('public_statement','')[:120]}"
+                for m in (prior_round_messages or [])[-6:]
+            ])
 
-        # Real world search data
-        data_context = f"\n\nREAL WORLD CONTEXT:\n{real_world_data[:300]}" if real_world_data else ""
+        prior_context = f"\n\nWHAT OTHERS SAID:\n{prior_text[:600]}" if prior_text else ""
+        econ_context = f"\n\nMARKET DATA:\n{json.dumps(fin_data, indent=2)[:400]}" if fin_data else ""
+        data_context = f"\n\nWORLD CONTEXT:\n{ctx[:400]}" if ctx else ""
+
+        layer_names = {1:"Economic Reality",2:"Institutional Response",3:"Corporate & Elite",
+                       4:"Narrative War",5:"Community Reaction",6:"Human Behavior",7:"Synthesis"}
+        layer_label = layer_names.get(rnd, f"Layer {rnd}")
 
         system_prompt = self._build_system_prompt(memories)
 
         user_prompt = f"""EVENT: "{event}"
-SIMULATION ROUND: {round_number}/7{prior_context}{econ_context}{data_context}
+LAYER {rnd}/7 — {layer_label}{prior_context}{econ_context}{data_context}
 
 Respond as {self.name} with this EXACT JSON format:
 {{
@@ -205,7 +217,7 @@ IMPORTANT: numerical_prediction MUST have a specific number and timeframe. NOT '
             score_change = float(result.get("belief_score_change", 0))
             self.belief_score = max(-100, min(100, self.belief_score + score_change))
             self.belief_history.append({
-                "round": round_number,
+                "round": rnd,
                 "score": self.belief_score,
                 "event": event[:50]
             })
@@ -222,7 +234,8 @@ IMPORTANT: numerical_prediction MUST have a specific number and timeframe. NOT '
                 "agent_name": self.name,
                 "agent_flag": self.flag,
                 "agent_category": self.category,
-                "round": round_number,
+                "round": rnd,
+                "layer": layer,
                 "public_statement": result.get("public_statement", ""),
                 "inner_thought": result.get("inner_thought", ""),
                 "concrete_action": result.get("concrete_action", ""),
@@ -243,7 +256,8 @@ IMPORTANT: numerical_prediction MUST have a specific number and timeframe. NOT '
                 "agent_name": self.name,
                 "agent_flag": self.flag,
                 "agent_category": self.category,
-                "round": round_number,
+                "round": rnd,
+                "layer": layer,
                 "public_statement": f"{self.name} is monitoring this situation closely.",
                 "inner_thought": "Something went wrong with my analysis.",
                 "concrete_action": "Waiting for more information",

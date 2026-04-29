@@ -370,3 +370,26 @@ async def check_providers() -> dict:
         status["gemini"] = f"error: {str(e)[:80]}"
 
     return status
+
+
+# ── Aliases for backward compatibility ────────────────────────────────────────
+async def call_with_fallback(intent: str, messages: list, temperature: float = 0.7, max_tokens: int = 800) -> dict:
+    """Alias of call_llm_json — routes through ayn-ai-proxy edge function."""
+    result = await call_llm_json(
+        call_type=intent,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    # Return flat dict with 'content' key for simple callers
+    return {"content": result.get("parsed", {}) or result.get("raw", ""), **result}
+
+
+async def call_with_fallback_json(intent: str, messages: list, temperature: float = 0.7, max_tokens: int = 800) -> dict:
+    """Alias of call_llm_json — returns parsed JSON."""
+    return await call_llm_json(
+        call_type=intent,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
