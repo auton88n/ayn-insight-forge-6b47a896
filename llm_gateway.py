@@ -36,7 +36,7 @@ GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")    # Already in Railway
 
 # ── Provider URLs ─────────────────────────────────────────────────────────────
 # Routes through Supabase ayn-ai-proxy → Lovable gateway (LOVABLE_API_KEY stays in Supabase)
-LOVABLE_URL  = f"{os.getenv(chr(39).join(["SUPABASE","URL"]), chr(39))}/functions/v1/ayn-ai-proxy"
+LOVABLE_URL  = (SUPABASE_URL or "https://dfkoxuokfkttjhfjcecx.supabase.co") + "/functions/v1/ayn-ai-proxy"
 GEMINI_URL   = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # ── Model definitions ─────────────────────────────────────────────────────────
@@ -63,52 +63,48 @@ GEMINI_PRO          = LLMModel("gemini-15-pro",             "gemini",  "gemini-1
 
 # ── Routing table ─────────────────────────────────────────────────────────────
 # call_type → ordered list of models (first = preferred, rest = fallbacks)
+# ALL calls route through Lovable proxy — Gemini 2.5 Flash as primary.
+# Direct Gemini API removed: quota issues + unnecessary complexity.
+# Route: Python engine → ayn-ai-proxy edge fn → Lovable gateway → Gemini 2.5 Flash
 CHAINS: dict[str, list[LLMModel]] = {
 
-    # ── Fast calls go through Lovable proxy ───────────────────────────────────
-    # Quick agent reactions — single round, needs to finish fast
+    # Agent reactions — fast, batched 5 at a time
     "agent_reaction": [
-        LOVABLE_FLASH,
-        LOVABLE_FLASH_25,
-        LOVABLE_FLASH_LITE,
-        GEMINI_FLASH,           # final fallback: Gemini direct
+        LOVABLE_FLASH_25,       # Gemini 2.5 Flash — primary
+        LOVABLE_FLASH,          # Gemini 3 Flash — fallback
+        LOVABLE_FLASH_LITE,     # Gemini 2.5 Flash Lite — last resort
     ],
 
-    # Event classification — tiny call, latency matters
+    # Event classification
     "classify": [
         LOVABLE_FLASH_LITE,
-        LOVABLE_FLASH,
-        GEMINI_FLASH_LITE,
-    ],
-
-    # Regular chat (AgentSociety /chat endpoint)
-    "chat": [
-        LOVABLE_FLASH,
         LOVABLE_FLASH_25,
-        LOVABLE_FLASH_LITE,
-        GEMINI_FLASH,
     ],
 
-    # ── Long calls go through Gemini direct ───────────────────────────────────
-    # Full 7-layer simulation synthesis — can take minutes
-    "synthesis": [
-        GEMINI_FLASH,           # primary: direct Gemini, no Supabase in loop
-        GEMINI_PRO,             # upgrade if flash struggles
-        LOVABLE_FLASH,          # last resort: proxy (will probably timeout on very long runs)
-    ],
-
-    # Multi-layer simulation — each layer fires many agents in parallel
-    "simulation": [
-        GEMINI_FLASH,
-        GEMINI_FLASH_LITE,
+    # Chat with agents
+    "chat": [
+        LOVABLE_FLASH_25,
         LOVABLE_FLASH,
+        LOVABLE_FLASH_LITE,
     ],
 
-    # Long-running analysis — market deep-dives, report generation
+    # Synthesis — Lovable proxy, higher token limit
+    "synthesis": [
+        LOVABLE_FLASH_25,       # Gemini 2.5 Flash handles long synthesis well
+        LOVABLE_FLASH,
+        LOVABLE_FLASH_LITE,
+    ],
+
+    # General simulation / analysis
+    "simulation": [
+        LOVABLE_FLASH_25,
+        LOVABLE_FLASH,
+        LOVABLE_FLASH_LITE,
+    ],
+
     "deep_analysis": [
-        GEMINI_PRO,
-        GEMINI_FLASH,
-        LOVABLE_PRO,
+        LOVABLE_PRO,            # Gemini 3 Pro for deep analysis
+        LOVABLE_FLASH_25,
         LOVABLE_FLASH,
     ],
 }
