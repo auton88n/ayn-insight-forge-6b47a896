@@ -176,6 +176,183 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_society_messages: {
+        Row: {
+          belief_score: number | null
+          concrete_action: string | null
+          created_at: string
+          emotion: string | null
+          emotion_intensity: number | null
+          id: string
+          inner_thought: string | null
+          layer: number
+          persona_category: string | null
+          persona_id: string
+          persona_name: string | null
+          public_statement: string | null
+          round: number
+          run_id: string
+          user_id: string
+        }
+        Insert: {
+          belief_score?: number | null
+          concrete_action?: string | null
+          created_at?: string
+          emotion?: string | null
+          emotion_intensity?: number | null
+          id?: string
+          inner_thought?: string | null
+          layer: number
+          persona_category?: string | null
+          persona_id: string
+          persona_name?: string | null
+          public_statement?: string | null
+          round?: number
+          run_id: string
+          user_id: string
+        }
+        Update: {
+          belief_score?: number | null
+          concrete_action?: string | null
+          created_at?: string
+          emotion?: string | null
+          emotion_intensity?: number | null
+          id?: string
+          inner_thought?: string | null
+          layer?: number
+          persona_category?: string | null
+          persona_id?: string
+          persona_name?: string | null
+          public_statement?: string | null
+          round?: number
+          run_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      agent_society_news_feed: {
+        Row: {
+          agents_affected: number | null
+          category: string | null
+          created_at: string
+          headline: string
+          id: string
+          source: string | null
+          summary: string | null
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          agents_affected?: number | null
+          category?: string | null
+          created_at?: string
+          headline: string
+          id?: string
+          source?: string | null
+          summary?: string | null
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          agents_affected?: number | null
+          category?: string | null
+          created_at?: string
+          headline?: string
+          id?: string
+          source?: string | null
+          summary?: string | null
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      agent_society_runs: {
+        Row: {
+          agent_count: number
+          completed_at: string | null
+          created_at: string
+          current_layer: number | null
+          depth: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          question: string
+          report: Json | null
+          report_type: string
+          seed: string
+          status: string
+          user_id: string
+          user_target: Json | null
+        }
+        Insert: {
+          agent_count?: number
+          completed_at?: string | null
+          created_at?: string
+          current_layer?: number | null
+          depth?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          question: string
+          report?: Json | null
+          report_type?: string
+          seed: string
+          status?: string
+          user_id: string
+          user_target?: Json | null
+        }
+        Update: {
+          agent_count?: number
+          completed_at?: string | null
+          created_at?: string
+          current_layer?: number | null
+          depth?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          question?: string
+          report?: Json | null
+          report_type?: string
+          seed?: string
+          status?: string
+          user_id?: string
+          user_target?: Json | null
+        }
+        Relationships: []
+      }
+      agent_society_state: {
+        Row: {
+          belief_score: number | null
+          emotion: string | null
+          emotion_intensity: number | null
+          id: string
+          persona_id: string
+          recent_summary: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          belief_score?: number | null
+          emotion?: string | null
+          emotion_intensity?: number | null
+          id?: string
+          persona_id: string
+          recent_summary?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          belief_score?: number | null
+          emotion?: string | null
+          emotion_intensity?: number | null
+          id?: string
+          persona_id?: string
+          recent_summary?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       agent_telegram_bots: {
         Row: {
           bot_token: string
@@ -8283,6 +8460,78 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           visitor_id?: string
+        }
+        Relationships: []
+      }
+      world_personas: {
+        Row: {
+          active: boolean
+          age: number | null
+          beliefs: string | null
+          biases: string | null
+          bio: string | null
+          category: string
+          country: string | null
+          created_at: string
+          culture: string | null
+          ethnicity: string | null
+          flag: string | null
+          gender: string | null
+          id: string
+          income_class: string | null
+          layer: number
+          name: string
+          occupation: string | null
+          region: string | null
+          religion: string | null
+          speaking_style: string | null
+          subcategory: string | null
+        }
+        Insert: {
+          active?: boolean
+          age?: number | null
+          beliefs?: string | null
+          biases?: string | null
+          bio?: string | null
+          category: string
+          country?: string | null
+          created_at?: string
+          culture?: string | null
+          ethnicity?: string | null
+          flag?: string | null
+          gender?: string | null
+          id: string
+          income_class?: string | null
+          layer?: number
+          name: string
+          occupation?: string | null
+          region?: string | null
+          religion?: string | null
+          speaking_style?: string | null
+          subcategory?: string | null
+        }
+        Update: {
+          active?: boolean
+          age?: number | null
+          beliefs?: string | null
+          biases?: string | null
+          bio?: string | null
+          category?: string
+          country?: string | null
+          created_at?: string
+          culture?: string | null
+          ethnicity?: string | null
+          flag?: string | null
+          gender?: string | null
+          id?: string
+          income_class?: string | null
+          layer?: number
+          name?: string
+          occupation?: string | null
+          region?: string | null
+          religion?: string | null
+          speaking_style?: string | null
+          subcategory?: string | null
         }
         Relationships: []
       }
