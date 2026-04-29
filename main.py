@@ -182,6 +182,24 @@ async def inject_signal(request: InjectSignalRequest):
         raise HTTPException(500, str(e))
 
 
+
+
+@app.get("/world-signals")
+async def get_world_signals():
+    """Return latest AYN world signals from Supabase for the frontend live feed button."""
+    engine = get_engine()
+    if not engine or not engine.supabase:
+        return {"signals": [], "source": "supabase_unavailable"}
+    try:
+        result = engine.supabase.table("ayn_world_signals") \
+            .select("id,headline,summary,signal_type,severity,region,created_at") \
+            .order("created_at", desc=True) \
+            .limit(10) \
+            .execute()
+        return {"signals": result.data or [], "source": "supabase"}
+    except Exception as e:
+        return {"signals": [], "error": str(e)}
+
 @app.post("/chat")
 async def chat_with_agent(request: ChatRequest):
     """Chat with a specific agent using their persistent memory."""
