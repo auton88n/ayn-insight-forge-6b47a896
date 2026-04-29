@@ -54,12 +54,7 @@ async def lifespan(app: FastAPI):
 
     from layers.simulation_engine import SimulationEngine
 
-    _engine = SimulationEngine(
-        llm_client=llm_client,
-        model=LLM_MODEL,
-        supabase_url=SUPABASE_URL,
-        supabase_key=SUPABASE_KEY,
-    )
+    _engine = SimulationEngine()
 
     print(f"✅ Engine ready — {len(_engine.agents)} agents loaded")
     yield
