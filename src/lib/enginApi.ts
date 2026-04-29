@@ -1,37 +1,41 @@
 /**
- * enginApi.ts — Client for the AYN ENGIN Python swarm-simulation backend.
+ * enginApi.ts — AYN World Simulation client.
  *
- * The deployed backend at engine.aynn.io is a synchronous single-session
- * engine with flat routes:
- *   POST /simulate   — run a full simulation (synchronous, ~15-20s)
- *   GET  /agents     — list all 77 world agents
- *   POST /chat       — chat with a specific agent
- *   POST /inject     — inject a signal into the engine
- *   GET  /health     — health check
+ * Routes all simulation calls through the ayn-agent-society Supabase edge function.
+ * No Python engine (engine.aynn.io) — fully Supabase-native.
  *
- * This file maps the backend's response shapes into the types the UI expects.
+ * Edge function endpoint: /functions/v1/ayn-agent-society
+ * Modes: simulate | get_agents | chat | get_conversations | get_messages |
+ *         inject_event | generate_from_signal
  */
-import { ENGIN_URL } from '@/config';
 import { supabase } from '@/integrations/supabase/client';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 export type AgentCategory =
-  | 'social_class' | 'government' | 'company' | 'market'
-  | 'bank' | 'central_bank' | 'media'
-  // legacy / fallback values (kept so old data still types-checks)
-  | 'person' | 'institution' | 'stock_market' | 'other';
+  | 'government' | 'central_bank' | 'stock_market' | 'bank' | 'company'
+  | 'media' | 'religion' | 'social_class' | 'persona'
+  | 'person' | 'institution' | 'market' | 'other';
 
 export interface EnginAgent {
   id: string;
   name: string;
   category: AgentCategory;
-  country?: string;          // ISO3
-  flag?: string;             // emoji or url
-  emotion?: string;          // confident | worried | excited | …
-  emotion_intensity?: number;// 0-100 from backend, normalized to 0-1 in adapter
+  subcategory?: string;
+  country?: string;
+  region?: string;
+  flag?: string;
+  age?: number;
+  gender?: string;
+  ethnicity?: string;
+  religion?: string;
+  income_class?: string;
+  occupation?: string;
+  layer?: number;
+  emotion?: string;
+  emotion_intensity?: number;
+  stance?: string;
   bio?: string;
   belief_score?: number;
-  memory_count?: number;
 }
 
 export interface GraphNode { id: string; label: string; type?: string; weight?: number }
@@ -41,6 +45,7 @@ export interface EnginGraph { nodes: GraphNode[]; edges: GraphEdge[] }
 export interface EnginSignal {
   id: string;
   turn?: number;
+  layer?: number;
   region?: string;
   severity?: 'critical' | 'high' | 'medium' | 'low';
   headline: string;
@@ -50,24 +55,39 @@ export interface EnginSignal {
 }
 
 export interface EnginReport {
-  question: string;
-  outcomes: { label: string; probability: number; rationale?: string }[];
-  drivers: { label: string; weight: number; direction?: 'up' | 'down' | 'neutral' }[];
-  confidence: number;       // 0-1
-  summary: string;
-  timeline?: { t: string; event: string }[];
+  question?: string;
+  headline_outcome?: string;
+  probability?: string;
+  confidence_score?: number;
+  time_horizon?: string;
+  predictions?: string[];
+  winners?: string[];
+  losers?: string[];
+  demographic_impact?: {
+    most_affected_groups?: string[];
+    behavioral_changes?: string[];
+  };
+  market_signals?: Record<string, string>;
+  risk_flags?: string[];
+  opportunity_flags?: string[];
+  human_impact?: string;
+  action_recommendations?: string[];
+  historical_parallel?: string;
+  outcomes?: { label: string; probability: number; rationale?: string }[];
+  drivers?: { label: string; weight: number; direction: string }[];
+  summary?: string;
   dissent?: { agent_id: string; agent_name: string; view: string }[];
 }
 
 export interface SimulationMeta {
-  sim_id: string;
-  status: 'pending' | 'building_graph' | 'running' | 'completed' | 'failed';
-  question: string;
-  seed_excerpt?: string;
-  rounds_total?: number;
-  rounds_done?: number;
+  sim_id?: string;
+  run_id?: string;
+  conversation_id?: string;
+  status: string;
+  question?: string;
+  report_type?: string;
+  depth?: string;
   agent_count?: number;
-  created_at?: string;
 }
 
 export interface CreateSimInput {
@@ -75,350 +95,255 @@ export interface CreateSimInput {
   question: string;
   rounds?: number;
   agents?: number;
-  report_type?: string;   // government|marketing|investment|social|full
-  depth?: string;         // quick|standard|deep
+  report_type?: string;
+  depth?: string;
   user_target?: Record<string, string | number | null>;
 }
 
-// ─── Backend response types ─────────────────────────────────────────────────
-
-/** Raw message from POST /simulate */
-interface BackendAgentMessage {
-  agent_id: string;
-  agent_name: string;
-  agent_flag?: string;
-  agent_category?: string;
-  round: number;
-  public_statement?: string;
-  inner_thought?: string;
-  concrete_action?: string;
-  numerical_prediction?: string;
-  belief_score?: number;
-  belief_score_change?: number;
-  emotion?: string;
-  emotion_intensity?: number;
-  response_time_seconds?: number;
-}
-
-/** Raw synthesis from POST /simulate */
-interface BackendSynthesis {
-  headline_outcome?: string;
-  probability?: string;
-  confidence_score?: number;
-  top_predictions?: { prediction: string; probability: number; rationale?: string }[];
-  winners?: string[];
-  losers?: string[];
-  key_risks?: string[];
-  watch_indicators?: string[];
-  human_impact?: string;
-  error?: string;
-}
-
-/** Full response from POST /simulate */
-export interface BackendSimResult {
-  conversation_id: string;
-  event: string;
-  signal_type?: string;
-  messages: BackendAgentMessage[];
-  synthesis: BackendSynthesis;
-  predictions: unknown[];
-  avg_belief_score: number;
-  financial_snapshot: Record<string, unknown>;
-  duration_seconds: number;
-}
-
-/** Raw agent from GET /agents */
-interface BackendAgent {
-  id: string;
-  name: string;
-  flag?: string;
-  category?: string;
-  belief_score?: number;
-  memory_count?: number;
-}
-
-// ─── Auth ───────────────────────────────────────────────────────────────────
-async function authHeaders(): Promise<Record<string, string>> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
-}
-
-// ─── Core fetch ─────────────────────────────────────────────────────────────
+// ─── Core caller ─────────────────────────────────────────────────────────────
 class EnginError extends Error {
   status: number;
   constructor(message: string, status: number) { super(message); this.status = status; }
 }
 
-async function call<T>(
-  method: 'GET' | 'POST',
-  path: string,
-  body?: unknown,
-  signal?: AbortSignal,
-): Promise<T> {
-  const headers = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...(await authHeaders()),
-  };
-  const res = await fetch(`${ENGIN_URL}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    signal,
+async function callEdgeFn(mode: string, body: Record<string, unknown> = {}): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('ayn-agent-society', {
+    body: { mode, ...body },
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new EnginError(text || res.statusText || 'engin error', res.status);
-  }
-  return (await res.json()) as T;
+  if (error) throw new EnginError(error.message || 'Edge function error', 500);
+  if (data?.error) throw new EnginError(data.error, 500);
+  return data;
 }
 
-// ─── Adapters ───────────────────────────────────────────────────────────────
-
-/** Convert backend agent list into frontend EnginAgent[] */
-function adaptAgents(raw: BackendAgent[]): EnginAgent[] {
-  return raw.map(a => ({
+// ─── Adapters ─────────────────────────────────────────────────────────────────
+function adaptAgent(a: any): EnginAgent {
+  return {
     id: a.id,
     name: a.name,
-    flag: a.flag,
     category: (a.category || 'other') as AgentCategory,
+    subcategory: a.subcategory,
+    country: a.country,
+    region: a.region,
+    flag: a.flag || '●',
+    age: a.age,
+    gender: a.gender,
+    ethnicity: a.ethnicity,
+    religion: a.religion,
+    income_class: a.income_class,
+    occupation: a.occupation,
+    layer: a.layer,
+    emotion: a.emotion || 'neutral',
+    emotion_intensity: typeof a.emotion_intensity === 'number' ? a.emotion_intensity / 100 : 0,
+    stance: a.stance || '',
+    bio: a.bio || '',
     belief_score: a.belief_score ?? 0,
-    memory_count: a.memory_count ?? 0,
-  }));
+  };
 }
 
-/** Merge per-round messages into enriched agents with last emotion */
-function enrichAgentsFromMessages(
-  baseAgents: EnginAgent[],
-  messages: BackendAgentMessage[],
-): { agents: EnginAgent[]; emotions: Record<string, { emotion: string; intensity?: number }> } {
-  const emotionMap: Record<string, { emotion: string; intensity?: number }> = {};
-  const agentData: Record<string, Partial<EnginAgent>> = {};
-
-  for (const msg of messages) {
-    // Keep latest round per agent
-    agentData[msg.agent_id] = {
-      emotion: msg.emotion || 'neutral',
-      emotion_intensity: (msg.emotion_intensity ?? 50) / 100,
-      bio: msg.public_statement || undefined,
-    };
-    emotionMap[msg.agent_id] = {
-      emotion: msg.emotion || 'neutral',
-      intensity: (msg.emotion_intensity ?? 50) / 100,
-    };
-  }
-
-  const agents = baseAgents.map(a => ({
-    ...a,
-    ...(agentData[a.id] || {}),
-  }));
-
-  return { agents, emotions: emotionMap };
+function adaptMessage(m: any): any {
+  return {
+    agent_id: m.agent_id || m.persona_id,
+    agent_name: m.agent_name || m.persona_name,
+    agent_flag: m.agent_flag || '●',
+    agent_category: m.agent_category || m.agent_role || m.persona_category,
+    round: m.cascade_round || m.layer || 1,
+    public_statement: m.message || m.public_statement || '',
+    inner_thought: m.internal_thought || m.inner_thought || '',
+    concrete_action: m.market_action?.action || '',
+    numerical_prediction: m.numerical_prediction || m.market_action?.prediction || '',
+    emotion: m.emotion || 'neutral',
+    emotion_intensity: m.emotion_intensity ?? 50,
+    belief_score: m.belief_score ?? 0,
+    timestamp: m.created_at,
+  };
 }
 
-/** Build a synthetic graph from agents that spoke in the simulation */
-function buildGraphFromMessages(messages: BackendAgentMessage[]): EnginGraph {
-  const agentIds = [...new Set(messages.map(m => m.agent_id))];
-  const nodes: GraphNode[] = agentIds.map(id => {
-    const msg = messages.find(m => m.agent_id === id);
-    return { id, label: msg?.agent_name || id, type: msg?.agent_category };
+function buildGraphFromMessages(messages: any[], agents: EnginAgent[]): EnginGraph {
+  const agentSet = new Set(messages.map(m => m.agent_id).filter(Boolean));
+  const nodes: GraphNode[] = [...agentSet].map(id => {
+    const a = agents.find(x => x.id === id);
+    return { id, label: a?.name || id, type: a?.category || 'other', weight: 0.5 };
   });
 
-  // Create edges between agents that spoke in the same round
-  const rounds = new Map<number, string[]>();
-  for (const m of messages) {
-    const list = rounds.get(m.round) || [];
-    list.push(m.agent_id);
-    rounds.set(m.round, list);
-  }
-
-  const edgeSet = new Set<string>();
   const edges: GraphEdge[] = [];
-  for (const ids of rounds.values()) {
-    for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        const key = [ids[i], ids[j]].sort().join('::');
-        if (!edgeSet.has(key)) {
-          edgeSet.add(key);
-          edges.push({ source: ids[i], target: ids[j], type: 'round-peer' });
-        }
+  const agentIds = [...agentSet];
+  for (let i = 0; i < Math.min(agentIds.length, 30); i++) {
+    for (let j = i + 1; j < Math.min(agentIds.length, 30); j++) {
+      if (Math.random() < 0.15) {
+        edges.push({ source: agentIds[i], target: agentIds[j], type: 'interaction', weight: Math.random() });
       }
     }
   }
-
   return { nodes, edges };
 }
 
-/** Extract signals from agent messages (notable statements) */
-function extractSignals(messages: BackendAgentMessage[], event: string): EnginSignal[] {
-  const signals: EnginSignal[] = [];
-  const seen = new Set<string>();
-
-  for (const msg of messages) {
-    if (!msg.concrete_action || msg.concrete_action === 'Waiting for more information') continue;
-    const key = `${msg.agent_id}-${msg.round}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const intensity = (msg.emotion_intensity ?? 50);
-    const severity: EnginSignal['severity'] =
-      intensity >= 80 ? 'critical' :
-      intensity >= 60 ? 'high' :
-      intensity >= 40 ? 'medium' : 'low';
-
-    signals.push({
-      id: key,
-      turn: msg.round,
-      severity,
-      headline: `${msg.agent_name}: ${msg.concrete_action}`,
-      summary: msg.public_statement || undefined,
-      tags: [msg.agent_category || 'other', msg.emotion || 'neutral'],
-    });
-  }
-
-  return signals.slice(0, 50);
+function buildSignalsFromMessages(messages: any[]): EnginSignal[] {
+  return messages
+    .filter(m => m.numerical_prediction && !m.numerical_prediction.includes('Unable'))
+    .slice(0, 12)
+    .map((m, i) => ({
+      id: `sig-${i}`,
+      turn: m.round || 1,
+      layer: m.cascade_round,
+      headline: m.numerical_prediction,
+      summary: (m.public_statement || '').slice(0, 120),
+      severity: Math.abs(m.belief_score || 0) > 50 ? 'high' : 'medium',
+      tags: [m.agent_category || ''],
+      created_at: m.timestamp,
+    }));
 }
 
-/** Convert backend synthesis into frontend EnginReport */
-function adaptReport(synthesis: BackendSynthesis, question: string, messages: BackendAgentMessage[]): EnginReport {
-  const confidence = (synthesis.confidence_score ?? 50) / 100;
-
-  // Build outcomes from top_predictions
-  const outcomes = (synthesis.top_predictions || []).map(p => ({
-    label: p.prediction,
-    probability: (p.probability ?? 50) / 100,
-    rationale: p.rationale,
-  }));
-
-  // Build drivers from winners/losers/key_risks
-  const drivers: EnginReport['drivers'] = [];
-  for (const w of synthesis.winners || []) {
-    drivers.push({ label: w, weight: 0.7, direction: 'up' as const });
-  }
-  for (const l of synthesis.losers || []) {
-    drivers.push({ label: l, weight: 0.6, direction: 'down' as const });
-  }
-  for (const r of synthesis.key_risks || []) {
-    drivers.push({ label: r, weight: 0.5, direction: 'neutral' as const });
-  }
-
-  // Summary from headline + human_impact
-  const summaryParts = [synthesis.headline_outcome, synthesis.human_impact].filter(Boolean);
-  const summary = summaryParts.join(' — ') || 'Simulation complete — see individual agent responses.';
-
-  // Build dissent from agents with strong negative emotions
-  const dissent = messages
-    .filter(m => ['worried', 'panicked', 'angry', 'suspicious'].includes(m.emotion || ''))
-    .slice(0, 5)
-    .map(m => ({
-      agent_id: m.agent_id,
-      agent_name: m.agent_name,
-      view: m.public_statement || m.inner_thought || '',
-    }));
-
+function adaptReport(synthesis: any, question: string): EnginReport {
+  if (!synthesis) return { question, summary: 'Simulation completed', predictions: [] };
   return {
     question,
-    outcomes,
-    drivers,
-    confidence,
-    summary,
-    dissent: dissent.length > 0 ? dissent : undefined,
+    headline_outcome: synthesis.headline_outcome || '',
+    probability: synthesis.probability || 'Medium',
+    confidence_score: synthesis.confidence_score || 50,
+    time_horizon: synthesis.time_horizon || '',
+    predictions: synthesis.predictions || [],
+    winners: synthesis.winners || [],
+    losers: synthesis.losers || [],
+    demographic_impact: synthesis.demographic_impact,
+    market_signals: synthesis.market_signals,
+    risk_flags: synthesis.risk_flags || [],
+    opportunity_flags: synthesis.opportunity_flags || [],
+    human_impact: synthesis.human_impact || '',
+    action_recommendations: synthesis.action_recommendations || [],
+    historical_parallel: synthesis.historical_parallel || '',
+    summary: synthesis.headline_outcome || 'Simulation complete',
+    outcomes: synthesis.predictions?.map((p: string, i: number) => ({
+      label: p, probability: Math.max(0.2, 0.8 - i * 0.12), rationale: undefined,
+    })) || [],
+    dissent: synthesis.dissent || [],
   };
 }
 
-// ─── Public API ─────────────────────────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────
 export const enginApi = {
-  /**
-   * Fetch all world agents from GET /agents.
-   * Returns the full roster (77 agents). No sim_id needed.
-   */
-  async getAgents(): Promise<EnginAgent[]> {
-    const raw = await call<{ agents: BackendAgent[] }>('GET', '/agents');
-    return adaptAgents(raw.agents);
+
+  /** Fetch all 87 agents from world_personas */
+  async getAgents(filters?: { category?: string; region?: string; layer?: number }): Promise<EnginAgent[]> {
+    const data = await callEdgeFn('get_agents', { filters: filters || {} });
+    return (data.agents || []).map(adaptAgent);
   },
 
-  /**
-   * Run a full synchronous simulation via POST /simulate.
-   * Takes ~15-20s. Returns the complete result including messages, synthesis, etc.
-   */
+  /** Run a full world simulation */
   async runSimulation(
     input: CreateSimInput,
     signal?: AbortSignal,
   ): Promise<{
-    result: BackendSimResult;
     agents: EnginAgent[];
     emotions: Record<string, { emotion: string; intensity?: number }>;
     graph: EnginGraph;
     signals: EnginSignal[];
     report: EnginReport;
+    meta: SimulationMeta;
   }> {
-    // Combine seed + question into the "event" field the backend expects
-    const event = `${input.seed}\n\nQuestion: ${input.question}`;
+    const event = `${input.question}. Context: ${input.seed}`.slice(0, 600);
 
-    const result = await call<BackendSimResult>('POST', '/simulate', {
+    const data = await callEdgeFn('simulate', {
       event,
-      mode: 'full',
-    }, signal);
+      seed: input.seed,
+      report_type: input.report_type || 'full',
+      depth: input.depth || 'standard',
+      user_target: input.user_target || null,
+    });
 
-    // Fetch base agents first, then enrich with simulation data
-    let baseAgents: EnginAgent[];
-    try {
-      baseAgents = await this.getAgents();
-    } catch {
-      // If /agents fails, build from messages
-      baseAgents = [...new Set(result.messages.map(m => m.agent_id))].map(id => {
-        const msg = result.messages.find(m => m.agent_id === id)!;
-        return {
-          id,
-          name: msg.agent_name,
-          flag: msg.agent_flag,
-          category: (msg.agent_category || 'other') as AgentCategory,
+    const rawMessages: any[] = data.messages || [];
+    const messages = rawMessages.map(adaptMessage);
+
+    // Build agent list with emotions from messages
+    const baseAgents = await this.getAgents().catch(() => []);
+    const emotionMap: Record<string, { emotion: string; intensity?: number }> = {};
+    for (const m of rawMessages) {
+      if (m.agent_id) {
+        emotionMap[m.agent_id] = {
+          emotion: m.emotion || 'neutral',
+          intensity: (m.emotion_intensity ?? 50) / 100,
         };
-      });
+      }
     }
 
-    const { agents, emotions } = enrichAgentsFromMessages(baseAgents, result.messages);
-    const graph = buildGraphFromMessages(result.messages);
-    const signals = extractSignals(result.messages, result.event);
-    const report = adaptReport(result.synthesis, input.question, result.messages);
+    const agents = baseAgents.map(a => ({
+      ...a,
+      ...(emotionMap[a.id] ? { emotion: emotionMap[a.id].emotion, emotion_intensity: emotionMap[a.id].intensity } : {}),
+    }));
 
-    return { result, agents, emotions, graph, signals, report };
+    return {
+      agents,
+      emotions: emotionMap,
+      graph: buildGraphFromMessages(rawMessages, agents),
+      signals: buildSignalsFromMessages(rawMessages),
+      report: adaptReport(data.synthesis, input.question),
+      meta: {
+        run_id: data.run_id,
+        conversation_id: data.conversation_id,
+        status: 'completed',
+        question: input.question,
+        report_type: input.report_type || 'full',
+        depth: input.depth || 'standard',
+        agent_count: data.agent_count || rawMessages.length,
+      },
+    };
   },
 
-  /**
-   * Chat with a specific agent via POST /chat.
-   */
-  async chatWithAgent(agentId: string, message: string, history: { role: string; content: string }[] = []): Promise<{ reply: string }> {
-    const res = await call<{ reply?: string; response?: string; message?: string }>('POST', '/chat', {
-      agent_id: agentId,
-      message,
-      history,
-    });
-    return { reply: res.reply || res.response || res.message || '[no response]' };
+  /** Chat with a specific agent */
+  async chatWithAgent(
+    agentId: string,
+    message: string,
+    history: { role: string; content: string }[] = [],
+  ): Promise<{ reply: string; agent_name?: string; agent_flag?: string }> {
+    const data = await callEdgeFn('chat', { agent_id: agentId, message, history });
+    return {
+      reply: data.response || data.reply || '',
+      agent_name: data.agent_name,
+      agent_flag: data.agent_flag,
+    };
   },
 
-  /**
-   * Inject a signal into the engine via POST /inject.
-   */
-  async inject(event: string, signalHeadline?: string): Promise<{ ok: true }> {
-    await call('POST', '/inject', {
-      mode: 'inject_event',
-      event,
-      signal_headline: signalHeadline,
-    });
-    return { ok: true };
+  /** Get past simulation conversations */
+  async getConversations(): Promise<{
+    conversations: any[];
+    agents: EnginAgent[];
+    categories: { id: string; label: string; icon?: string }[];
+  }> {
+    const data = await callEdgeFn('get_conversations');
+    return {
+      conversations: data.conversations || [],
+      agents: (data.agents || []).map(adaptAgent),
+      categories: data.categories || [],
+    };
   },
 
-  /**
-   * Health check via GET /health.
-   */
-  async health(): Promise<{ status: string; engine_ready: boolean; agent_count: number }> {
-    return call('GET', '/health');
+  /** Get messages from a conversation */
+  async getMessages(conversationId: string): Promise<any[]> {
+    const data = await callEdgeFn('get_messages', { conversation_id: conversationId });
+    return (data.messages || []).map(adaptMessage);
+  },
+
+  /** Trigger simulation from a world signal */
+  async triggerFromSignal(signalId: string): Promise<any> {
+    return callEdgeFn('generate_from_signal', { signal_id: signalId });
+  },
+
+  /** Get latest world signals for feed button */
+  async getWorldSignals(): Promise<EnginSignal[]> {
+    const { data, error } = await supabase
+      .from('ayn_world_signals')
+      .select('id,headline,summary,signal_type,severity,region,created_at')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (error || !data) return [];
+    return data.map(s => ({
+      id: s.id,
+      headline: s.headline,
+      summary: s.summary || '',
+      severity: (s.severity || 'medium') as EnginSignal['severity'],
+      region: s.region || '',
+      tags: [s.signal_type || ''],
+      created_at: s.created_at,
+    }));
   },
 };
 

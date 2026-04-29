@@ -81,10 +81,7 @@ export function useEnginSim() {
     } catch (err: unknown) {
       if ((err as { name?: string }).name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : 'Engine unavailable';
-      const isCors = msg === 'Failed to fetch' || msg.includes('NetworkError') || msg.includes('CORS');
-      const description = isCors
-        ? 'CORS blocked — engine is running but browser rejected the request. Check Railway ALLOWED_ORIGINS.'
-        : `Engine error: ${msg}`;
+const description = `Simulation error: ${msg}`;
       toast.error('Simulation failed', { description });
       setS(p => ({ ...p, loading: false, error: msg, stage: 'seed' }));
     }

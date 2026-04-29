@@ -5,7 +5,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, Upload, ChevronRight, Globe, TrendingUp, Users, Building2, Zap, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ENGIN_URL } from '@/config';
+import { enginApi } from '@/lib/enginApi';
+
 
 declare global { interface Window { particlesJS: (id: string, config: object) => void; pJSDom?: { pJS: { fn: { vendors: { destroypJS: () => void } } } }[] } }
 
@@ -114,18 +115,16 @@ export function SeedInput({ loading, onStart }: Props) {
   const pullLiveSignals = async () => {
     setLoadingSignals(true);
     try {
-      const r = await fetch(`${ENGIN_URL}/world-signals`, { method: 'GET' });
-      if (r.ok) {
-        const data = await r.json();
-        const signals = data.signals || [];
-        if (signals.length > 0) {
-          const top = signals[0];
-          setSeed(`${top.headline}. ${top.summary || ''}`);
-          setQuestion('How will this affect global markets, governments, and ordinary people?');
-        }
+      const signals = await enginApi.getWorldSignals();
+      if (signals.length > 0) {
+        const top = signals[0];
+        setSeed(`${top.headline}. ${top.summary || ''}`);
+        setQuestion('How will this affect global markets, governments, and ordinary people?');
+      } else {
+        setSeed(PRESETS[3].seed);
+        setQuestion(PRESETS[3].question);
       }
     } catch {
-      // fallback — compose from latest preset
       setSeed(PRESETS[3].seed);
       setQuestion(PRESETS[3].question);
     } finally {

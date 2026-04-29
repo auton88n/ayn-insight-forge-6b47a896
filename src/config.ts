@@ -16,5 +16,6 @@ export const AYN_BACKEND_URL =
  * AYN ENGIN — Python swarm-simulation engine (MiroFish-style).
  * Override at build time with VITE_ENGIN_URL.
  */
-export const ENGIN_URL =
-  (import.meta.env?.VITE_ENGIN_URL as string | undefined) || 'https://engine.aynn.io';
+// DEPRECATED: engine.aynn.io removed — simulation runs on Supabase edge functions
+// Kept for any legacy references — value unused
+export const ENGIN_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/ayn-agent-society';
