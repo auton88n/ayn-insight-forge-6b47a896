@@ -47,7 +47,7 @@ export function ReportPanel({ report: reportProp, onChatReport }: Props) {
       {/* Outcomes */}
       <div className="space-y-2">
         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60">Outcomes</p>
-        {report.outcomes?.map((o, i) => (
+        {report.outcomes?.map((o: any, i: number) => (
           <div key={i} className="rounded-xl border border-border/40 bg-card/30 p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-foreground">{o.label}</span>
@@ -66,7 +66,7 @@ export function ReportPanel({ report: reportProp, onChatReport }: Props) {
         <div className="space-y-2">
           <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60">Key drivers</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {report.drivers.map((d, i) => {
+            {report.drivers.map((d: any, i: number) => {
               const Icon = d.direction === 'down' ? TrendingDown : d.direction === 'neutral' ? Minus : TrendingUp;
               const cls  = d.direction === 'down' ? 'text-red-400' : d.direction === 'neutral' ? 'text-muted-foreground' : 'text-emerald-400';
               return (
@@ -86,7 +86,7 @@ export function ReportPanel({ report: reportProp, onChatReport }: Props) {
         <div className="space-y-2">
           <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground/60">Timeline</p>
           <div className="space-y-1.5">
-            {report.timeline.map((t, i) => (
+            {report.timeline.map((t: any, i: number) => (
               <div key={i} className="flex gap-3 text-sm">
                 <span className="text-xs font-mono text-muted-foreground/60 w-20 shrink-0 pt-0.5">{t.t}</span>
                 <span className="text-foreground/80">{t.event}</span>
