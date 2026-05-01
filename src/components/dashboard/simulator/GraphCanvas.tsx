@@ -53,6 +53,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
   const nodesRef   = useRef<Node[]>([]);
   const frameRef   = useRef(0);
   const hoveredRef = useRef<string | null>(null);
+  const forcesRef  = useRef<{ fx: Float32Array; fy: Float32Array }>({
+    fx: new Float32Array(0),
+    fy: new Float32Array(0),
+  });
 
   const edgeSet = useMemo(() =>
     (graph?.edges || []).map(e => ({ s: e.source, t: e.target })),
@@ -62,10 +66,11 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
     const canvas = canvasRef.current;
     const wrap   = wrapRef.current;
     if (!canvas || !wrap) return;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d', { alpha: false })!;
 
     const resize = () => {
-      const dpr  = window.devicePixelRatio || 1;
+      const rawDpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(rawDpr, window.innerWidth < 1024 ? 1.25 : 1.5);
       const rect = wrap.getBoundingClientRect();
       canvas.width  = rect.width  * dpr;
       canvas.height = rect.height * dpr;
@@ -97,6 +102,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
           depth: Math.random(), // random z-depth for atmosphere
         };
       });
+      forcesRef.current = {
+        fx: new Float32Array(nodesRef.current.length),
+        fy: new Float32Array(nodesRef.current.length),
+      };
     }
 
     const idxOf = new Map(nodesRef.current.map((n, i) => [n.id, i]));
@@ -144,45 +153,54 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
       const SPRING = 0.0015;
       const DAMP   = 0.92;
       const CENTER = 0.00008;
+      const { fx: forceX, fy: forceY } = forcesRef.current;
+      const shouldSolveForces = t <= 180 || t % 3 === 0;
 
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        let fx = 0, fy = 0;
+      if (shouldSolveForces) {
+        forceX.fill(0);
+        forceY.fill(0);
 
-        for (let j = 0; j < nodes.length; j++) {
-          if (i === j) continue;
-          const b = nodes[j];
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            const sameCat = a.cat === b.cat;
           const dx = a.x - b.x, dy = a.y - b.y;
           const d2 = Math.max(dx*dx + dy*dy, 1);
           const d  = Math.sqrt(d2);
           const f  = REPEL / d2;
-          fx += f * dx / d;
-          fy += f * dy / d;
+            const xForce = f * dx / d;
+            const yForce = f * dy / d;
+            forceX[i] += xForce; forceY[i] += yForce;
+            forceX[j] -= xForce; forceY[j] -= yForce;
+
+            if (sameCat && d < 120) {
+              const cf = (d - 120) * 0.0003;
+              const cx = cf * (b.x - a.x) / d;
+              const cy = cf * (b.y - a.y) / d;
+              forceX[i] += cx; forceY[i] += cy;
+              forceX[j] -= cx; forceY[j] -= cy;
+            }
+          }
         }
 
         edgeSet.forEach(e => {
-          let other: Node | null = null;
-          if (e.s === a.id) other = nodes[idxOf.get(e.t) ?? -1] ?? null;
-          if (e.t === a.id) other = nodes[idxOf.get(e.s) ?? -1] ?? null;
-          if (!other) return;
-          const dx = other.x - a.x, dy = other.y - a.y;
+          const si = idxOf.get(e.s), ti = idxOf.get(e.t);
+          if (si == null || ti == null) return;
+          const a = nodes[si], b = nodes[ti];
+          const dx = b.x - a.x, dy = b.y - a.y;
           const d  = Math.hypot(dx, dy) || 1;
           const f  = (d - 160) * SPRING;
-          fx += f * dx / d;
-          fy += f * dy / d;
+          const xForce = f * dx / d;
+          const yForce = f * dy / d;
+          forceX[si] += xForce; forceY[si] += yForce;
+          forceX[ti] -= xForce; forceY[ti] -= yForce;
         });
+      }
 
-        // Proximity cohesion for nearby same-category nodes
-        for (let j = 0; j < nodes.length; j++) {
-          if (i === j || nodes[j].cat !== a.cat) continue;
-          const b = nodes[j];
-          const d = Math.hypot(a.x-b.x, a.y-b.y);
-          if (d < 120 && d > 0) {
-            const f = (d - 120) * 0.0003;
-            fx += f * (b.x - a.x) / d;
-            fy += f * (b.y - a.y) / d;
-          }
-        }
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        let fx = forceX[i], fy = forceY[i];
 
         fx += (w/2 - a.x) * CENTER;
         fy += (h/2 - a.y) * CENTER;
@@ -316,14 +334,19 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
       ctx.fillStyle = 'rgba(100,110,130,0.25)';
       ctx.fillText(`${nodes.length}`, w - 8, ky);
 
-      rafRef.current = requestAnimationFrame(draw);
+      if (!document.hidden) rafRef.current = requestAnimationFrame(draw);
     };
 
     rafRef.current = requestAnimationFrame(draw);
+    const resume = () => {
+      if (!document.hidden) rafRef.current = requestAnimationFrame(draw);
+    };
+    document.addEventListener('visibilitychange', resume);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
+      document.removeEventListener('visibilitychange', resume);
       canvas.removeEventListener('click', handleClick);
       canvas.removeEventListener('mousemove', handleMove);
     };
