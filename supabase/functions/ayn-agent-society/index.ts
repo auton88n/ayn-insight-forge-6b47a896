@@ -12,8 +12,7 @@
  *   - Reads personas from world_personas table (73 agents already seeded)
  *   - Runs 3 LLM batches in parallel per layer (groups of ~8 agents)
  *   - Writes results to agent_society_runs + agent_society_messages
- *   - Uses GEMINI_API_KEY env var (Gemini 2.5 Flash via Google API)
- *   - Falls back to LOVABLE_API_KEY if Gemini key not present
+ *   - Uses LOVABLE_API_KEY (Lovable AI Gateway → google/gemini-2.5-flash)
  *
  * Timeout strategy:
  *   - Standard depth: 2 layers × 3 batches = 6 LLM calls (~40-60s)
@@ -652,22 +651,17 @@ RULES:
     { role: "user", content: message },
   ];
 
-  const apiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) return json({ error: "No LLM API key configured" }, 500);
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) return json({ error: "LOVABLE_API_KEY is not configured" }, 500);
 
-  const isGemini = !!Deno.env.get("GEMINI_API_KEY");
-  const endpoint = isGemini
-    ? `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
-    : "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-  const r = await fetch(endpoint, {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: isGemini ? "gemini-2.5-flash" : "google/gemini-2.5-flash",
+      model: "google/gemini-2.5-flash",
       messages,
       max_tokens: 300,
     }),
