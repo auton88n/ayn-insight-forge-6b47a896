@@ -18,9 +18,9 @@ const SUPABASE_ANON_KEY =
 export const adminSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storageKey: 'ayn-admin-auth', // Separate from main app's 'sb-*' key
-    autoRefreshToken: true,
-    persistSession: true,
-    storage: localStorage,
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
   },
   global: {
     // Suppress "Multiple GoTrueClient instances" warning — expected since
