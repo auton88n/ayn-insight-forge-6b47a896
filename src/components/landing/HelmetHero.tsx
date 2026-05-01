@@ -1,12 +1,15 @@
 /**
- * HelmetHero — scroll-driven frame animation replacing the CSS eye.
- * Canvas is centered (not full-bleed). Original AYN wording restored.
+ * HelmetHero — scroll-driven frame animation hero.
+ * 
+ * Layout: matches original Hero exactly (top headline, central visual, bottom chat input)
+ * Visual: centered helmet canvas, contain-fit, full 121 frames @ 24fps enhanced
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { LandingChatInput } from '@/components/landing/LandingChatInput';
 
 interface HelmetHeroProps {
   onGetStarted: (prefillMessage?: string) => void;
@@ -14,36 +17,39 @@ interface HelmetHeroProps {
 
 export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
   const { language } = useLanguage();
+
+  // Canvas + animation refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const imagesRef = useRef<(HTMLImageElement | null)[]>(new Array(FRAME_COUNT).fill(null));
-  const rafRef = useRef<number>(0);
-  const currentProgressRef = useRef(0);
-  const targetProgressRef = useRef(0);
-  const lastFrameRef = useRef(-1);
-  const [frameIndex, setFrameIndex] = useState(0);
-  const [scrolled, setScrolled] = useState(false);
+  const wrapRef   = useRef<HTMLDivElement>(null);   // the sticky viewport
+  const spacerRef = useRef<HTMLDivElement>(null);   // the 600vh scroll spacer
 
-  // ── Preload all frames ──────────────────────────────────────────────────────
+  const images      = useRef<(HTMLImageElement | null)[]>(new Array(FRAME_COUNT).fill(null));
+  const rafId       = useRef(0);
+  const curProgress = useRef(0);
+  const tgtProgress = useRef(0);
+  const lastIdx     = useRef(-1);
+
+  const [frameIdx, setFrameIdx]   = useState(0);
+  const [scrolled, setScrolled]   = useState(false);
+  const [isBlinking, setIsBlinking] = useState(false);
+
+  // ── Preload frames ──────────────────────────────────────────────────────────
   useEffect(() => {
-    imagesRef.current = new Array(FRAME_COUNT).fill(null);
-
     HELMET_FRAMES.forEach((src, i) => {
       const img = new Image();
       img.onload = () => {
-        imagesRef.current[i] = img;
-        if (i === 0) drawFrame(0);
+        images.current[i] = img;
+        if (i === 0) draw(0);
       };
       img.src = src;
     });
-
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // ── Draw frame — contain (not cover) so full helmet is always visible ───────
-  const drawFrame = useCallback((idx: number) => {
+  // ── Draw: CONTAIN so full helmet is always visible, no crop ────────────────
+  const draw = useCallback((idx: number) => {
     const canvas = canvasRef.current;
-    const img = imagesRef.current[idx];
+    const img    = images.current[idx];
     if (!canvas || !img) return;
 
     const ctx = canvas.getContext('2d');
@@ -51,52 +57,53 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
 
     const cw = canvas.width;
     const ch = canvas.height;
-    const iw = img.naturalWidth;
-    const ih = img.naturalHeight;
+    const iw = img.naturalWidth  || 720;
+    const ih = img.naturalHeight || 720;
+
+    // contain: fit entire image inside canvas, centered
+    const scale = Math.min(cw / iw, ch / ih);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    const dx = (cw - dw) / 2;
+    const dy = (ch - dh) / 2;
 
     ctx.clearRect(0, 0, cw, ch);
-
-    // CONTAIN: scale down to fit, center — helmet always fully visible
-    const scale = Math.min(cw / iw, ch / ih);
-    const sw = iw * scale;
-    const sh = ih * scale;
-    const sx = (cw - sw) / 2;
-    const sy = (ch - sh) / 2;
-
-    ctx.drawImage(img, sx, sy, sw, sh);
+    ctx.drawImage(img, dx, dy, dw, dh);
   }, []);
 
-  // ── Resize canvas — fixed square centered in viewport ──────────────────────
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // ── Sync canvas pixel size with CSS size ────────────────────────────────────
+  const syncCanvas = useCallback(() => {
+    const c = canvasRef.current;
+    if (!c) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    // Use CSS size set by the element itself
-    const cssW = canvas.offsetWidth;
-    const cssH = canvas.offsetHeight;
-    canvas.width = cssW * dpr;
-    canvas.height = cssH * dpr;
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctx.scale(dpr, dpr);
-    drawFrame(lastFrameRef.current >= 0 ? lastFrameRef.current : 0);
-  }, [drawFrame]);
+    const cssW = c.offsetWidth;
+    const cssH = c.offsetHeight;
+    if (c.width !== cssW * dpr || c.height !== cssH * dpr) {
+      c.width  = cssW * dpr;
+      c.height = cssH * dpr;
+      const ctx = c.getContext('2d');
+      if (ctx) ctx.scale(dpr, dpr);
+    }
+    draw(lastIdx.current >= 0 ? lastIdx.current : 0);
+  }, [draw]);
 
   useEffect(() => {
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, [resizeCanvas]);
+    syncCanvas();
+    const ro = new ResizeObserver(syncCanvas);
+    if (canvasRef.current) ro.observe(canvasRef.current);
+    return () => ro.disconnect();
+  }, [syncCanvas]);
 
-  // ── Scroll handler ──────────────────────────────────────────────────────────
+  // ── Scroll → progress ───────────────────────────────────────────────────────
   const onScroll = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const scrolled = -rect.top;
-    const total = container.offsetHeight - window.innerHeight;
-    const p = Math.max(0, Math.min(1, scrolled / total));
-    targetProgressRef.current = p;
-    setScrolled(p > 0.02);
+    const spacer = spacerRef.current;
+    if (!spacer) return;
+    const rect  = spacer.getBoundingClientRect();
+    const gone  = -rect.top;
+    const total = spacer.offsetHeight - window.innerHeight;
+    const p     = Math.max(0, Math.min(1, gone / total));
+    tgtProgress.current = p;
+    setScrolled(p > 0.015);
   }, []);
 
   useEffect(() => {
@@ -104,157 +111,172 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // ── Animation loop ──────────────────────────────────────────────────────────
+  // ── RAF loop: lerp progress → frame ────────────────────────────────────────
   useEffect(() => {
-    const animate = () => {
-      rafRef.current = requestAnimationFrame(animate);
-      currentProgressRef.current += (targetProgressRef.current - currentProgressRef.current) * 0.1;
-      const idx = Math.round(currentProgressRef.current * (FRAME_COUNT - 1));
-      if (idx !== lastFrameRef.current) {
-        lastFrameRef.current = idx;
-        drawFrame(idx);
-        setFrameIndex(idx);
+    const tick = () => {
+      rafId.current = requestAnimationFrame(tick);
+      curProgress.current += (tgtProgress.current - curProgress.current) * 0.1;
+      const idx = Math.round(curProgress.current * (FRAME_COUNT - 1));
+      if (idx !== lastIdx.current) {
+        lastIdx.current = idx;
+        draw(idx);
+        setFrameIdx(idx);
       }
     };
-    rafRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [drawFrame]);
+    rafId.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId.current);
+  }, [draw]);
 
-  const progressPct = frameIndex / (FRAME_COUNT - 1);
+  // Blink callback for chat input
+  const handlePlaceholderChange = useCallback(() => {
+    setIsBlinking(true);
+    setTimeout(() => setIsBlinking(false), 150);
+  }, []);
+
+  const progress = frameIdx / (FRAME_COUNT - 1);
 
   return (
-    <div ref={containerRef} style={{ height: '600vh', position: 'relative' }}>
-      {/* Sticky viewport */}
+    // 600vh spacer — provides the scroll distance
+    <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
+
+      {/* Sticky full-viewport panel */}
       <div
-        className="sticky top-0 w-full overflow-hidden flex flex-col items-center justify-between"
-        style={{ height: '100dvh', paddingTop: '80px', paddingBottom: '32px' }}
+        ref={wrapRef}
+        className="sticky top-0 w-full overflow-hidden"
+        style={{ height: '100dvh' }}
       >
-        {/* ── Background — match site's existing bg */}
-        <div className="absolute inset-0 z-0 bg-background" />
-
-        {/* Subtle radial glow behind helmet */}
-        <div
-          className="absolute inset-0 z-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse 60% 60% at 50% 55%, hsl(var(--muted)/0.4) 0%, transparent 70%)',
-          }}
-        />
-
         {/* Gold progress bar */}
         <div
-          className="absolute top-0 left-0 h-[2px] z-30"
+          className="absolute top-0 left-0 h-[2px] z-40 pointer-events-none"
           style={{
-            width: `${progressPct * 100}%`,
+            width: `${progress * 100}%`,
             background: 'hsl(var(--primary))',
-            boxShadow: '0 0 8px hsl(var(--primary)/0.6)',
-            transition: 'width 0.06s linear',
+            boxShadow: '0 0 8px hsl(var(--primary)/0.5)',
+            transition: 'width 0.05s linear',
           }}
         />
 
-        {/* ── Headline — top center, original wording */}
-        <div className="relative z-20 w-full max-w-4xl text-center px-4">
-          <motion.h1
+        {/* ── Same structure as original Hero ─────────────────────────────── */}
+        <section
+          className="relative w-full h-full flex flex-col items-center justify-between pt-20 md:pt-24 pb-6 md:pb-8 px-4 md:px-12 lg:px-24"
+          aria-label="Hero"
+        >
+          {/* 1 — Headline (top, centered) — exact original copy */}
+          <div className="w-full max-w-4xl text-center mb-4 md:mb-6 relative z-20">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
+            >
+              {language === 'ar'
+                ? 'تعرّف على AYN'
+                : language === 'fr'
+                ? 'Découvrez AYN'
+                : 'Meet AYN'}
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+              className="text-base md:text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto"
+            >
+              {language === 'ar'
+                ? 'ذكاء أعمال حقيقي يتابع الأسواق، يحلل المخاطر، ويساعدك على القرار الصحيح.'
+                : language === 'fr'
+                ? "Intelligence d'affaires réelle. Marchés, risques et décisions stratégiques."
+                : 'Real business intelligence. Markets, risks, and decisions that matter.'}
+            </motion.p>
+          </div>
+
+          {/* 2 — Helmet canvas (center, replaces eye) */}
+          <motion.div
+            className="relative flex-1 flex items-center justify-center w-full max-w-5xl"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
-            className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
+            transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
-            {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="text-base md:text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto"
-          >
-            {language === 'ar'
-              ? 'ذكاء أعمال حقيقي يتابع الأسواق، يحلل المخاطر، ويساعدك على القرار الصحيح.'
-              : language === 'fr'
-              ? "Intelligence d'affaires réelle. Marchés, risques et décisions stratégiques."
-              : 'Real business intelligence. Markets, risks, and decisions that matter.'}
-          </motion.p>
-        </div>
-
-        {/* ── Helmet canvas — centered square, contained */}
-        <motion.div
-          className="relative z-10 flex items-center justify-center"
-          style={{ flex: 1, width: '100%', maxWidth: '640px', padding: '16px 0' }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {/* Subtle glow ring */}
-          <div
-            className="absolute rounded-full pointer-events-none"
-            style={{
-              width: 'min(70vw, 480px)',
-              height: 'min(70vw, 480px)',
-              background: 'radial-gradient(circle, hsl(var(--muted)/0.3) 0%, transparent 70%)',
-              filter: 'blur(24px)',
-            }}
-          />
-
-          <canvas
-            ref={canvasRef}
-            style={{
-              width: 'min(80vw, 520px)',
-              height: 'min(80vw, 520px)',
-              display: 'block',
-              position: 'relative',
-              zIndex: 1,
-            }}
-          />
-
-          {/* Frame counter — bottom right of canvas */}
-          <div
-            className="absolute bottom-0 right-4 text-right"
-            style={{ zIndex: 2 }}
-          >
-            <p
-              className="text-[10px] tabular-nums"
+            {/* Subtle ambient glow behind helmet — matches old eye glow */}
+            <div
+              className="absolute rounded-full pointer-events-none -z-10"
               style={{
-                color: progressPct > 0.05 && progressPct < 0.95
-                  ? 'hsl(var(--primary))'
-                  : 'hsl(var(--muted-foreground)/0.4)',
-                fontFamily: 'monospace',
-                letterSpacing: '0.1em',
-                transition: 'color 0.3s',
+                width: 'min(70vw, 480px)',
+                height: 'min(70vw, 480px)',
+                background: 'radial-gradient(circle, hsl(var(--muted)/0.35) 0%, transparent 70%)',
+                filter: 'blur(32px)',
               }}
-            >
-              {String(frameIndex + 1).padStart(3, '0')} / {String(FRAME_COUNT).padStart(3, '0')}
-            </p>
-          </div>
-        </motion.div>
+            />
 
-        {/* ── Scroll hint — bottom center */}
-        <AnimatePresence>
-          {!scrolled && (
-            <motion.div
-              key="hint"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ delay: 0.9, duration: 0.4 }}
-              className="relative z-20 flex flex-col items-center gap-2 pb-2"
-            >
-              <span
-                className="text-[9px] tracking-[0.3em] uppercase text-muted-foreground"
-                style={{ fontFamily: 'monospace' }}
-              >
-                {language === 'ar' ? 'مرر' : 'Scroll'}
-              </span>
-              <motion.div
-                animate={{ y: [0, 6, 0] }}
-                transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+            {/* Canvas: square, perfectly centered, contain-fit */}
+            <canvas
+              ref={canvasRef}
+              style={{
+                width:  'min(80vw, 90vh, 520px)',
+                height: 'min(80vw, 90vh, 520px)',
+                display: 'block',
+              }}
+            />
+
+            {/* Frame counter — bottom-right of canvas area */}
+            <div className="absolute bottom-2 right-0 text-right pointer-events-none">
+              <p
                 style={{
-                  width: '1px',
-                  height: '32px',
-                  background: 'linear-gradient(to bottom, hsl(var(--muted-foreground)/0.5), transparent)',
+                  fontFamily: 'monospace',
+                  fontSize: '10px',
+                  letterSpacing: '0.1em',
+                  color: progress > 0.04 && progress < 0.96
+                    ? 'hsl(var(--primary)/0.8)'
+                    : 'hsl(var(--muted-foreground)/0.3)',
+                  transition: 'color 0.4s',
                 }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+              >
+                {String(frameIdx + 1).padStart(3, '0')} / {String(FRAME_COUNT).padStart(3, '0')}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* 3 — Chat input (bottom) — exact same as original Hero */}
+          <LandingChatInput
+            onSendAttempt={(message) => onGetStarted(message)}
+            onPlaceholderChange={handlePlaceholderChange}
+          />
+
+          {/* Scroll hint (fades on scroll) */}
+          <AnimatePresence>
+            {!scrolled && (
+              <motion.div
+                key="scroll-hint"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 1, duration: 0.5 }}
+                className="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none z-10"
+              >
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '9px',
+                    letterSpacing: '0.3em',
+                    textTransform: 'uppercase',
+                    color: 'hsl(var(--muted-foreground)/0.5)',
+                  }}
+                >
+                  {language === 'ar' ? 'مرر للأسفل' : 'Scroll'}
+                </span>
+                <motion.div
+                  animate={{ y: [0, 6, 0] }}
+                  transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+                  style={{
+                    width: '1px',
+                    height: '32px',
+                    background: 'linear-gradient(to bottom, hsl(var(--muted-foreground)/0.4), transparent)',
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
       </div>
     </div>
   );
