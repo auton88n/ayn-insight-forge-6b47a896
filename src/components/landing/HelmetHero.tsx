@@ -1,7 +1,7 @@
 /**
- * HelmetHero — scroll-driven frame animation.
- * Everything fits in 100dvh: headline + helmet + chat input.
- * No flicker. Pure black bg.
+ * HelmetHero — pixel-perfect copy of Hero.tsx layout.
+ * Helmet image replaces the eye div at exact same fixed sizes.
+ * LandingChatInput renders exactly as it did before.
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
@@ -15,19 +15,18 @@ interface HelmetHeroProps {
 }
 
 export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
-  const { language }  = useLanguage();
-  const spacerRef     = useRef<HTMLDivElement>(null);
-  const imgRef        = useRef<HTMLImageElement>(null);
-  const cache         = useRef<HTMLImageElement[]>([]);
-  const rafId         = useRef(0);
-  const curProgress   = useRef(0);
-  const tgtProgress   = useRef(0);
-  const lastIdx       = useRef(-1);
+  const { language } = useLanguage();
+  const spacerRef    = useRef<HTMLDivElement>(null);
+  const imgRef       = useRef<HTMLImageElement>(null);
+  const cache        = useRef<HTMLImageElement[]>([]);
+  const rafId        = useRef(0);
+  const curProgress  = useRef(0);
+  const tgtProgress  = useRef(0);
+  const lastIdx      = useRef(-1);
   const [frameIdx, setFrameIdx] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const noop = useCallback(() => {}, []);
 
-  // Preload
   useEffect(() => {
     cache.current = HELMET_FRAMES.map((src, i) => {
       const img = new Image();
@@ -38,7 +37,6 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // Scroll
   const onScroll = useCallback(() => {
     const spacer = spacerRef.current;
     if (!spacer) return;
@@ -54,7 +52,6 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // RAF
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
@@ -75,42 +72,31 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
 
   return (
     <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
-      <div
-        className="sticky top-0 overflow-hidden"
-        style={{ height: '100dvh', background: '#000' }}
-      >
+
+      {/* Sticky viewport — min-h matches original Hero, overflow-y:visible so chat input never clips */}
+      <div className="sticky top-0" style={{ height: '100dvh', background: '#000', overflow: 'hidden' }}>
+
         {/* Progress bar */}
         <div
           className="absolute top-0 left-0 h-[2px] z-40 pointer-events-none"
           style={{
             width: `${progress * 100}%`,
             background: 'hsl(var(--primary))',
-            boxShadow: '0 0 8px hsl(var(--primary)/0.4)',
             transition: 'width 0.05s linear',
           }}
         />
 
-        {/*
-          Grid layout — 3 rows in 100dvh:
-          Row 1: headline (auto height)
-          Row 2: helmet (fills remaining space, never overflows)
-          Row 3: chat input (auto height)
-          pt-20 accounts for fixed header
-        */}
-        <div
-          className="w-full h-full grid px-4 md:px-12 lg:px-24"
-          style={{
-            gridTemplateRows: 'auto 1fr auto',
-            paddingTop: '80px',
-            paddingBottom: '24px',
-          }}
+        {/* ── Exact copy of Hero.tsx section ── */}
+        <section
+          className="relative min-h-[100dvh] flex flex-col items-center justify-between pt-20 md:pt-24 pb-6 md:pb-8 px-4 md:px-12 lg:px-24 overflow-x-hidden overflow-y-visible"
+          aria-label="Hero"
         >
-          {/* Row 1: Headline */}
-          <div className="w-full max-w-4xl mx-auto text-center py-4 md:py-6">
+          {/* Headline — exact copy */}
+          <div className="w-full max-w-4xl text-center mb-4 md:mb-6">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
               className="font-display font-bold tracking-[-0.02em] text-white mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
             >
               {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
@@ -130,45 +116,25 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
             </motion.p>
           </div>
 
-          {/* Row 2: Helmet — fills remaining space, image contains itself */}
+          {/* Central helmet — same container as original eye */}
           <motion.div
-            className="relative flex items-center justify-center overflow-hidden"
+            className="relative w-full max-w-5xl flex-1 flex items-center justify-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
-            {/* img constrained by both width AND height of its container */}
-            <img
-              ref={imgRef}
-              src={HELMET_FRAMES[0]}
-              alt="AYN"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                width: 'auto',
-                height: 'auto',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-              draggable={false}
-            />
-
-            {/* Frame counter */}
-            <div className="absolute bottom-1 right-2 pointer-events-none">
-              <span
-                className="text-[9px] tabular-nums tracking-widest font-mono"
-                style={{
-                  color: progress > 0.04 && progress < 0.96
-                    ? 'hsl(var(--primary)/0.7)'
-                    : 'rgba(255,255,255,0.2)',
-                  transition: 'color 0.4s',
-                }}
-              >
-                {String(frameIdx + 1).padStart(3, '0')}/{String(FRAME_COUNT).padStart(3, '0')}
-              </span>
+            {/* Helmet image — fixed sizes matching original eye: w-[180px] → lg:w-[360px] */}
+            <div className="relative w-[180px] h-[180px] sm:w-[240px] sm:h-[240px] md:w-[300px] md:h-[300px] lg:w-[360px] lg:h-[360px]">
+              <img
+                ref={imgRef}
+                src={HELMET_FRAMES[0]}
+                alt="AYN"
+                className="w-full h-full object-contain select-none pointer-events-none"
+                draggable={false}
+              />
             </div>
 
-            {/* Scroll hint — inside helmet row so it doesn't push layout */}
+            {/* Scroll hint */}
             <AnimatePresence>
               {!scrolled && (
                 <motion.div
@@ -177,7 +143,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ delay: 1, duration: 0.5 }}
-                  className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none"
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none"
                 >
                   <span className="text-[9px] tracking-[0.3em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
                     {language === 'ar' ? 'مرر' : 'Scroll'}
@@ -192,23 +158,12 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
             </AnimatePresence>
           </motion.div>
 
-          {/* Row 3: Chat input — always anchored to bottom */}
-          <div className="relative z-20 w-full max-w-xl mx-auto">
-            <div
-              className="w-full rounded-2xl overflow-hidden border"
-              style={{
-                background: 'rgba(255,255,255,0.07)',
-                borderColor: 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(20px)',
-              }}
-            >
-              <LandingChatInput
-                onSendAttempt={(message) => onGetStarted(message)}
-                onPlaceholderChange={noop}
-              />
-            </div>
-          </div>
-        </div>
+          {/* Chat input — LandingChatInput renders its own wrapper, exact same as Hero.tsx */}
+          <LandingChatInput
+            onSendAttempt={(message) => onGetStarted(message)}
+            onPlaceholderChange={noop}
+          />
+        </section>
       </div>
     </div>
   );
