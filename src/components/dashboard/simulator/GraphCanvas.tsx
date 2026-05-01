@@ -53,6 +53,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
   const nodesRef   = useRef<Node[]>([]);
   const frameRef   = useRef(0);
   const hoveredRef = useRef<string | null>(null);
+  const forcesRef  = useRef<{ fx: Float32Array; fy: Float32Array }>({
+    fx: new Float32Array(0),
+    fy: new Float32Array(0),
+  });
 
   const edgeSet = useMemo(() =>
     (graph?.edges || []).map(e => ({ s: e.source, t: e.target })),
@@ -62,10 +66,11 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
     const canvas = canvasRef.current;
     const wrap   = wrapRef.current;
     if (!canvas || !wrap) return;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d', { alpha: false })!;
 
     const resize = () => {
-      const dpr  = window.devicePixelRatio || 1;
+      const rawDpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(rawDpr, window.innerWidth < 1024 ? 1.25 : 1.5);
       const rect = wrap.getBoundingClientRect();
       canvas.width  = rect.width  * dpr;
       canvas.height = rect.height * dpr;
@@ -97,6 +102,10 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
           depth: Math.random(), // random z-depth for atmosphere
         };
       });
+      forcesRef.current = {
+        fx: new Float32Array(nodesRef.current.length),
+        fy: new Float32Array(nodesRef.current.length),
+      };
     }
 
     const idxOf = new Map(nodesRef.current.map((n, i) => [n.id, i]));
