@@ -7,13 +7,11 @@ import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
 import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { LandingChatInput } from '@/components/landing/LandingChatInput';
 
-interface HelmetHeroProps {
-  onGetStarted: (prefillMessage?: string) => void;
-}
 
-export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
+interface HelmetHeroProps {}
+
+export const HelmetHero = memo(({}: HelmetHeroProps) => {
   const { language } = useLanguage();
   const spacerRef   = useRef<HTMLDivElement>(null);
   const imgRef      = useRef<HTMLImageElement>(null);
@@ -23,7 +21,6 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
   const tgtProgress = useRef(0);
   const lastIdx     = useRef(-1);
   const [frameIdx, setFrameIdx] = useState(0);
-  const noop = useCallback(() => {}, []);
 
   useEffect(() => {
     cache.current = HELMET_FRAMES.map((src, i) => {
@@ -148,20 +145,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
           </span>
         </div>
 
-        {/* CHAT INPUT — pinned bottom, single box */}
-        <div className="absolute left-0 right-0 z-20 px-4" style={{ bottom: '16px' }}>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="hero-chat-input"
-          >
-            <LandingChatInput
-              onSendAttempt={(msg) => onGetStarted(msg)}
-              onPlaceholderChange={noop}
-            />
-          </motion.div>
-        </div>
+
       </div>
     </div>
   );

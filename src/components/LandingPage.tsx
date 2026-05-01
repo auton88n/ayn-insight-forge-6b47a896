@@ -72,13 +72,7 @@ const LandingPage = memo(() => {
       {/* Shared Header */}
       <Header />
       {/* Hero Section — Scroll-driven helmet animation */}
-      <HelmetHero onGetStarted={prefillMessage => {
-        if (prefillMessage) {
-          setPendingMessage(prefillMessage);
-          localStorage.setItem('ayn_pending_message', prefillMessage);
-        }
-        setShowAuthModal(true);
-      }} />
+      <HelmetHero />
 
       {/* About AYN - Value Proposition Section */}
       <section id="about" className="py-16 md:py-32 px-4 md:px-6">
