@@ -342,7 +342,7 @@ export const enginApi = {
       severity: (s.severity || 'medium') as EnginSignal['severity'],
       region: s.region || '',
       tags: [s.signal_type || ''],
-      created_at: s.created_at,
+      created_at: s.created_at || undefined,
     }));
   },
 };
