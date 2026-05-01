@@ -1,6 +1,7 @@
 /**
  * HelmetHero — scroll-driven frame animation.
- * No flicker. Pure black bg. Chat input visible on black.
+ * Everything fits in 100dvh: headline + helmet + chat input.
+ * No flicker. Pure black bg.
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
@@ -14,42 +15,38 @@ interface HelmetHeroProps {
 }
 
 export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
-  const { language } = useLanguage();
-  const spacerRef = useRef<HTMLDivElement>(null);
-  const imgRef    = useRef<HTMLImageElement>(null);
-  const cache     = useRef<HTMLImageElement[]>([]);
-
-  const rafId       = useRef(0);
-  const curProgress = useRef(0);
-  const tgtProgress = useRef(0);
-  const lastIdx     = useRef(-1);
-
+  const { language }  = useLanguage();
+  const spacerRef     = useRef<HTMLDivElement>(null);
+  const imgRef        = useRef<HTMLImageElement>(null);
+  const cache         = useRef<HTMLImageElement[]>([]);
+  const rafId         = useRef(0);
+  const curProgress   = useRef(0);
+  const tgtProgress   = useRef(0);
+  const lastIdx       = useRef(-1);
   const [frameIdx, setFrameIdx] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const noop = useCallback(() => {}, []);
 
-  // Preload all frames
+  // Preload
   useEffect(() => {
     cache.current = HELMET_FRAMES.map((src, i) => {
       const img = new Image();
       img.src = src;
-      img.onload = () => {
-        if (i === 0 && imgRef.current) imgRef.current.src = src;
-      };
+      img.onload = () => { if (i === 0 && imgRef.current) imgRef.current.src = src; };
       return img;
     });
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // Scroll → progress
+  // Scroll
   const onScroll = useCallback(() => {
     const spacer = spacerRef.current;
     if (!spacer) return;
     const rect  = spacer.getBoundingClientRect();
     const gone  = -rect.top;
     const total = spacer.offsetHeight - window.innerHeight;
-    const p     = Math.max(0, Math.min(1, gone / total));
-    tgtProgress.current = p;
-    setScrolled(p > 0.015);
+    tgtProgress.current = Math.max(0, Math.min(1, gone / total));
+    setScrolled(tgtProgress.current > 0.015);
   }, []);
 
   useEffect(() => {
@@ -57,7 +54,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // RAF loop
+  // RAF
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
@@ -74,16 +71,14 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // No-op — LandingChatInput calls this but we don't blink anymore
-  const noop = useCallback(() => {}, []);
-
   const progress = frameIdx / (FRAME_COUNT - 1);
 
   return (
     <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
-
-      <div className="sticky top-0 overflow-hidden" style={{ height: '100dvh', background: '#000' }}>
-
+      <div
+        className="sticky top-0 overflow-hidden"
+        style={{ height: '100dvh', background: '#000' }}
+      >
         {/* Progress bar */}
         <div
           className="absolute top-0 left-0 h-[2px] z-40 pointer-events-none"
@@ -95,12 +90,23 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
           }}
         />
 
-        <section
-          className="relative min-h-[100dvh] flex flex-col items-center justify-between pt-20 md:pt-24 pb-6 md:pb-8 px-4 md:px-12 lg:px-24 overflow-x-hidden overflow-y-visible"
-          aria-label="Hero"
+        {/*
+          Grid layout — 3 rows in 100dvh:
+          Row 1: headline (auto height)
+          Row 2: helmet (fills remaining space, never overflows)
+          Row 3: chat input (auto height)
+          pt-20 accounts for fixed header
+        */}
+        <div
+          className="w-full h-full grid px-4 md:px-12 lg:px-24"
+          style={{
+            gridTemplateRows: 'auto 1fr auto',
+            paddingTop: '80px',
+            paddingBottom: '24px',
+          }}
         >
-          {/* Headline */}
-          <div className="w-full max-w-4xl text-center mb-4 md:mb-6">
+          {/* Row 1: Headline */}
+          <div className="w-full max-w-4xl mx-auto text-center py-4 md:py-6">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -124,44 +130,72 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
             </motion.p>
           </div>
 
-          {/* Helmet */}
+          {/* Row 2: Helmet — fills remaining space, image contains itself */}
           <motion.div
-            className="relative w-full max-w-5xl flex-1 flex items-center justify-center"
+            className="relative flex items-center justify-center overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="relative w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] lg:w-[420px] lg:h-[420px]">
-              {/* Plain img — no animation, no blink, no motion wrapper */}
-              <img
-                ref={imgRef}
-                src={HELMET_FRAMES[0]}
-                alt="AYN"
-                className="w-full h-full object-contain select-none pointer-events-none"
-                draggable={false}
-              />
+            {/* img constrained by both width AND height of its container */}
+            <img
+              ref={imgRef}
+              src={HELMET_FRAMES[0]}
+              alt="AYN"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                display: 'block',
+              }}
+              draggable={false}
+            />
 
-              {/* Frame counter */}
-              <div className="absolute -bottom-7 right-0 pointer-events-none">
-                <span
-                  className="text-[9px] tabular-nums tracking-widest font-mono"
-                  style={{
-                    color: progress > 0.04 && progress < 0.96
-                      ? 'hsl(var(--primary)/0.7)'
-                      : 'rgba(255,255,255,0.2)',
-                    transition: 'color 0.4s',
-                  }}
-                >
-                  {String(frameIdx + 1).padStart(3, '0')}/{String(FRAME_COUNT).padStart(3, '0')}
-                </span>
-              </div>
+            {/* Frame counter */}
+            <div className="absolute bottom-1 right-2 pointer-events-none">
+              <span
+                className="text-[9px] tabular-nums tracking-widest font-mono"
+                style={{
+                  color: progress > 0.04 && progress < 0.96
+                    ? 'hsl(var(--primary)/0.7)'
+                    : 'rgba(255,255,255,0.2)',
+                  transition: 'color 0.4s',
+                }}
+              >
+                {String(frameIdx + 1).padStart(3, '0')}/{String(FRAME_COUNT).padStart(3, '0')}
+              </span>
             </div>
+
+            {/* Scroll hint — inside helmet row so it doesn't push layout */}
+            <AnimatePresence>
+              {!scrolled && (
+                <motion.div
+                  key="hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ delay: 1, duration: 0.5 }}
+                  className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none"
+                >
+                  <span className="text-[9px] tracking-[0.3em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    {language === 'ar' ? 'مرر' : 'Scroll'}
+                  </span>
+                  <motion.div
+                    animate={{ y: [0, 6, 0] }}
+                    transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+                    style={{ width: '1px', height: '28px', background: 'linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)' }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
-          {/* Chat input — forced light styling so it's visible on black */}
-          <div className="relative z-20 w-full">
+          {/* Row 3: Chat input — always anchored to bottom */}
+          <div className="relative z-20 w-full max-w-xl mx-auto">
             <div
-              className="w-full max-w-xl mx-auto mt-8 md:mt-12 px-4 rounded-2xl overflow-hidden border"
+              className="w-full rounded-2xl overflow-hidden border"
               style={{
                 background: 'rgba(255,255,255,0.07)',
                 borderColor: 'rgba(255,255,255,0.12)',
@@ -174,30 +208,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
               />
             </div>
           </div>
-
-          {/* Scroll hint */}
-          <AnimatePresence>
-            {!scrolled && (
-              <motion.div
-                key="hint"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ delay: 1, duration: 0.5 }}
-                className="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none z-10"
-              >
-                <span className="text-[9px] tracking-[0.3em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                  {language === 'ar' ? 'مرر' : 'Scroll'}
-                </span>
-                <motion.div
-                  animate={{ y: [0, 6, 0] }}
-                  transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-                  style={{ width: '1px', height: '32px', background: 'linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)' }}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
+        </div>
       </div>
     </div>
   );
