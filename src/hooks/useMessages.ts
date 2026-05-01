@@ -134,9 +134,9 @@ export const useMessages = (
         userProfile: userProfile ? { name: userProfile.contact_person, company: userProfile.company_name, businessType: userProfile.business_type } : undefined,
       };
 
-      // Call ayn-unified
+      // Call ayn-unified — 45s per-attempt timeout (matches upstream limit).
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       const webhookResponse = await fetchWithRetry(`${SUPABASE_URL}/functions/v1/ayn-unified`, {
         method: 'POST',
@@ -145,9 +145,10 @@ export const useMessages = (
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${latestToken}`,
           'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json',
         },
         body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: !requiresNonStreaming, sessionId })
-      });
+      }, 1);
 
       clearTimeout(timeoutId);
 
