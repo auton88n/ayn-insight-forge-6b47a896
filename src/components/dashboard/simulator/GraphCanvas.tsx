@@ -334,14 +334,19 @@ export function GraphCanvas({ agents, graph, emotions, onSelect }: Props) {
       ctx.fillStyle = 'rgba(100,110,130,0.25)';
       ctx.fillText(`${nodes.length}`, w - 8, ky);
 
-      rafRef.current = requestAnimationFrame(draw);
+      if (!document.hidden) rafRef.current = requestAnimationFrame(draw);
     };
 
     rafRef.current = requestAnimationFrame(draw);
+    const resume = () => {
+      if (!document.hidden) rafRef.current = requestAnimationFrame(draw);
+    };
+    document.addEventListener('visibilitychange', resume);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
+      document.removeEventListener('visibilitychange', resume);
       canvas.removeEventListener('click', handleClick);
       canvas.removeEventListener('mousemove', handleMove);
     };
