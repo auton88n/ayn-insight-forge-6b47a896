@@ -7,7 +7,9 @@ interface Props {
   onChatReport: () => void;
 }
 
-export function ReportPanel({ report, onChatReport }: Props) {
+export function ReportPanel({ report: reportProp, onChatReport }: Props) {
+  // Loose typing: report shape evolves with simulator backend
+  const report = reportProp as any;
   if (!report) {
     return (
       <div className="grid place-items-center h-full text-xs font-mono text-muted-foreground/50">
