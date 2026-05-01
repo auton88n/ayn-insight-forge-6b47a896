@@ -149,18 +149,13 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
         {/* ── CHAT INPUT: pinned to bottom ── */}
         <div
           className="absolute left-0 right-0 z-20 px-4"
-          style={{ bottom: '24px' }}
+          style={{ bottom: '16px' }}
         >
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="max-w-xl mx-auto rounded-2xl overflow-hidden"
-            style={{
-              background:    'rgba(255,255,255,0.06)',
-              border:        '1px solid rgba(255,255,255,0.1)',
-              backdropFilter:'blur(24px)',
-            }}
+            className="hero-chat-input"
           >
             <LandingChatInput
               onSendAttempt={(msg) => onGetStarted(msg)}
@@ -179,7 +174,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
               exit={{ opacity: 0 }}
               transition={{ delay: 1.2, duration: 0.5 }}
               className="absolute left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none"
-              style={{ bottom: '148px' }}
+              style={{ bottom: '130px' }}
             >
               <span
                 className="text-[9px] tracking-[0.3em] uppercase font-mono"

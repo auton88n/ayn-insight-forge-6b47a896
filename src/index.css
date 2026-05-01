@@ -1516,3 +1516,24 @@ button, a, input, textarea, select {
   background: transparent !important;
   padding: 0 !important;
 }
+
+/* Landing hero chat input — visible on pure black background */
+.hero-chat-input .rounded-2xl {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.hero-chat-input .bg-muted\/20 {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.hero-chat-input .border-border\/30 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.hero-chat-input textarea {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+.hero-chat-input textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+.hero-chat-input .text-muted-foreground {
+  color: rgba(255, 255, 255, 0.4) !important;
+}

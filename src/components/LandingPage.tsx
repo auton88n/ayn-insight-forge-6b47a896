@@ -68,7 +68,7 @@ const LandingPage = memo(() => {
     <SEO title="AYN AI | Business Intelligence & Market Analysis | Real-Time AI" description="AYN monitors global markets, analyzes geopolitical risks, and delivers instant business intelligence. AI-powered insights for smarter decisions." canonical="/" keywords="AYN AI, business intelligence AI, market analysis AI, geopolitical risk analysis, AI market monitor, real-time market intelligence, AYN artificial intelligence, عين AI, Arabic AI assistant, supply chain intelligence, trading intelligence AI" jsonLd={{
       '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema]
     }} />
-    <div dir={direction} className="min-h-screen bg-background scroll-smooth">
+    <div dir={direction} className="min-h-screen scroll-smooth" style={{ background: '#000' }}>
       {/* Shared Header */}
       <Header />
       {/* Hero Section — Scroll-driven helmet animation */}

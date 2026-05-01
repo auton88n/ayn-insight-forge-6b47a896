@@ -68,11 +68,16 @@ export const Header = () => {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
+      <nav className={cn(
+        "fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b",
+        location.pathname === '/'
+          ? "bg-black/80 border-white/[0.06]"
+          : "bg-background/80 border-border/50"
+      )}>
         <div className="container max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
+            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", location.pathname === '/' ? "bg-white" : "bg-foreground")}>
               <Brain className="w-5 h-5 text-background" />
             </div>
             <span className="text-xl font-bold">AYN</span>
@@ -87,9 +92,11 @@ export const Header = () => {
               onClick={(e) => handleNavClick(e, link.path)}
               className={cn(
                 'transition-colors',
-                isActive(link.path) ?
-                'text-foreground' :
-                'text-muted-foreground hover:text-foreground'
+                isActive(link.path)
+                  ? location.pathname === '/' ? 'text-white' : 'text-foreground'
+                  : location.pathname === '/'
+                    ? 'text-white/60 hover:text-white'
+                    : 'text-muted-foreground hover:text-foreground'
               )}>
               
                 {getLabel(link)}
