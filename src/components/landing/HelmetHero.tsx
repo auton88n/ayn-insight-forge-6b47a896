@@ -49,7 +49,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
-      curProgress.current += (tgtProgress.current - curProgress.current) * 0.1;
+      curProgress.current += (tgtProgress.current - curProgress.current) * 0.06;
       const idx = Math.round(curProgress.current * (FRAME_COUNT - 1));
       if (idx !== lastIdx.current) {
         lastIdx.current = idx;
@@ -95,14 +95,22 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           />
         </div>
 
-        {/* HEADLINE — top left, doesn't overlap helmet */}
+        {/* HEADLINE — centered, left-aligned text, dark gradient bg */}
         <div
-          className="absolute left-8 md:left-16 z-20"
+          className="absolute left-0 right-0 z-20 px-8 md:px-16"
           style={{ top: '88px' }}
         >
+          {/* Dark gradient so text always readable over video */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
+              zIndex: -1,
+            }}
+          />
           <motion.div
-            initial={{ opacity: 0, x: -16 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
           >
             <p
@@ -120,8 +128,8 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
               <span style={{ color: 'hsl(var(--primary))' }}>AYN</span>
             </h1>
             <p
-              className="mt-3 text-sm md:text-base font-light max-w-[220px] md:max-w-[280px] leading-relaxed"
-              style={{ color: 'rgba(255,255,255,0.4)' }}
+              className="mt-3 text-sm md:text-base font-light max-w-[320px] leading-relaxed"
+              style={{ color: 'rgba(255,255,255,0.45)' }}
             >
               {language === 'ar'
                 ? 'ذكاء أعمال حقيقي يتابع الأسواق، يحلل المخاطر.'
