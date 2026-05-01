@@ -6,7 +6,7 @@ import { AuthModal } from './auth/AuthModal';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { cn } from '@/lib/utils';
-import { Hero } from '@/components/landing/Hero';
+import { HelmetHero } from '@/components/landing/HelmetHero';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import featureBusinessImg from '@/assets/feature-business.jpg';
@@ -71,8 +71,8 @@ const LandingPage = memo(() => {
     <div dir={direction} className="min-h-screen bg-background scroll-smooth">
       {/* Shared Header */}
       <Header />
-      {/* Hero Section - Premium AI Eye Experience */}
-      <Hero onGetStarted={prefillMessage => {
+      {/* Hero Section — Scroll-driven helmet animation */}
+      <HelmetHero onGetStarted={prefillMessage => {
         if (prefillMessage) {
           setPendingMessage(prefillMessage);
           localStorage.setItem('ayn_pending_message', prefillMessage);
