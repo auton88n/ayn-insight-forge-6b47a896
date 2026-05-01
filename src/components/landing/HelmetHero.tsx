@@ -1,7 +1,6 @@
 /**
  * HelmetHero — scroll-driven frame animation.
- * Pure black hero background matching the video frames.
- * Layout identical to original Hero.tsx.
+ * No flicker. Pure black bg. Chat input visible on black.
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
@@ -16,18 +15,17 @@ interface HelmetHeroProps {
 
 export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
   const { language } = useLanguage();
-  const spacerRef   = useRef<HTMLDivElement>(null);
-  const imgRef      = useRef<HTMLImageElement>(null);
-  const cache       = useRef<HTMLImageElement[]>([]);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  const imgRef    = useRef<HTMLImageElement>(null);
+  const cache     = useRef<HTMLImageElement[]>([]);
 
   const rafId       = useRef(0);
   const curProgress = useRef(0);
   const tgtProgress = useRef(0);
   const lastIdx     = useRef(-1);
 
-  const [frameIdx,   setFrameIdx]   = useState(0);
-  const [scrolled,   setScrolled]   = useState(false);
-  const [isBlinking, setIsBlinking] = useState(false);
+  const [frameIdx, setFrameIdx] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
 
   // Preload all frames
   useEffect(() => {
@@ -59,7 +57,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // RAF loop: lerp → frame
+  // RAF loop
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
@@ -76,17 +74,14 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  const handlePlaceholderChange = useCallback(() => {
-    setIsBlinking(true);
-    setTimeout(() => setIsBlinking(false), 150);
-  }, []);
+  // No-op — LandingChatInput calls this but we don't blink anymore
+  const noop = useCallback(() => {}, []);
 
   const progress = frameIdx / (FRAME_COUNT - 1);
 
   return (
     <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
 
-      {/* Sticky panel */}
       <div className="sticky top-0 overflow-hidden" style={{ height: '100dvh', background: '#000' }}>
 
         {/* Progress bar */}
@@ -100,7 +95,6 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
           }}
         />
 
-        {/* Hero section — same structure as original */}
         <section
           className="relative min-h-[100dvh] flex flex-col items-center justify-between pt-20 md:pt-24 pb-6 md:pb-8 px-4 md:px-12 lg:px-24 overflow-x-hidden overflow-y-visible"
           aria-label="Hero"
@@ -130,20 +124,19 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
             </motion.p>
           </div>
 
-          {/* Helmet — centered, same size as old eye */}
+          {/* Helmet */}
           <motion.div
             className="relative w-full max-w-5xl flex-1 flex items-center justify-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="relative w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] lg:w-[420px] lg:h-[420px] flex items-center justify-center">
-              <motion.img
+            <div className="relative w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] lg:w-[420px] lg:h-[420px]">
+              {/* Plain img — no animation, no blink, no motion wrapper */}
+              <img
                 ref={imgRef}
                 src={HELMET_FRAMES[0]}
                 alt="AYN"
-                animate={{ scaleY: isBlinking ? 0.05 : 1, opacity: isBlinking ? 0.7 : 1 }}
-                transition={{ duration: isBlinking ? 0.08 : 0.12 }}
                 className="w-full h-full object-contain select-none pointer-events-none"
                 draggable={false}
               />
@@ -151,9 +144,8 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
               {/* Frame counter */}
               <div className="absolute -bottom-7 right-0 pointer-events-none">
                 <span
-                  className="text-[9px] tabular-nums tracking-widest"
+                  className="text-[9px] tabular-nums tracking-widest font-mono"
                   style={{
-                    fontFamily: 'monospace',
                     color: progress > 0.04 && progress < 0.96
                       ? 'hsl(var(--primary)/0.7)'
                       : 'rgba(255,255,255,0.2)',
@@ -166,11 +158,22 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
             </div>
           </motion.div>
 
-          {/* Chat input */}
-          <LandingChatInput
-            onSendAttempt={(message) => onGetStarted(message)}
-            onPlaceholderChange={handlePlaceholderChange}
-          />
+          {/* Chat input — forced light styling so it's visible on black */}
+          <div className="relative z-20 w-full">
+            <div
+              className="w-full max-w-xl mx-auto mt-8 md:mt-12 px-4 rounded-2xl overflow-hidden border"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                borderColor: 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(20px)',
+              }}
+            >
+              <LandingChatInput
+                onSendAttempt={(message) => onGetStarted(message)}
+                onPlaceholderChange={noop}
+              />
+            </div>
+          </div>
 
           {/* Scroll hint */}
           <AnimatePresence>
@@ -183,20 +186,13 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
                 transition={{ delay: 1, duration: 0.5 }}
                 className="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none z-10"
               >
-                <span
-                  className="text-[9px] tracking-[0.3em] uppercase font-mono"
-                  style={{ color: 'rgba(255,255,255,0.3)' }}
-                >
+                <span className="text-[9px] tracking-[0.3em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
                   {language === 'ar' ? 'مرر' : 'Scroll'}
                 </span>
                 <motion.div
                   animate={{ y: [0, 6, 0] }}
                   transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-                  style={{
-                    width: '1px',
-                    height: '32px',
-                    background: 'linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)',
-                  }}
+                  style={{ width: '1px', height: '32px', background: 'linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)' }}
                 />
               </motion.div>
             )}
