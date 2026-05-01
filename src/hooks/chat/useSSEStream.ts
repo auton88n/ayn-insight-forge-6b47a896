@@ -6,8 +6,38 @@ export const parseSSEStream = async (
   onChunk: (content: string) => void,
   onComplete: () => void
 ): Promise<string> => {
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('No response body');
+  // Safari/iOS fallback: when streaming readers aren't exposed, read the full
+  // body once and emit as a single chunk. Without this the request silently
+  // hangs on iPhone/iPad until the request times out.
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const text = await response.text();
+    let fullContent = '';
+    // Try parsing as SSE text first
+    for (const rawLine of text.split('\n')) {
+      const line = rawLine.trim();
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6);
+      if (data === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(data);
+        const content = parsed.choices?.[0]?.delta?.content || parsed.content || parsed.text;
+        if (content) fullContent += content;
+      } catch { /* skip */ }
+    }
+    // If nothing parsed but we got plain text, fall back to that
+    if (!fullContent && text && !text.startsWith('data:')) {
+      try {
+        const j = JSON.parse(text);
+        fullContent = j.content || j.message || j.response || text;
+      } catch {
+        fullContent = text;
+      }
+    }
+    if (fullContent) onChunk(fullContent);
+    onComplete();
+    return fullContent;
+  }
 
   const decoder = new TextDecoder();
   let fullContent = '';

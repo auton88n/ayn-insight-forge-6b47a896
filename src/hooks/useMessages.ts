@@ -81,13 +81,10 @@ export const useMessages = (
       return;
     }
 
-    // Usage check (skip for unlimited)
-    let latestToken = session.access_token;
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session: freshSession } } = await supabase.auth.getSession();
-      if (freshSession?.access_token) latestToken = freshSession.access_token;
-    } catch { /* ignore */ }
+    // Use the access_token straight from the session prop. useAuth keeps it
+    // refreshed via Supabase's onAuthStateChange listener — calling
+    // getSession() here added 300-800ms per send on mobile networks.
+    const latestToken = session.access_token;
 
     // NOTE: No pre-flight limit check here.
     // check_user_ai_limit RPC is called atomically inside the ayn-unified edge function.
@@ -137,9 +134,9 @@ export const useMessages = (
         userProfile: userProfile ? { name: userProfile.contact_person, company: userProfile.company_name, businessType: userProfile.business_type } : undefined,
       };
 
-      // Call ayn-unified
+      // Call ayn-unified — 45s per-attempt timeout (matches upstream limit).
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       const webhookResponse = await fetchWithRetry(`${SUPABASE_URL}/functions/v1/ayn-unified`, {
         method: 'POST',
@@ -148,9 +145,10 @@ export const useMessages = (
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${latestToken}`,
           'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json',
         },
         body: JSON.stringify({ messages: conversationMessages, intent: detectedIntent, context, stream: !requiresNonStreaming, sessionId })
-      });
+      }, 1);
 
       clearTimeout(timeoutId);
 
@@ -215,9 +213,13 @@ export const useMessages = (
           if (['angry', 'frustrated'].includes(userEmotion) && ['calm', 'happy'].includes(detectedEmotion)) detectedEmotion = 'comfort';
           else if (userEmotion === 'sad' && detectedEmotion === 'calm') detectedEmotion = 'supportive';
           setLastSuggestedEmotion(detectedEmotion);
-        } catch {
+        } catch (streamErr) {
+          const isAbort = streamErr instanceof Error && (streamErr.name === 'AbortError' || controller.signal.aborted);
+          const fallbackMsg = isAbort
+            ? "That took too long to respond. Tap send to try again."
+            : "Something went wrong. Try again? 💭";
           setMessages(prev => prev.map(msg =>
-            msg.id === aynMessageId ? { ...msg, content: msg.content || "Something went wrong. Try again? 💭", isTyping: false, status: 'sent' } : msg
+            msg.id === aynMessageId ? { ...msg, content: msg.content || fallbackMsg, isTyping: false, status: 'sent' } : msg
           ));
           resetGenerationState();
           return;

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { supabase } from '@/integrations/supabase/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config';
 import { AlertTriangle, Clock } from 'lucide-react';
 const AdminPanel = lazy(() => import('./AdminPanel').then(m => ({ default: m.AdminPanel })));
 
@@ -56,6 +57,17 @@ export default function Dashboard({ user, session }: DashboardProps) {
     document.body.classList.add('no-overscroll');
     return () => document.body.classList.remove('no-overscroll');
   }, []);
+
+  // Warm-up ping for ayn-unified — eliminates the ~30s cold-start
+  // penalty on the user's first message after the function has gone idle.
+  // Fire-and-forget OPTIONS request, no-op on failure.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch(`${SUPABASE_URL}/functions/v1/ayn-unified`, {
+      method: 'OPTIONS',
+      headers: { 'apikey': SUPABASE_ANON_KEY },
+    }).catch(() => { /* warm-up failure is harmless */ });
+  }, [session?.access_token]);
 
   // Load maintenance config from database (reading separate keys)
   useEffect(() => {

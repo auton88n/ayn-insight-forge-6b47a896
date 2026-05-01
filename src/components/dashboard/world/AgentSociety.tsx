@@ -16,7 +16,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 
-const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co'; // kept for Supabase direct queries
 // All calls go through ayn-agent-society Supabase edge function
 const SUPA_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const callSociety = async (mode: string, body: Record<string, unknown> = {}) => {

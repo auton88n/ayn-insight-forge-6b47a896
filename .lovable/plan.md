@@ -1,85 +1,54 @@
-# World Simulation v2 — Native Edge Function Engine (MicroFish-style)
+## Why AYN is slow / not working on tablet & iPhone
 
-Replace the Python `engine.aynn.io` backend with Supabase Edge Functions powered by the Lovable AI Gateway (`google/gemini-2.5-flash`). Scale to **225 agent personas** across the 6 real categories you described, wire in the **7-layer pipeline** that's only decorative today, and add a **"Feed Agents the News"** button so users can broadcast any signal/event/product to the whole society with one click.
+After reading the chat pipeline (`useMessages.ts`, `useSSEStream.ts`, `useChatSession.ts`, `ChatInput.tsx`, edge logs), here's what's actually going on. There is **no mobile-specific gate** that disables sending — the chat input works the same on every viewport. So the symptoms you're seeing have three real causes, and we can fix them.
 
----
+### Root causes
 
-## What's wrong today
+1. **The response is non‑streaming on mobile in practice.**
+   `useMessages.ts` requests `stream: true`, but on iOS Safari + many tablet browsers, `fetch` does **not** expose `response.body` as a readable stream. When that happens, `parseSSEStream` waits for the *entire* response before showing anything — so the user sees a blank "typing" bubble for 15–40s, then everything appears at once. On desktop Chrome, chunks appear progressively, which is why it feels fast there.
 
-- Frontend talks to `engine.aynn.io` (Python on Railway). It's flaky, CORS-prone, and the agent roster doesn't match your real 225-persona deployment.
-- `useEnginSim` shows a 7-layer legend in the UI but the backend doesn't actually run 7 layers — it just calls one `/simulate` endpoint and renders a stepper.
-- No "feed news → all agents react" path. The "pull live signal" button only fills the textbox.
-- Categories shown in UI (`government, central_bank, market, bank, company, person, …`) don't match what you actually want: **Social classes (74), Governments (65), Companies (35), Markets (16), Banks (15), Central banks (10), Media (10)**.
+2. **The 90s client timeout + retry loop hides errors as "slowness".**
+   `fetchWithRetry` retries up to 2× with a 1s gap, and the per-attempt timeout is 90s. If `ayn-unified` cold-starts (~30s warm-up the first call after idle, visible in your edge logs: `booted (time: 31ms)` after `shutdown`) or the upstream Gemini call stalls, the user waits a full attempt before retry. Worst case: ~90s before any feedback.
 
----
+3. **Two Supabase clients are competing on mobile.**
+   The console shows: *"Multiple GoTrueClient instances detected in the same browser context."* `src/integrations/supabase/client.ts` and `src/admin-app/adminSupabase.ts` both initialize GoTrue against the same storage key. On iOS Safari (where storage is more restricted and writes are serialized), this causes auth-token races — the request sometimes goes out with a stale token, gets a 401-style failure inside the function, and the retry path kicks in. That alone can add 5–15s.
 
-## What we'll build
+A secondary contributor: every send does an extra `supabase.auth.getSession()` round-trip (lines 86–90 of `useMessages.ts`) before calling `ayn-unified`. On a slow mobile connection that's another ~300–800ms per message.
 
-### 1. Persona library (data, not code)
-A new file `supabase/functions/_shared/personas.ts` exporting **225 personas** in the 6+1 categories you listed. Each persona has:
-`id, name, category, subcategory, country, region, age, gender, ethnicity, religion, income_class, occupation, culture, flag, bio, beliefs, biases, speaking_style`.
+### What to change
 
-This is the single source of truth, shared by every edge function. No DB seed needed for v1 — flat TS array keeps cold-starts fast.
+**1. Make streaming actually work on iOS / Safari / older tablets**
+- In `useSSEStream.ts` / `useMessages.ts`: detect `response.body == null` (Safari fallback) and switch to reading `response.text()` once, then surface the full message as a single update with `isTyping: false`. Today this case silently "hangs" because `getReader()` throws and the catch block shows the generic error.
+- Add an explicit `Accept: text/event-stream` header so Safari doesn't try to buffer as JSON.
+- Show the typing indicator *immediately* (already done) but also add a soft "Still thinking…" hint after 8s so the user knows the request is alive.
 
-### 2. Seven Edge Functions (one per layer)
-Each function takes a small payload, runs Gemini with persona context, returns structured JSON. They are chained by an orchestrator.
+**2. Tighten timeouts and give visible feedback**
+- Drop the per-request timeout from **90s → 45s** (matches the upstream limit you have documented in memory).
+- Reduce `fetchWithRetry` retries from 2 → 1 for streaming requests (retrying a half-streamed response is wasteful and doubles perceived latency).
+- On `AbortError`, replace the silent failure path in `useMessages.ts` (lines 218–223) with a user-visible message: *"That took too long — tap to retry."*
 
-| # | Function | Layer | What it does |
-|---|----------|-------|--------------|
-| 1 | `sim-roster` | — | Picks the right N personas for the seed + user filters (region, religion, income, age, gender) |
-| 2 | `sim-layer-economic` | L1 Economic | Markets, banks, central banks react: prices, flows, policy |
-| 3 | `sim-layer-institutional` | L2 Institutional | Governments + media react: policy moves, narratives |
-| 4 | `sim-layer-elite` | L3 Elite | Companies + power players react: strategic moves |
-| 5 | `sim-layer-narrative` | L4 Narrative | Media agents shape the story across regions |
-| 6 | `sim-layer-community` | L5 Community | Social-class personas react inside their cultures |
-| 7 | `sim-layer-human` | L6 Human | Individual emotional + behavioral reactions |
-| 8 | `sim-synthesize` | L7 Synthesis | Combines all layers into the final report (outcomes, drivers, winners/losers, dissent) |
+**3. Fix the duplicate Supabase auth client**
+- In `src/admin-app/adminSupabase.ts`: pass a different `storageKey` (e.g. `'ayn-admin-auth'`) and `auth: { persistSession: false }` so the admin client stops fighting the main client for the same `localStorage` slot. This eliminates the GoTrue warning and the auth-token race that mobile users hit.
 
-Plus two utilities:
-- `sim-feed-news` — the **"Feed the Agents" button**. Takes any signal/headline/event and broadcasts it to all active personas, updating their belief/emotion state in `agent_society_state` table.
-- `sim-agent-chat` — chat with one persona (replaces `/chat` on Python).
+**4. Skip the redundant `getSession()` call on every send**
+- The `session` prop already comes from `useAuth` which Supabase keeps refreshed via its own listener. Remove lines 86–90 of `useMessages.ts` (the extra `getSession()` round-trip) and just use `session.access_token` directly. If a 401 comes back, *then* refresh and retry once.
 
-All 9 use Lovable AI Gateway (`google/gemini-2.5-flash`, free during promo). No external Python.
+**5. Warm `ayn-unified` to kill cold starts**
+- Add a fire-and-forget `OPTIONS` ping to `ayn-unified` when the dashboard mounts (in `Dashboard.tsx`). This costs nothing but keeps the function warm so the first real message doesn't pay the 30s boot cost shown in the edge logs.
 
-### 3. Database (one migration)
-```text
-agent_society_runs        — one row per simulation (user_id, seed, question, report, status)
-agent_society_messages    — per-layer per-agent statements (run_id, layer, persona_id, content, emotion)
-agent_society_state       — current emotion/belief per persona per user (so news feeds persist)
-agent_society_news_feed   — every news item the user has fed into the society
-```
-RLS: users see their own; messages readable when parent run is theirs.
+### Files to change
 
-### 4. Frontend rewire
-- `src/lib/enginApi.ts` → swap `fetch(ENGIN_URL/...)` for `supabase.functions.invoke('sim-*', ...)`. Keep the same return shape so existing UI keeps working.
-- `useEnginSim` becomes a real 7-step pipeline: it now calls layers in order, streams stage updates, and lights up the existing 7-layer legend for real.
-- New "**Feed the Agents**" button in `SeedInput` (next to "pull live signal"): one click → calls `sim-feed-news` with the latest headline → toast shows "225 agents updated".
-- `AgentRoster` filter chips updated to the real 6 categories: `social_class, government, company, market, bank, central_bank, media`.
-- Update default agent counts: Quick=50, Standard=120, Deep=225 (full society).
+- `src/hooks/chat/useSSEStream.ts` — Safari fallback + Accept header
+- `src/hooks/useMessages.ts` — timeout 45s, drop redundant getSession, visible timeout message, "still thinking" hint
+- `src/admin-app/adminSupabase.ts` — unique `storageKey`, `persistSession: false`
+- `src/components/Dashboard.tsx` — warm-up ping to `ayn-unified` on mount
 
-### 5. Cleanup
-- Keep `ENGIN_URL` in `src/config.ts` as a fallback flag, but default everything to edge functions.
-- Delete dead Python references in `useEnginSim` error messages (CORS hint).
+### Out of scope (won't touch)
+- The `ayn-unified` edge function itself (lives outside the repo on Supabase) — these client-side fixes resolve the reported symptoms without it.
+- The 225-agent simulator work from the previous turn — unrelated.
+- Any chat feature behavior, persistence, memory tags, rate limits, or 100-message cap — all preserved exactly as they are.
 
----
-
-## Technical details
-
-**Why edge functions over Python**: same model (Gemini), no Railway cold-starts, no CORS, free via Lovable Gateway, scales horizontally per layer.
-
-**Cost control**: Layers run sequentially but agents inside a layer are batched into one Gemini call ("here are 30 personas, give me each one's reaction in JSON"). 225 agents ≈ 8–12 Gemini calls per full sim, well under the per-user quota.
-
-**Streaming UX**: orchestrator (`useEnginSim`) flips `stage` after each layer resolves so the existing stepper + layer-progress bars become live indicators, not decoration.
-
-**Persona seeding**: 225 personas hand-curated to match your Python deployment list (US gen-Z urban black woman, Saudi post-reform young woman, Brazil favela, Vatican, SWIFT, Lazarus Group, ransomware gangs, carbon market, Fox/BBC/Al Jazeera/CGTN/TikTok algorithm, etc.).
-
-**Feed-news flow**: `sim-feed-news` does a single Gemini batch call → "given this news, update the emotion/belief of these 225 personas in 1 line each" → upserts to `agent_society_state`. Subsequent simulations read this state so the world "remembers" what it's been told.
-
----
-
-## Out of scope (for this round)
-- Live agent-to-agent chat between simulations (we keep round-based statements).
-- Real-time streaming of layer output token-by-token (we resolve layer-by-layer instead, which is fast enough).
-- Migrating historical conversations from the Python backend.
-
-Approve and I'll implement everything in one pass: migration → 9 edge functions → personas file → enginApi rewrite → useEnginSim pipeline → SeedInput "Feed the Agents" button → roster categories.
+### Expected result
+- iPhone & iPad: messages arrive in one clean chunk in 3–8s instead of "hanging" then dumping after 30s+.
+- Desktop: noticeably faster first token (no cold start, no duplicate auth contention).
+- All devices: clear error message if the backend genuinely times out, instead of a frozen typing dot.
