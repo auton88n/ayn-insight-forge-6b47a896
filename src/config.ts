@@ -1,25 +1,16 @@
 /**
  * Centralized configuration
- * Keys come from Vite env vars (set in Hostinger build settings).
- * Never hardcode secrets in source code.
  *
- * Required env vars (set in Hostinger → Advanced → Environment Variables):
- *   VITE_SUPABASE_URL        = https://dfkoxuokfkttjhfjcecx.supabase.co
- *   VITE_SUPABASE_ANON_KEY   = your-anon-key (from Supabase → Settings → API)
+ * SUPABASE_ANON_KEY is a publishable key — safe in frontend code (not the service role key).
+ * RLS policies protect the data. Override with VITE_SUPABASE_ANON_KEY if you rotate the key.
  */
 export const SUPABASE_URL =
   (import.meta.env?.VITE_SUPABASE_URL as string | undefined) ||
   'https://dfkoxuokfkttjhfjcecx.supabase.co';
 
 export const SUPABASE_ANON_KEY =
-  (import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
+  (import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined) ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
 
-if (!SUPABASE_ANON_KEY && import.meta.env?.MODE !== 'test') {
-  console.warn('[AYN] VITE_SUPABASE_ANON_KEY is not set. Set it in your Hostinger build environment variables.');
-}
-
-/**
- * Simulation runs via the ayn-agent-society Supabase edge function.
- * No separate Python engine needed — everything runs in Supabase.
- */
+/** Simulation runs via the ayn-agent-society Supabase edge function. */
 export const ENGIN_URL = `${SUPABASE_URL}/functions/v1/ayn-agent-society`;
