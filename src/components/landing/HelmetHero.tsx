@@ -140,18 +140,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           </motion.div>
         </div>
 
-        {/* Frame counter — bottom right, subtle */}
-        <div className="absolute bottom-[138px] right-6 z-20 pointer-events-none">
-          <span
-            className="text-[9px] tabular-nums tracking-widest font-mono"
-            style={{
-              color: progress > 0.04 && progress < 0.96 ? 'hsl(var(--primary)/0.5)' : 'rgba(255,255,255,0.12)',
-              transition: 'color 0.4s',
-            }}
-          >
-            {String(frameIdx + 1).padStart(3, '0')}/{String(FRAME_COUNT).padStart(3, '0')}
-          </span>
-        </div>
+
 
 
       </div>
