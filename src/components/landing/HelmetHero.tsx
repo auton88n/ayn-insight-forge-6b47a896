@@ -1,16 +1,21 @@
 /**
  * HelmetHero — Premium scroll storytelling. Mobile + tablet compatible.
  *
- * Scroll phases (2000vh desktop, 1400vh mobile):
- *   0–30%   Hero:       Helmet assembles, headline visible
- *   28–42%  Transition: Helmet slides right (desktop) / stays center (mobile)
- *   37–97%  Features:   4 chapters fade in/out
- *   93–100% CTA:        Helmet out, call to action
+ * Scroll phases (2400vh):
+ *   0–30%    Hero:          Helmet assembles
+ *   28–42%   Transition:    Helmet slides right
+ *   37–57%   Feature 1:     World Intelligence
+ *   57–67%   TRANSITION VID: Full-screen abstract plays (between F1 → F2)
+ *   67–77%   Feature 2:     Market Signals
+ *   77–87%   Feature 3:     Society Simulation
+ *   87–97%   Feature 4:     AI Agents
+ *   93–100%  CTA
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
 import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
+import { TRANSITION_FRAMES, TRANSITION_FRAME_COUNT } from '@/assets/transition-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Globe, TrendingUp, Users, Bot } from 'lucide-react';
 
@@ -52,36 +57,47 @@ function mapRange(p: number, inMin: number, inMax: number, outMin: number, outMa
   return outMin + ((clamped - inMin) / (inMax - inMin)) * (outMax - outMin);
 }
 
-export const HelmetHero = memo(({}: HelmetHeroProps) => {
-  const { language } = useLanguage();
-  const spacerRef    = useRef<HTMLDivElement>(null);
-  const imgRef       = useRef<HTMLImageElement>(null);
-  const cache        = useRef<HTMLImageElement[]>([]);
-  const rafId        = useRef(0);
-  const curProgress  = useRef(0);
-  const tgtProgress  = useRef(0);
-  const lastFrameIdx = useRef(-1);
-  const isMobileRef  = useRef(false);
+// Feature windows: F1 37–57%, [TRANSITION 57–67%], F2 67–77%, F3 77–87%, F4 87–97%
+const FEAT_WINDOWS = [
+  [0.37, 0.57], // Feature 1
+  [0.67, 0.77], // Feature 2
+  [0.77, 0.87], // Feature 3
+  [0.87, 0.97], // Feature 4
+];
+const TRANS_START = 0.57;
+const TRANS_END   = 0.67;
 
-  const [frameIdx, setFrameIdx] = useState(0);
+export const HelmetHero = memo(({}: HelmetHeroProps) => {
+  const { language }   = useLanguage();
+  const spacerRef      = useRef<HTMLDivElement>(null);
+  const imgRef         = useRef<HTMLImageElement>(null);
+  const transImgRef    = useRef<HTMLImageElement>(null);
+  const helmetCache    = useRef<HTMLImageElement[]>([]);
+  const transCache     = useRef<HTMLImageElement[]>([]);
+  const rafId          = useRef(0);
+  const curProgress    = useRef(0);
+  const tgtProgress    = useRef(0);
+  const lastHelmIdx    = useRef(-1);
+  const lastTransIdx   = useRef(-1);
+  const isMobileRef    = useRef(false);
+
   const [progress, setProgress] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Detect mobile/tablet
   useEffect(() => {
     const check = () => {
-      const mobile = window.innerWidth < 768;
-      isMobileRef.current = mobile;
-      setIsMobile(mobile);
+      const m = window.innerWidth < 768;
+      isMobileRef.current = m;
+      setIsMobile(m);
     };
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Preload frames
+  // Preload helmet frames
   useEffect(() => {
-    cache.current = HELMET_FRAMES.map((src, i) => {
+    helmetCache.current = HELMET_FRAMES.map((src, i) => {
       const img = new Image();
       img.src = src;
       img.onload = () => { if (i === 0 && imgRef.current) imgRef.current.src = src; };
@@ -90,7 +106,15 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // Scroll → progress
+  // Preload transition frames
+  useEffect(() => {
+    transCache.current = TRANSITION_FRAMES.map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
+  }, []);
+
   const onScroll = useCallback(() => {
     const spacer = spacerRef.current;
     if (!spacer) return;
@@ -105,21 +129,28 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // RAF loop — full speed (0.1)
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
       curProgress.current += (tgtProgress.current - curProgress.current) * 0.1;
       const p = curProgress.current;
 
-      // Frame driven 0→30%
-      const frameProgress = mapRange(p, 0, 0.30, 0, 1);
-      const idx = Math.round(frameProgress * (FRAME_COUNT - 1));
-      if (idx !== lastFrameIdx.current) {
-        lastFrameIdx.current = idx;
-        const c = cache.current[idx];
+      // Helmet frame: 0→30%
+      const hIdx = Math.round(mapRange(p, 0, 0.30, 0, 1) * (FRAME_COUNT - 1));
+      if (hIdx !== lastHelmIdx.current) {
+        lastHelmIdx.current = hIdx;
+        const c = helmetCache.current[hIdx];
         if (c?.complete && imgRef.current) imgRef.current.src = c.src;
-        setFrameIdx(idx);
+      }
+
+      // Transition frame: 57→67%
+      if (p >= TRANS_START && p <= TRANS_END) {
+        const tIdx = Math.round(mapRange(p, TRANS_START, TRANS_END, 0, 1) * (TRANSITION_FRAME_COUNT - 1));
+        if (tIdx !== lastTransIdx.current) {
+          lastTransIdx.current = tIdx;
+          const c = transCache.current[tIdx];
+          if (c?.complete && transImgRef.current) transImgRef.current.src = c.src;
+        }
       }
 
       setProgress(p);
@@ -128,39 +159,41 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // ── Derived values ──────────────────────────────────────────────────────────
-
+  // ── Derived values ─────────────────────────────────────────────────────────
   const headlineOpacity = mapRange(progress, 0.22, 0.30, 1, 0);
   const headlineY       = mapRange(progress, 0.22, 0.32, 0, -30);
 
-  // On mobile: helmet stays centered, just shrinks a bit
-  // On desktop: slides right
   const helmetXvw   = isMobile ? 0 : mapRange(progress, 0.28, 0.42, 0, 28);
   const helmetScale = isMobile
     ? mapRange(progress, 0.28, 0.42, 1, 0.75)
     : mapRange(progress, 0.28, 0.42, 1, 0.60);
   const helmetOpacity = mapRange(progress, 0.90, 0.98, 1, 0);
 
-  const featStart = 0.37;
-  const featEnd   = 0.97;
-  const featRange = (featEnd - featStart) / 4;
+  // Transition video opacity
+  const transOpacity = progress < TRANS_START
+    ? 0
+    : progress < TRANS_START + 0.02
+      ? mapRange(progress, TRANS_START, TRANS_START + 0.02, 0, 1)
+      : progress < TRANS_END - 0.02
+        ? 1
+        : mapRange(progress, TRANS_END - 0.02, TRANS_END, 1, 0);
 
   const getFeatureOpacity = (i: number) => {
-    const start = featStart + i * featRange;
-    const peak  = start + featRange * 0.25;
-    const end   = start + featRange;
+    const [start, end] = FEAT_WINDOWS[i];
+    const peak = start + (end - start) * 0.3;
+    const fadeEnd = end;
     if (progress < start) return 0;
     if (progress < peak)  return mapRange(progress, start, peak, 0, 1);
-    if (progress < end)   return mapRange(progress, peak, end, 1, 0);
+    if (progress < fadeEnd) return mapRange(progress, peak, fadeEnd, 1, 0);
     return 0;
   };
 
   const getFeatureY = (i: number) => {
-    const start = featStart + i * featRange;
-    const peak  = start + featRange * 0.25;
+    const [start, end] = FEAT_WINDOWS[i];
+    const peak = start + (end - start) * 0.3;
     if (progress < start) return 40;
     if (progress < peak)  return mapRange(progress, start, peak, 40, 0);
-    return mapRange(progress, peak, start + featRange, 0, -40);
+    return mapRange(progress, peak, end, 0, -40);
   };
 
   const featLabelOpacity = Math.min(
@@ -168,12 +201,14 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     mapRange(progress, 0.90, 0.97, 1, 0)
   );
 
-  const ctaOpacity   = mapRange(progress, 0.93, 0.99, 0, 1);
-  const activeFeature = Math.max(0, Math.min(3, Math.floor(mapRange(progress, featStart, featEnd, 0, 4))));
-  const inFeatures    = progress >= featStart && progress <= 0.97;
+  const ctaOpacity    = mapRange(progress, 0.93, 0.99, 0, 1);
+  const inFeatures    = progress >= 0.37 && progress <= 0.97 && (progress < TRANS_START || progress > TRANS_END);
+  const activeFeature = progress < FEAT_WINDOWS[0][1] ? 0
+    : progress < FEAT_WINDOWS[1][1] ? 1
+    : progress < FEAT_WINDOWS[2][1] ? 2 : 3;
 
   return (
-    <div ref={spacerRef} style={{ height: '2000vh', position: 'relative' }}>
+    <div ref={spacerRef} style={{ height: '2400vh', position: 'relative' }}>
       <div className="sticky top-0 w-full overflow-hidden" style={{ height: '100dvh', background: '#000' }}>
 
         {/* Progress bar */}
@@ -187,28 +222,41 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           className="absolute inset-0 flex items-center justify-center pointer-events-none"
           style={{ top: '64px' }}
         >
-          <div
-            style={{
-              transform: `translateX(${helmetXvw}vw) scale(${helmetScale})`,
-              opacity: helmetOpacity,
-              willChange: 'transform, opacity',
-            }}
-          >
+          <div style={{ transform: `translateX(${helmetXvw}vw) scale(${helmetScale})`, opacity: helmetOpacity, willChange: 'transform, opacity' }}>
             <img
               ref={imgRef}
               src={HELMET_FRAMES[0]}
               alt="AYN"
-              style={{
-                width:  'min(75vw, 70vh, 620px)',
-                height: 'min(75vw, 70vh, 620px)',
-                objectFit: 'contain',
-                display: 'block',
-                userSelect: 'none',
-              }}
+              style={{ width: 'min(75vw, 70vh, 620px)', height: 'min(75vw, 70vh, 620px)', objectFit: 'contain', display: 'block', userSelect: 'none' }}
               draggable={false}
             />
           </div>
         </div>
+
+        {/* ── TRANSITION VIDEO — full bleed between F1 and F2 ── */}
+        {transOpacity > 0.01 && (
+          <div
+            className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center"
+            style={{ opacity: transOpacity, willChange: 'opacity' }}
+          >
+            <img
+              ref={transImgRef}
+              src={TRANSITION_FRAMES[0]}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', userSelect: 'none' }}
+              draggable={false}
+            />
+            {/* Overlay label */}
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-end pb-16 z-10"
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)' }}
+            >
+              <p className="text-[9px] tracking-[0.4em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Market Intelligence
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── HERO HEADLINE ── */}
         <div
@@ -222,10 +270,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           <p className="text-[9px] md:text-[10px] tracking-[0.25em] uppercase mb-2 font-medium font-mono" style={{ color: 'rgba(255,255,255,0.35)' }}>
             {language === 'ar' ? 'ذكاء الأعمال' : 'World Intelligence'}
           </p>
-          <h1
-            className="font-display font-bold tracking-[-0.02em] text-white leading-none"
-            style={{ fontSize: 'clamp(36px, 5.5vw, 80px)' }}
-          >
+          <h1 className="font-display font-bold tracking-[-0.02em] text-white leading-none" style={{ fontSize: 'clamp(36px, 5.5vw, 80px)' }}>
             {language === 'ar' ? 'تعرّف على' : language === 'fr' ? 'Découvrez' : 'Meet'}
             <br /><span style={{ color: 'hsl(var(--primary))' }}>AYN</span>
           </h1>
@@ -247,12 +292,8 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
               className="absolute inset-0 z-20 pointer-events-none"
               style={{ opacity, transform: `translateY(${y}px)`, willChange: 'opacity, transform', paddingTop: '64px' }}
             >
-              {/* On mobile: text at bottom, helmet above */}
-              {/* On desktop: text left column, helmet right */}
               <div className={`w-full h-full flex ${isMobile ? 'flex-col justify-end pb-10' : 'flex-row items-center'}`}>
                 <div className={`${isMobile ? 'w-full px-6 pb-4' : 'w-1/2 px-8 md:px-16'} flex flex-col justify-center relative`}>
-
-                  {/* Gradient: left on desktop, bottom on mobile */}
                   <div
                     className="absolute pointer-events-none"
                     style={isMobile ? {
@@ -265,28 +306,21 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
                       zIndex: -1,
                     }}
                   />
-
                   <div className="flex items-center gap-2 mb-3 md:mb-4">
                     <Icon className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: 'hsl(var(--primary))' }} />
                     <span className="text-[8px] md:text-[9px] tracking-[0.3em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
                       {feat.label}
                     </span>
                   </div>
-
-                  <h2
-                    className="font-display font-bold text-white leading-tight mb-3 md:mb-4"
-                    style={{ fontSize: 'clamp(24px, 3.5vw, 58px)' }}
-                  >
+                  <h2 className="font-display font-bold text-white leading-tight mb-3 md:mb-4" style={{ fontSize: 'clamp(24px, 3.5vw, 58px)' }}>
                     {feat.title[0]}<br />
                     <span style={{ color: 'hsl(var(--primary))' }}>{feat.title[1]}</span>
                   </h2>
-
                   {!isMobile && (
                     <p className="text-sm md:text-base font-light leading-relaxed mb-5 max-w-[360px]" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       {feat.body}
                     </p>
                   )}
-
                   <div className="flex items-baseline gap-2">
                     <span className="font-display font-bold text-white" style={{ fontSize: isMobile ? 'clamp(28px, 8vw, 48px)' : 'clamp(36px, 5vw, 60px)', lineHeight: 1 }}>
                       {feat.stat}
@@ -301,7 +335,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           );
         })}
 
-        {/* ── DOT NAV ── hidden on mobile to avoid clutter */}
+        {/* ── DOT NAV ── */}
         {inFeatures && !isMobile && (
           <div
             className="absolute right-6 md:right-10 flex flex-col gap-2 z-30"
@@ -331,10 +365,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
             <p className="text-[9px] md:text-[10px] tracking-[0.3em] uppercase font-mono mb-4 text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>
               Ready to see the world clearly?
             </p>
-            <h2
-              className="font-display font-bold text-white text-center mb-8"
-              style={{ fontSize: 'clamp(30px, 5vw, 72px)', lineHeight: 1.1 }}
-            >
+            <h2 className="font-display font-bold text-white text-center mb-8" style={{ fontSize: 'clamp(30px, 5vw, 72px)', lineHeight: 1.1 }}>
               Start with <span style={{ color: 'hsl(var(--primary))' }}>AYN</span>
             </h2>
             <a
