@@ -66,7 +66,8 @@ export const personaLine = (p: Persona, s?: PersonaState) => {
   return `- ${parts.join(" | ")}`;
 };
 
-// Call Lovable AI Gateway and return parsed JSON via tool calling.
+// Call Gemini (direct API or Lovable gateway) and return parsed JSON via tool calling.
+// Priority: GEMINI_API_KEY (direct Google) → LOVABLE_API_KEY (gateway fallback)
 export async function callGeminiJSON<T>(opts: {
   systemPrompt: string;
   userPrompt: string;
@@ -75,11 +76,19 @@ export async function callGeminiJSON<T>(opts: {
   parameters: Record<string, unknown>;
   model?: string;
 }): Promise<T> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) throw new Error("LOVABLE_API_KEY is not configured");
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const apiKey = geminiKey || lovableKey;
+  if (!apiKey) throw new Error("No LLM API key configured. Set GEMINI_API_KEY in Supabase Edge Function secrets.");
+
+  const isDirectGemini = !!geminiKey;
+  const model = opts.model ?? (isDirectGemini ? "gemini-2.5-flash" : "google/gemini-2.5-flash");
+  const endpoint = isDirectGemini
+    ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    : "https://ai.gateway.lovable.dev/v1/chat/completions";
 
   const body = {
-    model: opts.model ?? "google/gemini-2.5-flash",
+    model,
     messages: [
       { role: "system", content: opts.systemPrompt },
       { role: "user", content: opts.userPrompt },
@@ -97,7 +106,7 @@ export async function callGeminiJSON<T>(opts: {
     tool_choice: { type: "function", function: { name: opts.toolName } },
   };
 
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const r = await fetch(endpoint, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
