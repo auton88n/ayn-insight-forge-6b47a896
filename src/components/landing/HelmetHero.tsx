@@ -1,8 +1,7 @@
 /**
- * HelmetHero — scroll-driven frame animation hero.
- * 
- * Layout: matches original Hero exactly (top headline, central visual, bottom chat input)
- * Visual: centered helmet canvas, contain-fit, full 121 frames @ 24fps enhanced
+ * HelmetHero — scroll-driven frame animation.
+ * Uses <img> tag (not canvas) — zero sizing bugs, works exactly like the original eye.
+ * Layout is pixel-for-pixel identical to Hero.tsx.
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
@@ -17,84 +16,37 @@ interface HelmetHeroProps {
 
 export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
   const { language } = useLanguage();
+  const spacerRef   = useRef<HTMLDivElement>(null);
+  const imgRef      = useRef<HTMLImageElement>(null);
 
-  // Canvas + animation refs
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapRef   = useRef<HTMLDivElement>(null);   // the sticky viewport
-  const spacerRef = useRef<HTMLDivElement>(null);   // the 600vh scroll spacer
-
-  const images      = useRef<(HTMLImageElement | null)[]>(new Array(FRAME_COUNT).fill(null));
   const rafId       = useRef(0);
   const curProgress = useRef(0);
   const tgtProgress = useRef(0);
   const lastIdx     = useRef(-1);
 
-  const [frameIdx, setFrameIdx]   = useState(0);
-  const [scrolled, setScrolled]   = useState(false);
+  const [frameIdx,  setFrameIdx]  = useState(0);
+  const [scrolled,  setScrolled]  = useState(false);
   const [isBlinking, setIsBlinking] = useState(false);
 
-  // ── Preload frames ──────────────────────────────────────────────────────────
+  // Preload images into an off-screen cache
+  const cache = useRef<HTMLImageElement[]>([]);
+
   useEffect(() => {
-    HELMET_FRAMES.forEach((src, i) => {
+    cache.current = HELMET_FRAMES.map((src, i) => {
       const img = new Image();
-      img.onload = () => {
-        images.current[i] = img;
-        if (i === 0) draw(0);
-      };
       img.src = src;
+      // Show first frame immediately once loaded
+      img.onload = () => {
+        if (i === 0 && imgRef.current) {
+          imgRef.current.src = src;
+        }
+      };
+      return img;
     });
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // ── Draw: CONTAIN so full helmet is always visible, no crop ────────────────
-  const draw = useCallback((idx: number) => {
-    const canvas = canvasRef.current;
-    const img    = images.current[idx];
-    if (!canvas || !img) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const cw = canvas.width;
-    const ch = canvas.height;
-    const iw = img.naturalWidth  || 720;
-    const ih = img.naturalHeight || 720;
-
-    // contain: fit entire image inside canvas, centered
-    const scale = Math.min(cw / iw, ch / ih);
-    const dw = iw * scale;
-    const dh = ih * scale;
-    const dx = (cw - dw) / 2;
-    const dy = (ch - dh) / 2;
-
-    ctx.clearRect(0, 0, cw, ch);
-    ctx.drawImage(img, dx, dy, dw, dh);
-  }, []);
-
-  // ── Sync canvas pixel size with CSS size ────────────────────────────────────
-  const syncCanvas = useCallback(() => {
-    const c = canvasRef.current;
-    if (!c) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const cssW = c.offsetWidth;
-    const cssH = c.offsetHeight;
-    if (c.width !== cssW * dpr || c.height !== cssH * dpr) {
-      c.width  = cssW * dpr;
-      c.height = cssH * dpr;
-      const ctx = c.getContext('2d');
-      if (ctx) ctx.scale(dpr, dpr);
-    }
-    draw(lastIdx.current >= 0 ? lastIdx.current : 0);
-  }, [draw]);
-
-  useEffect(() => {
-    syncCanvas();
-    const ro = new ResizeObserver(syncCanvas);
-    if (canvasRef.current) ro.observe(canvasRef.current);
-    return () => ro.disconnect();
-  }, [syncCanvas]);
-
-  // ── Scroll → progress ───────────────────────────────────────────────────────
+  // Scroll → target progress
   const onScroll = useCallback(() => {
     const spacer = spacerRef.current;
     if (!spacer) return;
@@ -111,7 +63,7 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // ── RAF loop: lerp progress → frame ────────────────────────────────────────
+  // RAF: lerp progress, swap img.src to drive frame
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
@@ -119,15 +71,17 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
       const idx = Math.round(curProgress.current * (FRAME_COUNT - 1));
       if (idx !== lastIdx.current) {
         lastIdx.current = idx;
-        draw(idx);
+        const cached = cache.current[idx];
+        if (cached?.complete && imgRef.current) {
+          imgRef.current.src = cached.src;
+        }
         setFrameIdx(idx);
       }
     };
     rafId.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId.current);
-  }, [draw]);
+  }, []);
 
-  // Blink callback for chat input
   const handlePlaceholderChange = useCallback(() => {
     setIsBlinking(true);
     setTimeout(() => setIsBlinking(false), 150);
@@ -136,46 +90,36 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
   const progress = frameIdx / (FRAME_COUNT - 1);
 
   return (
-    // 600vh spacer — provides the scroll distance
     <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
 
-      {/* Sticky full-viewport panel */}
-      <div
-        ref={wrapRef}
-        className="sticky top-0 w-full overflow-hidden"
-        style={{ height: '100dvh' }}
-      >
-        {/* Gold progress bar */}
+      {/* Sticky panel — exact same classes as original Hero section */}
+      <div className="sticky top-0 overflow-hidden" style={{ height: '100dvh' }}>
+
+        {/* Gold scrub progress bar */}
         <div
-          className="absolute top-0 left-0 h-[2px] z-40 pointer-events-none"
+          className="absolute top-0 left-0 h-[2px] z-40 pointer-events-none transition-all duration-75"
           style={{
             width: `${progress * 100}%`,
             background: 'hsl(var(--primary))',
-            boxShadow: '0 0 8px hsl(var(--primary)/0.5)',
-            transition: 'width 0.05s linear',
+            boxShadow: '0 0 8px hsl(var(--primary)/0.4)',
           }}
         />
 
-        {/* ── Same structure as original Hero ─────────────────────────────── */}
+        {/* ── Replicate Hero section layout exactly ── */}
         <section
-          className="relative w-full h-full flex flex-col items-center justify-between pt-20 md:pt-24 pb-6 md:pb-8 px-4 md:px-12 lg:px-24"
+          className="relative min-h-[100dvh] flex flex-col items-center justify-between pt-20 md:pt-24 pb-6 md:pb-8 px-4 md:px-12 lg:px-24 overflow-x-hidden overflow-y-visible"
           aria-label="Hero"
         >
-          {/* 1 — Headline (top, centered) — exact original copy */}
-          <div className="w-full max-w-4xl text-center mb-4 md:mb-6 relative z-20">
+          {/* TOP: Headline — original copy */}
+          <div className="w-full max-w-4xl text-center mb-4 md:mb-6">
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
               className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
             >
-              {language === 'ar'
-                ? 'تعرّف على AYN'
-                : language === 'fr'
-                ? 'Découvrez AYN'
-                : 'Meet AYN'}
+              {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
             </motion.h1>
-
             <motion.p
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
@@ -190,88 +134,69 @@ export const HelmetHero = memo(({ onGetStarted }: HelmetHeroProps) => {
             </motion.p>
           </div>
 
-          {/* 2 — Helmet canvas (center, replaces eye) */}
+          {/* MIDDLE: Helmet — same container as original eye */}
           <motion.div
-            className="relative flex-1 flex items-center justify-center w-full max-w-5xl"
+            className="relative w-full max-w-5xl flex-1 flex items-center justify-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
-            {/* Subtle ambient glow behind helmet — matches old eye glow */}
-            <div
-              className="absolute rounded-full pointer-events-none -z-10"
-              style={{
-                width: 'min(70vw, 480px)',
-                height: 'min(70vw, 480px)',
-                background: 'radial-gradient(circle, hsl(var(--muted)/0.35) 0%, transparent 70%)',
-                filter: 'blur(32px)',
-              }}
-            />
+            {/* Ambient glow — matches old eye glow div */}
+            <div className="absolute w-[200px] h-[200px] sm:w-[280px] sm:h-[280px] md:w-[360px] md:h-[360px] lg:w-[480px] lg:h-[480px] rounded-full -z-10 pointer-events-none bg-gradient-to-b from-transparent via-muted/30 to-transparent" />
 
-            {/* Canvas: square, perfectly centered, contain-fit */}
-            <canvas
-              ref={canvasRef}
-              style={{
-                width:  'min(80vw, 90vh, 520px)',
-                height: 'min(80vw, 90vh, 520px)',
-                display: 'block',
-              }}
-            />
+            {/* Helmet image — same size brackets as the old eye div */}
+            <div className="relative w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] lg:w-[420px] lg:h-[420px] flex items-center justify-center">
+              <motion.img
+                ref={imgRef}
+                src={HELMET_FRAMES[0]}
+                alt="AYN Helmet"
+                animate={{ scaleY: isBlinking ? 0.05 : 1, opacity: isBlinking ? 0.7 : 1 }}
+                transition={{ duration: isBlinking ? 0.08 : 0.12 }}
+                className="w-full h-full object-contain select-none pointer-events-none"
+                draggable={false}
+              />
 
-            {/* Frame counter — bottom-right of canvas area */}
-            <div className="absolute bottom-2 right-0 text-right pointer-events-none">
-              <p
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '10px',
-                  letterSpacing: '0.1em',
-                  color: progress > 0.04 && progress < 0.96
-                    ? 'hsl(var(--primary)/0.8)'
-                    : 'hsl(var(--muted-foreground)/0.3)',
-                  transition: 'color 0.4s',
-                }}
-              >
-                {String(frameIdx + 1).padStart(3, '0')} / {String(FRAME_COUNT).padStart(3, '0')}
-              </p>
+              {/* Frame counter */}
+              <div className="absolute -bottom-6 right-0 pointer-events-none">
+                <span
+                  className="text-[9px] tabular-nums tracking-widest transition-colors duration-300"
+                  style={{
+                    fontFamily: 'monospace',
+                    color: progress > 0.04 && progress < 0.96
+                      ? 'hsl(var(--primary)/0.7)'
+                      : 'hsl(var(--muted-foreground)/0.3)',
+                  }}
+                >
+                  {String(frameIdx + 1).padStart(3, '0')}/{String(FRAME_COUNT).padStart(3, '0')}
+                </span>
+              </div>
             </div>
           </motion.div>
 
-          {/* 3 — Chat input (bottom) — exact same as original Hero */}
+          {/* BOTTOM: Chat input — exactly same as original */}
           <LandingChatInput
             onSendAttempt={(message) => onGetStarted(message)}
             onPlaceholderChange={handlePlaceholderChange}
           />
 
-          {/* Scroll hint (fades on scroll) */}
+          {/* Scroll hint */}
           <AnimatePresence>
             {!scrolled && (
               <motion.div
-                key="scroll-hint"
+                key="hint"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ delay: 1, duration: 0.5 }}
                 className="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none z-10"
               >
-                <span
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: '9px',
-                    letterSpacing: '0.3em',
-                    textTransform: 'uppercase',
-                    color: 'hsl(var(--muted-foreground)/0.5)',
-                  }}
-                >
-                  {language === 'ar' ? 'مرر للأسفل' : 'Scroll'}
+                <span className="text-[9px] tracking-[0.3em] uppercase text-muted-foreground font-mono">
+                  {language === 'ar' ? 'مرر' : 'Scroll'}
                 </span>
                 <motion.div
                   animate={{ y: [0, 6, 0] }}
                   transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-                  style={{
-                    width: '1px',
-                    height: '32px',
-                    background: 'linear-gradient(to bottom, hsl(var(--muted-foreground)/0.4), transparent)',
-                  }}
+                  className="w-px h-8 bg-gradient-to-b from-muted-foreground/40 to-transparent"
                 />
               </motion.div>
             )}
