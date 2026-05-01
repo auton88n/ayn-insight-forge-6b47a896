@@ -213,9 +213,13 @@ export const useMessages = (
           if (['angry', 'frustrated'].includes(userEmotion) && ['calm', 'happy'].includes(detectedEmotion)) detectedEmotion = 'comfort';
           else if (userEmotion === 'sad' && detectedEmotion === 'calm') detectedEmotion = 'supportive';
           setLastSuggestedEmotion(detectedEmotion);
-        } catch {
+        } catch (streamErr) {
+          const isAbort = streamErr instanceof Error && (streamErr.name === 'AbortError' || controller.signal.aborted);
+          const fallbackMsg = isAbort
+            ? "That took too long to respond. Tap send to try again."
+            : "Something went wrong. Try again? 💭";
           setMessages(prev => prev.map(msg =>
-            msg.id === aynMessageId ? { ...msg, content: msg.content || "Something went wrong. Try again? 💭", isTyping: false, status: 'sent' } : msg
+            msg.id === aynMessageId ? { ...msg, content: msg.content || fallbackMsg, isTyping: false, status: 'sent' } : msg
           ));
           resetGenerationState();
           return;
