@@ -135,17 +135,19 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
       curProgress.current += (tgtProgress.current - curProgress.current) * 0.1;
       const p = curProgress.current;
 
-      // Helmet frame: 0→30%
-      const hIdx = Math.round(mapRange(p, 0, 0.30, 0, 1) * (FRAME_COUNT - 1));
+      // Helmet frame: 0→30% only. After that, freeze on last frame (assembled)
+      const frameProgress = Math.min(mapRange(p, 0, 0.30, 0, 1), 1);
+      const hIdx = Math.round(frameProgress * (FRAME_COUNT - 1));
       if (hIdx !== lastHelmIdx.current) {
         lastHelmIdx.current = hIdx;
         const c = helmetCache.current[hIdx];
         if (c?.complete && imgRef.current) imgRef.current.src = c.src;
       }
 
-      // Transition frame: 57→67%
-      if (p >= TRANS_START && p <= TRANS_END) {
-        const tIdx = Math.round(mapRange(p, TRANS_START, TRANS_END, 0, 1) * (TRANSITION_FRAME_COUNT - 1));
+      // Transition frame: drive during 57–67%, then freeze on last frame
+      if (p >= TRANS_START) {
+        const tProgress = Math.min(mapRange(p, TRANS_START, TRANS_END, 0, 1), 1);
+        const tIdx = Math.round(tProgress * (TRANSITION_FRAME_COUNT - 1));
         if (tIdx !== lastTransIdx.current) {
           lastTransIdx.current = tIdx;
           const c = transCache.current[tIdx];
@@ -167,16 +169,20 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
   const helmetScale = isMobile
     ? mapRange(progress, 0.28, 0.42, 1, 0.75)
     : mapRange(progress, 0.28, 0.42, 1, 0.60);
-  const helmetOpacity = mapRange(progress, 0.90, 0.98, 1, 0);
+  const helmetOpacity = progress >= TRANS_START
+    ? 0  // hidden once transition starts — brain takes over
+    : mapRange(progress, 0.90, 0.98, 1, 0);
 
-  // Transition video opacity
+  // Transition video opacity:
+  // 57–59%: fade in, 59–65%: fully visible (playing), 65–67%: fade out
+  // AFTER 67%: keep showing last frame at full opacity (replaces helmet)
   const transOpacity = progress < TRANS_START
     ? 0
     : progress < TRANS_START + 0.02
       ? mapRange(progress, TRANS_START, TRANS_START + 0.02, 0, 1)
-      : progress < TRANS_END - 0.02
+      : progress <= TRANS_END
         ? 1
-        : mapRange(progress, TRANS_END - 0.02, TRANS_END, 1, 0);
+        : mapRange(progress, 0.90, 0.98, 1, 0); // fade out with helmet at CTA
 
   const getFeatureOpacity = (i: number) => {
     const [start, end] = FEAT_WINDOWS[i];
