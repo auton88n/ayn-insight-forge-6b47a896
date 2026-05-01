@@ -84,8 +84,8 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
             src={HELMET_FRAMES[0]}
             alt="AYN"
             style={{
-              width:     'min(52vw, 52vh, 420px)',
-              height:    'min(52vw, 52vh, 420px)',
+              width:     'min(75vw, 75vh, 620px)',
+              height:    'min(75vw, 75vh, 620px)',
               objectFit: 'contain',
               display:   'block',
               userSelect: 'none',
