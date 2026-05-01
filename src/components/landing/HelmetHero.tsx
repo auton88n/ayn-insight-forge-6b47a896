@@ -233,27 +233,26 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           </div>
         </div>
 
-        {/* ── TRANSITION VIDEO — full bleed between F1 and F2 ── */}
+        {/* ── TRANSITION VIDEO — same size/position as helmet on the right ── */}
         {transOpacity > 0.01 && (
           <div
             className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center"
-            style={{ opacity: transOpacity, willChange: 'opacity' }}
+            style={{ top: '64px', opacity: transOpacity, willChange: 'opacity' }}
           >
-            <img
-              ref={transImgRef}
-              src={TRANSITION_FRAMES[0]}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', userSelect: 'none' }}
-              draggable={false}
-            />
-            {/* Overlay label */}
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-end pb-16 z-10"
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)' }}
-            >
-              <p className="text-[9px] tracking-[0.4em] uppercase font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                Market Intelligence
-              </p>
+            <div style={{ transform: `translateX(${isMobile ? 0 : 28}vw) scale(${isMobile ? 0.75 : 0.60})` }}>
+              <img
+                ref={transImgRef}
+                src={TRANSITION_FRAMES[0]}
+                alt=""
+                style={{
+                  width:  'min(75vw, 70vh, 620px)',
+                  height: 'min(75vw, 70vh, 620px)',
+                  objectFit: 'contain',
+                  display: 'block',
+                  userSelect: 'none',
+                }}
+                draggable={false}
+              />
             </div>
           </div>
         )}
