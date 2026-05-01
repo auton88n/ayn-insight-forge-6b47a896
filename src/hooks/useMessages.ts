@@ -81,13 +81,10 @@ export const useMessages = (
       return;
     }
 
-    // Usage check (skip for unlimited)
-    let latestToken = session.access_token;
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: { session: freshSession } } = await supabase.auth.getSession();
-      if (freshSession?.access_token) latestToken = freshSession.access_token;
-    } catch { /* ignore */ }
+    // Use the access_token straight from the session prop. useAuth keeps it
+    // refreshed via Supabase's onAuthStateChange listener — calling
+    // getSession() here added 300-800ms per send on mobile networks.
+    const latestToken = session.access_token;
 
     // NOTE: No pre-flight limit check here.
     // check_user_ai_limit RPC is called atomically inside the ayn-unified edge function.
