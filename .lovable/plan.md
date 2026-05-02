@@ -1,54 +1,81 @@
-## Why AYN is slow / not working on tablet & iPhone
+## Fix: Apple-style scroll-driven helmet animation
 
-After reading the chat pipeline (`useMessages.ts`, `useSSEStream.ts`, `useChatSession.ts`, `ChatInput.tsx`, edge logs), here's what's actually going on. There is **no mobile-specific gate** that disables sending — the chat input works the same on every viewport. So the symptoms you're seeing have three real causes, and we can fix them.
+### What's wrong today
 
-### Root causes
+`src/components/landing/HelmetHero.tsx` currently renders **two stacked image-sequence layers** inside the hero at the same time:
 
-1. **The response is non‑streaming on mobile in practice.**
-   `useMessages.ts` requests `stream: true`, but on iOS Safari + many tablet browsers, `fetch` does **not** expose `response.body` as a readable stream. When that happens, `parseSSEStream` waits for the *entire* response before showing anything — so the user sees a blank "typing" bubble for 15–40s, then everything appears at once. On desktop Chrome, chunks appear progressively, which is why it feels fast there.
+1. A "brain" layer that starts visible (`src={TRANSITION_FRAMES[0]}`).
+2. A "helmet" layer in the same absolute container that begins to fade in around 33% scroll.
 
-2. **The 90s client timeout + retry loop hides errors as "slowness".**
-   `fetchWithRetry` retries up to 2× with a 1s gap, and the per-attempt timeout is 90s. If `ayn-unified` cold-starts (~30s warm-up the first call after idle, visible in your edge logs: `booted (time: 31ms)` after `shutdown`) or the upstream Gemini call stalls, the user waits a full attempt before retry. Worst case: ~90s before any feedback.
+It also uses a 3-phase scrub (brain → helmet assemble → features → CTA) over a `3600vh` spacer. Visually this reads as "two different visuals opening in the hero," not one continuous product reveal. The hero never just shows the assembled helmet on its own, and the transition is brain→assembled rather than the requested **assembled → exploded** scroll reveal.
 
-3. **Two Supabase clients are competing on mobile.**
-   The console shows: *"Multiple GoTrueClient instances detected in the same browser context."* `src/integrations/supabase/client.ts` and `src/admin-app/adminSupabase.ts` both initialize GoTrue against the same storage key. On iOS Safari (where storage is more restricted and writes are serialized), this causes auth-token races — the request sometimes goes out with a stale token, gets a 401-style failure inside the function, and the retry path kicks in. That alone can add 5–15s.
+The asset files are frame sequences (not `<video>`s), but the requested architecture is identical — `currentTime` becomes "current frame index," driven by scroll progress.
 
-A secondary contributor: every send does an extra `supabase.auth.getSession()` round-trip (lines 86–90 of `useMessages.ts`) before calling `ayn-unified`. On a slow mobile connection that's another ~300–800ms per message.
+### Target behavior
 
-### What to change
+```text
+[ HeroIntro (100dvh, normal scroll) ]
+   - Headline + subcopy + LandingChatInput
+   - ONE visual: assembled helmet, centered, static
 
-**1. Make streaming actually work on iOS / Safari / older tablets**
-- In `useSSEStream.ts` / `useMessages.ts`: detect `response.body == null` (Safari fallback) and switch to reading `response.text()` once, then surface the full message as a single update with `isTyping: false`. Today this case silently "hangs" because `getReader()` throws and the catch block shows the generic error.
-- Add an explicit `Accept: text/event-stream` header so Safari doesn't try to buffer as JSON.
-- Show the typing indicator *immediately* (already done) but also add a soft "Still thinking…" hint after 8s so the user knows the request is alive.
+[ ScrollAnimationSection (~300vh, sticky inner) ]
+   - Sticky pinned canvas/img shows the helmet
+   - Scroll progress 0 → 1 scrubs assembled → exploded
+   - Section copy ("World Intelligence", feature blurbs) reveals
+     in a side column as progress advances
 
-**2. Tighten timeouts and give visible feedback**
-- Drop the per-request timeout from **90s → 45s** (matches the upstream limit you have documented in memory).
-- Reduce `fetchWithRetry` retries from 2 → 1 for streaming requests (retrying a half-streamed response is wasteful and doubles perceived latency).
-- On `AbortError`, replace the silent failure path in `useMessages.ts` (lines 218–223) with a user-visible message: *"That took too long — tap to retry."*
+[ RestOfPage (normal flow) ]
+   - About / features / footer continue as today
+```
 
-**3. Fix the duplicate Supabase auth client**
-- In `src/admin-app/adminSupabase.ts`: pass a different `storageKey` (e.g. `'ayn-admin-auth'`) and `auth: { persistSession: false }` so the admin client stops fighting the main client for the same `localStorage` slot. This eliminates the GoTrue warning and the auth-token race that mobile users hit.
+No second visual ever appears in the hero. The helmet image element is rendered exactly once.
 
-**4. Skip the redundant `getSession()` call on every send**
-- The `session` prop already comes from `useAuth` which Supabase keeps refreshed via its own listener. Remove lines 86–90 of `useMessages.ts` (the extra `getSession()` round-trip) and just use `session.access_token` directly. If a 401 comes back, *then* refresh and retry once.
+### Implementation plan
 
-**5. Warm `ayn-unified` to kill cold starts**
-- Add a fire-and-forget `OPTIONS` ping to `ayn-unified` when the dashboard mounts (in `Dashboard.tsx`). This costs nothing but keeps the function warm so the first real message doesn't pay the 30s boot cost shown in the edge logs.
+1. **Split `HelmetHero` into two siblings in `LandingPage.tsx`:**
+   - `<HeroIntro />` — replaces the current first 100dvh of `HelmetHero`. Renders headline, subcopy, the `LandingChatInput`, and a single static `<img>` of the **assembled** helmet (`HELMET_FRAMES[FRAME_COUNT - 1]`). No scroll logic. Height `100dvh`.
+   - `<HelmetScrollReveal />` — a new sticky scrub section. Outer wrapper `height: 300vh` (clamped to `200vh` on mobile). Inner `position: sticky; top: 0; height: 100dvh` with the single helmet `<img>` whose `src` is updated by the scroll RAF loop.
 
-### Files to change
+2. **Single image element, frame-scrubbed by scroll** (in `HelmetScrollReveal`):
+   - Preload all `HELMET_FRAMES` once via `new Image()` into a ref array.
+   - `onScroll` (passive) writes the latest progress (0..1) into a ref.
+   - One `requestAnimationFrame` loop reads the ref, computes `idx = round((1 - p) * (FRAME_COUNT - 1))` so progress 0 = assembled (last frame) and progress 1 = exploded (frame 0), and assigns `imgRef.current.src` only when `idx` changes.
+   - Pause the RAF loop on `document.visibilitychange` hidden (battery/CPU).
+   - Cleanup scroll listener and `cancelAnimationFrame` on unmount.
 
-- `src/hooks/chat/useSSEStream.ts` — Safari fallback + Accept header
-- `src/hooks/useMessages.ts` — timeout 45s, drop redundant getSession, visible timeout message, "still thinking" hint
-- `src/admin-app/adminSupabase.ts` — unique `storageKey`, `persistSession: false`
-- `src/components/Dashboard.tsx` — warm-up ping to `ayn-unified` on mount
+3. **Reveal copy alongside the scrub** (inside `HelmetScrollReveal`'s sticky child):
+   - A right-column stack of 3 short feature blurbs (World Intelligence / Market Signals / AI Agents) using the existing `FEATURES` text. Each blurb's opacity/translateY is driven from the same scroll progress with non-overlapping windows (e.g. 0.10–0.35, 0.40–0.65, 0.70–0.95). No framer-motion needed; plain inline `style` to stay cheap.
+   - Mobile: stack copy below the helmet, smaller type, single column.
 
-### Out of scope (won't touch)
-- The `ayn-unified` edge function itself (lives outside the repo on Supabase) — these client-side fixes resolve the reported symptoms without it.
-- The 225-agent simulator work from the previous turn — unrelated.
-- Any chat feature behavior, persistence, memory tags, rate limits, or 100-message cap — all preserved exactly as they are.
+4. **Remove the brain phase entirely.** `TRANSITION_FRAMES` and the brain `<img>` are no longer rendered in the hero. (Keep the asset file in place; just stop importing it from this component. Safe to delete the import.)
 
-### Expected result
-- iPhone & iPad: messages arrive in one clean chunk in 3–8s instead of "hanging" then dumping after 30s+.
-- Desktop: noticeably faster first token (no cold start, no duplicate auth contention).
-- All devices: clear error message if the backend genuinely times out, instead of a frozen typing dot.
+5. **Reduced motion + perf:**
+   - At top of `HelmetScrollReveal`, check `window.matchMedia('(prefers-reduced-motion: reduce)').matches`. If true, render only a static assembled helmet image and skip the sticky scrub entirely (collapse outer height to `auto`).
+   - Cap DPR-related work by relying on plain `<img>` (browser handles); no canvas needed.
+   - Lazy-mount `HelmetScrollReveal` via the existing `LazyLoad` component used elsewhere in the landing page so frame preloads don't block hero paint.
+
+6. **Wire-up in `src/components/LandingPage.tsx`:**
+   - Replace `<HelmetHero />` with:
+     ```tsx
+     <HeroIntro />
+     <LazyLoad debugLabel="HelmetScrollReveal" minHeight="100dvh">
+       <HelmetScrollReveal />
+     </LazyLoad>
+     ```
+   - Keep the rest of the page (`#about`, value props, footer) unchanged.
+
+7. **File changes:**
+   - **New:** `src/components/landing/HeroIntro.tsx` — static hero (headline, subcopy, single assembled helmet, `LandingChatInput`).
+   - **New:** `src/components/landing/HelmetScrollReveal.tsx` — sticky scroll-scrubbed helmet + side copy.
+   - **Edit:** `src/components/LandingPage.tsx` — swap `HelmetHero` for the two new components.
+   - **Delete:** `src/components/landing/HelmetHero.tsx` (no other importers — confirmed via ripgrep).
+   - **Untouched:** `src/assets/helmet-frames.ts`, `transition-frames.ts`, `Hero.tsx` (legacy, not used on `/`), the rest of the landing page.
+
+### Acceptance checks
+
+- Hero shows exactly one visual on load: the assembled helmet. No brain. No second stacked image.
+- Scrolling past the hero pins a single helmet that smoothly disassembles into the exploded view, then unpins and the page continues.
+- No layout jump between hero and scroll section (sticky inner is `100dvh`, matching hero).
+- `prefers-reduced-motion: reduce` → static assembled helmet, no pin, no scrub.
+- Mobile (≤768px) keeps a shorter pin (`200vh`) and stacks copy under the helmet.
+- No console errors; scroll listener and RAF are cleaned up on unmount.
