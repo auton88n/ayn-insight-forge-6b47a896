@@ -137,7 +137,7 @@ html, body {
 
 /* Ensure html background matches theme to prevent gaps during animations */
 html {
-  background-color: hsl(var(--background));
+  background-color: #000;
 }
 
 /* Ensure smooth scrolling and better mobile behavior */
@@ -291,9 +291,9 @@ button, a, input, textarea, select {
 
   .dark {
     /* Premium Black & White Dark Mode */
-    --background: 0 0% 4%;             /* Near black */
+    --background: 0 0% 0%;             /* Pure black #000000 */
     --foreground: 0 0% 98%;            /* Off-white */
-    --card: 0 0% 6%;                   /* Dark card */
+    --card: 0 0% 3%;                   /* Near black card */
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 4%;
     --popover-foreground: 0 0% 98%;
