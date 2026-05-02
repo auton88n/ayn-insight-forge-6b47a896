@@ -151,7 +151,7 @@ export const HeroScroll = memo(() => {
             </div>
           </div>
 
-          {/* RIGHT — plain img, full height, object-fit contain */}
+          {/* RIGHT — img sized to fit nicely */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             <img
               ref={imgRef}
@@ -159,8 +159,8 @@ export const HeroScroll = memo(() => {
               alt="AYN"
               draggable={false}
               style={{
-                width: '100%',
-                height: '100%',
+                width: 'min(44vw, 520px)',
+                height: 'min(44vw, 520px)',
                 objectFit: 'contain',
                 objectPosition: 'center',
                 display: 'block',
