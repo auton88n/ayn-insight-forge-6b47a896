@@ -349,7 +349,7 @@ export const HeroScroll = memo(() => {
               </div>
             </div>
 
-            {/* ── RIGHT: image — full height, centered ── */}
+            {/* ── RIGHT: image — seamless black blend ── */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -357,28 +357,20 @@ export const HeroScroll = memo(() => {
               height: '100%',
               position: 'relative',
             }}>
-              {/* Subtle glow behind image */}
-              <div style={{
-                position: 'absolute',
-                width: '80%', height: '80%',
-                borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 60%)',
-                pointerEvents: 'none',
-              }} />
               <img
                 ref={imgRef}
                 alt="AYN"
                 draggable={false}
                 style={{
                   width: '100%',
-                  maxWidth: 'min(48vw, 640px)',
-                  maxHeight: 'calc(100dvh - 100px)',
+                  maxWidth: 'min(50vw, 720px)',
+                  height: 'calc(100dvh - 80px)',
                   objectFit: 'contain',
                   objectPosition: 'center center',
                   display: 'block',
                   userSelect: 'none',
                   position: 'relative', zIndex: 1,
-                  filter: 'drop-shadow(0 0 60px rgba(201,168,76,0.08))',
+                  mixBlendMode: 'lighten',
                 }}
               />
             </div>
