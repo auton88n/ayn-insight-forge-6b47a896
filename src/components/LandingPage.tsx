@@ -1,4 +1,5 @@
 import { useState, memo } from 'react';
+import { HeroScroll } from '@/components/landing/HeroScroll';
 
 import { Brain, Sparkles, Globe, Shield, Zap, Bot, BarChart3, TrendingUp, Eye, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
