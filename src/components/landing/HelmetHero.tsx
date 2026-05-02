@@ -1,10 +1,18 @@
 /**
- * HelmetHero — Direct scroll-to-frame. No lerp. Stops when you stop.
+ * HelmetHero — Three clean scroll phases.
  *
- * 3600vh total:
- *   0–1200vh    Phase 1: Brain video (centered, large)
- *   1200–2400vh Phase 2: Helmet video (centered, large)
- *   2400–3600vh Phase 3: Helmet right + 4 features + CTA
+ * ON LOAD (p=0): Brain visible, static. Nothing animating.
+ *
+ * PHASE 1 (0→33%): Scroll scrubs brain (VID1 reversed, frame 0=brain)
+ *   - brain dissolves into abstract as you scroll
+ *
+ * PHASE 2 (33→67%): Scroll scrubs helmet (VID2 original, frame 0=exploded)
+ *   - exploded helmet parts assemble as you scroll
+ *
+ * PHASE 3 (67→100%): Assembled helmet slides right, 4 features, CTA
+ *
+ * KEY FIX: brain <img> gets TRANSITION_FRAMES[0] as its src attribute
+ * directly — no onload callback race condition, brain shows immediately.
  */
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
@@ -39,14 +47,20 @@ const SZ = 'min(75vw, 70vh, 620px)';
 export const HelmetHero = memo(({}: HelmetHeroProps) => {
   const { language } = useLanguage();
   const spacerRef  = useRef<HTMLDivElement>(null);
+
+  // Two separate img elements — brain stays in DOM always (opacity controls visibility)
+  // helmet fades in at phase 2
   const brainRef   = useRef<HTMLImageElement>(null);
   const helmetRef  = useRef<HTMLImageElement>(null);
+
+  // Pre-decoded Image caches
   const brainImgs  = useRef<HTMLImageElement[]>([]);
   const helmetImgs = useRef<HTMLImageElement[]>([]);
+
   const rafId      = useRef(0);
-  const lastB      = useRef(-1);
+  const rawP       = useRef(0);  // direct scroll progress, NO lerp
+  const lastB      = useRef(0);  // start at 0 (brain frame)
   const lastH      = useRef(-1);
-  const rawP       = useRef(0); // direct scroll progress, no lerp
 
   const [p, setP]   = useState(0);
   const [mob, setMob] = useState(false);
@@ -57,31 +71,22 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     return () => window.removeEventListener('resize', chk);
   }, []);
 
-  // Preload brain — set frame 0 immediately
+  // Preload brain frames — frame 0 is already set via src attribute on the <img>
   useEffect(() => {
-    brainImgs.current = TRANSITION_FRAMES.map((src, i) => {
+    brainImgs.current = TRANSITION_FRAMES.map((src) => {
       const img = new Image();
       img.src = src;
-      img.onload = () => {
-        if (i === 0 && brainRef.current && !brainRef.current.src.includes('base64')) {
-          brainRef.current.src = src;
-          lastB.current = 0;
-        }
-      };
       return img;
     });
-    // Set frame 0 synchronously if already cached
-    const first = brainImgs.current[0];
-    if (first.complete && brainRef.current) {
-      brainRef.current.src = first.src;
-      lastB.current = 0;
-    }
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
+  // Preload helmet frames
   useEffect(() => {
-    helmetImgs.current = HELMET_FRAMES.map(src => {
-      const img = new Image(); img.src = src; return img;
+    helmetImgs.current = HELMET_FRAMES.map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img;
     });
   }, []);
 
@@ -89,9 +94,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
   const onScroll = useCallback(() => {
     const el = spacerRef.current;
     if (!el) return;
-    const gone  = -el.getBoundingClientRect().top;
-    const total = el.offsetHeight - window.innerHeight;
-    rawP.current = clamp(gone / total, 0, 1);
+    rawP.current = clamp(-el.getBoundingClientRect().top / (el.offsetHeight - window.innerHeight), 0, 1);
   }, []);
 
   useEffect(() => {
@@ -99,13 +102,13 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     return () => window.removeEventListener('scroll', onScroll);
   }, [onScroll]);
 
-  // RAF — directly maps scroll to frames, no lerp
+  // RAF — maps scroll directly to frames
   useEffect(() => {
     const tick = () => {
       rafId.current = requestAnimationFrame(tick);
       const progress = rawP.current;
 
-      // Phase 1 (0–33%): brain frames
+      // Phase 1 (0–33%): scrub brain frames
       if (progress <= 0.34) {
         const idx = clamp(Math.round(map(progress, 0, 0.33, 0, TRANSITION_FRAME_COUNT - 1)), 0, TRANSITION_FRAME_COUNT - 1);
         if (idx !== lastB.current) {
@@ -115,7 +118,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
         }
       }
 
-      // Phase 2 (33–67%): helmet frames
+      // Phase 2 (33–67%): scrub helmet frames
       if (progress >= 0.32 && progress <= 0.68) {
         const idx = clamp(Math.round(map(progress, 0.33, 0.67, 0, FRAME_COUNT - 1)), 0, FRAME_COUNT - 1);
         if (idx !== lastH.current) {
@@ -131,13 +134,21 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  // ── Opacity / transform ─────────────────────────────────────────────────
-  const brainOp  = p < 0.26 ? 1 : map(p, 0.26, 0.34, 1, 0);
-  const helmOp   = Math.min(map(p, 0.33, 0.39, 0, 1), map(p, 0.92, 0.98, 1, 0));
-  const helmX    = mob ? 0 : map(p, 0.67, 0.73, 0, 28);
-  const helmS    = mob ? map(p, 0.67, 0.73, 1, 0.78) : map(p, 0.67, 0.73, 1, 0.60);
-  const hOp      = p < 0.24 ? 1 : map(p, 0.24, 0.33, 1, 0);
-  const hY       = map(p, 0.24, 0.33, 0, -20);
+  // ── Opacity / transforms ──────────────────────────────────────────────────
+
+  // Brain: full opacity until 24%, fades out 24–34%
+  const brainOp = p < 0.24 ? 1 : map(p, 0.24, 0.34, 1, 0);
+
+  // Helmet: fades in 33–38%, fades out at CTA (92–98%)
+  const helmOp  = Math.min(map(p, 0.33, 0.38, 0, 1), map(p, 0.92, 0.98, 1, 0));
+
+  // Phase 3: helmet slides right + shrinks
+  const helmX = mob ? 0 : map(p, 0.67, 0.73, 0, 28);
+  const helmS = mob ? map(p, 0.67, 0.73, 1, 0.78) : map(p, 0.67, 0.73, 1, 0.60);
+
+  // Headline: visible from load (p=0), fades out 24–34%
+  const hOp = p < 0.24 ? 1 : map(p, 0.24, 0.34, 1, 0);
+  const hY  = map(p, 0.24, 0.34, 0, -20);
 
   const fOp = (i: number) => {
     const { s, e } = FEATS[i]; const pk = s + (e - s) * 0.35;
@@ -154,7 +165,8 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
 
   const navOp  = Math.min(map(p, 0.70, 0.75, 0, 1), map(p, 0.92, 0.97, 1, 0));
   const ctaOp  = map(p, 0.94, 0.99, 0, 1);
-  const curF   = clamp(FEATS.findIndex(({ s, e }) => p >= s && p < e), 0, 3);
+  const activeF = FEATS.findIndex(({ s, e }) => p >= s && p < e);
+  const curF   = clamp(activeF === -1 ? 3 : activeF, 0, 3);
   const inF    = p >= 0.68 && p <= 0.97;
 
   return (
@@ -165,23 +177,38 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
         <div className="absolute top-0 left-0 h-[2px] z-50"
           style={{ width: `${p * 100}%`, background: 'hsl(var(--primary))' }} />
 
-        {/* BRAIN — phase 1 */}
+        {/* ── PHASE 1: BRAIN ─────────────────────────────────────────────────
+            src={TRANSITION_FRAMES[0]} sets the brain on mount — no race condition.
+            brainRef.current.src is then updated by RAF as scroll advances.
+        */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{ top: 64, opacity: brainOp }}>
-          <img ref={brainRef} alt="" draggable={false}
-            style={{ width: SZ, height: SZ, objectFit: 'contain', display: 'block' }} />
+          style={{ top: 64, opacity: brainOp, willChange: 'opacity' }}>
+          <img
+            ref={brainRef}
+            src={TRANSITION_FRAMES[0]}
+            alt=""
+            draggable={false}
+            style={{ width: SZ, height: SZ, objectFit: 'contain', display: 'block', userSelect: 'none' }}
+          />
         </div>
 
-        {/* HELMET — phase 2 (center) + phase 3 (slides right) */}
+        {/* ── PHASE 2 + 3: HELMET ────────────────────────────────────────────
+            No default src — appears only when phase 2 starts (33%+)
+            In phase 3, same element slides right via transform
+        */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{ top: 64, opacity: helmOp }}>
+          style={{ top: 64, opacity: helmOp, willChange: 'opacity' }}>
           <div style={{ transform: `translateX(${helmX}vw) scale(${helmS})`, willChange: 'transform' }}>
-            <img ref={helmetRef} alt="AYN" draggable={false}
-              style={{ width: SZ, height: SZ, objectFit: 'contain', display: 'block' }} />
+            <img
+              ref={helmetRef}
+              alt="AYN"
+              draggable={false}
+              style={{ width: SZ, height: SZ, objectFit: 'contain', display: 'block', userSelect: 'none' }}
+            />
           </div>
         </div>
 
-        {/* HEADLINE — visible on load, fades first */}
+        {/* ── HEADLINE ── visible on load, fades on scroll */}
         {hOp > 0.01 && (
           <div className="absolute left-0 right-0 z-20 px-6 md:px-16 pointer-events-none"
             style={{ top: 80, opacity: hOp, transform: `translateY(${hY}px)` }}>
@@ -199,7 +226,7 @@ export const HelmetHero = memo(({}: HelmetHeroProps) => {
           </div>
         )}
 
-        {/* FEATURES */}
+        {/* ── FEATURES ── */}
         {FEATS.map(({ s, e }, i) => {
           const op = fOp(i); const y = fY(i);
           if (op < 0.01) return null;
