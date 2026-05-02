@@ -6,9 +6,9 @@ import { AuthModal } from './auth/AuthModal';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { cn } from '@/lib/utils';
-import { HeroIntro } from '@/components/landing/HeroIntro';
-import { HelmetScrollReveal } from '@/components/landing/HelmetScrollReveal';
-import { LazyLoad } from '@/components/ui/lazy-load';
+
+
+
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import featureBusinessImg from '@/assets/feature-business.jpg';
@@ -73,13 +73,8 @@ const LandingPage = memo(() => {
     <div dir={direction} className="min-h-screen scroll-smooth" style={{ background: '#000' }}>
       {/* Shared Header */}
       <Header />
-      {/* Hero — single assembled helmet, static */}
-      <HeroIntro onSendAttempt={(msg) => { setPendingMessage(msg); setShowAuthModal(true); }} />
-
-      {/* Sticky scroll-driven reveal — assembled → exploded */}
-      <LazyLoad debugLabel="HelmetScrollReveal" minHeight="100dvh">
-        <HelmetScrollReveal />
-      </LazyLoad>
+      {/* Scroll-driven hero — frame animation + chapters */}
+      <HeroScroll />
 
       {/* About AYN - Value Proposition Section */}
       <section id="about" className="py-16 md:py-32 px-4 md:px-6">
