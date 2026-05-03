@@ -1,12 +1,15 @@
 /**
- * HeroScroll — Stage 1 of the Stitch design.
- * Left: headline + scroll-driven chapters.
- * Right: 3D object zone (your Spline/Three.js scene goes here).
- * Pure black. No frames. No old animation. Clean slate.
+ * HeroScroll — Matches Stitch design exactly:
+ * - Robot as FULL-SCREEN background (right-aligned, bleeds off screen)
+ * - Text overlaid on LEFT side
+ * - Two CTA buttons
+ * - "SCROLL TO EXPLORE" bottom left
+ * - Scroll drives chapters over the same background
  */
 
 import { useRef, memo } from 'react';
-import { useScroll, useMotionValueEvent } from 'framer-motion';
+import { useScroll, useMotionValueEvent, motion } from 'framer-motion';
+import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
@@ -16,39 +19,43 @@ function lerp(v: number, a: number, b: number, c: number, d: number) {
   return c + (clamp(v, a, b) - a) / (b - a) * (d - c);
 }
 
+// Preload frames
+let cache: HTMLImageElement[] | null = null;
+function getCache() {
+  if (!cache) cache = HELMET_FRAMES.map(s => { const i = new Image(); i.src = s; return i; });
+  return cache;
+}
+
 const CHAPTERS = [
-  {
-    label: 'WORLD INTELLIGENCE',
-    title: 'See every market\nbefore it moves.',
-    body: 'AYN monitors 187 countries — geopolitical shifts, commodity flows, and live market signals.',
-    stat: '187', unit: 'Countries',
-    in: 0.20, out: 0.42,
-  },
-  {
-    label: 'PREDICTIVE AI',
-    title: 'Know what happens\nbefore it does.',
-    body: '73 AI agents simulate how populations, governments, and markets respond — before events unfold.',
-    stat: '73', unit: 'World Agents',
-    in: 0.44, out: 0.66,
-  },
-  {
-    label: 'AI AGENTS',
-    title: 'Your team.\nNever sleeps.',
-    body: 'Custom agents trained on your data. Intelligence delivered 24/7, in Arabic and English.',
-    stat: '24/7', unit: 'Always On',
-    in: 0.68, out: 0.88,
-  },
+  { label: 'WORLD INTELLIGENCE', title: 'See every market\nbefore it moves.', body: 'AYN monitors 187 countries — geopolitical shifts, commodity flows, and live market signals.', stat: '187', unit: 'Countries', in: 0.20, out: 0.42 },
+  { label: 'PREDICTIVE AI', title: 'Know what happens\nbefore it does.', body: '73 AI agents simulate how markets respond — before events unfold.', stat: '73', unit: 'World Agents', in: 0.44, out: 0.66 },
+  { label: 'AI AGENTS', title: 'Your team.\nNever sleeps.', body: 'Custom agents trained on your data. Intelligence 24/7, in Arabic and English.', stat: '24/7', unit: 'Always On', in: 0.68, out: 0.88 },
 ];
 
 export const HeroScroll = memo(() => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
 
-  const containerRef  = useRef<HTMLDivElement>(null);
-  const headlineRef   = useRef<HTMLDivElement>(null);
-  const chRefs        = useRef<(HTMLDivElement | null)[]>([]);
-  const ctaRef        = useRef<HTMLDivElement>(null);
-  const hintRef       = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef       = useRef<HTMLImageElement>(null);
+  const lastIdx      = useRef(0);
+  const headlineRef  = useRef<HTMLDivElement>(null);
+  const chRefs       = useRef<(HTMLDivElement | null)[]>([]);
+  const ctaRef       = useRef<HTMLDivElement>(null);
+  const hintRef      = useRef<HTMLDivElement>(null);
+
+  // Init frame 0 on mount + RAF for scrubbing
+  const rafRef = useRef(0);
+  const rawP   = useRef(0);
+
+  // Set frame on mount
+  const imgInitRef = useRef(false);
+  if (!imgInitRef.current) {
+    imgInitRef.current = true;
+    const imgs = getCache();
+    imgs[0].onload = () => { if (imgRef.current) imgRef.current.src = imgs[0].src; };
+    if (imgs[0].complete && imgRef.current) imgRef.current.src = imgs[0].src;
+  }
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -56,15 +63,28 @@ export const HeroScroll = memo(() => {
   });
 
   useMotionValueEvent(scrollYProgress, 'change', (p) => {
-    // Headline fades out at 10–20%
+    rawP.current = p;
+
+    // Scrub frames 0→60%
+    if (p <= 0.62) {
+      const idx = clamp(Math.round(lerp(p, 0, 0.60, 0, FRAME_COUNT - 1)), 0, FRAME_COUNT - 1);
+      if (idx !== lastIdx.current) {
+        lastIdx.current = idx;
+        const imgs = getCache();
+        const img = imgs[idx];
+        if (img?.complete && imgRef.current) imgRef.current.src = img.src;
+      }
+    }
+
+    // Headline: visible until 10%, fades 10–20%
     if (headlineRef.current) {
       const op = p < 0.10 ? 1 : lerp(p, 0.10, 0.20, 1, 0);
       headlineRef.current.style.opacity = `${op}`;
-      headlineRef.current.style.transform = `translateY(${lerp(p, 0.10, 0.20, 0, -32)}px)`;
+      headlineRef.current.style.transform = `translateY(${lerp(p, 0.10, 0.20, 0, -24)}px)`;
       headlineRef.current.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
     }
 
-    // Scroll hint
+    // Scroll hint fades immediately
     if (hintRef.current) {
       hintRef.current.style.opacity = `${lerp(p, 0, 0.08, 1, 0)}`;
     }
@@ -74,10 +94,10 @@ export const HeroScroll = memo(() => {
       const el = chRefs.current[i];
       if (!el) return;
       const peak = ch.in + (ch.out - ch.in) * 0.3;
-      let op = 0, ty = 32;
+      let op = 0, ty = 28;
       if (p >= ch.in && p <= ch.out) {
         op = p < peak ? lerp(p, ch.in, peak, 0, 1) : lerp(p, peak, ch.out, 1, 0);
-        ty = p < peak ? lerp(p, ch.in, peak, 32, 0) : lerp(p, peak, ch.out, 0, -32);
+        ty = p < peak ? lerp(p, ch.in, peak, 28, 0) : lerp(p, peak, ch.out, 0, -28);
       }
       el.style.opacity = `${op}`;
       el.style.transform = `translateY(${ty}px)`;
@@ -92,118 +112,168 @@ export const HeroScroll = memo(() => {
     }
   });
 
-  const F = "'DM Sans',sans-serif";
-  const FB = "'Bebas Neue',sans-serif";
+  const F  = "'DM Sans', sans-serif";
+  const FB = "'Bebas Neue', sans-serif";
 
   return (
     <div style={{ background: '#000' }}>
-      {/* 400vh scroll container */}
       <div ref={containerRef} style={{ height: '400vh', position: 'relative' }}>
-        <div className="sticky top-0" style={{
-          height: '100dvh',
-          background: '#000',
-          display: 'grid',
-          gridTemplateColumns: '45% 55%',
-          overflow: 'hidden',
-        }}>
+        <div className="sticky top-0" style={{ height: '100dvh', overflow: 'hidden', background: '#0a0905', position: 'relative' }}>
 
-          {/* ── LEFT: text layers ── */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '0 clamp(32px,5vw,80px)', position: 'relative', zIndex: 10 }}>
-            <div style={{ position: 'relative', width: '100%', height: '70vh' }}>
+          {/* ── FULL-SCREEN ROBOT IMAGE (background, right-aligned) ── */}
+          <img
+            ref={imgRef}
+            src={HELMET_FRAMES[0]}
+            alt=""
+            draggable={false}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: '-5%',         // bleeds slightly off right edge like Stitch design
+              height: '100%',
+              width: 'auto',
+              maxWidth: '75%',
+              objectFit: 'contain',
+              objectPosition: 'right center',
+              zIndex: 1,
+              userSelect: 'none',
+              pointerEvents: 'none',
+            }}
+          />
 
-              {/* HERO HEADLINE */}
-              <div ref={headlineRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <p style={{ fontFamily: F, fontSize: 10, fontWeight: 500, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', margin: '0 0 20px' }}>
-                  {isAr ? 'ذكاء الأعمال' : 'World Intelligence Platform'}
-                </p>
-                <h1 style={{ fontFamily: FB, fontSize: 'clamp(64px,7.5vw,116px)', fontWeight: 400, lineHeight: 0.88, color: '#fff', margin: '0 0 28px', letterSpacing: '-0.01em' }}>
-                  {isAr ? 'تعرّف على ' : 'Meet '}
-                  <span style={{ color: '#C9A84C' }}>{isAr ? 'عين' : 'AYN'}</span>
-                </h1>
-                <p style={{ fontFamily: F, fontSize: 16, fontWeight: 300, lineHeight: 1.72, color: 'rgba(255,255,255,0.42)', maxWidth: 360, margin: '0 0 44px' }}>
-                  {isAr
-                    ? 'ذكاء أعمال حقيقي. أسواق، مخاطر، وقرارات تهم.'
-                    : 'Real business intelligence. Scroll to see AYN in action — and discover what it sees.'}
-                </p>
-                <div ref={hintRef} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 32, height: 1, background: 'rgba(201,168,76,0.5)' }} />
-                  <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.24em', color: 'rgba(255,255,255,0.20)', textTransform: 'uppercase' }}>
-                    Scroll to explore
-                  </span>
-                </div>
+          {/* Gradient: left side text readability */}
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 2,
+            background: 'linear-gradient(to right, #0a0905 30%, rgba(10,9,5,0.7) 55%, rgba(10,9,5,0.0) 80%)',
+            pointerEvents: 'none',
+          }} />
+
+          {/* Gradient: bottom fade */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: '30%', zIndex: 2,
+            background: 'linear-gradient(to top, #0a0905, transparent)',
+            pointerEvents: 'none',
+          }} />
+
+          {/* ── TEXT OVERLAY ── */}
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10,
+            display: 'flex', flexDirection: 'column', justifyContent: 'center',
+            padding: '80px clamp(32px, 6vw, 96px)',
+          }}>
+
+            {/* HERO HEADLINE */}
+            <div ref={headlineRef} style={{ maxWidth: 560 }}>
+              <h1 style={{
+                fontFamily: FB,
+                fontSize: 'clamp(64px, 8vw, 118px)',
+                fontWeight: 400,
+                lineHeight: 0.88,
+                color: '#fff',
+                margin: '0 0 22px',
+                letterSpacing: '-0.01em',
+                textShadow: '0 0 80px rgba(201,168,76,0.15)',
+              }}>
+                {isAr ? 'تعرّف على ' : 'Meet '}
+                <span style={{ color: '#C9A84C' }}>{isAr ? 'عين' : 'AYN'}</span>
+              </h1>
+              <p style={{
+                fontFamily: F, fontSize: 16, fontWeight: 300, lineHeight: 1.68,
+                color: 'rgba(255,255,255,0.55)', maxWidth: 340, margin: '0 0 40px',
+              }}>
+                {isAr
+                  ? 'ذكاء أعمال حقيقي. أسواق، مخاطر، وقرارات تهم.'
+                  : 'Real business intelligence. Interact with AYN — and discover what it sees.'}
+              </p>
+              {/* CTA Buttons — always visible in headline */}
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Link to="/pricing"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '13px 30px',
+                    background: '#C9A84C',
+                    color: '#000',
+                    fontFamily: F, fontSize: 13, fontWeight: 600,
+                    borderRadius: 100,
+                    textDecoration: 'none',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = '0 0 32px rgba(201,168,76,0.35)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                  {isAr ? 'ابدأ مع عين' : 'Start with AYN'}
+                </Link>
+                <Link to="/features"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '13px 30px',
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.30)',
+                    color: 'rgba(255,255,255,0.80)',
+                    fontFamily: F, fontSize: 13, fontWeight: 400,
+                    borderRadius: 100,
+                    textDecoration: 'none',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#C9A84C'; e.currentTarget.style.color = '#C9A84C'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.30)'; e.currentTarget.style.color = 'rgba(255,255,255,0.80)'; }}>
+                  {isAr ? 'شاهد كيف يعمل' : 'See how it works'}
+                </Link>
               </div>
+            </div>
 
-              {/* CHAPTER PANELS */}
-              {CHAPTERS.map((ch, i) => (
-                <div key={i} ref={el => { chRefs.current[i] = el; }}
-                  style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none' }}>
-                  <p style={{ fontFamily: F, fontSize: 9, fontWeight: 600, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#C9A84C', margin: '0 0 16px' }}>
-                    {ch.label}
-                  </p>
-                  <h2 style={{ fontFamily: FB, fontSize: 'clamp(44px,5.2vw,80px)', fontWeight: 400, lineHeight: 0.92, color: '#fff', margin: '0 0 22px', whiteSpace: 'pre-line' }}>
-                    {ch.title}
-                  </h2>
-                  <p style={{ fontFamily: F, fontSize: 15, fontWeight: 300, lineHeight: 1.75, color: 'rgba(255,255,255,0.44)', maxWidth: 340, margin: '0 0 30px' }}>
-                    {ch.body}
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span style={{ fontFamily: FB, fontSize: 'clamp(48px,5.5vw,76px)', color: '#C9A84C', lineHeight: 1 }}>{ch.stat}</span>
-                    <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.22em', color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase' }}>{ch.unit}</span>
-                  </div>
-                </div>
-              ))}
-
-              {/* CTA PANEL */}
-              <div ref={ctaRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none' }}>
-                <p style={{ fontFamily: F, fontSize: 9, letterSpacing: '0.30em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', margin: '0 0 14px' }}>
-                  Ready to see the world clearly?
+            {/* CHAPTER PANELS */}
+            {CHAPTERS.map((ch, i) => (
+              <div key={i} ref={el => { chRefs.current[i] = el; }}
+                style={{ position: 'absolute', left: 'clamp(32px, 6vw, 96px)', bottom: '20%', maxWidth: 480, opacity: 0, pointerEvents: 'none' }}>
+                <p style={{ fontFamily: F, fontSize: 9, fontWeight: 600, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#C9A84C', margin: '0 0 14px' }}>
+                  {ch.label}
                 </p>
-                <h2 style={{ fontFamily: FB, fontSize: 'clamp(48px,5.8vw,88px)', fontWeight: 400, lineHeight: 0.88, color: '#fff', margin: '0 0 34px' }}>
-                  Start with <span style={{ color: '#C9A84C' }}>AYN</span>
+                <h2 style={{ fontFamily: FB, fontSize: 'clamp(40px, 5vw, 72px)', fontWeight: 400, lineHeight: 0.92, color: '#fff', margin: '0 0 18px', whiteSpace: 'pre-line' }}>
+                  {ch.title}
                 </h2>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <Link to="/pricing"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '14px 36px', background: '#C9A84C', color: '#000', fontFamily: F, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', textDecoration: 'none', transition: 'transform 0.2s' }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
-                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
-                    {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
-                  </Link>
-                  <Link to="/features"
-                    style={{ display: 'inline-flex', alignItems: 'center', padding: '14px 30px', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.52)', fontFamily: F, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', textDecoration: 'none', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)'; e.currentTarget.style.color = '#fff'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'; e.currentTarget.style.color = 'rgba(255,255,255,0.52)'; }}>
-                    {isAr ? 'استكشف المميزات' : 'See Features'}
-                  </Link>
+                <p style={{ fontFamily: F, fontSize: 15, fontWeight: 300, lineHeight: 1.72, color: 'rgba(255,255,255,0.48)', margin: '0 0 24px', maxWidth: 360 }}>
+                  {ch.body}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ fontFamily: FB, fontSize: 'clamp(44px, 5vw, 68px)', color: '#C9A84C', lineHeight: 1 }}>{ch.stat}</span>
+                  <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.22em', color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase' }}>{ch.unit}</span>
                 </div>
               </div>
+            ))}
 
+            {/* CTA PANEL (end of scroll) */}
+            <div ref={ctaRef} style={{ position: 'absolute', left: 'clamp(32px, 6vw, 96px)', bottom: '18%', maxWidth: 480, opacity: 0, pointerEvents: 'none' }}>
+              <h2 style={{ fontFamily: FB, fontSize: 'clamp(48px, 6vw, 90px)', fontWeight: 400, lineHeight: 0.88, color: '#fff', margin: '0 0 32px' }}>
+                Start with <span style={{ color: '#C9A84C' }}>AYN</span>
+              </h2>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                <Link to="/pricing"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 36px', background: '#C9A84C', color: '#000', fontFamily: F, fontSize: 12, fontWeight: 700, borderRadius: 100, textDecoration: 'none', transition: 'transform 0.2s' }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
+                  {isAr ? 'ابدأ مجاناً' : 'Get Started Free'}
+                </Link>
+                <Link to="/features"
+                  style={{ display: 'inline-flex', alignItems: 'center', padding: '14px 30px', border: '1px solid rgba(255,255,255,0.18)', color: 'rgba(255,255,255,0.60)', fontFamily: F, fontSize: 12, borderRadius: 100, textDecoration: 'none', transition: 'all 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#C9A84C'; e.currentTarget.style.color = '#C9A84C'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.color = 'rgba(255,255,255,0.60)'; }}>
+                  {isAr ? 'استكشف المميزات' : 'See Features'}
+                </Link>
+              </div>
             </div>
-          </div>
 
-          {/* ── RIGHT: 3D object zone ──────────────────────────────────────
-              👉 THIS IS WHERE YOUR 3D OBJECT GOES.
-              Replace the placeholder div below with your Spline scene
-              or Three.js canvas. The scrollYProgress value (0→1) is
-              available from useScroll above — pass it to your scene
-              to drive the animation.
-
-              Example:
-                import { SplineScene } from '@/components/ui/spline';
-                <SplineScene scene="your-spline-url" className="w-full h-full" />
-
-              Or for Three.js:
-                <YourThreeCanvas scrollProgress={scrollYProgress} />
-          ─────────────────────────────────────────────────────────────── */}
-          <div style={{ position: 'relative', background: '#000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* Placeholder — remove this when you add your 3D object */}
-            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.06)', fontFamily: "'DM Sans',sans-serif", fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-              3D Object Here
+            {/* SCROLL TO EXPLORE — bottom left */}
+            <div ref={hintRef} style={{
+              position: 'absolute', bottom: 36, left: 'clamp(32px, 6vw, 96px)',
+              display: 'flex', alignItems: 'center', gap: 16,
+            }}>
+              <div style={{ width: 1, height: 40, background: 'rgba(201,168,76,0.4)' }} />
+              <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.24em', color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase' }}>
+                Scroll to explore
+              </span>
             </div>
+
           </div>
-
-          {/* Bottom hairline */}
-          <div style={{ position: 'absolute', bottom: 0, left: '5%', right: '5%', height: 1, background: 'linear-gradient(to right, transparent, rgba(201,168,76,0.10), transparent)' }} />
-
         </div>
       </div>
     </div>
