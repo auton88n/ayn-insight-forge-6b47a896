@@ -1554,20 +1554,73 @@ button, a, input, textarea, select {
 }
 
 .gold-glow-btn {
-  background: linear-gradient(135deg, #d4a017 0%, #8b6c1d 100%);
-  box-shadow: 0 0 20px rgba(212, 160, 23, 0.3);
+  background: linear-gradient(135deg, #FB923C 0%, #F97316 100%);
+  box-shadow: 0 0 20px rgba(251, 146, 60, 0.32);
   transition: box-shadow 0.3s, transform 0.3s;
 }
 .gold-glow-btn:hover {
-  box-shadow: 0 0 35px rgba(212, 160, 23, 0.55);
+  box-shadow: 0 0 35px rgba(251, 146, 60, 0.55);
   transform: scale(1.02);
 }
 
 .text-gold-glow {
-  background: linear-gradient(135deg, #e2b769, #9c7839);
+  background: linear-gradient(135deg, #FB923C, #F97316);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   text-shadow: none;
-  filter: drop-shadow(0 0 20px rgba(212,160,23,0.35));
+  filter: drop-shadow(0 0 20px rgba(251,146,60,0.38));
+}
+
+/* ── Landing responsive helpers (no design change, structure only) ───── */
+.landing-two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 48px;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+@media (min-width: 900px) {
+  .landing-two-col { grid-template-columns: 1fr 1fr; gap: 64px; }
+}
+
+.landing-glass-stack {
+  position: relative;
+  width: 100%;
+}
+@media (max-width: 899px) {
+  /* On phone/tablet, stack the absolutely-positioned glass cards into a clean column */
+  .landing-glass-stack { height: auto !important; display: flex; flex-direction: column; gap: 16px; }
+  .landing-glass-stack > * {
+    position: static !important;
+    width: 100% !important;
+    max-width: 360px;
+    margin: 0 auto;
+    top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+  }
+}
+
+.landing-services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 1100px;
+  margin-bottom: 72px;
+}
+
+.landing-decor-lg { display: none; }
+@media (min-width: 1024px) { .landing-decor-lg { display: block; } }
+
+.landing-footer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+@media (max-width: 640px) {
+  .landing-footer-bar { justify-content: center; text-align: center; }
 }
