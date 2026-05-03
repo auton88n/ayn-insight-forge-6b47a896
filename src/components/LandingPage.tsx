@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, memo } from 'react';
-import { motion, useScroll, useTransform, useMotionValueEvent } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Brain, Globe, TrendingUp, Shield, Zap, Bot, BarChart3, Eye, AlertTriangle, ArrowRight, ChevronDown } from 'lucide-react';
+import { Globe, TrendingUp, Shield, Zap, Bot, BarChart3, Eye, AlertTriangle, ArrowRight, Brain } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, createFAQSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
