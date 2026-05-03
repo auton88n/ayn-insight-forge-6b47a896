@@ -1,81 +1,72 @@
-## Fix: Apple-style scroll-driven helmet animation
+## Goal
 
-### What's wrong today
+Polish the landing page (`src/components/landing/HeroScroll.tsx` + supporting CSS / `Hero.tsx`):
+- Replace the yellow/gold accent with the dashboard orange tone.
+- Fix structural issues so it looks clean and professional on desktop, tablet, and phone.
+- Keep the existing design language (dark sections, glass cards, ambient glows, ASK→ANALYZE→EXECUTE row, stats, footer). No new layouts, no removed sections, no copy/text changes, no functional changes.
 
-`src/components/landing/HelmetHero.tsx` currently renders **two stacked image-sequence layers** inside the hero at the same time:
+## Color migration (yellow/gold → dashboard orange)
 
-1. A "brain" layer that starts visible (`src={TRANSITION_FRAMES[0]}`).
-2. A "helmet" layer in the same absolute container that begins to fade in around 33% scroll.
+Dashboard uses Tailwind `orange-400` / `orange-500` (`#FB923C` / `#F97316`). Migrate:
+- `G = '#e2b769'` → `G = '#FB923C'` (primary accent), with a darker `#F97316` used for gradients/shadows.
+- All inline `rgba(226,183,105, x)` occurrences → `rgba(251,146,60, x)` (matches `#FB923C`), preserving the same alpha values so glow intensity stays identical.
+- `linear-gradient(to right, ${G}, #a07830)` → `linear-gradient(to right, #FB923C, #F97316)`.
+- `box-shadow ... rgba(212,160,23, …)` → `rgba(251,146,60, …)`.
+- In `src/index.css`:
+  - `.gold-glow-btn` background/shadow → orange equivalents (keep class name to avoid breaking refs, just swap colors).
+  - `.text-gold-glow` gradient `#e2b769 → #9c7839` → `#FB923C → #F97316`.
+- `Hero.tsx` Brain icon already uses `text-orange-400` — leave as is (matches new palette).
 
-It also uses a 3-phase scrub (brain → helmet assemble → features → CTA) over a `3600vh` spacer. Visually this reads as "two different visuals opening in the hero," not one continuous product reveal. The hero never just shows the assembled helmet on its own, and the transition is brain→assembled rather than the requested **assembled → exploded** scroll reveal.
+## Structural / responsive fixes (no design change)
 
-The asset files are frame sequences (not `<video>`s), but the requested architecture is identical — `currentTime` becomes "current frame index," driven by scroll progress.
+`HeroScroll.tsx` currently hard-codes desktop-only layouts (fixed widths, `gridTemplateColumns: '1fr 1fr'`, absolutely positioned 480px geometry, 3-column service grid, footer flex row). Issues on tablet/phone: content overlaps the right-side rings, glass cards collide, services squish, footer links wrap badly.
 
-### Target behavior
+Fixes per section, keeping the same visuals:
 
-```text
-[ HeroIntro (100dvh, normal scroll) ]
-   - Headline + subcopy + LandingChatInput
-   - ONE visual: assembled helmet, centered, static
+1. Section 1 (MEET AYN)
+   - Make right-side rings + orbital geometry hide on `<lg` (they currently overlap text on tablet/phone). Use a CSS media query via a small `<style>` block or inline conditional with `window.matchMedia` is not SSR-safe — instead, wrap the decorative block in a `<div className="hidden lg:block">` style equivalent (add `className` and use Tailwind utilities; the file already mixes inline + tailwind elsewhere).
+   - Stats row: switch from `gap: 40` flex to `flex-wrap` with `gap: 24px 40px` so it wraps cleanly on phones.
+   - Reduce hero `padding` on mobile via `clamp` already in place; tighten headline `clamp(48px, 12vw, 130px)` so it never overflows on 360px screens.
+   - Buttons row already wraps; ensure both buttons are `min-width: 0` and full-width-ish on phones (`flex: 1 1 200px`).
 
-[ ScrollAnimationSection (~300vh, sticky inner) ]
-   - Sticky pinned canvas/img shows the helmet
-   - Scroll progress 0 → 1 scrubs assembled → exploded
-   - Section copy ("World Intelligence", feature blurbs) reveals
-     in a side column as progress advances
+2. Section 2 (Intelligence, evolved)
+   - Right-side abstract geometry (480×480) overlaps headline on tablet. Hide below `lg` and center-align text block on small screens (`maxWidth: 520` already works).
+   - Headline `clamp(48px, 7vw, 100px)` is fine; add `word-break: break-word` for AR.
 
-[ RestOfPage (normal flow) ]
-   - About / features / footer continue as today
-```
+3. Section 3 (Your business, understood)
+   - Replace `gridTemplateColumns: '1fr 1fr'` with responsive: single column on `<md`, two columns on `≥md`. Use a CSS class with media query (add to `index.css`) e.g. `.landing-two-col`.
+   - Right-column glass cards use absolute positioning inside a 440px box — on phones, switch to a stacked flex layout (3 cards in column, no absolute) via the same media query class.
 
-No second visual ever appears in the hero. The helmet image element is rendered exactly once.
+4. Section 4 (Services + ASK→ANALYZE→EXECUTE)
+   - 3-column services grid → `repeat(auto-fit, minmax(260px, 1fr))` so it becomes 2-up on tablet and 1-up on phone naturally.
+   - ASK/ANALYZE/EXECUTE row: line connector positioned at `top: 22px` works only when icons are 52px in a row. Wrap correctly on phones by allowing flex-wrap and hiding the connector line below `sm`.
 
-### Implementation plan
+5. Section 5 (Build with intelligence + Footer)
+   - Footer flex `space-between` breaks on phones. Switch to `flex-wrap`, `gap: 16px`, center on small screens. Reduce link letter-spacing on small widths.
+   - Decorative concentric rings (600/450/320) overflow on phones — clamp their sizes with `min(80vw, 600px)` etc.
 
-1. **Split `HelmetHero` into two siblings in `LandingPage.tsx`:**
-   - `<HeroIntro />` — replaces the current first 100dvh of `HelmetHero`. Renders headline, subcopy, the `LandingChatInput`, and a single static `<img>` of the **assembled** helmet (`HELMET_FRAMES[FRAME_COUNT - 1]`). No scroll logic. Height `100dvh`.
-   - `<HelmetScrollReveal />` — a new sticky scrub section. Outer wrapper `height: 300vh` (clamped to `200vh` on mobile). Inner `position: sticky; top: 0; height: 100dvh` with the single helmet `<img>` whose `src` is updated by the scroll RAF loop.
+## Implementation approach
 
-2. **Single image element, frame-scrubbed by scroll** (in `HelmetScrollReveal`):
-   - Preload all `HELMET_FRAMES` once via `new Image()` into a ref array.
-   - `onScroll` (passive) writes the latest progress (0..1) into a ref.
-   - One `requestAnimationFrame` loop reads the ref, computes `idx = round((1 - p) * (FRAME_COUNT - 1))` so progress 0 = assembled (last frame) and progress 1 = exploded (frame 0), and assigns `imgRef.current.src` only when `idx` changes.
-   - Pause the RAF loop on `document.visibilitychange` hidden (battery/CPU).
-   - Cleanup scroll listener and `cancelAnimationFrame` on unmount.
+- Edit `src/components/landing/HeroScroll.tsx`:
+  - Replace the `G` constant + every `rgba(226,183,105,…)` / `#a07830` / `#d4a017` occurrence with the orange palette.
+  - Add minimal Tailwind `className` props (`hidden lg:block`, `flex-wrap`, etc.) to the decorative wrappers and rows that need responsive behavior. Inline styles stay; we only add classes where needed.
+  - Switch the two hard-coded grids (Section 3 two-column, Section 4 three-column) to either `repeat(auto-fit,minmax(...,1fr))` (Section 4) or a tiny utility class added to `index.css` (Section 3 + the absolute-positioned cards on phone).
 
-3. **Reveal copy alongside the scrub** (inside `HelmetScrollReveal`'s sticky child):
-   - A right-column stack of 3 short feature blurbs (World Intelligence / Market Signals / AI Agents) using the existing `FEATURES` text. Each blurb's opacity/translateY is driven from the same scroll progress with non-overlapping windows (e.g. 0.10–0.35, 0.40–0.65, 0.70–0.95). No framer-motion needed; plain inline `style` to stay cheap.
-   - Mobile: stack copy below the helmet, smaller type, single column.
+- Edit `src/index.css`:
+  - Recolor `.gold-glow-btn`, `.text-gold-glow`, and any `.stitch-glass*` border colors that reference gold.
+  - Add `.landing-two-col` responsive grid + `.landing-glass-stack` rule that converts the absolute-positioned card cluster to a stacked column on `max-width: 768px`.
 
-4. **Remove the brain phase entirely.** `TRANSITION_FRAMES` and the brain `<img>` are no longer rendered in the hero. (Keep the asset file in place; just stop importing it from this component. Safe to delete the import.)
+- Leave `Hero.tsx` untouched (already orange) and do not touch any other page.
 
-5. **Reduced motion + perf:**
-   - At top of `HelmetScrollReveal`, check `window.matchMedia('(prefers-reduced-motion: reduce)').matches`. If true, render only a static assembled helmet image and skip the sticky scrub entirely (collapse outer height to `auto`).
-   - Cap DPR-related work by relying on plain `<img>` (browser handles); no canvas needed.
-   - Lazy-mount `HelmetScrollReveal` via the existing `LazyLoad` component used elsewhere in the landing page so frame preloads don't block hero paint.
+## What is NOT changing
 
-6. **Wire-up in `src/components/LandingPage.tsx`:**
-   - Replace `<HelmetHero />` with:
-     ```tsx
-     <HeroIntro />
-     <LazyLoad debugLabel="HelmetScrollReveal" minHeight="100dvh">
-       <HelmetScrollReveal />
-     </LazyLoad>
-     ```
-   - Keep the rest of the page (`#about`, value props, footer) unchanged.
+- No copy, headings, stats numbers, icons, section order, animations, or framer-motion timings.
+- No removal of sections or visual elements.
+- No font changes (Bebas Neue / DM Sans stay).
+- No backend, routing, or component API changes.
+- `src/pages/services/AIEmployee.tsx` `text-yellow-400` and `Support.tsx` status badge colors are out of scope (not landing).
 
-7. **File changes:**
-   - **New:** `src/components/landing/HeroIntro.tsx` — static hero (headline, subcopy, single assembled helmet, `LandingChatInput`).
-   - **New:** `src/components/landing/HelmetScrollReveal.tsx` — sticky scroll-scrubbed helmet + side copy.
-   - **Edit:** `src/components/LandingPage.tsx` — swap `HelmetHero` for the two new components.
-   - **Delete:** `src/components/landing/HelmetHero.tsx` (no other importers — confirmed via ripgrep).
-   - **Untouched:** `src/assets/helmet-frames.ts`, `transition-frames.ts`, `Hero.tsx` (legacy, not used on `/`), the rest of the landing page.
+## Files to edit
 
-### Acceptance checks
-
-- Hero shows exactly one visual on load: the assembled helmet. No brain. No second stacked image.
-- Scrolling past the hero pins a single helmet that smoothly disassembles into the exploded view, then unpins and the page continues.
-- No layout jump between hero and scroll section (sticky inner is `100dvh`, matching hero).
-- `prefers-reduced-motion: reduce` → static assembled helmet, no pin, no scrub.
-- Mobile (≤768px) keeps a shorter pin (`200vh`) and stacks copy under the helmet.
-- No console errors; scroll listener and RAF are cleaned up on unmount.
+- `src/components/landing/HeroScroll.tsx`
+- `src/index.css` (gold-glow + small responsive helpers)
