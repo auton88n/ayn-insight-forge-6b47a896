@@ -108,12 +108,6 @@ export const HeroScroll = memo(() => {
           </div>
         </div>
 
-        {/* FIX #9: scroll hint — removed gap, closer to content */}
-        <motion.div className="hidden md:flex" {...anim({ opacity: 0 }, { opacity: 1 })} transition={{ duration: 1.5, delay: 1 }}
-          style={{ position: 'absolute', bottom: 40, left: 'clamp(20px,5vw,96px)', flexDirection: 'column', alignItems: 'flex-start', gap: 10, zIndex: 10 }}>
-          <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.38em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.38)', fontWeight: 600 }}>Scroll to explore</span>
-          <div style={{ width: 1, height: 48, background: 'linear-gradient(to bottom, rgba(251,146,60,0.55), transparent)' }} />
-        </motion.div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════
