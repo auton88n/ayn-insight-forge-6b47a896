@@ -1,286 +1,288 @@
 /**
- * HeroScroll — Matches Stitch design exactly.
- * Static robot image for now (replace with 3D object later).
- * 
- * Stage 1: "Intelligence, evolved." — robot right, text left
- * Stage 2: "Your business, understood." — robot center, glass cards right
- * Stage 3: Helmet center + 3 service cards below + ASK→ANALYZE→EXECUTE
- * Stage 4: "Build with intelligence" — CTA centered
+ * HeroScroll — Exact implementation of Stitch design.
+ * 5 full-screen sections, each with robot image background.
+ * Matches the provided TypeScript/CSS code from Stitch exactly.
  */
 
-import { useRef, useEffect, memo } from 'react';
-import { useScroll, useMotionValueEvent, motion } from 'framer-motion';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { memo } from 'react';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Search, BarChart2, Target } from 'lucide-react';
-import robotImg from '@/assets/robot-hero.png';
-
-function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
-function lerp(v: number, a: number, b: number, c: number, d: number) {
-  return c + (clamp(v, a, b) - a) / (b - a) * (d - c);
-}
-
-// Stage definitions matching the 4 Stitch screens
-const STAGES = [
-  { in: 0.00, out: 0.24 }, // Stage 1: Intelligence evolved
-  { in: 0.25, out: 0.49 }, // Stage 2: Your business understood
-  { in: 0.50, out: 0.74 }, // Stage 3: Helmet + cards
-  { in: 0.75, out: 0.99 }, // Stage 4: Build with intelligence CTA
-];
+import { ChevronRight, BarChart3, Target, Search } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import heroImg     from '@/assets/robot-hero.jpg';
+import evolvedImg  from '@/assets/robot-evolved.jpg';
+import businessImg from '@/assets/robot-business.jpg';
+import servicesImg from '@/assets/robot-services.jpg';
+import ctaImg      from '@/assets/robot-cta.jpg';
 
 export const HeroScroll = memo(() => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
-  const containerRef = useRef<HTMLDivElement>(null);
-  const stageRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const hintRef = useRef<HTMLDivElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end end'],
-  });
-
-  useMotionValueEvent(scrollYProgress, 'change', (p) => {
-    // Scroll hint fades out quickly
-    if (hintRef.current) {
-      hintRef.current.style.opacity = `${lerp(p, 0, 0.06, 1, 0)}`;
-    }
-
-    // Drive each stage in/out
-    STAGES.forEach((st, i) => {
-      const el = stageRefs.current[i];
-      if (!el) return;
-      const peak = st.in + (st.out - st.in) * 0.2;
-      const fadeOut = st.out - (st.out - st.in) * 0.15;
-      let op = 0;
-      if (p >= st.in && p <= st.out) {
-        if (p < peak) op = lerp(p, st.in, peak, 0, 1);
-        else if (p < fadeOut) op = 1;
-        else op = lerp(p, fadeOut, st.out, 1, 0);
-      }
-      // Stage 0 starts fully visible
-      if (i === 0) op = p < peak ? 1 : lerp(p, peak, st.out, 1, 0);
-      el.style.opacity = `${op}`;
-      el.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
-    });
-  });
-
-  const F  = "'DM Sans', sans-serif";
-  const FB = "'Bebas Neue', sans-serif";
-  const gold = '#C9A84C';
+  const F = "'DM Sans', sans-serif";
+  const FD = "'Bebas Neue', sans-serif";
 
   return (
-    <div style={{ background: '#0a0905' }}>
-      <div ref={containerRef} style={{ height: '500vh', position: 'relative' }}>
-        <div className="sticky top-0" style={{ height: '100dvh', overflow: 'hidden', background: '#0a0905', position: 'relative' }}>
+    <div style={{ background: '#000' }}>
 
-          {/* ── ROBOT IMAGE — always present, slight position shifts per stage ── */}
-          <img
-            src={robotImg}
-            alt="AYN Robot"
-            draggable={false}
-            style={{
-              position: 'absolute',
-              top: 0, right: 0,
-              height: '100%',
-              width: 'auto',
-              maxWidth: '72%',
-              objectFit: 'contain',
-              objectPosition: 'right bottom',
-              zIndex: 1,
-              userSelect: 'none',
-              pointerEvents: 'none',
-            }}
-          />
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 1 — MEET AYN hero
+          "MEET AYN" large, robot right, two CTA buttons, scroll hint
+      ══════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '80px clamp(32px,6vw,96px)', overflow: 'hidden' }}>
+        {/* Background */}
+        <img src={heroImg} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, userSelect: 'none', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, #000 30%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.0) 85%)', zIndex: 1 }} />
 
-          {/* Left fade gradient */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(to right, #0a0905 28%, rgba(10,9,5,0.75) 52%, rgba(10,9,5,0.0) 75%)', pointerEvents: 'none' }} />
-          {/* Bottom fade */}
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28%', zIndex: 2, background: 'linear-gradient(to top, #0a0905, transparent)', pointerEvents: 'none' }} />
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 10, maxWidth: 600 }}>
+          <motion.h1
+            initial={{ x: -50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            style={{ fontFamily: FD, fontSize: 'clamp(72px,10vw,130px)', fontWeight: 400, lineHeight: 0.88, letterSpacing: '-0.01em', color: '#fff', margin: '0 0 28px' }}
+          >
+            {isAr ? 'تعرّف على ' : 'MEET '}
+            <span className="text-gold-glow">{isAr ? 'عين' : 'AYN'}</span>
+          </motion.h1>
 
-          {/* ═══════════════════════════════════════════════════════
-              STAGE 1 — "Intelligence, evolved."
-          ═══════════════════════════════════════════════════════ */}
-          <div ref={el => { stageRefs.current[0] = el; }}
-            style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 clamp(32px,6vw,96px)', pointerEvents: 'none' }}>
-            <h1 style={{
-              fontFamily: F,
-              fontSize: 'clamp(48px,6.5vw,96px)',
-              fontWeight: 300,
-              lineHeight: 1.05,
-              color: gold,
-              margin: '0 0 32px',
-              maxWidth: 480,
-              letterSpacing: '-0.02em',
-            }}>
-              {isAr ? 'ذكاء\nمتطوّر.' : 'Intelligence,\nevolved.'}
-            </h1>
-          </div>
+          <motion.p
+            initial={{ x: -30, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            style={{ fontFamily: F, fontSize: 18, fontWeight: 300, lineHeight: 1.65, color: 'rgba(255,255,255,0.58)', maxWidth: 400, margin: '0 0 40px' }}
+          >
+            {isAr ? 'ذكاء أعمال حقيقي. تفاعل مع عين واكتشف ما يراه.' : 'Real business intelligence. Interact with AYN — and discover what it sees.'}
+          </motion.p>
 
-          {/* ═══════════════════════════════════════════════════════
-              STAGE 2 — "Your business, understood." + glass cards
-          ═══════════════════════════════════════════════════════ */}
-          <div ref={el => { stageRefs.current[1] = el; }}
-            style={{ position: 'absolute', inset: 0, zIndex: 10, opacity: 0, display: 'flex', alignItems: 'center', padding: '80px clamp(32px,5vw,80px)', gap: 32, pointerEvents: 'none' }}>
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}
+          >
+            <Link to="/pricing" className="gold-glow-btn" style={{ display: 'inline-flex', alignItems: 'center', padding: '14px 36px', borderRadius: 100, fontFamily: F, fontSize: 15, fontWeight: 700, color: '#000', textDecoration: 'none' }}>
+              {isAr ? 'ابدأ مع عين' : 'Start with AYN'}
+            </Link>
+            <Link to="/features" style={{ display: 'inline-flex', alignItems: 'center', padding: '14px 36px', borderRadius: 100, fontFamily: F, fontSize: 15, fontWeight: 600, color: '#fff', border: '1px solid rgba(255,255,255,0.28)', textDecoration: 'none', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+              {isAr ? 'شاهد كيف يعمل' : 'See how it works'}
+            </Link>
+          </motion.div>
+        </div>
 
-            {/* Spacer — robot takes left-center */}
-            <div style={{ flex: 1 }} />
+        {/* Scroll hint */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 2 }}
+          style={{ position: 'absolute', bottom: 48, left: 'clamp(32px,6vw,96px)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, zIndex: 10 }}>
+          <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.4em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>Scroll to explore</span>
+          <div style={{ width: 1, height: 72, background: 'linear-gradient(to bottom, rgba(255,255,255,0.35), transparent)' }} />
+        </motion.div>
+      </section>
 
-            {/* Glass cards — right side */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Main card */}
-              <div style={{
-                background: 'rgba(255,255,255,0.08)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 20,
-                padding: '32px 36px',
-              }}>
-                <h2 style={{ fontFamily: F, fontSize: 'clamp(28px,3.5vw,52px)', fontWeight: 500, color: '#fff', lineHeight: 1.1, margin: 0 }}>
-                  {isAr ? 'أعمالك،\nمُفهومة.' : 'Your business,\nunderstood.'}
-                </h2>
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 2 — Intelligence, evolved.
+      ══════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 clamp(32px,6vw,96px)', overflow: 'hidden' }}>
+        <img src={evolvedImg} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, userSelect: 'none', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, #000 25%, rgba(0,0,0,0.20) 55%, rgba(0,0,0,0.0) 80%)', zIndex: 1 }} />
+
+        <motion.h2
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          style={{ position: 'relative', zIndex: 10, fontFamily: F, fontSize: 'clamp(52px,7.5vw,110px)', fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.025em', color: '#fff', maxWidth: 520, background: 'linear-gradient(135deg, #fff, rgba(255,255,255,0.35))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+        >
+          {isAr ? 'ذكاء\nمتطوّر.' : 'Intelligence,\nevolved.'}
+        </motion.h2>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 3 — Your business, understood.
+      ══════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '80px clamp(32px,5vw,80px)', overflow: 'hidden' }}>
+        <img src={businessImg} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, userSelect: 'none', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.40)', zIndex: 1 }} />
+
+        <div style={{ position: 'relative', zIndex: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center', width: '100%', maxWidth: 1200, margin: '0 auto' }}>
+
+          {/* Left: headline */}
+          <motion.h2
+            initial={{ opacity: 0, scale: 0.92 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            style={{ fontFamily: F, fontSize: 'clamp(42px,5.5vw,80px)', fontWeight: 700, lineHeight: 1.1, color: '#fff', letterSpacing: '-0.02em', margin: 0 }}
+          >
+            {isAr ? 'أعمالك،\nمُفهومة.' : 'Your business,\nunderstood.'}
+          </motion.h2>
+
+          {/* Right: glass cards */}
+          <div style={{ position: 'relative', height: 480 }}>
+            {/* Main glass card */}
+            <motion.div
+              initial={{ opacity: 0, x: 50, y: 50 }}
+              whileInView={{ opacity: 1, x: 0, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1, delay: 0.2 }}
+              className="stitch-glass"
+              style={{ position: 'absolute', top: 20, right: 0, width: 260, borderRadius: 24, padding: '28px 28px 22px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <BarChart3 size={16} color="#e2b769" />
+                <span style={{ fontFamily: F, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)' }}>Deep Analysis</span>
               </div>
-
-              {/* Sub cards row */}
-              <div style={{ display: 'flex', gap: 12 }}>
-                {[
-                  { icon: '📊', label: 'Deep Analysis' },
-                  { icon: '🎯', label: 'Prediction' },
-                  { icon: '💎', label: 'Clarity' },
-                ].map((c, i) => (
-                  <div key={i} style={{
-                    flex: 1,
-                    background: 'rgba(255,255,255,0.07)',
-                    backdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255,255,255,0.10)',
-                    borderRadius: 16,
-                    padding: '18px 16px',
-                    display: 'flex', flexDirection: 'column', gap: 8,
-                  }}>
-                    {/* Mini chart decoration */}
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 28, marginBottom: 4 }}>
-                      {[4, 7, 5, 9, 6, 8, 11].map((h, j) => (
-                        <div key={j} style={{ width: 4, height: `${h * 2.2}px`, background: i === 0 ? 'rgba(255,255,255,0.25)' : gold, borderRadius: 2, opacity: 0.7 }} />
-                      ))}
-                    </div>
-                    <span style={{ fontFamily: F, fontSize: 13, color: 'rgba(255,255,255,0.70)', fontWeight: 400 }}>{c.label}</span>
-                  </div>
+              <div style={{ height: 80, display: 'flex', alignItems: 'flex-end', gap: 4 }}>
+                {[40, 70, 45, 90, 65, 80, 50, 75, 60].map((h, i) => (
+                  <div key={i} style={{ flex: 1, height: `${h}%`, background: `linear-gradient(to top, rgba(226,183,105,0.25), rgba(226,183,105,0.7))`, borderRadius: '3px 3px 0 0' }} />
                 ))}
               </div>
-            </div>
+            </motion.div>
+
+            {/* Prediction card */}
+            <motion.div
+              initial={{ opacity: 0, x: 80, y: 100 }}
+              whileInView={{ opacity: 1, x: 0, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1, delay: 0.4 }}
+              className="stitch-glass"
+              style={{ position: 'absolute', bottom: 60, right: 40, width: 200, borderRadius: 24, padding: '22px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <Target size={14} color="#e2b769" />
+                <span style={{ fontFamily: F, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)' }}>Prediction</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#fff', lineHeight: 1 }}>84.2%</span>
+                <span style={{ fontFamily: F, fontSize: 10, color: '#4ade80', fontWeight: 700 }}>+12.4%</span>
+              </div>
+              <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.10)', borderRadius: 2, overflow: 'hidden' }}>
+                <motion.div initial={{ width: 0 }} whileInView={{ width: '84%' }} viewport={{ once: true }} transition={{ duration: 1, delay: 0.6 }} style={{ height: '100%', background: '#e2b769', borderRadius: 2 }} />
+              </div>
+            </motion.div>
+
+            {/* Clarity card */}
+            <motion.div
+              initial={{ opacity: 0, x: 30, y: 80 }}
+              whileInView={{ opacity: 1, x: 0, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1, delay: 0.6 }}
+              className="stitch-glass"
+              style={{ position: 'absolute', top: 200, left: 0, width: 160, borderRadius: 20, padding: '18px 16px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e2b769' }} />
+                <span style={{ fontFamily: F, fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)' }}>Clarity</span>
+              </div>
+              <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 40 }}>
+                {[3, 6, 4, 8, 5, 7].map((h, i) => (
+                  <div key={i} style={{ flex: 1, height: `${h * 5}px`, background: 'rgba(226,183,105,0.45)', borderRadius: '2px 2px 0 0' }} />
+                ))}
+              </div>
+            </motion.div>
           </div>
-
-          {/* Scroll hint for stage 2 */}
-          <div style={{ position: 'absolute', bottom: 32, left: 'clamp(32px,6vw,96px)', zIndex: 15, display: 'flex', alignItems: 'center', gap: 14 }}
-            ref={el => { /* handled separately */ }}>
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════
-              STAGE 3 — Helmet centered + 3 service cards + pipeline
-          ═══════════════════════════════════════════════════════ */}
-          <div ref={el => { stageRefs.current[2] = el; }}
-            style={{ position: 'absolute', inset: 0, zIndex: 10, opacity: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: '0 clamp(24px,4vw,64px) 40px', pointerEvents: 'none' }}>
-
-            {/* 3 service cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, width: '100%', maxWidth: 1000, marginBottom: 32 }}>
-              {[
-                { icon: Search, title: isAr ? 'استشارات الذكاء الاصطناعي' : 'AI Consulting', desc: isAr ? 'تفاعل مع ذكاء الأعمال وقياس الأداء.' : 'Interact business intelligence, and business measures.' },
-                { icon: BarChart2, title: isAr ? 'ذكاء السوق' : 'Market Intelligence', desc: isAr ? 'ذكاء السوق لتحليل البيانات.' : 'Market intelligence to analyzing market data.' },
-                { icon: Target, title: isAr ? 'استراتيجية البيانات' : 'Data Strategy', desc: isAr ? 'استراتيجية البيانات ومعرفة متعمقة.' : 'Strategy data when data and systic knowledge.' },
-              ].map((card, i) => {
-                const Icon = card.icon;
-                return (
-                  <div key={i} style={{
-                    background: i === 2 ? 'rgba(201,168,76,0.12)' : 'rgba(30,25,15,0.85)',
-                    backdropFilter: 'blur(16px)',
-                    border: `1px solid ${i === 2 ? 'rgba(201,168,76,0.35)' : 'rgba(255,255,255,0.08)'}`,
-                    borderRadius: 16,
-                    padding: '24px 22px',
-                  }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                      <Icon size={18} color={gold} />
-                    </div>
-                    <h3 style={{ fontFamily: F, fontSize: 17, fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>{card.title}</h3>
-                    <p style={{ fontFamily: F, fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, margin: 0 }}>{card.desc}</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* ASK → ANALYZE → EXECUTE pipeline */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0, width: '100%', maxWidth: 700 }}>
-              {['ASK', 'ANALYZE', 'EXECUTE'].map((step, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', border: `1px solid ${i === 0 ? gold : 'rgba(255,255,255,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {i === 0 && <Search size={14} color={gold} />}
-                      {i === 1 && <BarChart2 size={14} color="rgba(255,255,255,0.5)" />}
-                      {i === 2 && <Target size={14} color="rgba(255,255,255,0.5)" />}
-                    </div>
-                    <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.22em', color: i === 0 ? gold : 'rgba(255,255,255,0.35)', textTransform: 'uppercase' }}>{step}</span>
-                  </div>
-                  {i < 2 && (
-                    <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 24 }}>
-                      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.15)' }} />
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: i === 0 ? gold : 'rgba(255,255,255,0.2)' }} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ═══════════════════════════════════════════════════════
-              STAGE 4 — "Build with intelligence" CTA
-          ═══════════════════════════════════════════════════════ */}
-          <div ref={el => { stageRefs.current[3] = el; }}
-            style={{ position: 'absolute', inset: 0, zIndex: 10, opacity: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '80px clamp(24px,4vw,64px) 0', pointerEvents: 'none' }}>
-
-            <h2 style={{
-              fontFamily: F,
-              fontSize: 'clamp(36px,6vw,96px)',
-              fontWeight: 300,
-              color: '#EDE8D8',
-              textAlign: 'center',
-              letterSpacing: '-0.02em',
-              lineHeight: 1.05,
-              margin: 0,
-            }}>
-              {isAr ? 'ابنِ بذكاء' : 'Build with intelligence'}
-            </h2>
-
-            {/* Robot image centered (already in background) — just the button */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 80 }}>
-              <Link to="/pricing"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 0,
-                  padding: '16px 48px',
-                  background: 'linear-gradient(135deg, #C9A84C 0%, #a07830 100%)',
-                  color: '#0a0905',
-                  fontFamily: F, fontSize: 15, fontWeight: 600,
-                  borderRadius: 100,
-                  textDecoration: 'none',
-                  boxShadow: '0 0 40px rgba(201,168,76,0.35)',
-                  pointerEvents: 'auto',
-                }}>
-                {isAr ? 'ابدأ مع عين' : 'Start with AYN'}
-              </Link>
-            </div>
-          </div>
-
-          {/* ── SCROLL TO EXPLORE — always bottom left ── */}
-          <div ref={hintRef} style={{
-            position: 'absolute', bottom: 32, left: 'clamp(32px,6vw,96px)',
-            zIndex: 20, display: 'flex', alignItems: 'center', gap: 14,
-          }}>
-            <div style={{ width: 1, height: 40, background: 'rgba(201,168,76,0.4)' }} />
-            <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.24em', color: 'rgba(255,255,255,0.30)', textTransform: 'uppercase' }}>
-              Scroll to explore
-            </span>
-          </div>
-
         </div>
-      </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 4 — Services + ASK→ANALYZE→EXECUTE
+      ══════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: '40px clamp(24px,4vw,64px) 60px', overflow: 'hidden', background: '#050505' }}>
+        <img src={servicesImg} alt="" draggable={false} style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', height: '55%', width: 'auto', objectFit: 'contain', zIndex: 0, userSelect: 'none', pointerEvents: 'none', mixBlendMode: 'screen', opacity: 0.85 }} />
+
+        {/* 3 service cards */}
+        <div style={{ position: 'relative', zIndex: 10, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, width: '100%', maxWidth: 1100, marginBottom: 48 }}>
+          {[
+            { icon: Search, title: isAr ? 'استشارات الذكاء الاصطناعي' : 'AI Consulting', desc: isAr ? 'تفاعل مع ذكاء الأعمال وقياس الأداء.' : 'Interact business intelligence, and business measures.', active: false },
+            { icon: BarChart3, title: isAr ? 'ذكاء السوق' : 'Market Intelligence', desc: isAr ? 'ذكاء السوق لتحليل بيانات السوق.' : 'Market intelligence in scan analyzing market data.', active: false },
+            { icon: Target, title: isAr ? 'استراتيجية البيانات' : 'Data Strategy', desc: isAr ? 'استراتيجية البيانات والمعرفة التحليلية.' : 'Strategy data when data and data analytic knowledge.', active: true },
+          ].map((card, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className={card.active ? 'stitch-glass' : ''}
+              style={{
+                padding: '32px 28px',
+                borderRadius: 32,
+                background: card.active ? undefined : 'transparent',
+                border: card.active ? '1px solid rgba(226,183,105,0.30)' : '1px solid rgba(255,255,255,0.06)',
+                boxShadow: card.active ? '0 0 50px rgba(212,160,23,0.12)' : 'none',
+                transition: 'all 0.3s',
+              }}
+              onMouseEnter={e => { if (!card.active) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseLeave={e => { if (!card.active) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+            >
+              <div style={{ width: 52, height: 52, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, background: card.active ? '#e2b769' : 'rgba(255,255,255,0.06)' }}>
+                <card.icon size={22} color={card.active ? '#000' : 'rgba(255,255,255,0.4)'} />
+              </div>
+              <h3 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#fff', margin: '0 0 12px', letterSpacing: '0.02em' }}>{card.title}</h3>
+              <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 14, color: 'rgba(255,255,255,0.40)', lineHeight: 1.65, margin: 0 }}>{card.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* ASK → ANALYZE → EXECUTE */}
+        <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: 720, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ position: 'absolute', top: 22, left: '15%', right: '15%', height: 1, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.18), transparent)' }} />
+          {[
+            { label: 'ASK', icon: Search },
+            { label: 'ANALYZE', icon: BarChart3 },
+            { label: 'EXECUTE', icon: Target },
+          ].map((step, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, position: 'relative', zIndex: 1 }}>
+              <div className="stitch-glass" style={{ width: 56, height: 56, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.3s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = '#e2b769'; (e.currentTarget as HTMLDivElement).style.color = '#e2b769'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = ''; }}>
+                <step.icon size={20} color="rgba(255,255,255,0.38)" />
+              </div>
+              <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '0.3em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase' }}>{step.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 5 — Build with intelligence (Footer CTA)
+      ══════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '85dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', overflow: 'hidden' }}>
+        <img src={ctaImg} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, userSelect: 'none', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1 }} />
+
+        <div style={{ position: 'relative', zIndex: 10, maxWidth: 860, padding: '0 32px' }}>
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 'clamp(44px,7vw,110px)', fontWeight: 800, lineHeight: 1.02, letterSpacing: '-0.025em', color: '#EDE8D8', margin: '0 0 56px' }}
+          >
+            {isAr ? 'ابنِ بذكاء' : 'Build with\nintelligence'}
+          </motion.h2>
+
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}>
+            <Link to="/pricing" className="gold-glow-btn" style={{ display: 'inline-flex', alignItems: 'center', padding: '18px 52px', borderRadius: 100, fontFamily: "'DM Sans',sans-serif", fontSize: 18, fontWeight: 800, color: '#000', textDecoration: 'none' }}>
+              {isAr ? 'ابدأ مع عين' : 'Start with AYN'}
+            </Link>
+          </motion.div>
+        </div>
+
+        {/* Footer bar */}
+        <div className="stitch-glass-dark" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', gap: 32 }}>
+            {['Privacy Policy', 'Terms', 'Pricing', 'Contact'].map(link => (
+              <a key={link} href="#" style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.35)', textDecoration: 'none', textTransform: 'uppercase', transition: 'color 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                {link}
+              </a>
+            ))}
+          </div>
+          <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', color: 'rgba(255,255,255,0.18)', textTransform: 'uppercase' }}>© 2026 AYN Intelligence</span>
+        </div>
+      </section>
+
     </div>
   );
 });
