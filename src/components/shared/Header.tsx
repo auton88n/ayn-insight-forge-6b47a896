@@ -68,127 +68,127 @@ export const Header = () => {
 
   return (
     <>
-      <nav className={cn(
-        "fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b",
-        location.pathname === '/'
-          ? "bg-black/80 border-white/[0.06]"
-          : "bg-background/80 border-border/50"
-      )}>
-        <div className="container max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", location.pathname === '/' ? "bg-white" : "bg-foreground")}>
-              <Brain className="w-5 h-5 text-background" />
-            </div>
-            <span className="text-xl font-bold">AYN</span>
-          </Link>
+      {/* Fixed top bar — transparent, no border, no background */}
+      <nav className="fixed top-0 left-0 right-0 z-50" style={{ padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium">
-            {navLinks.map((link) =>
+        {/* Centered glassmorphism pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 32,
+          padding: '10px 28px',
+          borderRadius: 9999,
+          background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+        }}>
+          {navLinks.map((link) => (
             <Link
               key={link.path}
               to={link.path}
               onClick={(e) => handleNavClick(e, link.path)}
-              className={cn(
-                'transition-colors',
-                isActive(link.path)
-                  ? location.pathname === '/' ? 'text-white' : 'text-foreground'
-                  : location.pathname === '/'
-                    ? 'text-white/60 hover:text-white'
-                    : 'text-muted-foreground hover:text-foreground'
-              )}>
-              
-                {getLabel(link)}
-              </Link>
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 14,
+                fontWeight: isActive(link.path) ? 600 : 400,
+                color: isActive(link.path) ? '#fff' : 'rgba(255,255,255,0.65)',
+                textDecoration: 'none',
+                transition: 'color 0.2s',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? '#fff' : 'rgba(255,255,255,0.65)')}
+            >
+              {getLabel(link)}
+            </Link>
+          ))}
+        </div>
+
+        {/* Right side — EN + Get Started Free — absolutely positioned */}
+        <div style={{ position: 'absolute', right: 32, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 20 }}>
+          <LanguageSwitcher />
+
+          {/* Auth — desktop */}
+          <div className="hidden md:block">
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>
+                  {user.email?.split('@')[0]}
+                </span>
+                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: 4 }} title="Sign out">
+                  <LogOut size={15} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 14, fontWeight: 700,
+                  color: '#000',
+                  background: '#fff',
+                  border: 'none',
+                  borderRadius: 9999,
+                  padding: '9px 22px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 0.2s, transform 0.2s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f0f0f0'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
+              >
+                {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer' : 'Get Started Free'}
+              </button>
             )}
           </div>
 
-          {/* Right side */}
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher />
-
-            {/* Auth button - desktop */}
-            <div className="hidden md:block">
-              {user ?
-              <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted text-sm">
-                    <User className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground max-w-[120px] truncate">
-                      {user.email?.split('@')[0]}
-                    </span>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={handleSignOut} title={language === 'ar' ? 'تسجيل خروج' : language === 'fr' ? 'Déconnexion' : 'Sign out'}>
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </div> :
-
-              <Button variant="default" size="sm" onClick={() => setShowAuthModal(true)} className="gap-1.5">
-                  {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
+          {/* Mobile hamburger */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" style={{ color: '#fff' }}>
+                  <Menu className="h-5 w-5" />
                 </Button>
-              }
-            </div>
-
-            {/* Mobile menu */}
-            <div className="md:hidden">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[280px]">
-                  <div className="flex flex-col gap-6 pt-8">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center">
-                        <Brain className="w-6 h-6 text-background" />
-                      </div>
-                      <span className="text-2xl font-bold">AYN</span>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px]">
+                <div className="flex flex-col gap-6 pt-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center">
+                      <Brain className="w-6 h-6 text-background" />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      {navLinks.map((link) =>
-                      <Link
-                        key={link.path}
-                        to={link.path}
-                        onClick={(e) => handleNavClick(e, link.path)}
-                        className={cn(
-                          'py-2.5 px-3 rounded-lg text-sm font-medium transition-colors',
-                          isActive(link.path) ?
-                          'bg-muted text-foreground' :
-                          'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                        )}>
-                        
-                          {getLabel(link)}
-                        </Link>
-                      )}
-                    </div>
-
-                    <div className="h-px bg-border" />
-
-                    {/* Auth - mobile */}
-                    {user ?
-                    <div className="space-y-2 px-3">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <User className="w-4 h-4" />
-                          <span className="truncate">{user.email}</span>
-                        </div>
-                        <Button variant="outline" className="w-full" onClick={handleSignOut}>
-                          <LogOut className="h-4 w-4 mr-2" />
-                          {language === 'ar' ? 'تسجيل خروج' : language === 'fr' ? 'Déconnexion' : 'Sign Out'}
-                        </Button>
-                      </div> :
-
-                    <div className="px-3">
-                        <Button className="w-full" onClick={() => setShowAuthModal(true)}>
-                          <LogIn className="h-4 w-4 mr-2" />
-                          {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Get Started Free'}
-                        </Button>
-                      </div>
-                    }
+                    <span className="text-2xl font-bold">AYN</span>
                   </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+                  <div className="flex flex-col gap-1">
+                    {navLinks.map((link) => (
+                      <Link key={link.path} to={link.path} onClick={(e) => handleNavClick(e, link.path)}
+                        className={cn('py-2.5 px-3 rounded-lg text-sm font-medium transition-colors',
+                          isActive(link.path) ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50')}>
+                        {getLabel(link)}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="h-px bg-border" />
+                  {user ? (
+                    <div className="space-y-2 px-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <User className="w-4 h-4" /><span className="truncate">{user.email}</span>
+                      </div>
+                      <Button variant="outline" className="w-full" onClick={handleSignOut}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        {language === 'ar' ? 'تسجيل خروج' : 'Sign Out'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="px-3">
+                      <Button className="w-full" onClick={() => setShowAuthModal(true)}>
+                        <LogIn className="h-4 w-4 mr-2" />
+                        {language === 'ar' ? 'ابدأ مجاناً' : 'Get Started Free'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </nav>
