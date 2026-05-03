@@ -115,7 +115,7 @@ export const HeroScroll = memo(() => {
           <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             style={{ fontFamily: F, fontSize: 10, fontWeight: 600, letterSpacing: '0.30em', textTransform: 'uppercase', color: G, margin: '0 0 20px' }}>About AYN</motion.p>
           <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8 }}
-            style={{ fontFamily: F, fontSize: 'clamp(40px,7vw,100px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.025em', color: '#fff', margin: '0 0 28px', wordBreak: 'break-word' }}>
+            style={{ fontFamily: F, fontSize: 'clamp(36px,4.5vw,72px)', fontWeight: 700, lineHeight: 1.08, letterSpacing: '-0.025em', color: '#fff', margin: '0 0 28px', wordBreak: 'keep-all' }}>
             {isAr ? 'ذكاء متطوّر.' : <span>Intelligence,<br />evolved.</span>}
           </motion.h2>
           <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2, duration: 0.8 }}
