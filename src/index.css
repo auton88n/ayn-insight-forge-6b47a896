@@ -311,7 +311,7 @@ button, a, input, textarea, select {
 
   .dark {
     /* Premium Black & White Dark Mode */
-    --background: 0 0% 100%;             /* Pure white to match frames */
+    --background: 0 0% 4%;              /* Near black */
     --foreground: 0 0% 98%;            /* Off-white */
     --card: 0 0% 3%;                   /* Near black card */
     --card-foreground: 0 0% 98%;

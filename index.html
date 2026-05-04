@@ -129,10 +129,21 @@
   <script>
     (function() {
       try {
-        var bgColor = 'hsl(0 0% 4%)';
-        document.documentElement.classList.add('dark');
-        document.documentElement.style.colorScheme = 'dark';
-        // Set background on html immediately (body may not exist yet in head script)
+        // Landing page is always white — skip dark injection entirely
+        var isLanding = window.location.pathname === '/' || window.location.pathname === '';
+        if (isLanding) {
+          document.documentElement.classList.add('light');
+          document.documentElement.style.colorScheme = 'light';
+          document.documentElement.style.backgroundColor = '#ffffff';
+          return;
+        }
+        // Dashboard / authenticated routes: apply saved theme or default dark
+        var saved = null;
+        try { saved = localStorage.getItem('ayn-theme'); } catch(e) {}
+        var theme = (saved === 'light') ? 'light' : 'dark';
+        document.documentElement.classList.add(theme);
+        document.documentElement.style.colorScheme = theme;
+        var bgColor = (theme === 'light') ? '#ffffff' : 'hsl(0 0% 4%)';
         document.documentElement.style.backgroundColor = bgColor;
         if (document.body) document.body.style.backgroundColor = bgColor;
       } catch (e) {
@@ -168,10 +179,19 @@
 
   <body>
     <script>
-      document.body.style.backgroundColor = 'hsl(0 0% 4%)';
-      requestAnimationFrame(function() {
-        document.documentElement.setAttribute('data-ready', '');
-      });
+      (function() {
+        var isLanding = window.location.pathname === '/' || window.location.pathname === '';
+        if (isLanding) {
+          document.body.style.backgroundColor = '#ffffff';
+        } else {
+          var saved = null;
+          try { saved = localStorage.getItem('ayn-theme'); } catch(e) {}
+          document.body.style.backgroundColor = (saved === 'light') ? '#ffffff' : 'hsl(0 0% 4%)';
+        }
+        requestAnimationFrame(function() {
+          document.documentElement.setAttribute('data-ready', '');
+        });
+      })();
     </script>
     <div id="root" style="min-height: 100vh;"></div>
     <noscript>
