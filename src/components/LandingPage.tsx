@@ -10,31 +10,14 @@ const LandingPage = memo(() => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { direction } = useLanguage();
 
-  // Force landing page to pure white regardless of saved dark theme.
-  // Removes 'dark', adds 'light', sets inline bg before paint.
-  // Fully restores dashboard theme on unmount.
+  // Safety net: ensure white bg even if ThemeProvider hasn't synced yet
   useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-
-    const prevHtmlBg = html.style.backgroundColor;
-    const prevBodyBg = body.style.backgroundColor;
-    const prevColorScheme = html.style.colorScheme;
-    const wasDark = html.classList.contains('dark');
-
-    html.classList.remove('dark');
-    html.classList.add('light');
-    html.style.colorScheme = 'light';
-    html.style.backgroundColor = '#ffffff';
-    body.style.backgroundColor = '#ffffff';
-
-    return () => {
-      html.classList.remove('light');
-      if (wasDark) html.classList.add('dark');
-      html.style.colorScheme = prevColorScheme || (wasDark ? 'dark' : 'light');
-      html.style.backgroundColor = prevHtmlBg;
-      body.style.backgroundColor = prevBodyBg;
-    };
+    const html = document.documentElement
+    const body = document.body
+    html.classList.remove("dark")
+    html.classList.add("light")
+    html.style.backgroundColor = "#ffffff"
+    body.style.backgroundColor = "#ffffff"
   }, []);
 
   const faqSchema = createFAQSchema([
