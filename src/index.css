@@ -231,7 +231,7 @@ button, a, input, textarea, select {
     --background: 0 0% 100%;             /* Pure white to match frames */
     --foreground: 0 0% 4%;             /* Near black #0a0a0a */
 
-    --card: 0 0% 99%;                  /* Off-white #FCFCFC */
+    --card: 0 0% 100%;                 /* Pure white */
     --card-foreground: 0 0% 4%;
 
     --popover: 0 0% 100%;
@@ -239,18 +239,18 @@ button, a, input, textarea, select {
 
     /* Professional Black & White Theme */
     --primary: 0 0% 8%;                /* Dark accent */
-    --primary-foreground: 0 0% 98%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;             /* Light gray #F5F5F5 */
+    --secondary: 0 0% 100%;            /* Pure white */
     --secondary-foreground: 0 0% 8%;
 
-    --accent: 0 0% 96%;
+    --accent: 0 0% 100%;
     --accent-foreground: 0 0% 8%;
 
     --warning: 0 0% 25%;
-    --warning-foreground: 0 0% 98%;
+    --warning-foreground: 0 0% 100%;
 
-    --muted: 0 0% 96%;                 /* Light gray #F5F5F5 */
+    --muted: 0 0% 100%;                /* Pure white */
     --muted-foreground: 0 0% 40%;      /* Mid gray */
 
     --destructive: 0 84% 60%;
@@ -289,11 +289,11 @@ button, a, input, textarea, select {
     --emotion-comfort: 349 49% 69%;     /* Deep Warm Rose #D98695 */
     --emotion-supportive: 10 61% 78%;   /* Soft Rose-Beige #E8A598 */
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 8%;
     --sidebar-primary: 0 0% 8%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 96%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100%;
     --sidebar-accent-foreground: 0 0% 8%;
     --sidebar-border: 0 0% 92%;
     --sidebar-ring: 0 0% 8%;
@@ -460,7 +460,7 @@ button, a, input, textarea, select {
   }
 
   .glass-hover:hover {
-    background: hsla(0, 0%, 95%, 1);
+    background: hsla(0, 0%, 100%, 1);
     border-color: hsla(0, 0%, 80%, 1);
     box-shadow: 0 12px 40px hsla(0, 0%, 0%, 0.1);
   }
