@@ -25,7 +25,7 @@ const LandingPage = memo(() => {
         keywords="AYN AI, business intelligence AI, market analysis AI, geopolitical risk"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
-      <div dir={direction} style={{ background: '#000', minHeight: '100vh' }}>
+      <div dir={direction} style={{ background: '#f7f7f5', minHeight: '100vh' }}>
         <Header />
         <HeroScroll />
         <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
