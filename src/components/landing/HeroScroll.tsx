@@ -19,7 +19,7 @@ function map(v: number, a: number, b: number, c: number, d: number) {
 
 const C = {
   bg:     '#ffffff',
-  bgOff:  '#f7f7f5',
+  bgOff:  '#ffffff',
   ink:    '#06070A',
   inkMid: '#3D3F45',
   inkSub: '#6E7076',
