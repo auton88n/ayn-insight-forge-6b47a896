@@ -186,7 +186,6 @@ export const HeroScroll = memo(() => {
                   zIndex: 1,
                   /* Studio quality shadow on object only — not on bg */
                   filter: 'drop-shadow(0 24px 40px rgba(0,0,0,0.08)) drop-shadow(0 4px 8px rgba(0,0,0,0.04))',
-                  mixBlendMode: 'multiply',
                 }}
               />
             </div>
