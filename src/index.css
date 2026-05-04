@@ -140,6 +140,16 @@ html {
   background-color: #ffffff;
 }
 
+.landing-white-page,
+.landing-white-page *:not(.stitch-glass):not(.stitch-glass-dark) {
+  --landing-pure-white: 0 0% 100%;
+}
+
+.landing-white-page {
+  background: hsl(var(--landing-pure-white)) !important;
+  background-image: none !important;
+}
+
 /* Ensure smooth scrolling and better mobile behavior */
 html {
   scroll-behavior: smooth;
