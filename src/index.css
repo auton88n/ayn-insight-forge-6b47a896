@@ -140,6 +140,16 @@ html {
   background-color: #ffffff;
 }
 
+.landing-white-page,
+.landing-white-page *:not(.stitch-glass):not(.stitch-glass-dark) {
+  --landing-pure-white: 0 0% 100%;
+}
+
+.landing-white-page {
+  background: hsl(var(--landing-pure-white)) !important;
+  background-image: none !important;
+}
+
 /* Ensure smooth scrolling and better mobile behavior */
 html {
   scroll-behavior: smooth;
@@ -388,7 +398,7 @@ button, a, input, textarea, select {
 
   html:not(.dark) body {
     background-color: hsl(0 0% 100%);
-    background-image: radial-gradient(ellipse at top, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
+    background-image: none;
   }
 
   /* Message bubble styling */
