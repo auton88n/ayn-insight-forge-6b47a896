@@ -76,9 +76,9 @@ export const Header = () => {
           display: 'flex', alignItems: 'center', gap: 28,
           padding: '9px 24px',
           borderRadius: 9999,
-          background: 'rgba(255,255,255,0.72)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
+          background: 'rgba(255,255,255,0.95)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           border: '1px solid rgba(10,10,15,0.10)',
           boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
         }}>

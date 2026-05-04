@@ -150,6 +150,16 @@ html {
   background-image: none !important;
 }
 
+/* When landing page is mounted, ensure html/body don't bleed dark bg */
+html:has(.landing-white-page) {
+  background-color: #ffffff !important;
+}
+
+html:has(.landing-white-page) body {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
 /* Ensure smooth scrolling and better mobile behavior */
 html {
   scroll-behavior: smooth;

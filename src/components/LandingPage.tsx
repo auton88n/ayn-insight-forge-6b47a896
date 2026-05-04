@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, organizationSchema, websiteSchema, softwareApplicationSchema, createFAQSchema } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
@@ -9,6 +9,21 @@ import { useState } from 'react';
 const LandingPage = memo(() => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { direction } = useLanguage();
+
+  // Force body and html to pure white — overrides the dark-mode inline style
+  // set by index.html before React hydrates. Restores on unmount (dashboard).
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlBg = html.style.backgroundColor;
+    const prevBodyBg = body.style.backgroundColor;
+    html.style.backgroundColor = '#ffffff';
+    body.style.backgroundColor = '#ffffff';
+    return () => {
+      html.style.backgroundColor = prevHtmlBg;
+      body.style.backgroundColor = prevBodyBg;
+    };
+  }, []);
 
   const faqSchema = createFAQSchema([
     { question: 'What is AYN AI?', answer: 'AYN (عين) is a business intelligence AI that monitors global markets, analyzes geopolitical risks, and delivers real-time insights.' },
