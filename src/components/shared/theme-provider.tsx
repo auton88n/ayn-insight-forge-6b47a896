@@ -13,15 +13,13 @@ type ThemeProviderState = {
   setTheme: (theme: Theme) => void
 }
 
-/** Landing page is always pure white — any other path is always dark. */
+/** All pages use light (white) theme. */
 function resolveTheme(): Theme {
-  if (typeof window === "undefined") return "dark"
-  const path = window.location.pathname
-  return path === "/" || path === "" ? "light" : "dark"
+  return "light"
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState>({
-  theme: "dark",
+  theme: "light",
   setTheme: () => null,
 })
 
