@@ -76,11 +76,11 @@ export const Header = () => {
           display: 'flex', alignItems: 'center', gap: 28,
           padding: '9px 24px',
           borderRadius: 9999,
-          background: 'rgba(255,255,255,0.88)',
+          background: 'rgba(255,255,255,0.72)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           border: '1px solid rgba(10,10,15,0.10)',
-          boxShadow: '0 1px 12px rgba(10,10,15,0.07)',
+          boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
         }}>
           {navLinks.map((link) => (
             <Link
@@ -88,7 +88,7 @@ export const Header = () => {
               to={link.path}
               onClick={(e) => handleNavClick(e, link.path)}
               style={{
-                fontFamily: "'Geist', 'DM Sans', sans-serif",
+                fontFamily: "'Space Grotesk', 'Geist', system-ui, sans-serif",
                 fontSize: 14,
                 fontWeight: isActive(link.path) ? 500 : 400,
                 color: isActive(link.path) ? '#0a0a0f' : 'rgba(10,10,15,0.50)',
@@ -124,7 +124,7 @@ export const Header = () => {
               <button
                 onClick={() => setShowAuthModal(true)}
                 style={{
-                  fontFamily: "'Geist', 'DM Sans', sans-serif",
+                  fontFamily: "'Space Grotesk', 'Geist', system-ui, sans-serif",
                   fontSize: 13, fontWeight: 500,
                   color: '#fff',
                   background: '#0a0a0f',
