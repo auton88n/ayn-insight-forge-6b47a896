@@ -73,14 +73,14 @@ export const Header = () => {
 
         {/* Centered glassmorphism pill */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 32,
-          padding: '10px 28px',
+          display: 'flex', alignItems: 'center', gap: 28,
+          padding: '9px 24px',
           borderRadius: 9999,
-          background: 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(0,0,0,0.08)',
-          boxShadow: '0 2px 20px rgba(0,0,0,0.08)',
+          background: 'rgba(255,255,255,0.88)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(10,10,15,0.10)',
+          boxShadow: '0 1px 12px rgba(10,10,15,0.07)',
         }}>
           {navLinks.map((link) => (
             <Link
@@ -88,16 +88,17 @@ export const Header = () => {
               to={link.path}
               onClick={(e) => handleNavClick(e, link.path)}
               style={{
-                fontFamily: "'DM Sans', sans-serif",
+                fontFamily: "'Geist', 'DM Sans', sans-serif",
                 fontSize: 14,
-                fontWeight: isActive(link.path) ? 600 : 400,
-                color: isActive(link.path) ? '#FB923C' : 'rgba(10,10,10,0.65)',
+                fontWeight: isActive(link.path) ? 500 : 400,
+                color: isActive(link.path) ? '#0a0a0f' : 'rgba(10,10,15,0.50)',
                 textDecoration: 'none',
-                transition: 'color 0.2s',
+                transition: 'color 0.15s',
                 whiteSpace: 'nowrap',
+                letterSpacing: '-0.01em',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#FB923C')}
-              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? '#FB923C' : 'rgba(10,10,10,0.65)')}
+              onMouseEnter={e => (e.currentTarget.style.color = '#0a0a0f')}
+              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? '#0a0a0f' : 'rgba(10,10,15,0.50)')}
             >
               {getLabel(link)}
             </Link>
@@ -123,19 +124,22 @@ export const Header = () => {
               <button
                 onClick={() => setShowAuthModal(true)}
                 style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: 14, fontWeight: 700,
+                  fontFamily: "'Geist', 'DM Sans', sans-serif",
+                  fontSize: 13, fontWeight: 500,
                   color: '#fff',
-                  background: '#FB923C',
+                  background: '#0a0a0f',
                   border: 'none',
-                  borderRadius: 9999,
-                  padding: '9px 22px',
+                  borderRadius: 8,
+                  padding: '8px 18px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  transition: 'background 0.2s, transform 0.2s',
+                  letterSpacing: '-0.01em',
+                  transition: 'background 0.15s, transform 0.1s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f97316'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#FB923C'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#1a1a2e'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#0a0a0f'; }}
+                onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.98)'; }}
+                onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
                 {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer' : 'Get Started Free'}
               </button>

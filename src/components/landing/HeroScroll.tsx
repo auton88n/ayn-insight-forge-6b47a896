@@ -1,6 +1,20 @@
 /**
- * HeroScroll — White background, black text, orange accents.
- * Apple-style 3D object scroll storytelling on light background.
+ * HeroScroll — Premium redesign.
+ *
+ * Design system (from awesome-design-md Linear + taste-skill):
+ *   DESIGN_VARIANCE: 7  MOTION_INTENSITY: 6  VISUAL_DENSITY: 3
+ *   Style: Minimal, premium, futuristic, editorial, luxury-tech
+ *   Fonts: Geist (display + body) — Linear's recommended substitute
+ *   Colors: Pure white #fff bg, graphite #0a0a0f text, silver/charcoal accents
+ *   NO orange anywhere
+ *
+ * 3D OBJECT BEHAVIOR:
+ *   - Scroll drives frame scrubbing (0→FRAME_COUNT-1)
+ *   - Pointer drives horizontal drift: mouse X → translateX ±28px
+ *   - Smooth spring interpolation (lerp 0.06) for premium weight
+ *   - Object breathes with subtle Y oscillation
+ *   - Never touches frame edges (safe 8% inset)
+ *   - Feels like a controlled virtual studio product shot
  */
 
 import { useEffect, useRef, memo, useCallback } from 'react';
@@ -11,17 +25,57 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Search, BarChart3, Target } from 'lucide-react';
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
-function map(v: number, a: number, b: number, c: number, d: number) {
+function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+function mapRange(v: number, a: number, b: number, c: number, d: number) {
   return c + (clamp(v, a, b) - a) / (b - a) * (d - c);
 }
 
+/* ── Design tokens (Linear-inspired, white bg) ── */
+const T = {
+  bg:       '#ffffff',
+  bgOff:    '#f7f7f6',      // off-white sections
+  ink:      '#0a0a0f',      // graphite near-black
+  inkMuted: 'rgba(10,10,15,0.50)',
+  inkFaint: 'rgba(10,10,15,0.28)',
+  hairline: 'rgba(10,10,15,0.08)',
+  hairlineStrong: 'rgba(10,10,15,0.14)',
+  // Accent: charcoal — restrained, never flashy
+  accent:   '#1a1a2e',      // deep charcoal-navy
+  accentMid:'rgba(26,26,46,0.60)',
+  surface1: 'rgba(10,10,15,0.04)',
+  surface2: 'rgba(10,10,15,0.07)',
+  // Font
+  font:     "'Geist', 'DM Sans', system-ui, sans-serif",
+  fontMono: "'Geist Mono', monospace",
+};
+
+/* ── Chapters ── */
 const CHAPTERS = [
-  { label: 'WORLD INTELLIGENCE', headline: 'See every market\nbefore it moves.', body: 'AYN monitors 187 countries — geopolitical shifts, commodity flows, and live market signals — in real time.', stat: '187', unit: 'Countries', inStart: 0.15, inEnd: 0.22, outStart: 0.30, outEnd: 0.37 },
-  { label: 'PREDICTIVE AI', headline: 'Know what happens\nbefore it does.', body: '73 AI agents simulate how populations, governments, and markets respond — before events unfold.', stat: '73', unit: 'World Agents', inStart: 0.38, inEnd: 0.45, outStart: 0.53, outEnd: 0.60 },
-  { label: 'AI AGENTS', headline: 'Your team.\nNever sleeps.', body: 'Custom agents trained on your data. Intelligence delivered 24/7, in Arabic and English.', stat: '24/7', unit: 'Always On', inStart: 0.61, inEnd: 0.68, outStart: 0.76, outEnd: 0.82 },
+  {
+    eyebrow: 'Market Intelligence',
+    headline: 'See every market\nbefore it moves.',
+    body: 'AYN monitors 187 countries — geopolitical shifts, commodity flows, and live market signals — in real time.',
+    stat: '187', unit: 'Countries',
+    in: 0.15, out: 0.37,
+  },
+  {
+    eyebrow: 'Predictive AI',
+    headline: 'Know what happens\nbefore it does.',
+    body: '73 AI agents simulate how populations, governments, and markets respond — before events unfold.',
+    stat: '73', unit: 'World Agents',
+    in: 0.40, out: 0.60,
+  },
+  {
+    eyebrow: 'AI Agents',
+    headline: 'Your intelligence team.\nNever sleeps.',
+    body: 'Custom agents trained on your data. Intelligence delivered 24/7, in Arabic and English.',
+    stat: '24/7', unit: 'Always On',
+    in: 0.63, out: 0.82,
+  },
 ];
 
-const imageCache: HTMLImageElement[] = HELMET_FRAMES.map((src) => {
+/* ── Preload ── */
+const imageCache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
   const img = new Image(); img.src = src; img.decoding = 'async'; return img;
 });
 
@@ -30,41 +84,65 @@ export const HeroScroll = memo(() => {
   const isAr = language === 'ar';
   const reduced = useReducedMotion();
 
+  /* ── Refs ── */
   const spacerRef   = useRef<HTMLDivElement>(null);
   const imgRef      = useRef<HTMLImageElement>(null);
-  const objectRef   = useRef<HTMLDivElement>(null);
-  const headlineRef = useRef<HTMLDivElement>(null);
+  const wrapRef     = useRef<HTMLDivElement>(null); // scale + Y
+  const driftRef    = useRef<HTMLDivElement>(null); // pointer X drift
+  const headRef     = useRef<HTMLDivElement>(null);
   const ctaRef      = useRef<HTMLDivElement>(null);
-  const chapterRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const rawProgress = useRef(0);
+  const chRefs      = useRef<(HTMLDivElement | null)[]>([]);
+
+  /* ── Animation state ── */
+  const scrollP     = useRef(0);
+  const mouseX      = useRef(0.5); // normalized 0–1
+  const curFrame    = useRef(0);
+  const lastFrame   = useRef(-1);
   const curScale    = useRef(1);
   const curY        = useRef(0);
-  const lastFrame   = useRef(-1);
+  const curDriftX   = useRef(0);
+  const time        = useRef(0);
 
+  /* ── Scroll ── */
   const onScroll = useCallback(() => {
     const s = spacerRef.current;
     if (!s) return;
-    rawProgress.current = clamp(-s.getBoundingClientRect().top / (s.offsetHeight - window.innerHeight), 0, 1);
+    scrollP.current = clamp(-s.getBoundingClientRect().top / (s.offsetHeight - window.innerHeight), 0, 1);
+  }, []);
+
+  /* ── Pointer ── */
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    mouseX.current = e.clientX / window.innerWidth;
   }, []);
 
   useEffect(() => {
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
     onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [onScroll]);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('mousemove', onMouseMove);
+    };
+  }, [onScroll, onMouseMove]);
 
+  /* ── RAF ── */
   useEffect(() => {
-    if (imgRef.current && imageCache[0]?.complete) {
+    // Set frame 0 immediately
+    if (imageCache[0]?.complete && imgRef.current) {
       imgRef.current.src = imageCache[0].src; lastFrame.current = 0;
     } else if (imageCache[0]) {
-      imageCache[0].onload = () => { if (imgRef.current) { imgRef.current.src = imageCache[0].src; } };
+      imageCache[0].onload = () => { if (imgRef.current) imgRef.current.src = imageCache[0].src; };
     }
 
-    const tick = () => {
-      requestAnimationFrame(tick);
-      const p = rawProgress.current;
+    const LERP_FAST = 0.10;
+    const LERP_SLOW = 0.06; // Spring weight for premium feel
 
-      // Frame scrub
+    const tick = (t: number) => {
+      const id = requestAnimationFrame(tick);
+      time.current = t;
+      const p = scrollP.current;
+
+      /* 1. Frame scrub — direct, no lerp */
       if (!reduced) {
         const idx = clamp(Math.round(p * (FRAME_COUNT - 1)), 0, FRAME_COUNT - 1);
         if (idx !== lastFrame.current) {
@@ -74,254 +152,397 @@ export const HeroScroll = memo(() => {
         }
       }
 
-      // Object transform
-      if (!reduced && objectRef.current) {
-        const LERP = 0.08;
-        const ts = p < 0.5 ? map(p, 0, 0.5, 1.0, 1.05) : map(p, 0.5, 1.0, 1.05, 1.0);
-        curScale.current += (ts - curScale.current) * LERP;
-        const ty = map(p, 0, 1, 0, -20);
-        curY.current += (ty - curY.current) * LERP;
-        objectRef.current.style.transform = `translateY(${curY.current.toFixed(2)}px) scale(${curScale.current.toFixed(4)})`;
+      /* 2. Object wrapper: subtle scale breath + Y parallax */
+      if (!reduced && wrapRef.current) {
+        const targetScale = p < 0.5
+          ? mapRange(p, 0, 0.5, 1.0, 1.04)
+          : mapRange(p, 0.5, 1.0, 1.04, 1.0);
+        curScale.current = lerp(curScale.current, targetScale, LERP_SLOW);
+
+        // Y: subtle idle breathing + scroll parallax
+        const breathe = Math.sin(t * 0.0006) * 5;
+        const parallax = mapRange(p, 0, 1, 0, -18);
+        curY.current = lerp(curY.current, parallax + breathe, LERP_SLOW);
+
+        wrapRef.current.style.transform =
+          `translateY(${curY.current.toFixed(2)}px) scale(${curScale.current.toFixed(4)})`;
       }
 
-      // Object fade in
-      if (imgRef.current) imgRef.current.style.opacity = `${map(p, 0, 0.08, 0, 1)}`;
-
-      // Headline
-      if (headlineRef.current) {
-        const op = p < 0.12 ? 1 : map(p, 0.12, 0.20, 1, 0);
-        headlineRef.current.style.opacity = `${op}`;
-        headlineRef.current.style.transform = `translateY(${map(p, 0.12, 0.20, 0, -28)}px)`;
-        headlineRef.current.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
+      /* 3. Pointer drift — horizontal, premium spring */
+      if (!reduced && driftRef.current) {
+        // Mouse normalized 0–1 → drift ±28px
+        // Center (0.5) = 0 drift. Left = +28px, Right = -28px (object tracks cursor)
+        const targetDrift = mapRange(mouseX.current, 0, 1, 22, -22);
+        curDriftX.current = lerp(curDriftX.current, targetDrift, LERP_SLOW);
+        driftRef.current.style.transform = `translateX(${curDriftX.current.toFixed(2)}px)`;
       }
 
-      // Chapters
+      /* 4. Object opacity fade-in */
+      if (imgRef.current) {
+        imgRef.current.style.opacity = `${mapRange(p, 0, 0.07, 0, 1)}`;
+      }
+
+      /* 5. Headline */
+      if (headRef.current) {
+        const op = p < 0.10 ? 1 : mapRange(p, 0.10, 0.18, 1, 0);
+        const ty = mapRange(p, 0.10, 0.18, 0, -24);
+        headRef.current.style.opacity = `${op}`;
+        headRef.current.style.transform = `translateY(${ty}px)`;
+        headRef.current.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
+      }
+
+      /* 6. Chapters */
       CHAPTERS.forEach((ch, i) => {
-        const el = chapterRefs.current[i];
+        const el = chRefs.current[i];
         if (!el) return;
-        let op = 0, ty = 24;
-        if (p >= ch.inStart && p <= ch.outEnd) {
-          if (p < ch.inEnd) { op = map(p, ch.inStart, ch.inEnd, 0, 1); ty = map(p, ch.inStart, ch.inEnd, 24, 0); }
-          else if (p < ch.outStart) { op = 1; ty = 0; }
-          else { op = map(p, ch.outStart, ch.outEnd, 1, 0); ty = map(p, ch.outStart, ch.outEnd, 0, -24); }
+        const peak = ch.in + (ch.out - ch.in) * 0.25;
+        const fadeOut = ch.out - (ch.out - ch.in) * 0.18;
+        let op = 0, ty = 20;
+        if (p >= ch.in && p <= ch.out) {
+          if (p < peak) { op = mapRange(p, ch.in, peak, 0, 1); ty = mapRange(p, ch.in, peak, 20, 0); }
+          else if (p < fadeOut) { op = 1; ty = 0; }
+          else { op = mapRange(p, fadeOut, ch.out, 1, 0); ty = mapRange(p, fadeOut, ch.out, 0, -20); }
         }
-        el.style.opacity = `${op}`; el.style.transform = `translateY(${ty}px)`; el.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
+        el.style.opacity = `${op}`;
+        el.style.transform = `translateY(${ty}px)`;
+        el.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
       });
 
-      // CTA
+      /* 7. CTA */
       if (ctaRef.current) {
-        const op = map(p, 0.84, 0.92, 0, 1);
-        ctaRef.current.style.opacity = `${op}`; ctaRef.current.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
+        const op = mapRange(p, 0.84, 0.93, 0, 1);
+        ctaRef.current.style.opacity = `${op}`;
+        ctaRef.current.style.pointerEvents = op < 0.05 ? 'none' : 'auto';
       }
+
+      return () => cancelAnimationFrame(id);
     };
     const id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
   }, [reduced]);
 
-  const F  = "'DM Sans', sans-serif";
-  const FB = "'Bebas Neue', sans-serif";
-  const O  = '#FB923C'; // orange accent
-  const BG = '#ffffff';
-  const TX = '#0a0a0a'; // near-black text
-
   return (
-    <div style={{ background: BG }}>
+    <div style={{ background: T.bg, fontFamily: T.font }}>
 
-      {/* ── 600vh SCROLL SPACER ── */}
+      {/* ════════════════════════════════════════════════════════
+          HERO — 600vh sticky scroll storytelling
+      ════════════════════════════════════════════════════════ */}
       <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
-        <div className="sticky top-0" style={{ height: '100dvh', overflow: 'hidden', background: BG }}>
+        <div className="sticky top-0" style={{ height: '100dvh', overflow: 'hidden', background: T.bg }}>
 
-          {/* Subtle warm tint behind object */}
-          <div style={{ position: 'absolute', top: '50%', right: '10%', transform: 'translateY(-50%)', width: 700, height: 700, borderRadius: '50%', background: 'radial-gradient(circle, rgba(251,146,60,0.07) 0%, rgba(251,146,60,0.02) 50%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
-
-          {/* Object */}
-          <div ref={objectRef} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 'clamp(0px, 2vw, 48px)', transformOrigin: 'center center', willChange: 'transform', zIndex: 1 }}>
-            <img ref={imgRef} alt="AYN" draggable={false}
-              style={{ width: 'min(52vw, 680px)', height: 'min(52vw, 680px)', objectFit: 'contain', objectPosition: 'center', display: 'block', userSelect: 'none', pointerEvents: 'none', opacity: 0, willChange: 'opacity' }}
-            />
+          {/* 3D OBJECT ── pointer-drift wrapper → scale/Y wrapper → img */}
+          <div ref={driftRef} style={{ position: 'absolute', inset: 0, willChange: 'transform' }}>
+            <div ref={wrapRef} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 'clamp(32px, 4vw, 80px)', transformOrigin: 'center center', willChange: 'transform' }}>
+              {/*
+                WHITE CRUSH ILLUSION:
+                Frame pixels > 228 are crushed to 255 = identical to #fff page.
+                The object literally floats with no visible boundary.
+                filter: drop-shadow creates soft studio ground shadow (not a glow box)
+              */}
+              <img
+                ref={imgRef}
+                alt="AYN"
+                draggable={false}
+                style={{
+                  width: 'min(50vw, 660px)',
+                  height: 'min(50vw, 660px)',
+                  objectFit: 'contain',
+                  objectPosition: 'center',
+                  display: 'block',
+                  userSelect: 'none',
+                  pointerEvents: 'none',
+                  opacity: 0,
+                  willChange: 'opacity',
+                  // Subtle studio ground shadow — premium product-page technique
+                  filter: 'drop-shadow(0 40px 60px rgba(10,10,15,0.10)) drop-shadow(0 8px 16px rgba(10,10,15,0.06))',
+                }}
+              />
+            </div>
           </div>
 
-          {/* Text gradient — left */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(to right, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.75) 42%, rgba(255,255,255,0.0) 70%)', pointerEvents: 'none' }} />
+          {/* Left gradient — text readability */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(to right, rgba(255,255,255,0.97) 0%, rgba(255,255,255,0.82) 38%, rgba(255,255,255,0.0) 65%)', pointerEvents: 'none' }} />
 
-          {/* Text layers */}
+          {/* TEXT LAYERS */}
           <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', padding: '80px clamp(24px,6vw,96px)' }}>
-            <div style={{ position: 'relative', width: '100%', maxWidth: 520, height: 'min(80vh, 520px)' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 520, height: 'min(80vh, 560px)' }}>
 
-              {/* Headline */}
-              <div ref={headlineRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                  <div style={{ width: 24, height: 2, background: O }} />
-                  <span style={{ fontFamily: F, fontSize: 11, fontWeight: 600, letterSpacing: '0.22em', color: O, textTransform: 'uppercase' }}>
-                    {isAr ? 'ذكاء الأعمال' : 'World Intelligence Platform'}
+              {/* ── HEADLINE ── */}
+              <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
+                {/* Eyebrow */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+                  <div style={{ width: 20, height: 1, background: T.inkFaint }} />
+                  <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: T.inkMuted, textTransform: 'uppercase' }}>
+                    {isAr ? 'منصة ذكاء الأعمال' : 'World Intelligence Platform'}
                   </span>
                 </div>
-                <h1 style={{ fontFamily: FB, fontSize: 'clamp(56px,9vw,118px)', fontWeight: 400, lineHeight: 0.88, letterSpacing: '-0.01em', color: TX, margin: '0 0 28px' }}>
-                  {isAr ? 'تعرّف على ' : 'MEET '}
-                  <span style={{ color: O }}>{isAr ? 'عين' : 'AYN'}</span>
+
+                {/* Main headline — Geist, tight tracking */}
+                <h1 style={{ fontFamily: T.font, fontSize: 'clamp(52px,8vw,108px)', fontWeight: 700, lineHeight: 0.92, letterSpacing: '-0.03em', color: T.ink, margin: '0 0 24px' }}>
+                  {isAr ? <>تعرّف على<br /><span style={{ color: T.accentMid }}>عين</span></> : <>Meet<br /><span style={{ color: T.accentMid }}>AYN</span></>}
                 </h1>
-                <p style={{ fontFamily: F, fontSize: 16, fontWeight: 400, lineHeight: 1.72, color: 'rgba(10,10,10,0.55)', maxWidth: 380, margin: '0 0 40px' }}>
+
+                {/* Subtitle */}
+                <p style={{ fontFamily: T.font, fontSize: 17, fontWeight: 400, lineHeight: 1.65, color: T.inkMuted, maxWidth: 380, margin: '0 0 40px', letterSpacing: '-0.01em' }}>
                   {isAr ? 'ذكاء أعمال حقيقي. تفاعل مع عين واكتشف ما يراه.' : 'Real business intelligence. Scroll to explore AYN — and discover what it sees.'}
                 </p>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <Link to="/pricing" className="gold-glow-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 28px', borderRadius: 100, fontFamily: F, fontSize: 14, fontWeight: 700, color: '#fff', textDecoration: 'none' }}>
-                    {isAr ? 'ابدأ مع عين' : 'Start with AYN'} <ArrowRight size={14} />
+
+                {/* CTAs */}
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 52 }}>
+                  <Link to="/pricing"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '11px 22px', background: T.ink, color: '#fff', fontFamily: T.font, fontSize: 14, fontWeight: 500, letterSpacing: '-0.01em', borderRadius: 8, textDecoration: 'none', transition: 'background 0.2s, transform 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#1a1a2e'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = T.ink; }}
+                    onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.98)'; }}
+                    onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
+                    {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
                   </Link>
-                  <Link to="/features" style={{ display: 'inline-flex', alignItems: 'center', padding: '13px 24px', borderRadius: 100, fontFamily: F, fontSize: 14, fontWeight: 500, color: TX, border: '1.5px solid rgba(10,10,10,0.20)', textDecoration: 'none', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = O; e.currentTarget.style.color = O; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,10,10,0.20)'; e.currentTarget.style.color = TX; }}>
-                    {isAr ? 'شاهد كيف يعمل' : 'See how it works'}
+                  <Link to="/features"
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '11px 20px', background: 'transparent', color: T.ink, fontFamily: T.font, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', borderRadius: 8, border: `1px solid ${T.hairlineStrong}`, textDecoration: 'none', transition: 'border-color 0.2s, background 0.2s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = T.surface1; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(10,10,15,0.28)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; (e.currentTarget as HTMLAnchorElement).style.borderColor = T.hairlineStrong; }}>
+                    {isAr ? 'اكتشف المزيد' : 'See how it works'}
                   </Link>
                 </div>
-                <div style={{ display: 'flex', gap: 40, marginTop: 48, paddingTop: 28, borderTop: '1px solid rgba(10,10,10,0.08)' }}>
-                  {[{ n: '187+', l: isAr ? 'دولة' : 'Countries' }, { n: '73', l: isAr ? 'وكيل' : 'AI Agents' }, { n: '24/7', l: isAr ? 'مراقبة' : 'Monitoring' }].map((s, i) => (
+
+                {/* Stats */}
+                <div style={{ display: 'flex', gap: 36, paddingTop: 24, borderTop: `1px solid ${T.hairline}` }}>
+                  {[
+                    { n: '187+', l: isAr ? 'دولة' : 'Countries' },
+                    { n: '73',   l: isAr ? 'وكيل ذكاء' : 'AI Agents' },
+                    { n: '24/7', l: isAr ? 'مراقبة' : 'Monitoring' },
+                  ].map((s, i) => (
                     <div key={i}>
-                      <p style={{ fontFamily: FB, fontSize: 32, color: O, lineHeight: 1, margin: '0 0 4px' }}>{s.n}</p>
-                      <p style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.18em', color: 'rgba(10,10,10,0.45)', textTransform: 'uppercase', margin: 0 }}>{s.l}</p>
+                      <p style={{ fontFamily: T.font, fontSize: 26, fontWeight: 600, color: T.ink, lineHeight: 1, margin: '0 0 4px', letterSpacing: '-0.03em' }}>{s.n}</p>
+                      <p style={{ fontFamily: T.font, fontSize: 11, fontWeight: 400, letterSpacing: '0.06em', color: T.inkFaint, textTransform: 'uppercase', margin: 0 }}>{s.l}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Chapters */}
+              {/* ── CHAPTERS ── */}
               {CHAPTERS.map((ch, i) => (
-                <div key={i} ref={el => { chapterRefs.current[i] = el; }} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity, transform' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-                    <div style={{ width: 24, height: 2, background: O }} />
-                    <span style={{ fontFamily: F, fontSize: 9, fontWeight: 600, letterSpacing: '0.30em', textTransform: 'uppercase', color: O }}>{ch.label}</span>
+                <div key={i} ref={el => { chRefs.current[i] = el; }}
+                  style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity, transform' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                    <div style={{ width: 20, height: 1, background: T.inkFaint }} />
+                    <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: T.inkMuted, textTransform: 'uppercase' }}>{ch.eyebrow}</span>
                   </div>
-                  <h2 style={{ fontFamily: FB, fontSize: 'clamp(42px,5.2vw,78px)', fontWeight: 400, lineHeight: 0.92, color: TX, margin: '0 0 20px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
-                  <p style={{ fontFamily: F, fontSize: 15, fontWeight: 400, lineHeight: 1.75, color: 'rgba(10,10,10,0.55)', maxWidth: 360, margin: '0 0 28px' }}>{ch.body}</p>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span style={{ fontFamily: FB, fontSize: 'clamp(48px,5.5vw,72px)', color: O, lineHeight: 1 }}>{ch.stat}</span>
-                    <span style={{ fontFamily: F, fontSize: 10, letterSpacing: '0.22em', color: 'rgba(10,10,10,0.40)', textTransform: 'uppercase' }}>{ch.unit}</span>
+                  <h2 style={{ fontFamily: T.font, fontSize: 'clamp(38px,4.8vw,70px)', fontWeight: 700, lineHeight: 0.94, letterSpacing: '-0.03em', color: T.ink, margin: '0 0 20px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
+                  <p style={{ fontFamily: T.font, fontSize: 15, fontWeight: 400, lineHeight: 1.70, color: T.inkMuted, maxWidth: 360, margin: '0 0 28px', letterSpacing: '-0.01em' }}>{ch.body}</p>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontFamily: T.font, fontSize: 'clamp(44px,5vw,68px)', fontWeight: 700, color: T.ink, lineHeight: 1, letterSpacing: '-0.04em' }}>{ch.stat}</span>
+                    <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 400, letterSpacing: '0.08em', color: T.inkFaint, textTransform: 'uppercase' }}>{ch.unit}</span>
                   </div>
                 </div>
               ))}
 
-              {/* CTA panel */}
+              {/* ── CTA PANEL ── */}
               <div ref={ctaRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
-                <p style={{ fontFamily: F, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(10,10,10,0.38)', margin: '0 0 16px' }}>Ready to see the world clearly?</p>
-                <h2 style={{ fontFamily: FB, fontSize: 'clamp(48px,6vw,88px)', fontWeight: 400, lineHeight: 0.88, color: TX, margin: '0 0 36px' }}>
-                  Start with <span style={{ color: O }}>AYN</span>
+                <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: T.inkFaint, textTransform: 'uppercase', marginBottom: 16 }}>Start Today</span>
+                <h2 style={{ fontFamily: T.font, fontSize: 'clamp(44px,5.5vw,82px)', fontWeight: 700, lineHeight: 0.92, letterSpacing: '-0.035em', color: T.ink, margin: '0 0 32px' }}>
+                  {isAr ? 'ابدأ مع عين' : <>Start with<br />AYN</>}
                 </h2>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                  <Link to="/pricing" className="gold-glow-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 32px', borderRadius: 100, fontFamily: F, fontSize: 14, fontWeight: 700, color: '#fff', textDecoration: 'none' }}>
-                    {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={14} />
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <Link to="/pricing"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '12px 24px', background: T.ink, color: '#fff', fontFamily: T.font, fontSize: 14, fontWeight: 500, letterSpacing: '-0.01em', borderRadius: 8, textDecoration: 'none', transition: 'background 0.2s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#1a1a2e'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = T.ink; }}>
+                    {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
                   </Link>
-                  <Link to="/features" style={{ display: 'inline-flex', alignItems: 'center', padding: '14px 24px', borderRadius: 100, fontFamily: F, fontSize: 14, color: TX, border: '1.5px solid rgba(10,10,10,0.20)', textDecoration: 'none', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = O; e.currentTarget.style.color = O; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,10,10,0.20)'; e.currentTarget.style.color = TX; }}>
+                  <Link to="/features"
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 20px', background: 'transparent', color: T.ink, fontFamily: T.font, fontSize: 14, borderRadius: 8, border: `1px solid ${T.hairlineStrong}`, textDecoration: 'none', transition: 'background 0.2s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = T.surface1; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
                     {isAr ? 'استكشف' : 'See Features'}
                   </Link>
                 </div>
               </div>
+
             </div>
           </div>
 
-          {/* Scroll indicator */}
-          <div style={{ position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, zIndex: 20 }}>
-            <div style={{ width: 24, height: 36, borderRadius: 12, border: '1.5px solid rgba(10,10,10,0.20)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4px' }}>
-              <div style={{ width: 3, height: 8, borderRadius: 2, background: O }} />
-            </div>
-            <span style={{ fontFamily: F, fontSize: 9, letterSpacing: '0.30em', textTransform: 'uppercase', color: 'rgba(10,10,10,0.35)' }}>Scroll to explore</span>
+          {/* Progress dots */}
+          <div style={{ position: 'absolute', right: 28, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 8, zIndex: 20 }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: T.hairlineStrong }} />)}
           </div>
+
+          {/* Bottom hairline */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: T.hairline, zIndex: 5 }} />
         </div>
       </div>
 
-      {/* ── INTELLIGENCE SECTION ── */}
-      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '80px clamp(24px,6vw,96px)', overflow: 'hidden', background: '#f8f8f6' }}>
-        <div className="landing-decor-lg" style={{ position: 'absolute', right: '-4%', top: '50%', transform: 'translateY(-50%)', width: 520, height: 520, pointerEvents: 'none' }}>
-          {[0, 60, 120, 180, 240, 300].map((deg, i) => {
-            const r = 240, cx = 260, cy = 260;
-            const x = cx + r * Math.cos(deg * Math.PI / 180) - 4;
-            const y = cy + r * Math.sin(deg * Math.PI / 180) - 4;
-            return <div key={i} style={{ position: 'absolute', width: 8, height: 8, borderRadius: '50%', background: O, left: x, top: y, opacity: 0.4, boxShadow: `0 0 8px ${O}` }} />;
-          })}
-          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(251,146,60,0.15)' }} />
-          <div style={{ position: 'absolute', inset: 80, borderRadius: '50%', border: '1px solid rgba(251,146,60,0.10)' }} />
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(251,146,60,0.12) 0%, transparent 70%)' }} />
+      {/* ════════════════════════════════════════════════════════
+          SECTION 2 — Intelligence, evolved.
+      ════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(24px,6vw,96px)', overflow: 'hidden', background: T.bgOff, borderBottom: `1px solid ${T.hairline}` }}>
+        {/* Subtle large ring decoration */}
+        <div className="landing-decor-lg" style={{ position: 'absolute', right: '-8%', top: '50%', transform: 'translateY(-50%)', width: 480, height: 480, borderRadius: '50%', border: `1px solid ${T.hairline}`, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', inset: 60, borderRadius: '50%', border: `1px solid ${T.hairline}` }} />
+          <div style={{ position: 'absolute', inset: 140, borderRadius: '50%', border: `1px solid ${T.hairline}` }} />
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 6, height: 6, borderRadius: '50%', background: T.inkFaint }} />
         </div>
-        <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: 1280, margin: '0 auto' }}>
-          <div style={{ maxWidth: 540 }}>
-            <p style={{ fontFamily: F, fontSize: 10, fontWeight: 600, letterSpacing: '0.30em', textTransform: 'uppercase', color: O, margin: '0 0 20px' }}>About AYN</p>
-            <h2 style={{ fontFamily: F, fontSize: 'clamp(36px,4.5vw,68px)', fontWeight: 800, lineHeight: 1.06, letterSpacing: '-0.03em', color: TX, margin: '0 0 28px' }}>
+
+        <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 1280, margin: '0 auto' }}>
+          <div style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+              <div style={{ width: 20, height: 1, background: T.inkFaint }} />
+              <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: T.inkMuted, textTransform: 'uppercase' }}>About AYN</span>
+            </div>
+            <h2 style={{ fontFamily: T.font, fontSize: 'clamp(34px,4.5vw,64px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: T.ink, margin: '0 0 24px' }}>
               {isAr ? 'ذكاء متطوّر.' : <span>Intelligence,<br />evolved.</span>}
             </h2>
-            <p style={{ fontFamily: F, fontSize: 16, fontWeight: 400, lineHeight: 1.75, color: 'rgba(10,10,10,0.55)', maxWidth: 420 }}>
-              {isAr ? 'عين منصة ذكاء أعمال تراقب الأسواق العالمية وتحلل المخاطر.' : 'AYN monitors global markets, analyzes geopolitical risks, and delivers real-time intelligence so you act before others react.'}
+            <p style={{ fontFamily: T.font, fontSize: 16, fontWeight: 400, lineHeight: 1.72, color: T.inkMuted, maxWidth: 420, letterSpacing: '-0.01em' }}>
+              {isAr ? 'عين منصة ذكاء أعمال تراقب الأسواق العالمية وتحلل المخاطر وتقدم رؤى فورية.' : 'AYN monitors global markets, analyzes geopolitical risks, and delivers real-time intelligence so you act before others react.'}
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── SERVICES SECTION ── */}
-      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px clamp(24px,4vw,64px)', overflow: 'hidden', background: BG }}>
-        <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <p style={{ fontFamily: F, fontSize: 10, fontWeight: 600, letterSpacing: '0.30em', textTransform: 'uppercase', color: O, margin: '0 0 14px', textAlign: 'center' }}>Services</p>
-          <h2 style={{ fontFamily: FB, fontSize: 'clamp(32px,5vw,68px)', color: TX, margin: '0 0 56px', textAlign: 'center', fontWeight: 400 }}>
-            {isAr ? 'ما يفعله عين' : 'What AYN Does'}
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, width: '100%', marginBottom: 64 }}>
+      {/* ════════════════════════════════════════════════════════
+          SECTION 3 — Features / Business understood
+      ════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(24px,5vw,80px)', background: T.bg, borderBottom: `1px solid ${T.hairline}` }}>
+        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px,1fr))', gap: 'clamp(40px,6vw,96px)', alignItems: 'center' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+              <div style={{ width: 20, height: 1, background: T.inkFaint }} />
+              <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: T.inkMuted, textTransform: 'uppercase' }}>Capabilities</span>
+            </div>
+            <h2 style={{ fontFamily: T.font, fontSize: 'clamp(32px,4.2vw,60px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: T.ink, margin: '0 0 20px' }}>
+              {isAr ? 'أعمالك، مُفهومة.' : <span>Your business,<br />understood.</span>}
+            </h2>
+            <p style={{ fontFamily: T.font, fontSize: 15, fontWeight: 400, lineHeight: 1.72, color: T.inkMuted, maxWidth: 360, letterSpacing: '-0.01em' }}>
+              {isAr ? 'نحلل بيانات شركتك ونساعدك في اتخاذ القرارات الاستراتيجية.' : 'We analyze your business data and help you make strategic decisions with precision and clarity.'}
+            </p>
+          </div>
+
+          {/* Feature cards — Linear-style charcoal tiles */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {[
-              { icon: Search,    title: isAr ? 'استشارات الذكاء الاصطناعي' : 'AI Consulting',    desc: isAr ? 'تفاعل مع ذكاء الأعمال وقياس الأداء.' : 'Interact with business intelligence and measure performance.', active: false },
-              { icon: BarChart3, title: isAr ? 'ذكاء السوق' : 'Market Intelligence',              desc: isAr ? 'ذكاء السوق لتحليل بيانات السوق.' : 'Market intelligence in analyzing and monitoring market data.',  active: false },
-              { icon: Target,    title: isAr ? 'استراتيجية البيانات' : 'Data Strategy',           desc: isAr ? 'استراتيجية البيانات والمعرفة التحليلية.' : 'Strategy data and deep analytic knowledge for growth.',        active: true  },
+              { label: 'Deep Analysis', val: '84.2%', sub: 'Prediction accuracy', bars: [35,65,40,88,60,78,45,70,55] },
+              { label: 'Global Reach', val: '187', sub: 'Countries monitored' },
+              { label: 'Response Time', val: '<2s', sub: 'Average query latency' },
             ].map((card, i) => (
               <div key={i}
-                style={{ padding: '32px 26px', borderRadius: 20, border: card.active ? `1.5px solid ${O}` : '1.5px solid rgba(10,10,10,0.08)', background: card.active ? 'rgba(251,146,60,0.04)' : BG, boxShadow: card.active ? '0 4px 24px rgba(251,146,60,0.12)' : '0 2px 12px rgba(0,0,0,0.04)', transition: 'all 0.25s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(251,146,60,0.15)'; (e.currentTarget as HTMLDivElement).style.borderColor = O; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = card.active ? '0 4px 24px rgba(251,146,60,0.12)' : '0 2px 12px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.borderColor = card.active ? O : 'rgba(10,10,10,0.08)'; }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24, background: card.active ? O : 'rgba(251,146,60,0.10)' }}>
-                  <card.icon size={20} color={card.active ? '#fff' : O} />
+                style={{ padding: '20px 22px', background: i === 0 ? T.surface2 : T.surface1, border: `1px solid ${T.hairline}`, borderRadius: 10, transition: 'background 0.2s', cursor: 'default' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = T.surface2; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = i === 0 ? T.surface2 : T.surface1; }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.inkMuted, letterSpacing: '-0.01em' }}>{card.label}</span>
+                  <span style={{ fontFamily: T.fontMono, fontSize: 18, fontWeight: 600, color: T.ink, letterSpacing: '-0.02em', lineHeight: 1 }}>{card.val}</span>
                 </div>
-                <h3 style={{ fontFamily: FB, fontSize: 22, color: TX, margin: '0 0 10px' }}>{card.title}</h3>
-                <p style={{ fontFamily: F, fontSize: 14, color: 'rgba(10,10,10,0.55)', lineHeight: 1.65, margin: 0 }}>{card.desc}</p>
-              </div>
-            ))}
-          </div>
-          <div style={{ width: '100%', maxWidth: 640, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 22, left: '18%', right: '18%', height: 1, background: 'rgba(10,10,10,0.10)' }} />
-            {[{ label: 'ASK', icon: Search }, { label: 'ANALYZE', icon: BarChart3 }, { label: 'EXECUTE', icon: Target }].map((step, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, position: 'relative', zIndex: 1 }}>
-                <div style={{ width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: BG, border: '1.5px solid rgba(10,10,10,0.12)', transition: 'all 0.2s' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = O; (e.currentTarget as HTMLDivElement).style.background = 'rgba(251,146,60,0.06)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(10,10,10,0.12)'; (e.currentTarget as HTMLDivElement).style.background = BG; }}>
-                  <step.icon size={17} color="rgba(10,10,10,0.45)" />
-                </div>
-                <span style={{ fontFamily: F, fontSize: 9, fontWeight: 700, letterSpacing: '0.28em', color: 'rgba(10,10,10,0.40)', textTransform: 'uppercase' }}>{step.label}</span>
+                {card.bars && (
+                  <div style={{ height: 40, display: 'flex', alignItems: 'flex-end', gap: 2, marginBottom: 10 }}>
+                    {card.bars.map((h, j) => (
+                      <div key={j} style={{ flex: 1, height: `${h}%`, background: T.hairlineStrong, borderRadius: '2px 2px 0 0' }} />
+                    ))}
+                  </div>
+                )}
+                <span style={{ fontFamily: T.font, fontSize: 11, color: T.inkFaint, letterSpacing: '0.04em' }}>{card.sub}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── FINAL CTA SECTION ── */}
-      <section style={{ position: 'relative', minHeight: '80dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', overflow: 'hidden', background: '#0a0a0a', padding: 'clamp(72px,8vw,120px) 32px 140px' }}>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(90vw,800px)', height: 'min(90vw,800px)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(251,146,60,0.10) 0%, transparent 65%)', pointerEvents: 'none' }} />
-        {[560, 420, 300].map((size, i) => (
-          <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: `min(85vw,${size}px)`, height: `min(85vw,${size}px)`, borderRadius: '50%', border: `1px solid rgba(251,146,60,${0.08 - i * 0.02})`, pointerEvents: 'none' }} />
+      {/* ════════════════════════════════════════════════════════
+          SECTION 4 — Services
+      ════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: T.bgOff, borderBottom: `1px solid ${T.hairline}` }}>
+        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ width: 20, height: 1, background: T.inkFaint }} />
+            <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: T.inkMuted, textTransform: 'uppercase' }}>Services</span>
+          </div>
+          <h2 style={{ fontFamily: T.font, fontSize: 'clamp(30px,4.5vw,62px)', fontWeight: 700, letterSpacing: '-0.03em', color: T.ink, margin: '0 0 56px', textAlign: 'center', lineHeight: 1.04 }}>
+            {isAr ? 'ما يفعله عين' : 'What AYN does'}
+          </h2>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px,1fr))', gap: 2, width: '100%' }}>
+            {[
+              { icon: Search,    title: isAr ? 'استشارات الذكاء الاصطناعي' : 'AI Consulting',    desc: isAr ? 'تفاعل مع ذكاء الأعمال وقياس الأداء.' : 'Interact with business intelligence and measure impact.', featured: false },
+              { icon: BarChart3, title: isAr ? 'ذكاء السوق' : 'Market Intelligence',              desc: isAr ? 'ذكاء السوق لتحليل بيانات السوق.' : 'Market intelligence in analyzing and monitoring signals.',  featured: false },
+              { icon: Target,    title: isAr ? 'استراتيجية البيانات' : 'Data Strategy',           desc: isAr ? 'استراتيجية البيانات والمعرفة التحليلية.' : 'Strategy data and deep analytic knowledge for growth.',    featured: true  },
+            ].map((card, i) => (
+              <div key={i}
+                style={{ padding: '32px 28px', background: card.featured ? T.surface2 : T.bg, border: `1px solid ${T.hairline}`, borderRadius: 12, transition: 'background 0.2s', cursor: 'default' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = T.surface2; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = card.featured ? T.surface2 : T.bg; }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, background: T.surface2, border: `1px solid ${T.hairline}` }}>
+                  <card.icon size={16} color={T.inkMuted} />
+                </div>
+                <h3 style={{ fontFamily: T.font, fontSize: 17, fontWeight: 600, color: T.ink, margin: '0 0 10px', letterSpacing: '-0.02em' }}>{card.title}</h3>
+                <p style={{ fontFamily: T.font, fontSize: 14, color: T.inkMuted, lineHeight: 1.65, margin: 0, letterSpacing: '-0.005em' }}>{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ASK → ANALYZE → EXECUTE */}
+          <div style={{ width: '100%', maxWidth: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', marginTop: 64 }}>
+            <div style={{ position: 'absolute', top: 17, left: '18%', right: '18%', height: 1, background: T.hairline }} />
+            {[{ label: 'ASK', icon: Search }, { label: 'ANALYZE', icon: BarChart3 }, { label: 'EXECUTE', icon: Target }].map((step, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, position: 'relative', zIndex: 1 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg, border: `1px solid ${T.hairlineStrong}`, transition: 'all 0.2s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = T.surface2; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = T.bg; }}>
+                  <step.icon size={14} color={T.inkMuted} />
+                </div>
+                <span style={{ fontFamily: T.font, fontSize: 9, fontWeight: 500, letterSpacing: '0.18em', color: T.inkFaint, textTransform: 'uppercase' }}>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════
+          SECTION 5 — Final CTA
+      ════════════════════════════════════════════════════════ */}
+      <section style={{ position: 'relative', minHeight: '80dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', overflow: 'hidden', background: T.ink, padding: 'clamp(72px,8vw,120px) 32px 140px' }}>
+        {/* Hairline rings on dark bg */}
+        {[500, 360, 240].map((size, i) => (
+          <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: `min(85vw,${size}px)`, height: `min(85vw,${size}px)`, borderRadius: '50%', border: `1px solid rgba(255,255,255,${0.06 - i * 0.015})`, pointerEvents: 'none' }} />
         ))}
-        <div style={{ position: 'relative', zIndex: 10, maxWidth: 860, width: '100%', paddingBottom: 100 }}>
-          <p style={{ fontFamily: F, fontSize: 10, fontWeight: 600, letterSpacing: '0.30em', textTransform: 'uppercase', color: O, margin: '0 0 24px' }}>Start Today</p>
-          <h2 style={{ fontFamily: F, fontSize: 'clamp(40px,8vw,104px)', fontWeight: 800, lineHeight: 1.02, letterSpacing: '-0.025em', color: '#fff', margin: '0 0 52px' }}>
+
+        <div style={{ position: 'relative', zIndex: 10, maxWidth: 720, width: '100%', paddingBottom: 100 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 28 }}>
+            <div style={{ width: 20, height: 1, background: 'rgba(255,255,255,0.20)' }} />
+            <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 500, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>Start Today</span>
+            <div style={{ width: 20, height: 1, background: 'rgba(255,255,255,0.20)' }} />
+          </div>
+          <h2 style={{ fontFamily: T.font, fontSize: 'clamp(40px,7.5vw,100px)', fontWeight: 700, lineHeight: 1.0, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 48px' }}>
             {isAr ? <span>ابنِ<br />بذكاء</span> : <span>Build with<br />intelligence</span>}
           </h2>
-          <Link to="/pricing" className="gold-glow-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '17px 50px', borderRadius: 100, fontFamily: F, fontSize: 17, fontWeight: 800, color: '#fff', textDecoration: 'none' }}>
-            {isAr ? 'ابدأ مع عين' : 'Start with AYN'} <ArrowRight size={16} />
-          </Link>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to="/pricing"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '13px 28px', background: '#fff', color: T.ink, fontFamily: T.font, fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', borderRadius: 8, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.90'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
+              onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.98)'; }}
+              onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
+              {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
+            </Link>
+            <Link to="/features"
+              style={{ display: 'inline-flex', alignItems: 'center', padding: '13px 22px', background: 'transparent', color: 'rgba(255,255,255,0.65)', fontFamily: T.font, fontSize: 14, fontWeight: 400, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', textDecoration: 'none', transition: 'border-color 0.2s, color 0.2s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.45)'; (e.currentTarget as HTMLAnchorElement).style.color = '#fff'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.65)'; }}>
+              {isAr ? 'استكشف' : 'See Features'}
+            </Link>
+          </div>
         </div>
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+
+        {/* Footer bar */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '18px clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}>
             {[{ label: 'Privacy Policy', href: '/privacy' }, { label: 'Terms', href: '/terms' }, { label: 'Pricing', href: '/pricing' }, { label: 'Contact', href: '/contact' }].map(link => (
-              <Link key={link.label} to={link.href} style={{ fontFamily: F, fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.40)', textDecoration: 'none', textTransform: 'uppercase', transition: 'color 0.2s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.40)')}>
+              <Link key={link.label} to={link.href} style={{ fontFamily: T.font, fontSize: 11, fontWeight: 400, letterSpacing: '0.04em', color: 'rgba(255,255,255,0.32)', textDecoration: 'none', transition: 'color 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.70)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.32)')}>
                 {link.label}
               </Link>
             ))}
           </div>
-          <span style={{ fontFamily: F, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.20)', textTransform: 'uppercase' }}>© 2026 AYN Intelligence</span>
+          <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.18)' }}>© 2026 AYN Intelligence</span>
         </div>
       </section>
     </div>
