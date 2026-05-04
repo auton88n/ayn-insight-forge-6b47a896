@@ -76,11 +76,11 @@ export const Header = () => {
           display: 'flex', alignItems: 'center', gap: 32,
           padding: '10px 28px',
           borderRadius: 9999,
-          background: 'rgba(0,0,0,0.55)',
+          background: 'rgba(255,255,255,0.85)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.10)',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+          border: '1px solid rgba(0,0,0,0.08)',
+          boxShadow: '0 2px 20px rgba(0,0,0,0.08)',
         }}>
           {navLinks.map((link) => (
             <Link
@@ -91,13 +91,13 @@ export const Header = () => {
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: 14,
                 fontWeight: isActive(link.path) ? 600 : 400,
-                color: isActive(link.path) ? '#fff' : 'rgba(255,255,255,0.65)',
+                color: isActive(link.path) ? '#FB923C' : 'rgba(10,10,10,0.65)',
                 textDecoration: 'none',
                 transition: 'color 0.2s',
                 whiteSpace: 'nowrap',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? '#fff' : 'rgba(255,255,255,0.65)')}
+              onMouseEnter={e => (e.currentTarget.style.color = '#FB923C')}
+              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? '#FB923C' : 'rgba(10,10,10,0.65)')}
             >
               {getLabel(link)}
             </Link>
@@ -125,8 +125,8 @@ export const Header = () => {
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: 14, fontWeight: 700,
-                  color: '#000',
-                  background: '#fff',
+                  color: '#fff',
+                  background: '#FB923C',
                   border: 'none',
                   borderRadius: 9999,
                   padding: '9px 22px',
@@ -134,8 +134,8 @@ export const Header = () => {
                   whiteSpace: 'nowrap',
                   transition: 'background 0.2s, transform 0.2s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f0f0f0'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f97316'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#FB923C'; }}
               >
                 {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer' : 'Get Started Free'}
               </button>

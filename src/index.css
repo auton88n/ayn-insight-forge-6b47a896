@@ -137,7 +137,7 @@ html, body {
 
 /* Ensure html background matches theme to prevent gaps during animations */
 html {
-  background-color: #000;
+  background-color: #fff;
 }
 
 /* Ensure smooth scrolling and better mobile behavior */
@@ -291,7 +291,7 @@ button, a, input, textarea, select {
 
   .dark {
     /* Premium Black & White Dark Mode */
-    --background: 0 0% 0%;             /* Pure black #000000 */
+    --background: 0 0% 100%;             /* Pure white */
     --foreground: 0 0% 98%;            /* Off-white */
     --card: 0 0% 3%;                   /* Near black card */
     --card-foreground: 0 0% 98%;
@@ -1542,15 +1542,16 @@ button, a, input, textarea, select {
 .stitch-glass {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.70);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
 }
 
 .stitch-glass-dark {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .gold-glow-btn {
