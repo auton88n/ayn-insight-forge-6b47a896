@@ -137,7 +137,7 @@ html, body {
 
 /* Ensure html background matches theme to prevent gaps during animations */
 html {
-  background-color: #F7F7F4;
+  background-color: #ffffff;
 }
 
 /* Ensure smooth scrolling and better mobile behavior */
@@ -208,7 +208,7 @@ button, a, input, textarea, select {
 @layer base {
   :root {
     /* Premium Black & White Light Mode */
-    --background: 36 11% 97%;             /* Warm off-white #F7F7F4 */
+    --background: 0 0% 100%;             /* Pure white to match frames */
     --foreground: 0 0% 4%;             /* Near black #0a0a0a */
 
     --card: 0 0% 99%;                  /* Off-white #FCFCFC */
@@ -291,7 +291,7 @@ button, a, input, textarea, select {
 
   .dark {
     /* Premium Black & White Dark Mode */
-    --background: 36 11% 97%;             /* Warm off-white #F7F7F4 */
+    --background: 0 0% 100%;             /* Pure white to match frames */
     --foreground: 0 0% 98%;            /* Off-white */
     --card: 0 0% 3%;                   /* Near black card */
     --card-foreground: 0 0% 98%;
