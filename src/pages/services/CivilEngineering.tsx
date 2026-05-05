@@ -16,7 +16,7 @@ import EngineeringMockup from '@/components/services/EngineeringMockup';
 // Memoized card component for better performance
 const CalculatorCard = memo(({ calc, index }: { calc: { icon: any; title: string; description: string }; index: number }) => (
   <div 
-    className="group bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300"
+    className="group bg-background border border-neutral-800 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300"
     style={{ animationDelay: `${index * 50}ms` }}
   >
     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center mb-4 group-hover:from-cyan-500/30 group-hover:to-blue-500/30 transition-all">
@@ -31,7 +31,7 @@ CalculatorCard.displayName = 'CalculatorCard';
 
 const FeatureCard = memo(({ feature, index }: { feature: { icon: any; title: string; description: string }; index: number }) => (
   <div 
-    className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 text-center"
+    className="bg-background border border-neutral-800 rounded-2xl p-6 text-center"
     style={{ animationDelay: `${index * 50}ms` }}
   >
     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center mx-auto mb-4">
@@ -187,10 +187,10 @@ const CivilEngineering = () => {
         language={language as 'en' | 'ar' | 'fr'}
       />
       
-      <div dir={direction} className="min-h-screen bg-neutral-950 text-white">
+      <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Back Button */}
         <Link to="/services" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
-          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-neutral-900/80 backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
+          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{t.back}</span>
           </Button>
@@ -211,7 +211,7 @@ const CivilEngineering = () => {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Link to="/engineering">
-                    <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-8 py-6 text-lg rounded-full">
+                    <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 px-8 py-6 text-lg rounded-full">
                       <HardHat className="w-5 h-5 mr-2" />
                       {t.tryNow}
                     </Button>
@@ -249,7 +249,7 @@ const CivilEngineering = () => {
         </section>
 
         {/* 3D Visualization Section */}
-        <section className="py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
@@ -323,7 +323,7 @@ const CivilEngineering = () => {
         </section>
 
         {/* Features Grid */}
-        <section className="py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-16">
               <span className="text-cyan-400 text-sm font-medium tracking-wider uppercase mb-4 block">
@@ -352,7 +352,7 @@ const CivilEngineering = () => {
               {t.readyDesc}
             </p>
             <Link to="/engineering">
-              <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-12 py-6 text-lg rounded-full">
+              <Button size="lg" className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 px-12 py-6 text-lg rounded-full">
                 <HardHat className="w-5 h-5 mr-2" />
                 {t.tryNow}
               </Button>
@@ -362,7 +362,7 @@ const CivilEngineering = () => {
 
         {/* Contact Modal */}
         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
-          <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-md">
+          <DialogContent className="bg-background border-neutral-800 max-w-md">
             {!isSuccess ? (
               <>
                 <DialogHeader>
@@ -379,7 +379,7 @@ const CivilEngineering = () => {
                       value={formData.fullName} 
                       onChange={e => setFormData({ ...formData, fullName: e.target.value })} 
                       required 
-                      className="bg-neutral-800 border-neutral-700 text-white mt-1" 
+                      className="bg-foreground/5 border-neutral-700 mt-1" 
                     />
                   </div>
                   <div>
@@ -390,7 +390,7 @@ const CivilEngineering = () => {
                       value={formData.email} 
                       onChange={e => setFormData({ ...formData, email: e.target.value })} 
                       required 
-                      className="bg-neutral-800 border-neutral-700 text-white mt-1" 
+                      className="bg-foreground/5 border-neutral-700 mt-1" 
                     />
                   </div>
                   <div>
@@ -402,7 +402,7 @@ const CivilEngineering = () => {
                       type="tel" 
                       value={formData.phone} 
                       onChange={e => setFormData({ ...formData, phone: e.target.value })} 
-                      className="bg-neutral-800 border-neutral-700 text-white mt-1" 
+                      className="bg-foreground/5 border-neutral-700 mt-1" 
                     />
                   </div>
                   <div>
@@ -413,7 +413,7 @@ const CivilEngineering = () => {
                       id="message" 
                       value={formData.message} 
                       onChange={e => setFormData({ ...formData, message: e.target.value })} 
-                      className="bg-neutral-800 border-neutral-700 text-white mt-1" 
+                      className="bg-foreground/5 border-neutral-700 mt-1" 
                       rows={3} 
                     />
                   </div>
@@ -427,7 +427,7 @@ const CivilEngineering = () => {
                 <CheckCircle2 className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
                 <h3 className="text-xl font-bold mb-2">{t.successTitle}</h3>
                 <p className="text-neutral-400 mb-6">{t.successDesc}</p>
-                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 text-white hover:text-white">
+                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 hover:text-white">
                   {t.close}
                 </Button>
               </div>

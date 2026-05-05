@@ -12,7 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/shared/SEO';
 
 const RoleCard = memo(({ role, index }: { role: any; index: number }) => (
-  <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-6 hover:border-cyan-500/50 transition-all duration-300 group">
+  <div className="bg-background border border-neutral-800 rounded-2xl p-6 hover:border-cyan-500/50 transition-all duration-300 group">
     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center mb-4`}>
       <role.icon className={`w-6 h-6 ${role.color}`} />
     </div>
@@ -176,11 +176,11 @@ const AIEmployee = () => {
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
       />
-      <div dir={direction} className="min-h-screen bg-neutral-950 text-white">
+      <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Navigation */}
         <nav className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
           <Link to="/services">
-            <Button variant="ghost" className="gap-2 bg-neutral-900/80 backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800 text-white">
+            <Button variant="ghost" className="gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2 hover:bg-foreground/5">
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">{t.back}</span>
             </Button>
@@ -205,7 +205,7 @@ const AIEmployee = () => {
         </section>
 
         {/* Available Roles Section */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <span className="text-sm font-mono text-cyan-400 tracking-wider uppercase mb-4 block">
@@ -236,8 +236,8 @@ const AIEmployee = () => {
               <p className="text-neutral-400 max-w-xl mx-auto">{t.compareSubtitle}</p>
             </div>
 
-            <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl overflow-hidden">
-              <div className="grid grid-cols-3 gap-4 px-6 py-4 bg-neutral-800/50 font-bold">
+            <div className="bg-background border border-neutral-800 rounded-2xl overflow-hidden">
+              <div className="grid grid-cols-3 gap-4 px-6 py-4 bg-foreground/5 font-bold">
                 <div></div>
                 <div className="text-red-400">{t.traditional}</div>
                 <div className="text-cyan-400">{t.aiEmployee}</div>
@@ -252,7 +252,7 @@ const AIEmployee = () => {
         </section>
 
         {/* CTA Section */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-4xl text-center">
             <h2 className="text-3xl md:text-5xl font-serif font-bold mb-6">{t.readyToHire}</h2>
             <p className="text-lg text-neutral-400 mb-8">{t.ctaDesc}</p>
@@ -261,7 +261,7 @@ const AIEmployee = () => {
                 {t.startProject}
               </Button>
               <Link to="/services/ai-employee/apply">
-                <Button size="lg" variant="outline" className="rounded-full px-8 border-neutral-700 hover:bg-neutral-800 text-white hover:text-white">
+                <Button size="lg" variant="outline" className="rounded-full px-8 border-neutral-700 hover:bg-foreground/5 hover:text-white">
                   {language === 'ar' ? 'النموذج المفصل' : language === 'fr' ? 'Formulaire détaillé' : 'Detailed Form'}
                 </Button>
               </Link>
@@ -271,7 +271,7 @@ const AIEmployee = () => {
 
         {/* Modal */}
         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
-          <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-md">
+          <DialogContent className="bg-background border-neutral-800 max-w-md">
             {!isSuccess ? (
               <>
                 <DialogHeader>
@@ -281,19 +281,19 @@ const AIEmployee = () => {
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="fullName" className="text-white">{t.fullName}</Label>
-                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} required className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} required className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="email" className="text-white">{t.email}</Label>
-                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="phone" className="text-white">{t.phone} <span className="text-neutral-500">({t.optional})</span></Label>
-                    <Input id="phone" type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="phone" type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="message" className="text-white">{t.message} <span className="text-neutral-500">({t.optional})</span></Label>
-                    <Textarea id="message" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white mt-1" rows={3} />
+                    <Textarea id="message" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="bg-foreground/5 border-neutral-700 mt-1" rows={3} />
                   </div>
                   <Button type="submit" disabled={isSubmitting} className="w-full bg-cyan-500 hover:bg-cyan-400 text-neutral-950">
                     {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t.submitting}</> : t.submit}
@@ -305,7 +305,7 @@ const AIEmployee = () => {
                 <CheckCircle className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
                 <h3 className="text-xl font-bold mb-2">{t.successTitle}</h3>
                 <p className="text-neutral-400 mb-6">{t.successDesc}</p>
-                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 text-white hover:text-white">{t.close}</Button>
+                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 hover:text-white">{t.close}</Button>
               </div>
             )}
           </DialogContent>

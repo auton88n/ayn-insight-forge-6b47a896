@@ -48,7 +48,7 @@ const Terms = () => {
         description="Read AYN's Terms of Service including acceptable use, payment terms, AI disclaimers, and limitation of liability."
       />
       
-      <div className="min-h-screen bg-neutral-950 py-12 px-4">
+      <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="mb-8">
             <Link to="/">

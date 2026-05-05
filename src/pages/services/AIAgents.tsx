@@ -13,7 +13,7 @@ import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/s
 
 // Memoized card components
 const FeatureCard = memo(({ feature, index }: { feature: { icon: any; title: string; description: string }; index: number }) => (
-  <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-6 hover:border-purple-500/30 transition-colors duration-300">
+  <div className="bg-background border border-neutral-800 rounded-2xl p-6 hover:border-purple-500/30 transition-colors duration-300">
     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mb-4">
       <feature.icon className="w-6 h-6 text-purple-400" />
     </div>
@@ -24,9 +24,9 @@ const FeatureCard = memo(({ feature, index }: { feature: { icon: any; title: str
 FeatureCard.displayName = 'FeatureCard';
 
 const ChannelCard = memo(({ channel }: { channel: { name: string; icon: any; color: string } }) => (
-  <div className="flex items-center gap-3 bg-neutral-900/60 border border-neutral-800 rounded-xl px-4 py-3">
+  <div className="flex items-center gap-3 bg-background border border-neutral-800 rounded-xl px-4 py-3">
     <div className={`w-10 h-10 rounded-lg ${channel.color} flex items-center justify-center`}>
-      <channel.icon className="w-5 h-5 text-white" />
+      <channel.icon className="w-5 h-5" />
     </div>
     <span className="font-medium">{channel.name}</span>
   </div>
@@ -35,7 +35,7 @@ ChannelCard.displayName = 'ChannelCard';
 
 const StepCard = memo(({ step, index }: { step: { number: string; title: string; description: string }; index: number }) => (
   <div className="text-center">
-    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center text-white font-bold text-xl">
+    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center font-bold text-xl">
       {step.number}
     </div>
     <h3 className="text-xl font-bold mb-2">{step.title}</h3>
@@ -206,10 +206,10 @@ const AIAgents = () => {
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
       />
-      <div dir={direction} className="min-h-screen bg-neutral-950 text-white">
+      <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Back Button */}
         <Link to="/services" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
-          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-neutral-900/80 backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
+          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{t.back}</span>
           </Button>
@@ -236,13 +236,13 @@ const AIAgents = () => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
                   size="lg" 
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-8 py-6 text-lg rounded-full"
+                  className="bg-purple-500 hover:bg-purple-600 px-8 py-6 text-lg rounded-full"
                   onClick={() => setIsModalOpen(true)}
                 >
                   {t.startProject}
                 </Button>
                 <Link to="/#services">
-                  <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 px-8 py-6 text-lg rounded-full">
+                  <Button size="lg" variant="outline" className="border-white/20 hover:bg-white/10 px-8 py-6 text-lg rounded-full">
                     {t.viewAllServices}
                   </Button>
                 </Link>
@@ -252,7 +252,7 @@ const AIAgents = () => {
         </section>
 
         {/* Chat Mockup Section */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <span className="text-sm font-mono text-purple-400 tracking-wider uppercase mb-4 block">
@@ -265,13 +265,13 @@ const AIAgents = () => {
             </div>
 
             {/* Chat Mockup */}
-            <div className="max-w-2xl mx-auto bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+            <div className="max-w-2xl mx-auto bg-background border border-neutral-800 rounded-2xl overflow-hidden">
               <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
+                  <Bot className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-medium text-white">AI Assistant</p>
+                  <p className="font-medium">AI Assistant</p>
                   <p className="text-xs text-green-400 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-green-400" />
                     {t.connected}
@@ -281,9 +281,9 @@ const AIAgents = () => {
               <div className="p-4 space-y-4 max-h-[400px]">
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex-shrink-0 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" />
+                    <Bot className="w-4 h-4" />
                   </div>
-                  <div className="bg-neutral-800 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
+                  <div className="bg-foreground/5 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
                     <p className="text-neutral-200">{t.chatGreeting}</p>
                   </div>
                 </div>
@@ -294,9 +294,9 @@ const AIAgents = () => {
                 </div>
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-500 flex-shrink-0 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" />
+                    <Bot className="w-4 h-4" />
                   </div>
-                  <div className="bg-neutral-800 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
+                  <div className="bg-foreground/5 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
                     <p className="text-neutral-200 mb-2">{t.chatAnswer}</p>
                     <ul className="space-y-1 text-sm text-neutral-300">
                       <li>• {t.planStarter}</li>
@@ -330,7 +330,7 @@ const AIAgents = () => {
         </section>
 
         {/* Features Grid */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <span className="text-sm font-mono text-purple-400 tracking-wider uppercase mb-4 block">
@@ -364,13 +364,13 @@ const AIAgents = () => {
         </section>
 
         {/* CTA Section */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-4xl text-center">
             <h2 className="text-3xl md:text-5xl font-serif font-bold mb-6">{t.readyToAutomate}</h2>
             <p className="text-lg text-neutral-400 mb-8">{t.ctaDesc}</p>
             <Button 
               size="lg" 
-              className="bg-purple-500 hover:bg-purple-600 text-white px-12 py-6 text-lg rounded-full"
+              className="bg-purple-500 hover:bg-purple-600 px-12 py-6 text-lg rounded-full"
               onClick={() => setIsModalOpen(true)}
             >
               {t.startProject}
@@ -380,7 +380,7 @@ const AIAgents = () => {
 
         {/* Modal */}
         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
-          <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-md">
+          <DialogContent className="bg-background border-neutral-800 max-w-md">
             {!isSuccess ? (
               <>
                 <DialogHeader>
@@ -390,19 +390,19 @@ const AIAgents = () => {
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="fullName" className="text-white">{t.fullName}</Label>
-                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} required className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} required className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="email" className="text-white">{t.email}</Label>
-                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="phone" className="text-white">{t.phone} <span className="text-neutral-500">({t.optional})</span></Label>
-                    <Input id="phone" type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="phone" type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="message" className="text-white">{t.message} <span className="text-neutral-500">({t.optional})</span></Label>
-                    <Textarea id="message" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white mt-1" rows={3} />
+                    <Textarea id="message" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="bg-foreground/5 border-neutral-700 mt-1" rows={3} />
                   </div>
                   <Button type="submit" disabled={isSubmitting} className="w-full bg-purple-500 hover:bg-purple-600">
                     {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t.submitting}</> : t.submit}
@@ -418,7 +418,7 @@ const AIAgents = () => {
                 <CheckCircle2 className="w-16 h-16 text-purple-400 mx-auto mb-4" />
                 <h3 className="text-xl font-bold mb-2">{t.successTitle}</h3>
                 <p className="text-neutral-400 mb-6">{t.successDesc}</p>
-                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 text-white hover:text-white">{t.close}</Button>
+                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 hover:text-white">{t.close}</Button>
               </div>
             )}
           </DialogContent>

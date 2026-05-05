@@ -41,7 +41,7 @@ const Privacy = () => {
         description="Learn how AYN collects, uses, and protects your personal information. Read our comprehensive privacy policy."
       />
       
-      <div className="min-h-screen bg-neutral-950 py-12 px-4">
+      <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="mb-8">
             <Link to="/">

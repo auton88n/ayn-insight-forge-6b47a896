@@ -13,14 +13,14 @@ import { SEO, createServiceSchema, createBreadcrumbSchema } from '@/components/s
 import AutomationFlowMockup from '@/components/services/AutomationFlowMockup';
 
 const AutomationCard = memo(({ automation, t }: { automation: any; t: any }) => (
-  <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 hover:border-emerald-500/30 transition-colors">
+  <div className="bg-background border border-neutral-800 rounded-xl p-4 hover:border-emerald-500/30 transition-colors">
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
           <automation.icon className="w-5 h-5 text-emerald-400" />
         </div>
         <div>
-          <h3 className="font-medium text-white">{automation.title}</h3>
+          <h3 className="font-medium">{automation.title}</h3>
           <p className="text-xs text-neutral-500">{automation.description}</p>
         </div>
       </div>
@@ -34,7 +34,7 @@ const AutomationCard = memo(({ automation, t }: { automation: any; t: any }) => 
 AutomationCard.displayName = 'AutomationCard';
 
 const FeatureCard = memo(({ feature }: { feature: any }) => (
-  <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-6 hover:border-emerald-500/30 transition-colors">
+  <div className="bg-background border border-neutral-800 rounded-2xl p-6 hover:border-emerald-500/30 transition-colors">
     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center mb-4">
       <feature.icon className="w-6 h-6 text-emerald-400" />
     </div>
@@ -46,7 +46,7 @@ FeatureCard.displayName = 'FeatureCard';
 
 const StepCard = memo(({ step }: { step: any }) => (
   <div className="text-center">
-    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center text-white font-bold text-xl">
+    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center font-bold text-xl">
       {step.number}
     </div>
     <h3 className="text-xl font-bold mb-2">{step.title}</h3>
@@ -208,10 +208,10 @@ const Automation = () => {
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
       />
-      <div dir={direction} className="min-h-screen bg-neutral-950 text-white">
+      <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Back Button */}
         <Link to="/services" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
-          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-neutral-900/80 backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
+          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{t.back}</span>
           </Button>
@@ -238,13 +238,13 @@ const Automation = () => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
                   size="lg" 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-6 text-lg rounded-full"
+                  className="bg-emerald-500 hover:bg-emerald-600 px-8 py-6 text-lg rounded-full"
                   onClick={() => setIsModalOpen(true)}
                 >
                   {t.startAutomating}
                 </Button>
                 <Link to="/#services">
-                  <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 px-8 py-6 text-lg rounded-full">
+                  <Button size="lg" variant="outline" className="border-white/20 hover:bg-white/10 px-8 py-6 text-lg rounded-full">
                     {t.viewAllServices}
                   </Button>
                 </Link>
@@ -263,14 +263,14 @@ const Automation = () => {
               <h2 className="text-3xl md:text-5xl font-serif font-bold mb-4">{t.workflowDashboard}</h2>
               <p className="text-neutral-400 max-w-xl mx-auto">{t.dashboardDesc}</p>
             </div>
-            <div className="max-w-2xl mx-auto bg-neutral-900/80 border border-neutral-800 rounded-2xl p-8">
+            <div className="max-w-2xl mx-auto bg-background border border-neutral-800 rounded-2xl p-8">
               <AutomationFlowMockup />
             </div>
           </div>
         </section>
 
         {/* Popular Automations */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <span className="text-sm font-mono text-emerald-400 tracking-wider uppercase mb-4 block">
@@ -305,7 +305,7 @@ const Automation = () => {
         </section>
 
         {/* How It Works */}
-        <section className="py-16 md:py-24 px-4 md:px-6 bg-neutral-900/50">
+        <section className="py-16 md:py-24 px-4 md:px-6 bg-background">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <span className="text-sm font-mono text-emerald-400 tracking-wider uppercase mb-4 block">
@@ -328,7 +328,7 @@ const Automation = () => {
             <p className="text-lg text-neutral-400 mb-8">{t.ctaDesc}</p>
             <Button 
               size="lg" 
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-12 py-6 text-lg rounded-full"
+              className="bg-emerald-500 hover:bg-emerald-600 px-12 py-6 text-lg rounded-full"
               onClick={() => setIsModalOpen(true)}
             >
               {t.startAutomating}
@@ -338,7 +338,7 @@ const Automation = () => {
 
         {/* Modal */}
         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
-          <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-md">
+          <DialogContent className="bg-background border-neutral-800 max-w-md">
             {!isSuccess ? (
               <>
                 <DialogHeader>
@@ -348,19 +348,19 @@ const Automation = () => {
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="fullName" className="text-white">{t.fullName}</Label>
-                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} required className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} required className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="email" className="text-white">{t.email}</Label>
-                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="phone" className="text-white">{t.phone} <span className="text-neutral-500">({t.optional})</span></Label>
-                    <Input id="phone" type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white mt-1" />
+                    <Input id="phone" type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="bg-foreground/5 border-neutral-700 mt-1" />
                   </div>
                   <div>
                     <Label htmlFor="message" className="text-white">{t.message} <span className="text-neutral-500">({t.optional})</span></Label>
-                    <Textarea id="message" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="bg-neutral-800 border-neutral-700 text-white mt-1" rows={3} />
+                    <Textarea id="message" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="bg-foreground/5 border-neutral-700 mt-1" rows={3} />
                   </div>
                   <Button type="submit" disabled={isSubmitting} className="w-full bg-emerald-500 hover:bg-emerald-600">
                     {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t.submitting}</> : t.submit}
@@ -376,7 +376,7 @@ const Automation = () => {
                 <CheckCircle2 className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
                 <h3 className="text-xl font-bold mb-2">{t.successTitle}</h3>
                 <p className="text-neutral-400 mb-6">{t.successDesc}</p>
-                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 text-white hover:text-white">{t.close}</Button>
+                <Button onClick={handleCloseModal} variant="outline" className="border-neutral-700 hover:text-white">{t.close}</Button>
               </div>
             )}
           </DialogContent>
