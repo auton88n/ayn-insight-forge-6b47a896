@@ -182,15 +182,13 @@ export const HeroScroll = memo(() => {
                   willChange: 'opacity',
                   position: 'relative',
                   zIndex: 1,
-                  /* Studio quality shadow on object only — not on bg */
-                  filter: 'drop-shadow(0 24px 40px rgba(0,0,0,0.08)) drop-shadow(0 4px 8px rgba(0,0,0,0.04))',
                 }}
               />
             </div>
           </div>
 
-          {/* Gradient — text/object separation */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(to right, rgba(255,255,255,1) 0%, rgba(255,255,255,1) 34%, rgba(255,255,255,0.88) 48%, rgba(255,255,255,0) 64%)', pointerEvents: 'none' }} />
+          {/* Gradient — text/object separation — fully opaque until cutoff */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(to right, #ffffff 0%, #ffffff 38%, rgba(255,255,255,0) 58%)', pointerEvents: 'none' }} />
 
           {/* ── TEXT ── */}
           <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', padding: '80px clamp(32px,6vw,96px)' }}>
