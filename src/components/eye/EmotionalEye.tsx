@@ -1,10 +1,13 @@
+/**
+ * EmotionalEye — 3D sphere design with performant mouse-tracking.
+ * Mouse tracking uses direct DOM refs + RAF (zero React re-renders per frame).
+ */
 import { useEffect, useState, useRef, useCallback, memo } from 'react';
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAYNEmotion } from '@/stores/emotionStore';
 import { useSoundStore } from '@/stores/soundStore';
 import { useDebugStore } from '@/stores/debugStore';
-
 import { useIdleDetection } from '@/hooks/useIdleDetection';
 import { useEyeGestures } from '@/hooks/useEyeGestures';
 import { usePerformanceMode } from '@/hooks/usePerformanceMode';
@@ -12,414 +15,212 @@ import { EyeParticles } from './EyeParticles';
 import { ThinkingDots } from './ThinkingDots';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-// AI-powered empathy response types
 export type PupilReaction = 'normal' | 'dilate-slightly' | 'dilate-more' | 'contract';
-export type BlinkPattern = 'normal' | 'slow-comfort' | 'quick-attentive' | 'double-understanding';
+export type BlinkPattern  = 'normal' | 'slow-comfort' | 'quick-attentive' | 'double-understanding';
 
 interface EmotionalEyeProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
   gazeTarget?: { x: number; y: number } | null;
-  // AI empathy micro-behaviors
   pupilReaction?: PupilReaction;
   blinkPattern?: BlinkPattern;
   colorIntensity?: number;
 }
 
-const EmotionalEyeComponent = ({ 
-  size = 'lg', 
-  className, 
-  gazeTarget, 
-  pupilReaction = 'normal',
-  blinkPattern = 'normal',
-  colorIntensity = 0.5
+const SIZE_MAP = {
+  sm: { cls: 'w-[100px] h-[100px] md:w-[120px] md:h-[120px]', px: 120 },
+  md: { cls: 'w-[140px] h-[140px] md:w-[180px] md:h-[180px]',  px: 180 },
+  lg: { cls: 'w-[160px] h-[160px] md:w-[220px] md:h-[220px] lg:w-[260px] lg:h-[260px]', px: 260 },
+};
+
+// Tick mark positions (8 evenly spaced on the ring)
+const TICKS = Array.from({ length: 8 }, (_, i) => {
+  const a = (i * 45 * Math.PI) / 180;
+  return { x1: 50 + 33 * Math.cos(a), y1: 50 + 33 * Math.sin(a), x2: 50 + 38 * Math.cos(a), y2: 50 + 38 * Math.sin(a) };
+});
+
+const EmotionalEyeComponent = ({
+  size = 'lg',
+  className,
+  gazeTarget,
+  pupilReaction  = 'normal',
+  blinkPattern   = 'normal',
+  colorIntensity = 0.5,
 }: EmotionalEyeProps) => {
-  const { 
-    emotionConfig,
-    emotion,
-    emotionSource,
-    setEmotionWithSource,
-    isAbsorbing, 
-    isBlinking, 
-    triggerBlink, 
-    isResponding,
-    isUserTyping,
-    isAttentive,
-    lastActivityTime,
-    isSurprised,
-    triggerSurprise,
-    isPulsing,
-    triggerPulse,
-    isWinking,
-    activityLevel,
+  const {
+    emotionConfig, emotion,
+    isAbsorbing, isBlinking, triggerBlink, isResponding,
+    isUserTyping, isAttentive, isSurprised,
+    isPulsing, isWinking, activityLevel,
   } = useAYNEmotion();
-  const soundContext = useSoundStore();
+
+  const soundContext   = useSoundStore();
   const debugIsEnabled = useDebugStore((s) => s.isDebugMode);
   const [isHovered, setIsHovered] = useState(false);
-  const lastBlinkRef = useRef(Date.now());
+
+  const lastBlinkRef         = useRef(Date.now());
   const idleBlinkIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const prevBlinkingRef = useRef(false);
-  // Track if current blink is "significant" (user-triggered) vs idle blink
+  const prevBlinkingRef      = useRef(false);
   const isSignificantBlinkRef = useRef(false);
-  const isMobile = useIsMobile();
-  
-  // Debug render logging - only count, don't trigger re-renders
-  if (debugIsEnabled) {
-    useDebugStore.getState().incrementRenderCount('EmotionalEye');
-  }
-  
-  // Performance optimizations - centralized config
+  const typingStartRef       = useRef<number | null>(null);
+  const pauseBlinkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isMobile         = useIsMobile();
   const performanceConfig = usePerformanceMode();
-  const { isDeepIdle } = useIdleDetection({ idleThreshold: 15, deepIdleThreshold: 30 });
-  
-  // Eye gestures for click interactions
+  const { isDeepIdle }   = useIdleDetection({ idleThreshold: 15, deepIdleThreshold: 30 });
   const { isSquished, handlers: gestureHandlers } = useEyeGestures();
 
-  // Simplified gaze tracking - single combined motion value
-  const gazeX = useMotionValue(0);
-  const gazeY = useMotionValue(0);
-  
-  // Single optimized spring for all gaze movements - high damping for fast settling
-  const smoothGazeX = useSpring(gazeX, { damping: 60, stiffness: 200, mass: 0.5 });
-  const smoothGazeY = useSpring(gazeY, { damping: 60, stiffness: 200, mass: 0.5 });
+  /* ── Direct-DOM refs for mouse animation (no state updates) ── */
+  const sphereRef    = useRef<HTMLDivElement>(null);
+  const reactorRef   = useRef<HTMLDivElement>(null);
+  const rafRef       = useRef<number | null>(null);
+  const mouseNorm    = useRef({ x: 0, y: 0 }); // -1..1
 
-  // Activity-based glow intensity multipliers
-  const ACTIVITY_GLOW = {
-    idle: 0.3,
-    low: 0.45,
-    medium: 0.6,
-    high: 0.8,
-  };
-  
-  const safeActivityLevel = activityLevel || 'idle';
-  const baseGlowIntensity = ACTIVITY_GLOW[safeActivityLevel];
-  const glowIntensity = baseGlowIntensity;
-
-  // Play blink sounds ONLY for significant blinks (user-triggered, not idle)
+  /* ── Blink sounds ── */
   useEffect(() => {
     if (isBlinking && !prevBlinkingRef.current) {
-      // Only play sound for significant blinks (user interactions, attention)
-      if (isSignificantBlinkRef.current && soundContext?.playInstant) {
-        soundContext.playInstant('blink');
-      }
+      if (isSignificantBlinkRef.current && soundContext?.playInstant) soundContext.playInstant('blink');
     } else if (!isBlinking && prevBlinkingRef.current) {
-      // Sound for eye opening - only for significant blinks
-      if (isSignificantBlinkRef.current && soundContext?.playInstant) {
-        soundContext.playInstant('blink-open');
-      }
-      // Reset significant flag after blink completes
+      if (isSignificantBlinkRef.current && soundContext?.playInstant) soundContext.playInstant('blink-open');
       isSignificantBlinkRef.current = false;
     }
     prevBlinkingRef.current = isBlinking;
   }, [isBlinking, soundContext]);
 
-  // Unified gaze tracking - combines mouse, AI target, and typing state
-  useEffect(() => {
-    // Skip mouse tracking if disabled, deep idle, or mobile (touch devices don't benefit)
-    if (!performanceConfig.enableMouseTracking || isDeepIdle || performanceConfig.shouldReduceAnimations || isMobile) {
-      gazeX.set(0);
-      gazeY.set(0);
-      return;
-    }
-    
-    let rafId: number | null = null;
-    let lastX = 0;
-    let lastY = 0;
-    const throttleMs = performanceConfig.mouseTrackingThrottle;
-    let lastUpdate = 0;
-
-    function onMove(e: MouseEvent) {
-      const now = Date.now();
-      if (now - lastUpdate < throttleMs) return;
-      
-      if (rafId !== null) return;
-      
-      rafId = requestAnimationFrame(() => {
-        const cx = window.innerWidth / 2;
-        const cy = window.innerHeight / 2;
-        const newX = (e.clientX - cx) * 0.01;
-        const newY = (e.clientY - cy) * 0.01;
-        
-        // Only update if moved significantly (reduces repaints)
-        if (Math.abs(newX - lastX) > 0.5 || Math.abs(newY - lastY) > 0.5) {
-          gazeX.set(newX);
-          gazeY.set(newY);
-          lastX = newX;
-          lastY = newY;
-          lastUpdate = now;
-        }
-        rafId = null;
-      });
-    }
-
-    function onLeave() {
-      gazeX.set(0);
-      gazeY.set(0);
-    }
-
-    window.addEventListener('mousemove', onMove, { passive: true });
-    window.addEventListener('mouseleave', onLeave);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseleave', onLeave);
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [gazeX, gazeY, performanceConfig.enableMouseTracking, performanceConfig.mouseTrackingThrottle, performanceConfig.shouldReduceAnimations, isDeepIdle, isMobile]);
-
-  // AI gaze towards suggestions or input field
-  useEffect(() => {
-    if (isUserTyping) {
-      // Look slightly down toward input field when user is typing
-      gazeX.set(0);
-      gazeY.set(4); // Subtle downward gaze toward input
-    } else if (gazeTarget && !isResponding) {
-      gazeX.set(gazeTarget.x * 0.5);
-      gazeY.set(gazeTarget.y * 0.2);
-    }
-  }, [gazeTarget, isUserTyping, isResponding, gazeX, gazeY]);
-
-
-  // Track typing state for contextual blinks (no sounds - visual only)
-  const typingStartRef = useRef<number | null>(null);
-  const pauseBlinkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Track when user starts/stops typing for contextual blinks (silent)
-  useEffect(() => {
-    if (isUserTyping) {
-      if (!typingStartRef.current) {
-        typingStartRef.current = Date.now();
-      }
-      
-      // Clear any pending pause blink
-      if (pauseBlinkTimeoutRef.current) {
-        clearTimeout(pauseBlinkTimeoutRef.current);
-        pauseBlinkTimeoutRef.current = null;
-      }
-    } else if (typingStartRef.current) {
-      // User stopped typing - trigger quick attentive blink after short pause (silent)
-      const typingDuration = Date.now() - typingStartRef.current;
-      typingStartRef.current = null;
-      
-      // Quick attentive blink when user pauses (visual only, no sound)
-      pauseBlinkTimeoutRef.current = setTimeout(() => {
-        if (!isAbsorbing && !isResponding) {
-          triggerBlink();
-          
-          // Double blink for long typing sessions (visual only)
-          if (typingDuration > 3000) {
-            setTimeout(() => triggerBlink(), 250);
-          }
-        }
-      }, 300 + Math.random() * 200);
-    }
-    
-    return () => {
-      if (pauseBlinkTimeoutRef.current) {
-        clearTimeout(pauseBlinkTimeoutRef.current);
-      }
-    };
-  }, [isUserTyping, isAbsorbing, isResponding, triggerBlink]);
-
-  // Get blink frequency based on AI empathy pattern or state
+  /* ── Blink interval logic ── */
   const getBlinkInterval = useCallback(() => {
-    // AI empathy blink patterns take priority
     switch (blinkPattern) {
-      case 'slow-comfort':
-        // Slow, gentle blinks for comfort/empathy
-        return 4000 + Math.random() * 2000; // 4-6 seconds
-      case 'quick-attentive':
-        // Quick, alert blinks showing attention
-        return 1200 + Math.random() * 600; // 1.2-1.8 seconds
-      case 'double-understanding':
-        // Normal timing, double blink handled separately
-        return 2500 + Math.random() * 1000;
-      case 'normal':
-      default:
-        break; // Fall through to other logic
+      case 'slow-comfort':      return 4000 + Math.random() * 2000;
+      case 'quick-attentive':   return 1200 + Math.random() * 600;
+      case 'double-understanding': return 2500 + Math.random() * 1000;
+      default: break;
     }
-    
-    // During active typing - much slower blinks (AYN is focused on reading)
     if (isUserTyping) {
-      const typingDuration = typingStartRef.current ? Date.now() - typingStartRef.current : 0;
-      if (typingDuration > 5000) {
-        return 6000 + Math.random() * 2000;
-      } else if (typingDuration > 2000) {
-        return 4500 + Math.random() * 1500;
-      }
+      const d = typingStartRef.current ? Date.now() - typingStartRef.current : 0;
+      if (d > 5000) return 6000 + Math.random() * 2000;
+      if (d > 2000) return 4500 + Math.random() * 1500;
       return 3500 + Math.random() * 1000;
     }
-    
-    // While responding - quick blinks
     if (isResponding) return 800 + Math.random() * 400;
-    
-    // Idle state - frequent natural blinks
     return 3000 + Math.random() * 1500;
   }, [isUserTyping, isResponding, blinkPattern]);
 
-  // Idle blinking effect (silent - no sounds for idle blinks)
   useEffect(() => {
-    if (idleBlinkIntervalRef.current) {
-      clearInterval(idleBlinkIntervalRef.current);
-      idleBlinkIntervalRef.current = null;
-    }
-
-    const scheduleNextBlink = () => {
-      const interval = getBlinkInterval();
-      if (interval === null) return;
-
+    if (idleBlinkIntervalRef.current) { clearInterval(idleBlinkIntervalRef.current); idleBlinkIntervalRef.current = null; }
+    const schedule = () => {
       idleBlinkIntervalRef.current = setTimeout(() => {
         if (!isAbsorbing && !isAttentive) {
           const now = Date.now();
           if (now - lastBlinkRef.current > 500) {
-            // Idle blinks are silent (isSignificantBlinkRef stays false)
-            triggerBlink();
-            lastBlinkRef.current = now;
-            
-            // Double blink for AI empathy patterns (also silent)
-            if (blinkPattern === 'double-understanding') {
-              setTimeout(() => triggerBlink(), 200);
-            }
+            triggerBlink(); lastBlinkRef.current = now;
+            if (blinkPattern === 'double-understanding') setTimeout(() => triggerBlink(), 200);
           }
         }
-        scheduleNextBlink();
-      }, interval);
+        schedule();
+      }, getBlinkInterval());
     };
-
-    scheduleNextBlink();
-
-    return () => {
-      if (idleBlinkIntervalRef.current) {
-        clearTimeout(idleBlinkIntervalRef.current);
-      }
-    };
+    schedule();
+    return () => { if (idleBlinkIntervalRef.current) clearTimeout(idleBlinkIntervalRef.current); };
   }, [isAbsorbing, isAttentive, getBlinkInterval, triggerBlink, blinkPattern]);
 
-  // "Check-in" blink removed for performance (minimal visual benefit, fires every 10s)
-
-  // Get tilt based on emotion - simplified, no micro-movements
-  const getEmotionTilt = useCallback(() => {
-    switch (emotion) {
-      case 'curious': return 3;
-      case 'thinking': return -2;
-      case 'happy': return 1;
-      default: return 0;
+  useEffect(() => {
+    if (isUserTyping) {
+      if (!typingStartRef.current) typingStartRef.current = Date.now();
+      if (pauseBlinkTimeoutRef.current) { clearTimeout(pauseBlinkTimeoutRef.current); pauseBlinkTimeoutRef.current = null; }
+    } else if (typingStartRef.current) {
+      const d = Date.now() - typingStartRef.current;
+      typingStartRef.current = null;
+      pauseBlinkTimeoutRef.current = setTimeout(() => {
+        if (!isAbsorbing && !isResponding) {
+          triggerBlink();
+          if (d > 3000) setTimeout(() => triggerBlink(), 250);
+        }
+      }, 300 + Math.random() * 200);
     }
-  }, [emotion]);
+    return () => { if (pauseBlinkTimeoutRef.current) clearTimeout(pauseBlinkTimeoutRef.current); };
+  }, [isUserTyping, isAbsorbing, isResponding, triggerBlink]);
 
-  // Head tilt based on emotion - CSS transition instead of spring
-  const emotionTilt = getEmotionTilt();
+  /* ── Performant mouse tracking — direct DOM, RAF-throttled ── */
+  useEffect(() => {
+    if (isMobile || performanceConfig.shouldReduceAnimations || isDeepIdle) return;
 
-  const sizeClasses = {
-    sm: 'w-[100px] h-[100px] md:w-[120px] md:h-[120px]',
-    md: 'w-[140px] h-[140px] md:w-[180px] md:h-[180px]',
-    lg: 'w-[160px] h-[160px] md:w-[220px] md:h-[220px] lg:w-[260px] lg:h-[260px]',
-  };
+    const applyTransforms = () => {
+      rafRef.current = null;
+      const { x, y } = mouseNorm.current;
+      // Sphere: subtle 3D tilt (±6 deg)
+      if (sphereRef.current) {
+        sphereRef.current.style.transform =
+          `perspective(700px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+      }
+      // Reactor core: parallax shift (±12%)
+      if (reactorRef.current) {
+        reactorRef.current.style.transform = `translate(${x * 12}%, ${y * 12}%)`;
+      }
+    };
 
-  // Activity-based pupil dilation bonus
-  const ACTIVITY_PUPIL_BONUS = {
-    idle: 0,
-    low: 1,
-    medium: 2,
-    high: 4,
-  };
+    const onMove = (e: MouseEvent) => {
+      mouseNorm.current = {
+        x: (e.clientX / window.innerWidth)  * 2 - 1,
+        y: (e.clientY / window.innerHeight) * 2 - 1,
+      };
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(applyTransforms);
+    };
 
-  // Calculate iris radius based on AI pupil reaction, behavior state, or current state
-  const getIrisRadius = () => {
-    const activityBonus = ACTIVITY_PUPIL_BONUS[safeActivityLevel] ?? 0;
-    
-    // AI empathy pupil reactions take highest priority
-    switch (pupilReaction) {
-      case 'dilate-more':
-        return 36 + activityBonus; // Very engaged/emotional
-      case 'dilate-slightly':
-        return 32 + activityBonus; // Attentive/interested
-      case 'contract':
-        return 20; // Focused/analytical - no bonus
-      case 'normal':
-      default:
-        break; // Fall through to other logic
-    }
-    
-    // Default state-based calculation with activity bonus
-    if (isAbsorbing) return 16;
-    if (isAttentive) return 34 + activityBonus;
-    if (isUserTyping) return 32 + activityBonus;
-    if (isResponding) return 30 + activityBonus;
-    if (isBlinking) return 28;
-    if (isHovered) return 30 + activityBonus;
-    return 28 + activityBonus;
-  };
+    const onLeave = () => {
+      mouseNorm.current = { x: 0, y: 0 };
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(applyTransforms);
+    };
 
-  const irisRadius = getIrisRadius() || 28; // Fallback to prevent undefined
-  
-  // Activity-based breathing speed multipliers (lower = faster)
-  const ACTIVITY_BREATHING_MULT = {
-    idle: 1.2,    // Slower, relaxed
-    low: 1.0,     // Normal
-    medium: 0.8,  // Slightly faster
-    high: 0.6,    // Quick, energetic
-  };
-  const breathingDuration = emotionConfig.breathingSpeed * ACTIVITY_BREATHING_MULT[safeActivityLevel];
+    window.addEventListener('mousemove', onMove,  { passive: true });
+    window.addEventListener('mouseleave', onLeave);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseleave', onLeave);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [isMobile, performanceConfig.shouldReduceAnimations, isDeepIdle]);
 
-  // Activity-based saturation boost (percentage increase)
-  const ACTIVITY_SATURATION_BOOST = {
-    idle: 0,
-    low: 5,
-    medium: 12,
-    high: 20,
-  };
-  const saturationBoost = ACTIVITY_SATURATION_BOOST[safeActivityLevel];
+  const safeActivityLevel = activityLevel || 'idle';
+  const glowColor = emotionConfig?.glowColor || 'hsl(35, 95%, 55%)';
+  const eyeSize   = SIZE_MAP[size].px;
 
-  // Helper to boost HSL saturation
-  const boostSaturation = (hslColor: string, boostPercent: number): string => {
-    // Parse HSL color like "hsl(210, 60%, 50%)" or "210 60% 50%"
-    const match = hslColor.match(/(\d+)[,\s]+(\d+)%[,\s]+(\d+)%/);
-    if (!match) return hslColor;
-    const [, h, s, l] = match;
-    const newSat = Math.min(100, parseInt(s) + boostPercent);
-    return `hsl(${h}, ${newSat}%, ${l}%)`;
-  };
+  /* ── Blink scaleY (applied to sphere body only) ── */
+  const blinkScaleY = isBlinking ? 0.05 : isSquished ? 0.78 : 1;
+  const blinkTransition = `transform ${isBlinking ? '0.12s' : '0.18s'} cubic-bezier(0.4,0,0.2,1)`;
 
-  // Apply saturation boost to colors
-  const boostedGlowColor = boostSaturation(emotionConfig.glowColor, saturationBoost);
-  const boostedColor = boostSaturation(emotionConfig.color, saturationBoost);
+  /* ── Activity breathing speed ── */
+  const BREATHING: Record<string, number> = { idle: 1.2, low: 1.0, medium: 0.8, high: 0.6 };
+  const breathDur = (emotionConfig?.breathingSpeed ?? 3) * (BREATHING[safeActivityLevel] ?? 1);
 
-  // Calculate eye size for particles
-  const eyeSizeMap = { sm: 120, md: 180, lg: 260 };
-  const eyeSize = eyeSizeMap[size];
+  if (debugIsEnabled) useDebugStore.getState().incrementRenderCount('EmotionalEye');
 
   return (
-    <div className={cn("relative flex items-center justify-center overflow-visible", className)}>
-      {/* Thinking dots when processing */}
-      <ThinkingDots 
-        isVisible={isResponding && !performanceConfig.shouldReduceAnimations} 
-        color={emotionConfig.glowColor}
+    <div className={cn('relative flex items-center justify-center overflow-visible', className)}>
+
+      {/* Thinking dots */}
+      <ThinkingDots
+        isVisible={isResponding && !performanceConfig.shouldReduceAnimations}
+        color={glowColor}
         size={eyeSize}
       />
-      
-      <motion.div
-        style={{ 
-          x: smoothGazeX, 
-          y: smoothGazeY, 
-          rotate: emotionTilt,
-          willChange: 'transform',
-          transform: 'translateZ(0)', // GPU acceleration
+
+      {/* Outer ambient halo */}
+      <div
+        className="absolute -inset-6 rounded-full pointer-events-none"
+        style={{
+          background: `radial-gradient(circle, ${glowColor}28 0%, ${glowColor}0a 50%, transparent 75%)`,
+          filter: 'blur(12px)',
+          transition: 'background 0.9s ease',
+          animationDuration: `${breathDur}s`,
         }}
-        className="relative z-10 flex items-center justify-center group cursor-pointer overflow-visible"
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ 
-          scale: isSurprised ? 1.1 : isSquished ? 0.92 : 1, 
-          opacity: 1,
-          y: 0
-        }}
-        transition={{ 
-          opacity: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] },
-          y: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] },
-          scale: { duration: isSurprised ? 0.15 : isSquished ? 0.08 : 0.4, ease: [0.25, 0.1, 0.25, 1] }
-        }}
-        layout={false}
-        onMouseEnter={() => setIsHovered(true)} 
+      />
+
+      {/* ── Sphere wrapper (mouse tilt applied here via ref) ── */}
+      <div
+        ref={sphereRef}
+        className={cn('relative cursor-pointer select-none will-change-transform', SIZE_MAP[size].cls)}
+        style={{ transformStyle: 'preserve-3d', transition: 'transform 0.12s ease-out' }}
+        onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => { setIsHovered(false); gestureHandlers.onMouseLeave(); }}
         onClick={gestureHandlers.onClick}
         onDoubleClick={gestureHandlers.onDoubleClick}
@@ -428,178 +229,187 @@ const EmotionalEyeComponent = ({
         onTouchStart={gestureHandlers.onTouchStart}
         onTouchEnd={gestureHandlers.onTouchEnd}
       >
-        {/* Soft outer glow halo - syncs with breathing */}
-        <motion.div 
-          className="absolute -inset-8 rounded-full pointer-events-none animate-glow-breathe"
+        {/* Drop shadow */}
+        <div
+          className="absolute inset-0 rounded-full pointer-events-none"
           style={{
-            background: `radial-gradient(circle, ${boostedGlowColor}40 0%, ${boostedGlowColor}20 30%, ${boostedGlowColor}08 55%, transparent 75%)`,
-            transition: 'background 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-            '--breathing-duration': `${breathingDuration}s`,
-          } as React.CSSProperties}
+            boxShadow: `0 24px 64px rgba(0,0,0,0.65), 0 0 48px ${glowColor}22`,
+            transition: 'box-shadow 0.8s ease',
+          }}
         />
-        
-        <div 
-          className={cn(
-            "relative rounded-full flex items-center justify-center overflow-hidden will-change-transform",
-            sizeClasses[size],
-            !performanceConfig.shouldReduceAnimations && "animate-eye-breathe"
-          )}
+
+        {/* ── Sphere body (blink scaleY here) ── */}
+        <div
+          className="absolute inset-0 rounded-full overflow-hidden will-change-transform"
           style={{
-            '--breathing-duration': `${breathingDuration}s`,
-            animationDuration: `${breathingDuration}s`
-          } as React.CSSProperties}
+            transform: `scaleY(${blinkScaleY})`,
+            transition: blinkTransition,
+            /* 3-D look: light from top-left */
+            background: `
+              radial-gradient(ellipse 65% 55% at 38% 28%,
+                #3c3c3c 0%, #1c1c1c 30%, #0e0e0e 60%, #050505 100%)
+            `,
+            boxShadow: `
+              inset 0  28px 56px rgba(255,255,255,0.04),
+              inset 0 -28px 56px rgba(0,0,0,0.85),
+              inset -16px 0 36px rgba(0,0,0,0.55),
+              inset  16px 0 36px rgba(0,0,0,0.35)
+            `,
+          }}
         >
-          {/* Concentric rings — matching Hero landing page eye */}
-          <div className="absolute inset-0 rounded-full bg-[hsl(var(--muted)/0.3)] shadow-[inset_0_4px_24px_rgba(0,0,0,0.15)] dark:bg-[hsl(0,0%,12%)] dark:shadow-[inset_0_4px_24px_rgba(0,0,0,0.5)]" />
-          <div className="absolute inset-[8%] rounded-full bg-[hsl(var(--muted)/0.5)] dark:bg-[hsl(0,0%,14%)]" />
-          <div className="absolute inset-[16%] rounded-full bg-[hsl(var(--muted)/0.7)] dark:bg-[hsl(0,0%,16%)]" />
-          <div className="absolute inset-[24%] rounded-full bg-card shadow-[inset_0_4px_16px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_4px_16px_rgba(0,0,0,0.3)]" />
-          <div className="absolute inset-[32%] rounded-full bg-muted" />
-
-          {/* Emotional color ring - always visible with emotion color for engagement */}
-          <motion.div 
-            className="absolute inset-[15%] rounded-full"
-            animate={{ 
-              scale: isPulsing ? [1, 1.06, 1] : [1, 1.01, 1],
-            }}
-            transition={{ 
-              scale: isPulsing 
-                ? { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }
-                : { duration: 2.5, repeat: Infinity, ease: "easeInOut" }
-            }}
-            style={{
-              backgroundColor: boostedGlowColor,
-              boxShadow: `0 0 20px ${boostedGlowColor}70, inset 0 0 10px ${boostedGlowColor}40`,
-              transition: 'background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-          />
-
-          {/* SVG with pupil and brain - optimized transitions */}
-          <motion.svg 
-            viewBox="0 0 100 100" 
-            className="w-[70%] h-[70%] relative z-10"
-            xmlns="http://www.w3.org/2000/svg" 
-            animate={{
-              scaleY: isBlinking ? 0.05 : isSquished ? 0.75 : 1,
-              scaleX: isWinking ? 0.88 : isSquished ? 1.08 : 1,
-              opacity: isBlinking ? 0.8 : 1,
-              skewX: isWinking ? 4 : 0,
-            }} 
-            transition={{
-              duration: isBlinking ? 0.15 : isWinking ? 0.1 : 0.12,
-              ease: [0.4, 0, 0.2, 1]
-            }}
-            style={{
-              transformOrigin: 'center center',
-              willChange: 'transform'
-            }}
+          {/* Grid / tile panel lines */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox="0 0 200 200"
+            preserveAspectRatio="xMidYMid slice"
+            style={{ opacity: 0.13, mixBlendMode: 'screen' }}
+            aria-hidden
           >
-            {/* Sclera gradient removed to eliminate border lines */}
+            <defs>
+              <mask id="em-circle">
+                <radialGradient id="em-fade" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%"  stopColor="white" stopOpacity="1" />
+                  <stop offset="75%" stopColor="white" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="white" stopOpacity="0" />
+                </radialGradient>
+                <circle cx="100" cy="100" r="99" fill="url(#em-fade)" />
+              </mask>
+            </defs>
+            <g mask="url(#em-circle)">
+              {Array.from({ length: 11 }, (_, i) => {
+                const v = ((i + 1) * 200) / 12;
+                return (
+                  <g key={i}>
+                    <line x1="0" y1={v}   x2="200" y2={v}   stroke="white" strokeWidth="0.7" />
+                    <line x1={v} y1="0"   x2={v}   y2="200" stroke="white" strokeWidth="0.7" />
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
 
-            {/* Solid black pupil with breathing dilation sync */}
-            <motion.circle 
-              cx="50" 
-              cy="50" 
-              r={irisRadius ?? 28}
-              fill="#000000"
-              animate={{
-                r: performanceConfig.shouldReduceAnimations 
-                  ? (irisRadius ?? 28) 
-                  : [(irisRadius ?? 28), (irisRadius ?? 28) * 1.06, (irisRadius ?? 28)], // 6% dilation with breath
-              }}
-              transition={{
-                r: {
-                  duration: breathingDuration,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                },
-              }}
-              style={{
-                // Faster transitions for state changes override breathing
-                transition: isAbsorbing 
-                  ? "r 0.15s cubic-bezier(0.55, 0.055, 0.675, 0.19)" 
-                  : isAttentive
-                    ? "r 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)"
-                    : isBlinking 
-                      ? "r 0.08s cubic-bezier(0.55, 0.055, 0.675, 0.19)" 
-                      : undefined // Let framer-motion handle breathing
-              }} 
-            />
-              
-            {/* Pure SVG Brain icon - Safari compatible (no foreignObject) */}
-            {(() => {
-              const brainScale = (irisRadius * 0.7) / 24;
-              const strokeColor = emotion === 'calm' ? '#FFFFFF' : boostedColor;
-              const pathStyle = { transition: 'stroke 0.8s cubic-bezier(0.4, 0, 0.2, 1)' };
-              return (
-                <g 
-                  transform={`translate(${50 - 12 * brainScale}, ${50 - 12 * brainScale}) scale(${brainScale})`}
-                  style={{
-                    transition: isAbsorbing 
-                      ? "all 0.15s cubic-bezier(0.55, 0.055, 0.675, 0.19)" 
-                      : isAttentive
-                        ? "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)"
-                        : isBlinking 
-                          ? "all 0.08s cubic-bezier(0.55, 0.055, 0.675, 0.19)" 
-                          : "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-                    opacity: 0.92,
-                    filter: emotion !== 'calm' ? `drop-shadow(0 0 6px ${boostedColor}30)` : 'none'
-                  }}
-                >
-                  <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M3.477 10.896a4 4 0 0 1 .585-.396" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M19.938 10.5a4 4 0 0 1 .585.396" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M6 18a4 4 0 0 1-1.967-.516" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                  <path d="M19.967 17.484A4 4 0 0 1 18 18" stroke={strokeColor} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={pathStyle} />
-                </g>
-              );
-            })()}
-          </motion.svg>
-        </div>
-        
-        {/* Particle effects - disabled when deep idle or reduced animations */}
-        {performanceConfig.enableParticles && !isDeepIdle && (
-          <EyeParticles 
-            isActive={true}
-            size={eyeSize}
-            glowColor={boostedGlowColor}
-            activityLevel={activityLevel}
-            emotion={emotion}
-            particleType={emotionConfig.particleType === 'none' ? 'sparkle' : emotionConfig.particleType}
-            isAbsorbing={isAbsorbing}
-            isPulsing={isPulsing}
-            performanceMultiplier={performanceConfig.particleMultiplier}
+          {/* Specular highlight */}
+          <div
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              width: '38%', height: '26%', top: '7%', left: '11%',
+              background: 'radial-gradient(ellipse, rgba(255,255,255,0.14) 0%, transparent 70%)',
+              filter: 'blur(5px)',
+            }}
           />
-        )}
-        
-        {/* Emotion Label - shows current emotion state */}
-        <AnimatePresence>
-          {emotion !== 'calm' && (
-            <motion.div
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
-              transition={{ delay: 0.3, duration: 0.2 }}
-              className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-background/80 backdrop-blur-sm border border-border/50"
+
+          {/* ── Reactor core (parallax shift via ref) ── */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              ref={reactorRef}
+              className="relative will-change-transform"
+              style={{ width: '56%', height: '56%', transition: 'transform 0.09s ease-out' }}
             >
-              <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 whitespace-nowrap">
-                <span 
-                  className="w-1.5 h-1.5 rounded-full" 
-                  style={{ backgroundColor: emotionConfig.color }}
-                />
-                {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+              {/* Ambient behind rings */}
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `radial-gradient(circle, ${glowColor}50 0%, ${glowColor}18 45%, transparent 70%)`,
+                  filter: 'blur(8px)',
+                  transition: 'background 0.8s ease',
+                }}
+              />
+
+              {/* SVG rings + core */}
+              <svg
+                viewBox="0 0 100 100"
+                className="absolute inset-0 w-full h-full"
+                style={{ overflow: 'visible' }}
+                aria-hidden
+              >
+                <defs>
+                  <filter id="em-glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="1.4" result="b" />
+                    <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                </defs>
+
+                {/* Concentric rings — outermost to innermost */}
+                {[{ r: 47, w: 1.2, op: 0.25 }, { r: 40, w: 1.6, op: 0.40 },
+                  { r: 33, w: 2.0, op: 0.60 }, { r: 26, w: 2.4, op: 0.80 },
+                  { r: 19, w: 2.8, op: 1.00 }].map(({ r, w, op }) => (
+                  <circle
+                    key={r}
+                    cx="50" cy="50" r={r}
+                    fill="none"
+                    stroke={glowColor}
+                    strokeWidth={w}
+                    strokeOpacity={op}
+                    filter="url(#em-glow)"
+                  />
+                ))}
+
+                {/* Tick marks on middle ring */}
+                {TICKS.map((t, i) => (
+                  <line
+                    key={i}
+                    x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+                    stroke={glowColor} strokeWidth="1.6" strokeOpacity="0.85"
+                    filter="url(#em-glow)"
+                  />
+                ))}
+
+                {/* Filled glow zone */}
+                <circle cx="50" cy="50" r="34" fill={glowColor} fillOpacity="0.07" />
+
+                {/* Core orb */}
+                <circle cx="50" cy="50" r="11" fill={glowColor} fillOpacity="0.88" filter="url(#em-glow)" />
+                {/* Core highlight */}
+                <circle cx="46" cy="46" r="4.5" fill="rgba(255,225,160,0.92)" filter="url(#em-glow)" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Depth vignette (edge darkening) */}
+          <div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(circle at 50% 50%, transparent 48%, rgba(0,0,0,0.78) 100%)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Emotion label */}
+      <AnimatePresence>
+        {emotion !== 'calm' && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ delay: 0.3, duration: 0.2 }}
+            className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-background/80 backdrop-blur-sm border border-border/50"
+          >
+            <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: emotionConfig?.color }} />
+              {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Particles */}
+      {performanceConfig.enableParticles && !isDeepIdle && (
+        <EyeParticles
+          isActive
+          size={eyeSize}
+          glowColor={glowColor}
+          activityLevel={activityLevel}
+          emotion={emotion}
+          particleType={emotionConfig?.particleType === 'none' ? 'sparkle' : emotionConfig?.particleType}
+          isAbsorbing={isAbsorbing}
+          isPulsing={isPulsing}
+          performanceMultiplier={performanceConfig.particleMultiplier}
+        />
+      )}
     </div>
   );
 };
 
-// Memoize the component to prevent unnecessary re-renders
 export const EmotionalEye = memo(EmotionalEyeComponent);
