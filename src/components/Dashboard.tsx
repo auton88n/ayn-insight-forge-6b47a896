@@ -179,10 +179,10 @@ export default function Dashboard({ user, session }: DashboardProps) {
   // Full-screen maintenance block for regular users
   if (isBlockedByMaintenance) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-background dark:to-background flex items-center justify-center p-6">
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
-          <div className="bg-white dark:bg-card rounded-2xl shadow-xl p-8 border border-orange-200 dark:border-orange-800">
-            <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="bg-white dark:bg-card rounded-2xl shadow-xl p-8 border border-border">
+            <div className="w-16 h-16 bg-foreground/5 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="w-8 h-8 text-orange-600" />
             </div>
             
@@ -195,7 +195,7 @@ export default function Dashboard({ user, session }: DashboardProps) {
             </p>
             
             {(maintenanceConfig.startTime || maintenanceConfig.endTime) && (
-              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 mb-6">
+              <div className="bg-foreground/5 dark:bg-orange-900/20 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-center gap-2 text-orange-700 dark:text-orange-400">
                   <Clock className="w-4 h-4" />
                   {maintenanceConfig.startTime && maintenanceConfig.endTime ? (

@@ -217,10 +217,7 @@ const AIAgents = () => {
 
         {/* Hero Section */}
         <section className="min-h-screen flex items-center justify-center px-4 md:px-6 py-20 md:py-24 relative overflow-hidden">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-purple-500/20 rounded-full blur-[150px]" />
-            <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-violet-500/15 rounded-full blur-[120px]" />
-          </div>
+
 
           <div className="container mx-auto max-w-6xl relative z-10">
             <div className="text-center animate-fade-in">

@@ -166,8 +166,6 @@ export const HeroScroll = memo(() => {
           {/* ── 3D OBJECT — no wrappers, no extra transforms, clean float ── */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 'clamp(32px,4vw,64px)', zIndex: 1 }}>
             <div ref={floatRef} style={{ willChange: 'transform', transformStyle: 'preserve-3d', position: 'relative' }}>
-              {/* Ground shadow */}
-              <div style={{ position: 'absolute', bottom: '-4%', left: '15%', right: '15%', height: '8%', background: 'radial-gradient(ellipse, rgba(0,0,0,0.10) 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(6px)', pointerEvents: 'none' }} />
               <img
                 ref={imgRef}
                 alt="AYN"
