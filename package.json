@@ -16,6 +16,7 @@
     "@deck.gl/layers": "^9.2.11",
     "@deck.gl/mapbox": "^9.2.11",
     "@fontsource/inter": "^5.2.8",
+    "@fontsource/inter-tight": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/noto-sans-arabic": "^5.2.10",
     "@fontsource/playfair-display": "^5.2.8",
