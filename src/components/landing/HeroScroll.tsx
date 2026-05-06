@@ -6,10 +6,7 @@
 
 import { useEffect, useRef, memo, useCallback } from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { Link } from 'react-router-dom';
-import { ArrowRight, Search, BarChart3, Target, LayoutGrid } from 'lucide-react';
+import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
 // import { SolutionsMinimal } from './SolutionsMinimal';
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
@@ -41,22 +38,28 @@ export const HeroScroll = memo(() => {
 
   const CHAPTERS = [
     {
-      headline: isAr ? 'يفكر.\nيتعلم.\nيفهم.' : language === 'fr' ? 'Pense.\nApprend.\nComprend.' : 'Thinks.\nLearns.\nUnderstands.',
-      body: isAr ? 'وكلاء ذكاء اصطناعي يعيشون داخل شركتك. يعرفون بياناتك. يحمون أعمالك.' : language === 'fr' ? "Des agents IA qui vivent dans votre entreprise. Connaissent vos données. Protègent votre activité." : 'AI agents that live inside your business. Know your data. Protect your operation.',
-      stat: '01', unit: isAr ? 'الهوية' : language === 'fr' ? 'Identité' : 'Identity',
-      in: 0.15, out: 0.37
+      headline: isAr ? 'يعمل وأنت نائم.\nيتعلم وأنت تنمو.\nيبلغك عندما يهم الأمر.' : language === 'fr' ? 'Travaille pendant que vous dormez.\nApprend pendant que vous grandissez.\nSignale quand cela compte.' : 'Works while you sleep.\nLearns while you grow.\nReports when it matters.',
+      body: '',
+      stat: '01', unit: isAr ? 'اليقظة' : language === 'fr' ? 'Vigilance' : 'Vigilance',
+      in: 0.15, out: 0.31
     },
     {
-      headline: isAr ? 'بياناتك.\nمخاطرك.\nتفوّقك.' : language === 'fr' ? 'Vos données.\nVos risques.\nVotre avance.' : 'Your data.\nYour risk.\nYour edge.',
-      body: isAr ? 'وكلاء الذكاء الاصطناعي يتصلون بأنظمتك. يقرؤون كل إشارة. يجدون كل إجابة.' : language === 'fr' ? "Les agents IA se connectent à vos systèmes. Lisent chaque signal. Trouvent chaque réponse." : 'AI agents connect to your systems. Read every signal. Find every answer.',
-      stat: '02', unit: isAr ? 'القدرة' : language === 'fr' ? 'Capacité' : 'Capability',
-      in: 0.40, out: 0.60
+      headline: isAr ? 'التقارير تصبح محادثات.\nالبيانات تصبح توجهاً.\nالفرق تصبح متسقة.' : language === 'fr' ? 'Les rapports deviennent des conversations.\nLes données deviennent une direction.\nLes équipes s\'alignent.' : 'Reports become conversations.\nData becomes direction.\nTeams become aligned.',
+      body: '',
+      stat: '02', unit: isAr ? 'التوجيه' : language === 'fr' ? 'Direction' : 'Direction',
+      in: 0.34, out: 0.49
     },
     {
-      headline: isAr ? 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.' : language === 'fr' ? 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.' : 'Self-learning.\nSelf-healing.\nSelf-driven.',
-      body: isAr ? 'ذكاء اصطناعي ينمو مع شركتك. يتعلم. يتكيف. لا يملكه أي منافس.' : language === 'fr' ? "Une IA qui grandit avec votre entreprise. Apprend. S'adapte. Aucun concurrent ne possède cela." : "AI that grows with your business. Learns. Adapts. No competitor has this.",
-      stat: '03', unit: isAr ? 'التفوق' : language === 'fr' ? 'Supériorité' : 'Superiority',
-      in: 0.63, out: 0.82
+      headline: isAr ? 'كل تحديث.\nكل ملف.\nذاكرة واحدة حية.' : language === 'fr' ? 'Chaque mise à jour.\nChaque fichier.\nUne mémoire vivante.' : 'Every update.\nEvery file.\nOne living memory.',
+      body: '',
+      stat: '03', unit: isAr ? 'الذاكرة' : language === 'fr' ? 'Mémoire' : 'Memory',
+      in: 0.52, out: 0.67
+    },
+    {
+      headline: isAr ? 'قوة عاملة واحدة للذكاء الاصطناعي.\nدائماً قيد العمل.\nتحركك للأمام.' : language === 'fr' ? 'Une main-d\'œuvre IA.\nToujours active.\nVous fait avancer.' : 'One AI workforce.\nAlways on.\nMoving you forward.',
+      body: '',
+      stat: '04', unit: isAr ? 'التقدم' : language === 'fr' ? 'Progrès' : 'Progress',
+      in: 0.70, out: 0.85
     },
   ];
 
@@ -209,7 +212,7 @@ export const HeroScroll = memo(() => {
                   {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</span></>}
                 </h1>
                 <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 380, margin: '0 0 32px', letterSpacing: '-0.005em' }}>
-                  {isAr ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.' : language === 'fr' ? "L'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien." : 'The eye that lives inside your business. Sees everything. Misses nothing.'}
+                  {isAr ? 'AYN طبقة ذكاء اصطناعي تساعد القادة على رؤية المخاطر، وفهم الأسباب، والعمل بثقة.' : language === 'fr' ? "AYN une couche d'intelligence artificielle qui aide les dirigeants à voir les risques, à comprendre les causes et à agir avec confiance." : 'AYN an AI intelligence layer that helps leaders see risks, understand causes, and act with confidence.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 40 }}>
                   <Link to="/contact"
@@ -218,13 +221,13 @@ export const HeroScroll = memo(() => {
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
                     onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-                    {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
+                    {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
                   </Link>
-                  <Link to="/features"
+                  <Link to="/contact"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '11px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
+                    {isAr ? 'عرض تقرير عينة' : language === 'fr' ? 'Voir un exemple de rapport' : 'View Sample Report'}
                   </Link>
                 </div>
                 <div style={{ display: 'flex', gap: 28, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
@@ -277,12 +280,16 @@ export const HeroScroll = memo(() => {
       {/* Section 2 */}
       <section style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(32px,6vw,96px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto' }}>
-          <div style={{ maxWidth: 540 }}>
+          <div style={{ maxWidth: 640 }}>
             <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,4vw,56px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-              {isAr ? <>ليس أداة.<br />ذكاء حقيقي.</> : language === 'fr' ? <>Pas un outil.<br />Une intelligence.</> : <>Not a tool.<br />An intelligence.</>}
+              {isAr ? <>لماذا <span style={{ color: C.inkMid }}>AYN؟</span></> : language === 'fr' ? <>Pourquoi <span style={{ color: C.inkMid }}>AYN ?</span></> : <>Why <span style={{ color: C.inkMid }}>AYN?</span></>}
             </h2>
-            <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.70, color: C.inkSub, maxWidth: 400 }}>
-              {isAr ? 'بُني ليعيش داخل شركتك. يعرفها. يحميها. يدفعها للأمام.' : language === 'fr' ? 'Conçu pour vivre au cœur de votre entreprise. La connaître. La protéger. La faire avancer.' : 'Built to live inside your business. Know it. Protect it. Move it forward.'}
+            <p style={{ fontFamily: C.body, fontSize: 17, fontWeight: 400, lineHeight: 1.72, color: C.inkSub, maxWidth: 600 }}>
+              {isAr 
+                ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعاد تشكيله بواسطة الذكاء الاصطناعي. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والعمل قبل ضياع الفرص. تساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء، والمضي قدمًا بثقة.'
+                : language === 'fr'
+                ? "AYN a été conçu pour les chefs d'entreprise qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA. Il connecte les rapports, les tâches, les décisions et les données commerciales approuvées en une seule couche d'intelligence, aidant les dirigeants à comprendre ce qui a changé, à voir ce qui compte et à agir avant que les opportunités ne soient manquées. AYN aide les entreprises à s'adapter plus rapidement, à diriger plus intelligemment et à avancer avec confiance."
+                : 'AYN was built for company owners who need clarity, speed, and control in a world being reshaped by AI. It connects reports, tasks, decisions, and approved business data into one intelligence layer, helping leaders understand what changed, see what matters, and act before opportunities are missed. AYN helps companies adapt faster, lead smarter, and move forward with confidence.'}
             </p>
           </div>
         </div>
@@ -290,77 +297,115 @@ export const HeroScroll = memo(() => {
 
       {/* Section 3 — Features */}
       <section style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(32px,5vw,80px)', background: C.bg, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 'clamp(40px,6vw,96px)', alignItems: 'center' }}>
-          <div>
+        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
             <h2 style={{ fontFamily: C.display, fontSize: 'clamp(28px,3.8vw,52px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px' }}>
-              {isAr ? <>دقة<br />تتحدث عن نفسها.</> : language === 'fr' ? <>Une précision<br />qui parle d'elle-même.</> : <>Precision that<br />speaks for itself.</>}
+              {isAr ? 'بُني لكل جزء من العمل.' : language === 'fr' ? 'Conçu pour chaque partie de l\'entreprise.' : 'Built for every part of the business.'}
             </h2>
-            <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 320 }}>
-              {isAr ? 'كل إجابة مبنية على بياناتك. لا افتراضات. كل شيء موثّق.' : language === 'fr' ? "Chaque réponse ancrée dans vos données. Rien d'assumé. Tout vérifié." : 'Every answer rooted in your data. Nothing assumed. Everything verified.'}
+            <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 640, margin: '0 auto' }}>
+              {isAr ? 'تساعد AYN القادة على طرح الأسئلة، وقراءة سياق الشركة، وتحويل النشاط اليومي إلى قرارات.' : language === 'fr' ? "AYN aide les dirigeants à poser des questions, à lire le contexte de l'entreprise et à transformer l'activité quotidienne en décisions." : 'AYN helps leaders ask questions, read company context, and turn daily activity into decisions.'}
             </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
             {[
-              { label: 'Prediction Accuracy', val: '84.2%', bars: [35,65,40,88,60,78,45,70,55] },
-              { label: 'Countries Monitored',  val: '187+' },
-              { label: 'Query Response',       val: '<2s'  },
+              {
+                title: isAr ? 'اسأل عملك' : 'Ask Your Business',
+                desc: isAr ? 'اطرح أسئلة عبر التقارير وجداول البيانات والتحديثات والمستندات ونشاط الفريق.' : 'Ask questions across reports, spreadsheets, updates, documents, and team activity.',
+                icon: Search
+              },
+              {
+                title: isAr ? 'ذاكرة الشركة' : 'Company Memory',
+                desc: isAr ? 'حول الملفات والتقارير والتحديثات والقرارات إلى ذاكرة واحدة حية يمكن لشركتك استخدامها.' : 'Turn files, reports, updates, and decisions into one living memory your company can use.',
+                icon: Database
+              },
+              {
+                title: isAr ? 'تحديثات الفريق' : 'Team Updates',
+                desc: isAr ? 'اسمح للموظفين والمديرين بإضافة التحديثات والمعوقات والملاحظات والتقدم في AYN.' : 'Let employees and managers add updates, blockers, notes, and progress into AYN.',
+                icon: Users
+              },
+              {
+                title: isAr ? 'تقارير القيادة' : 'Leadership Reports',
+                desc: isAr ? 'أنشئ تقارير للمديرين وملخصات للرئيس التنفيذي والأولويات وخطط العمل من نشاط الشركة.' : 'Generate manager reports, CEO summaries, priorities, and action plans from company activity.',
+                icon: FileText
+              },
+              {
+                title: isAr ? 'إجابات قائمة على الأدلة' : 'Evidence-Based Answers',
+                desc: isAr ? 'شاهد من أين أتت الإجابات، مع سياق من بيانات شركتك.' : 'See where answers came from, with context from your company data.',
+                icon: CheckCircle
+              },
+              {
+                title: isAr ? 'قوة عاملة من وكلاء الذكاء الاصطناعي' : 'AI Agent Workforce',
+                desc: isAr ? 'وكلاء متخصصون يدعمون المبيعات والعمليات والتمويل والمستندات والدعم والقيادة.' : 'Specialized agents support sales, operations, finance, documents, support, and leadership.',
+                icon: Cpu
+              }
             ].map((card, i) => (
               <div key={i}
-                style={{ padding: '16px 18px', background: i === 0 ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.02)', border: `1px solid ${C.border}`, borderRadius: 9, transition: 'background 0.2s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.05)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = i === 0 ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.02)'; }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: card.bars ? 10 : 0 }}>
-                  <span style={{ fontFamily: C.body, fontSize: 13, color: C.inkSub }}>{card.label}</span>
-                  <span style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, letterSpacing: '-0.03em' }}>{card.val}</span>
+                style={{ padding: '32px', background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 12, transition: 'all 0.3s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.ink; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.border; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                  <card.icon size={20} color={C.ink} />
                 </div>
-                {card.bars && (
-                  <div style={{ height: 28, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
-                    {card.bars.map((h, j) => <div key={j} style={{ flex: 1, height: `${h}%`, background: 'rgba(0,0,0,0.14)', borderRadius: '2px 2px 0 0' }} />)}
-                  </div>
-                )}
+                <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 12 }}>{card.title}</h3>
+                <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{card.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Section 4 — Solutions */}
       <section id="solutions" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', textAlign: 'center', lineHeight: 1.04 }}>
-            {isAr ? <>ذكاء واحد.<br />لكل وظائف العمل.</> : language === 'fr' ? <>Une intelligence.<br />Chaque fonction d'entreprise.</> : <>One intelligence.<br />Every business function.</>}
-          </h2>
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', lineHeight: 1.04 }}>
+              {isAr ? 'بُني للشركات التي تحتاج إلى الوضوح للنمو.' : language === 'fr' ? 'Conçu pour les entreprises qui ont besoin de clarté pour croître.' : 'Built for the companies that need clarity to grow.'}
+            </h2>
+            <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 800, margin: '0 auto' }}>
+              {isAr ? 'تتكيف AYN مع مختلف الصناعات من خلال ربط شعوبها وبياناتها وتقاريرها وعملياتها اليومية في طبقة استخبارات واحدة تعمل بالذكاء الاصطناعي.' : language === 'fr' ? "AYN s'adapte à différents secteurs en connectant leurs collaborateurs, leurs données, leurs rapports et leurs opérations quotidiennes en une seule couche d'intelligence artificielle." : 'AYN adapts to different industries by connecting their people, data, reports, and daily operations into one AI intelligence layer.'}
+            </p>
+          </div>
           
-          <div style={{ width: '100%', maxWidth: 1000, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '48px 32px', marginTop: 64 }}>
+          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px' }}>
             {[
               { 
-                step: isAr ? 'اتصال' : language === 'fr' ? 'CONNECT' : 'CONNECT',
-                title: isAr ? 'ذكاء الشركة' : language === 'fr' ? 'Company Intelligence' : 'Company Intelligence',
-                desc: isAr ? 'ربط البيانات المعتمدة والتقارير والتحديثات في ذاكرة شركة واحدة.' : language === 'fr' ? 'Connectez les données approuvées, les rapports et les mises à jour dans une mémoire d\'entreprise unique.' : 'Connect approved data, reports, and updates into one company memory.',
-                icon: Search 
+                title: isAr ? 'الشركات العائلية' : 'Family Businesses',
+                desc: isAr ? 'ساعد المالكين على رؤية ما يحدث عبر الفرق والفروع والمديرين والعمليات اليومية دون الاعتماد على تحديثات متفرقة.' : 'Help owners see what is happening across teams, branches, managers, and daily operations without depending on scattered updates.',
+                icon: Home 
               },
               { 
-                step: isAr ? 'فهم' : language === 'fr' ? 'UNDERSTAND' : 'UNDERSTAND',
-                title: isAr ? 'كشف المخاطر' : language === 'fr' ? 'Risk Detection' : 'Risk Detection',
-                desc: isAr ? 'كشف التأخيرات والمتابعات الفائتة والاختناقات والمشاكل التشغيلية مبكراً.' : language === 'fr' ? 'Identifiez tôt les retards, les suivis manqués, les goulots d\'étranglement et les problèmes opérationnels.' : 'Surface delays, missed follow-ups, bottlenecks, and operational issues early.',
-                icon: BarChart3 
+                title: isAr ? 'السياحة والضيافة' : 'Tourism & Hospitality',
+                desc: isAr ? 'اربط الحجوزات وطلبات العملاء والموردين والعمليات والتمويل وتعليقات الضيوف في تقارير قيادة واضحة.' : 'Connect bookings, customer requests, suppliers, operations, finance, and guest feedback into clear leadership reports.',
+                icon: Plane 
               },
               { 
-                step: isAr ? 'تحرك' : language === 'fr' ? 'ACT' : 'ACT',
-                title: isAr ? 'تقارير القيادة' : language === 'fr' ? 'Leadership Reports' : 'Leadership Reports',
-                desc: isAr ? 'تحويل الأدلة إلى تقارير للمديرين وملخصات للرئيس التنفيذي والأولويات وخطط العمل.' : language === 'fr' ? 'Transformez les preuves en rapports pour managers, synthèses pour CEO, priorités et plans d\'action.' : 'Turn evidence into manager reports, CEO summaries, priorities, and action plans.',
-                icon: Target 
+                title: isAr ? 'العقارات وإدارة الممتلكات' : 'Real Estate & Property Management',
+                desc: isAr ? 'تتبع العملاء المحتملين والمستأجرين والصيانة والعقود والمدفوعات والمستندات وتحديثات المدير في عرض واحد متصل.' : 'Track leads, tenants, maintenance, contracts, payments, documents, and manager updates in one connected view.',
+                icon: Building2 
+              },
+              { 
+                title: isAr ? 'البناء والمقاولات' : 'Construction & Contracting',
+                desc: isAr ? 'اتبع تقدم المشروع وتأخيرات الموردين وتقارير الموقع والموافقات والفواتير والمعوقات التشغيلية قبل أن تؤثر على التسليم.' : 'Follow project progress, supplier delays, site reports, approvals, invoices, and operational blockers before they affect delivery.',
+                icon: HardHat 
+              },
+              { 
+                title: isAr ? 'التجزئة والفرانشايز' : 'Retail & Franchises',
+                desc: isAr ? 'امنح القيادة رؤية عبر الفروع والمبيعات ومشكلات المخزون وشكاوى العملاء وتحديثات الموظفين وإشارات الأداء.' : 'Give leadership visibility across branches, sales, inventory issues, customer complaints, staff updates, and performance signals.',
+                icon: ShoppingBag 
+              },
+              { 
+                title: isAr ? 'العيادات والشركات الخدمية' : 'Clinics & Service Businesses',
+                desc: isAr ? 'اربط المواعيد ودعم العملاء والمدفوعات وتحديثات الموظفين والمستندات والقضايا التشغيلية في قرارات يومية أكثر وضوحاً.' : 'Connect appointments, customer support, payments, staff updates, documents, and operational issues into clearer daily decisions.',
+                icon: Stethoscope 
               }
             ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 22, background: C.bg, border: `1px solid ${C.borderMd}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <item.icon size={18} color={C.ink} />
-                  </div>
-                  <span style={{ fontFamily: C.mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: C.inkMid }}>{item.step}</span>
+              <div key={i} style={{ padding: '32px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', gap: 20 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <item.icon size={22} color={C.ink} />
                 </div>
-                <h3 style={{ fontFamily: C.display, fontSize: 20, fontWeight: 700, color: C.ink, marginBottom: 12, letterSpacing: '-0.01em' }}>{item.title}</h3>
-                <p style={{ fontFamily: C.body, fontSize: 15, color: C.inkSub, lineHeight: 1.6, maxWidth: 280, fontWeight: 400 }}>{item.desc}</p>
+                <div>
+                  <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 10 }}>{item.title}</h3>
+                  <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
+                </div>
               </div>
             ))}
           </div>
