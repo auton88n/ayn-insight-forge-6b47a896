@@ -131,8 +131,8 @@ export const HeroScroll = memo(() => {
           `perspective(1000px) rotateX(${curTiltX.current.toFixed(3)}deg) rotateY(${curTiltY.current.toFixed(3)}deg)`;
       }
 
-      /* Object opacity */
-      if (imgRef.current) imgRef.current.style.opacity = `${map(p, 0, 0.06, 0, 1)}`;
+      /* Object opacity - removed fade in so it's visible immediately */
+      if (imgRef.current) imgRef.current.style.opacity = '1';
 
       /* Headline */
       if (headRef.current) {
@@ -182,6 +182,7 @@ export const HeroScroll = memo(() => {
             <div ref={floatRef} style={{ willChange: 'transform', transformStyle: 'preserve-3d', position: 'relative' }}>
               <img
                 ref={imgRef}
+                src={HELMET_FRAMES[0]}
                 alt="AYN"
                 draggable={false}
                 style={{
@@ -192,7 +193,7 @@ export const HeroScroll = memo(() => {
                   display: 'block',
                   userSelect: 'none',
                   pointerEvents: 'none',
-                  opacity: 0,
+                  opacity: 1,
                   willChange: 'opacity',
                   position: 'relative',
                   zIndex: 1,
