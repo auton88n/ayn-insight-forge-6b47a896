@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Brain, Copy, Check } from 'lucide-react';
 import { MessageFormatter } from '@/components/shared/MessageFormatter';
 import type { BubbleType } from '@/lib/emotionMapping';
+import { AYNReportCard } from '@/components/eye/AYNReportCard';
+import { parseReport } from '@/lib/reportParser';
 
 interface AYNSpeechBubbleProps {
   id: string;
@@ -29,6 +31,9 @@ export const AYNSpeechBubble = ({
 
   // Clean content - remove leading punctuation and whitespace
   const cleanedContent = content.replace(/^[!?\s]+/, '').trim();
+
+  // Parse structured report — memoized so it only recalculates when content changes
+  const report = useMemo(() => parseReport(cleanedContent), [cleanedContent]);
 
   const copyContent = async () => {
     try {
@@ -176,6 +181,14 @@ export const AYNSpeechBubble = ({
             <div 
               className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white dark:from-gray-900 to-transparent pointer-events-none rounded-b-2xl"
               aria-hidden="true"
+            />
+          )}
+
+          {/* AYN Report Card — renders below the reply when content is report-worthy */}
+          {report && (
+            <AYNReportCard
+              report={report}
+              className="mt-3"
             />
           )}
         </motion.div>
