@@ -25,12 +25,6 @@ export const HeroIntro = memo(({ onSendAttempt }: HeroIntroProps) => {
     >
       {/* Headline */}
       <div className="w-full max-w-4xl text-center px-6">
-        <p
-          className="text-[10px] md:text-[11px] tracking-[0.3em] uppercase mb-3 font-mono"
-          style={{ color: 'rgba(255,255,255,0.4)' }}
-        >
-          {language === 'ar' ? 'ذكاء الأعمال' : language === 'fr' ? "Intelligence d'Affaires" : 'Business Intelligence'}
-        </p>
         <h1
           className="font-display font-bold tracking-[-0.02em] text-white leading-none"
           style={{ fontSize: 'clamp(40px, 6vw, 88px)' }}

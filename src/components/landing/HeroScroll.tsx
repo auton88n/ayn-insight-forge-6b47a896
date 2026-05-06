@@ -40,21 +40,18 @@ export const HeroScroll = memo(() => {
 
   const CHAPTERS = [
     {
-      eyebrow: isAr ? 'من هو AYN' : language === 'fr' ? 'Qui est AYN' : 'Who is AYN',
       headline: isAr ? 'يفكر.\nيتعلم.\nيفهم.' : language === 'fr' ? 'Pense.\nApprend.\nComprend.' : 'Thinks.\nLearns.\nUnderstands.',
       body: isAr ? 'وكلاء ذكاء اصطناعي يعيشون داخل شركتك. يعرفون بياناتك. يحمون أعمالك.' : language === 'fr' ? "Des agents IA qui vivent dans votre entreprise. Connaissent vos données. Protègent votre activité." : 'AI agents that live inside your business. Know your data. Protect your operation.',
       stat: '01', unit: isAr ? 'الهوية' : language === 'fr' ? 'Identité' : 'Identity',
       in: 0.15, out: 0.37
     },
     {
-      eyebrow: isAr ? 'ما يفعله AYN' : language === 'fr' ? 'Ce que fait AYN' : 'What AYN Does',
       headline: isAr ? 'بياناتك.\nمخاطرك.\nتفوّقك.' : language === 'fr' ? 'Vos données.\nVos risques.\nVotre avance.' : 'Your data.\nYour risk.\nYour edge.',
       body: isAr ? 'وكلاء الذكاء الاصطناعي يتصلون بأنظمتك. يقرؤون كل إشارة. يجدون كل إجابة.' : language === 'fr' ? "Les agents IA se connectent à vos systèmes. Lisent chaque signal. Trouvent chaque réponse." : 'AI agents connect to your systems. Read every signal. Find every answer.',
       stat: '02', unit: isAr ? 'القدرة' : language === 'fr' ? 'Capacité' : 'Capability',
       in: 0.40, out: 0.60
     },
     {
-      eyebrow: isAr ? 'ما بداخله' : language === 'fr' ? "Ce qui est à l'intérieur" : "What's Inside",
       headline: isAr ? 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.' : language === 'fr' ? 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.' : 'Self-learning.\nSelf-healing.\nSelf-driven.',
       body: isAr ? 'ذكاء اصطناعي ينمو مع شركتك. يتعلم. يتكيف. لا يملكه أي منافس.' : language === 'fr' ? "Une IA qui grandit avec votre entreprise. Apprend. S'adapte. Aucun concurrent ne possède cela." : "AI that grows with your business. Learns. Adapts. No competitor has this.",
       stat: '03', unit: isAr ? 'التفوق' : language === 'fr' ? 'Supériorité' : 'Superiority',
@@ -167,13 +164,6 @@ export const HeroScroll = memo(() => {
     return () => cancelAnimationFrame(id);
   }, [reduced]);
 
-  const eyebrowStyle: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 8,
-    fontFamily: C.body, fontSize: 11, fontWeight: 500,
-    letterSpacing: '0.12em', textTransform: 'uppercase',
-    color: C.inkSub, marginBottom: 20,
-  };
-
   return (
     <div style={{ background: C.bg, fontFamily: C.body }}>
 
@@ -214,10 +204,6 @@ export const HeroScroll = memo(() => {
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
-                <div style={eyebrowStyle}>
-                  <span style={{ display: 'inline-block', width: 18, height: 1, background: C.inkSub, flexShrink: 0 }} />
-                  {isAr ? 'ذكاء الأعمال' : language === 'fr' ? "Intelligence d'Affaires" : 'Business Intelligence'}
-                </div>
                 <h1 style={{ fontFamily: C.display, fontSize: 'clamp(44px,5.5vw,80px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
                   {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</span></>}
                 </h1>
@@ -257,10 +243,6 @@ export const HeroScroll = memo(() => {
               {/* Chapters */}
               {CHAPTERS.map((ch, i) => (
                 <div key={i} ref={el => { chRefs.current[i] = el; }} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity, transform' }}>
-                  <div style={eyebrowStyle}>
-                    <span style={{ display: 'inline-block', width: 18, height: 1, background: C.inkSub, flexShrink: 0 }} />
-                    {ch.eyebrow}
-                  </div>
                   <h2 style={{ fontFamily: C.display, fontSize: 'clamp(34px,4.5vw,64px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
                   <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 360, margin: 0, letterSpacing: '-0.005em' }}>{ch.body}</p>
                 </div>
@@ -268,9 +250,6 @@ export const HeroScroll = memo(() => {
 
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
-                <p style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub, margin: '0 0 16px' }}>
-                  {isAr ? 'ما هو AYN' : language === 'fr' ? "Ce qu'est AYN" : 'What AYN Is'}
-                </p>
                 <h2 style={{ fontFamily: C.display, fontSize: 'clamp(38px,5vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px' }}>
                   {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
                 </h2>
@@ -298,10 +277,6 @@ export const HeroScroll = memo(() => {
       <section style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(32px,6vw,96px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto' }}>
           <div style={{ maxWidth: 540 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
-              <span style={{ display: 'inline-block', width: 18, height: 1, background: C.inkSub }} />
-              <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub }}>About AYN</span>
-            </div>
             <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,4vw,56px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
               {isAr ? <>ليس أداة.<br />ذكاء حقيقي.</> : language === 'fr' ? <>Pas un outil.<br />Une intelligence.</> : <>Not a tool.<br />An intelligence.</>}
             </h2>
@@ -316,10 +291,6 @@ export const HeroScroll = memo(() => {
       <section style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(32px,5vw,80px)', background: C.bg, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 'clamp(40px,6vw,96px)', alignItems: 'center' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 22 }}>
-              <span style={{ display: 'inline-block', width: 18, height: 1, background: C.inkSub }} />
-              <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub }}>Capabilities</span>
-            </div>
             <h2 style={{ fontFamily: C.display, fontSize: 'clamp(28px,3.8vw,52px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px' }}>
               {isAr ? <>دقة<br />تتحدث عن نفسها.</> : language === 'fr' ? <>Une précision<br />qui parle d'elle-même.</> : <>Precision that<br />speaks for itself.</>}
             </h2>
@@ -355,10 +326,6 @@ export const HeroScroll = memo(() => {
       {/* Section 4 — Services */}
       <section style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-            <span style={{ display: 'inline-block', width: 18, height: 1, background: C.inkSub }} />
-            <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub }}>Services</span>
-          </div>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 48px', textAlign: 'center', lineHeight: 1.04 }}>
             {isAr ? <>ذكاء واحد.<br />كل زاوية.</> : language === 'fr' ? <>Une intelligence.<br />Chaque angle.</> : <>One intelligence.<br />Every angle.</>}
           </h2>
@@ -417,11 +384,6 @@ export const HeroScroll = memo(() => {
           <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: `min(85vw,${sz}px)`, height: `min(85vw,${sz}px)`, borderRadius: '50%', border: `1px solid rgba(255,255,255,${0.06 - i * 0.015})`, pointerEvents: 'none' }} />
         ))}
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 640, width: '100%', paddingBottom: 100 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 22 }}>
-            <span style={{ display: 'inline-block', width: 18, height: 1, background: 'rgba(255,255,255,0.22)' }} />
-            <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.42)' }}>Start Today</span>
-            <span style={{ display: 'inline-block', width: 18, height: 1, background: 'rgba(255,255,255,0.22)' }} />
-          </div>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(36px,7vw,92px)', fontWeight: 700, lineHeight: 1.02, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px' }}>
             {isAr ? <span>أذكى عين<br />في الغرفة<br />هي عينك.</span> : language === 'fr' ? <span>L'intelligence<br />la plus puissante<br />est la vôtre.</span> : <span>The most intelligent<br />eye in the room<br />is yours.</span>}
           </h2>
