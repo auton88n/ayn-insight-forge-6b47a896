@@ -29,30 +29,6 @@ const C = {
   body:    "'Geist', system-ui, sans-serif",
 };
 
-const CHAPTERS = [
-  {
-    eyebrow: isAr ? 'من هو AYN' : language === 'fr' ? 'Qui est AYN' : 'Who is AYN',
-    headline: isAr ? 'يفكر.\nيتعلم.\nيفهم.' : language === 'fr' ? 'Pense.\nApprend.\nComprend.' : 'Thinks.\nLearns.\nUnderstands.',
-    body: isAr ? 'ليس أداة تفتحها. ذكاء يعيش داخل شركتك.' : language === 'fr' ? 'Pas un outil que vous ouvrez. Une intelligence qui vit dans votre entreprise.' : 'Not a tool you open. An intelligence that lives inside your business.',
-    stat: '01', unit: isAr ? 'الهوية' : language === 'fr' ? 'Identité' : 'Identity',
-    in: 0.15, out: 0.37
-  },
-  {
-    eyebrow: isAr ? 'ما يفعله AYN' : language === 'fr' ? 'Ce que fait AYN' : 'What AYN Does',
-    headline: isAr ? 'بياناتك.\nمخاطرك.\nتفوّقك.' : language === 'fr' ? 'Vos données.\nVos risques.\nVotre avance.' : 'Your data.\nYour risk.\nYour edge.',
-    body: isAr ? 'يتصل بكل شيء داخل شركتك. يقرأ كل إشارة. يجد كل إجابة.' : language === 'fr' ? 'Se connecte à tout dans votre entreprise. Lit chaque signal. Trouve chaque réponse.' : 'Connects to everything inside your business. Reads every signal. Finds every answer.',
-    stat: '02', unit: isAr ? 'القدرة' : language === 'fr' ? 'Capacité' : 'Capability',
-    in: 0.40, out: 0.60
-  },
-  {
-    eyebrow: isAr ? 'ما بداخله' : language === 'fr' ? "Ce qui est à l'intérieur" : "What's Inside",
-    headline: isAr ? 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.' : language === 'fr' ? 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.' : 'Self-learning.\nSelf-healing.\nSelf-driven.',
-    body: isAr ? 'ذكاء ينمو مع شركتك. لا يملكه أي منافس.' : language === 'fr' ? "Une intelligence qui grandit avec votre entreprise. Aucun concurrent ne possède cela." : "An intelligence that grows with your business. No competitor has this.",
-    stat: '03', unit: isAr ? 'التفوق' : language === 'fr' ? 'Supériorité' : 'Superiority',
-    in: 0.63, out: 0.82
-  },
-];
-
 const cache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
   const img = new Image(); img.src = src; img.decoding = 'async'; return img;
 });
@@ -61,6 +37,30 @@ export const HeroScroll = memo(() => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
   const reduced = useReducedMotion();
+
+  const CHAPTERS = [
+    {
+      eyebrow: isAr ? 'من هو AYN' : language === 'fr' ? 'Qui est AYN' : 'Who is AYN',
+      headline: isAr ? 'يفكر.\nيتعلم.\nيفهم.' : language === 'fr' ? 'Pense.\nApprend.\nComprend.' : 'Thinks.\nLearns.\nUnderstands.',
+      body: isAr ? 'ليس أداة تفتحها. ذكاء يعيش داخل شركتك.' : language === 'fr' ? 'Pas un outil que vous ouvrez. Une intelligence qui vit dans votre entreprise.' : 'Not a tool you open. An intelligence that lives inside your business.',
+      stat: '01', unit: isAr ? 'الهوية' : language === 'fr' ? 'Identité' : 'Identity',
+      in: 0.15, out: 0.37
+    },
+    {
+      eyebrow: isAr ? 'ما يفعله AYN' : language === 'fr' ? 'Ce que fait AYN' : 'What AYN Does',
+      headline: isAr ? 'بياناتك.\nمخاطرك.\nتفوّقك.' : language === 'fr' ? 'Vos données.\nVos risques.\nVotre avance.' : 'Your data.\nYour risk.\nYour edge.',
+      body: isAr ? 'يتصل بكل شيء داخل شركتك. يقرأ كل إشارة. يجد كل إجابة.' : language === 'fr' ? 'Se connecte à tout dans votre entreprise. Lit chaque signal. Trouve chaque réponse.' : 'Connects to everything inside your business. Reads every signal. Finds every answer.',
+      stat: '02', unit: isAr ? 'القدرة' : language === 'fr' ? 'Capacité' : 'Capability',
+      in: 0.40, out: 0.60
+    },
+    {
+      eyebrow: isAr ? 'ما بداخله' : language === 'fr' ? "Ce qui est à l'intérieur" : "What's Inside",
+      headline: isAr ? 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.' : language === 'fr' ? 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.' : 'Self-learning.\nSelf-healing.\nSelf-driven.',
+      body: isAr ? 'ذكاء ينمو مع شركتك. لا يملكه أي منافس.' : language === 'fr' ? "Une intelligence qui grandit avec votre entreprise. Aucun concurrent ne possède cela." : "An intelligence that grows with your business. No competitor has this.",
+      stat: '03', unit: isAr ? 'التفوق' : language === 'fr' ? 'Supériorité' : 'Superiority',
+      in: 0.63, out: 0.82
+    },
+  ];
 
   const spacerRef = useRef<HTMLDivElement>(null);
   const imgRef    = useRef<HTMLImageElement>(null);
