@@ -7,7 +7,9 @@
 import { useEffect, useRef, memo, useCallback } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
-// import { SolutionsMinimal } from './SolutionsMinimal';
+import { Link } from 'react-router-dom';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
