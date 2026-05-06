@@ -662,37 +662,6 @@ export const CenterStageLayout = ({
             !sidebarOpen && transcriptOpen && "lg:max-w-[calc(100vw-22rem)]",
           )}
         >
-          {/* Eye container - shrinks when response visible */}
-          <motion.div
-            ref={eyeRef}
-            className={cn(
-              "relative overflow-visible z-0",
-              (hasVisibleResponses || isTransitioningToChat || transcriptOpen) && "pb-4",
-              isAbsorbPulsing && "scale-105 transition-transform duration-300",
-            )}
-            data-tutorial="eye"
-            animate={{
-              scale: hasVisibleResponses || isTransitioningToChat || transcriptOpen ? (isMobile ? 0.55 : 0.5) : 1,
-              marginBottom: hasVisibleResponses || isTransitioningToChat || transcriptOpen ? -20 : 0,
-              y: hasVisibleResponses || isTransitioningToChat || transcriptOpen ? -20 : 0,
-            }}
-            transition={{
-              scale: { type: "tween", duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-              marginBottom: { type: "tween", duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-              y: { type: "tween", duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-            }}
-          >
-            <div className="relative inline-block">
-              <EmotionalEye
-                size={isMobile ? "md" : "lg"}
-                gazeTarget={gazeTarget}
-                pupilReaction={empathyPupilReaction}
-                blinkPattern={empathyBlinkPattern}
-                colorIntensity={empathyColorIntensity}
-              />
-              {betaMode && <BetaBadge className={isMobile ? "scale-90" : ""} />}
-            </div>
-          </motion.div>
 
           {/* ResponseCard wrapper — height is measured dynamically from wrapper top to footer top */}
           <AnimatePresence>
