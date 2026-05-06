@@ -239,7 +239,7 @@ export const HeroScroll = memo(() => {
               {/* Chapters */}
               {CHAPTERS.map((ch, i) => (
                 <div key={i} ref={el => { chRefs.current[i] = el; }} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity, transform' }}>
-                  <h2 style={{ fontFamily: C.display, fontSize: 'clamp(34px,4.5vw,64px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
+                  <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.2vw,48px)', fontWeight: 700, lineHeight: 1.12, letterSpacing: '-0.025em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
                   <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 360, margin: 0 }}>{ch.body}</p>
                 </div>
               ))}
