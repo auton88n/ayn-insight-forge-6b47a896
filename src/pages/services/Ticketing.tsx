@@ -201,7 +201,7 @@ const Ticketing = () => {
       <div dir={direction} className="min-h-screen bg-background">
         {/* Back Button */}
         <div className="fixed top-4 left-4 z-50">
-          <Link to="/solutions">
+          <Link to="/#solutions">
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               {t.back}

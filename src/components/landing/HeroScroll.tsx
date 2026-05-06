@@ -10,7 +10,7 @@ import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Search, BarChart3, Target, LayoutGrid } from 'lucide-react';
-import { SolutionsMinimal } from './SolutionsMinimal';
+// import { SolutionsMinimal } from './SolutionsMinimal';
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
@@ -328,22 +328,39 @@ export const HeroScroll = memo(() => {
       <section id="solutions" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', textAlign: 'center', lineHeight: 1.04 }}>
-            {isAr ? <>الحلول المتكاملة.</> : language === 'fr' ? <>Solutions Intégrées.</> : <>Integrated Solutions.</>}
+            {isAr ? <>ذكاء واحد.<br />لكل وظائف العمل.</> : language === 'fr' ? <>Une intelligence.<br />Chaque fonction d'entreprise.</> : <>One intelligence.<br />Every business function.</>}
           </h2>
-          <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, textAlign: 'center', maxWidth: 600, margin: '0 0 12px' }}>
-            {isAr ? 'ذكاء واحد. كل زاوية.' : language === 'fr' ? 'Une intelligence. Chaque angle.' : 'One intelligence. Every angle.'}
-          </p>
-          <SolutionsMinimal />
-          <div style={{ width: '100%', maxWidth: 520, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', marginTop: 48 }}>
-            <div style={{ position: 'absolute', top: 14, left: '18%', right: '18%', height: 1, background: C.border }} />
-            {[{ label: isAr ? 'اتصال' : language === 'fr' ? 'CONNECTER' : 'CONNECT', icon: Search }, { label: isAr ? 'تحليل' : language === 'fr' ? 'ANALYSER' : 'ANALYZE', icon: BarChart3 }, { label: isAr ? 'تحرك' : language === 'fr' ? 'AGIR' : 'ACT', icon: Target }].map((step, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, position: 'relative', zIndex: 1 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bgOff, border: `1px solid ${C.borderMd}`, transition: 'background 0.2s' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.07)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = C.bgOff; }}>
-                  <step.icon size={12} color={C.inkMid} />
+          
+          <div style={{ width: '100%', maxWidth: 1000, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '48px 32px', marginTop: 64 }}>
+            {[
+              { 
+                step: isAr ? 'اتصال' : language === 'fr' ? 'CONNECT' : 'CONNECT',
+                title: isAr ? 'ذكاء الشركة' : language === 'fr' ? 'Company Intelligence' : 'Company Intelligence',
+                desc: isAr ? 'ربط البيانات المعتمدة والتقارير والتحديثات في ذاكرة شركة واحدة.' : language === 'fr' ? 'Connectez les données approuvées, les rapports et les mises à jour dans une mémoire d\'entreprise unique.' : 'Connect approved data, reports, and updates into one company memory.',
+                icon: Search 
+              },
+              { 
+                step: isAr ? 'فهم' : language === 'fr' ? 'UNDERSTAND' : 'UNDERSTAND',
+                title: isAr ? 'كشف المخاطر' : language === 'fr' ? 'Risk Detection' : 'Risk Detection',
+                desc: isAr ? 'كشف التأخيرات والمتابعات الفائتة والاختناقات والمشاكل التشغيلية مبكراً.' : language === 'fr' ? 'Identifiez tôt les retards, les suivis manqués, les goulots d\'étranglement et les problèmes opérationnels.' : 'Surface delays, missed follow-ups, bottlenecks, and operational issues early.',
+                icon: BarChart3 
+              },
+              { 
+                step: isAr ? 'تحرك' : language === 'fr' ? 'ACT' : 'ACT',
+                title: isAr ? 'تقارير القيادة' : language === 'fr' ? 'Leadership Reports' : 'Leadership Reports',
+                desc: isAr ? 'تحويل الأدلة إلى تقارير للمديرين وملخصات للرئيس التنفيذي والأولويات وخطط العمل.' : language === 'fr' ? 'Transformez les preuves en rapports pour managers, synthèses pour CEO, priorités et plans d\'action.' : 'Turn evidence into manager reports, CEO summaries, priorities, and action plans.',
+                icon: Target 
+              }
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 22, background: C.bg, border: `1px solid ${C.borderMd}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <item.icon size={18} color={C.ink} />
+                  </div>
+                  <span style={{ fontFamily: C.mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: C.inkMid }}>{item.step}</span>
                 </div>
-                <span style={{ fontFamily: C.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.16em', color: C.inkSub, textTransform: 'uppercase' }}>{step.label}</span>
+                <h3 style={{ fontFamily: C.display, fontSize: 20, fontWeight: 700, color: C.ink, marginBottom: 12, letterSpacing: '-0.01em' }}>{item.title}</h3>
+                <p style={{ fontFamily: C.body, fontSize: 15, color: C.inkSub, lineHeight: 1.6, maxWidth: 280, fontWeight: 400 }}>{item.desc}</p>
               </div>
             ))}
           </div>

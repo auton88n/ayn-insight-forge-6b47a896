@@ -135,7 +135,7 @@ const TicketingApply = () => {
           </div>
           <h1 className="text-3xl font-bold mb-4">{t.successTitle}</h1>
           <p className="text-muted-foreground mb-8">{t.successMessage}</p>
-          <Link to="/solutions">
+          <Link to="/#solutions">
             <Button variant="outline">{t.backToServices}</Button>
           </Link>
         </motion.div>
