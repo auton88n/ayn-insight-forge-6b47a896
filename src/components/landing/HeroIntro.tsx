@@ -29,24 +29,26 @@ export const HeroIntro = memo(({ onSendAttempt }: HeroIntroProps) => {
           className="text-[10px] md:text-[11px] tracking-[0.3em] uppercase mb-3 font-mono"
           style={{ color: 'rgba(255,255,255,0.4)' }}
         >
-          {language === 'ar' ? 'ذكاء الأعمال' : language === 'fr' ? 'Intelligence d\'affaires' : 'World Intelligence'}
+          {language === 'ar' ? 'ذكاء الأعمال' : language === 'fr' ? "Intelligence d'Affaires" : 'Business Intelligence'}
         </p>
         <h1
           className="font-display font-bold tracking-[-0.02em] text-white leading-none"
           style={{ fontSize: 'clamp(40px, 6vw, 88px)' }}
         >
-          {language === 'ar' ? 'تعرّف على ' : language === 'fr' ? 'Découvrez ' : 'Meet '}
-          <span style={{ color: 'hsl(var(--primary))' }}>AYN</span>
+          {language === 'ar' ? 'قوة ' : language === 'fr' ? 'Le pouvoir ' : 'The power '}
+          <span style={{ color: 'hsl(var(--primary))' }}>
+            {language === 'ar' ? 'المعرفة.' : language === 'fr' ? 'de savoir.' : 'to know.'}
+          </span>
         </h1>
         <p
           className="mt-4 text-sm md:text-base font-light max-w-xl mx-auto leading-relaxed"
           style={{ color: 'rgba(255,255,255,0.5)' }}
         >
           {language === 'ar'
-            ? 'ذكاء أعمال حقيقي. أسواق ومخاطر وقرارات تهم.'
+            ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.'
             : language === 'fr'
-            ? 'Intelligence d\'affaires réelle. Marchés, risques et décisions stratégiques.'
-            : 'Real business intelligence. Markets, risks, and decisions that matter.'}
+            ? "L'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien."
+            : 'The eye that lives inside your business. Sees everything. Misses nothing.'}
         </p>
       </div>
 
