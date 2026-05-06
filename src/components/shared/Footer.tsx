@@ -53,7 +53,6 @@ export const Footer = () => {
             </h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/" className="hover:text-foreground transition-colors">{language === 'ar' ? 'الرئيسية' : language === 'fr' ? 'Accueil' : 'Home'}</Link></li>
-              <li><Link to="/solutions" className="hover:text-foreground transition-colors">{language === 'ar' ? 'الحلول' : language === 'fr' ? 'Solutions' : 'Solutions'}</Link></li>
               <li><Link to="/contact" className="hover:text-foreground transition-colors">{language === 'ar' ? 'تواصل معنا' : language === 'fr' ? 'Contact' : 'Contact'}</Link></li>
             </ul>
           </div>

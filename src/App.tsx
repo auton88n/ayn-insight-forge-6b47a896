@@ -48,19 +48,19 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 
-const AIEmployee = lazy(() => import("./pages/services/AIEmployee"));
-const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
+// const AIEmployee = lazy(() => import("./pages/services/AIEmployee"));
+// const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
 // HIDDEN: Content Creator Sites and Engineering tools temporarily disabled
 // const InfluencerSites = lazy(() => import("./pages/services/InfluencerSites"));
 // const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
-const ServicesPage = lazy(() => import("./pages/Solutions"));
+// const SolutionsPage = lazy(() => import("./pages/Solutions"));
 const ContactPage = lazy(() => import("./pages/Contact"));
-const AIAgents = lazy(() => import("./pages/services/AIAgents"));
-const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
-const Automation = lazy(() => import("./pages/services/Automation"));
-const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
-const Ticketing = lazy(() => import("./pages/services/Ticketing"));
-const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
+// const AIAgents = lazy(() => import("./pages/services/AIAgents"));
+// const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
+// const Automation = lazy(() => import("./pages/services/Automation"));
+// const AutomationApply = lazy(() => import("./pages/services/AutomationApply"));
+// const Ticketing = lazy(() => import("./pages/services/Ticketing"));
+// const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
 const Support = lazy(() => import("./pages/Support"));
 // HIDDEN: Engineering & Compliance features temporarily disabled
 // const Engineering = lazy(() => import("./pages/EngineeringWorkspacePage"));
@@ -118,18 +118,7 @@ const AnimatedRoutes = () => {
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
 
 
-      <Route path="/solutions" element={<Suspense fallback={<PageLoader />}><ServicesPage /></Suspense>} />
-      <Route path="/solutions/ai-employee" element={<Suspense fallback={<PageLoader />}><AIEmployee /></Suspense>} />
-      <Route path="/solutions/ai-employee/apply" element={<Suspense fallback={<PageLoader />}><AIEmployeeApply /></Suspense>} />
-      {/* HIDDEN: Content Creator Sites temporarily disabled */}
-      <Route path="/solutions/content-creator-sites" element={<Navigate to="/solutions" replace />} />
-      <Route path="/solutions/content-creator-sites/apply" element={<Navigate to="/solutions" replace />} />
-      <Route path="/solutions/ai-agents" element={<Suspense fallback={<PageLoader />}><AIAgents /></Suspense>} />
-      <Route path="/solutions/ai-agents/apply" element={<Suspense fallback={<PageLoader />}><AIAgentsApply /></Suspense>} />
-      <Route path="/solutions/automation" element={<Suspense fallback={<PageLoader />}><Automation /></Suspense>} />
-      <Route path="/solutions/automation/apply" element={<Suspense fallback={<PageLoader />}><AutomationApply /></Suspense>} />
-      <Route path="/solutions/ticketing" element={<Suspense fallback={<PageLoader />}><Ticketing /></Suspense>} />
-      <Route path="/solutions/ticketing/apply" element={<Suspense fallback={<PageLoader />}><TicketingApply /></Suspense>} />
+
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
       <Route path="/support" element={<Support />} />
       {/* HIDDEN: Engineering & Compliance routes temporarily disabled

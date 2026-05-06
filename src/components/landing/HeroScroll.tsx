@@ -328,12 +328,8 @@ export const HeroScroll = memo(() => {
       <section style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', textAlign: 'center', lineHeight: 1.04 }}>
-            {isAr ? <>حلولنا.</> : language === 'fr' ? <>Nos Solutions.</> : <>Our Solutions.</>}
+            {isAr ? <>ذكاء واحد.<br />كل زاوية.</> : language === 'fr' ? <>Une intelligence.<br />Chaque angle.</> : <>One intelligence.<br />Every angle.</>}
           </h2>
-          <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, textAlign: 'center', maxWidth: 600, margin: '0 0 48px' }}>
-            {isAr ? 'ذكاء واحد. كل زاوية. حلول متكاملة لأعمالك.' : language === 'fr' ? 'Une intelligence. Chaque angle. Des solutions complètes pour votre entreprise.' : 'One intelligence. Every angle. Comprehensive solutions for your business.'}
-          </p>
-          <SolutionsSection />
           <div style={{ width: '100%', maxWidth: 520, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', marginTop: 48 }}>
             <div style={{ position: 'absolute', top: 14, left: '18%', right: '18%', height: 1, background: C.border }} />
             {[{ label: isAr ? 'اتصال' : language === 'fr' ? 'CONNECTER' : 'CONNECT', icon: Search }, { label: isAr ? 'تحليل' : language === 'fr' ? 'ANALYSER' : 'ANALYZE', icon: BarChart3 }, { label: isAr ? 'تحرك' : language === 'fr' ? 'AGIR' : 'ACT', icon: Target }].map((step, i) => (

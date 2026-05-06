@@ -14,7 +14,6 @@ const navLinks = [
 { path: '/', en: 'Home', fr: 'Accueil', ar: 'الرئيسية' },
 { path: '/#about', en: 'About', fr: 'À Propos', ar: 'من نحن' },
 { path: '/#features', en: 'Features', fr: 'Fonctionnalités', ar: 'المميزات' },
-{ path: '/solutions', en: 'Solutions', fr: 'Solutions', ar: 'الحلول' },
 { path: '/contact', en: 'Contact', fr: 'Contact', ar: 'تواصل معنا' }];
 
 
