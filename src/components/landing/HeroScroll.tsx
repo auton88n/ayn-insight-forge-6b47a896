@@ -219,7 +219,7 @@ export const HeroScroll = memo(() => {
                   {isAr ? 'ذكاء الأعمال' : language === 'fr' ? "Intelligence d'Affaires" : 'Business Intelligence'}
                 </div>
                 <h1 style={{ fontFamily: C.display, fontSize: 'clamp(44px,5.5vw,80px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-                  {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</>}
+                  {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</span></>}
                 </h1>
                 <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 380, margin: '0 0 32px', letterSpacing: '-0.005em' }}>
                   {isAr ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.' : language === 'fr' ? "L'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien." : 'The eye that lives inside your business. Sees everything. Misses nothing.'}
