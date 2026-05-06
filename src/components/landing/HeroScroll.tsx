@@ -363,14 +363,14 @@ export const HeroScroll = memo(() => {
               }
             ].map((card, i) => (
               <div key={i}
-                style={{ padding: '32px', background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 12, transition: 'all 0.3s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.ink; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.border; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}>
+                style={{ padding: '32px', background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 12, transition: 'border-color 0.3s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.ink; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.border; }}>
                 <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                   <card.icon size={20} color={C.ink} />
                 </div>
-                <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 12 }}>{card.title}</h3>
-                <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{card.desc}</p>
+                <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10 }}>{card.title}</h3>
+                <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.65 }}>{card.desc}</p>
               </div>
             ))}
           </div>
