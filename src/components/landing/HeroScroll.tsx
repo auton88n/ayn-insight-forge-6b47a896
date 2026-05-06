@@ -25,8 +25,9 @@ const C = {
   inkSub: '#6E7076',
   border: 'rgba(0,0,0,0.08)',
   borderMd: 'rgba(0,0,0,0.12)',
-  display: "'Space Grotesk', system-ui, sans-serif",
-  body:    "'Geist', system-ui, sans-serif",
+  display: "'Inter Tight', 'Inter', system-ui, sans-serif",
+  body:    "'Inter', system-ui, sans-serif",
+  mono:    "'JetBrains Mono', ui-monospace, monospace",
 };
 
 const cache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
@@ -211,15 +212,15 @@ export const HeroScroll = memo(() => {
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
-                <h1 style={{ fontFamily: C.display, fontSize: 'clamp(44px,5.5vw,80px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-                  {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</span></>}
+                <h1 style={{ fontFamily: C.display, fontSize: 'clamp(48px,6.2vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px' }}>
+                  {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
                 </h1>
-                <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 380, margin: '0 0 32px', letterSpacing: '-0.005em' }}>
-                  {isAr ? 'AYN طبقة ذكاء اصطناعي تساعد القادة على رؤية المخاطر، وفهم الأسباب، والعمل بثقة.' : language === 'fr' ? "AYN une couche d'intelligence artificielle qui aide les dirigeants à voir les risques, à comprendre les causes et à agir avec confiance." : 'AYN an AI intelligence layer that helps leaders see risks, understand causes, and act with confidence.'}
+                <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px' }}>
+                  {isAr ? 'AYN يربط تقاريرك وملفاتك وقراراتك في طبقة ذكاء واحدة يمكن لشركتك التحدث إليها.' : language === 'fr' ? "AYN connecte vos rapports, fichiers et décisions en une couche d'intelligence à laquelle votre entreprise peut parler." : 'AYN connects your reports, files, and decisions into one intelligence layer your business can talk to.'}
                 </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 40 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Link to="/contact"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 22px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, letterSpacing: '-0.01em', borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
                     onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
@@ -227,23 +228,11 @@ export const HeroScroll = memo(() => {
                     {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
                   </Link>
                   <Link to="/contact"
-                    style={{ display: 'inline-flex', alignItems: 'center', padding: '11px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
                     {isAr ? 'عرض تقرير عينة' : language === 'fr' ? 'Voir un exemple de rapport' : 'View Sample Report'}
                   </Link>
-                </div>
-                <div style={{ display: 'flex', gap: 28, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-                  {[
-                    { n: isAr ? 'متصل' : language === 'fr' ? 'Connecté' : 'Connected', l: '' },
-                    { n: isAr ? 'ذكي' : language === 'fr' ? 'Intelligent' : 'Intelligent', l: '' },
-                    { n: isAr ? 'دائماً هنا' : language === 'fr' ? 'Toujours là' : 'Always On', l: '' }
-                  ].map((s, i) => (
-                    <div key={i}>
-                      <p style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1, margin: '0 0 3px', letterSpacing: '-0.04em' }}>{s.n}</p>
-                      <p style={{ fontFamily: C.body, fontSize: 11, color: C.inkSub, letterSpacing: '0.04em', margin: 0, textTransform: 'uppercase' }}>{s.l}</p>
-                    </div>
-                  ))}
                 </div>
               </div>
 
@@ -251,7 +240,7 @@ export const HeroScroll = memo(() => {
               {CHAPTERS.map((ch, i) => (
                 <div key={i} ref={el => { chRefs.current[i] = el; }} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity, transform' }}>
                   <h2 style={{ fontFamily: C.display, fontSize: 'clamp(34px,4.5vw,64px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
-                  <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 360, margin: 0, letterSpacing: '-0.005em' }}>{ch.body}</p>
+                  <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 360, margin: 0 }}>{ch.body}</p>
                 </div>
               ))}
 
@@ -281,19 +270,50 @@ export const HeroScroll = memo(() => {
       </div>
 
       {/* Section 2 */}
-      <section style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(32px,6vw,96px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto' }}>
-          <div style={{ maxWidth: 640 }}>
-            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,4vw,56px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-              {isAr ? <>لماذا <span style={{ color: C.inkMid }}>AYN؟</span></> : language === 'fr' ? <>Pourquoi <span style={{ color: C.inkMid }}>AYN ?</span></> : <>Why <span style={{ color: C.inkMid }}>AYN?</span></>}
-            </h2>
-            <p style={{ fontFamily: C.body, fontSize: 17, fontWeight: 400, lineHeight: 1.72, color: C.inkSub, maxWidth: 600 }}>
-              {isAr 
-                ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعاد تشكيله بواسطة الذكاء الاصطناعي. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والعمل قبل ضياع الفرص. تساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء، والمضي قدمًا بثقة.'
-                : language === 'fr'
-                ? "AYN a été conçu pour les chefs d'entreprise qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA. Il connecte les rapports, les tâches, les décisions et les données commerciales approuvées en une seule couche d'intelligence, aidant les dirigeants à comprendre ce qui a changé, à voir ce qui compte et à agir avant que les opportunités ne soient manquées. AYN aide les entreprises à s'adapter plus rapidement, à diriger plus intelligemment et à avancer avec confiance."
-                : 'AYN was built for company owners who need clarity, speed, and control in a world being reshaped by AI. It connects reports, tasks, decisions, and approved business data into one intelligence layer, helping leaders understand what changed, see what matters, and act before opportunities are missed. AYN helps companies adapt faster, lead smarter, and move forward with confidence.'}
-            </p>
+      <section style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
+        <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px' }}>
+            {isAr ? <>لماذا <span style={{ color: C.inkMid }}>AYN؟</span></> : language === 'fr' ? <>Pourquoi <span style={{ color: C.inkMid }}>AYN ?</span></> : <>Why <span style={{ color: C.inkMid }}>AYN?</span></>}
+          </h2>
+          <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 560, margin: '0 0 64px' }}>
+            {isAr
+              ? 'بُني AYN للقادة الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله.'
+              : language === 'fr'
+              ? "AYN est conçu pour les dirigeants qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA."
+              : 'AYN is built for leaders who need clarity, speed, and control in a world being reshaped by AI.'}
+          </p>
+          <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 56 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'clamp(48px,6vw,96px)' }}>
+            {[
+              {
+                label: isAr ? 'للقادة الذين يحتاجون' : language === 'fr' ? 'POUR LES DIRIGEANTS' : 'FOR LEADERS WHO NEED',
+                items: isAr
+                  ? ['الوضوح وسط الضوضاء', 'سرعة في القرار', 'التحكم في السياق', 'الثقة للتحرك']
+                  : language === 'fr'
+                  ? ['De la clarté dans le bruit', 'De la vitesse de décision', 'Du contrôle du contexte', 'La confiance pour agir']
+                  : ['Clarity in the noise', 'Speed of decision', 'Control of context', 'Confidence to act'],
+              },
+              {
+                label: isAr ? 'ما يقدمه AYN' : language === 'fr' ? 'CE QUE AYN APPORTE' : 'WHAT AYN GIVES YOU',
+                items: isAr
+                  ? ['طبقة ذكاء واحدة', 'التقارير تصبح محادثات', 'ذاكرة عبر الشركة', 'تصرف قبل أن تُغلق الفرصة']
+                  : language === 'fr'
+                  ? ["Une couche d'intelligence", 'Les rapports deviennent conversations', "Une mémoire d'entreprise", 'Agir avant que la fenêtre se ferme']
+                  : ['One intelligence layer', 'Reports become conversations', 'Memory across the company', 'Act before the window closes'],
+              },
+            ].map((col, i) => (
+              <div key={i}>
+                <p style={{ fontFamily: C.mono, fontSize: 11, fontWeight: 500, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.inkSub, margin: '0 0 20px' }}>{col.label}</p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {col.items.map((it, j) => (
+                    <li key={j} style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.45, color: C.ink, display: 'flex', gap: 12 }}>
+                      <span style={{ color: C.inkSub, flexShrink: 0 }}>·</span>
+                      <span>{it}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -343,14 +363,14 @@ export const HeroScroll = memo(() => {
               }
             ].map((card, i) => (
               <div key={i}
-                style={{ padding: '32px', background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 12, transition: 'all 0.3s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.ink; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.border; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}>
+                style={{ padding: '32px', background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 12, transition: 'border-color 0.3s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.ink; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.border; }}>
                 <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                   <card.icon size={20} color={C.ink} />
                 </div>
-                <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 12 }}>{card.title}</h3>
-                <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{card.desc}</p>
+                <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10 }}>{card.title}</h3>
+                <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.65 }}>{card.desc}</p>
               </div>
             ))}
           </div>
@@ -406,7 +426,7 @@ export const HeroScroll = memo(() => {
                   <item.icon size={22} color={C.ink} />
                 </div>
                 <div>
-                  <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 10 }}>{item.title}</h3>
+                  <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10 }}>{item.title}</h3>
                   <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
                 </div>
               </div>

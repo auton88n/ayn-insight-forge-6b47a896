@@ -35,7 +35,7 @@ const LandingPage = memo(() => {
         keywords="AYN AI, business intelligence AI, market analysis AI, geopolitical risk"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
-      <div dir={direction} className="landing-white-page" style={{ background: '#ffffff', minHeight: '100vh' }}>
+      <div dir={direction} className="landing-white-page" style={{ background: '#ffffff', minHeight: '100vh', fontFamily: "'Inter', system-ui, sans-serif", fontFeatureSettings: "'cv11','ss01','ss03'" }}>
         <Header />
         <HeroScroll />
         <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
