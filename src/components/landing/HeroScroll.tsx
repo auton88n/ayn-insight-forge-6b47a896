@@ -212,15 +212,15 @@ export const HeroScroll = memo(() => {
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
-                <h1 style={{ fontFamily: C.display, fontSize: 'clamp(44px,5.5vw,80px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-                  {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</span></>}
+                <h1 style={{ fontFamily: C.display, fontSize: 'clamp(48px,6.2vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px' }}>
+                  {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
                 </h1>
-                <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 380, margin: '0 0 32px', letterSpacing: '-0.005em' }}>
-                  {isAr ? 'AYN طبقة ذكاء اصطناعي تساعد القادة على رؤية المخاطر، وفهم الأسباب، والعمل بثقة.' : language === 'fr' ? "AYN une couche d'intelligence artificielle qui aide les dirigeants à voir les risques, à comprendre les causes et à agir avec confiance." : 'AYN an AI intelligence layer that helps leaders see risks, understand causes, and act with confidence.'}
+                <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px' }}>
+                  {isAr ? 'AYN يربط تقاريرك وملفاتك وقراراتك في طبقة ذكاء واحدة يمكن لشركتك التحدث إليها.' : language === 'fr' ? "AYN connecte vos rapports, fichiers et décisions en une couche d'intelligence à laquelle votre entreprise peut parler." : 'AYN connects your reports, files, and decisions into one intelligence layer your business can talk to.'}
                 </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 40 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Link to="/contact"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 22px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, letterSpacing: '-0.01em', borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
                     onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
@@ -228,23 +228,11 @@ export const HeroScroll = memo(() => {
                     {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
                   </Link>
                   <Link to="/contact"
-                    style={{ display: 'inline-flex', alignItems: 'center', padding: '11px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
                     {isAr ? 'عرض تقرير عينة' : language === 'fr' ? 'Voir un exemple de rapport' : 'View Sample Report'}
                   </Link>
-                </div>
-                <div style={{ display: 'flex', gap: 28, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-                  {[
-                    { n: isAr ? 'متصل' : language === 'fr' ? 'Connecté' : 'Connected', l: '' },
-                    { n: isAr ? 'ذكي' : language === 'fr' ? 'Intelligent' : 'Intelligent', l: '' },
-                    { n: isAr ? 'دائماً هنا' : language === 'fr' ? 'Toujours là' : 'Always On', l: '' }
-                  ].map((s, i) => (
-                    <div key={i}>
-                      <p style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1, margin: '0 0 3px', letterSpacing: '-0.04em' }}>{s.n}</p>
-                      <p style={{ fontFamily: C.body, fontSize: 11, color: C.inkSub, letterSpacing: '0.04em', margin: 0, textTransform: 'uppercase' }}>{s.l}</p>
-                    </div>
-                  ))}
                 </div>
               </div>
 
