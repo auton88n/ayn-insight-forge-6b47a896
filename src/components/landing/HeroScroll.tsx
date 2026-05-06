@@ -426,7 +426,7 @@ export const HeroScroll = memo(() => {
                   <item.icon size={22} color={C.ink} />
                 </div>
                 <div>
-                  <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 700, color: C.ink, marginBottom: 10 }}>{item.title}</h3>
+                  <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10 }}>{item.title}</h3>
                   <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
                 </div>
               </div>
