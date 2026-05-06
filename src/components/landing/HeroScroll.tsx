@@ -208,7 +208,7 @@ export const HeroScroll = memo(() => {
 
           {/* ── TEXT ── */}
           <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', padding: '80px clamp(32px,6vw,96px)' }}>
-            <div style={{ position: 'relative', width: '100%', maxWidth: 560, height: 'min(80vh, 580px)' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: 'min(80vh, 580px)' }}>
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
