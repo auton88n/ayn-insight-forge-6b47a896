@@ -6,36 +6,67 @@ export const fr: Record<string, string> = {
   'nav.testimonials': 'Témoignages',
   'nav.getStarted': 'Commencer',
   
-  // Hero Section
-  'hero.title': 'Votre Partenaire de Croissance',
-  'hero.titleHighlight': 'Propulsé par l\'IA',
-  'hero.description': 'Obtenez des analyses stratégiques, des études de marché, une optimisation des ventes et une analyse des tendances - le tout grâce à un consultant IA intelligent.',
-  'hero.cta': 'Consulter AYN',
-  'hero.joinBusiness': 'Rejoignez plus de 10 000 entreprises en croissance',
-  'hero.readyToAnalyze': 'Prêt à analyser votre entreprise',
-  'hero.aiConsultantQuote': 'Je peux vous aider avec les études de marché, l\'analyse concurrentielle, l\'optimisation des ventes et la planification stratégique. Par quoi souhaitez-vous commencer ?',
-  
-  // Features Section
-  'features.title': 'Intelligence d\'Affaires Complète',
-  'features.subtitle': 'Un agent IA aux capacités multiples pour accélérer la croissance de votre entreprise',
-  'features.marketResearch.title': 'Études de Marché',
-  'features.marketResearch.description': 'Obtenez des analyses stratégiques complètes et une veille concurrentielle.',
-  'features.salesOptimization.title': 'Optimisation des Ventes',
-  'features.salesOptimization.description': 'Optimisez votre entonnoir de vente avec des recommandations basées sur les données.',
-  'features.trendAnalysis.title': 'Analyse des Tendances',
-  'features.trendAnalysis.description': 'Identifiez les opportunités émergentes avant vos concurrents.',
-  'features.strategicPlanning.title': 'Planification Stratégique',
-  'features.strategicPlanning.description': 'Conseil d\'entreprise et planification stratégique propulsés par l\'IA avancée.',
-  
-  // Testimonials Section
-  'testimonials.title': 'Approuvé par les Leaders du Secteur',
-  'testimonials.subtitle': 'Découvrez comment AYN transforme les entreprises dans le monde entier',
-  'testimonials.sarah.quote': 'AYN a transformé notre stratégie d\'entreprise. Les insights étaient révolutionnaires.',
-  'testimonials.marcus.quote': 'Les capacités d\'analyse de marché sont incroyablement détaillées et exploitables.',
-  'testimonials.emma.quote': 'Les prédictions de tendances d\'AYN nous ont aidés à pivoter au moment parfait.',
-  
+  // Hero Section — Screen 1
+  'hero.eyebrow': 'Intelligence d\'Affaires',
+  'hero.title': 'Le pouvoir',
+  'hero.titleHighlight': 'de savoir.',
+  'hero.description': 'L\'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien.',
+  'hero.cta': 'Demander une démo privée',
+  'hero.ctaSecondary': 'Le voir en action',
+  'hero.stat1': 'Connecté',
+  'hero.stat2': 'Intelligent',
+  'hero.stat3': 'Toujours là',
+  'hero.aiConsultantQuote': 'Parlez-moi de votre entreprise. Je vous montrerai ce qu\'AYN y trouve.',
+
+  // Scroll Chapters
+  'hero.chapter1.eyebrow': 'Qui est AYN',
+  'hero.chapter1.headline': 'Pense.\nApprend.\nComprend.',
+  'hero.chapter1.body': 'Pas un outil que vous ouvrez. Une intelligence qui vit dans votre entreprise.',
+  'hero.chapter2.eyebrow': 'Ce que fait AYN',
+  'hero.chapter2.headline': 'Vos données.\nVos risques.\nVotre avance.',
+  'hero.chapter2.body': 'Se connecte à tout dans votre entreprise. Lit chaque signal. Trouve chaque réponse.',
+  'hero.chapter3.eyebrow': 'Ce qui est à l\'intérieur',
+  'hero.chapter3.headline': 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.',
+  'hero.chapter3.body': 'Une intelligence qui grandit avec votre entreprise. Aucun concurrent ne possède cela.',
+  'hero.final.eyebrow': 'Ce qu\'est AYN',
+  'hero.final.headline': 'Un seul œil.\nToutes les réponses.',
+  'hero.final.cta': 'Demander une démo privée',
+  'hero.final.ctaSecondary': 'Le voir en action',
+
+  // About Section — Screen 6
+  'about.eyebrow': 'À propos d\'AYN',
+  'about.title': 'Pas un outil.\nUne intelligence.',
+  'about.description': 'Conçu pour vivre au cœur de votre entreprise. La connaître. La protéger. La faire avancer.',
+
+  // Capabilities Section — Screen 7
+  'capabilities.eyebrow': 'Capacités',
+  'capabilities.title': 'Une précision\nqui parle d\'elle-même.',
+  'capabilities.description': 'Chaque réponse ancrée dans vos données. Rien d\'assumé. Tout vérifié.',
+  'capabilities.stat1.label': 'Précision de prédiction',
+  'capabilities.stat2.label': 'Pays connectés',
+  'capabilities.stat3.label': 'Temps de réponse',
+
+  // Services Section — Screen 8
+  'services.eyebrow': 'Ce que fait AYN',
+  'services.title': 'Une intelligence.\nChaque angle.',
+  'services.card1.title': 'Connaît votre entreprise',
+  'services.card1.desc': 'Connecte. Lit. Comprend.',
+  'services.card2.title': 'Lit chaque risque',
+  'services.card2.desc': 'Le trouve avant qu\'il vous trouve.',
+  'services.card3.title': 'Vous fait bouger en premier',
+  'services.card3.desc': 'L\'insight avant que quiconque le voie.',
+  'services.step1': 'Connecter',
+  'services.step2': 'Analyser',
+  'services.step3': 'Agir',
+
+  // Final Dark CTA — Screen 9
+  'cta.eyebrow': 'Commencer',
+  'cta.title': 'L\'intelligence\nla plus puissante\nest la vôtre.',
+  'cta.primary': 'Demander une démo privée',
+  'cta.secondary': 'Explorer les fonctionnalités',
+
   // Footer
-  'footer.copyright': `© ${currentYear} AYN AI Business Consulting. Tous droits réservés.`,
+  'footer.copyright': `© ${currentYear} AYN Intelligence. Tous droits réservés.`,
   
   // Mode names
   'modes.general': 'Général',

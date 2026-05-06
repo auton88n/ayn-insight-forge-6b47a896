@@ -6,36 +6,67 @@ export const ar: Record<string, string> = {
   'nav.testimonials': 'آراء العملاء',
   'nav.getStarted': 'ابدأ الآن',
   
-  // Hero Section
-  'hero.title': 'شريك نمو أعمالك',
-  'hero.titleHighlight': 'المدعوم بالذكاء الاصطناعي',
-  'hero.description': 'احصل على رؤى استراتيجية للأعمال، وأبحاث السوق، وتحسين المبيعات، وتحليل الاتجاهات - كل ذلك من مستشار ذكي واحد.',
-  'hero.cta': 'ابدأ الاستشارة مع AYN',
-  'hero.joinBusiness': 'انضم إلى أكثر من 10,000 شركة نامية',
-  'hero.readyToAnalyze': 'جاهز لتحليل أعمالك',
-  'hero.aiConsultantQuote': 'يمكنني مساعدتك في أبحاث السوق، والتحليل التنافسي، وتحسين المبيعات، والتخطيط الاستراتيجي. بماذا تود أن نبدأ؟',
-  
-  // Features Section
-  'features.title': 'ذكاء أعمال شامل',
-  'features.subtitle': 'وكيل ذكي واحد بقدرات متخصصة متعددة لتسريع نمو أعمالك',
-  'features.marketResearch.title': 'أبحاث السوق',
-  'features.marketResearch.description': 'احصل على رؤى استراتيجية للأعمال مع تحليل شامل للسوق والذكاء التنافسي.',
-  'features.salesOptimization.title': 'تحسين المبيعات',
-  'features.salesOptimization.description': 'حسن قمع المبيعات ومعدلات التحويل باستخدام توصيات مدفوعة بالبيانات.',
-  'features.trendAnalysis.title': 'تحليل الاتجاهات',
-  'features.trendAnalysis.description': 'حلل اتجاهات السوق وحدد الفرص الناشئة قبل منافسيك.',
-  'features.strategicPlanning.title': 'التخطيط الاستراتيجي',
-  'features.strategicPlanning.description': 'استشارات أعمال شاملة وتخطيط استراتيجي مدعوم بالذكاء الاصطناعي المتقدم.',
-  
-  // Testimonials Section
-  'testimonials.title': 'موثوق به من قادة الصناعة',
-  'testimonials.subtitle': 'اكتشف كيف يحول AYN الأعمال حول العالم',
-  'testimonials.sarah.quote': 'لقد غير AYN استراتيجية أعمالنا. كانت الرؤى ثورية.',
-  'testimonials.marcus.quote': 'قدرات تحليل السوق مفصلة بشكل لا يصدق وقابلة للتنفيذ.',
-  'testimonials.emma.quote': 'ساعدتنا توقعات اتجاهات AYN في تغيير استراتيجيتنا في الوقت المثالي.',
-  
+  // Hero Section — Screen 1
+  'hero.eyebrow': 'ذكاء الأعمال',
+  'hero.title': 'قوة',
+  'hero.titleHighlight': 'المعرفة.',
+  'hero.description': 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.',
+  'hero.cta': 'طلب عرض خاص',
+  'hero.ctaSecondary': 'شاهده في العمل',
+  'hero.stat1': 'متصل',
+  'hero.stat2': 'ذكي',
+  'hero.stat3': 'دائماً هنا',
+  'hero.aiConsultantQuote': 'أخبرني عن شركتك. سأريك ما تجده AYN بداخلها.',
+
+  // Scroll Chapters
+  'hero.chapter1.eyebrow': 'من هو AYN',
+  'hero.chapter1.headline': 'يفكر.\nيتعلم.\nيفهم.',
+  'hero.chapter1.body': 'ليس أداة تفتحها. ذكاء يعيش داخل شركتك.',
+  'hero.chapter2.eyebrow': 'ما يفعله AYN',
+  'hero.chapter2.headline': 'بياناتك.\nمخاطرك.\nتفوّقك.',
+  'hero.chapter2.body': 'يتصل بكل شيء داخل شركتك. يقرأ كل إشارة. يجد كل إجابة.',
+  'hero.chapter3.eyebrow': 'ما بداخله',
+  'hero.chapter3.headline': 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.',
+  'hero.chapter3.body': 'ذكاء ينمو مع شركتك. لا يملكه أي منافس.',
+  'hero.final.eyebrow': 'ما هو AYN',
+  'hero.final.headline': 'عين واحدة.\nكل إجابة.',
+  'hero.final.cta': 'طلب عرض خاص',
+  'hero.final.ctaSecondary': 'شاهده في العمل',
+
+  // About Section — Screen 6
+  'about.eyebrow': 'عن AYN',
+  'about.title': 'ليس أداة.\nذكاء حقيقي.',
+  'about.description': 'بُني ليعيش داخل شركتك. يعرفها. يحميها. يدفعها للأمام.',
+
+  // Capabilities Section — Screen 7
+  'capabilities.eyebrow': 'القدرات',
+  'capabilities.title': 'دقة\nتتحدث عن نفسها.',
+  'capabilities.description': 'كل إجابة مبنية على بياناتك. لا افتراضات. كل شيء موثّق.',
+  'capabilities.stat1.label': 'دقة التنبؤ',
+  'capabilities.stat2.label': 'الدول المتصلة',
+  'capabilities.stat3.label': 'زمن الاستجابة',
+
+  // Services Section — Screen 8
+  'services.eyebrow': 'ما يفعله AYN',
+  'services.title': 'ذكاء واحد.\nكل زاوية.',
+  'services.card1.title': 'يعرف شركتك',
+  'services.card1.desc': 'يتصل. يقرأ. يفهم.',
+  'services.card2.title': 'يقرأ كل مخاطرة',
+  'services.card2.desc': 'يجدها قبل أن تجدك.',
+  'services.card3.title': 'يتحرك قبلك',
+  'services.card3.desc': 'رؤية قبل أن يراها أي أحد.',
+  'services.step1': 'اتصال',
+  'services.step2': 'تحليل',
+  'services.step3': 'تحرك',
+
+  // Final Dark CTA — Screen 9
+  'cta.eyebrow': 'ابدأ الآن',
+  'cta.title': 'أذكى عين\nفي الغرفة\nهي عينك.',
+  'cta.primary': 'طلب عرض خاص',
+  'cta.secondary': 'استكشف المميزات',
+
   // Footer
-  'footer.copyright': `© ${currentYear} AYN للاستشارات التجارية بالذكاء الاصطناعي. جميع الحقوق محفوظة.`,
+  'footer.copyright': `© ${currentYear} AYN Intelligence. جميع الحقوق محفوظة.`,
   
   // Mode names
   'modes.general': 'عام',

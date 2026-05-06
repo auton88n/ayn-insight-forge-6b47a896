@@ -30,9 +30,27 @@ const C = {
 };
 
 const CHAPTERS = [
-  { eyebrow: 'Market Intelligence',  headline: 'See every market\nbefore it moves.',  body: 'AYN monitors 187 countries — geopolitical shifts, commodity flows, and live market signals — in real time.', stat: '187', unit: 'Countries',  in: 0.15, out: 0.37 },
-  { eyebrow: 'Predictive AI',        headline: 'Know what happens\nbefore it does.',   body: '73 AI agents simulate how populations, governments, and markets respond — before events unfold.',               stat: '73',  unit: 'AI Agents',  in: 0.40, out: 0.60 },
-  { eyebrow: 'Always-On Agents',     headline: 'Your intelligence\nteam. 24/7.',       body: 'Custom agents trained on your data. Intelligence delivered around the clock, in Arabic and English.',           stat: '24/7',unit: 'Uptime',      in: 0.63, out: 0.82 },
+  {
+    eyebrow: isAr ? 'من هو AYN' : language === 'fr' ? 'Qui est AYN' : 'Who is AYN',
+    headline: isAr ? 'يفكر.\nيتعلم.\nيفهم.' : language === 'fr' ? 'Pense.\nApprend.\nComprend.' : 'Thinks.\nLearns.\nUnderstands.',
+    body: isAr ? 'ليس أداة تفتحها. ذكاء يعيش داخل شركتك.' : language === 'fr' ? 'Pas un outil que vous ouvrez. Une intelligence qui vit dans votre entreprise.' : 'Not a tool you open. An intelligence that lives inside your business.',
+    stat: '01', unit: isAr ? 'الهوية' : language === 'fr' ? 'Identité' : 'Identity',
+    in: 0.15, out: 0.37
+  },
+  {
+    eyebrow: isAr ? 'ما يفعله AYN' : language === 'fr' ? 'Ce que fait AYN' : 'What AYN Does',
+    headline: isAr ? 'بياناتك.\nمخاطرك.\nتفوّقك.' : language === 'fr' ? 'Vos données.\nVos risques.\nVotre avance.' : 'Your data.\nYour risk.\nYour edge.',
+    body: isAr ? 'يتصل بكل شيء داخل شركتك. يقرأ كل إشارة. يجد كل إجابة.' : language === 'fr' ? 'Se connecte à tout dans votre entreprise. Lit chaque signal. Trouve chaque réponse.' : 'Connects to everything inside your business. Reads every signal. Finds every answer.',
+    stat: '02', unit: isAr ? 'القدرة' : language === 'fr' ? 'Capacité' : 'Capability',
+    in: 0.40, out: 0.60
+  },
+  {
+    eyebrow: isAr ? 'ما بداخله' : language === 'fr' ? "Ce qui est à l'intérieur" : "What's Inside",
+    headline: isAr ? 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.' : language === 'fr' ? 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.' : 'Self-learning.\nSelf-healing.\nSelf-driven.',
+    body: isAr ? 'ذكاء ينمو مع شركتك. لا يملكه أي منافس.' : language === 'fr' ? "Une intelligence qui grandit avec votre entreprise. Aucun concurrent ne possède cela." : "An intelligence that grows with your business. No competitor has this.",
+    stat: '03', unit: isAr ? 'التفوق' : language === 'fr' ? 'Supériorité' : 'Superiority',
+    in: 0.63, out: 0.82
+  },
 ];
 
 const cache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
@@ -198,13 +216,13 @@ export const HeroScroll = memo(() => {
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
                 <div style={eyebrowStyle}>
                   <span style={{ display: 'inline-block', width: 18, height: 1, background: C.inkSub, flexShrink: 0 }} />
-                  {isAr ? 'منصة ذكاء الأعمال' : 'World Intelligence Platform'}
+                  {isAr ? 'ذكاء الأعمال' : language === 'fr' ? "Intelligence d'Affaires" : 'Business Intelligence'}
                 </div>
                 <h1 style={{ fontFamily: C.display, fontSize: 'clamp(44px,5.5vw,80px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-                  {isAr ? <>تعرّف على <span style={{ color: C.inkMid }}>عين</span></> : <>Meet <span style={{ color: C.inkMid }}>AYN</span></>}
+                  {isAr ? <>قوة <span style={{ color: C.inkMid }}>المعرفة.</span></> : language === 'fr' ? <>Le pouvoir <span style={{ color: C.inkMid }}>de savoir.</span></> : <>The power <span style={{ color: C.inkMid }}>to know.</>}
                 </h1>
                 <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 380, margin: '0 0 32px', letterSpacing: '-0.005em' }}>
-                  {isAr ? 'ذكاء أعمال حقيقي. اكتشف الأسواق والمخاطر قبل أن يراها الآخرون.' : 'Real business intelligence. See markets, risks, and opportunities before anyone else does.'}
+                  {isAr ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.' : language === 'fr' ? "L'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien." : 'The eye that lives inside your business. Sees everything. Misses nothing.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 40 }}>
                   <Link to="/pricing"
@@ -213,17 +231,21 @@ export const HeroScroll = memo(() => {
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
                     onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-                    {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
+                    {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
                   </Link>
                   <Link to="/features"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '11px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, letterSpacing: '-0.01em', borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'اكتشف المزيد' : 'See how it works'}
+                    {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
                   </Link>
                 </div>
                 <div style={{ display: 'flex', gap: 28, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
-                  {[{ n: '187+', l: isAr ? 'دولة' : 'Countries' }, { n: '73', l: isAr ? 'وكيل' : 'AI Agents' }, { n: '24/7', l: isAr ? 'مراقبة' : 'Monitoring' }].map((s, i) => (
+                  {[
+                    { n: isAr ? 'متصل' : language === 'fr' ? 'Connecté' : 'Connected', l: '' },
+                    { n: isAr ? 'ذكي' : language === 'fr' ? 'Intelligent' : 'Intelligent', l: '' },
+                    { n: isAr ? 'دائماً هنا' : language === 'fr' ? 'Toujours là' : 'Always On', l: '' }
+                  ].map((s, i) => (
                     <div key={i}>
                       <p style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1, margin: '0 0 3px', letterSpacing: '-0.04em' }}>{s.n}</p>
                       <p style={{ fontFamily: C.body, fontSize: 11, color: C.inkSub, letterSpacing: '0.04em', margin: 0, textTransform: 'uppercase' }}>{s.l}</p>
@@ -250,20 +272,22 @@ export const HeroScroll = memo(() => {
 
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
-                <p style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub, margin: '0 0 16px' }}>Start Today</p>
+                <p style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub, margin: '0 0 16px' }}>
+                  {isAr ? 'ما هو AYN' : language === 'fr' ? "Ce qu'est AYN" : 'What AYN Is'}
+                </p>
                 <h2 style={{ fontFamily: C.display, fontSize: 'clamp(38px,5vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px' }}>
-                  {isAr ? 'ابدأ مع عين' : <>Build with<br />intelligence</>}
+                  {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <Link to="/pricing" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
-                    {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
+                    {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
                   </Link>
                   <Link to="/features" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'استكشف' : 'Explore Features'}
+                    {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
                   </Link>
                 </div>
               </div>
@@ -283,10 +307,10 @@ export const HeroScroll = memo(() => {
               <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub }}>About AYN</span>
             </div>
             <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,4vw,56px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 18px' }}>
-              {isAr ? 'ذكاء متطوّر.' : <span>Intelligence,<br />evolved.</span>}
+              {isAr ? <>ليس أداة.<br />ذكاء حقيقي.</> : language === 'fr' ? <>Pas un outil.<br />Une intelligence.</> : <>Not a tool.<br />An intelligence.</>}
             </h2>
             <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.70, color: C.inkSub, maxWidth: 400 }}>
-              {isAr ? 'عين منصة ذكاء أعمال تراقب الأسواق العالمية وتحلل المخاطر.' : 'AYN monitors global markets, analyzes geopolitical risks, and delivers real-time intelligence so you act before others react.'}
+              {isAr ? 'بُني ليعيش داخل شركتك. يعرفها. يحميها. يدفعها للأمام.' : language === 'fr' ? 'Conçu pour vivre au cœur de votre entreprise. La connaître. La protéger. La faire avancer.' : 'Built to live inside your business. Know it. Protect it. Move it forward.'}
             </p>
           </div>
         </div>
@@ -301,10 +325,10 @@ export const HeroScroll = memo(() => {
               <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub }}>Capabilities</span>
             </div>
             <h2 style={{ fontFamily: C.display, fontSize: 'clamp(28px,3.8vw,52px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px' }}>
-              {isAr ? 'أعمالك، مُفهومة.' : <span>Your business,<br />understood.</span>}
+              {isAr ? <>دقة<br />تتحدث عن نفسها.</> : language === 'fr' ? <>Une précision<br />qui parle d'elle-même.</> : <>Precision that<br />speaks for itself.</>}
             </h2>
             <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 320 }}>
-              {isAr ? 'نحلل بيانات شركتك ونساعدك في اتخاذ القرارات الاستراتيجية.' : 'We analyze your data and help you make strategic decisions with precision and clarity.'}
+              {isAr ? 'كل إجابة مبنية على بياناتك. لا افتراضات. كل شيء موثّق.' : language === 'fr' ? "Chaque réponse ancrée dans vos données. Rien d'assumé. Tout vérifié." : 'Every answer rooted in your data. Nothing assumed. Everything verified.'}
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -340,13 +364,28 @@ export const HeroScroll = memo(() => {
             <span style={{ fontFamily: C.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.inkSub }}>Services</span>
           </div>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 48px', textAlign: 'center', lineHeight: 1.04 }}>
-            {isAr ? 'ما يفعله عين' : 'What AYN does'}
+            {isAr ? <>ذكاء واحد.<br />كل زاوية.</> : language === 'fr' ? <>Une intelligence.<br />Chaque angle.</> : <>One intelligence.<br />Every angle.</>}
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 2, width: '100%' }}>
             {[
-              { icon: Search,    title: isAr ? 'استشارات الذكاء الاصطناعي' : 'AI Consulting',    desc: isAr ? 'تفاعل مع ذكاء الأعمال وقياس الأداء.' : 'Interact with business intelligence and measure impact.',    active: false },
-              { icon: BarChart3, title: isAr ? 'ذكاء السوق' : 'Market Intelligence',              desc: isAr ? 'ذكاء السوق لتحليل بيانات السوق.' : 'Market intelligence in analyzing and monitoring signals.',    active: false },
-              { icon: Target,    title: isAr ? 'استراتيجية البيانات' : 'Data Strategy',           desc: isAr ? 'استراتيجية البيانات والمعرفة التحليلية.' : 'Strategy and deep analytic knowledge for growth.',           active: true  },
+              {
+                icon: Search,
+                title: isAr ? 'يعرف شركتك' : language === 'fr' ? 'Connaît votre entreprise' : 'Knows Your Business',
+                desc: isAr ? 'يتصل. يقرأ. يفهم.' : language === 'fr' ? 'Connecte. Lit. Comprend.' : 'Connects. Reads. Understands.',
+                active: false
+              },
+              {
+                icon: BarChart3,
+                title: isAr ? 'يقرأ كل مخاطرة' : language === 'fr' ? 'Lit chaque risque' : 'Reads Every Risk',
+                desc: isAr ? 'يجدها قبل أن تجدك.' : language === 'fr' ? "Le trouve avant qu'il vous trouve." : 'Finds it before it finds you.',
+                active: false
+              },
+              {
+                icon: Target,
+                title: isAr ? 'يتحرك قبلك' : language === 'fr' ? 'Vous fait bouger en premier' : 'Moves You First',
+                desc: isAr ? 'رؤية قبل أن يراها أي أحد.' : language === 'fr' ? "L'insight avant que quiconque le voie." : 'Insight before anyone else sees it.',
+                active: true
+              },
             ].map((card, i) => (
               <div key={i}
                 style={{ padding: '26px 22px', background: card.active ? 'rgba(0,0,0,0.05)' : C.bg, border: `1px solid ${C.border}`, borderRadius: 11, transition: 'background 0.2s' }}
@@ -362,7 +401,7 @@ export const HeroScroll = memo(() => {
           </div>
           <div style={{ width: '100%', maxWidth: 520, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', marginTop: 48 }}>
             <div style={{ position: 'absolute', top: 14, left: '18%', right: '18%', height: 1, background: C.border }} />
-            {[{ label: 'ASK', icon: Search }, { label: 'ANALYZE', icon: BarChart3 }, { label: 'EXECUTE', icon: Target }].map((step, i) => (
+            {[{ label: isAr ? 'اتصال' : language === 'fr' ? 'CONNECTER' : 'CONNECT', icon: Search }, { label: isAr ? 'تحليل' : language === 'fr' ? 'ANALYSER' : 'ANALYZE', icon: BarChart3 }, { label: isAr ? 'تحرك' : language === 'fr' ? 'AGIR' : 'ACT', icon: Target }].map((step, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, position: 'relative', zIndex: 1 }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bgOff, border: `1px solid ${C.borderMd}`, transition: 'background 0.2s' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.07)'; }}
@@ -388,7 +427,7 @@ export const HeroScroll = memo(() => {
             <span style={{ display: 'inline-block', width: 18, height: 1, background: 'rgba(255,255,255,0.22)' }} />
           </div>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(36px,7vw,92px)', fontWeight: 700, lineHeight: 1.02, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px' }}>
-            {isAr ? <span>ابنِ<br />بذكاء</span> : <span>Build with<br />intelligence</span>}
+            {isAr ? <span>أذكى عين<br />في الغرفة<br />هي عينك.</span> : language === 'fr' ? <span>L'intelligence<br />la plus puissante<br />est la vôtre.</span> : <span>The most intelligent<br />eye in the room<br />is yours.</span>}
           </h2>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/pricing"
@@ -397,13 +436,13 @@ export const HeroScroll = memo(() => {
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
               onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
               onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-              {isAr ? 'ابدأ مجاناً' : 'Get Started Free'} <ArrowRight size={13} />
+              {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
             </Link>
             <Link to="/features"
               style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: 'rgba(255,255,255,0.65)', fontFamily: C.body, fontSize: 14, borderRadius: 100, border: '1px solid rgba(255,255,255,0.20)', textDecoration: 'none', transition: 'border-color 0.2s, color 0.2s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.45)'; (e.currentTarget as HTMLAnchorElement).style.color = '#fff'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.20)'; (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.65)'; }}>
-              {isAr ? 'استكشف' : 'Explore Features'}
+              {isAr ? 'استكشف المميزات' : language === 'fr' ? 'Explorer les fonctionnalités' : 'Explore Features'}
             </Link>
           </div>
         </div>
