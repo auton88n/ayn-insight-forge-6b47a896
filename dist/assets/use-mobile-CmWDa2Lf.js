@@ -1,0 +1,1 @@
+import{r as i}from"./vendor-react-DThQdSV5.js";const e=768,s=()=>typeof window>"u"?!1:window.innerWidth<e;function d(){const[o,r]=i.useState(s);return i.useEffect(()=>{const n=window.matchMedia(`(max-width: ${e-1}px)`),t=()=>{r(window.innerWidth<e)};return n.addEventListener("change",t),()=>n.removeEventListener("change",t)},[]),o}export{d as u};
