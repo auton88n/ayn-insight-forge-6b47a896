@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 
-const Services = () => {
+const Solutions = () => {
   const { language, direction } = useLanguage();
 
   const services = [
@@ -53,9 +53,9 @@ const Services = () => {
   return (
     <>
       <SEO
-        title="Services - AYN AI | AI Solutions for Business"
-        description="Explore AYN AI services: Custom AI Agents, Process Automation, AI Employees, and Smart Ticketing Systems."
-        canonical="/services"
+        title="Solutions - AYN AI | AI Solutions for Business"
+        description="Explore AYN AI solutions: Custom AI Agents, Process Automation, AI Employees, and Smart Ticketing Systems."
+        canonical="/solutions"
       />
       <div dir={direction} className="min-h-screen bg-background">
         <Header />
@@ -64,7 +64,7 @@ const Services = () => {
         <section className="pt-32 pb-16 px-6">
           <div className="container max-w-6xl mx-auto text-center">
             <span className="text-sm font-mono text-muted-foreground tracking-wider uppercase mb-4 block">
-              {language === 'ar' ? 'خدماتنا' : language === 'fr' ? 'Nos Services' : 'Our Services'}
+              {language === 'ar' ? 'حلولنا' : language === 'fr' ? 'Nos Solutions' : 'Our Solutions'}
             </span>
             <h1 className="text-4xl md:text-6xl font-serif font-bold mb-6">
               {language === 'ar' ? <>حلول ذكاء اصطناعي <span className="text-primary">لأعمالك</span></> : language === 'fr' ? <>Solutions IA pour <span className="text-primary">Votre Entreprise</span></> : <>AI Solutions for <span className="text-primary">Your Business</span></>}
@@ -116,4 +116,4 @@ const Services = () => {
   );
 };
 
-export default Services;
+export default Solutions;

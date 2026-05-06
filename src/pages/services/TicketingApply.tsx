@@ -135,7 +135,7 @@ const TicketingApply = () => {
           </div>
           <h1 className="text-3xl font-bold mb-4">{t.successTitle}</h1>
           <p className="text-muted-foreground mb-8">{t.successMessage}</p>
-          <Link to="/services">
+          <Link to="/solutions">
             <Button variant="outline">{t.backToServices}</Button>
           </Link>
         </motion.div>
@@ -148,13 +148,13 @@ const TicketingApply = () => {
       <SEO
         title={t.title}
         description="Apply for the Smart Ticketing System - sell tickets online, validate with QR code scanning"
-        canonical="/services/ticketing/apply"
+        canonical="/solutions/ticketing/apply"
       />
       
       <div dir={direction} className="min-h-screen bg-background">
         {/* Back Button */}
         <div className="fixed top-4 left-4 z-50">
-          <Link to="/services/ticketing">
+          <Link to="/solutions/ticketing">
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               {t.back}

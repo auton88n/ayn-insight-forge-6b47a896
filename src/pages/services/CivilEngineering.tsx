@@ -181,7 +181,7 @@ const CivilEngineering = () => {
       <SEO 
         title="Civil Engineering Tools - Structural Calculators & 3D Visualization" 
         description="Professional structural calculators for columns, beams, slabs, foundations, and retaining walls. Features 3D visualization and AI-powered analysis." 
-        canonical="/services/civil-engineering" 
+        canonical="/solutions/civil-engineering" 
         keywords="civil engineering, structural calculator, beam calculator, column design, foundation calculator, 3D visualization, DXF export" 
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
@@ -189,7 +189,7 @@ const CivilEngineering = () => {
       
       <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Back Button */}
-        <Link to="/services" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
+        <Link to="/solutions" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
           <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{t.back}</span>

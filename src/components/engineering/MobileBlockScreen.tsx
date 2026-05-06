@@ -96,7 +96,7 @@ const MobileBlockScreen = () => {
               className="mt-4"
             >
               <a
-                href="/services/civil-engineering"
+                href="/solutions/civil-engineering"
                 className="text-xs text-cyan-500 hover:text-cyan-400 underline underline-offset-2"
               >
                 Learn more about our engineering tools

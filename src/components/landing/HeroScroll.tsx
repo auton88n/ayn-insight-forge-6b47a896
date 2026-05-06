@@ -8,8 +8,8 @@ import { useEffect, useRef, memo, useCallback } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Link } from 'react-router-dom';
-import { ArrowRight, Search, BarChart3, Target } from 'lucide-react';
+import { ArrowRight, Search, BarChart3, Target, LayoutGrid } from 'lucide-react';
+import { SolutionsSection } from './SolutionsSection';
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
@@ -211,7 +211,7 @@ export const HeroScroll = memo(() => {
                   {isAr ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.' : language === 'fr' ? "L'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien." : 'The eye that lives inside your business. Sees everything. Misses nothing.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 40 }}>
-                  <Link to="/pricing"
+                  <Link to="/contact"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '11px 22px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, letterSpacing: '-0.01em', borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
@@ -254,7 +254,7 @@ export const HeroScroll = memo(() => {
                   {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <Link to="/pricing" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
+                  <Link to="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
                     {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
@@ -323,45 +323,16 @@ export const HeroScroll = memo(() => {
         </div>
       </section>
 
-      {/* Section 4 — Services */}
+      {/* Section 4 — Solutions */}
       <section style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 48px', textAlign: 'center', lineHeight: 1.04 }}>
-            {isAr ? <>ذكاء واحد.<br />كل زاوية.</> : language === 'fr' ? <>Une intelligence.<br />Chaque angle.</> : <>One intelligence.<br />Every angle.</>}
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', textAlign: 'center', lineHeight: 1.04 }}>
+            {isAr ? <>حلولنا.</> : language === 'fr' ? <>Nos Solutions.</> : <>Our Solutions.</>}
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 2, width: '100%' }}>
-            {[
-              {
-                icon: Search,
-                title: isAr ? 'يعرف شركتك' : language === 'fr' ? 'Connaît votre entreprise' : 'Knows Your Business',
-                desc: isAr ? 'يتصل. يقرأ. يفهم.' : language === 'fr' ? 'Connecte. Lit. Comprend.' : 'Connects. Reads. Understands.',
-                active: false
-              },
-              {
-                icon: BarChart3,
-                title: isAr ? 'يقرأ كل مخاطرة' : language === 'fr' ? 'Lit chaque risque' : 'Reads Every Risk',
-                desc: isAr ? 'يجدها قبل أن تجدك.' : language === 'fr' ? "Le trouve avant qu'il vous trouve." : 'Finds it before it finds you.',
-                active: false
-              },
-              {
-                icon: Target,
-                title: isAr ? 'يتحرك قبلك' : language === 'fr' ? 'Vous fait bouger en premier' : 'Moves You First',
-                desc: isAr ? 'رؤية قبل أن يراها أي أحد.' : language === 'fr' ? "L'insight avant que quiconque le voie." : 'Insight before anyone else sees it.',
-                active: true
-              },
-            ].map((card, i) => (
-              <div key={i}
-                style={{ padding: '26px 22px', background: card.active ? 'rgba(0,0,0,0.05)' : C.bg, border: `1px solid ${C.border}`, borderRadius: 11, transition: 'background 0.2s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.05)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = card.active ? 'rgba(0,0,0,0.05)' : C.bg; }}>
-                <div style={{ width: 30, height: 30, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, background: 'rgba(0,0,0,0.06)', border: `1px solid ${C.border}` }}>
-                  <card.icon size={13} color={C.inkMid} />
-                </div>
-                <h3 style={{ fontFamily: C.display, fontSize: 15, fontWeight: 600, color: C.ink, margin: '0 0 7px', letterSpacing: '-0.02em' }}>{card.title}</h3>
-                <p style={{ fontFamily: C.body, fontSize: 13, color: C.inkSub, lineHeight: 1.65, margin: 0 }}>{card.desc}</p>
-              </div>
-            ))}
-          </div>
+          <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, textAlign: 'center', maxWidth: 600, margin: '0 0 48px' }}>
+            {isAr ? 'ذكاء واحد. كل زاوية. حلول متكاملة لأعمالك.' : language === 'fr' ? 'Une intelligence. Chaque angle. Des solutions complètes pour votre entreprise.' : 'One intelligence. Every angle. Comprehensive solutions for your business.'}
+          </p>
+          <SolutionsSection />
           <div style={{ width: '100%', maxWidth: 520, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', marginTop: 48 }}>
             <div style={{ position: 'absolute', top: 14, left: '18%', right: '18%', height: 1, background: C.border }} />
             {[{ label: isAr ? 'اتصال' : language === 'fr' ? 'CONNECTER' : 'CONNECT', icon: Search }, { label: isAr ? 'تحليل' : language === 'fr' ? 'ANALYSER' : 'ANALYZE', icon: BarChart3 }, { label: isAr ? 'تحرك' : language === 'fr' ? 'AGIR' : 'ACT', icon: Target }].map((step, i) => (
@@ -388,7 +359,7 @@ export const HeroScroll = memo(() => {
             {isAr ? <span>أذكى عين<br />في الغرفة<br />هي عينك.</span> : language === 'fr' ? <span>L'intelligence<br />la plus puissante<br />est la vôtre.</span> : <span>The most intelligent<br />eye in the room<br />is yours.</span>}
           </h2>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/pricing"
+            <Link to="/contact"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: '#fff', color: C.ink, fontFamily: C.body, fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.88'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
@@ -406,7 +377,7 @@ export const HeroScroll = memo(() => {
         </div>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
-            {[{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: '/terms' }, { label: 'Pricing', href: '/pricing' }, { label: 'Contact', href: '/contact' }].map(l => (
+            {[{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: '/terms' }, { label: 'Contact', href: '/contact' }].map(l => (
               <Link key={l.label} to={l.href} style={{ fontFamily: C.body, fontSize: 11, color: 'rgba(255,255,255,0.28)', textDecoration: 'none', transition: 'color 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.28)')}>

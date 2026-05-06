@@ -166,7 +166,7 @@ const InfluencerSites = () => {
       <SEO
         title="Premium Websites for Content Creators"
         description="Luxury websites custom-built for content creators and influencers. Attract more partnerships and elevate your personal brand."
-        canonical="/services/content-creator-sites"
+        canonical="/solutions/content-creator-sites"
         keywords="content creator websites, influencer sites, portfolio websites, personal brand, creator economy"
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
@@ -174,7 +174,7 @@ const InfluencerSites = () => {
       <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Navigation */}
         <nav className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
-          <Link to="/services">
+          <Link to="/solutions">
             <Button variant="ghost" className="gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2 hover:bg-foreground/5">
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">{t.back}</span>
@@ -302,7 +302,7 @@ const InfluencerSites = () => {
                   </Button>
                   <div className="text-center text-sm text-neutral-500">
                     {t.needMoreOptions}{' '}
-                    <Link to="/services/influencer-sites/apply" className="text-rose-400 hover:underline">{t.detailedForm}</Link>
+                    <Link to="/solutions/influencer-sites/apply" className="text-rose-400 hover:underline">{t.detailedForm}</Link>
                   </div>
                 </form>
               </>

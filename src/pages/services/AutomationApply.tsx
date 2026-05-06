@@ -128,7 +128,7 @@ const AutomationApply = () => {
             Thank you for your interest in our Process Automation service. 
             We'll analyze your requirements and get back to you within 24-48 hours.
           </p>
-          <Button onClick={() => navigate('/services/automation')}>
+          <Button onClick={() => navigate('/solutions/automation')}>
             Back to Service Page
           </Button>
         </motion.div>
@@ -140,7 +140,7 @@ const AutomationApply = () => {
     <div dir={direction} className="min-h-screen bg-background">
       <header className="border-b border-border/40 bg-background/95 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link to="/services/automation">
+          <Link to="/solutions/automation">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="w-5 h-5" />
             </Button>

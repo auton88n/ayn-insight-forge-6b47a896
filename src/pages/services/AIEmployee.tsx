@@ -171,7 +171,7 @@ const AIEmployee = () => {
       <SEO
         title="AI Employees - Hire 24/7 AI Team Members"
         description="Hire AI employees that work 24/7, never take vacations, and cost a fraction of traditional staff. HR, support, sales, and more."
-        canonical="/services/ai-employee"
+        canonical="/solutions/ai-employee"
         keywords="AI employees, virtual employees, AI workers, 24/7 support, business automation"
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
@@ -179,7 +179,7 @@ const AIEmployee = () => {
       <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Navigation */}
         <nav className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
-          <Link to="/services">
+          <Link to="/solutions">
             <Button variant="ghost" className="gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2 hover:bg-foreground/5">
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">{t.back}</span>
@@ -260,7 +260,7 @@ const AIEmployee = () => {
               <Button size="lg" className="rounded-full px-8 bg-cyan-500 text-neutral-950 hover:bg-cyan-400" onClick={() => setIsModalOpen(true)}>
                 {t.startProject}
               </Button>
-              <Link to="/services/ai-employee/apply">
+              <Link to="/solutions/ai-employee/apply">
                 <Button size="lg" variant="outline" className="rounded-full px-8 border-neutral-700 hover:bg-foreground/5 hover:text-white">
                   {language === 'ar' ? 'النموذج المفصل' : language === 'fr' ? 'Formulaire détaillé' : 'Detailed Form'}
                 </Button>

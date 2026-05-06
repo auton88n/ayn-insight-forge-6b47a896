@@ -192,7 +192,7 @@ const Ticketing = () => {
       <SEO
         title={`${t.title} | AYN`}
         description={t.heroDescription}
-        canonical="/services/ticketing"
+        canonical="/solutions/ticketing"
         keywords="ticketing system, QR code tickets, event management, mobile scanning, ticket validation"
         jsonLd={breadcrumbSchema}
         language={language as 'en' | 'ar' | 'fr'}
@@ -201,7 +201,7 @@ const Ticketing = () => {
       <div dir={direction} className="min-h-screen bg-background">
         {/* Back Button */}
         <div className="fixed top-4 left-4 z-50">
-          <Link to="/services">
+          <Link to="/solutions">
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               {t.back}
@@ -230,7 +230,7 @@ const Ticketing = () => {
                   <Button size="lg" onClick={() => setIsModalOpen(true)} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
                     {t.getStarted}
                   </Button>
-                  <Link to="/services/ticketing/apply">
+                  <Link to="/solutions/ticketing/apply">
                     <Button size="lg" variant="outline" className="border-border">
                       {t.applyNow}
                     </Button>

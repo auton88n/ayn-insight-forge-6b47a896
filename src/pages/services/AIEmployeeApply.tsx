@@ -135,7 +135,7 @@ const AIEmployeeApply = () => {
           </div>
           <h1 className="text-3xl font-bold mb-4">{t.successTitle}</h1>
           <p className="text-neutral-400 mb-8">{t.successDesc}</p>
-          <Link to="/services/ai-employee">
+          <Link to="/solutions/ai-employee">
             <Button className="bg-cyan-500 text-neutral-950 hover:bg-cyan-400">
               {t.backToService}
             </Button>
@@ -149,7 +149,7 @@ const AIEmployeeApply = () => {
     <div dir={direction} className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
       <nav className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
-        <Link to="/services/ai-employee">
+        <Link to="/solutions/ai-employee">
           <Button variant="ghost" className="gap-2 bg-neutral-900/80 backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800 text-white">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{t.back}</span>

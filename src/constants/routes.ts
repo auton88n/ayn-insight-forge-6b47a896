@@ -8,7 +8,7 @@ export const ROUTES = {
   SETTINGS: '/settings',
   SUPPORT: '/support',
   PRICING: '/pricing',
-  SERVICES: '/services',
+  SOLUTIONS: '/solutions',
   CONTACT: '/contact',
   
   CHART_ANALYZER: '/chart-analyzer',
@@ -21,17 +21,17 @@ export const ROUTES = {
   SUBSCRIPTION_CANCELED: '/subscription-canceled',
   TERMS: '/terms',
   PRIVACY: '/privacy',
-  SERVICE_PAGES: {
-    AI_EMPLOYEE: '/services/ai-employee',
-    AI_EMPLOYEE_APPLY: '/services/ai-employee/apply',
-    AI_AGENTS: '/services/ai-agents',
-    AI_AGENTS_APPLY: '/services/ai-agents/apply',
-    AUTOMATION: '/services/automation',
-    AUTOMATION_APPLY: '/services/automation/apply',
-    TICKETING: '/services/ticketing',
-    TICKETING_APPLY: '/services/ticketing/apply',
+  SOLUTION_PAGES: {
+    AI_EMPLOYEE: '/solutions/ai-employee',
+    AI_EMPLOYEE_APPLY: '/solutions/ai-employee/apply',
+    AI_AGENTS: '/solutions/ai-agents',
+    AI_AGENTS_APPLY: '/solutions/ai-agents/apply',
+    AUTOMATION: '/solutions/automation',
+    AUTOMATION_APPLY: '/solutions/automation/apply',
+    TICKETING: '/solutions/ticketing',
+    TICKETING_APPLY: '/solutions/ticketing/apply',
   },
 } as const;
 
 export type RouteKey = keyof typeof ROUTES;
-export type ServiceRouteKey = keyof typeof ROUTES.SERVICE_PAGES;
+export type SolutionRouteKey = keyof typeof ROUTES.SOLUTION_PAGES;

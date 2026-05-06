@@ -53,7 +53,7 @@ const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
 // HIDDEN: Content Creator Sites and Engineering tools temporarily disabled
 // const InfluencerSites = lazy(() => import("./pages/services/InfluencerSites"));
 // const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
-const ServicesPage = lazy(() => import("./pages/Services"));
+const ServicesPage = lazy(() => import("./pages/Solutions"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
@@ -118,18 +118,18 @@ const AnimatedRoutes = () => {
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
 
 
-      <Route path="/services" element={<Suspense fallback={<PageLoader />}><ServicesPage /></Suspense>} />
-      <Route path="/services/ai-employee" element={<Suspense fallback={<PageLoader />}><AIEmployee /></Suspense>} />
-      <Route path="/services/ai-employee/apply" element={<Suspense fallback={<PageLoader />}><AIEmployeeApply /></Suspense>} />
+      <Route path="/solutions" element={<Suspense fallback={<PageLoader />}><ServicesPage /></Suspense>} />
+      <Route path="/solutions/ai-employee" element={<Suspense fallback={<PageLoader />}><AIEmployee /></Suspense>} />
+      <Route path="/solutions/ai-employee/apply" element={<Suspense fallback={<PageLoader />}><AIEmployeeApply /></Suspense>} />
       {/* HIDDEN: Content Creator Sites temporarily disabled */}
-      <Route path="/services/content-creator-sites" element={<Navigate to="/services" replace />} />
-      <Route path="/services/content-creator-sites/apply" element={<Navigate to="/services" replace />} />
-      <Route path="/services/ai-agents" element={<Suspense fallback={<PageLoader />}><AIAgents /></Suspense>} />
-      <Route path="/services/ai-agents/apply" element={<Suspense fallback={<PageLoader />}><AIAgentsApply /></Suspense>} />
-      <Route path="/services/automation" element={<Suspense fallback={<PageLoader />}><Automation /></Suspense>} />
-      <Route path="/services/automation/apply" element={<Suspense fallback={<PageLoader />}><AutomationApply /></Suspense>} />
-      <Route path="/services/ticketing" element={<Suspense fallback={<PageLoader />}><Ticketing /></Suspense>} />
-      <Route path="/services/ticketing/apply" element={<Suspense fallback={<PageLoader />}><TicketingApply /></Suspense>} />
+      <Route path="/solutions/content-creator-sites" element={<Navigate to="/solutions" replace />} />
+      <Route path="/solutions/content-creator-sites/apply" element={<Navigate to="/solutions" replace />} />
+      <Route path="/solutions/ai-agents" element={<Suspense fallback={<PageLoader />}><AIAgents /></Suspense>} />
+      <Route path="/solutions/ai-agents/apply" element={<Suspense fallback={<PageLoader />}><AIAgentsApply /></Suspense>} />
+      <Route path="/solutions/automation" element={<Suspense fallback={<PageLoader />}><Automation /></Suspense>} />
+      <Route path="/solutions/automation/apply" element={<Suspense fallback={<PageLoader />}><AutomationApply /></Suspense>} />
+      <Route path="/solutions/ticketing" element={<Suspense fallback={<PageLoader />}><Ticketing /></Suspense>} />
+      <Route path="/solutions/ticketing/apply" element={<Suspense fallback={<PageLoader />}><TicketingApply /></Suspense>} />
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
       <Route path="/support" element={<Support />} />
       {/* HIDDEN: Engineering & Compliance routes temporarily disabled
@@ -138,7 +138,7 @@ const AnimatedRoutes = () => {
       <Route path="/engineering/grading" element={<Suspense fallback={<PageLoader />}><AIGradingDesigner /></Suspense>} />
       */}
       {/* HIDDEN: Civil engineering redirect disabled */}
-      {/* <Route path="/services/civil-engineering" element={<Navigate to="/" replace />} /> */}
+      {/* <Route path="/solutions/civil-engineering" element={<Navigate to="/" replace />} /> */}
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />

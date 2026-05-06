@@ -112,7 +112,7 @@ const InfluencerSitesApply = () => {
             Thank you for your interest in our Premium Content Creator Sites service.
             We'll review your application and get back to you within 24-48 hours.
           </p>
-          <Button onClick={() => navigate('/services/content-creator-sites')}>
+          <Button onClick={() => navigate('/solutions/content-creator-sites')}>
             Back to Service Page
           </Button>
         </motion.div>
@@ -125,7 +125,7 @@ const InfluencerSitesApply = () => {
       {/* Header */}
       <header className="border-b border-border/40 bg-background/95 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link to="/services/content-creator-sites">
+          <Link to="/solutions/content-creator-sites">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="w-5 h-5" />
             </Button>

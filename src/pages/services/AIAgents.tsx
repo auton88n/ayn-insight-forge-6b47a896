@@ -201,14 +201,14 @@ const AIAgents = () => {
       <SEO
         title="Custom AI Agents for Your Business"
         description="Build intelligent AI agents trained on your business data. 24/7 customer support, lead qualification, and conversions."
-        canonical="/services/ai-agents"
+        canonical="/solutions/ai-agents"
         keywords="AI agents, chatbots, customer support AI, lead qualification, business AI"
         jsonLd={{ '@graph': [breadcrumbSchema, serviceSchema] }}
         language={language as 'en' | 'ar' | 'fr'}
       />
       <div dir={direction} className="min-h-screen bg-background text-foreground">
         {/* Back Button */}
-        <Link to="/services" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
+        <Link to="/solutions" className="fixed top-4 md:top-6 left-4 md:left-6 z-50">
           <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/10 gap-2 bg-background backdrop-blur-xl border border-neutral-800 rounded-full px-4 py-2">
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{t.back}</span>
@@ -409,7 +409,7 @@ const AIAgents = () => {
                   </Button>
                   <div className="text-center text-sm text-neutral-500">
                     {t.needMoreOptions}{' '}
-                    <Link to="/services/ai-agents/apply" className="text-purple-400 hover:underline">{t.detailedForm}</Link>
+                    <Link to="/solutions/ai-agents/apply" className="text-purple-400 hover:underline">{t.detailedForm}</Link>
                   </div>
                 </form>
               </>

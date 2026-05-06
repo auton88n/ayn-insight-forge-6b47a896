@@ -36,7 +36,7 @@ const EngineeringWorkspacePage = () => {
 
   useEffect(() => {
     if (!isCheckingAuth && !userId) {
-      navigate('/services/civil-engineering');
+      navigate('/solutions/civil-engineering');
     }
   }, [isCheckingAuth, userId, navigate]);
 
