@@ -42,7 +42,7 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
           transition={{ duration: 0.5, delay: 0, ease: [0.22, 1, 0.36, 1] }}
           className="font-display font-bold tracking-[-0.02em] text-foreground mb-2 md:mb-3 text-5xl sm:text-6xl md:text-7xl lg:text-8xl"
         >
-          {language === 'ar' ? 'تعرّف على AYN' : language === 'fr' ? 'Découvrez AYN' : 'Meet AYN'}
+          {language === 'ar' ? 'قوة المعرفة.' : language === 'fr' ? 'Le pouvoir de savoir.' : 'The power to know.'}
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 15 }}
@@ -51,10 +51,10 @@ export const Hero = memo(({ onGetStarted }: HeroProps) => {
           className="text-base md:text-lg lg:text-xl text-muted-foreground font-light max-w-2xl mx-auto"
         >
           {language === 'ar'
-            ? 'ذكاء أعمال حقيقي يتابع الأسواق، يحلل المخاطر، ويساعدك على القرار الصحيح.'
+            ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.'
             : language === 'fr'
-            ? 'Intelligence d\'affaires réelle. Marchés, risques et décisions stratégiques.'
-            : 'Real business intelligence. Markets, risks, and decisions that matter.'}
+            ? "L'œil qui vit au cœur de votre entreprise. Voit tout. Ne rate rien."
+            : 'The eye that lives inside your business. Sees everything. Misses nothing.'}
         </motion.p>
       </div>
 
