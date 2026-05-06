@@ -8,6 +8,7 @@ import { useEffect, useRef, memo, useCallback } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Search, BarChart3, Target, LayoutGrid } from 'lucide-react';
 import { SolutionsSection } from './SolutionsSection';
 
