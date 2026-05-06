@@ -25,8 +25,9 @@ const C = {
   inkSub: '#6E7076',
   border: 'rgba(0,0,0,0.08)',
   borderMd: 'rgba(0,0,0,0.12)',
-  display: "'Space Grotesk', system-ui, sans-serif",
-  body:    "'Geist', system-ui, sans-serif",
+  display: "'Inter Tight', 'Inter', system-ui, sans-serif",
+  body:    "'Inter', system-ui, sans-serif",
+  mono:    "'JetBrains Mono', ui-monospace, monospace",
 };
 
 const cache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
