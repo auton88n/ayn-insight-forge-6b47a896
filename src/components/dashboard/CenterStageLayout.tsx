@@ -423,33 +423,17 @@ export const CenterStageLayout = ({
         onTranscriptToggle?.();
       }
 
-      const animationDelay = isMobile ? 60 : 0;
+      // Trigger reactions immediately without flying animation
+      triggerBlink();
+      triggerAbsorption();
+      playSound?.("message-absorb");
+      setIsResponding(true);
+      setIsAbsorbPulsing(true);
+      setTimeout(() => setIsAbsorbPulsing(false), 300);
 
-      setTimeout(() => {
-        const inputPos = getInputPosition();
-        const eyePos = getEyePosition();
-        startMessageAnimation(content, inputPos, eyePos);
+      onRemoveFile();
 
-        // Wait for the flying animation (300ms) then trigger eye reactions
-        setTimeout(() => {
-          triggerBlink();
-          triggerAbsorption();
-          playSound?.("message-absorb");
-          setIsResponding(true);
-          setIsAbsorbPulsing(true);
-          setTimeout(() => setIsAbsorbPulsing(false), 300);
-
-          onRemoveFile();
-
-          requestAnimationFrame(() => orchestrateEmotionChange("thinking"));
-        }, 350);
-
-        // Let the absorbing animation finish naturally via onAnimationComplete
-        // completeAbsorption is called by UserMessageBubble's onAnimationComplete
-        setTimeout(() => {
-          completeAbsorption();
-        }, 650);
-      }, animationDelay);
+      requestAnimationFrame(() => orchestrateEmotionChange("thinking"));
     },
     [
       isUploading,
@@ -483,22 +467,18 @@ export const CenterStageLayout = ({
         baselineLastMessageId: messages[messages.length - 1]?.id ?? null,
       };
       clearSuggestions();
-      const eyePos = getEyePosition();
-      startSuggestionFlight(content, emoji, clickPosition, eyePos);
 
-      setTimeout(() => {
-        triggerBlink();
-        triggerAbsorption();
-        playSound?.("message-absorb");
-        setIsResponding(true);
-        setIsAbsorbPulsing(true);
-        setTimeout(() => setIsAbsorbPulsing(false), 300);
+      // Trigger reactions immediately
+      triggerBlink();
+      triggerAbsorption();
+      playSound?.("message-absorb");
+      setIsResponding(true);
+      setIsAbsorbPulsing(true);
+      setTimeout(() => setIsAbsorbPulsing(false), 300);
 
-        completeSuggestionAbsorption();
-        clearResponseBubbles();
-        onSendMessage(content, null);
-        requestAnimationFrame(() => orchestrateEmotionChange("thinking"));
-      }, 300);
+      clearResponseBubbles();
+      onSendMessage(content, null);
+      requestAnimationFrame(() => orchestrateEmotionChange("thinking"));
     },
     [
       messages,
@@ -648,7 +628,7 @@ export const CenterStageLayout = ({
              ============================================= */
           "overflow-hidden",
           "items-center",
-          hasVisibleResponses || transcriptOpen ? "justify-start pt-4" : "justify-center",
+          "justify-center",
           "transition-all duration-200 ease-out",
         )}
       >
@@ -699,28 +679,7 @@ export const CenterStageLayout = ({
         </motion.div>
       </div>
 
-      {/* Flying user message bubble */}
-      {flyingBubble && (
-        <UserMessageBubble
-          content={flyingBubble.content}
-          status={flyingBubble.status}
-          startPosition={flyingBubble.startPosition}
-          endPosition={flyingBubble.endPosition}
-          onComplete={completeAbsorption}
-        />
-      )}
 
-      {/* Flying suggestion bubble */}
-      {flyingSuggestion && (
-        <FlyingSuggestionBubble
-          content={flyingSuggestion.content}
-          emoji={flyingSuggestion.emoji}
-          status={flyingSuggestion.status}
-          startPosition={flyingSuggestion.startPosition}
-          endPosition={flyingSuggestion.endPosition}
-          onComplete={completeSuggestionAbsorption}
-        />
-      )}
 
       {/* Input area - Fixed at bottom */}
       <div
