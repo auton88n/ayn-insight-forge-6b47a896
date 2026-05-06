@@ -42,21 +42,21 @@ export const HeroScroll = memo(() => {
     {
       eyebrow: isAr ? 'من هو AYN' : language === 'fr' ? 'Qui est AYN' : 'Who is AYN',
       headline: isAr ? 'يفكر.\nيتعلم.\nيفهم.' : language === 'fr' ? 'Pense.\nApprend.\nComprend.' : 'Thinks.\nLearns.\nUnderstands.',
-      body: isAr ? 'ليس أداة تفتحها. ذكاء يعيش داخل شركتك.' : language === 'fr' ? 'Pas un outil que vous ouvrez. Une intelligence qui vit dans votre entreprise.' : 'Not a tool you open. An intelligence that lives inside your business.',
+      body: isAr ? 'وكلاء ذكاء اصطناعي يعيشون داخل شركتك. يعرفون بياناتك. يحمون أعمالك.' : language === 'fr' ? "Des agents IA qui vivent dans votre entreprise. Connaissent vos données. Protègent votre activité." : 'AI agents that live inside your business. Know your data. Protect your operation.',
       stat: '01', unit: isAr ? 'الهوية' : language === 'fr' ? 'Identité' : 'Identity',
       in: 0.15, out: 0.37
     },
     {
       eyebrow: isAr ? 'ما يفعله AYN' : language === 'fr' ? 'Ce que fait AYN' : 'What AYN Does',
       headline: isAr ? 'بياناتك.\nمخاطرك.\nتفوّقك.' : language === 'fr' ? 'Vos données.\nVos risques.\nVotre avance.' : 'Your data.\nYour risk.\nYour edge.',
-      body: isAr ? 'يتصل بكل شيء داخل شركتك. يقرأ كل إشارة. يجد كل إجابة.' : language === 'fr' ? 'Se connecte à tout dans votre entreprise. Lit chaque signal. Trouve chaque réponse.' : 'Connects to everything inside your business. Reads every signal. Finds every answer.',
+      body: isAr ? 'وكلاء الذكاء الاصطناعي يتصلون بأنظمتك. يقرؤون كل إشارة. يجدون كل إجابة.' : language === 'fr' ? "Les agents IA se connectent à vos systèmes. Lisent chaque signal. Trouvent chaque réponse." : 'AI agents connect to your systems. Read every signal. Find every answer.',
       stat: '02', unit: isAr ? 'القدرة' : language === 'fr' ? 'Capacité' : 'Capability',
       in: 0.40, out: 0.60
     },
     {
       eyebrow: isAr ? 'ما بداخله' : language === 'fr' ? "Ce qui est à l'intérieur" : "What's Inside",
       headline: isAr ? 'يتعلم بنفسه.\nيُصلح نفسه.\nيقود نفسه.' : language === 'fr' ? 'Auto-apprenant.\nAuto-guérissant.\nAuto-conduit.' : 'Self-learning.\nSelf-healing.\nSelf-driven.',
-      body: isAr ? 'ذكاء ينمو مع شركتك. لا يملكه أي منافس.' : language === 'fr' ? "Une intelligence qui grandit avec votre entreprise. Aucun concurrent ne possède cela." : "An intelligence that grows with your business. No competitor has this.",
+      body: isAr ? 'ذكاء اصطناعي ينمو مع شركتك. يتعلم. يتكيف. لا يملكه أي منافس.' : language === 'fr' ? "Une IA qui grandit avec votre entreprise. Apprend. S'adapte. Aucun concurrent ne possède cela." : "AI that grows with your business. Learns. Adapts. No competitor has this.",
       stat: '03', unit: isAr ? 'التفوق' : language === 'fr' ? 'Supériorité' : 'Superiority',
       in: 0.63, out: 0.82
     },
@@ -262,11 +262,7 @@ export const HeroScroll = memo(() => {
                     {ch.eyebrow}
                   </div>
                   <h2 style={{ fontFamily: C.display, fontSize: 'clamp(34px,4.5vw,64px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line' }}>{ch.headline}</h2>
-                  <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 360, margin: '0 0 24px', letterSpacing: '-0.005em' }}>{ch.body}</p>
-                  <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, padding: '12px 18px', background: 'rgba(0,0,0,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, alignSelf: 'flex-start' }}>
-                    <span style={{ fontFamily: C.display, fontSize: 28, fontWeight: 700, color: C.ink, lineHeight: 1, letterSpacing: '-0.04em' }}>{ch.stat}</span>
-                    <span style={{ fontFamily: C.body, fontSize: 11, color: C.inkSub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{ch.unit}</span>
-                  </div>
+                  <p style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 360, margin: 0, letterSpacing: '-0.005em' }}>{ch.body}</p>
                 </div>
               ))}
 
