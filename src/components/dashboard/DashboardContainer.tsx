@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SidebarProvider, Sidebar as ShadcnSidebar, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Sidebar as DashboardSidebar } from './Sidebar';
 import { CenterStageLayout } from './CenterStageLayout';
+import { CommandCenter } from './command/CommandCenter';
 
 
 import { TutorialWelcome } from '@/components/tutorial/TutorialWelcome';
