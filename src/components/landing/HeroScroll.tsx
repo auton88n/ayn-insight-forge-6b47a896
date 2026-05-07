@@ -215,10 +215,10 @@ export const HeroScroll = memo(() => {
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', willChange: 'opacity, transform' }}>
-                <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(48px,6.2vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: isAr ? 'right' : 'left' }}>
+                <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(48px,6.2vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: 'left' }}>
                   {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
                 </h1>
-                <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px', textAlign: isAr ? 'right' : 'left' }}>
+                <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px', textAlign: 'left' }}>
                   {isAr ? 'AYN يربط تقاريرك وملفاتك وقراراتك في طبقة ذكاء واحدة يمكن لشركتك التحدث إليها.' : language === 'fr' ? "AYN connecte vos rapports, fichiers et décisions en une couche d'intelligence à laquelle votre entreprise peut parler." : 'AYN connects your reports, files, and decisions into one intelligence layer your business can talk to.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -242,14 +242,14 @@ export const HeroScroll = memo(() => {
               {/* Chapters */}
               {CHAPTERS.map((ch, i) => (
                 <div key={i} ref={el => { chRefs.current[i] = el; }} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity, transform' }}>
-                  <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.2vw,48px)', fontWeight: 700, lineHeight: 1.12, letterSpacing: '-0.025em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line', textAlign: isAr ? 'right' : 'left' }}>{ch.headline}</h2>
-                  <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 360, margin: 0, textAlign: isAr ? 'right' : 'left' }}>{ch.body}</p>
+                  <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.2vw,48px)', fontWeight: 700, lineHeight: 1.12, letterSpacing: '-0.025em', color: C.ink, margin: '0 0 16px', whiteSpace: 'pre-line', textAlign: 'left' }}>{ch.headline}</h2>
+                  <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 15, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 360, margin: 0, textAlign: 'left' }}>{ch.body}</p>
                 </div>
               ))}
 
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
-                <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,5vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: isAr ? 'right' : 'left' }}>
+                <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,5vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: 'left' }}>
                   {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -401,8 +401,8 @@ export const HeroScroll = memo(() => {
                 }}>
                   <card.icon size={28} color={C.ink} strokeWidth={1.5} />
                 </div>
-                <h3 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 16, textAlign: isAr ? 'right' : 'left' }}>{card.title}</h3>
-                <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6, flexGrow: 1, textAlign: isAr ? 'right' : 'left' }}>{card.desc}</p>
+                <h3 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 16, textAlign: 'left' }}>{card.title}</h3>
+                <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6, flexGrow: 1, textAlign: 'left' }}>{card.desc}</p>
                 
                 {/* Subtle Glow */}
                 <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)', pointerEvents: 'none' }} />
@@ -512,7 +512,7 @@ export const HeroScroll = memo(() => {
                 }}>
                   <item.icon size={30} color={C.ink} strokeWidth={1.5} />
                 </div>
-                <div dir={isAr ? 'rtl' : 'ltr'}>
+                <div dir={isAr ? 'rtl' : 'ltr'} style={{ textAlign: 'left' }}>
                   <h3 style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 12 }}>{item.title}</h3>
                   <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
                 </div>
