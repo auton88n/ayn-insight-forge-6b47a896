@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { SidebarProvider, Sidebar as ShadcnSidebar, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Sidebar as DashboardSidebar } from './Sidebar';
 import { CenterStageLayout } from './CenterStageLayout';
+import { CommandCenter } from './command/CommandCenter';
 
 
 import { TutorialWelcome } from '@/components/tutorial/TutorialWelcome';
@@ -323,6 +324,13 @@ const DashboardContent = ({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [replyPrefill, setReplyPrefill] = useState<string>('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [view, setView] = useState<'chat' | 'command'>('chat');
+
+  useEffect(() => {
+    const handler = () => setView('command');
+    window.addEventListener('ayn-open-command-center', handler);
+    return () => window.removeEventListener('ayn-open-command-center', handler);
+  }, []);
   
   const { setEmotion, setIsResponding } = useAYNEmotion();
   
@@ -570,6 +578,20 @@ const DashboardContent = ({
           <div className="h-9 w-9" />
         </header>
 
+        {view === 'command' ? (
+          <div className="flex-1 overflow-hidden relative">
+            <button
+              onClick={() => setView('chat')}
+              className="absolute top-4 right-4 z-10 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg bg-card/60 border border-border/40"
+            >
+              ← Back to chat
+            </button>
+            <CommandCenter
+              userId={user.id}
+              userName={auth.userProfile?.contact_person || user.user_metadata?.name || user.email?.split('@')[0]}
+            />
+          </div>
+        ) : (
         <CenterStageLayout
           messages={messagesHook.messages}
           onSendMessage={async (content, file) => {
@@ -628,6 +650,7 @@ const DashboardContent = ({
           setShowFeedbackModal={setShowFeedbackModal}
           onCreditsUpdated={usageTracking.refreshUsage}
         />
+        )}
       </main>
 
       </div>
