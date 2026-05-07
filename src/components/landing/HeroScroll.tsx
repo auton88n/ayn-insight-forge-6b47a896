@@ -326,7 +326,7 @@ export const HeroScroll = memo(() => {
       </div>
 
       {/* Section 2 — About */}
-      <section style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
+      <section id="about" style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
         <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 32px', textAlign: 'center' }}>
             {isAr ? <>عن <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>À propos de <span style={{ color: C.inkMid }}>AYN</span></> : <>About <span style={{ color: C.inkMid }}>AYN</span></>}
@@ -352,7 +352,7 @@ export const HeroScroll = memo(() => {
       </section>
 
       {/* Section 3 — Features */}
-      <section style={{ 
+      <section id="features" style={{ 
         minHeight: '100dvh', 
         display: 'flex', 
         alignItems: 'center', 
