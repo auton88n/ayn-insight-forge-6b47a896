@@ -28,6 +28,9 @@ const C = {
   display: "'Inter Tight', 'Inter', system-ui, sans-serif",
   body:    "'Inter', system-ui, sans-serif",
   mono:    "'JetBrains Mono', ui-monospace, monospace",
+  glassBg: 'rgba(255, 255, 255, 0.45)',
+  glassBorder: 'rgba(255, 255, 255, 0.6)',
+  glassShadow: '0 12px 36px -12px rgba(0, 0, 0, 0.06)',
 };
 
 const cache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
@@ -282,7 +285,8 @@ export const HeroScroll = memo(() => {
             lineHeight: 1.6, 
             color: C.inkSub, 
             margin: '0 auto',
-            maxWidth: 800
+            maxWidth: 880,
+            textWrap: 'balance' as any
           }}>
             {isAr
               ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والتحرك قبل ضياع الفرص. يساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء أكبر، والمضي قدمًا بثقة.'
@@ -294,17 +298,35 @@ export const HeroScroll = memo(() => {
       </section>
 
       {/* Section 3 — Features */}
-      <section style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', padding: '96px clamp(32px,5vw,80px)', background: C.bg, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 64 }}>
-            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(28px,3.8vw,52px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px' }}>
+      <section style={{ 
+        minHeight: '100dvh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        padding: '120px clamp(32px,5vw,80px)', 
+        background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%)', 
+        borderBottom: `1px solid ${C.border}`,
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Subtle Background Decoration */}
+        <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          <div style={{ textAlign: 'center', marginBottom: 80 }}>
+            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px' }}>
               {isAr ? 'بُني لكل جزء من العمل.' : language === 'fr' ? 'Conçu pour chaque partie de l\'entreprise.' : 'Built for every part of the business.'}
             </h2>
-            <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 640, margin: '0 auto' }}>
+            <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as any }}>
               {isAr ? 'تساعد AYN القادة على طرح الأسئلة، وقراءة سياق الشركة، وتحويل النشاط اليومي إلى قرارات.' : language === 'fr' ? "AYN aide les dirigeants à poser des questions, à lire le contexte de l'entreprise et à transformer l'activité quotidienne en décisions." : 'AYN helps leaders ask questions, read company context, and turn daily activity into decisions.'}
             </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+            gap: 32 
+          }}>
             {[
               {
                 title: isAr ? 'اسأل عملك' : 'Ask Your Business',
@@ -338,32 +360,85 @@ export const HeroScroll = memo(() => {
               }
             ].map((card, i) => (
               <div key={i}
-                style={{ padding: '32px', background: C.bgOff, border: `1px solid ${C.border}`, borderRadius: 12, transition: 'border-color 0.3s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.ink; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = C.border; }}>
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                  <card.icon size={20} color={C.ink} />
+                style={{ 
+                  padding: '48px 40px', 
+                  background: 'rgba(255, 255, 255, 0.4)',
+                  backdropFilter: 'blur(20px) saturate(180%)',
+                  WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                  border: '1px solid rgba(255, 255, 255, 0.5)', 
+                  borderRadius: 32, 
+                  transition: 'all 0.5s cubic-bezier(0.19, 1, 0.22, 1)',
+                  boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+                onMouseEnter={e => { 
+                  const t = e.currentTarget as HTMLDivElement;
+                  t.style.transform = 'translateY(-10px)';
+                  t.style.boxShadow = '0 30px 60px -12px rgba(0, 0, 0, 0.08)';
+                  t.style.background = 'rgba(255, 255, 255, 0.6)';
+                  t.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+                }}
+                onMouseLeave={e => { 
+                  const t = e.currentTarget as HTMLDivElement;
+                  t.style.transform = 'translateY(0)';
+                  t.style.boxShadow = '0 10px 30px -10px rgba(0, 0, 0, 0.04)';
+                  t.style.background = 'rgba(255, 255, 255, 0.4)';
+                  t.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                }}>
+                <div style={{ 
+                  width: 60, 
+                  height: 60, 
+                  borderRadius: 20, 
+                  background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  marginBottom: 28,
+                  border: '1px solid rgba(0,0,0,0.03)'
+                }}>
+                  <card.icon size={28} color={C.ink} strokeWidth={1.5} />
                 </div>
-                <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10 }}>{card.title}</h3>
-                <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.65 }}>{card.desc}</p>
+                <h3 style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 16 }}>{card.title}</h3>
+                <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6, flexGrow: 1 }}>{card.desc}</p>
+                
+                {/* Subtle Glow */}
+                <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)', pointerEvents: 'none' }} />
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="solutions" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px clamp(24px,4vw,64px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center', marginBottom: 64 }}>
-            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(26px,3.8vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, margin: '0 0 16px', lineHeight: 1.04 }}>
+      {/* Section 4 — Solutions */}
+      <section id="solutions" style={{ 
+        minHeight: '100dvh', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: '120px clamp(24px,4vw,64px)', 
+        background: '#fcfcfc', 
+        borderBottom: `1px solid ${C.border}`,
+        position: 'relative'
+      }}>
+        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          <div style={{ textAlign: 'center', marginBottom: 80 }}>
+            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', lineHeight: 1.04 }}>
               {isAr ? 'بُني للشركات التي تحتاج إلى الوضوح للنمو.' : language === 'fr' ? 'Conçu pour les entreprises qui ont besoin de clarté pour croître.' : 'Built for the companies that need clarity to grow.'}
             </h2>
-            <p style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.68, color: C.inkSub, maxWidth: 800, margin: '0 auto' }}>
+            <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 820, margin: '0 auto', textWrap: 'balance' as any }}>
               {isAr ? 'تتكيف AYN مع مختلف الصناعات من خلال ربط شعوبها وبياناتها وتقاريرها وعملياتها اليومية في طبقة استخبارات واحدة تعمل بالذكاء الاصطناعي.' : language === 'fr' ? "AYN s'adapte à différents secteurs en connectant leurs collaborateurs, leurs données, leurs rapports et leurs opérations quotidiennes en une seule couche d'intelligence artificielle." : 'AYN adapts to different industries by connecting their people, data, reports, and daily operations into one AI intelligence layer.'}
             </p>
           </div>
           
-          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px' }}>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', 
+            gap: 32 
+          }}>
             {[
               { 
                 title: isAr ? 'الشركات العائلية' : 'Family Businesses',
@@ -394,16 +469,63 @@ export const HeroScroll = memo(() => {
                 title: isAr ? 'العيادات والشركات الخدمية' : 'Clinics & Service Businesses',
                 desc: isAr ? 'اربط المواعيد ودعم العملاء والمدفوعات وتحديثات الموظفين والمستندات والقضايا التشغيلية في قرارات يومية أكثر وضوحاً.' : 'Connect appointments, customer support, payments, staff updates, documents, and operational issues into clearer daily decisions.',
                 icon: Stethoscope 
-              }
             ].map((item, i) => (
-              <div key={i} style={{ padding: '32px', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', gap: 20 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <item.icon size={22} color={C.ink} />
+              <div key={i} style={{ 
+                padding: '48px 40px', 
+                background: 'rgba(255, 255, 255, 0.45)', 
+                backdropFilter: 'blur(20px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                border: '1px solid rgba(255, 255, 255, 0.6)', 
+                borderRadius: 32, 
+                boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.04)',
+                display: 'flex', 
+                gap: 28,
+                transition: 'all 0.5s cubic-bezier(0.19, 1, 0.22, 1)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+              onMouseEnter={e => { 
+                const t = e.currentTarget as HTMLDivElement;
+                t.style.transform = 'translateY(-10px)';
+                t.style.boxShadow = '0 30px 60px -12px rgba(0, 0, 0, 0.08)';
+                t.style.background = 'rgba(255, 255, 255, 0.65)';
+                t.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+              }}
+              onMouseLeave={e => { 
+                const t = e.currentTarget as HTMLDivElement;
+                t.style.transform = 'translateY(0)';
+                t.style.boxShadow = '0 10px 30px -10px rgba(0, 0, 0, 0.04)';
+                t.style.background = 'rgba(255, 255, 255, 0.45)';
+                t.style.borderColor = 'rgba(255, 255, 255, 0.6)';
+              }}>
+                <div style={{ 
+                  width: 64, 
+                  height: 64, 
+                  borderRadius: 20, 
+                  background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  flexShrink: 0,
+                  border: '1px solid rgba(0,0,0,0.03)'
+                }}>
+                  <item.icon size={30} color={C.ink} strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h3 style={{ fontFamily: C.display, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: C.ink, marginBottom: 10 }}>{item.title}</h3>
-                  <p style={{ fontFamily: C.body, fontSize: 14, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
+                  <h3 style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 12 }}>{item.title}</h3>
+                  <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
                 </div>
+
+                {/* Subtle Glow Effect */}
+                <div style={{ 
+                  position: 'absolute', 
+                  bottom: '-20%', 
+                  left: '-20%', 
+                  width: '60%', 
+                  height: '60%', 
+                  background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 70%)',
+                  pointerEvents: 'none'
+                }} />
               </div>
             ))}
           </div>
