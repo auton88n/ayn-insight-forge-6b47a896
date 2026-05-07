@@ -269,52 +269,27 @@ export const HeroScroll = memo(() => {
         </div>
       </div>
 
-      {/* Section 2 */}
+      {/* Section 2 — About */}
       <section style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
-        <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px' }}>
-            {isAr ? <>لماذا <span style={{ color: C.inkMid }}>AYN؟</span></> : language === 'fr' ? <>Pourquoi <span style={{ color: C.inkMid }}>AYN ?</span></> : <>Why <span style={{ color: C.inkMid }}>AYN?</span></>}
+        <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 32px' }}>
+            {isAr ? <>عن <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>À propos de <span style={{ color: C.inkMid }}>AYN</span></> : <>About <span style={{ color: C.inkMid }}>AYN</span></>}
           </h2>
-          <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 560, margin: '0 0 64px' }}>
+          <p style={{ 
+            fontFamily: C.body, 
+            fontSize: 'clamp(18px, 1.2vw, 22px)', 
+            fontWeight: 400, 
+            lineHeight: 1.6, 
+            color: C.inkSub, 
+            margin: '0 auto',
+            maxWidth: 800
+          }}>
             {isAr
-              ? 'بُني AYN للقادة الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله.'
+              ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والتحرك قبل ضياع الفرص. يساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء أكبر، والمضي قدمًا بثقة.'
               : language === 'fr'
-              ? "AYN est conçu pour les dirigeants qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA."
-              : 'AYN is built for leaders who need clarity, speed, and control in a world being reshaped by AI.'}
+              ? "AYN a été conçu pour les propriétaires d'entreprises qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA. Il connecte les rapports, les tâches, les décisions et les données commerciales approuvées en une seule couche d'intelligence, aidant les dirigeants à comprendre ce qui a changé, à voir ce qui compte et à agir avant que les opportunités ne soient manquées. AYN aide les entreprises à s'adapter plus rapidement, à diriger plus intelligemment et à aller de l'avant avec confiance."
+              : 'AYN was built for company owners who need clarity, speed, and control in a world being reshaped by AI. It connects reports, tasks, decisions, and approved business data into one intelligence layer, helping leaders understand what changed, see what matters, and act before opportunities are missed. AYN helps companies adapt faster, lead smarter, and move forward with confidence.'}
           </p>
-          <div style={{ width: '100%', height: 1, background: C.border, marginBottom: 56 }} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'clamp(48px,6vw,96px)' }}>
-            {[
-              {
-                label: isAr ? 'للقادة الذين يحتاجون' : language === 'fr' ? 'POUR LES DIRIGEANTS' : 'FOR LEADERS WHO NEED',
-                items: isAr
-                  ? ['الوضوح وسط الضوضاء', 'سرعة في القرار', 'التحكم في السياق', 'الثقة للتحرك']
-                  : language === 'fr'
-                  ? ['De la clarté dans le bruit', 'De la vitesse de décision', 'Du contrôle du contexte', 'La confiance pour agir']
-                  : ['Clarity in the noise', 'Speed of decision', 'Control of context', 'Confidence to act'],
-              },
-              {
-                label: isAr ? 'ما يقدمه AYN' : language === 'fr' ? 'CE QUE AYN APPORTE' : 'WHAT AYN GIVES YOU',
-                items: isAr
-                  ? ['طبقة ذكاء واحدة', 'التقارير تصبح محادثات', 'ذاكرة عبر الشركة', 'تصرف قبل أن تُغلق الفرصة']
-                  : language === 'fr'
-                  ? ["Une couche d'intelligence", 'Les rapports deviennent conversations', "Une mémoire d'entreprise", 'Agir avant que la fenêtre se ferme']
-                  : ['One intelligence layer', 'Reports become conversations', 'Memory across the company', 'Act before the window closes'],
-              },
-            ].map((col, i) => (
-              <div key={i}>
-                <p style={{ fontFamily: C.mono, fontSize: 11, fontWeight: 500, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.inkSub, margin: '0 0 20px' }}>{col.label}</p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {col.items.map((it, j) => (
-                    <li key={j} style={{ fontFamily: C.body, fontSize: 16, fontWeight: 400, lineHeight: 1.45, color: C.ink, display: 'flex', gap: 12 }}>
-                      <span style={{ color: C.inkSub, flexShrink: 0 }}>·</span>
-                      <span>{it}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
