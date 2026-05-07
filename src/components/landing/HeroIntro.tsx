@@ -26,8 +26,8 @@ export const HeroIntro = memo(({ onSendAttempt }: HeroIntroProps) => {
       {/* Headline */}
       <div className="w-full max-w-4xl text-center px-6">
         <h1
-          className="font-display font-bold tracking-[-0.02em] text-white leading-none"
           style={{ fontSize: 'clamp(40px, 6vw, 88px)' }}
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
           {language === 'ar' ? 'قوة ' : language === 'fr' ? 'Le pouvoir ' : 'The power '}
           <span style={{ color: 'hsl(var(--primary))' }}>
@@ -37,6 +37,7 @@ export const HeroIntro = memo(({ onSendAttempt }: HeroIntroProps) => {
         <p
           className="mt-4 text-sm md:text-base font-light max-w-xl mx-auto leading-relaxed"
           style={{ color: 'rgba(255,255,255,0.5)' }}
+          dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
           {language === 'ar'
             ? 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.'
