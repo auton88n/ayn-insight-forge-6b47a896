@@ -140,7 +140,7 @@ export const Header = () => {
                 onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.98)'; }}
                 onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
-                {language === 'ar' ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo' : 'Request Private Demo'}
+                {language === 'ar' ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'}
               </button>
             )}
           </div>
@@ -185,7 +185,7 @@ export const Header = () => {
                     <div className="px-3">
                       <Button className="w-full" onClick={() => setShowAuthModal(true)}>
                         <LogIn className="h-4 w-4 mr-2" />
-                        {language === 'ar' ? 'طلب عرض خاص' : 'Request Private Demo'}
+                        {language === 'ar' ? 'طلب عرض' : 'Request Demo'}
                       </Button>
                     </div>
                   )}

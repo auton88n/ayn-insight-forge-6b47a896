@@ -19,7 +19,7 @@ interface LanguageProviderProps {
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>('en');
-  const direction: Direction = language === 'ar' ? 'rtl' : 'ltr';
+  const direction: Direction = 'ltr'; // Always LTR as per user request to preserve premium design layout even for Arabic
 
   useEffect(() => {
     // Load saved language from localStorage

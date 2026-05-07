@@ -11,7 +11,7 @@ export const en: Record<string, string> = {
   'hero.title': 'The power',
   'hero.titleHighlight': 'to know.',
   'hero.description': 'The eye that lives inside your business. Sees everything. Misses nothing.',
-  'hero.cta': 'Request Private Demo',
+  'hero.cta': 'Request Demo',
   'hero.ctaSecondary': 'See it in action',
   'hero.stat1': 'Connected',
   'hero.stat2': 'Intelligent',
@@ -30,7 +30,7 @@ export const en: Record<string, string> = {
   'hero.chapter3.body': 'An intelligence that grows with your business. No competitor has this.',
   'hero.final.eyebrow': 'What AYN Is',
   'hero.final.headline': 'One eye.\nEvery answer.',
-  'hero.final.cta': 'Request Private Demo',
+  'hero.final.cta': 'Request Demo',
   'hero.final.ctaSecondary': 'See it in action',
 
   // About Section — Screen 6
@@ -62,7 +62,7 @@ export const en: Record<string, string> = {
   // Final Dark CTA — Screen 9
   'cta.eyebrow': 'Begin',
   'cta.title': 'The most intelligent\neye in the room\nis yours.',
-  'cta.primary': 'Request Private Demo',
+  'cta.primary': 'Request Demo',
   'cta.secondary': 'Explore Features',
 
   // Footer

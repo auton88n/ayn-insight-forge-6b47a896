@@ -11,7 +11,7 @@ export const ar: Record<string, string> = {
   'hero.title': 'قوة',
   'hero.titleHighlight': 'المعرفة.',
   'hero.description': 'العين التي تعيش داخل شركتك. ترى كل شيء. لا تفوّت شيئاً.',
-  'hero.cta': 'طلب عرض خاص',
+  'hero.cta': 'طلب عرض',
   'hero.ctaSecondary': 'شاهده في العمل',
   'hero.stat1': 'متصل',
   'hero.stat2': 'ذكي',
@@ -30,7 +30,7 @@ export const ar: Record<string, string> = {
   'hero.chapter3.body': 'ذكاء ينمو مع شركتك. لا يملكه أي منافس.',
   'hero.final.eyebrow': 'ما هو AYN',
   'hero.final.headline': 'عين واحدة.\nكل إجابة.',
-  'hero.final.cta': 'طلب عرض خاص',
+  'hero.final.cta': 'طلب عرض',
   'hero.final.ctaSecondary': 'شاهده في العمل',
 
   // About Section — Screen 6
@@ -62,7 +62,7 @@ export const ar: Record<string, string> = {
   // Final Dark CTA — Screen 9
   'cta.eyebrow': 'ابدأ الآن',
   'cta.title': 'أذكى عين\nفي الغرفة\nهي عينك.',
-  'cta.primary': 'طلب عرض خاص',
+  'cta.primary': 'طلب عرض',
   'cta.secondary': 'استكشف المميزات',
 
   // Footer
