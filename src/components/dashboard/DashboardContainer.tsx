@@ -77,7 +77,14 @@ export const DashboardContainer = ({ user, session, auth, isAdmin, hasDutyAccess
   const [modeLocked, setModeLocked] = React.useState(false); // locks after first message
   const [allowPersonalization, setAllowPersonalization] = React.useState(false);
   const [isTransitioningToChat, setIsTransitioningToChat] = React.useState(false);
+  const [view, setView] = React.useState<'chat' | 'command'>('chat');
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handler = () => setView('command');
+    window.addEventListener('ayn-open-command-center', handler);
+    return () => window.removeEventListener('ayn-open-command-center', handler);
+  }, []);
   // Messages hook - depends on other state, pass session for direct REST API calls
   const messagesHook = useMessages(
     chatSession.currentSessionId,
