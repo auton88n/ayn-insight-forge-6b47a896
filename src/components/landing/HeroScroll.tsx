@@ -122,6 +122,7 @@ export const HeroScroll = memo(() => {
     };
   }, [onScroll, onMouse]);
 
+  useEffect(() => {
     const setupCanvas = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
