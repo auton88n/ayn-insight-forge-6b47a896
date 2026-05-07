@@ -73,21 +73,17 @@ export const ccApi = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('not signed in');
 
-    // Resolve recipient by email via profiles table
-    const { data: prof, error: pErr } = await supabase
-      .from('profiles')
-      .select('user_id, contact_person')
-      .ilike('email', args.recipient_email)
-      .maybeSingle();
-    if (pErr) throw pErr;
-    if (!prof) throw new Error('User not found with that email');
+    // Resolve recipient via security-definer RPC against auth.users
+    const { data: uid, error: rpcErr } = await supabase.rpc('cc_lookup_user_by_email' as any, { p_email: args.recipient_email });
+    if (rpcErr) throw rpcErr;
+    if (!uid) throw new Error('No user found with that email');
 
     const senderName = (user.user_metadata as any)?.name || user.email || 'AYN user';
 
     const { error } = await supabase.from('cc_inbox').insert({
       sender_id: user.id,
       sender_name: senderName,
-      recipient_id: (prof as any).user_id,
+      recipient_id: uid as string,
       recipient_email: args.recipient_email,
       kind: args.kind,
       title: args.title,

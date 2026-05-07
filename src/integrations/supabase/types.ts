@@ -8756,6 +8756,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      cc_lookup_user_by_email: { Args: { p_email: string }; Returns: string }
       check_api_rate_limit: {
         Args: {
           p_endpoint: string
