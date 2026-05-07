@@ -4916,6 +4916,81 @@ export type Database = {
           },
         ]
       }
+      cc_inbox: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          read_at: string | null
+          recipient_email: string | null
+          recipient_id: string
+          sender_id: string
+          sender_name: string | null
+          source_ids: string[] | null
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          kind?: string
+          read_at?: string | null
+          recipient_email?: string | null
+          recipient_id: string
+          sender_id: string
+          sender_name?: string | null
+          source_ids?: string[] | null
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          read_at?: string | null
+          recipient_email?: string | null
+          recipient_id?: string
+          sender_id?: string
+          sender_name?: string | null
+          source_ids?: string[] | null
+          title?: string
+        }
+        Relationships: []
+      }
+      cc_updates: {
+        Row: {
+          author: string
+          created_at: string
+          department: string
+          id: string
+          impact: string
+          text: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          department: string
+          id?: string
+          impact?: string
+          text: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          department?: string
+          id?: string
+          impact?: string
+          text?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chart_analyses: {
         Row: {
           asset_type: string | null
