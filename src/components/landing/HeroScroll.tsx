@@ -84,10 +84,14 @@ export const HeroScroll = memo(() => {
   const curTiltX  = useRef(0);
   const curTiltY  = useRef(0);
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const layout    = useRef({ top: 0, height: 0 });
+
   const onScroll = useCallback(() => {
-    const s = spacerRef.current;
-    if (!s) return;
-    scrollP.current = clamp(-s.getBoundingClientRect().top / (s.offsetHeight - window.innerHeight), 0, 1);
+    const { top, height } = layout.current;
+    if (height === 0) return;
+    const progress = (window.scrollY - top) / (height - window.innerHeight);
+    scrollP.current = clamp(progress, 0, 1);
   }, []);
 
   const onMouse = useCallback((e: MouseEvent) => {
@@ -96,15 +100,51 @@ export const HeroScroll = memo(() => {
   }, []);
 
   useEffect(() => {
+    const updateLayout = () => {
+      if (spacerRef.current) {
+        const rect = spacerRef.current.getBoundingClientRect();
+        layout.current = {
+          top: window.scrollY + rect.top,
+          height: spacerRef.current.offsetHeight
+        };
+      }
+    };
+    
+    updateLayout();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('mousemove', onMouse, { passive: true });
-    onScroll();
-    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('mousemove', onMouse); };
+    window.addEventListener('resize', updateLayout, { passive: true });
+    
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('mousemove', onMouse);
+      window.removeEventListener('resize', updateLayout);
+    };
   }, [onScroll, onMouse]);
 
-  useEffect(() => {
-    if (cache[0]?.complete && imgRef.current) { imgRef.current.src = cache[0].src; lastFrame.current = 0; }
-    else if (cache[0]) cache[0].onload = () => { if (imgRef.current) imgRef.current.src = cache[0].src; };
+    const setupCanvas = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const size = Math.min(window.innerWidth * 0.42, 580);
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+      const ctx = canvas.getContext('2d', { alpha: false }); // Background is opaque white
+      if (ctx) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset
+        ctx.scale(dpr, dpr);
+        // Initial draw
+        if (cache[0]?.complete) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(cache[0], 0, 0, size, size);
+        }
+      }
+    };
+    setupCanvas();
+    window.addEventListener('resize', setupCanvas);
 
     const LERP = 0.055;
 
@@ -112,13 +152,24 @@ export const HeroScroll = memo(() => {
       requestAnimationFrame(tick);
       const p = scrollP.current;
 
-      /* Frame scrub — direct */
+      /* Frame scrub — direct to Canvas */
       if (!reduced) {
         const idx = clamp(Math.round(p * (FRAME_COUNT - 1)), 0, FRAME_COUNT - 1);
         if (idx !== lastFrame.current) {
           lastFrame.current = idx;
-          const c = cache[idx];
-          if (c?.complete && imgRef.current) imgRef.current.src = c.src;
+          const img = cache[idx];
+          const canvas = canvasRef.current;
+          if (img?.complete && canvas) {
+            const ctx = canvas.getContext('2d', { alpha: false });
+            if (ctx) {
+              const dpr = window.devicePixelRatio || 1;
+              const w = canvas.width / dpr;
+              const h = canvas.height / dpr;
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+            }
+          }
         }
       }
 
@@ -135,8 +186,7 @@ export const HeroScroll = memo(() => {
           `perspective(1000px) rotateX(${curTiltX.current.toFixed(3)}deg) rotateY(${curTiltY.current.toFixed(3)}deg)`;
       }
 
-      /* Object opacity - removed fade in so it's visible immediately */
-      if (imgRef.current) imgRef.current.style.opacity = '1';
+      /* Object opacity - controlled by canvas visibility if needed */
 
       /* Headline */
       if (headRef.current) {
@@ -171,8 +221,11 @@ export const HeroScroll = memo(() => {
       }
     };
     const id = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(id);
-  }, [reduced]);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener('resize', setupCanvas);
+    };
+  }, [reduced, onScroll]);
 
   return (
     <div style={{ background: C.bg, fontFamily: C.body }}>
@@ -183,22 +236,21 @@ export const HeroScroll = memo(() => {
 
           {/* ── 3D OBJECT — no wrappers, no extra transforms, clean float ── */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 'clamp(32px,4vw,64px)', zIndex: 1 }}>
-            <div ref={floatRef} style={{ willChange: 'transform', transformStyle: 'preserve-3d', position: 'relative' }}>
-              <img
-                ref={imgRef}
-                src={HELMET_FRAMES[0]}
-                alt="AYN"
-                draggable={false}
+            <div ref={floatRef} style={{ 
+              willChange: 'transform', 
+              transformStyle: 'preserve-3d', 
+              position: 'relative',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden'
+            }}>
+              <canvas
+                ref={canvasRef}
                 style={{
                   /* Frames are 255,255,255 — page is #ffffff — zero visible edge */
-                  width: 'min(42vw, 580px)',
-                  height: 'min(42vw, 580px)',
-                  objectFit: 'contain',
                   display: 'block',
                   userSelect: 'none',
                   pointerEvents: 'none',
-                  opacity: 1,
-                  willChange: 'opacity',
+                  willChange: 'transform',
                   position: 'relative',
                   zIndex: 1,
                 }}
