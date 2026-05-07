@@ -469,6 +469,7 @@ export const HeroScroll = memo(() => {
                 title: isAr ? 'العيادات والشركات الخدمية' : 'Clinics & Service Businesses',
                 desc: isAr ? 'اربط المواعيد ودعم العملاء والمدفوعات وتحديثات الموظفين والمستندات والقضايا التشغيلية في قرارات يومية أكثر وضوحاً.' : 'Connect appointments, customer support, payments, staff updates, documents, and operational issues into clearer daily decisions.',
                 icon: Stethoscope 
+              }
             ].map((item, i) => (
               <div key={i} style={{ 
                 padding: '48px 40px', 
