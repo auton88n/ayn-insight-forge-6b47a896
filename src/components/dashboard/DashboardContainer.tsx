@@ -650,6 +650,7 @@ const DashboardContent = ({
           setShowFeedbackModal={setShowFeedbackModal}
           onCreditsUpdated={usageTracking.refreshUsage}
         />
+        )}
       </main>
 
       </div>
