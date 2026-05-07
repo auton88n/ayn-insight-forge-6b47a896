@@ -324,6 +324,13 @@ const DashboardContent = ({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [replyPrefill, setReplyPrefill] = useState<string>('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [view, setView] = useState<'chat' | 'command'>('chat');
+
+  useEffect(() => {
+    const handler = () => setView('command');
+    window.addEventListener('ayn-open-command-center', handler);
+    return () => window.removeEventListener('ayn-open-command-center', handler);
+  }, []);
   
   const { setEmotion, setIsResponding } = useAYNEmotion();
   
