@@ -91,13 +91,14 @@ export const HeroScroll = memo(() => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
   const reduced = useReducedMotion();
+  // "stacked" layout (text zone on top, object below) for phones and tablets
   const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' && window.innerWidth < 768
+    typeof window !== 'undefined' && window.innerWidth < 1024
   );
 
   useEffect(() => {
     preloadFrames();
-    const onResizeMq = () => setIsMobile(window.innerWidth < 768);
+    const onResizeMq = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', onResizeMq, { passive: true });
     return () => window.removeEventListener('resize', onResizeMq);
   }, []);
@@ -187,9 +188,9 @@ export const HeroScroll = memo(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const dpr = window.devicePixelRatio || 1;
-      const mobile = window.innerWidth < 768;
-      const size = mobile
-        ? Math.min(window.innerWidth * 0.78, 420)
+      const stacked = window.innerWidth < 1024;
+      const size = stacked
+        ? Math.min(window.innerWidth * 0.66, window.innerHeight * 0.40, 460)
         : Math.min(window.innerWidth * 0.42, 580);
       canvas.width = size * dpr;
       canvas.height = size * dpr;
@@ -301,11 +302,13 @@ export const HeroScroll = memo(() => {
     <div style={{ background: C.bg, fontFamily: C.body }}>
 
       {/* 600vh sticky hero */}
-      <div ref={spacerRef} style={{ height: '600vh', position: 'relative' }}>
+      <div ref={spacerRef} style={{ height: isMobile ? '420vh' : '600vh', position: 'relative' }}>
         <div className="sticky top-0" style={{ height: '100dvh', overflow: 'hidden', background: C.bg }}>
 
           {/* ── 3D OBJECT — no wrappers, no extra transforms, clean float ── */}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: isMobile ? 'center' : 'flex-end', paddingRight: isMobile ? 0 : 'clamp(32px,4vw,64px)', paddingBottom: isMobile ? '6vh' : 0, zIndex: 1 }}>
+          <div style={isMobile
+            ? { position: 'absolute', top: '52%', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: 'max(2vh, env(safe-area-inset-bottom))', zIndex: 1 }
+            : { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 'clamp(32px,4vw,64px)', zIndex: 1 }}>
             <div ref={floatRef} style={{ 
               willChange: 'transform', 
               transformStyle: 'preserve-3d', 
@@ -330,12 +333,14 @@ export const HeroScroll = memo(() => {
 
           {/* Gradient — text/object separation — fully opaque until cutoff */}
           <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: isMobile
-            ? 'linear-gradient(to bottom, #ffffff 0%, rgba(255,255,255,0.92) 40%, rgba(255,255,255,0) 68%)'
+            ? 'linear-gradient(to bottom, #ffffff 0%, rgba(255,255,255,0.85) 42%, rgba(255,255,255,0) 58%)'
             : 'linear-gradient(to right, #ffffff 0%, #ffffff 38%, rgba(255,255,255,0) 58%)', pointerEvents: 'none' }} />
 
           {/* ── TEXT ── */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? '110px clamp(20px,5vw,32px) 0' : '80px clamp(32px,6vw,96px)' }}>
-            <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: isMobile ? 'min(54vh, 480px)' : 'min(80vh, 580px)' }}>
+          <div style={isMobile
+            ? { position: 'absolute', top: 0, left: 0, right: 0, height: '52%', zIndex: 10, display: 'flex', alignItems: 'stretch', padding: '88px clamp(20px,5vw,48px) 0' }
+            : { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', padding: '80px clamp(32px,6vw,96px)' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: isMobile ? '100%' : 'min(80vh, 580px)' }}>
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
@@ -659,7 +664,7 @@ export const HeroScroll = memo(() => {
       </section>
 
       {/* Section 5 — Final CTA (dark) */}
-      <section style={{ minHeight: '80dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', overflow: 'hidden', background: C.ink, padding: 'clamp(72px,8vw,120px) 32px 140px', position: 'relative' }}>
+      <section style={{ minHeight: '80dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', overflow: 'hidden', background: C.ink, padding: 'clamp(72px,8vw,120px) clamp(20px,5vw,32px) 140px', position: 'relative' }}>
         {[460, 320, 200].map((sz, i) => (
           <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: `min(85vw,${sz}px)`, height: `min(85vw,${sz}px)`, borderRadius: '50%', border: `1px solid rgba(255,255,255,${0.06 - i * 0.015})`, pointerEvents: 'none' }} />
         ))}

@@ -68,11 +68,16 @@ export const Header = () => {
   return (
     <>
       {/* Fixed top bar — transparent, no border, no background */}
-      <nav className="fixed top-0 left-0 right-0 z-50" style={{ padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <nav className="fixed top-0 left-0 right-0 z-50" style={{ padding: 'clamp(12px,2.5vw,20px) clamp(16px,4vw,32px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-        {/* Centered glassmorphism pill */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 28,
+        {/* Mobile brand — left */}
+        <Link to="/" className="md:hidden" style={{ position: 'absolute', left: 'clamp(16px,4vw,32px)', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <span style={{ fontFamily: "'Space Grotesk', 'Geist', system-ui, sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: '#0a0a0f' }}>AYN</span>
+        </Link>
+
+        {/* Centered glassmorphism pill — desktop / large tablets only */}
+        <div className="hidden md:flex" style={{
+          alignItems: 'center', gap: 28,
           padding: '9px 24px',
           borderRadius: 9999,
           background: 'rgba(255,255,255,0.95)',
@@ -105,14 +110,14 @@ export const Header = () => {
         </div>
 
         {/* Right side — EN + Get Started Free — absolutely positioned */}
-        <div style={{ position: 'absolute', right: 32, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ position: 'absolute', right: 'clamp(12px,4vw,32px)', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 'clamp(8px,2vw,20px)' }}>
           <LanguageSwitcher />
 
           {/* Auth — desktop */}
           <div className="hidden md:block">
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: 'rgba(10,10,15,0.55)' }}>
                   {user.email?.split('@')[0]}
                 </span>
                 <button onClick={handleSignOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: 4 }} title="Sign out">
@@ -149,7 +154,7 @@ export const Header = () => {
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" style={{ color: '#fff' }}>
+                <Button variant="ghost" size="icon" style={{ color: '#0a0a0f' }} aria-label="Open menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
