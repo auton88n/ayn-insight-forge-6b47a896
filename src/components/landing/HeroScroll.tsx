@@ -4,12 +4,22 @@
  * Frames are #ffffff — page is #ffffff — seamless floating object.
  */
 
-import { useEffect, useRef, memo, useCallback } from 'react';
+import { useEffect, useRef, useState, memo, useCallback } from 'react';
+import type React from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { HELMET_FRAMES, FRAME_COUNT } from '@/assets/helmet-frames';
+
+/* ── Frame loading ──────────────────────────────────────────────
+ * Frames live in /public/frames as individual JPEGs instead of
+ * being base64-inlined in the JS bundle (which made the landing
+ * chunk ~57 MB). Mobile gets a smaller 242-frame / 480px set.
+ */
+const IS_SMALL_SCREEN = typeof window !== 'undefined' && window.innerWidth < 768;
+const FRAME_COUNT = IS_SMALL_SCREEN ? 242 : 484;
+const FRAME_DIR = IS_SMALL_SCREEN ? '/frames/helmet-sm' : '/frames/helmet';
+const frameUrl = (i: number) => `${FRAME_DIR}/${String(i).padStart(3, '0')}.jpg`;
 
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
@@ -33,14 +43,64 @@ const C = {
   glassShadow: '0 12px 36px -12px rgba(0, 0, 0, 0.06)',
 };
 
-const cache: HTMLImageElement[] = HELMET_FRAMES.map(src => {
-  const img = new Image(); img.src = src; img.decoding = 'async'; return img;
-});
+const cache: (HTMLImageElement | null)[] = new Array(FRAME_COUNT).fill(null);
+const loadedFlags: boolean[] = new Array(FRAME_COUNT).fill(false);
+let preloadStarted = false;
+
+function loadFrame(i: number) {
+  if (cache[i]) return;
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => { loadedFlags[i] = true; };
+  img.src = frameUrl(i);
+  cache[i] = img;
+}
+
+/** Progressive preload: coarse pass first (every 16th frame) so the
+ *  scroll scrub works almost immediately, then refine to every frame. */
+function preloadFrames() {
+  if (preloadStarted) return;
+  preloadStarted = true;
+  const strides = [16, 4, 1];
+  let s = 0;
+  const runPass = () => {
+    const stride = strides[s];
+    let i = 0;
+    const step = () => {
+      let n = 0;
+      while (i < FRAME_COUNT && n < 24) { loadFrame(i); i += stride; n++; }
+      if (i < FRAME_COUNT) setTimeout(step, 40);
+      else { s++; if (s < strides.length) setTimeout(runPass, 80); }
+    };
+    step();
+  };
+  runPass();
+}
+
+/** Nearest already-decoded frame to the requested index. */
+function nearestLoaded(idx: number): number {
+  if (loadedFlags[idx]) return idx;
+  for (let d = 1; d < FRAME_COUNT; d++) {
+    if (idx - d >= 0 && loadedFlags[idx - d]) return idx - d;
+    if (idx + d < FRAME_COUNT && loadedFlags[idx + d]) return idx + d;
+  }
+  return -1;
+}
 
 export const HeroScroll = memo(() => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
   const reduced = useReducedMotion();
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.innerWidth < 768
+  );
+
+  useEffect(() => {
+    preloadFrames();
+    const onResizeMq = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResizeMq, { passive: true });
+    return () => window.removeEventListener('resize', onResizeMq);
+  }, []);
 
   const CHAPTERS = [
     {
@@ -127,7 +187,10 @@ export const HeroScroll = memo(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const dpr = window.devicePixelRatio || 1;
-      const size = Math.min(window.innerWidth * 0.42, 580);
+      const mobile = window.innerWidth < 768;
+      const size = mobile
+        ? Math.min(window.innerWidth * 0.78, 420)
+        : Math.min(window.innerWidth * 0.42, 580);
       canvas.width = size * dpr;
       canvas.height = size * dpr;
       canvas.style.width = `${size}px`;
@@ -136,12 +199,17 @@ export const HeroScroll = memo(() => {
       if (ctx) {
         ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset
         ctx.scale(dpr, dpr);
-        // Initial draw
-        if (cache[0]?.complete) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, size, size);
-          ctx.drawImage(cache[0], 0, 0, size, size);
-        }
+        // Initial draw — first frame may still be loading over the network
+        const drawFirst = () => {
+          if (cache[0]?.complete && loadedFlags[0]) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+            ctx.drawImage(cache[0]!, 0, 0, size, size);
+          } else {
+            setTimeout(drawFirst, 60);
+          }
+        };
+        drawFirst();
       }
     };
     setupCanvas();
@@ -155,8 +223,9 @@ export const HeroScroll = memo(() => {
 
       /* Frame scrub — direct to Canvas */
       if (!reduced) {
-        const idx = clamp(Math.round(p * (FRAME_COUNT - 1)), 0, FRAME_COUNT - 1);
-        if (idx !== lastFrame.current) {
+        const target = clamp(Math.round(p * (FRAME_COUNT - 1)), 0, FRAME_COUNT - 1);
+        const idx = nearestLoaded(target);
+        if (idx >= 0 && idx !== lastFrame.current) {
           lastFrame.current = idx;
           const img = cache[idx];
           const canvas = canvasRef.current;
@@ -236,7 +305,7 @@ export const HeroScroll = memo(() => {
         <div className="sticky top-0" style={{ height: '100dvh', overflow: 'hidden', background: C.bg }}>
 
           {/* ── 3D OBJECT — no wrappers, no extra transforms, clean float ── */}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 'clamp(32px,4vw,64px)', zIndex: 1 }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: isMobile ? 'center' : 'flex-end', paddingRight: isMobile ? 0 : 'clamp(32px,4vw,64px)', paddingBottom: isMobile ? '6vh' : 0, zIndex: 1 }}>
             <div ref={floatRef} style={{ 
               willChange: 'transform', 
               transformStyle: 'preserve-3d', 
@@ -260,15 +329,17 @@ export const HeroScroll = memo(() => {
           </div>
 
           {/* Gradient — text/object separation — fully opaque until cutoff */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(to right, #ffffff 0%, #ffffff 38%, rgba(255,255,255,0) 58%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: isMobile
+            ? 'linear-gradient(to bottom, #ffffff 0%, rgba(255,255,255,0.92) 40%, rgba(255,255,255,0) 68%)'
+            : 'linear-gradient(to right, #ffffff 0%, #ffffff 38%, rgba(255,255,255,0) 58%)', pointerEvents: 'none' }} />
 
           {/* ── TEXT ── */}
-          <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: 'center', padding: '80px clamp(32px,6vw,96px)' }}>
-            <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: 'min(80vh, 580px)' }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? '110px clamp(20px,5vw,32px) 0' : '80px clamp(32px,6vw,96px)' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: isMobile ? 'min(54vh, 480px)' : 'min(80vh, 580px)' }}>
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
-                <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(48px,6.2vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: isAr ? 'right' : 'left' }}>
+                <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,8vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: isAr ? 'right' : 'left' }}>
                   {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
                 </h1>
                 <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px', textAlign: isAr ? 'right' : 'left' }}>
@@ -302,7 +373,7 @@ export const HeroScroll = memo(() => {
 
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
-                <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,5vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: isAr ? 'right' : 'left' }}>
+                <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,7vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: isAr ? 'right' : 'left' }}>
                   {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -311,11 +382,11 @@ export const HeroScroll = memo(() => {
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
                     {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
                   </Link>
-                  <Link to="/features" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s' }}
+                  <a href="#features" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
                     {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
-                  </Link>
+                  </a>
                 </div>
               </div>
             </div>
@@ -339,7 +410,7 @@ export const HeroScroll = memo(() => {
             color: C.inkSub, 
             margin: '0 auto',
             maxWidth: 880,
-            textWrap: 'balance' as any,
+            textWrap: 'balance' as React.CSSProperties['textWrap'],
             textAlign: 'center'
           }}>
             {isAr
@@ -356,7 +427,7 @@ export const HeroScroll = memo(() => {
         minHeight: '100dvh', 
         display: 'flex', 
         alignItems: 'center', 
-        padding: '120px clamp(32px,5vw,80px)', 
+        padding: 'clamp(72px,12vh,120px) clamp(20px,5vw,80px)', 
         background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%)', 
         borderBottom: `1px solid ${C.border}`,
         position: 'relative',
@@ -371,14 +442,14 @@ export const HeroScroll = memo(() => {
             <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'center' }}>
               {isAr ? 'بُني لكل جزء من العمل.' : language === 'fr' ? 'Conçu pour chaque partie de l\'entreprise.' : 'Built for every part of the business.'}
             </h2>
-            <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as any, textAlign: 'center' }}>
+            <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
               {isAr ? 'تساعد AYN القادة على طرح الأسئلة، وقراءة سياق الشركة، وتحويل النشاط اليومي إلى قرارات.' : language === 'fr' ? "AYN aide les dirigeants à poser des questions, à lire le contexte de l'entreprise et à transformer l'activité quotidienne en décisions." : 'AYN helps leaders ask questions, read company context, and turn daily activity into decisions.'}
             </p>
           </div>
 
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', 
             gap: 32 
           }}>
             {[
@@ -415,7 +486,7 @@ export const HeroScroll = memo(() => {
             ].map((card, i) => (
               <div key={i}
                 style={{ 
-                  padding: '48px 40px', 
+                  padding: 'clamp(28px,5vw,48px) clamp(22px,4vw,40px)', 
                   background: 'rgba(255, 255, 255, 0.4)',
                   backdropFilter: 'blur(20px) saturate(180%)',
                   WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -473,7 +544,7 @@ export const HeroScroll = memo(() => {
         flexDirection: 'column', 
         alignItems: 'center', 
         justifyContent: 'center', 
-        padding: '120px clamp(24px,4vw,64px)', 
+        padding: 'clamp(72px,12vh,120px) clamp(20px,4vw,64px)', 
         background: '#fcfcfc', 
         borderBottom: `1px solid ${C.border}`,
         position: 'relative'
@@ -483,14 +554,14 @@ export const HeroScroll = memo(() => {
             <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', lineHeight: 1.04, textAlign: 'center' }}>
               {isAr ? 'بُني للشركات التي تحتاج إلى الوضوح للنمو.' : language === 'fr' ? 'Conçu pour les entreprises qui ont besoin de clarté pour croître.' : 'Built for the companies that need clarity to grow.'}
             </h2>
-            <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 820, margin: '0 auto', textWrap: 'balance' as any, textAlign: 'center' }}>
+            <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 820, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
               {isAr ? 'تتكيف AYN مع مختلف الصناعات من خلال ربط شعوبها وبياناتها وتقاريرها وعملياتها اليومية في طبقة استخبارات واحدة تعمل بالذكاء الاصطناعي.' : language === 'fr' ? "AYN s'adapte à différents secteurs en connectant leurs collaborateurs, leurs données, leurs rapports et leurs opérations quotidiennes en une seule couche d'intelligence artificielle." : 'AYN adapts to different industries by connecting their people, data, reports, and daily operations into one AI intelligence layer.'}
             </p>
           </div>
           
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', 
             gap: 32 
           }}>
             {[
@@ -526,7 +597,7 @@ export const HeroScroll = memo(() => {
               }
             ].map((item, i) => (
               <div key={i} style={{ 
-                padding: '48px 40px', 
+                padding: 'clamp(28px,5vw,48px) clamp(22px,4vw,40px)', 
                 background: 'rgba(255, 255, 255, 0.45)', 
                 backdropFilter: 'blur(20px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -605,12 +676,12 @@ export const HeroScroll = memo(() => {
               onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
               {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
             </Link>
-            <Link to="/features"
+            <a href="#features"
               style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: 'rgba(255,255,255,0.65)', fontFamily: C.body, fontSize: 14, borderRadius: 100, border: '1px solid rgba(255,255,255,0.20)', textDecoration: 'none', transition: 'border-color 0.2s, color 0.2s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.45)'; (e.currentTarget as HTMLAnchorElement).style.color = '#fff'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.20)'; (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.65)'; }}>
               {isAr ? 'استكشف المميزات' : language === 'fr' ? 'Explorer les fonctionnalités' : 'Explore Features'}
-            </Link>
+            </a>
           </div>
         </div>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
