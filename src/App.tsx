@@ -50,7 +50,7 @@ const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 
 // const AIEmployee = lazy(() => import("./pages/services/AIEmployee"));
 // const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
-// HIDDEN: Content Creator Sites and Engineering tools temporarily disabled
+// HIDDEN: Content Creator Sites temporarily disabled
 // const InfluencerSites = lazy(() => import("./pages/services/InfluencerSites"));
 // const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
 // const SolutionsPage = lazy(() => import("./pages/Solutions"));
@@ -62,12 +62,6 @@ const ContactPage = lazy(() => import("./pages/Contact"));
 // const Ticketing = lazy(() => import("./pages/services/Ticketing"));
 // const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
 const Support = lazy(() => import("./pages/Support"));
-// HIDDEN: Engineering & Compliance features temporarily disabled
-// const Engineering = lazy(() => import("./pages/EngineeringWorkspacePage"));
-// const Compliance = lazy(() => import("./pages/CompliancePage"));
-// const AIGradingDesigner = lazy(() => import("./pages/AIGradingDesigner"));
-// HIDDEN: CivilEngineering service page temporarily disabled
-// const CivilEngineering = lazy(() => import('./pages/services/CivilEngineering'));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const DashboardPricing = lazy(() => import("./components/dashboard/DashboardPricing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
@@ -121,13 +115,6 @@ const AnimatedRoutes = () => {
 
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
       <Route path="/support" element={<Support />} />
-      {/* HIDDEN: Engineering & Compliance routes temporarily disabled
-      <Route path="/engineering" element={<Suspense fallback={<PageLoader />}><Engineering /></Suspense>} />
-      <Route path="/compliance" element={<Suspense fallback={<PageLoader />}><Compliance /></Suspense>} />
-      <Route path="/engineering/grading" element={<Suspense fallback={<PageLoader />}><AIGradingDesigner /></Suspense>} />
-      */}
-      {/* HIDDEN: Civil engineering redirect disabled */}
-      {/* <Route path="/solutions/civil-engineering" element={<Navigate to="/" replace />} /> */}
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />

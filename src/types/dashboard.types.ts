@@ -11,7 +11,7 @@ export interface Message {
   isTyping?: boolean;
   attachment?: FileAttachment;
   labData?: LABResponse;
-  chartAnalysis?: import('@/types/chartAnalyzer.types').ChartAnalysisResult;
+
 }
 
 export interface FileAttachment {

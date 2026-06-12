@@ -568,7 +568,7 @@ export const CenterStageLayout = ({
             : undefined;
 
           if (!transcriptOpen) {
-            emitResponseBubble(response, bubbleType, attachment, lastMessage.chartAnalysis);
+            emitResponseBubble(response, bubbleType, attachment);
 
             setTimeout(() => {
               debouncedFetchAndEmitSuggestions(lastUserMessage || "Hello", messageContent, selectedMode);
