@@ -9,7 +9,6 @@ export { default as ImprovementPriorities } from './ImprovementPriorities';
 export { default as JourneyHealthMap } from './JourneyHealthMap';
 export { default as PerformanceFeeling } from './PerformanceFeeling';
 export { OWASPSecurityReport } from './OWASPSecurityReport';
-export { default as EngineeringBenchmark } from './EngineeringBenchmark';
 export { default as AIImprovements } from './AIImprovements';
 export { default as SimplePlatformHealth } from './SimplePlatformHealth';
 export { default as QuickStatusBar } from './QuickStatusBar';

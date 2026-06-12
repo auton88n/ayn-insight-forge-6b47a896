@@ -33,7 +33,6 @@ import { toast } from 'sonner';
 import QuickStatusBar from './test-results/QuickStatusBar';
 import SimplePlatformHealth from './test-results/SimplePlatformHealth';
 import AIAnalysisCard from './test-results/AIAnalysisCard';
-import EngineeringBenchmark from './test-results/EngineeringBenchmark';
 import AIImprovements from './test-results/AIImprovements';
 import { OWASPSecurityReport } from './test-results/OWASPSecurityReport';
 import { DetailedTestCard } from './test-results/DetailedTestCard';
@@ -1082,7 +1081,6 @@ const TestResultsDashboard: React.FC = () => {
       </div>
 
       {/* Section 4: Engineering Benchmark - Full Width for Better Visibility */}
-      <EngineeringBenchmark />
 
       {/* Section 5: AI Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
