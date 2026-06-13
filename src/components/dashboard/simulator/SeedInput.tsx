@@ -132,7 +132,7 @@ export function SeedInput({ loading, onStart }: Props) {
     }
   };
 
-  const usePreset = (p: typeof PRESETS[number]) => { setSeed(p.seed); setQuestion(p.question); };
+  const applyPreset = (p: typeof PRESETS[number]) => { setSeed(p.seed); setQuestion(p.question); };
 
   const handleFile = (file: File) => {
     if (file.size > 5 * 1024 * 1024) return;
@@ -264,7 +264,7 @@ export function SeedInput({ loading, onStart }: Props) {
           {/* Presets */}
           <div className="flex flex-wrap gap-1.5">
             {PRESETS.map(p => (
-              <button key={p.label} onClick={() => usePreset(p)}
+              <button key={p.label} onClick={() => applyPreset(p)}
                 className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-card/40 border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all">
                 <Sparkles className="w-2.5 h-2.5 inline mr-1 opacity-60" />{p.label}
               </button>

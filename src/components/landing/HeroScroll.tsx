@@ -16,7 +16,12 @@ import { useLanguage } from '@/contexts/LanguageContext';
  * being base64-inlined in the JS bundle (which made the landing
  * chunk ~57 MB). Mobile gets a smaller 242-frame / 480px set.
  */
-const IS_SMALL_SCREEN = typeof window !== 'undefined' && window.innerWidth < 768;
+// Use the lighter 242-frame / 480px set for phones AND tablets (< 1024px),
+// matching the "stacked" layout breakpoint below. Tablets in portrait were
+// previously downloading all 484 full-size desktop frames despite rendering
+// the small stacked canvas — wasteful and the most common cause of jank on
+// mid-range tablets.
+const IS_SMALL_SCREEN = typeof window !== 'undefined' && window.innerWidth < 1024;
 const FRAME_COUNT = IS_SMALL_SCREEN ? 242 : 484;
 const FRAME_DIR = IS_SMALL_SCREEN ? '/frames/helmet-sm' : '/frames/helmet';
 const frameUrl = (i: number) => `${FRAME_DIR}/${String(i).padStart(3, '0')}.jpg`;

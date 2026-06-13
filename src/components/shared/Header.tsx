@@ -120,7 +120,7 @@ export const Header = () => {
                 <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: 'rgba(10,10,15,0.55)' }}>
                   {user.email?.split('@')[0]}
                 </span>
-                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', padding: 4 }} title="Sign out">
+                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(10,10,15,0.55)', padding: 4 }} title="Sign out">
                   <LogOut size={15} />
                 </button>
               </div>
