@@ -66,25 +66,30 @@ const Index = () => {
       (event, session) => {
         if (!mounted) return;
 
-        if (event === 'SIGNED_IN' && session) {
+        if (event === 'SIGNED_OUT') {
+          cachedSession = null;
+          cachedUser = null;
+          cachedInitialized = true;
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          setIsInitialized(true);
+        } else if (session) {
+          // Any event that carries a session means we're authenticated:
+          // SIGNED_IN (fresh login), INITIAL_SESSION (restored on reload or
+          // returned from an OAuth redirect), TOKEN_REFRESHED, USER_UPDATED.
+          // Previously only SIGNED_IN was handled, so a session arriving via
+          // INITIAL_SESSION left the user stuck on the landing page.
           cachedSession = session;
           cachedUser = session.user;
           cachedInitialized = true;
           setSession(session);
           setUser(session.user);
-          setLoading(true);
           setIsInitialized(true);
-        } else if (event === 'SIGNED_OUT') {
-          cachedSession = null;
-          cachedUser = null;
-          setSession(null);
-          setUser(null);
-          setLoading(false);
-        } else if ((event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session) {
-          cachedSession = session;
-          cachedUser = session.user;
-          setSession(session);
-          setUser(session.user);
+        } else if (event === 'INITIAL_SESSION') {
+          // Initial check completed with no session — show the landing page.
+          cachedInitialized = true;
+          setIsInitialized(true);
         }
       }
     );

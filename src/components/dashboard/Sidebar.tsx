@@ -362,24 +362,6 @@ export const Sidebar = ({
         )}
 
         
-        {/* Command Center entry */}
-        <SidebarGroup className="flex-shrink-0 px-4 pb-2">
-          <SidebarGroupContent>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('ayn-open-command-center'))}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-foreground text-background hover:opacity-90 transition-all duration-200 group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-background/15 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 text-left flex-1">
-                <span className="text-sm font-semibold block leading-tight">Command Center</span>
-                <span className="text-[10px] opacity-70">updates · reports · ask</span>
-              </div>
-            </button>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
         {/* Spheres Button — hidden for now */}
         {false && (
         <SidebarGroup className="flex-shrink-0 px-4 pb-2">
