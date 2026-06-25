@@ -438,12 +438,111 @@ Deno.serve(async (req) => {
       if (!jdText) return json({ error: "jdText required" }, 400);
       const r = await callAI({
         model: QUALITY_MODEL,
-        system: "Tailor the given resume to maximize relevance to the job description. Reorder skills, emphasize relevant experience, rewrite bullets with the JD's keywords (only if truthful). Return the tailored resume in the same schema.",
+        system: `You are an expert Canadian resume writer. Tailor the resume to the job description using these strict rules:
+
+RULES — YOU MUST FOLLOW EVERY ONE:
+1. NEVER invent, add, or imply experience, skills, tools, or achievements the resume does not already contain.
+2. ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
+3. Keep every fact, number, company name, date, and result exactly as-is.
+4. You may reorder skills sections to put the most relevant skills first.
+5. You may adjust the summary to echo 2-3 key phrases from the job description — only using experience already in the resume.
+6. Do NOT change job titles, company names, or dates.
+7. No em dashes. No en dashes. Write dates as "2023 to Present".
+8. Return the tailored resume in the same schema as the input.`,
         user: JSON.stringify({ resume, jdText }).slice(0, 40000),
         toolName: "emit_resume",
         toolSchema: RESUME_SCHEMA,
       });
       return json({ resume: r.structured });
+    }
+
+    // ---------------- smart_tailor ----------------
+    // Accepts resumeText (plain text) + jdText, returns:
+    //   keywords: { text, inResume }[]  — job keywords with match status
+    //   tailoredText: string            — ATS-formatted plain text resume
+    //   changes: string[]               — brief list of what was changed
+    if (action === "smart_tailor") {
+      const { resumeText, jdText, jobTitle, company } = payload as { resumeText: string; jdText: string; jobTitle?: string; company?: string };
+      if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+
+      const r = await callAI({
+        model: QUALITY_MODEL,
+        system: `You are an expert Canadian resume writer and ATS specialist. Given a resume and job description, do two things:
+
+1. Extract the 10-14 most important keywords and skills from the job description.
+2. Produce a tailored version of the resume that passes ATS and reads naturally to a human recruiter.
+
+STRICT RULES — follow every one without exception:
+- NEVER invent, add, or imply experience, skills, tools, certifications, or achievements not already in the resume.
+- ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
+- Keep every fact, number, company name, job title, date, and result exactly as written.
+- You may reorder the skills section to put the most relevant items first.
+- You may adjust the summary to echo 2-3 key phrases from the job — only using experience the resume already contains.
+- Do NOT change job titles, company names, or employment dates.
+- No em dashes, no en dashes. Dates written as "2020 to 2022" or "2023 to Present".
+- Output the resume in clean ATS plain text using this exact format:
+
+[FULL NAME]
+[JOB TITLE LINE — what the person calls themselves, can echo the target role if resume supports it]
+[Phone] | [Email] | [Website/LinkedIn] | [Citizenship/Status] | [City, Province] | [Open to Remote if applicable]
+
+SUMMARY
+[2-4 sentences. First person voice. Specific, no clichés. Echo the role's key requirements only where resume supports them.]
+
+EXPERIENCE
+
+[Job Title] | [Company Name]  [Start to End]
+- [Bullet]
+- [Bullet]
+
+[repeat for each role]
+
+EDUCATION
+
+[Credential] | [Institution]  [Year]
+
+SKILLS
+[Category]: [comma separated skills]
+[repeat]
+
+Return ONLY valid JSON in this exact shape, no code fences:
+{
+  "keywords": [{ "text": "<keyword>", "inResume": <true|false> }],
+  "tailoredText": "<full resume as plain text>",
+  "changes": ["<what changed, max 5 short items>"]
+}`,
+        user: `TARGET ROLE: ${jobTitle || "Not specified"} at ${company || "Not specified"}
+
+RESUME:
+${resumeText.slice(0, 8000)}
+
+JOB DESCRIPTION:
+${jdText.slice(0, 6000)}`,
+      });
+
+      // Parse the JSON response
+      let parsed: { keywords: unknown; tailoredText: unknown; changes: unknown };
+      try {
+        const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+        const start = raw.indexOf("{");
+        const end = raw.lastIndexOf("}");
+        parsed = JSON.parse(start !== -1 ? raw.slice(start, end + 1) : raw);
+      } catch {
+        return json({ error: "Failed to parse AI response", raw: r.text.slice(0, 500) }, 500);
+      }
+
+      const keywords = Array.isArray(parsed.keywords)
+        ? (parsed.keywords as Array<Record<string, unknown>>).slice(0, 14).map(k => ({
+            text: String(k.text || ""),
+            inResume: Boolean(k.inResume),
+          }))
+        : [];
+
+      return json({
+        keywords,
+        tailoredText: String(parsed.tailoredText || ""),
+        changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0, 5) : [],
+      });
     }
 
     // ---------------- cover_letter ----------------

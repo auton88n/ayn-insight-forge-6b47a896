@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AYN Resume Tailor</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg2: #111116;
+      --bg3: #18181f;
+      --border: #272730;
+      --text: #eeeef5;
+      --muted: #72728a;
+      --green: #22c55e;
+      --green-bg: rgba(34,197,94,0.08);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245,158,11,0.08);
+      --red: #ef4444;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      flex-shrink: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px; }
+    .logo-dot { width: 18px; height: 18px; background: linear-gradient(135deg, var(--accent), var(--green)); border-radius: 50%; }
+    .header-link { font-size: 11px; color: var(--muted); text-decoration: none; }
+    .header-link:hover { color: var(--text); }
+
+    /* ── Stepper ── */
+    .stepper {
+      display: flex;
+      align-items: center;
+      padding: 8px 14px;
+      gap: 3px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      flex-shrink: 0;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--muted);
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .step-item.active { color: var(--text); }
+    .step-item.done { color: var(--green); }
+    .step-num {
+      width: 17px; height: 17px; border-radius: 50%;
+      border: 1.5px solid currentColor;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; flex-shrink: 0;
+    }
+    .step-item.active .step-num { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .step-item.done .step-num { background: var(--green); color: #fff; border-color: var(--green); }
+    .step-arrow { color: var(--border); font-size: 9px; padding: 0 2px; flex-shrink: 0; }
+
+    /* ── Main scroll ── */
+    .main { flex: 1; overflow-y: auto; padding: 12px 14px; }
+    .main::-webkit-scrollbar { width: 3px; }
+    .main::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* ── Views ── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── Form elements ── */
+    label {
+      display: block;
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      background: var(--bg3);
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 11px;
+      line-height: 1.5;
+      padding: 7px 9px;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      resize: none;
+    }
+    textarea:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+    textarea::placeholder, input::placeholder { color: var(--muted); }
+    .char-count { font-size: 10px; color: var(--muted); text-align: right; margin-top: 2px; }
+
+    .field { margin-bottom: 10px; }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 9px 14px;
+      border-radius: 4px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: monospace;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-green:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
+    .btn-outline:hover:not(:disabled) { border-color: var(--muted); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 7px; }
+    .btn-row .btn { flex: 1; }
+    .btn-sm { padding: 6px 10px; font-size: 10px; width: auto; }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Job detected banner ── */
+    .job-banner {
+      background: var(--green-bg);
+      border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    .job-banner-title { font-weight: 600; color: var(--green); }
+    .job-banner-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Keyword chips ── */
+    .kw-section { margin-bottom: 14px; }
+    .kw-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    .kw-label { font-size: 10px; font-family: monospace; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .kw-count { font-size: 11px; font-family: monospace; font-weight: 600; color: var(--text); }
+    .kw-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .kw-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 999px;
+      font-size: 11px; border: 1px solid;
+    }
+    .kw-chip.matched { background: var(--green-bg); border-color: rgba(34,197,94,0.3); color: var(--green); }
+    .kw-chip.missing { background: var(--bg3); border-color: var(--border); color: var(--muted); }
+
+    /* ── Changes list ── */
+    .changes-list { list-style: none; margin-bottom: 14px; }
+    .changes-list li {
+      display: flex; gap: 7px; font-size: 11px; padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .changes-list li:last-child { border: none; }
+    .change-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
+
+    /* ── Tailored resume output ── */
+    .resume-out {
+      background: var(--bg3);
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      font-family: 'SF Mono', 'JetBrains Mono', monospace;
+      max-height: 320px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .resume-out::-webkit-scrollbar { width: 3px; }
+    .resume-out::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* ── Section label ── */
+    .section-label {
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+    /* ── Error ── */
+    .error-box {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #fca5a5;
+      margin-bottom: 10px;
+    }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 14px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 4px; padding: 7px 14px;
+      font-size: 11px; color: var(--text);
+      z-index: 999; opacity: 0; transition: opacity 0.25s;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+    .toast.error { border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+    .toast.success { border-color: rgba(34,197,94,0.4); color: var(--green); }
+
+    .hidden { display: none !important; }
+    .mt8 { margin-top: 8px; }
+    .mt12 { margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      AYN Resume Tailor
+    </div>
+    <a href="https://aynn.io/resume-match" target="_blank" class="header-link">Open app ↗</a>
+  </div>
+
+  <div class="stepper" id="stepper">
+    <div class="step-item active" id="s1"><div class="step-num">1</div><span>Input</span></div>
+    <div class="step-arrow">›</div>
+    <div class="step-item" id="s2"><div class="step-num">2</div><span>Keywords</span></div>
+    <div class="step-arrow">›</div>
+    <div class="step-item" id="s3"><div class="step-num">3</div><span>Tailor</span></div>
+    <div class="step-arrow">›</div>
+    <div class="step-item" id="s4"><div class="step-num">4</div><span>Export</span></div>
+  </div>
+
+  <div class="main">
+
+    <!-- ── Step 1: Input ── -->
+    <div class="view active" id="v1">
+      <div id="job-banner" class="job-banner hidden">
+        <div class="job-banner-title" id="job-banner-title">Job detected</div>
+        <div class="job-banner-sub" id="job-banner-sub">Click to load</div>
+        <button class="btn btn-outline btn-sm mt8" id="use-job-btn">Use This Job</button>
+      </div>
+
+      <div class="field">
+        <label>Your Resume</label>
+        <textarea id="resume-input" rows="9" placeholder="Paste your resume here, or use the AYN app to load your saved resume..."></textarea>
+        <div class="char-count"><span id="resume-chars">0</span> chars</div>
+      </div>
+
+      <div class="field">
+        <label>Job Description <span style="color:var(--green);font-family:monospace;font-size:9px;letter-spacing:0.05em">(auto-detected from this page)</span></label>
+        <textarea id="job-input" rows="8" placeholder="Job description will auto-fill from job postings. Or paste it manually."></textarea>
+        <div class="char-count"><span id="job-chars">0</span> chars</div>
+      </div>
+
+      <div id="err1" class="error-box hidden"></div>
+      <button class="btn btn-primary" id="analyze-btn">Detect Keywords →</button>
+    </div>
+
+    <!-- ── Step 2: Keywords ── -->
+    <div class="view" id="v2">
+      <div class="kw-section">
+        <div class="kw-header">
+          <span class="kw-label">Job Keywords</span>
+          <span class="kw-count" id="kw-count">0 / 0 matched</span>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
+          Green = already in your resume. Grey = missing. AYN will weave in the grey ones <strong style="color:var(--text)">only where your experience supports it</strong> — nothing invented.
+        </p>
+        <div class="kw-chips" id="kw-chips"></div>
+      </div>
+
+      <div class="divider"></div>
+      <div id="err2" class="error-box hidden"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" id="back1-btn">← Back</button>
+        <button class="btn btn-green" id="tailor-btn">Tailor My Resume ✦</button>
+      </div>
+    </div>
+
+    <!-- ── Step 3: Tailored result ── -->
+    <div class="view" id="v3">
+      <div class="section-label">What Changed</div>
+      <ul class="changes-list" id="changes-list"></ul>
+
+      <div class="section-label">Tailored Resume</div>
+      <div class="resume-out" id="resume-out"></div>
+
+      <div id="err3" class="error-box hidden"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-outline" id="back2-btn">← Back</button>
+        <button class="btn btn-primary" id="copy-btn">Copy Resume</button>
+      </div>
+      <button class="btn btn-outline mt8" id="new-job-btn">Tailor for Another Job</button>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
