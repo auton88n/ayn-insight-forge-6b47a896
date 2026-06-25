@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AYN Resume Tailor",
   "version": "1.0.0",
-  "description": "On any job posting, instantly see your keyword match and get a tailored resume in one click. Powered by AYN AI.",
+  "description": "On any job posting in the US or Canada, instantly see your match score, autofill the application, find the recruiter, and tailor your resume. Powered by AYN AI.",
   "permissions": [
     "activeTab",
     "storage",

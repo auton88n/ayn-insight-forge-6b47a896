@@ -200,13 +200,13 @@ Deno.serve(async (req) => {
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
         ]);
         const r = await callAI({
-          system: `You are filling out a job application form for a Canadian job seeker.
+          system: `You are filling out a job application form for a job seeker applying to jobs in the US and Canada.
 
 You have: their profile (name, address, phone, work authorization, answers), their resume (experience, skills, education), and the job description.
 
 RULES:
 - Only use real data from profile and resume — never invent information
-- Work authorization questions (legally eligible to work in Canada): use work_auth.legally_eligible
+- Work authorization questions (legally eligible to work in Canada or the US): use work_auth.legally_eligible
 - Salary: use default_answers.salary_expectation if set, else leave empty
 - "Tell us about yourself": use default_answers.about_me adapted to the job
 - "Why this role": use default_answers.why_this_role adapted to the job
@@ -306,7 +306,7 @@ Return ONLY valid JSON, no code fences:
         if (!resume?.content) return json({ roles: [], keywords: [] });
 
         const r = await callAI({
-          system: `You are a Canadian job search expert. Based on this resume, suggest the best job titles to search for on LinkedIn and Indeed Canada.
+          system: `You are a job search expert for the US and Canadian job markets. Based on this resume, suggest the best job titles to search for on LinkedIn and Indeed.
 Return ONLY valid JSON, no code fences:
 {
   "roles": ["<title1>", "<title2>", ...],
@@ -315,7 +315,7 @@ Return ONLY valid JSON, no code fences:
 }
 - roles: 8-10 specific job titles they should search for, ordered best match first
 - keywords: 6-8 skills/tools to add to searches for better results
-- Be specific to Canadian job market and their actual experience level`,
+- Be specific to the US and Canadian job markets and their actual experience level`,
           user: JSON.stringify({ basics: resume.content?.basics, work: resume.content?.work, skills: resume.content?.skills }).slice(0, 5000),
         });
 
