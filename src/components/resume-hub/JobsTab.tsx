@@ -99,11 +99,19 @@ export default function JobsTab({ userId }: Props) {
     if (!newJob.url && !newJob.text) return;
     setBusy(true);
     try {
-      await resumeHubApi.ingestJob({ source: "manual", source_url: newJob.url || undefined, text: newJob.text || undefined });
+      const { error } = await supabase.from("jobs").insert({
+        user_id: userId,
+        source: "manual",
+        source_url: newJob.url || null,
+        jd_text: newJob.text || null,
+        company: "New company",
+        title: "Untitled role",
+      });
+      if (error) throw error;
       setNewJob({ url: "", text: "" });
       setAdding(false);
       load();
-      toast({ title: "Job added" });
+      toast({ title: "Job added", description: "Open it to fill in details." });
     } catch (e) {
       toast({ title: "Add failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
