@@ -1,80 +1,111 @@
-# Intelligence Command Center
+## What we're building
 
-A new section inside the existing dashboard that turns AYN into a company command center: capture team updates, generate manager/CEO outputs, build action plans, ask questions about the company, and route any output to a teammate via `@mention`.
+A new **Resume Hub** feature inside AYN (no impact on existing Command Center, chat, or intelligence modules) plus a **AYN Autofill** Chrome extension that pairs with the same account.
 
-## 1. Hide the Sphere button
+Inspired by jobright.ai: resume builder + AI rewrite, AI auto-tailor per job, job feed with match scores, application tracker (Kanban), one-click cover letters, and a browser extension that autofills any job application form (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, iCIMS, etc.).
 
-In `src/components/dashboard/Sidebar.tsx` (lines 365–394), wrap the "Sphere" `SidebarGroup` in `{false && (...)}` (kept in code, hidden from UI). The route `/world-intelligence` stays intact.
+## Privacy model (non-negotiable)
 
-## 2. New entry in the sidebar
+- Every new table has RLS scoped to `auth.uid()`. No cross-user reads.
+- Admins (via `has_role(uid,'admin')`) get **read-only** access *only* when a user opens a support ticket, and every read is written to `security_audit_logs`.
+- All AI calls (tailoring, cover letters, match scoring) run inside edge functions with the caller's JWT; user content never enters shared logs.
+- Resume files stored in a **private** Supabase Storage bucket `resumes/` with path `{user_id}/...` and an RLS policy that allows only the owner.
+- Extension auth uses a per-device token bound to the user (no password storage in the extension).
 
-Add a new sidebar item above "Recent Chats" labeled **Command Center** (icon: `Command` from lucide). Clicking it opens the Command Center as the dashboard's center stage view (same slot the chat occupies), without leaving `/dashboard`.
+## Phase 1 — Database (one migration)
 
-Layout inside `DashboardContainer.tsx`: introduce a small view-switcher state (`'chat' | 'command'`). Default stays `chat`.
+New tables (all with `user_id uuid not null`, RLS `auth.uid() = user_id`, GRANTs to authenticated + service_role):
 
-## 3. Command Center UI
+- `resumes` — id, title, is_primary, content jsonb (structured: basics, work, education, skills, projects, certs), pdf_path, ats_score, updated_at
+- `resume_versions` — id, resume_id, content jsonb, created_for_job_id, created_at (history of tailored variants)
+- `jobs` — id, source ('extension'|'linkedin'|'manual'), source_url, company, title, location, remote, salary_min, salary_max, jd_text, jd_html, posted_at, captured_at, dedupe_hash
+- `job_matches` — id, job_id, resume_id, score int, breakdown jsonb (skills_match, experience_match, missing_keywords), generated_at
+- `applications` — id, job_id, resume_version_id, status enum('saved','applied','interview','offer','rejected'), notes, applied_at, follow_up_at
+- `cover_letters` — id, job_id, resume_id, body text, tone, created_at
+- `user_profile_data` — id (= user_id), legal_name, phone, address jsonb, work_auth, links jsonb (linkedin, github, portfolio), demographics jsonb (optional EEO answers), default_answers jsonb (common application questions). This powers extension autofill.
+- `extension_tokens` — id, user_id, token_hash, device_label, last_used_at, revoked_at. Issued from the dashboard; extension stores raw token in `chrome.storage.local`.
+- `support_admin_reads` (audit) — admin_id, user_id, table_name, row_id, ticket_id, read_at.
 
-A single page with a left rail of 5 tools and a right working area.
+Storage bucket: `resumes` (private) with owner-only policies.
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  COMMAND CENTER                                       @you   │
-├──────────────┬───────────────────────────────────────────────┤
-│ Team Updates │   [active tool work area]                     │
-│ Manager      │                                               │
-│ CEO Brief    │   • input form                                │
-│ Action Plan  │   • generate button                           │
-│ Ask Anything │   • streamed AI output card                   │
-│              │   • [Send to @user] [Copy] [Save]             │
-│ ─────────    │                                               │
-│ Inbox (3)    │                                               │
-└──────────────┴───────────────────────────────────────────────┘
+## Phase 2 — Edge functions
+
+All call Lovable AI Gateway (`google/gemini-3-flash-preview` default; `gemini-2.5-pro` for resume rewrite quality mode):
+
+- `resume-parse` — input: PDF/DOCX upload → parsed structured JSON (uses `document--parse_document` style flow + AI cleanup).
+- `resume-rewrite` — input: resume json + optional jd → improved bullets, ATS suggestions, score.
+- `resume-tailor` — input: resume_id + job_id → writes new `resume_versions` row tailored to that JD, returns PDF.
+- `resume-export-pdf` — renders the resume json to a clean ATS-friendly PDF (reportlab in a Deno-compatible alt or a JS renderer; we'll use `pdf-lib` via `npm:`).
+- `job-ingest` — receives job from extension (URL + raw HTML/text + parsed meta), dedupes, stores, kicks off `job-match` for primary resume.
+- `job-match` — scores a job vs a resume, writes `job_matches`.
+- `cover-letter-generate` — JD + resume + tone → letter.
+- `extension-auth` — POST { token } → validates against `extension_tokens.token_hash`, returns short-lived JWT for subsequent extension calls.
+- `extension-autofill-profile` — returns `user_profile_data` + primary resume summary for autofill (requires extension JWT).
+
+## Phase 3 — Frontend (Dashboard)
+
+New route group under `/dashboard/resume`:
+
+- **Overview** — primary resume card, ATS score, recent matches, application funnel counts.
+- **Resume Builder** — left: structured form (basics, experience, education, skills, projects). Right: live preview. Top actions: Import PDF, AI Improve, Tailor to Job, Export PDF, Set as Primary.
+- **Jobs** — filter/search feed of saved jobs (from extension or manual add). Each card: match score badge, company, title, location, "Tailor & Apply" button.
+- **Job Detail** — JD on left, match breakdown + missing keywords on right, buttons: Generate Tailored Resume, Generate Cover Letter, Move to Applied.
+- **Tracker** — Kanban: Saved → Applied → Interview → Offer / Rejected. Drag to update status. Notes drawer.
+- **Extension** — "Install AYN Autofill", token generation panel (one-click create, copy, revoke), connected devices list, profile data form that powers autofill (legal name, phone, work auth, EEO defaults, links).
+
+Aesthetic: matches AYN dark premium tokens (Syne headings, Inter body, JetBrains Mono for scores). No purple/indigo defaults.
+
+Sidebar gets one new entry: **Resume Hub** with sub-items.
+
+## Phase 4 — Chrome Extension (Manifest V3)
+
+Lives in `/extension/` in the repo. Built as a downloadable ZIP served from `/public/ayn-autofill.zip` via a fetch+blob link on the Extension page.
+
+Structure:
+
+```
+extension/
+  manifest.json   (MV3, host_permissions: <all_urls>, permissions: storage, activeTab, scripting, contextMenus)
+  background.js   (service worker — auth, message routing)
+  content.js      (injected on every page — field detection + autofill)
+  popup.html/js   (status, "Fill this form", "Save this job", "Tailor resume", "Generate cover letter")
+  options.html/js (paste token from dashboard, pick primary resume)
+  site-adapters/  (linkedin.js, workday.js, greenhouse.js, lever.js, ashby.js, icims.js, generic.js)
 ```
 
-### Tool 1 — Team Updates
-Form: department, author name, update text, optional impact level (low/med/high). Saves to a personal "updates" log. List view shows the last 50 updates with filters.
+Capabilities:
 
-### Tool 2 — Manager Report
-Reads recent updates → AI generates a structured manager report (highlights, blockers, KPIs, next week).
+1. **Autofill** — content script scans the page for input/select/textarea, classifies each field with a heuristic + label-text matcher, falls back to AI (calls `extension-autofill-fill` edge fn with field labels → returns value map). Site adapters override for known ATS forms (Workday's stepper, LinkedIn Easy Apply iframes, Greenhouse's custom selects).
+2. **Save job** — popup "Save this job" sends URL + cleaned page text to `job-ingest`. Works on LinkedIn, Indeed, Glassdoor, company career pages.
+3. **Inline resume tailor** — when on a job posting (detected by site adapter or AI), popup shows match score and a "Tailor & Download" button → calls `resume-tailor`, downloads the PDF.
+4. **Cover letter** — same popup → calls `cover-letter-generate`, opens a side panel with the result, copy to clipboard.
 
-### Tool 3 — CEO Brief
-Reads recent updates → AI generates 1-page executive brief (1 headline, 3 wins, 3 risks, 1 ask).
+Auth: user generates a token in dashboard → pastes in extension Options → extension calls `extension-auth` and stores short-lived JWT, auto-refreshes.
 
-### Tool 4 — Action Plan
-Input: a goal or problem. AI returns an action plan: objective, 5 steps, owners (suggested), deadline, KPI.
+LinkedIn note: extension reads pages the user is viewing (no background crawling) to stay within reasonable use; we don't store LinkedIn cookies or scrape at scale.
 
-### Tool 5 — Ask Anything
-Free-text Q&A grounded ONLY in the user's stored updates ("company data" = updates the user entered).
+## Phase 5 — QA & ship
 
-Every output card has three actions: **Copy**, **Save**, and **Send to @user**.
+- Unit edge function tests for parse, rewrite, tailor, match, ingest.
+- Manual extension test matrix: LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, iCIMS, plain HTML form.
+- Visual QA of generated PDF (render to image, inspect spacing/clipping per pdf skill).
+- Verify admin cannot read another user's resume via Supabase REST without a ticket.
 
-## 4. @Mentions and Inbox
+## Out of scope (v1)
 
-A textarea-anywhere mention picker (typing `@` opens a popup of teammates, fetched once from the existing user lookup). When the user picks a teammate and clicks **Send**, the output is delivered as one of three types: `message`, `report`, or `question`. The recipient sees it in their **Inbox** tab inside Command Center, with sender, type, timestamp, full content, and a Reply button (reply opens an Ask Anything thread referencing the original).
+- Email interview reminders, calendar sync.
+- Background scraping of LinkedIn/Indeed (only user-visited pages via extension).
+- Recruiter-side features, team/org sharing.
+- Mobile app autofill.
 
-## 5. Data and AI
+## Technical notes
 
-- **Persistence (MVP):** updates, generated outputs, and inbox items are stored per user via the existing Spine backend (`spine.aynn.io`). Three new endpoints needed:
-  - `GET/POST /command-center/updates`
-  - `GET/POST /command-center/inbox` (POST = send to mentioned user)
-  - `POST /command-center/generate` (server-side call to Lovable AI Gateway with the user's updates as grounding; type = `manager_report | ceo_brief | action_plan | qa`)
-- **AI model:** `google/gemini-2.5-flash` via Lovable AI Gateway (per project memory).
-- **Mention resolution:** `GET /command-center/teammates` returns `{id, name, email}` for the current org/user network.
+- Models: `google/gemini-3-flash-preview` for autofill/match/cover letters; `google/gemini-2.5-pro` for resume rewrite quality mode.
+- PDF rendering: `pdf-lib` (npm: in Deno edge function) for ATS-friendly export.
+- Parsing uploaded PDFs/DOCX: edge function delegates to a single call to Gemini multimodal with the file bytes (no separate OCR pipeline needed for v1).
+- Dedupe jobs by sha256 of (company + title + normalized URL).
+- Extension token: 32-byte random, stored as bcrypt hash; raw value shown once.
+- All new tables use the standard `update_updated_at_column()` trigger.
+- No native foreign keys (per project rule); referential integrity in app/edge functions.
 
-If Spine endpoints can't be added in this loop, MVP falls back to `localStorage` for updates + outputs (single-device only), and `Send to @user` is disabled with a tooltip "Inbox is enabling — back online shortly." The UI ships ready for the endpoints.
-
-## Technical details
-
-- Files added: `src/components/dashboard/command/CommandCenter.tsx`, `UpdatesTool.tsx`, `ManagerReportTool.tsx`, `CEOBriefTool.tsx`, `ActionPlanTool.tsx`, `AskAnythingTool.tsx`, `Inbox.tsx`, `MentionPicker.tsx`, `commandApi.ts`.
-- Files edited: `src/components/dashboard/Sidebar.tsx` (hide Sphere, add Command Center entry), `src/components/dashboard/DashboardContainer.tsx` (view-switcher + render `<CommandCenter />` when active).
-- Styling: dark theme, premium Apple/Palantir per project memory. Inter body, Syne for headings, JetBrains Mono for labels. No em dashes.
-- Validation: zod schemas on all forms (length limits 2000 chars per update, 500 chars per question).
-- Streaming: AI outputs stream token-by-token using the existing SSE pattern.
-- No DB schema changes inside the project (Spine owns data). No Supabase migration needed.
-
-## Out of scope
-
-- Real-time push notifications for inbox (will poll every 30s).
-- File attachments on updates.
-- Cross-org sharing or external email delivery.
-- Any change to the landing page or existing chat behavior.
+Once you approve, I'll start with Phase 1 (the migration), then move through the phases in order.
