@@ -53,9 +53,9 @@ export const resumeHubApi = {
     call<{ body: string }>("resume-hub", { action: "cover_letter", resume, jdText, ...opts }),
 
   ingestJob: (payload: { source_url?: string; html?: string; text?: string; company?: string; title?: string; location?: string; jd_text?: string; source?: string }) =>
-    call<{ job_id: string; deduped: boolean }>("resume-ingest-job", payload),
+    call<{ job_id: string; deduped: boolean }>("resume-extension", { action: "ingest_job", ...payload }),
 
-  mintToken: (label: string) => call<{ token: string; prefix: string; id: string }>("resume-extension-token", { action: "mint", label }),
-  listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-extension-token", { action: "list" }),
-  revokeToken: (id: string) => call<{ ok: true }>("resume-extension-token", { action: "revoke", id }),
+  mintToken: (label: string) => call<{ token: string; prefix: string; id: string }>("resume-hub", { action: "token_mint", label }),
+  listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),
+  revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
 };
