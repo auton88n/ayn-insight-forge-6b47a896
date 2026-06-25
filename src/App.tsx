@@ -55,6 +55,7 @@ const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 // const InfluencerSitesApply = lazy(() => import("./pages/services/InfluencerSitesApply"));
 // const SolutionsPage = lazy(() => import("./pages/Solutions"));
 const ContactPage = lazy(() => import("./pages/Contact"));
+const ResumeMatch = lazy(() => import("./pages/ResumeMatch"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
 // const Automation = lazy(() => import("./pages/services/Automation"));
@@ -114,6 +115,7 @@ const AnimatedRoutes = () => {
 
 
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
+      <Route path="/resume-match" element={<Suspense fallback={<PageLoader />}><ResumeMatch /></Suspense>} />
       <Route path="/support" element={<Support />} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />

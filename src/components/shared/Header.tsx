@@ -15,6 +15,7 @@ const navLinks = [
 { path: '/#about', en: 'About', fr: 'À Propos', ar: 'من نحن' },
 { path: '/#features', en: 'Features', fr: 'Fonctionnalités', ar: 'المميزات' },
 { path: '/#solutions', en: 'Solutions', fr: 'Solutions', ar: 'الحلول' },
+{ path: '/resume-match', en: 'Resume Match', fr: 'Resume Match', ar: 'مطابقة السيرة' },
 { path: '/contact', en: 'Contact', fr: 'Contact', ar: 'تواصل معنا' }];
 
 
