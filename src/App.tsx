@@ -56,6 +56,7 @@ const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 // const SolutionsPage = lazy(() => import("./pages/Solutions"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const ResumeMatch = lazy(() => import("./pages/ResumeMatch"));
+const ResumeHub = lazy(() => import("./pages/ResumeHub"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
 // const Automation = lazy(() => import("./pages/services/Automation"));
