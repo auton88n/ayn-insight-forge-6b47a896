@@ -115,16 +115,145 @@ const RESUME_SCHEMA = {
   required: ["basics", "work", "skills"],
 };
 
+async function sha256Hex(s: string) {
+  const b = new TextEncoder().encode(s);
+  const h = await crypto.subtle.digest("SHA-256", b);
+  return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter"]);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const body = await req.json();
+    const { action, ...payload } = body;
+
+    // ============ EXTENSION-AUTH ACTIONS (x-ayn-ext-token) ============
+    if (typeof action === "string" && EXT_ACTIONS.has(action)) {
+      const token = req.headers.get("x-ayn-ext-token");
+      if (!token) return json({ error: "x-ayn-ext-token required" }, 401);
+      const tokenHash = await sha256Hex(token);
+      const admin = createClient(supabaseUrl, serviceKey);
+      const { data: tok } = await admin
+        .from("extension_tokens")
+        .select("user_id, revoked_at, device_label")
+        .eq("token_hash", tokenHash)
+        .maybeSingle();
+      if (!tok) return json({ error: "Invalid token" }, 401);
+      if (tok.revoked_at) return json({ error: "Token revoked" }, 401);
+      const userId = tok.user_id as string;
+      admin.from("extension_tokens").update({ last_used_at: new Date().toISOString() }).eq("token_hash", tokenHash).then(() => {});
+
+      if (action === "ext_bootstrap") {
+        const [{ data: profile }, { data: resume }] = await Promise.all([
+          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
+          admin.from("resumes").select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        ]);
+        return json({ user: { id: userId, device: tok.device_label }, profile, resume });
+      }
+
+      if (action === "ext_ingest_job") {
+        let { source_url, html, text, company, title, location: loc, jd_text } = payload as Record<string, string | undefined>;
+        const raw = (text || html || "").slice(0, 25000);
+        if (!company || !title || !jd_text) {
+          try {
+            const parsed = await callAI({
+              system: "Extract job posting fields from raw page content. Return empty string for unknown fields.",
+              user: `URL: ${source_url ?? ""}\n\nCONTENT:\n${raw}`,
+              toolName: "emit_job",
+              toolSchema: {
+                type: "object",
+                properties: { company: { type: "string" }, title: { type: "string" }, location: { type: "string" }, jd_text: { type: "string" } },
+                required: ["company", "title", "jd_text"],
+              },
+            });
+            const p = parsed.structured as Record<string, string>;
+            company = company || p.company;
+            title = title || p.title;
+            loc = loc || p.location;
+            jd_text = jd_text || p.jd_text;
+          } catch (e) { console.warn("ext parse failed", e); }
+        }
+        const urlPath = source_url ? source_url.split("?")[0] : "";
+        const dedupe = await sha256Hex(`${(company ?? "").toLowerCase()}|${(title ?? "").toLowerCase()}|${urlPath}`);
+        const { data: existing } = await admin.from("jobs").select("id").eq("user_id", userId).eq("dedupe_hash", dedupe).maybeSingle();
+        if (existing) return json({ job_id: existing.id, deduped: true });
+        const { data: inserted, error } = await admin.from("jobs").insert({
+          user_id: userId, source: "extension", source_url, company: company || "Unknown", title: title || "Unknown role",
+          location: loc, jd_text, jd_html: html?.slice(0, 100000), dedupe_hash: dedupe,
+        }).select("id").single();
+        if (error) throw error;
+        return json({ job_id: inserted.id, deduped: false });
+      }
+
+      if (action === "ext_autofill") {
+        const fields = (payload as { fields?: unknown }).fields;
+        if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
+        const [{ data: profile }, { data: resume }] = await Promise.all([
+          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
+          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        ]);
+        const r = await callAI({
+          system: "Given form fields and the user's profile + resume, return the best value for each. For select fields with options, pick from options. Leave value empty if unknown or sensitive (do NOT guess SSN, DOB year, salary).",
+          user: JSON.stringify({ fields, profile, resume: resume?.content }).slice(0, 30000),
+          toolName: "emit_autofill",
+          toolSchema: {
+            type: "object",
+            properties: { values: { type: "array", items: { type: "object", properties: { id: { type: "string" }, value: { type: "string" } }, required: ["id", "value"] } } },
+            required: ["values"],
+          },
+        });
+        return json(r.structured);
+      }
+
+      if (action === "ext_tailor") {
+        const jobId = (payload as { job_id?: string }).job_id;
+        if (!jobId) return json({ error: "job_id required" }, 400);
+        const [{ data: job }, { data: resume }] = await Promise.all([
+          admin.from("jobs").select("id, jd_text, company, title").eq("user_id", userId).eq("id", jobId).maybeSingle(),
+          admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        ]);
+        if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
+        const r = await callAI({
+          model: QUALITY_MODEL,
+          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Return same schema.",
+          user: JSON.stringify({ resume: resume.content, jdText: job.jd_text }).slice(0, 40000),
+          toolName: "emit_resume",
+          toolSchema: RESUME_SCHEMA,
+        });
+        await admin.from("resume_versions").insert({ user_id: userId, resume_id: resume.id, content: r.structured, created_for_job_id: jobId });
+        return json({ resume: r.structured, company: job.company, title: job.title });
+      }
+
+      if (action === "ext_cover_letter") {
+        const jobId = (payload as { job_id?: string }).job_id;
+        const tone = (payload as { tone?: string }).tone || "professional, warm";
+        if (!jobId) return json({ error: "job_id required" }, 400);
+        const [{ data: job }, { data: resume }] = await Promise.all([
+          admin.from("jobs").select("id, jd_text, company").eq("user_id", userId).eq("id", jobId).maybeSingle(),
+          admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        ]);
+        if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
+        const r = await callAI({
+          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés.`,
+          user: JSON.stringify({ resume: resume.content, jdText: job.jd_text }).slice(0, 30000),
+        });
+        await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
+        return json({ body: r.text });
+      }
+    }
+
+    // ============ DASHBOARD ACTIONS (Supabase JWT) ============
     const auth = req.headers.get("Authorization") ?? "";
     const jwt = auth.replace(/^Bearer\s+/i, "");
     if (!jwt) return json({ error: "Missing Authorization" }, 401);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supa = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${jwt}` } },
     });
@@ -132,7 +261,7 @@ Deno.serve(async (req) => {
     const user = u?.user;
     if (!user) return json({ error: "Invalid session" }, 401);
 
-    const { action, ...payload } = await req.json();
+
 
     // ---------------- extension token management ----------------
     if (action === "token_mint") {
