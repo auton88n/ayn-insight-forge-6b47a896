@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi } from "@/lib/resumeHub";
 import { Loader2, Copy, Trash2, Download, Chrome } from "lucide-react";
+import CanadianProfileForm from "./CanadianProfileForm";
 
 interface Props { userId: string }
 
@@ -165,27 +166,15 @@ export default function ExtensionTab({ userId }: Props) {
         </div>
       </Card>
 
-      <Card className="p-5 space-y-3">
-        <h3 className="font-semibold">Autofill profile</h3>
-        <p className="text-xs text-muted-foreground">Powers the Chrome extension's smart autofill. Stored privately, only your account can read it.</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Legal first name" value={profile.legal_first_name} onChange={(e) => setProfile({ ...profile, legal_first_name: e.target.value })} />
-          <Input placeholder="Legal last name" value={profile.legal_last_name} onChange={(e) => setProfile({ ...profile, legal_last_name: e.target.value })} />
-          <Input placeholder="Preferred name" value={profile.preferred_name} onChange={(e) => setProfile({ ...profile, preferred_name: e.target.value })} />
-          <Input placeholder="Phone" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
-          <Input placeholder="Email" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} className="col-span-2" />
-          <Input placeholder="Address line 1" value={profile.address_line1} onChange={(e) => setProfile({ ...profile, address_line1: e.target.value })} className="col-span-2" />
-          <Input placeholder="City" value={profile.city} onChange={(e) => setProfile({ ...profile, city: e.target.value })} />
-          <Input placeholder="State/Region" value={profile.state} onChange={(e) => setProfile({ ...profile, state: e.target.value })} />
-          <Input placeholder="Postal code" value={profile.postal_code} onChange={(e) => setProfile({ ...profile, postal_code: e.target.value })} />
-          <Input placeholder="Country" value={profile.country} onChange={(e) => setProfile({ ...profile, country: e.target.value })} />
-          <Input placeholder="LinkedIn URL" value={profile.linkedin} onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })} className="col-span-2" />
-          <Input placeholder="GitHub URL" value={profile.github} onChange={(e) => setProfile({ ...profile, github: e.target.value })} />
-          <Input placeholder="Portfolio URL" value={profile.portfolio} onChange={(e) => setProfile({ ...profile, portfolio: e.target.value })} />
-          <Input placeholder="Work authorization (e.g. US Citizen, H1B)" value={profile.work_auth_status} onChange={(e) => setProfile({ ...profile, work_auth_status: e.target.value })} className="col-span-2" />
+      <div>
+        <div className="mb-4">
+          <h3 className="font-semibold text-base">Canadian Job Application Profile</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Fill in your answers once. AYN uses this to autofill Canadian job application forms instantly — work authorization, salary expectations, equity questions, and everything in between.
+          </p>
         </div>
-        <Button onClick={saveProfile} disabled={busy}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save profile"}</Button>
-      </Card>
+        <CanadianProfileForm userId={userId} />
+      </div>
     </div>
   );
 }
