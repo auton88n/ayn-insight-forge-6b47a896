@@ -259,7 +259,7 @@
     return null;
   }
 
-  function injectScoreBadge(card, score, matchLabel, reasons) {
+  function injectScoreBadge(card, score, matchLabel, reasons, salaryEstimate) {
     // Remove existing badge
     card.querySelector(`.${AYN_BADGE_CLASS}`)?.remove();
 
@@ -277,10 +277,11 @@
       cursor: pointer; margin: 4px 0; white-space: nowrap;
       user-select: none; z-index: 100; position: relative;
     `;
+    const salaryStr = salaryEstimate ? ` · ${salaryEstimate}` : '';
     badge.innerHTML = `
       <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
       <span>AYN ${score}/10</span>
-      <span style="font-weight:400;opacity:0.8">${matchLabel}</span>
+      <span style="font-weight:400;opacity:0.8">${matchLabel}${salaryStr}</span>
     `;
 
     // Tooltip with reasons
@@ -324,7 +325,7 @@
     const key = `${data.title}|${data.company}`;
     if (scoreCache.has(key)) {
       const cached = scoreCache.get(key);
-      injectScoreBadge(card, cached.score, cached.matchLabel, cached.reasons);
+      injectScoreBadge(card, cached.score, cached.matchLabel, cached.reasons, cached.salaryEstimate);
       return;
     }
 
@@ -353,7 +354,7 @@
       loadBadge.remove();
       if (chrome.runtime.lastError || !response?.score) return;
       scoreCache.set(key, response);
-      injectScoreBadge(card, response.score, response.matchLabel, response.reasons);
+      injectScoreBadge(card, response.score, response.matchLabel, response.reasons, response.salaryEstimate);
     });
   }
 

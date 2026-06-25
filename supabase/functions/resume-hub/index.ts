@@ -271,23 +271,24 @@ RULES:
       // Returns score 1-10, matchLabel, and 3 key reasons
       if (action === "ext_job_score") {
         const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
-        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [] });
+        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "" });
         const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [] });
+        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "" });
 
         const r = await callAI({
-          system: `You are a fast job-resume matcher. Given a job snippet and resume, score the match.
+          system: `You are a fast job-resume matcher. Given a job snippet and resume, score the match and estimate salary.
 Return ONLY valid JSON, no code fences:
-{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<reason1>", "<reason2>", "<reason3>"] }
+{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<r1>","<r2>","<r3>"], "salaryEstimate": "<e.g. $90K-$120K or empty string if unknown>" }
 - score: 1-3 Poor, 4-6 Fair, 7-8 Good, 9-10 Strong
-- reasons: 3 very short phrases (5 words max each) explaining the score
-- Be honest and fast — this is a quick scan, not deep analysis`,
-          user: `JOB: ${jobTitle || ""} at ${company || ""}\n${(jobSnippet || "").slice(0, 1500)}\n\nRESUME SUMMARY:\n${JSON.stringify(resume.content?.basics || {}).slice(0, 800)}\nSKILLS: ${JSON.stringify(resume.content?.skills || []).slice(0, 300)}`,
+- reasons: 3 short phrases max 5 words each
+- salaryEstimate: extract from snippet if mentioned, or estimate based on role/seniority for US/Canada market. Use $CAD if Canada role, $USD otherwise. Format: $80K-$110K. Empty string if truly unknown.
+- Be honest and fast`,
+          user: `JOB: ${jobTitle || ""} at ${company || ""}\n${(jobSnippet || "").slice(0, 1500)}\n\nRESUME:\n${JSON.stringify(resume.content?.basics || {}).slice(0, 600)}\nSKILLS: ${JSON.stringify(resume.content?.skills || []).slice(0, 300)}`,
         });
 
-        let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[] };
+        let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[], salaryEstimate: "" };
         try {
-          const raw = r.text.replace(/\`\`\`(?:json)?\s*/gi, "").replace(/\`\`\`/g, "").trim();
+          const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
           parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
         } catch { /* keep defaults */ }
@@ -297,7 +298,7 @@ Return ONLY valid JSON, no code fences:
         const matchLabel = validLabels.includes(parsed.matchLabel) ? parsed.matchLabel
           : score >= 8 ? "Strong" : score >= 6 ? "Good" : score >= 4 ? "Fair" : "Poor";
 
-        return json({ score, matchLabel, reasons: (parsed.reasons || []).slice(0, 3) });
+        return json({ score, matchLabel, reasons: (parsed.reasons || []).slice(0, 3), salaryEstimate: String(parsed.salaryEstimate || "") });
       }
 
       // ext_suggest_roles: suggest best job titles to search for based on resume
@@ -789,6 +790,56 @@ BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).
       let parsed: Record<string,unknown> = {};
       try { const raw=r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
       return json({ contacts:(parsed.contacts as unknown[]||[]).slice(0,3), emailFormats:(parsed.emailFormats as string[]||[]).slice(0,3), companyDomain:parsed.companyDomain||"", coldOutreach:parsed.coldOutreach||"", subjectLine:parsed.subjectLine||"" });
+    }
+
+    // ext_save_application: save a job application to the tracker
+    if (action === "ext_save_application") {
+      const { jobTitle, company, jobUrl, status, score, salaryEstimate, notes } = payload as {
+        jobTitle?: string; company?: string; jobUrl?: string;
+        status?: string; score?: number; salaryEstimate?: string; notes?: string;
+      };
+      if (!company || !jobTitle) return json({ error: "company and jobTitle required" }, 400);
+      const { data, error } = await admin.from("job_applications").upsert({
+        user_id: userId,
+        job_title: jobTitle,
+        company,
+        job_url: jobUrl || "",
+        status: status || "saved",
+        match_score: score || null,
+        salary_estimate: salaryEstimate || "",
+        notes: notes || "",
+        applied_at: status === "applied" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
+      if (error) {
+        // Table may not exist yet — return graceful error
+        console.error("save_application error", error);
+        return json({ error: "Could not save application: " + error.message }, 500);
+      }
+      return json({ ok: true, id: data.id });
+    }
+
+    // ext_get_applications: get all tracked applications for this user
+    if (action === "ext_get_applications") {
+      const { data, error } = await admin.from("job_applications")
+        .select("id,job_title,company,job_url,status,match_score,salary_estimate,notes,applied_at,updated_at,created_at")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(100);
+      if (error) return json({ error: error.message }, 500);
+      return json({ applications: data || [] });
+    }
+
+    // ext_update_application: update status or notes
+    if (action === "ext_update_application") {
+      const { id, status, notes } = payload as { id?: string; status?: string; notes?: string };
+      if (!id) return json({ error: "id required" }, 400);
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (status) { updates.status = status; if (status === "applied") updates.applied_at = new Date().toISOString(); }
+      if (notes !== undefined) updates.notes = notes;
+      const { error } = await admin.from("job_applications").update(updates).eq("id", id).eq("user_id", userId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
     }
 
     return json({ error: "Unknown action" }, 400);

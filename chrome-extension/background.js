@@ -74,24 +74,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!session) { sendResponse(null); return; }
         session = await refreshIfNeeded(session);
         if (!session) { sendResponse(null); return; }
-
         const data = await callFunction('ext_job_score', {
           jobTitle: message.jobTitle,
           company: message.company,
           jobSnippet: message.jobSnippet,
         }, session);
-
         sendResponse({
           score: data.score || 5,
           matchLabel: data.matchLabel || 'Fair',
           reasons: data.reasons || [],
+          salaryEstimate: data.salaryEstimate || '',
           key: message.key,
         });
-      } catch (e) {
-        sendResponse(null);
-      }
+      } catch (e) { sendResponse(null); }
     })();
-    return true; // keep channel open for async
+    return true;
+  }
+
+  // Application tracker
+  if (['SAVE_APPLICATION','GET_APPLICATIONS','UPDATE_APPLICATION'].includes(message.type)) {
+    (async () => {
+      try {
+        let session = await getSession();
+        if (!session) { sendResponse({ error: 'Not signed in' }); return; }
+        session = await refreshIfNeeded(session);
+        if (!session) { sendResponse({ error: 'Session expired' }); return; }
+        const actionMap = { SAVE_APPLICATION: 'ext_save_application', GET_APPLICATIONS: 'ext_get_applications', UPDATE_APPLICATION: 'ext_update_application' };
+        const data = await callFunction(actionMap[message.type], message.payload || {}, session);
+        sendResponse(data);
+      } catch (e) { sendResponse({ error: e.message }); }
+    })();
+    return true;
   }
 
   // Auto-autofill: scan + fill in one shot, no preview
