@@ -532,6 +532,45 @@ export type Database = {
           },
         ]
       }
+      applications: {
+        Row: {
+          applied_at: string | null
+          created_at: string
+          follow_up_at: string | null
+          id: string
+          job_id: string
+          notes: string | null
+          resume_version_id: string | null
+          status: Database["public"]["Enums"]["application_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string
+          follow_up_at?: string | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          resume_version_id?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string
+          follow_up_at?: string | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          resume_version_id?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ayn_activity_log: {
         Row: {
           action_type: string
@@ -1567,6 +1606,36 @@ export type Database = {
         }
         Relationships: []
       }
+      cover_letters: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          job_id: string
+          resume_id: string | null
+          tone: string | null
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          job_id: string
+          resume_id?: string | null
+          tone?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          job_id?: string
+          resume_id?: string | null
+          tone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       credit_gifts: {
         Row: {
           amount: number
@@ -1981,6 +2050,39 @@ export type Database = {
         }
         Relationships: []
       }
+      extension_tokens: {
+        Row: {
+          created_at: string
+          device_label: string | null
+          id: string
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+          token_prefix: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          token_prefix: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_label?: string | null
+          id?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          token_prefix?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       faq_items: {
         Row: {
           answer: string
@@ -2145,6 +2247,99 @@ export type Database = {
           metadata?: Json | null
           threat_level?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      job_matches: {
+        Row: {
+          breakdown: Json
+          generated_at: string
+          id: string
+          job_id: string
+          resume_id: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          breakdown?: Json
+          generated_at?: string
+          id?: string
+          job_id: string
+          resume_id: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          breakdown?: Json
+          generated_at?: string
+          id?: string
+          job_id?: string
+          resume_id?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      jobs: {
+        Row: {
+          captured_at: string
+          company: string | null
+          created_at: string
+          dedupe_hash: string | null
+          id: string
+          jd_html: string | null
+          jd_text: string | null
+          location: string | null
+          posted_at: string | null
+          remote: boolean | null
+          salary_currency: string | null
+          salary_max: number | null
+          salary_min: number | null
+          source: string
+          source_url: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          company?: string | null
+          created_at?: string
+          dedupe_hash?: string | null
+          id?: string
+          jd_html?: string | null
+          jd_text?: string | null
+          location?: string | null
+          posted_at?: string | null
+          remote?: boolean | null
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          source?: string
+          source_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          company?: string | null
+          created_at?: string
+          dedupe_hash?: string | null
+          id?: string
+          jd_html?: string | null
+          jd_text?: string | null
+          location?: string | null
+          posted_at?: string | null
+          remote?: boolean | null
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          source?: string
+          source_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -2646,6 +2841,72 @@ export type Database = {
         }
         Relationships: []
       }
+      resume_versions: {
+        Row: {
+          content: Json
+          created_at: string
+          created_for_job_id: string | null
+          id: string
+          pdf_path: string | null
+          resume_id: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          created_for_job_id?: string | null
+          id?: string
+          pdf_path?: string | null
+          resume_id: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          created_for_job_id?: string | null
+          id?: string
+          pdf_path?: string | null
+          resume_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      resumes: {
+        Row: {
+          ats_score: number | null
+          content: Json
+          created_at: string
+          id: string
+          is_primary: boolean
+          pdf_path: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ats_score?: number | null
+          content?: Json
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          pdf_path?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ats_score?: number | null
+          content?: Json
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          pdf_path?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       security_audit_logs: {
         Row: {
           action: string
@@ -2808,6 +3069,36 @@ export type Database = {
           service_type?: string
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      support_admin_reads: {
+        Row: {
+          admin_id: string
+          id: string
+          read_at: string
+          row_id: string | null
+          table_name: string
+          ticket_id: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_id: string
+          id?: string
+          read_at?: string
+          row_id?: string | null
+          table_name: string
+          ticket_id?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_id?: string
+          id?: string
+          read_at?: string
+          row_id?: string | null
+          table_name?: string
+          ticket_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -3406,6 +3697,57 @@ export type Database = {
           region?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_profile_data: {
+        Row: {
+          address: Json | null
+          created_at: string
+          default_answers: Json | null
+          demographics: Json | null
+          email: string | null
+          legal_first_name: string | null
+          legal_last_name: string | null
+          links: Json | null
+          phone: string | null
+          preferred_name: string | null
+          primary_resume_id: string | null
+          updated_at: string
+          user_id: string
+          work_auth: Json | null
+        }
+        Insert: {
+          address?: Json | null
+          created_at?: string
+          default_answers?: Json | null
+          demographics?: Json | null
+          email?: string | null
+          legal_first_name?: string | null
+          legal_last_name?: string | null
+          links?: Json | null
+          phone?: string | null
+          preferred_name?: string | null
+          primary_resume_id?: string | null
+          updated_at?: string
+          user_id: string
+          work_auth?: Json | null
+        }
+        Update: {
+          address?: Json | null
+          created_at?: string
+          default_answers?: Json | null
+          demographics?: Json | null
+          email?: string | null
+          legal_first_name?: string | null
+          legal_last_name?: string | null
+          links?: Json | null
+          phone?: string | null
+          preferred_name?: string | null
+          primary_resume_id?: string | null
+          updated_at?: string
+          user_id?: string
+          work_auth?: Json | null
         }
         Relationships: []
       }
@@ -4232,6 +4574,12 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user" | "duty"
+      application_status:
+        | "saved"
+        | "applied"
+        | "interview"
+        | "offer"
+        | "rejected"
       support_ticket_category:
         | "general"
         | "billing"
@@ -4374,6 +4722,13 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user", "duty"],
+      application_status: [
+        "saved",
+        "applied",
+        "interview",
+        "offer",
+        "rejected",
+      ],
       support_ticket_category: [
         "general",
         "billing",
