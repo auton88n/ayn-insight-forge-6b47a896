@@ -723,10 +723,77 @@ ${jdText.slice(0, 6000)}`,
       return json(r.structured);
     }
 
+    // ── NEW ACTIONS (JWT auth) ──
+    // These run after JWT validation using supa client with RLS
+    const userId = user.id;
+    const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    if (action === "ext_job_score") {
+      const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
+      if (!jobSnippet) return json({ score: 5, matchLabel: "Fair", reasons: [] });
+      const { data: resume } = await adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+      if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: ["Upload your resume in AYN first"] });
+      const r = await callAI({
+        system: `You are a fast job-resume matcher. Return ONLY valid JSON, no code fences:
+{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<reason1>","<reason2>","<reason3>"] }
+- 1-3=Poor, 4-6=Fair, 7-8=Good, 9-10=Strong. Reasons: 5 words max each.`,
+        user: `JOB: ${jobTitle||""} at ${company||""}
+${(jobSnippet||"").slice(0,1500)}
+
+RESUME:
+${JSON.stringify(resume.content?.basics||{}).slice(0,600)}
+SKILLS: ${JSON.stringify(resume.content?.skills||[]).slice(0,300)}`,
+      });
+      let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[] };
+      try { const raw = r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
+      const score = Math.max(1,Math.min(10,Math.round(Number(parsed.score)||5)));
+      const vl = ["Poor","Fair","Good","Strong"];
+      return json({ score, matchLabel: vl.includes(parsed.matchLabel)?parsed.matchLabel:score>=8?"Strong":score>=6?"Good":score>=4?"Fair":"Poor", reasons:(parsed.reasons||[]).slice(0,3) });
+    }
+
+    if (action === "ext_suggest_roles") {
+      const { data: resume } = await adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+      if (!resume?.content) return json({ roles: [], keywords: [], summary: "No resume found. Add your resume in AYN first." });
+      const r = await callAI({
+        system: `Canadian job search expert. Return ONLY valid JSON:
+{"roles":["<title>",...],"keywords":["<kw>",...],"summary":"<one sentence>"}
+- 8-10 job titles ordered best match first
+- 6-8 skill keywords for searches
+- Specific to Canadian market`,
+        user: JSON.stringify({basics:resume.content?.basics,work:resume.content?.work,skills:resume.content?.skills}).slice(0,5000),
+      });
+      let parsed = { roles:[] as string[], keywords:[] as string[], summary:"" };
+      try { const raw=r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
+      return json({ roles:(parsed.roles||[]).slice(0,10), keywords:(parsed.keywords||[]).slice(0,8), summary:parsed.summary||"" });
+    }
+
+    if (action === "ext_find_contacts") {
+      const { company, jobTitle, jobUrl, jobSnippet } = payload as { company?:string; jobTitle?:string; jobUrl?:string; jobSnippet?:string };
+      if (!company) return json({ error: "company required" }, 400);
+      const { data: profile } = await adminForNew.from("user_profile_data").select("legal_first_name,legal_last_name,default_answers").eq("user_id",userId).maybeSingle();
+      const { data: resume } = await adminForNew.from("resumes").select("content").eq("user_id",userId).eq("is_primary",true).maybeSingle();
+      const userName = [profile?.legal_first_name,profile?.legal_last_name].filter(Boolean).join(" ")||"the candidate";
+      const aboutMe = ((profile?.default_answers as Record<string,unknown>)?.about_me as string)||"";
+      const r = await callAI({
+        system: `Job search assistant. Return ONLY valid JSON:
+{"contacts":[{"role":"<title>","why":"<why>","linkedinSearchUrl":"<url>","titles":["<t1>"]}],"emailFormats":["<fmt>"],"companyDomain":"<domain>","coldOutreach":"<message>","subjectLine":"<subject>"}
+- 2-3 contact types. LinkedIn URL: https://www.linkedin.com/search/results/people/?keywords=TITLE&currentCompany=["COMPANY"]
+- Cold outreach: under 80 words, first person, specific to role, no generic openers`,
+        user: `COMPANY: ${company}
+JOB: ${jobTitle||""}
+URL: ${jobUrl||""}
+SNIPPET: ${(jobSnippet||"").slice(0,600)}
+CANDIDATE: ${userName}
+BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).slice(0,300)}`,
+      });
+      let parsed: Record<string,unknown> = {};
+      try { const raw=r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
+      return json({ contacts:(parsed.contacts as unknown[]||[]).slice(0,3), emailFormats:(parsed.emailFormats as string[]||[]).slice(0,3), companyDomain:parsed.companyDomain||"", coldOutreach:parsed.coldOutreach||"", subjectLine:parsed.subjectLine||"" });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("resume-hub error", e);
     return json({ error: e instanceof Error ? e.message : "Server error" }, 500);
   }
 });
-// NOTE: appended below

@@ -149,7 +149,7 @@ $('autofill-now-btn').addEventListener('click', () => {
   getTab(tab => {
     if (!tab) { err.textContent = 'No active tab.'; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '✦ Fill This Form Now'; return; }
 
-    // Ask background to do everything (scan → AI → inject)
+    // Pass tabId explicitly — sidepanel is not a tab so background can't get it from sender
     chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, response => {
       btn.disabled = false;
       btn.innerHTML = '✦ Fill This Form Now';
@@ -165,12 +165,26 @@ $('autofill-now-btn').addEventListener('click', () => {
         return;
       }
 
-      // Show result
-      const { filled, total } = response;
+      const { filled, total, details } = response;
       const pct = total > 0 ? Math.round(filled/total*100) : 0;
       $('fill-stat-n').textContent = `${filled}/${total}`;
       $('fill-stat-n').className = `fill-stat ${pct >= 65 ? 'good' : 'partial'}`;
       $('fill-stat-lbl').textContent = `fields filled (${pct}% of form)`;
+
+      // Populate the detail list
+      const list = $('fill-result-list');
+      if (list && Array.isArray(details)) {
+        list.innerHTML = '';
+        details.forEach(d => {
+          list.innerHTML += `
+            <div class="fi">
+              <div class="fd ${d.ok ? 'on' : 'off'}"></div>
+              <div class="fl">${esc(d.label || d.id)}</div>
+              <div class="fv" style="color:${d.ok ? 'var(--green)' : 'var(--muted)'}">${d.ok ? esc((d.value||'').slice(0,22)) : (d.reason||'skipped')}</div>
+            </div>`;
+        });
+      }
+
       $('fill-result-wrap').classList.remove('hidden');
       toast(`${filled} fields filled ✓`, 'ok');
     });

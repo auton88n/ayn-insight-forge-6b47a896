@@ -98,8 +98,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'AUTO_AUTOFILL') {
     (async () => {
       try {
-        const tabId = sender.tab?.id;
-        if (!tabId) { sendResponse({ ok: false, error: 'No tab' }); return; }
+        // tabId comes from the message — sidepanel has no sender.tab
+        const tabId = message.tabId;
+        if (!tabId) { sendResponse({ ok: false, error: 'No tab ID provided' }); return; }
 
         let session = await getSession();
         if (!session) { sendResponse({ ok: false, error: 'Not signed in' }); return; }
@@ -127,7 +128,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // 4. Inject values
         const fillResult = await chrome.tabs.sendMessage(tabId, { type: 'INJECT_VALUES', values });
 
-        sendResponse({ ok: true, filled: fillResult?.filled || 0, total: values.length });
+        // Build details list for the sidepanel
+        const resultMap = {};
+        (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
+        const details = values.map(v => ({
+          id: v.id,
+          label: fields.find(f => f.id === v.id)?.label || v.id,
+          value: v.value,
+          ok: resultMap[v.id]?.ok || false,
+          reason: resultMap[v.id]?.reason || '',
+        }));
+
+        sendResponse({ ok: true, filled: fillResult?.filled || 0, total: values.length, details });
       } catch (e) {
         sendResponse({ ok: false, error: e.message });
       }
