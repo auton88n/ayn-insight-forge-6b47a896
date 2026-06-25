@@ -724,113 +724,16 @@ export default function CanadianProfileForm({ userId }: Props) {
       {/* ── 7. Pre-Screening ── */}
       <Section title="Pre-Screening Questions" subtitle="Questions Canadian employers legally ask at the application stage" defaultOpen={false}>
 
-        {/* ── Criminal Record ── */}
-        <div className="space-y-3">
-          <div>
-            <FieldLabel label="Criminal Record Check" />
-            <div className="border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-none space-y-3">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                AYN cannot run a criminal record check — only you can obtain one through official Canadian sources.
-              </p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Under the <em>Ontario Human Rights Code</em> and equivalent provincial codes, employers may only ask:
-                <strong> "Have you ever been convicted of a criminal offence for which a pardon (record suspension) has not been granted?"</strong>
-                They cannot ask about charges that did not result in conviction, pardoned offences, or absolute/conditional discharges.
-              </p>
-
-              <div className="space-y-2">
-                <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">How to get your official check in Canada</p>
-
-                <div className="grid gap-2">
-                  {/* RCMP */}
-                  <div className="border border-border p-3 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold">1. RCMP Criminal Record Check</p>
-                        <p className="text-xs text-muted-foreground">The official federal check. Searches the Canadian Police Information Centre (CPIC) national database. Required by most employers for security-sensitive roles.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Cost: ~$25 CAD · Time: 2–8 weeks by mail, faster online through accredited services</p>
-                      </div>
-                    </div>
-                    <a
-                      href="https://www.rcmp-grc.gc.ca/en/criminal-record-checks"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80"
-                    >
-                      rcmp-grc.gc.ca → Criminal Record Checks ↗
-                    </a>
-                  </div>
-
-                  {/* Local police */}
-                  <div className="border border-border p-3 space-y-1">
-                    <p className="text-sm font-semibold">2. Local Police Service Check</p>
-                    <p className="text-xs text-muted-foreground">Your city or regional police (e.g. Toronto Police Service, OPP, RCMP detachment). Faster than RCMP, accepted by most employers for non-sensitive roles. Some cities now offer online booking.</p>
-                    <p className="text-xs text-muted-foreground mt-1">Cost: $20–$50 CAD · Time: same-day to 2 weeks</p>
-                    <div className="flex flex-wrap gap-3 mt-1">
-                      <a href="https://www.torontopolice.on.ca/criminalrecordcheck/" target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80">
-                        Toronto Police ↗
-                      </a>
-                      <a href="https://www.rcmp-grc.gc.ca/en/contact-your-local-detachment" target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80">
-                        Find your local RCMP detachment ↗
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Third-party accredited */}
-                  <div className="border border-border p-3 space-y-1">
-                    <p className="text-sm font-semibold">3. Accredited Third-Party Service (fastest)</p>
-                    <p className="text-xs text-muted-foreground">RCMP-accredited services like Sterling, Triton, or BackCheck can deliver digital results in 24–72 hours. Most large Canadian employers (banks, hospitals, tech companies) use these and will send you a direct link.</p>
-                    <p className="text-xs text-muted-foreground mt-1">Cost: $30–$65 CAD · Time: 24–72 hours online</p>
-                    <div className="flex flex-wrap gap-3 mt-1">
-                      <a href="https://www.sterlingcheck.com/ca/" target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80">
-                        Sterling ↗
-                      </a>
-                      <a href="https://triton.ca" target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80">
-                        Triton ↗
-                      </a>
-                      <a href="https://www.backcheck.net" target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-mono text-primary underline underline-offset-2 hover:text-primary/80">
-                        BackCheck ↗
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-muted-foreground italic">
-                  Record Suspension (Pardon): If you have a past conviction and received a pardon from the Parole Board of Canada, you legally answer "No" to this question.{" "}
-                  <a href="https://www.canada.ca/en/parole-board/services/record-suspensions.html" target="_blank" rel="noopener noreferrer"
-                    className="text-primary underline underline-offset-2 hover:text-primary/80">Learn about record suspensions ↗</a>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* What to answer on job forms */}
-          <RadioGroup
-            label="Your answer to 'Have you been convicted of an unpardoned criminal offence?'"
-            tip="AYN will autofill this answer on job application forms. Only you know the correct answer — fill this in after reviewing your record check."
-            options={[
-              { value: "no", label: "No" },
-              { value: "yes", label: "Yes — will explain" },
-              { value: "prefer_not", label: "Prefer not to disclose" },
-            ]}
-            value={criminalRecord}
-            onChange={setCriminalRecord}
-          />
-
-          {criminalRecord === "yes" && (
-            <div className="border border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/10 p-3">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                If you answer "Yes", employers may ask you to explain. You are only obligated to disclose <strong>unpardoned convictions</strong> — not charges, withdrawn charges, absolute discharges, or pardoned offences.
-                Consider getting legal advice before disclosing. Human rights protections still apply.
-              </p>
-            </div>
-          )}
-        </div>
+        <RadioGroup
+          label="Have you ever been convicted of a criminal offence?"
+          options={[
+            { value: "no", label: "No" },
+            { value: "yes", label: "Yes" },
+            { value: "prefer_not", label: "Prefer not to say" },
+          ]}
+          value={criminalRecord}
+          onChange={setCriminalRecord}
+        />
 
         <CheckRow
           label="I consent to a background check / reference check as part of the hiring process"
