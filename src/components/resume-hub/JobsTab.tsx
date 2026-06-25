@@ -61,7 +61,7 @@ export default function JobsTab({ userId }: Props) {
     try {
       const { resume } = await resumeHubApi.tailor(primaryResume.content, selected.jd_text);
       const { error } = await supabase.from("resume_versions").insert({
-        user_id: userId, resume_id: primaryResume.id, content: resume, created_for_job_id: selected.id,
+        user_id: userId, resume_id: primaryResume.id, content: resume as any, created_for_job_id: selected.id,
       });
       if (error) throw error;
       toast({ title: "Tailored resume saved", description: "Check Builder for the new version." });

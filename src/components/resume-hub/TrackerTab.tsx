@@ -31,7 +31,7 @@ export default function TrackerTab({ userId }: Props) {
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
 
   const move = async (id: string, status: Status) => {
-    const patch: Record<string, unknown> = { status };
+    const patch: { status: Status; applied_at?: string } = { status };
     if (status === "applied") patch.applied_at = new Date().toISOString();
     await supabase.from("applications").update(patch).eq("id", id);
     toast({ title: `Moved to ${status}` });

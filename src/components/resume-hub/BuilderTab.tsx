@@ -45,11 +45,11 @@ export default function BuilderTab({ userId }: Props) {
     setBusy(true);
     try {
       if (activeId) {
-        const { error } = await supabase.from("resumes").update({ title, content }).eq("id", activeId);
+        const { error } = await supabase.from("resumes").update({ title, content: content as any }).eq("id", activeId);
         if (error) throw error;
         toast({ title: "Saved" });
       } else {
-        const { data, error } = await supabase.from("resumes").insert({ user_id: userId, title: title || "My Resume", content, is_primary: resumes.length === 0 }).select("id").single();
+        const { data, error } = await supabase.from("resumes").insert({ user_id: userId, title: title || "My Resume", content: content as any, is_primary: resumes.length === 0 }).select("id").single();
         if (error) throw error;
         setActiveId(data.id);
         toast({ title: "Created" });
@@ -106,7 +106,7 @@ export default function BuilderTab({ userId }: Props) {
       const r = await resumeHubApi.rewrite(content);
       setContent(r.resume);
       if (activeId) {
-        await supabase.from("resumes").update({ content: r.resume, ats_score: r.ats_score }).eq("id", activeId);
+        await supabase.from("resumes").update({ content: r.resume as any, ats_score: r.ats_score }).eq("id", activeId);
       }
       toast({ title: `Improved (ATS: ${r.ats_score})`, description: r.suggestions.slice(0, 3).join(" • ") });
       load();
