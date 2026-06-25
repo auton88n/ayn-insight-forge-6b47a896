@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; width: 320px; padding: 14px; background: #0b0f17; color: #e6e8ec; margin: 0; }
+    h1 { font-size: 14px; margin: 0 0 4px; font-weight: 600; }
+    p { font-size: 12px; color: #8b93a3; margin: 0 0 12px; }
+    button { display: block; width: 100%; margin: 6px 0; padding: 10px; border-radius: 8px; border: 1px solid #1f2735; background: #131b29; color: #e6e8ec; cursor: pointer; font-size: 13px; font-weight: 500; text-align: left; }
+    button:hover { background: #1a2434; border-color: #2a3548; }
+    button.primary { background: #2563eb; border-color: #2563eb; color: #fff; text-align: center; }
+    button.primary:hover { background: #1d4ed8; }
+    .status { font-size: 11px; padding: 6px 8px; border-radius: 6px; margin-bottom: 10px; }
+    .ok { background: rgba(34,197,94,.1); color: #4ade80; }
+    .warn { background: rgba(251,191,36,.1); color: #fbbf24; }
+    .err { background: rgba(239,68,68,.1); color: #f87171; }
+    a { color: #60a5fa; font-size: 12px; }
+    .row { display: flex; gap: 6px; }
+    .row button { flex: 1; }
+    .footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1f2735; font-size: 11px; color: #6b7280; }
+    .device { font-size: 11px; color: #6b7280; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>AYN Autofill</h1>
+  <p>Smart job application helper.</p>
+  <div id="status" class="status warn">Connecting…</div>
+
+  <button id="autofill" class="primary">⚡ Autofill this form</button>
+  <button id="save">📋 Save this job</button>
+  <div class="row">
+    <button id="tailor">📝 Tailor resume</button>
+    <button id="cover">✉️ Cover letter</button>
+  </div>
+
+  <div class="footer">
+    <a href="#" id="open-options">Options</a> • <a href="https://aynn.io/resume-hub" target="_blank">Open AYN</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
