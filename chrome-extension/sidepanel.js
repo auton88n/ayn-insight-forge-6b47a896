@@ -107,8 +107,17 @@ function onSignedIn() {
 }
 async function doSignOut() {
   if (S.scoringOn) stopScoring();
+  // Clear all user-specific state so nothing bleeds between accounts
   S.session = null;
+  S.resume = ''; S.job = ''; S.keywords = []; S.tailoredText = ''; S.changes = [];
+  S.detectedJob = null; S.jobTitle = ''; S.company = '';
+  CL.jobTitle = ''; CL.company = ''; CL.jobText = ''; CL.resumeText = '';
+  trackerApps = [];
+  $('tracker-list').innerHTML = '';
+  $('cover-out').textContent = '';
+  $('cover-result').classList.add('hidden');
   await chrome.storage.local.remove('session');
+  // Do NOT clear savedResume — that's intentional across sessions
   show('v-login');
 }
 
