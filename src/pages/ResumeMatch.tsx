@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Copy, CheckCheck, FileSearch, Sparkles } from 'lucide-react';
+import { Loader2, Copy, CheckCheck, FileSearch, Sparkles, Check, AlertTriangle, X, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -9,54 +9,168 @@ import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 
+interface ComparisonRow {
+  label: string;
+  jobRequires: string;
+  candidateHas: string;
+  status: 'match' | 'partial' | 'miss';
+}
+
+interface Keyword {
+  text: string;
+  matched: boolean;
+}
+
 interface ScoreResult {
   score: number;
+  matchLabel: 'Poor' | 'Fair' | 'Good' | 'Strong';
   verdict: string;
-  missingKeywords: string[];
-  matchedStrengths: string[];
+  comparisonRows: ComparisonRow[];
+  keywords: Keyword[];
   suggestedEdits: string[];
   redFlags: string[];
 }
 
+type Step = 1 | 2 | 3;
+
+function labelFromScore(score: number): ScoreResult['matchLabel'] {
+  if (score >= 85) return 'Strong';
+  if (score >= 70) return 'Good';
+  if (score >= 50) return 'Fair';
+  return 'Poor';
+}
+
 function normalizeScoreResult(raw: unknown): ScoreResult {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const score = Math.max(0, Math.min(100, Math.round(Number(r.score) || 0)));
+
+  const rawRows = Array.isArray(r.comparisonRows) ? r.comparisonRows : [];
+  const comparisonRows: ComparisonRow[] = rawRows.slice(0, 6).map((row) => {
+    const o = (row && typeof row === 'object' ? row : {}) as Record<string, unknown>;
+    const status = o.status === 'match' || o.status === 'partial' || o.status === 'miss' ? o.status : 'miss';
+    return {
+      label: String(o.label || ''),
+      jobRequires: String(o.jobRequires || ''),
+      candidateHas: String(o.candidateHas || ''),
+      status: status as ComparisonRow['status'],
+    };
+  });
+
+  const rawKw = Array.isArray(r.keywords) ? r.keywords : [];
+  const keywords: Keyword[] = rawKw.slice(0, 10).map((k) => {
+    const o = (k && typeof k === 'object' ? k : {}) as Record<string, unknown>;
+    return { text: String(o.text || ''), matched: Boolean(o.matched) };
+  }).filter((k) => k.text);
+
+  const allowed = r.matchLabel === 'Poor' || r.matchLabel === 'Fair' || r.matchLabel === 'Good' || r.matchLabel === 'Strong';
+  const matchLabel = allowed ? (r.matchLabel as ScoreResult['matchLabel']) : labelFromScore(score);
+
   return {
-    score: Math.max(0, Math.min(10, Math.round(Number(r.score) || 0))),
+    score,
+    matchLabel,
     verdict: String(r.verdict || ''),
-    missingKeywords: Array.isArray(r.missingKeywords) ? (r.missingKeywords as string[]) : [],
-    matchedStrengths: Array.isArray(r.matchedStrengths) ? (r.matchedStrengths as string[]) : [],
-    suggestedEdits: Array.isArray(r.suggestedEdits) ? (r.suggestedEdits as string[]) : [],
-    redFlags: Array.isArray(r.redFlags) ? (r.redFlags as string[]) : [],
+    comparisonRows,
+    keywords,
+    suggestedEdits: Array.isArray(r.suggestedEdits) ? (r.suggestedEdits as string[]).slice(0, 5).map(String) : [],
+    redFlags: Array.isArray(r.redFlags) ? (r.redFlags as string[]).slice(0, 4).map(String) : [],
   };
 }
 
-function ScoreGauge({ score }: { score: number }) {
-  const isLow = score < 5;
-  const isMid = score >= 5 && score < 7.5;
-  const isHigh = score >= 7.5;
+function colorForScore(score: number) {
+  if (score >= 70) return { stroke: '#10b981', text: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-500' };
+  if (score >= 50) return { stroke: '#f59e0b', text: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-500' };
+  return { stroke: '#f43f5e', text: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-500' };
+}
 
-  const colorClass = isHigh
-    ? 'text-emerald-500 border-emerald-500'
-    : isMid
-    ? 'text-amber-500 border-amber-500'
-    : 'text-rose-500 border-rose-500';
-
-  const bgClass = isHigh
-    ? 'bg-emerald-50 dark:bg-emerald-950/30'
-    : isMid
-    ? 'bg-amber-50 dark:bg-amber-950/30'
-    : 'bg-rose-50 dark:bg-rose-950/30';
-
-  const label = isHigh ? 'Strong Match' : isMid ? 'Fair Match' : 'Low Match';
+function ArcGauge({ score, label }: { score: number; label: string }) {
+  const colors = colorForScore(score);
+  // Arc geometry: semicircle from (20,120) to (220,120), radius 100, center (120,120)
+  const radius = 100;
+  const cx = 120;
+  const cy = 120;
+  const circumference = Math.PI * radius;
+  const pct = Math.max(0, Math.min(100, score)) / 100;
+  const dash = circumference * pct;
 
   return (
-    <div className={cn('flex flex-col items-center py-8 px-6 rounded-lg border-2', colorClass, bgClass)}>
-      <div className={cn('text-7xl font-bold font-mono tabular-nums', colorClass)}>
-        {score}<span className="text-3xl font-normal opacity-60">/10</span>
+    <div className="flex flex-col items-center">
+      <svg viewBox="0 0 240 150" className="w-full max-w-[260px]">
+        {/* Background arc */}
+        <path
+          d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
+          fill="none"
+          stroke="currentColor"
+          className="text-muted opacity-30"
+          strokeWidth="14"
+          strokeLinecap="round"
+        />
+        {/* Foreground arc */}
+        <path
+          d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
+          fill="none"
+          stroke={colors.stroke}
+          strokeWidth="14"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${circumference}`}
+          style={{ transition: 'stroke-dasharray 900ms ease-out' }}
+        />
+        <text x={cx} y={cy - 10} textAnchor="middle" className={cn('font-mono font-bold', colors.text)} style={{ fontSize: '46px', fill: 'currentColor' }}>
+          {score}
+        </text>
+        <text x={cx} y={cy + 18} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: '12px' }}>
+          out of 100
+        </text>
+      </svg>
+      <div className={cn('mt-2 px-4 py-1 rounded-full text-xs font-mono uppercase tracking-widest font-semibold border', colors.text, colors.border, colors.bg)}>
+        {label} Match
       </div>
-      <div className={cn('mt-2 text-sm font-mono uppercase tracking-widest font-semibold', colorClass)}>
-        {label}
-      </div>
+    </div>
+  );
+}
+
+function StatusIcon({ status }: { status: ComparisonRow['status'] }) {
+  if (status === 'match') return <Check className="h-4 w-4 text-emerald-500" />;
+  if (status === 'partial') return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+  return <X className="h-4 w-4 text-rose-500" />;
+}
+
+function Stepper({ step }: { step: Step }) {
+  const steps: { n: Step; label: string }[] = [
+    { n: 1, label: 'See Your Difference' },
+    { n: 2, label: 'Align Your Resume' },
+    { n: 3, label: 'Review New Resume' },
+  ];
+  return (
+    <div className="flex items-center justify-center gap-2 md:gap-4 mb-10">
+      {steps.map((s, i) => {
+        const active = s.n === step;
+        const done = s.n < step;
+        return (
+          <div key={s.n} className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  'w-8 h-8 flex items-center justify-center rounded-full border-2 font-mono text-xs font-bold transition-colors',
+                  active && 'bg-foreground text-background border-foreground',
+                  done && 'bg-emerald-500 text-white border-emerald-500',
+                  !active && !done && 'border-border text-muted-foreground'
+                )}
+              >
+                {done ? <Check className="h-4 w-4" /> : s.n}
+              </div>
+              <span
+                className={cn(
+                  'hidden md:inline text-xs font-mono uppercase tracking-wider',
+                  active ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                )}
+              >
+                {s.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && <ArrowRight className="h-4 w-4 text-muted-foreground" />}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -64,6 +178,7 @@ function ScoreGauge({ score }: { score: number }) {
 const ResumeMatch = () => {
   const { toast } = useToast();
 
+  const [step, setStep] = useState<Step>(1);
   const [resume, setResume] = useState('');
   const [job, setJob] = useState('');
   const [scoring, setScoring] = useState(false);
@@ -95,6 +210,8 @@ const ResumeMatch = () => {
       if (data?.error) throw new Error(data.error);
 
       setResult(normalizeScoreResult(data));
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
@@ -105,8 +222,6 @@ const ResumeMatch = () => {
 
   const handleRewrite = async () => {
     if (!result) return;
-    if (resume.trim().length < 50 || job.trim().length < 50) return;
-
     setRewriting(true);
     setRewriteMarkdown(null);
 
@@ -119,6 +234,8 @@ const ResumeMatch = () => {
       if (data?.error) throw new Error(data.error);
 
       setRewriteMarkdown(data?.markdown || '');
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       toast({ title: 'Error', description: msg, variant: 'destructive' });
@@ -134,11 +251,18 @@ const ResumeMatch = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleReset = () => {
+    setStep(1);
+    setResult(null);
+    setRewriteMarkdown(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <>
       <SEO
         title="Resume Match - AYN AI | See How Well You Fit"
-        description="Paste your resume and a job description. Get an instant match score, keyword gaps, and a one-click AI rewrite tailored to the role."
+        description="Paste your resume and a job description. Get an instant match score, requirement-by-requirement comparison, and a one-click AI rewrite tailored to the role."
         canonical="/resume-match"
       />
       <div className="min-h-screen bg-background">
@@ -148,7 +272,7 @@ const ResumeMatch = () => {
           <div className="container max-w-5xl mx-auto">
 
             {/* Hero */}
-            <div className="text-center mb-10 md:mb-14">
+            <div className="text-center mb-10">
               <span className="text-sm font-mono text-muted-foreground tracking-wider uppercase mb-4 block">
                 AI Career Tool
               </span>
@@ -156,122 +280,134 @@ const ResumeMatch = () => {
                 Resume Match
               </h1>
               <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto">
-                Paste your resume and a job description. Get a match score, keyword gaps, and a tailored rewrite in seconds.
+                Paste your resume and a job description. See exactly where you fit, where you fall short, and how to fix it.
               </p>
             </div>
 
-            {/* Input area */}
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
-              <div className="space-y-2">
-                <label className="text-sm font-mono uppercase tracking-wider text-muted-foreground">
-                  Your Resume
-                </label>
-                <Textarea
-                  value={resume}
-                  onChange={(e) => setResume(e.target.value)}
-                  placeholder="Paste your full resume here..."
-                  rows={14}
-                  className={cn(
-                    'bg-transparent border-2 border-border rounded-none text-sm transition-all duration-300 resize-none',
-                    'focus:border-foreground focus:ring-0',
-                    'hover:border-muted-foreground'
-                  )}
-                  disabled={scoring || rewriting}
-                />
-              </div>
+            <Stepper step={step} />
 
-              <div className="space-y-2">
-                <label className="text-sm font-mono uppercase tracking-wider text-muted-foreground">
-                  Job Description
-                </label>
-                <Textarea
-                  value={job}
-                  onChange={(e) => setJob(e.target.value)}
-                  placeholder="Paste the job description here..."
-                  rows={14}
-                  className={cn(
-                    'bg-transparent border-2 border-border rounded-none text-sm transition-all duration-300 resize-none',
-                    'focus:border-foreground focus:ring-0',
-                    'hover:border-muted-foreground'
-                  )}
-                  disabled={scoring || rewriting}
-                />
-              </div>
-            </div>
-
-            {/* Primary CTA */}
-            <div className="flex justify-center mb-12">
-              <Button
-                size="lg"
-                onClick={handleScore}
-                disabled={scoring || rewriting}
-                className="h-14 px-10 rounded-none font-mono uppercase tracking-wider transition-all duration-300 hover:shadow-2xl"
-              >
-                {scoring ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <FileSearch className="mr-2 h-5 w-5" />
-                    Check My Match
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {/* Results */}
-            {result && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-                {/* Score + verdict */}
-                <div className="grid md:grid-cols-3 gap-6 items-start">
-                  <div className="md:col-span-1">
-                    <ScoreGauge score={result.score} />
+            {/* STEP 1: Input */}
+            {step === 1 && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                  <div className="space-y-2">
+                    <label className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Your Resume</label>
+                    <Textarea
+                      value={resume}
+                      onChange={(e) => setResume(e.target.value)}
+                      placeholder="Paste your full resume here..."
+                      rows={14}
+                      className="bg-transparent border-2 border-border rounded-none text-sm focus:border-foreground focus:ring-0 hover:border-muted-foreground transition-all duration-300 resize-none"
+                      disabled={scoring}
+                    />
                   </div>
-                  <div className="md:col-span-2 flex flex-col justify-center space-y-4 py-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Job Description</label>
+                    <Textarea
+                      value={job}
+                      onChange={(e) => setJob(e.target.value)}
+                      placeholder="Paste the job description here..."
+                      rows={14}
+                      className="bg-transparent border-2 border-border rounded-none text-sm focus:border-foreground focus:ring-0 hover:border-muted-foreground transition-all duration-300 resize-none"
+                      disabled={scoring}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-center">
+                  <Button
+                    size="lg"
+                    onClick={handleScore}
+                    disabled={scoring}
+                    className="h-14 px-10 rounded-none font-mono uppercase tracking-wider transition-all duration-300 hover:shadow-2xl"
+                  >
+                    {scoring ? (
+                      <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Analyzing...</>
+                    ) : (
+                      <><FileSearch className="mr-2 h-5 w-5" />See Your Difference</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Score + comparison */}
+            {step === 2 && result && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                {/* Gauge + verdict */}
+                <div className="grid md:grid-cols-3 gap-8 items-center">
+                  <div className="md:col-span-1 flex justify-center">
+                    <ArcGauge score={result.score} label={result.matchLabel} />
+                  </div>
+                  <div className="md:col-span-2">
                     {result.verdict && (
                       <p className="text-base md:text-lg text-foreground leading-relaxed border-l-2 border-foreground pl-4">
                         {result.verdict}
                       </p>
                     )}
-
-                    {/* Missing keywords */}
-                    {result.missingKeywords.length > 0 && (
-                      <div>
-                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Missing Keywords</p>
-                        <div className="flex flex-wrap gap-2">
-                          {result.missingKeywords.map((kw) => (
-                            <span
-                              key={kw}
-                              className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                            >
-                              {kw}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Matched strengths */}
-                    {result.matchedStrengths.length > 0 && (
-                      <div>
-                        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Where You Align</p>
-                        <div className="flex flex-wrap gap-2">
-                          {result.matchedStrengths.map((s) => (
-                            <span
-                              key={s}
-                              className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
+
+                {/* Comparison table */}
+                {result.comparisonRows.length > 0 && (
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-4">Requirement Comparison</p>
+                    <div className="border border-border overflow-hidden">
+                      <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/40 text-xs font-mono uppercase tracking-wider text-muted-foreground border-b border-border">
+                        <div className="col-span-1"></div>
+                        <div className="col-span-3">Requirement</div>
+                        <div className="col-span-4">Job Wants</div>
+                        <div className="col-span-4">You Have</div>
+                      </div>
+                      {result.comparisonRows.map((row, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            'grid md:grid-cols-12 gap-2 md:gap-4 px-4 py-4 text-sm',
+                            i !== result.comparisonRows.length - 1 && 'border-b border-border'
+                          )}
+                        >
+                          <div className="md:col-span-1 flex items-start">
+                            <StatusIcon status={row.status} />
+                          </div>
+                          <div className="md:col-span-3 font-semibold">{row.label}</div>
+                          <div className="md:col-span-4 text-muted-foreground">
+                            <span className="md:hidden font-mono text-[10px] uppercase tracking-wider block mb-1">Job wants</span>
+                            {row.jobRequires}
+                          </div>
+                          <div className="md:col-span-4">
+                            <span className="md:hidden font-mono text-[10px] uppercase tracking-wider block mb-1 text-muted-foreground">You have</span>
+                            {row.candidateHas}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Keywords */}
+                {result.keywords.length > 0 && (
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-3">Job Keywords</p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.keywords.map((kw, i) => (
+                        <span
+                          key={i}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border',
+                            kw.matched
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              : 'bg-muted text-muted-foreground border-border'
+                          )}
+                        >
+                          {kw.matched && <Check className="h-3 w-3" />}
+                          {kw.text}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Suggested edits */}
                 {result.suggestedEdits.length > 0 && (
@@ -303,36 +439,37 @@ const ResumeMatch = () => {
                   </div>
                 )}
 
-                {/* Improve CTA */}
-                <div className="flex justify-center pt-4">
+                {/* CTAs */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
                   <Button
                     variant="outline"
                     size="lg"
+                    onClick={handleReset}
+                    className="h-13 px-8 rounded-none font-mono uppercase tracking-wider border-2"
+                  >
+                    Start Over
+                  </Button>
+                  <Button
+                    size="lg"
                     onClick={handleRewrite}
-                    disabled={rewriting || scoring}
-                    className="h-14 px-10 rounded-none font-mono uppercase tracking-wider border-2 transition-all duration-300 hover:shadow-xl"
+                    disabled={rewriting}
+                    className="h-14 px-10 rounded-none font-mono uppercase tracking-wider transition-all duration-300 hover:shadow-2xl"
                   >
                     {rewriting ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Rewriting Resume...
-                      </>
+                      <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Aligning...</>
                     ) : (
-                      <>
-                        <Sparkles className="mr-2 h-5 w-5" />
-                        Improve My Resume for This Job
-                      </>
+                      <><Sparkles className="mr-2 h-5 w-5" />Align My Resume</>
                     )}
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* Rewrite result */}
-            {rewriteMarkdown && (
-              <div className="mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* STEP 3: Rewrite */}
+            {step === 3 && rewriteMarkdown && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Improved Resume</p>
+                  <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Your Aligned Resume</p>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -350,6 +487,25 @@ const ResumeMatch = () => {
                   <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
                     {rewriteMarkdown}
                   </pre>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => { setStep(2); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="h-13 px-8 rounded-none font-mono uppercase tracking-wider border-2"
+                  >
+                    Back to Score
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={handleReset}
+                    className="h-13 px-8 rounded-none font-mono uppercase tracking-wider border-2"
+                  >
+                    Match Another Job
+                  </Button>
                 </div>
               </div>
             )}
