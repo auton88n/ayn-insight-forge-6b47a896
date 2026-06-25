@@ -25,7 +25,7 @@ function toast(msg, type = '') {
 }
 
 // ── View management ───────────────────────────────────────────────
-const VIEWS = ['v-login','v-fill','v-jobs','v-t1','v-t2','v-t3'];
+const VIEWS = ['v-login','v-fill','v-jobs','v-contact','v-t1','v-t2','v-t3'];
 function show(id) {
   VIEWS.forEach(v => $(v)?.classList.toggle('active', v === id));
   const li = id !== 'v-login';
@@ -47,10 +47,11 @@ function show(id) {
 // ── Tab switching ─────────────────────────────────────────────────
 function switchTab(tab) {
   S.tab = tab;
-  ['fill','jobs','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
-  if (tab === 'fill') { show('v-fill'); detectForFill(); }
-  if (tab === 'jobs') { show('v-jobs'); }
-  if (tab === 'tailor') { show('v-t1'); detectForTailor(); }
+  ['fill','jobs','contact','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
+  if (tab === 'fill')    { show('v-fill');    detectForFill(); }
+  if (tab === 'jobs')    { show('v-jobs'); }
+  if (tab === 'contact') { show('v-contact'); detectForContacts(); }
+  if (tab === 'tailor')  { show('v-t1');      detectForTailor(); }
 }
 window.switchTab = switchTab;
 
@@ -351,6 +352,139 @@ $('new-job-btn').addEventListener('click', () => {
   $('t-job-banner').classList.add('hidden');
   show('v-t1'); detectForTailor();
 });
+
+// ══════════════════════════════════════════════════════════════════
+// CONTACTS TAB
+// ══════════════════════════════════════════════════════════════════
+
+// Store current job context for contacts
+const C = { jobTitle: '', company: '', jobUrl: '', jobSnippet: '' };
+
+function detectForContacts() {
+  const noJob = $('contact-no-job');
+  const jobInfo = $('contact-job-info');
+  noJob.classList.add('hidden');
+  jobInfo.classList.add('hidden');
+
+  getTab(tab => {
+    if (!tab) { noJob.classList.remove('hidden'); return; }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
+        noJob.classList.remove('hidden');
+        return;
+      }
+      C.jobTitle   = r.title || '';
+      C.company    = r.company || extractCompanyFromTitle(r.title || '');
+      C.jobUrl     = tab.url || '';
+      C.jobSnippet = r.text.slice(0, 800);
+
+      jobInfo.classList.remove('hidden');
+      $('contact-job-title').textContent = C.jobTitle || 'Job detected';
+      $('contact-company-name').textContent = C.company ? `at ${C.company}` : tab.url;
+    });
+  });
+}
+
+function extractCompanyFromTitle(title) {
+  // "Senior PM at Shopify | LinkedIn" → "Shopify"
+  const parts = title.split(/\s+at\s+|\s+[-|@]\s+/i);
+  if (parts.length > 1) {
+    return parts[1].replace(/linkedin|indeed|glassdoor|jobright|greenhouse/gi,'').trim();
+  }
+  return '';
+}
+
+$('find-contacts-btn').addEventListener('click', async () => {
+  const btn = $('find-contacts-btn');
+  const err = $('err-contact');
+  err.classList.add('hidden');
+  $('contact-results').classList.add('hidden');
+
+  if (!C.company && !C.jobTitle) {
+    err.textContent = 'Navigate to a job posting first, then try again.';
+    err.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Finding contacts...';
+
+  try {
+    const data = await callFn('ext_find_contacts', {
+      company:     C.company,
+      jobTitle:    C.jobTitle,
+      jobUrl:      C.jobUrl,
+      jobSnippet:  C.jobSnippet,
+    });
+
+    renderContacts(data);
+    $('contact-results').classList.remove('hidden');
+  } catch (e) {
+    err.textContent = e.message || 'Could not find contacts. Try again.';
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Find Who to Contact →';
+  }
+});
+
+function renderContacts({ contacts = [], emailFormats = [], companyDomain = '', coldOutreach = '', subjectLine = '' }) {
+  // Contact cards
+  const cards = $('contact-cards');
+  cards.innerHTML = '';
+  contacts.forEach(c => {
+    const titles = (c.titles || [c.role]).join(', ');
+    // Build LinkedIn search URL — search for this type of person at the company
+    const liSearch = c.linkedinSearchUrl ||
+      `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.role)}&currentCompany=%5B%22${encodeURIComponent(C.company)}%22%5D`;
+
+    cards.innerHTML += `
+      <div class="contact-card">
+        <div class="contact-card-title">${esc(c.role)}</div>
+        <div class="contact-card-why">${esc(c.why || '')} <span style="color:var(--muted);font-size:10px">${esc(titles)}</span></div>
+        <div class="contact-actions">
+          <a class="contact-link linkedin" href="${liSearch}" target="_blank" rel="noopener noreferrer">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+            Search on LinkedIn
+          </a>
+          <button class="contact-link copy" onclick="copyToClip('${liSearch.replace(/'/g,"\\'")}', 'LinkedIn search link copied')">
+            Copy Link
+          </button>
+        </div>
+      </div>`;
+  });
+
+  // Email domain + formats
+  const domain = companyDomain || (C.company || '').toLowerCase().replace(/\s+/g,'')+'.com';
+  $('domain-name').textContent = domain;
+  const fmts = $('email-fmts');
+  fmts.innerHTML = '';
+  const exampleFormats = emailFormats.length ? emailFormats : ['firstname.lastname@' + domain, 'f.lastname@' + domain, 'firstname@' + domain];
+  exampleFormats.forEach(fmt => {
+    const btn = document.createElement('button');
+    btn.className = 'email-fmt';
+    btn.textContent = fmt;
+    btn.title = 'Click to copy';
+    btn.addEventListener('click', () => copyToClip(fmt, `Copied: ${fmt}`));
+    fmts.appendChild(btn);
+  });
+
+  // Outreach message
+  $('subject-line').textContent = subjectLine || `Re: ${C.jobTitle} at ${C.company}`;
+  $('outreach-text').textContent = coldOutreach || '';
+}
+
+function copyToClip(text, successMsg) {
+  navigator.clipboard.writeText(text).then(() => toast(successMsg || 'Copied', 'ok'));
+}
+window.copySubject = () => {
+  const t = $('subject-line').textContent;
+  if (t) copyToClip(t, 'Subject line copied');
+};
+window.copyOutreach = () => {
+  const t = $('outreach-text').textContent;
+  if (t) copyToClip(t, 'Outreach message copied');
+};
 
 // ── Helpers ───────────────────────────────────────────────────────
 function getTab(cb) { chrome.tabs.query({ active:true, currentWindow:true }, tabs => cb(tabs[0]||null)); }

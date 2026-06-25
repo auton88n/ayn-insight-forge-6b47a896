@@ -112,7 +112,22 @@
     .fill-stat.partial{color:var(--amber)}
     .fill-lbl{font-size:11px;color:var(--muted);margin-top:2px}
 
-    /* Score toggle */
+    /* Contact cards */
+    .contact-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:11px 12px;margin-bottom:8px}
+    .contact-card-title{font-weight:600;font-size:12px;margin-bottom:2px}
+    .contact-card-why{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4}
+    .contact-actions{display:flex;flex-wrap:wrap;gap:6px}
+    .contact-link{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid;transition:all .15s;cursor:pointer;background:none}
+    .contact-link.linkedin{color:#0a66c2;border-color:rgba(10,102,194,0.35);background:rgba(10,102,194,0.07)}
+    .contact-link.linkedin:hover{background:rgba(10,102,194,0.15)}
+    .contact-link.copy{color:var(--accent2);border-color:rgba(99,102,241,0.35);background:rgba(99,102,241,0.07)}
+    .contact-link.copy:hover{background:rgba(99,102,241,0.15)}
+    .email-fmt-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+    .email-fmt{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;font-size:10px;font-family:monospace;color:var(--muted);background:var(--bg3);border:1px solid var(--border);cursor:pointer;transition:all .15s}
+    .email-fmt:hover{border-color:var(--accent);color:var(--accent2)}
+    .outreach-box{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11px;line-height:1.6;color:var(--text);white-space:pre-wrap;margin-bottom:8px;position:relative}
+    .outreach-copy{position:absolute;top:8px;right:8px;font-size:10px;color:var(--muted);background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 7px;cursor:pointer;font-family:monospace}
+    .outreach-copy:hover{color:var(--text)}
     .score-toggle{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;margin-bottom:9px;cursor:pointer}
     .score-toggle-left{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
     .toggle-switch{width:36px;height:20px;background:var(--border);border-radius:999px;position:relative;transition:background .2s;flex-shrink:0}
@@ -169,9 +184,10 @@
 </div>
 
 <div class="tabs hidden" id="tabs">
-  <button class="tab active" id="tab-fill" onclick="switchTab('fill')">✦ Fill Form</button>
-  <button class="tab" id="tab-jobs"  onclick="switchTab('jobs')">Job Score</button>
-  <button class="tab" id="tab-tailor" onclick="switchTab('tailor')">Tailor CV</button>
+  <button class="tab active" id="tab-fill"    onclick="switchTab('fill')">✦ Fill</button>
+  <button class="tab"         id="tab-jobs"   onclick="switchTab('jobs')">Score</button>
+  <button class="tab"         id="tab-contact" onclick="switchTab('contact')">Contacts</button>
+  <button class="tab"         id="tab-tailor" onclick="switchTab('tailor')">Tailor</button>
 </div>
 
 <div class="stepper hidden" id="stepper">
@@ -269,6 +285,58 @@
       <div id="kw-search-chips"></div>
     </div>
     <div id="err-jobs" class="err hidden mt8"></div>
+  </div>
+
+  <!-- ═══════ CONTACTS TAB ═══════ -->
+  <div class="view" id="v-contact">
+
+    <div id="contact-job-info" class="banner b-green hidden">
+      <div class="b-title" id="contact-job-title"></div>
+      <div class="b-sub" id="contact-company-name"></div>
+    </div>
+
+    <p class="note">AYN finds the right people to contact at this company — the recruiter, HR manager, or hiring manager for this role — and writes your outreach message.</p>
+
+    <div id="contact-no-job" class="banner b-amber hidden">
+      <div class="b-title">No job detected on this page</div>
+      <div class="b-sub">Navigate to a job posting on LinkedIn, Indeed, Greenhouse, or similar, then come back here.</div>
+    </div>
+
+    <button class="btn btn-primary" id="find-contacts-btn">
+      Find Who to Contact →
+    </button>
+
+    <div id="contact-results" class="hidden mt10">
+
+      <!-- Contact cards -->
+      <div class="sl">Who to Reach Out To</div>
+      <div id="contact-cards"></div>
+
+      <div class="divider"></div>
+
+      <!-- Email formats -->
+      <div class="sl">Common Email Formats at <span id="domain-name"></span></div>
+      <p class="note" style="font-size:10px">Click a format to copy it. Replace with the person's name.</p>
+      <div class="email-fmt-row" id="email-fmts"></div>
+
+      <div class="divider"></div>
+
+      <!-- Cold outreach message -->
+      <div class="sl">Your Outreach Message</div>
+      <p class="note" style="font-size:10px">Personalised to this role and your background. Edit before sending.</p>
+      <div style="margin-bottom:5px">
+        <span style="font-size:10px;color:var(--muted)">Subject: </span>
+        <span id="subject-line" style="font-size:11px;font-weight:600"></span>
+        <button onclick="copySubject()" style="font-size:10px;color:var(--accent2);background:none;border:none;cursor:pointer;margin-left:6px;font-family:monospace">copy</button>
+      </div>
+      <div class="outreach-box" id="outreach-msg">
+        <button class="outreach-copy" onclick="copyOutreach()">Copy</button>
+        <span id="outreach-text"></span>
+      </div>
+
+    </div>
+
+    <div id="err-contact" class="err hidden mt8"></div>
   </div>
 
   <!-- ═══════ TAILOR CV TAB ═══════ -->

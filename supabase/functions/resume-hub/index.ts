@@ -121,7 +121,7 @@ async function sha256Hex(s: string) {
   return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter", "ext_job_score", "ext_suggest_roles"]);
+const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter", "ext_job_score", "ext_suggest_roles", "ext_find_contacts"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -330,6 +330,67 @@ Return ONLY valid JSON, no code fences:
           roles: (parsed.roles || []).slice(0, 10),
           keywords: (parsed.keywords || []).slice(0, 8),
           summary: parsed.summary || "",
+        });
+      }
+
+      // ext_find_contacts: given company + job title, return recruiter search links + outreach message
+      if (action === "ext_find_contacts") {
+        const { company, jobTitle, jobUrl, jobSnippet } = payload as { company?: string; jobTitle?: string; jobUrl?: string; jobSnippet?: string };
+        if (!company) return json({ error: "company required" }, 400);
+
+        const { data: profile } = await admin.from("user_profile_data").select("legal_first_name, legal_last_name, default_answers").eq("user_id", userId).maybeSingle();
+        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+
+        const userName = [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || "the candidate";
+        const aboutMe = (profile?.default_answers as Record<string,unknown>)?.about_me as string || "";
+
+        const r = await callAI({
+          system: `You are a job search assistant helping a candidate find the right person to contact at a company about a job opening.
+
+Return ONLY valid JSON, no code fences:
+{
+  "contacts": [
+    {
+      "role": "<likely role title e.g. 'Talent Acquisition Manager', 'HR Business Partner', 'Technical Recruiter'>",
+      "why": "<one sentence: why contact this person for this job>",
+      "linkedinSearchUrl": "<LinkedIn people search URL for this type of person at the company>",
+      "titles": ["<title variant 1>", "<title variant 2>"]
+    }
+  ],
+  "emailFormats": ["<format e.g. firstname.lastname@company.com>", "<format e.g. f.lastname@company.com>"],
+  "companyDomain": "<best guess at company email domain e.g. shopify.com>",
+  "coldOutreach": "<a 3-sentence LinkedIn connection message or cold email from the candidate to a recruiter at this company. Professional, specific to the role, not generic. First person. No em dashes.>",
+  "subjectLine": "<email subject line for cold outreach>"
+}
+
+LinkedIn search URL format:
+https://www.linkedin.com/search/results/people/?keywords=ENCODED_TITLE&currentCompany=["COMPANY_NAME"]&origin=FACETED_SEARCH
+
+Rules:
+- Suggest 2-3 different contact types (Recruiter, HR Manager, Hiring Manager)  
+- Email formats: suggest 2-3 most common formats for this company size/type
+- Cold outreach: use the candidate name and their background. Make it specific to the role. Under 80 words. No "I hope this message finds you well".`,
+          user: `COMPANY: ${company}
+JOB TITLE: ${jobTitle || "Not specified"}
+JOB URL: ${jobUrl || ""}
+JOB SNIPPET: ${(jobSnippet || "").slice(0, 800)}
+CANDIDATE NAME: ${userName}
+CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?.basics || {}).slice(0, 400)}`,
+        });
+
+        let parsed: Record<string, unknown> = {};
+        try {
+          const raw = r.text.replace(/\`\`\`(?:json)?\s*/gi, "").replace(/\`\`\`/g, "").trim();
+          const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
+          parsed = JSON.parse(s !== -1 ? raw.slice(s, e + 1) : raw);
+        } catch { /* keep empty */ }
+
+        return json({
+          contacts: (parsed.contacts as unknown[] || []).slice(0, 3),
+          emailFormats: (parsed.emailFormats as string[] || []).slice(0, 3),
+          companyDomain: parsed.companyDomain || "",
+          coldOutreach: parsed.coldOutreach || "",
+          subjectLine: parsed.subjectLine || "",
         });
       }
     }
