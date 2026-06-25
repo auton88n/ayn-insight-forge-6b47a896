@@ -193,15 +193,34 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const fields = (payload as { fields?: unknown }).fields;
+        const { fields, jobText } = payload as { fields?: unknown; jobText?: string };
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         const [{ data: profile }, { data: resume }] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
         ]);
         const r = await callAI({
-          system: "Given form fields and the user's profile + resume, return the best value for each. For select fields with options, pick from options. Leave value empty if unknown or sensitive (do NOT guess SSN, DOB year, salary).",
-          user: JSON.stringify({ fields, profile, resume: resume?.content }).slice(0, 30000),
+          system: `You are filling out a job application form for a Canadian job seeker.
+
+You have: their profile (name, address, phone, work authorization, answers), their resume (experience, skills, education), and the job description.
+
+RULES:
+- Only use real data from profile and resume — never invent information
+- Work authorization questions (legally eligible to work in Canada): use work_auth.legally_eligible
+- Salary: use default_answers.salary_expectation if set, else leave empty
+- "Tell us about yourself": use default_answers.about_me adapted to the job
+- "Why this role": use default_answers.why_this_role adapted to the job
+- Criminal record: use default_answers.criminal_record
+- Equity/diversity: use equity flags from default_answers (voluntary only)
+- Select fields: pick the closest matching option from the provided options list
+- Leave empty: SIN, exact birth date, banking info, passwords, anything not in profile
+- If not confident: return empty string — never guess sensitive fields`,
+          user: JSON.stringify({
+            fields,
+            profile,
+            resume: resume?.content,
+            jobDescription: (jobText || "").slice(0, 3000),
+          }).slice(0, 35000),
           toolName: "emit_autofill",
           toolSchema: {
             type: "object",
