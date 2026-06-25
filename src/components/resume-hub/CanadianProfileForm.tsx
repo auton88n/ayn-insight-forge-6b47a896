@@ -735,11 +735,7 @@ export default function CanadianProfileForm({ userId }: Props) {
           onChange={setCriminalRecord}
         />
 
-        <CheckRow
-          label="I consent to a background check / reference check as part of the hiring process"
-          checked={backgroundCheckConsent}
-          onChange={setBackgroundCheckConsent}
-        />
+
 
         <RadioGroup
           label="Do you hold a valid Canadian driver's licence?"
