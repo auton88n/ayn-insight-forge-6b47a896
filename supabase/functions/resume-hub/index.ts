@@ -134,6 +134,37 @@ Deno.serve(async (req) => {
 
     const { action, ...payload } = await req.json();
 
+    // ---------------- extension token management ----------------
+    if (action === "token_mint") {
+      const label = (payload as { label?: string }).label || "Browser";
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      const token = "ayn_" + Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+      const tokHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))))
+        .map((x) => x.toString(16).padStart(2, "0")).join("");
+      const prefix = token.slice(0, 12) + "…";
+      const { data, error } = await supa.from("extension_tokens")
+        .insert({ user_id: user.id, token_hash: tokHash, token_prefix: prefix, device_label: label })
+        .select("id").single();
+      if (error) throw error;
+      return json({ token, prefix, id: data.id });
+    }
+    if (action === "token_list") {
+      const { data, error } = await supa.from("extension_tokens")
+        .select("id, token_prefix, device_label, last_used_at, revoked_at, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return json({ tokens: data });
+    }
+    if (action === "token_revoke") {
+      const id = (payload as { id?: string }).id;
+      if (!id) return json({ error: "id required" }, 400);
+      const { error } = await supa.from("extension_tokens").update({ revoked_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+      return json({ ok: true });
+    }
+
+
     // ---------------- parse ----------------
     if (action === "parse") {
       const { resumeText } = payload as { resumeText: string };
