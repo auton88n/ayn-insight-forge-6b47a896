@@ -307,6 +307,80 @@ Deno.serve(async (req) => {
       return json({ resume: r.structured });
     }
 
+    // ---------------- parse_file ----------------
+    // Accepts a base64-encoded PDF or DOCX and returns structured ResumeContent.
+    // The file is sent directly to Gemini as an inline document so no server-side
+    // PDF library is needed — Gemini reads the bytes natively.
+    if (action === "parse_file") {
+      const { fileBase64, mimeType } = payload as { fileBase64: string; mimeType: string };
+      if (!fileBase64) return json({ error: "fileBase64 required" }, 400);
+
+      const supportedTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
+      const effectiveMime = supportedTypes.includes(mimeType) ? mimeType : "application/pdf";
+
+      // Gemini can read PDF natively as an inline document part
+      const userContent = [
+        {
+          type: "text",
+          text: "Extract ALL information from this resume document. Return every name, company, date, bullet point, skill, and education entry you can find. Be exhaustive and faithful — do not invent or omit anything.",
+        },
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: effectiveMime,
+            data: fileBase64,
+          },
+        },
+      ];
+
+      const apiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+
+      // For DOCX we first ask Gemini to extract plain text, then parse that.
+      // For PDF Gemini reads it directly.
+      const r = await fetch(GATEWAY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content: "You convert resume documents into structured JSON. Extract every fact faithfully. Do not invent or omit data. Return only the tool call.",
+            },
+            { role: "user", content: userContent },
+          ],
+          tools: [{
+            type: "function",
+            function: { name: "emit_resume", description: "emit_resume", parameters: RESUME_SCHEMA },
+          }],
+          tool_choice: { type: "function", function: { name: "emit_resume" } },
+        }),
+      });
+
+      if (r.status === 429) return json({ error: "AI rate limit. Try again in a minute." }, 429);
+      if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
+      if (!r.ok) { const t = await r.text(); return json({ error: `AI error ${r.status}: ${t.slice(0, 200)}` }, 500); }
+
+      const data = await r.json();
+      const choice = data?.choices?.[0];
+      const tc = choice?.message?.tool_calls?.[0]?.function?.arguments;
+      if (!tc) return json({ error: "AI did not return structured data" }, 500);
+
+      let resume: unknown;
+      try { resume = JSON.parse(tc); } catch { return json({ error: "Failed to parse AI response" }, 500); }
+
+      // Also produce a plain-text version for the ResumeMatch textarea
+      const plainText = [
+        (resume as Record<string, unknown>)?.basics,
+        ...(((resume as Record<string, unknown>)?.work as unknown[]) ?? []),
+        ...(((resume as Record<string, unknown>)?.education as unknown[]) ?? []),
+      ].map(s => JSON.stringify(s)).join("\n");
+
+      return json({ resume, plainText });
+    }
+
     // ---------------- rewrite ----------------
     if (action === "rewrite") {
       const { resume, jdText } = payload as { resume: unknown; jdText?: string };

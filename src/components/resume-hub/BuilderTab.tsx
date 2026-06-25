@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { Loader2, Sparkles, Plus, Trash2, Star } from "lucide-react";
+import { Loader2, Sparkles, Plus, Trash2, Star, ChevronDown, ChevronUp } from "lucide-react";
+import { ResumeUpload } from "./ResumeUpload";
 
 interface Props { userId: string }
 
@@ -21,6 +22,7 @@ export default function BuilderTab({ userId }: Props) {
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [importText, setImportText] = useState("");
+  const [showImport, setShowImport] = useState(false);
 
   const load = async () => {
     const { data } = await supabase.from("resumes").select("id, title, is_primary, content, ats_score").eq("user_id", userId).order("updated_at", { ascending: false });
@@ -84,6 +86,13 @@ export default function BuilderTab({ userId }: Props) {
     setActiveId(null);
     setTitle("New Resume");
     setContent({ basics: { name: "", summary: "" }, work: [{ company: "", title: "", bullets: [""] }], education: [], skills: [] });
+  };
+
+  const handleFileParsed = ({ resume }: { resume: ResumeContent }) => {
+    setContent(resume);
+    const name = resume.basics?.name;
+    setTitle(name ? `${name} – Resume` : "Uploaded Resume");
+    toast({ title: "Resume autofilled", description: "All fields populated from your file. Review and save." });
   };
 
   const importFromText = async () => {
@@ -167,11 +176,35 @@ export default function BuilderTab({ userId }: Props) {
         </Card>
 
         <Card className="p-4">
-          <h3 className="font-semibold mb-3">Import existing resume</h3>
-          <Textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Paste your resume text here. AYN will structure it." rows={4} />
-          <Button onClick={importFromText} disabled={busy || !importText} size="sm" className="mt-2">
-            <Sparkles className="w-4 h-4 mr-2" />Parse with AI
-          </Button>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Import resume</h3>
+            <button
+              type="button"
+              onClick={() => setShowImport(v => !v)}
+              className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              Paste text instead {showImport ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          </div>
+
+          {/* File upload — primary */}
+          <ResumeUpload onParsed={handleFileParsed} />
+
+          {/* Paste text — secondary, collapsible */}
+          {showImport && (
+            <div className="mt-4 space-y-2 border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground">Or paste plain text:</p>
+              <Textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="Paste your resume text here. AYN will structure it."
+                rows={4}
+              />
+              <Button onClick={importFromText} disabled={busy || !importText} size="sm" className="mt-2">
+                <Sparkles className="w-4 h-4 mr-2" />Parse with AI
+              </Button>
+            </div>
+          )}
         </Card>
 
         <Card className="p-4 space-y-3">

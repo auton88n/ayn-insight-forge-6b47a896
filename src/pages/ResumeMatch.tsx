@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
+import { ResumeUpload } from '@/components/resume-hub/ResumeUpload';
 
 interface ComparisonRow {
   label: string;
@@ -197,7 +198,38 @@ const ResumeMatch = () => {
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="grid md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Your Resume</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Your Resume</label>
+                      <ResumeUpload
+                        variant="compact"
+                        onParsed={({ plainText, resume }) => {
+                          // Build a readable plain-text resume from the parsed structure
+                          const lines: string[] = [];
+                          if (resume.basics?.name) lines.push(resume.basics.name);
+                          if (resume.basics?.title) lines.push(resume.basics.title);
+                          if (resume.basics?.email || resume.basics?.phone) {
+                            lines.push([resume.basics.email, resume.basics.phone].filter(Boolean).join(' | '));
+                          }
+                          if (resume.basics?.location) lines.push(resume.basics.location);
+                          if (resume.basics?.summary) lines.push('\nSUMMARY\n' + resume.basics.summary);
+                          if (resume.work?.length) {
+                            lines.push('\nEXPERIENCE');
+                            resume.work.forEach(w => {
+                              lines.push(`${w.title} at ${w.company}${w.start ? ` (${w.start} to ${w.end || 'Present'})` : ''}`);
+                              (w.bullets || []).forEach(b => lines.push(`• ${b}`));
+                            });
+                          }
+                          if (resume.education?.length) {
+                            lines.push('\nEDUCATION');
+                            resume.education.forEach(e => lines.push(`${e.degree || ''} ${e.field || ''} — ${e.school}${e.end ? ` (${e.end})` : ''}`));
+                          }
+                          if (resume.skills?.length) {
+                            lines.push('\nSKILLS\n' + resume.skills.join(', '));
+                          }
+                          setResume(lines.join('\n').trim() || plainText);
+                        }}
+                      />
+                    </div>
                     <Textarea value={resume} onChange={e => setResume(e.target.value)}
                       placeholder="Paste your full resume here..." rows={16}
                       className="bg-transparent border-2 border-border rounded-none text-sm resize-none focus:border-foreground focus:ring-0 hover:border-muted-foreground transition-all duration-200"

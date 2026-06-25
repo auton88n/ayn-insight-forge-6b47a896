@@ -43,6 +43,9 @@ export interface ResumeContent {
 export const resumeHubApi = {
   parse: (resumeText: string) =>
     call<{ resume: ResumeContent }>("resume-hub", { action: "parse", resumeText }),
+
+  parseFile: (fileBase64: string, mimeType: string) =>
+    call<{ resume: ResumeContent; plainText: string }>("resume-hub", { action: "parse_file", fileBase64, mimeType }),
   rewrite: (resume: ResumeContent, jdText?: string) =>
     call<{ resume: ResumeContent; ats_score: number; suggestions: string[] }>("resume-hub", { action: "rewrite", resume, jdText }),
   match: (resume: ResumeContent, jdText: string) =>
