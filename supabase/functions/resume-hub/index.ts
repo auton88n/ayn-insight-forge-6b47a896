@@ -121,7 +121,7 @@ async function sha256Hex(s: string) {
   return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter"]);
+const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter", "ext_job_score", "ext_suggest_roles"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -265,6 +265,72 @@ RULES:
         });
         await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
         return json({ body: r.text });
+      }
+
+      // ext_job_score: score a job snippet against the user's resume quickly
+      // Returns score 1-10, matchLabel, and 3 key reasons
+      if (action === "ext_job_score") {
+        const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
+        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [] });
+        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [] });
+
+        const r = await callAI({
+          system: `You are a fast job-resume matcher. Given a job snippet and resume, score the match.
+Return ONLY valid JSON, no code fences:
+{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<reason1>", "<reason2>", "<reason3>"] }
+- score: 1-3 Poor, 4-6 Fair, 7-8 Good, 9-10 Strong
+- reasons: 3 very short phrases (5 words max each) explaining the score
+- Be honest and fast — this is a quick scan, not deep analysis`,
+          user: `JOB: ${jobTitle || ""} at ${company || ""}\n${(jobSnippet || "").slice(0, 1500)}\n\nRESUME SUMMARY:\n${JSON.stringify(resume.content?.basics || {}).slice(0, 800)}\nSKILLS: ${JSON.stringify(resume.content?.skills || []).slice(0, 300)}`,
+        });
+
+        let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[] };
+        try {
+          const raw = r.text.replace(/\`\`\`(?:json)?\s*/gi, "").replace(/\`\`\`/g, "").trim();
+          const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
+          parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
+        } catch { /* keep defaults */ }
+
+        const score = Math.max(1, Math.min(10, Math.round(Number(parsed.score) || 5)));
+        const validLabels = ["Poor", "Fair", "Good", "Strong"];
+        const matchLabel = validLabels.includes(parsed.matchLabel) ? parsed.matchLabel
+          : score >= 8 ? "Strong" : score >= 6 ? "Good" : score >= 4 ? "Fair" : "Poor";
+
+        return json({ score, matchLabel, reasons: (parsed.reasons || []).slice(0, 3) });
+      }
+
+      // ext_suggest_roles: suggest best job titles to search for based on resume
+      if (action === "ext_suggest_roles") {
+        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        if (!resume?.content) return json({ roles: [], keywords: [] });
+
+        const r = await callAI({
+          system: `You are a Canadian job search expert. Based on this resume, suggest the best job titles to search for on LinkedIn and Indeed Canada.
+Return ONLY valid JSON, no code fences:
+{
+  "roles": ["<title1>", "<title2>", ...],
+  "keywords": ["<keyword1>", ...],
+  "summary": "<one sentence about their profile>"
+}
+- roles: 8-10 specific job titles they should search for, ordered best match first
+- keywords: 6-8 skills/tools to add to searches for better results
+- Be specific to Canadian job market and their actual experience level`,
+          user: JSON.stringify({ basics: resume.content?.basics, work: resume.content?.work, skills: resume.content?.skills }).slice(0, 5000),
+        });
+
+        let parsed = { roles: [] as string[], keywords: [] as string[], summary: "" };
+        try {
+          const raw = r.text.replace(/\`\`\`(?:json)?\s*/gi, "").replace(/\`\`\`/g, "").trim();
+          const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
+          parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
+        } catch { /* keep defaults */ }
+
+        return json({
+          roles: (parsed.roles || []).slice(0, 10),
+          keywords: (parsed.keywords || []).slice(0, 8),
+          summary: parsed.summary || "",
+        });
       }
     }
 
@@ -602,3 +668,4 @@ ${jdText.slice(0, 6000)}`,
     return json({ error: e instanceof Error ? e.message : "Server error" }, 500);
   }
 });
+// NOTE: appended below

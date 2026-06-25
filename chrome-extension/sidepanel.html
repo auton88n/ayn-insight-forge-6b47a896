@@ -3,339 +3,326 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AYN Resume Tailor</title>
+  <title>AYN</title>
   <style>
     :root {
-      --bg: #0a0a0f;
-      --bg2: #111116;
-      --bg3: #18181f;
-      --border: #272730;
-      --text: #eeeef5;
-      --muted: #72728a;
-      --green: #22c55e;
-      --green-bg: rgba(34,197,94,0.08);
-      --amber: #f59e0b;
-      --amber-bg: rgba(245,158,11,0.10);
-      --red: #ef4444;
-      --accent: #6366f1;
-      --accent-hover: #818cf8;
+      --bg:#0a0a0f; --bg2:#111116; --bg3:#18181f; --border:#272730;
+      --text:#eeeef5; --muted:#72728a;
+      --green:#22c55e; --green-bg:rgba(34,197,94,0.09);
+      --amber:#f59e0b; --amber-bg:rgba(245,158,11,0.10);
+      --red:#ef4444; --accent:#6366f1; --accent2:#818cf8;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
-      background: var(--bg); color: var(--text);
-      font-size: 13px; line-height: 1.5;
-      display: flex; flex-direction: column;
-    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;display:flex;flex-direction:column}
 
-    /* Header */
-    .header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 14px; border-bottom: 1px solid var(--border);
-      background: var(--bg2); flex-shrink: 0;
-    }
-    .logo { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px; }
-    .logo-dot { width: 18px; height: 18px; background: linear-gradient(135deg, var(--accent), var(--green)); border-radius: 50%; flex-shrink: 0; }
-    .header-right { display: flex; align-items: center; gap: 10px; }
-    .user-email { font-size: 10px; color: var(--muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sign-out-btn { font-size: 10px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
-    .sign-out-btn:hover { color: var(--text); }
+    .header{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+    .logo{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px}
+    .logo-dot{width:17px;height:17px;background:linear-gradient(135deg,var(--accent),var(--green));border-radius:50%;flex-shrink:0}
+    .hdr-right{display:flex;align-items:center;gap:9px}
+    .user-email{font-size:10px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .sign-out{font-size:10px;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline}
+    .sign-out:hover{color:var(--text)}
 
-    /* Mode tabs */
-    .mode-tabs {
-      display: flex; border-bottom: 1px solid var(--border);
-      background: var(--bg2); flex-shrink: 0;
-    }
-    .mode-tab {
-      flex: 1; padding: 9px 4px; text-align: center;
-      font-size: 11px; font-family: monospace; text-transform: uppercase;
-      letter-spacing: 0.05em; color: var(--muted);
-      background: none; border: none; cursor: pointer;
-      border-bottom: 2px solid transparent; transition: all 0.15s;
-    }
-    .mode-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-    .mode-tab:hover:not(.active) { color: var(--text); }
+    /* Tabs */
+    .tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+    .tab{flex:1;padding:8px 2px;text-align:center;font-size:10px;font-family:monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+    .tab.active{color:var(--text);border-bottom-color:var(--accent)}
+    .tab:hover:not(.active){color:var(--text)}
 
     /* Stepper */
-    .stepper {
-      display: flex; align-items: center; padding: 7px 14px; gap: 3px;
-      border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0;
-    }
-    .step-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); font-family: monospace; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
-    .step-item.active { color: var(--text); }
-    .step-item.done { color: var(--green); }
-    .step-num { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
-    .step-item.active .step-num { background: var(--text); color: var(--bg); border-color: var(--text); }
-    .step-item.done .step-num { background: var(--green); color: #fff; border-color: var(--green); }
-    .step-arrow { color: var(--border); font-size: 9px; padding: 0 2px; flex-shrink: 0; }
+    .stepper{display:flex;align-items:center;padding:6px 13px;gap:3px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+    .si{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);font-family:monospace;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+    .si.active{color:var(--text)}
+    .si.done{color:var(--green)}
+    .sn{width:15px;height:15px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
+    .si.active .sn{background:var(--text);color:var(--bg);border-color:var(--text)}
+    .si.done .sn{background:var(--green);color:#fff;border-color:var(--green)}
+    .sa{color:var(--border);font-size:9px;padding:0 2px;flex-shrink:0}
 
-    /* Main scroll */
-    .main { flex: 1; overflow-y: auto; padding: 12px 14px; }
-    .main::-webkit-scrollbar { width: 3px; }
-    .main::-webkit-scrollbar-thumb { background: var(--border); }
+    /* Main */
+    .main{flex:1;overflow-y:auto;padding:12px 13px}
+    .main::-webkit-scrollbar{width:3px}
+    .main::-webkit-scrollbar-thumb{background:var(--border)}
 
-    /* Views */
-    .view { display: none; }
-    .view.active { display: block; }
+    .view{display:none}
+    .view.active{display:block}
 
     /* Login */
-    .login-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 78vh; text-align: center; gap: 18px; }
-    .login-logo { width: 50px; height: 50px; background: linear-gradient(135deg, var(--accent), var(--green)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: #fff; }
-    .login-title { font-size: 17px; font-weight: 700; }
-    .login-sub { font-size: 11px; color: var(--muted); line-height: 1.5; max-width: 220px; }
-    .login-form { width: 100%; max-width: 255px; display: flex; flex-direction: column; gap: 9px; }
-    .login-form input { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 10px 12px; font-family: inherit; transition: border-color 0.15s; }
-    .login-form input:focus { outline: none; border-color: var(--accent); }
-    .login-form input::placeholder { color: var(--muted); }
-    .login-err { font-size: 11px; color: #fca5a5; text-align: center; }
-    .signup-link { font-size: 11px; color: var(--muted); }
-    .signup-link a { color: var(--accent); text-decoration: none; }
+    .login-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:76vh;text-align:center;gap:16px}
+    .login-logo{width:48px;height:48px;background:linear-gradient(135deg,var(--accent),var(--green));border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff}
+    .login-form{width:100%;max-width:250px;display:flex;flex-direction:column;gap:9px}
+    .login-form input{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:9px 11px;font-family:inherit;transition:border-color .15s}
+    .login-form input:focus{outline:none;border-color:var(--accent)}
+    .login-form input::placeholder{color:var(--muted)}
+    .signup-link{font-size:11px;color:var(--muted)}
+    .signup-link a{color:var(--accent);text-decoration:none}
 
     /* Form elements */
-    label { display: block; font-size: 10px; font-family: monospace; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 5px; }
-    textarea { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; line-height: 1.5; padding: 7px 9px; font-family: inherit; transition: border-color 0.15s; resize: none; }
-    textarea:focus { outline: none; border-color: var(--accent); }
-    textarea::placeholder { color: var(--muted); }
-    .char-count { font-size: 10px; color: var(--muted); text-align: right; margin-top: 2px; }
-    .field { margin-bottom: 10px; }
+    label{display:block;font-size:10px;font-family:monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}
+    textarea{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;line-height:1.5;padding:7px 9px;font-family:inherit;transition:border-color .15s;resize:none}
+    textarea:focus{outline:none;border-color:var(--accent)}
+    textarea::placeholder{color:var(--muted)}
+    .cc{font-size:10px;color:var(--muted);text-align:right;margin-top:2px}
+    .field{margin-bottom:9px}
 
     /* Buttons */
-    .btn { width: 100%; padding: 9px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-    .btn-green { background: var(--green); color: #fff; }
-    .btn-green:hover:not(:disabled) { filter: brightness(1.1); }
-    .btn-amber { background: var(--amber); color: #000; }
-    .btn-amber:hover:not(:disabled) { filter: brightness(1.08); }
-    .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
-    .btn-outline:hover:not(:disabled) { border-color: var(--muted); }
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-row { display: flex; gap: 7px; }
-    .btn-row .btn { flex: 1; }
-
-    /* Spinner */
-    .spinner { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
-    .spinner.dark { border-color: rgba(0,0,0,0.2); border-top-color: #000; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn{width:100%;padding:9px 13px;border-radius:6px;border:none;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-primary:hover:not(:disabled){background:var(--accent2)}
+    .btn-green{background:var(--green);color:#fff}
+    .btn-green:hover:not(:disabled){filter:brightness(1.1)}
+    .btn-amber{background:var(--amber);color:#000;font-weight:700}
+    .btn-amber:hover:not(:disabled){filter:brightness(1.07)}
+    .btn-outline{background:transparent;color:var(--text);border:1.5px solid var(--border)}
+    .btn-outline:hover:not(:disabled){border-color:var(--muted)}
+    .btn-danger{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-row{display:flex;gap:7px}
+    .btn-row .btn{flex:1}
+    .spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,0.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+    .spinner.dk{border-color:rgba(0,0,0,0.18);border-top-color:#000}
+    @keyframes spin{to{transform:rotate(360deg)}}
 
     /* Banners */
-    .banner { border-radius: 6px; padding: 9px 11px; font-size: 11px; margin-bottom: 10px; }
-    .banner-green { background: var(--green-bg); border: 1px solid rgba(34,197,94,0.25); }
-    .banner-amber { background: var(--amber-bg); border: 1px solid rgba(245,158,11,0.25); }
-    .banner-title { font-weight: 600; }
-    .banner-green .banner-title { color: var(--green); }
-    .banner-amber .banner-title { color: var(--amber); }
-    .banner-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .banner{border-radius:6px;padding:8px 10px;font-size:11px;margin-bottom:9px}
+    .b-green{background:var(--green-bg);border:1px solid rgba(34,197,94,0.25)}
+    .b-amber{background:var(--amber-bg);border:1px solid rgba(245,158,11,0.25)}
+    .b-title{font-weight:600}
+    .b-green .b-title{color:var(--green)}
+    .b-amber .b-title{color:var(--amber)}
+    .b-sub{font-size:10px;color:var(--muted);margin-top:1px}
 
-    /* Field preview list */
-    .field-list { margin-bottom: 12px; max-height: 160px; overflow-y: auto; }
-    .field-list::-webkit-scrollbar { width: 3px; }
-    .field-list::-webkit-scrollbar-thumb { background: var(--border); }
-    .field-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
-    .field-item:last-child { border: none; }
-    .field-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .field-dot.fill { background: var(--green); }
-    .field-dot.skip { background: var(--border); }
-    .field-label { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .field-value { font-family: monospace; font-size: 10px; color: var(--muted); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Field list */
+    .field-list{max-height:150px;overflow-y:auto;margin-bottom:11px}
+    .field-list::-webkit-scrollbar{width:3px}
+    .field-list::-webkit-scrollbar-thumb{background:var(--border)}
+    .fi{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px}
+    .fi:last-child{border:none}
+    .fd{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+    .fd.on{background:var(--green)}
+    .fd.off{background:var(--border)}
+    .fl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fv{font-family:monospace;font-size:10px;color:var(--muted);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
     /* Fill result */
-    .fill-result { padding: 10px; background: var(--bg3); border-radius: 6px; margin-bottom: 12px; }
-    .fill-stat { font-size: 28px; font-weight: 700; font-family: monospace; }
-    .fill-stat.good { color: var(--green); }
-    .fill-stat.partial { color: var(--amber); }
-    .fill-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .fill-result{padding:10px;background:var(--bg3);border-radius:6px;margin-bottom:11px;text-align:center}
+    .fill-stat{font-size:32px;font-weight:700;font-family:monospace}
+    .fill-stat.good{color:var(--green)}
+    .fill-stat.partial{color:var(--amber)}
+    .fill-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+
+    /* Score toggle */
+    .score-toggle{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;margin-bottom:9px;cursor:pointer}
+    .score-toggle-left{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
+    .toggle-switch{width:36px;height:20px;background:var(--border);border-radius:999px;position:relative;transition:background .2s;flex-shrink:0}
+    .toggle-switch.on{background:var(--green)}
+    .toggle-knob{width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:left .2s}
+    .toggle-switch.on .toggle-knob{left:19px}
+
+    /* Role suggestions */
+    .role-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:4px;font-size:11px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;margin:3px;transition:all .15s}
+    .role-chip:hover{border-color:var(--accent);color:var(--accent2)}
+    .role-chip .copy-icon{opacity:0;font-size:10px;transition:opacity .15s}
+    .role-chip:hover .copy-icon{opacity:1}
+    .kw-chip-s{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:10px;border:1px solid rgba(99,102,241,0.3);background:rgba(99,102,241,0.08);color:var(--accent2);margin:2px}
 
     /* Keywords */
-    .kw-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
-    .kw-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 11px; border: 1px solid; }
-    .kw-chip.matched { background: var(--green-bg); border-color: rgba(34,197,94,0.3); color: var(--green); }
-    .kw-chip.missing { background: var(--bg3); border-color: var(--border); color: var(--muted); }
+    .kw-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:11px}
+    .kc{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:999px;font-size:11px;border:1px solid}
+    .kc.matched{background:var(--green-bg);border-color:rgba(34,197,94,0.3);color:var(--green)}
+    .kc.missing{background:var(--bg3);border-color:var(--border);color:var(--muted)}
 
-    /* Changes list */
-    .changes-list { list-style: none; margin-bottom: 12px; }
-    .changes-list li { display: flex; gap: 7px; font-size: 11px; padding: 4px 0; border-bottom: 1px solid var(--border); }
-    .changes-list li:last-child { border: none; }
-    .change-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
+    .changes-list{list-style:none;margin-bottom:11px}
+    .changes-list li{display:flex;gap:6px;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)}
+    .changes-list li:last-child{border:none}
+    .cdot{width:5px;height:5px;border-radius:50%;background:var(--accent);margin-top:5px;flex-shrink:0}
+    .resume-out{background:var(--bg3);border:1.5px solid var(--border);border-radius:4px;padding:9px;font-size:10.5px;line-height:1.7;white-space:pre-wrap;font-family:'SF Mono','JetBrains Mono',monospace;max-height:270px;overflow-y:auto;margin-bottom:9px;color:var(--text)}
+    .resume-out::-webkit-scrollbar{width:3px}
+    .resume-out::-webkit-scrollbar-thumb{background:var(--border)}
 
-    .resume-out { background: var(--bg3); border: 1.5px solid var(--border); border-radius: 4px; padding: 10px; font-size: 10.5px; line-height: 1.7; white-space: pre-wrap; font-family: 'SF Mono', 'JetBrains Mono', monospace; max-height: 280px; overflow-y: auto; margin-bottom: 10px; color: var(--text); }
-    .resume-out::-webkit-scrollbar { width: 3px; }
-    .resume-out::-webkit-scrollbar-thumb { background: var(--border); }
+    .sl{font-size:10px;font-family:monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px}
+    .divider{height:1px;background:var(--border);margin:10px 0}
+    .note{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:9px}
+    .err{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:4px;padding:7px 9px;font-size:11px;color:#fca5a5;margin-bottom:9px}
+    .small-link{font-size:10px;color:var(--muted);text-decoration:none;display:block;text-align:center;margin-top:7px}
+    .small-link:hover{color:var(--text)}
 
-    .section-label { font-size: 10px; font-family: monospace; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
-    .divider { height: 1px; background: var(--border); margin: 11px 0; }
-    .note { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
-    .error-box { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 4px; padding: 8px 10px; font-size: 11px; color: #fca5a5; margin-bottom: 10px; }
-    .small-link { font-size: 10px; color: var(--muted); text-decoration: none; display: block; text-align: center; margin-top: 8px; }
-    .small-link:hover { color: var(--text); }
+    .toast{position:fixed;bottom:13px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 13px;font-size:11px;color:var(--text);z-index:999;opacity:0;transition:opacity .25s;white-space:nowrap;pointer-events:none}
+    .toast.show{opacity:1}
+    .toast.ok{border-color:rgba(34,197,94,0.4);color:var(--green)}
+    .toast.err{border-color:rgba(239,68,68,0.4);color:#fca5a5}
 
-    /* Toast */
-    .toast { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 7px 14px; font-size: 11px; color: var(--text); z-index: 999; opacity: 0; transition: opacity 0.25s; white-space: nowrap; pointer-events: none; }
-    .toast.show { opacity: 1; }
-    .toast.ok { border-color: rgba(34,197,94,0.4); color: var(--green); }
-    .toast.err { border-color: rgba(239,68,68,0.4); color: #fca5a5; }
-
-    .hidden { display: none !important; }
-    .mt8 { margin-top: 8px; }
-    .mt12 { margin-top: 12px; }
+    .hidden{display:none!important}
+    .mt8{margin-top:8px}
+    .mt10{margin-top:10px}
   </style>
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="header">
-    <div class="logo"><div class="logo-dot"></div> AYN</div>
-    <div class="header-right">
-      <span class="user-email hidden" id="user-email"></span>
-      <button class="sign-out-btn hidden" id="sign-out-btn">Sign out</button>
+<div class="header">
+  <div class="logo"><div class="logo-dot"></div> AYN</div>
+  <div class="hdr-right">
+    <span class="user-email hidden" id="user-email"></span>
+    <button class="sign-out hidden" id="sign-out-btn">Sign out</button>
+  </div>
+</div>
+
+<div class="tabs hidden" id="tabs">
+  <button class="tab active" id="tab-fill" onclick="switchTab('fill')">✦ Fill Form</button>
+  <button class="tab" id="tab-jobs"  onclick="switchTab('jobs')">Job Score</button>
+  <button class="tab" id="tab-tailor" onclick="switchTab('tailor')">Tailor CV</button>
+</div>
+
+<div class="stepper hidden" id="stepper">
+  <div class="si active" id="s1"><div class="sn">1</div><span>CV</span></div>
+  <div class="sa">›</div>
+  <div class="si" id="s2"><div class="sn">2</div><span>Match</span></div>
+  <div class="sa">›</div>
+  <div class="si" id="s3"><div class="sn">3</div><span>Result</span></div>
+</div>
+
+<div class="main">
+
+  <!-- LOGIN -->
+  <div class="view active" id="v-login">
+    <div class="login-wrap">
+      <div class="login-logo">A</div>
+      <div>
+        <div style="font-size:17px;font-weight:700">Welcome to AYN</div>
+        <div class="note" style="margin:5px 0 0;text-align:center;max-width:210px">Sign in to fill forms, score jobs, and tailor your resume.</div>
+      </div>
+      <div class="login-form">
+        <input type="email" id="login-email" placeholder="Email" autocomplete="email"/>
+        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password"/>
+        <div class="err hidden" id="login-err"></div>
+        <button class="btn btn-primary" id="login-btn">Sign In</button>
+      </div>
+      <div class="signup-link">No account? <a href="https://aynn.io" target="_blank">Create one at aynn.io</a></div>
     </div>
   </div>
 
-  <!-- Mode tabs (shown when logged in) -->
-  <div class="mode-tabs hidden" id="mode-tabs">
-    <button class="mode-tab active" id="tab-autofill" onclick="switchMode('autofill')">✦ Autofill Form</button>
-    <button class="mode-tab" id="tab-tailor" onclick="switchMode('tailor')">Tailor Resume</button>
+  <!-- ═══════ FILL FORM TAB ═══════ -->
+  <div class="view" id="v-fill">
+    <div id="fill-job-banner" class="banner b-green hidden">
+      <div class="b-title" id="fill-job-title"></div>
+      <div class="b-sub">Job description detected — will be used to answer screening questions</div>
+    </div>
+
+    <p class="note">AYN reads every field on this page, understands what each question is asking, and fills it from your profile and resume automatically.</p>
+
+    <!-- One-click fill -->
+    <button class="btn btn-amber" id="autofill-now-btn">
+      ✦ Fill This Form Now
+    </button>
+
+    <!-- Fill result (shown after fill) -->
+    <div id="fill-result-wrap" class="hidden mt10">
+      <div class="fill-result">
+        <div class="fill-stat" id="fill-stat-n">0</div>
+        <div class="fill-lbl" id="fill-stat-lbl">fields filled</div>
+      </div>
+      <div class="sl">What was filled</div>
+      <div class="field-list" id="fill-result-list"></div>
+      <div class="btn-row mt8">
+        <button class="btn btn-outline" id="fill-retry-btn">Fill Remaining</button>
+        <button class="btn btn-outline" id="fill-reset-btn">Clear &amp; Retry</button>
+      </div>
+    </div>
+
+    <div id="err-fill" class="err hidden mt8"></div>
+    <p class="note mt8" style="font-size:10px">Works on LinkedIn Easy Apply, Workday, Greenhouse, Lever, iCIMS, and most ATS forms.</p>
   </div>
 
-  <!-- Stepper (shown in tailor mode) -->
-  <div class="stepper hidden" id="stepper">
-    <div class="step-item active" id="s1"><div class="step-num">1</div><span>Resume</span></div>
-    <div class="step-arrow">›</div>
-    <div class="step-item" id="s2"><div class="step-num">2</div><span>Keywords</span></div>
-    <div class="step-arrow">›</div>
-    <div class="step-item" id="s3"><div class="step-num">3</div><span>Result</span></div>
-  </div>
+  <!-- ═══════ JOB SCORE TAB ═══════ -->
+  <div class="view" id="v-jobs">
 
-  <div class="main">
-
-    <!-- ── LOGIN ── -->
-    <div class="view active" id="v-login">
-      <div class="login-wrap">
-        <div class="login-logo">A</div>
+    <!-- Score toggle -->
+    <div class="score-toggle" id="score-toggle" onclick="toggleScoring()">
+      <div class="score-toggle-left">
+        <span>🎯</span>
         <div>
-          <div class="login-title">Welcome to AYN</div>
-          <div class="login-sub" style="margin-top:5px">Sign in to autofill job applications and tailor your resume on any job page.</div>
+          <div style="font-size:12px;font-weight:600">Score Jobs While Browsing</div>
+          <div style="font-size:10px;color:var(--muted)">Shows match score on each job card</div>
         </div>
-        <div class="login-form">
-          <input type="email" id="login-email" placeholder="Email" autocomplete="email" />
-          <input type="password" id="login-password" placeholder="Password" autocomplete="current-password" />
-          <div class="login-err hidden" id="login-err"></div>
-          <button class="btn btn-primary" id="login-btn">Sign In</button>
-        </div>
-        <div class="signup-link">No account? <a href="https://aynn.io" target="_blank">Create one at aynn.io</a></div>
       </div>
+      <div class="toggle-switch" id="score-switch"><div class="toggle-knob"></div></div>
     </div>
 
-    <!-- ════════ AUTOFILL MODE ════════ -->
+    <p class="note" id="score-status-note">Turn on to see a 1–10 match score on every job card as you scroll LinkedIn, Indeed, or Jobright.</p>
 
-    <!-- AF Step 1: Scan page -->
-    <div class="view" id="v-af1">
-      <div id="af-job-banner" class="banner banner-green hidden">
-        <div class="banner-title" id="af-job-title">Job detected</div>
-        <div class="banner-sub" id="af-job-sub"></div>
-      </div>
+    <div class="divider"></div>
 
-      <p class="note">AYN reads every field on this page, understands what each question is asking — including screening questions — and fills them using your profile and resume.</p>
-
-      <div id="err-af1" class="error-box hidden"></div>
-      <button class="btn btn-amber" id="scan-btn">
-        Scan This Page's Form
+    <!-- Role suggestions -->
+    <div class="sl">Suggested Job Titles for You</div>
+    <p class="note" style="font-size:10px">Based on your resume — copy and paste into LinkedIn or Indeed search.</p>
+    <div id="roles-wrap">
+      <button class="btn btn-outline" id="suggest-roles-btn" style="font-size:11px;padding:7px">
+        Get My Best Job Titles →
       </button>
-      <p class="note mt8" style="font-size:10px">Works on LinkedIn Easy Apply, Workday, Greenhouse, Lever, iCIMS, SmartRecruiters, and most ATS forms.</p>
     </div>
-
-    <!-- AF Step 2: Preview fields -->
-    <div class="view" id="v-af2">
-      <div class="banner banner-amber" style="margin-bottom:10px">
-        <div class="banner-title" id="af-field-count">0 fields found</div>
-        <div class="banner-sub">Review below, then click Fill to autofill the form.</div>
-      </div>
-
-      <div class="section-label">Fields AYN will fill</div>
-      <div class="field-list" id="af-field-list"></div>
-
-      <div id="err-af2" class="error-box hidden"></div>
-      <div class="btn-row">
-        <button class="btn btn-outline" id="af-back1-btn">← Back</button>
-        <button class="btn btn-amber" id="fill-btn">Fill Form Now</button>
-      </div>
+    <div id="roles-result" class="hidden">
+      <div id="roles-summary" class="note" style="margin-bottom:8px"></div>
+      <div id="roles-chips"></div>
+      <div class="divider"></div>
+      <div class="sl">Keywords to add to your search</div>
+      <div id="kw-search-chips"></div>
     </div>
-
-    <!-- AF Step 3: Result -->
-    <div class="view" id="v-af3">
-      <div class="fill-result" id="fill-result">
-        <div class="fill-stat" id="fill-stat">0</div>
-        <div class="fill-label" id="fill-label">fields filled</div>
-      </div>
-
-      <div class="section-label">What was filled</div>
-      <div class="field-list" id="af-filled-list"></div>
-
-      <div id="err-af3" class="error-box hidden"></div>
-      <div class="btn-row">
-        <button class="btn btn-outline" id="af-back2-btn">← Try Again</button>
-        <button class="btn btn-amber" id="refill-btn">Fill Remaining</button>
-      </div>
-      <button class="btn btn-outline mt8" id="af-new-btn">New Page</button>
-    </div>
-
-    <!-- ════════ TAILOR MODE ════════ -->
-
-    <!-- T Step 1: Input -->
-    <div class="view" id="v-t1">
-      <div id="t-job-banner" class="banner banner-green hidden">
-        <div class="banner-title" id="t-job-title">Job detected on this page</div>
-        <div class="banner-sub" id="t-job-sub"></div>
-        <button class="btn btn-outline mt8" style="width:auto;padding:5px 12px;font-size:10px" id="use-job-btn">Use This Job</button>
-      </div>
-      <div class="field">
-        <label>Your Resume</label>
-        <textarea id="resume-input" rows="9" placeholder="Paste your resume. Saved automatically."></textarea>
-        <div class="char-count"><span id="resume-chars">0</span> chars</div>
-      </div>
-      <div class="field">
-        <label>Job Description <span style="color:var(--green);text-transform:none;letter-spacing:0;font-size:9px"> — auto-fills from job pages</span></label>
-        <textarea id="job-input" rows="8" placeholder="Auto-fills from LinkedIn, Indeed, Jobright, and more. Or paste manually."></textarea>
-        <div class="char-count"><span id="job-chars">0</span> chars</div>
-      </div>
-      <div id="err-t1" class="error-box hidden"></div>
-      <button class="btn btn-primary" id="analyze-btn">See My Keyword Match →</button>
-    </div>
-
-    <!-- T Step 2: Keywords -->
-    <div class="view" id="v-t2">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
-        <span class="section-label" style="margin:0">Keyword Match</span>
-        <span style="font-size:11px;font-family:monospace;font-weight:600" id="kw-count"></span>
-      </div>
-      <p class="note">Green = in your resume. Grey = missing. AYN weaves in grey ones <strong style="color:var(--text)">only where your experience supports it.</strong></p>
-      <div class="kw-chips" id="kw-chips"></div>
-      <div id="err-t2" class="error-box hidden"></div>
-      <div class="btn-row">
-        <button class="btn btn-outline" id="back-t1-btn">← Back</button>
-        <button class="btn btn-green" id="tailor-btn">Tailor My Resume ✦</button>
-      </div>
-    </div>
-
-    <!-- T Step 3: Result -->
-    <div class="view" id="v-t3">
-      <div class="section-label">What Changed</div>
-      <ul class="changes-list" id="changes-list"></ul>
-      <div class="section-label">Tailored Resume</div>
-      <div class="resume-out" id="resume-out"></div>
-      <div id="err-t3" class="error-box hidden"></div>
-      <div class="btn-row">
-        <button class="btn btn-outline" id="back-t2-btn">← Back</button>
-        <button class="btn btn-primary" id="copy-btn">Copy Resume</button>
-      </div>
-      <button class="btn btn-outline mt8" id="new-job-btn">Tailor for Another Job</button>
-      <a class="small-link" href="https://aynn.io/resume-match" target="_blank">Open full Resume Match →</a>
-    </div>
-
+    <div id="err-jobs" class="err hidden mt8"></div>
   </div>
 
-  <div class="toast" id="toast"></div>
-  <script src="sidepanel.js"></script>
+  <!-- ═══════ TAILOR CV TAB ═══════ -->
+  <div class="view" id="v-t1">
+    <div id="t-job-banner" class="banner b-green hidden">
+      <div class="b-title" id="t-job-title"></div>
+      <div class="b-sub" id="t-job-sub"></div>
+      <button class="btn btn-outline mt8" style="width:auto;padding:5px 11px;font-size:10px" id="use-job-btn">Use This Job</button>
+    </div>
+    <div class="field">
+      <label>Your Resume</label>
+      <textarea id="resume-input" rows="9" placeholder="Paste your resume. Saved automatically."></textarea>
+      <div class="cc"><span id="resume-chars">0</span> chars</div>
+    </div>
+    <div class="field">
+      <label>Job Description <span style="color:var(--green);text-transform:none;letter-spacing:0;font-size:9px"> — auto-fills from job pages</span></label>
+      <textarea id="job-input" rows="8" placeholder="Auto-fills from LinkedIn, Indeed, Jobright, and more."></textarea>
+      <div class="cc"><span id="job-chars">0</span> chars</div>
+    </div>
+    <div id="err-t1" class="err hidden"></div>
+    <button class="btn btn-primary" id="analyze-btn">See My Keyword Match →</button>
+  </div>
+
+  <div class="view" id="v-t2">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span class="sl" style="margin:0">Keyword Match</span>
+      <span style="font-size:11px;font-family:monospace;font-weight:600" id="kw-count"></span>
+    </div>
+    <p class="note">Green = in your resume. Grey = missing. AYN weaves in grey ones <strong style="color:var(--text)">only where your real experience supports it.</strong></p>
+    <div class="kw-chips" id="kw-chips"></div>
+    <div id="err-t2" class="err hidden"></div>
+    <div class="btn-row">
+      <button class="btn btn-outline" id="back-t1">← Back</button>
+      <button class="btn btn-green" id="tailor-btn">Tailor My Resume ✦</button>
+    </div>
+  </div>
+
+  <div class="view" id="v-t3">
+    <div class="sl">What Changed</div>
+    <ul class="changes-list" id="changes-list"></ul>
+    <div class="sl">Tailored Resume</div>
+    <div class="resume-out" id="resume-out"></div>
+    <div id="err-t3" class="err hidden"></div>
+    <div class="btn-row">
+      <button class="btn btn-outline" id="back-t2">← Back</button>
+      <button class="btn btn-primary" id="copy-btn">Copy Resume</button>
+    </div>
+    <button class="btn btn-outline mt8" id="new-job-btn">Tailor for Another Job</button>
+    <a class="small-link" href="https://aynn.io/resume-match" target="_blank">Open full Resume Match →</a>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="sidepanel.js"></script>
 </body>
 </html>
