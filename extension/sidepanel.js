@@ -16,7 +16,7 @@ function toast(msg, type = '') {
   t._t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-const VIEWS = ['v-login','v-fill','v-jobs','v-contact','v-cover','v-tracker','v-t1','v-t2','v-t3'];
+const VIEWS = ['v-login','v-fill','v-jobs','v-ask','v-contact','v-cover','v-tracker','v-t1','v-t2','v-t3'];
 function show(id) {
   VIEWS.forEach(v => $(v)?.classList.toggle('active', v === id));
   const li = id !== 'v-login';
@@ -37,9 +37,10 @@ function show(id) {
 
 function switchTab(tab) {
   S.tab = tab;
-  ['fill','jobs','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
+  ['fill','jobs','ask','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
   if (tab === 'fill')    { show('v-fill');    detectForFill(); }
   if (tab === 'jobs')    { show('v-jobs');    detectForScore(); }
+  if (tab === 'ask')     { show('v-ask');     detectForAsk(); }
   if (tab === 'contact') { show('v-contact'); detectForContacts(); }
   if (tab === 'cover')   { show('v-cover');   detectForCover(); }
   if (tab === 'tracker') { show('v-tracker'); loadTracker(); }
