@@ -147,22 +147,6 @@ export default function ExtensionTab({ userId }: Props) {
         </div>
 
         {/* How it works */}
-        <div className="space-y-2">
-          <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">How it works</p>
-          <ol className="space-y-2 text-sm text-muted-foreground">
-            {[
-              "Download and load the extension in Chrome (one time)",
-              "Click Generate Token below and copy your device token",
-              "Open the extension Options page and paste the token",
-              "On any job posting, click the AYN icon to autofill, save, or tailor",
-            ].map((step, i) => (
-              <li key={i} className="flex gap-3 list-none">
-                <span className="font-mono text-foreground shrink-0 w-4">{i + 1}.</span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
 
         {/* Generate token */}
         <div className="border border-border p-4 space-y-3">
