@@ -694,7 +694,7 @@
       if (submitNotified) return;
       submitNotified = true;
       const job = extractJobText();
-      chrome.runtime.sendMessage({
+      sendQuiet({
         type: 'AUTO_TRACK_SUBMIT',
         title: job.title, company: job.company, url: window.location.href,
       });
@@ -830,17 +830,61 @@
 
   const JOB_PAGE_RE = /linkedin\.com\/jobs|indeed\.com|ca\.indeed\.com|greenhouse\.io|boards\.greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs|csod\.com|icims\.com|bamboohr\.com|taleo\.net|workable\.com|dover\.com|recruitee\.com|jazz\.co|pinpointhq\.com|loxo\.co/;
 
-  if (JOB_PAGE_RE.test(window.location.href)) {
-    setTimeout(() => {
-      const result = extractJobText();
-      if (result.text.length > 100) {
-        chrome.runtime.sendMessage({
-          type: 'JOB_DETECTED',
-          text: result.text,
-          title: result.title,
-          company: result.company || '',
-        });
-      }
+  // Try to detect & report the current job with retry, because SPA content
+  // typically renders AFTER the URL changes.
+  let _lastDetectedUrl = '';
+  function detectAndReport(attempt = 0) {
+    if (!JOB_PAGE_RE.test(location.href)) return;
+    expandSeeMore();
+    const result = extractJobText();
+    if (result.text && result.text.length > 100) {
+      if (location.href === _lastDetectedUrl) return; // already reported
+      _lastDetectedUrl = location.href;
+      sendQuiet({
+        type: 'JOB_DETECTED',
+        text: result.text,
+        title: result.title,
+        company: result.company || '',
+      });
+      // Card scoring will keep itself fresh via its MutationObserver
+      return;
+    }
+    if (attempt < 5) {
+      setTimeout(() => detectAndReport(attempt + 1), 700 * (attempt + 1));
+    }
+  }
+
+  // First-load detection
+  setTimeout(() => detectAndReport(0), 1200);
+
+  // SPA navigation hooks — patch history + listen popstate so we re-detect
+  // when LinkedIn / Indeed / Workday change job without a full reload.
+  function onRouteChange() {
+    _lastDetectedUrl = ''; // reset so the new URL gets a fresh report
+    _expandedFor.clear(); // allow re-expanding "See more" on the new page
+    submitNotified = false;
+    setTimeout(() => detectAndReport(0), 600);
+  }
+  try {
+    const _push = history.pushState;
+    history.pushState = function () {
+      const r = _push.apply(this, arguments);
+      try { window.dispatchEvent(new Event('ayn:locationchange')); } catch {}
+      return r;
+    };
+    const _replace = history.replaceState;
+    history.replaceState = function () {
+      const r = _replace.apply(this, arguments);
+      try { window.dispatchEvent(new Event('ayn:locationchange')); } catch {}
+      return r;
+    };
+    window.addEventListener('popstate', onRouteChange);
+    window.addEventListener('ayn:locationchange', onRouteChange);
+  } catch (e) {
+    try { console.warn('[AYN] SPA hooks failed:', e?.message); } catch {}
+  }
+
+})();
     }, 1500);
   }
 
