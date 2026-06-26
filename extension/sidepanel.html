@@ -287,13 +287,18 @@
       border: 1px solid var(--ayn-border); border-radius: 10px;
       background: var(--ayn-card);
     }
-    .fi { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-bottom: 1px solid var(--ayn-border-2); font-size: 12.5px; }
+    .fi { display: grid; grid-template-columns: 7px 1fr auto; column-gap: 9px; row-gap: 2px; padding: 9px 12px; border-bottom: 1px solid var(--ayn-border-2); font-size: 12.5px; align-items: center; }
     .fi:last-child { border: none; }
     .fd { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .fd.on  { background: var(--ayn-green); box-shadow: 0 0 0 2px rgba(22,163,74,.15); }
     .fd.off { background: #D1D5DB; }
-    .fl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ayn-text); font-weight: 500; }
-    .fv { font-size: 11.5px; color: var(--ayn-muted); max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ayn-text); font-weight: 500; }
+    .fv { font-size: 11.5px; color: var(--ayn-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fr { grid-column: 2 / span 2; font-size: 10.5px; color: #9ca3af; line-height: 1.4; }
+    .conf-pill { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 9.5px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+    .conf-pill.hi { background:#dcfce7; color:#15803d; }
+    .conf-pill.md { background:#fef3c7; color:#92400e; }
+    .conf-pill.lo { background:#fee2e2; color:#b91c1c; }
 
     /* Score toggle (auto-score job cards) */
     .score-toggle {

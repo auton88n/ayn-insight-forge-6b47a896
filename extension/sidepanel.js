@@ -341,11 +341,17 @@ $('autofill-now-btn').addEventListener('click', () => {
       const list = $('fill-result-list');
       list.innerHTML = '';
       (details || []).forEach(d => {
+        const conf = typeof d.confidence === 'number' ? Math.round(d.confidence * 100) : null;
+        const confBadge = conf != null
+          ? `<span class="conf-pill ${conf>=80?'hi':conf>=50?'md':'lo'}" title="AI confidence">${conf}%</span>`
+          : '';
+        const reason = d.reasoning ? `<div class="fr">${esc(String(d.reasoning).slice(0,90))}</div>` : '';
         list.innerHTML += `
           <div class="fi">
             <div class="fd ${d.ok ? 'on' : 'off'}"></div>
-            <div class="fl">${esc(d.label || d.id)}</div>
-            <div class="fv">${d.ok ? esc((d.value||'').slice(0,22)) : esc(d.reason||'skipped')}</div>
+            <div class="fl">${esc(d.label || d.id)} ${confBadge}</div>
+            <div class="fv">${d.ok ? esc((d.value||'').slice(0,28)) : esc(d.reason||'skipped')}</div>
+            ${reason}
           </div>`;
       });
 
@@ -447,6 +453,24 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
         mkWrap.appendChild(chip);
       });
     }
+    // Matched skills (green chips)
+    let msWrap = $('score-matched-kw');
+    if (!msWrap) { msWrap = document.createElement('div'); msWrap.id = 'score-matched-kw'; msWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(msWrap); }
+    msWrap.innerHTML = '';
+    if (d.matchedSkills && d.matchedSkills.length) {
+      msWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Skills you match</div>';
+      d.matchedSkills.forEach(kw => {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;margin:2px;';
+        chip.textContent = kw;
+        msWrap.appendChild(chip);
+      });
+    }
+    // Verdict line
+    let vWrap = $('score-verdict');
+    if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; vWrap.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:12px;color:#374151;line-height:1.45;'; $('score-result').appendChild(vWrap); }
+    vWrap.textContent = d.verdict || '';
+    vWrap.style.display = d.verdict ? 'block' : 'none';
     $('score-result').classList.remove('hidden');
   } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
@@ -785,6 +809,8 @@ $('analyze-btn').addEventListener('click', async () => {
     const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company });
     if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
+    S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
+    S.scoreReasoning = d.scoreReasoning || '';
     renderKw(S.keywords); show('v-t2');
   } catch(e) { err.textContent = e.message; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = 'See My Keyword Match →'; }
@@ -793,15 +819,23 @@ $('analyze-btn').addEventListener('click', async () => {
 function renderKw(kws) {
   const m = kws.filter(k=>k.inResume).length;
   const total = kws.length || 1;
-  const pct = Math.round(m / total * 100);
+  const keywordPct = Math.round(m / total * 100);
+  const pct = (typeof S.atsScore === 'number' && S.atsScore > 0) ? S.atsScore : keywordPct;
   $('kw-count').textContent = `${m}/${kws.length} matched`;
   const tier = pct >= 80 ? 's-strong' : pct >= 60 ? 's-good' : pct >= 35 ? 's-fair' : 's-poor';
   const ring = $('ats-ring');
   if (ring) { ring.textContent = pct + '%'; ring.className = 'ats-ring ' + tier; }
   const sub = $('ats-sub');
-  if (sub) sub.textContent = `${m} of ${kws.length} key terms already in your resume. Tailor to lift this above 80%.`;
+  if (sub) sub.textContent = S.scoreReasoning || `${m} of ${kws.length} key terms already in your resume. Tailor to lift this above 80%.`;
   const wrap = $('kw-chips'); wrap.innerHTML = '';
-  kws.forEach(kw => {
+  // Sort: high-importance missing first, then matched
+  const sorted = [...kws].sort((a,b) => {
+    const imp = { high: 3, medium: 2, low: 1 };
+    const ai = imp[a.importance] || 2, bi = imp[b.importance] || 2;
+    if (a.inResume !== b.inResume) return a.inResume ? 1 : -1;
+    return bi - ai;
+  });
+  sorted.forEach(kw => {
     const s = document.createElement('span');
     s.className = `kc ${kw.inResume?'matched':'missing'}`;
     s.textContent = (kw.inResume?'✓ ':'')+kw.text;

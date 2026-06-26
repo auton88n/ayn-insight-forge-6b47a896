@@ -241,7 +241,9 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText } = payload as { fields?: unknown; jobText?: string };
+        const { fields, jobText, jobTitle, company, ats, url } = payload as {
+          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string;
+        };
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
         const [{ data: profile }, { data: resume }] = await Promise.all([
@@ -254,10 +256,31 @@ Deno.serve(async (req) => {
           : [];
         const hasAnyData = profileFieldsAvailable.length > 0 || !!resume?.content;
 
-        // Derive merged basics so the AI always has name/email/phone even when profile is empty
-        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: unknown[]; skills?: unknown[]; education?: unknown[] } | null) || null;
+        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: Array<Record<string, unknown>>; skills?: unknown[]; education?: Array<Record<string, unknown>> } | null) || null;
         const basics = (rb?.basics || {}) as Record<string, string>;
+        const work = (rb?.work || []) as Array<Record<string, unknown>>;
+        const edu = (rb?.education || []) as Array<Record<string, unknown>>;
         const [firstFromResume, ...restFromResume] = (basics.name || "").trim().split(/\s+/);
+
+        const parseYear = (s: unknown): number | null => {
+          const m = String(s || "").match(/(19|20)\d{2}/);
+          return m ? parseInt(m[0], 10) : null;
+        };
+        const nowYear = new Date().getFullYear();
+        let yoe = 0;
+        for (const w of work) {
+          const sy = parseYear(w.start);
+          const ey = /present|current/i.test(String(w.end || "")) ? nowYear : (parseYear(w.end) || nowYear);
+          if (sy) yoe += Math.max(0, ey - sy);
+        }
+        const eduStr = edu.map(e => `${e.degree || ""} ${e.field || ""}`).join(" ").toLowerCase();
+        let educationLevel = "";
+        if (/ph\.?d|doctor/.test(eduStr)) educationLevel = "PhD";
+        else if (/master|m\.?sc|m\.?a\.|mba|m\.?eng/.test(eduStr)) educationLevel = "Master's";
+        else if (/bachelor|b\.?sc|b\.?a\.|b\.?eng|undergrad/.test(eduStr)) educationLevel = "Bachelor's";
+        else if (/associate|diploma/.test(eduStr)) educationLevel = "Associate's";
+        else if (eduStr.trim()) educationLevel = "High School";
+
         const merged = {
           first_name: profile?.legal_first_name || firstFromResume || "",
           last_name: profile?.legal_last_name || restFromResume.join(" ") || "",
@@ -268,67 +291,103 @@ Deno.serve(async (req) => {
           linkedin_url: profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           portfolio_url: profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           summary: basics.summary || "",
+          computed_years_experience: yoe,
+          computed_education_level: educationLevel,
+          current_title: (work[0] as { title?: string })?.title || basics.title || "",
+          current_company: (work[0] as { company?: string })?.company || "",
         };
 
         const r = await callAI({
-          system: `You are filling a real job application form. READ EACH FIELD LABEL CAREFULLY before deciding the value. Match the answer to what the question is actually asking — never paste a name into a "work authorization" field or a summary into a "years of experience" dropdown.
+          model: QUALITY_MODEL,
+          system: `You are a senior career coach filling a real job application. The user gave you their profile and resume; do NOT invent anything that isn't there.
 
-DATA SOURCES (in priority order): profile → mergedBasics → resume.basics → resume.work/skills/education.
+For EACH field, READ THE LABEL AND THE "group" HINT before deciding. Output one object per field you choose to fill:
+{ "id":"<field id>", "value":"<exact value>", "confidence":<0..1>, "reasoning":"<one short sentence>", "source":"<profile|resume|computed|inferred>" }
 
-FIELD-TYPE RULES — apply per-field, based on the LABEL:
+DATA PRIORITY: profile -> mergedBasics (incl. computed_years_experience, computed_education_level) -> resume.basics -> resume.work/skills/education.
 
-1. IDENTITY ("Name", "First name", "Last name", "Full name", "Email", "Phone", "Mobile", "Address", "City", "Postal/ZIP code", "Country"):
-   → Fill from profile or mergedBasics. Always fill these when ANY source has them.
+FIELD-GROUP RULES (use "group", then fall back to LABEL):
 
-2. LINKS ("LinkedIn URL/Profile", "Portfolio", "Website", "GitHub"):
-   → Fill the full URL (include https://). LinkedIn → profile.linkedin_url or resume basics.links where label matches /linkedin/i.
+identity.first_name / last_name / full_name / email / phone / address / city / state / postal_code / country
+  -> Fill from profile + mergedBasics. ALWAYS fill if any source has it.
 
-3. YES/NO QUESTIONS (work authorization, sponsorship, criminal record, relocate, remote, age 18+, equity disclosures, etc.):
-   → Look at the field options. Output exactly the option text ("Yes" / "No" / "I do not wish to answer"). Use profile.work_authorization, default_answers.criminal_record, default_answers.willing_to_relocate, etc. If unknown and required, default to the most reasonable answer for that question (e.g. "Yes" for "Are you legally authorized to work?" only if profile says so; otherwise leave empty).
+link.linkedin / link.portfolio / link.github
+  -> Full URL with https://. From profile or basics.links.
 
-4. YEARS OF EXPERIENCE dropdowns/selects:
-   → CALCULATE from resume.work: sum (end || current year) - start across roles. Pick the closest option from the provided options (e.g. "5-7 years", "3+ years"). Never guess "10+" without evidence.
+logic.work_auth
+  -> Yes/No from profile.work_authorization or profile.default_answers. Unknown -> skip.
 
-5. EDUCATION LEVEL ("Highest degree", "Education"):
-   → Pick the option matching the highest entry in resume.education (Bachelor's / Master's / PhD / High School / Associate's). Match by keyword in the options list.
+logic.sponsorship
+  -> Yes/No from profile.default_answers.requires_sponsorship. Authorized + no flag -> "No".
 
-6. SALARY EXPECTATION:
-   → Use profile.default_answers.salary_expectation if present. Otherwise leave empty.
+logic.relocate / logic.work_mode -> Yes/No / mode from profile.default_answers.
 
-7. OPEN-TEXT QUESTIONS ("Tell us about yourself", "Why this role/company", "What interests you", "Cover letter"):
-   → Compose a SHORT (2-4 sentences max) tailored answer using resume.basics.summary + 1-2 relevant work bullets + the job description context. Never paste the raw summary. Never invent facts.
+logic.years_experience
+  -> Use mergedBasics.computed_years_experience. Match closest option text (e.g. "5-7 years"). Never inflate.
 
-8. SELECT / RADIO with options:
-   → Match the candidate's real attribute to the closest option TEXT (e.g. gender, ethnicity, pronouns, veteran status from profile.default_answers if present). If no clear match, leave empty.
+logic.education_level
+  -> Use mergedBasics.computed_education_level. Match closest option text.
 
-9. SKIP entirely: SIN/SSN, full date of birth, bank info, passwords, security questions, anything not in any source.
+logic.salary -> profile.default_answers.salary_expectation only. Else skip.
+
+logic.start_date -> profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
+
+eeo.* -> profile.default_answers only. Else "Decline to self-identify" / "Prefer not to say" when offered, else skip.
+
+open.about -> 2-3 sentences. Lead with current role + years. ONE concrete achievement from resume.work bullets that maps to the JD. No clichés. No em dashes.
+
+open.why -> 2-3 sentences tying ONE specific JD requirement to ONE concrete resume bullet. Name the company once.
+
+open.cover -> 4-5 sentences, same rules as open.why but longer. Grounded in resume only.
+
+open.source -> "LinkedIn" by default; check url for indeed/glassdoor/jobright hints.
 
 GENERAL:
-- Partial profiles are FINE. Fill what you can; skip what you can't.
-- Output one entry per field id you filled. Omit fields you're leaving empty.
-- For select/radio fields, the "value" MUST match one of the field's option strings exactly (or a clear substring).`,
+- For select/radio: "value" must be a substring of one option text. No clear match -> skip.
+- Skip silently: SIN/SSN, full DOB, bank info, passwords, anything not in any source.
+- confidence: 1.0 exact data match, 0.7-0.9 strong inference, 0.4-0.6 best guess, <0.4 skip.
+- reasoning: ONE short sentence ("From profile.email", "Computed from 5 roles since 2019", "Matched PM bullet to JD").`,
           user: JSON.stringify({
+            context: { jobTitle, company, ats, url },
             fields,
             mergedBasics: merged,
             profile,
             resume: resume?.content,
-            jobDescription: (jobText || "").slice(0, 3000),
-          }).slice(0, 35000),
+            jobDescription: (jobText || "").slice(0, 3500),
+          }).slice(0, 38000),
           toolName: "emit_autofill",
           toolSchema: {
             type: "object",
-            properties: { values: { type: "array", items: { type: "object", properties: { id: { type: "string" }, value: { type: "string" } }, required: ["id", "value"] } } },
+            properties: {
+              values: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    value: { type: "string" },
+                    confidence: { type: "number" },
+                    reasoning: { type: "string" },
+                    source: { type: "string" },
+                  },
+                  required: ["id", "value"],
+                },
+              },
+            },
             required: ["values"],
           },
         });
-        const out = (r.structured as { values?: Array<{ id: string; value: string }> }) || { values: [] };
+        const out = (r.structured as { values?: Array<{ id: string; value: string; confidence?: number; reasoning?: string; source?: string }> }) || { values: [] };
+        const filtered = (out.values || []).filter(v => v.value && (typeof v.confidence !== 'number' || v.confidence >= 0.4));
         return json({
-          values: out.values || [],
+          values: filtered,
           meta: {
             jobDetected: !!(jobText && jobText.length > 80),
             profileFieldsAvailable: profileFieldsAvailable.length,
             hasResume: !!resume?.content,
             hasAnyData,
+            yearsExperience: yoe,
+            educationLevel,
           },
         });
       }
@@ -369,26 +428,54 @@ GENERAL:
         return json({ body: r.text });
       }
 
-      // ext_job_score: score a job snippet against the user's resume quickly
-      // Returns score 1-10, matchLabel, and 3 key reasons
+      // ext_job_score: score a job snippet against the user's resume
+      // Returns score 1-10, label, reasons, missingKeywords, matchedSkills, salary
       if (action === "ext_job_score") {
         const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
-        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "" });
+        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
         const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "" });
+        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
+
+        const rc = resume.content as Record<string, unknown>;
+        const resumeDigest = {
+          basics: rc.basics,
+          skills: rc.skills,
+          work: ((rc.work as Array<Record<string, unknown>>) || []).slice(0, 6).map(w => ({
+            title: w.title, company: w.company, start: w.start, end: w.end,
+            bullets: ((w.bullets as string[]) || []).slice(0, 4),
+          })),
+        };
 
         const r = await callAI({
-          system: `You are a fast job-resume matcher. Given a job snippet and resume, score the match and estimate salary.
-Return ONLY valid JSON, no code fences:
-{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<r1>","<r2>","<r3>"], "salaryEstimate": "<e.g. $90K-$120K or empty string if unknown>" }
-- score: 1-3 Poor, 4-6 Fair, 7-8 Good, 9-10 Strong
-- reasons: 3 short phrases max 5 words each
-- salaryEstimate: extract from snippet if mentioned, or estimate based on role/seniority for US/Canada market. Use $CAD if Canada role, $USD otherwise. Format: $80K-$110K. Empty string if truly unknown.
-- Be honest and fast`,
-          user: `JOB: ${jobTitle || ""} at ${company || ""}\n${(jobSnippet || "").slice(0, 1500)}\n\nRESUME:\n${JSON.stringify(resume.content?.basics || {}).slice(0, 600)}\nSKILLS: ${JSON.stringify(resume.content?.skills || []).slice(0, 300)}`,
+          system: `You are a senior tech recruiter. Score how well this candidate matches the job. Be honest, calibrated, and concrete.
+
+Return ONLY this JSON (no code fences):
+{
+  "score": <integer 1-10>,
+  "matchLabel": "Poor|Fair|Good|Strong",
+  "reasons": ["<reason 1>","<reason 2>","<reason 3>"],
+  "matchedSkills": ["<skill>", ...],
+  "missingKeywords": ["<keyword>", ...],
+  "salaryEstimate": "<$80K-$110K or empty>",
+  "verdict": "<one sentence verdict>"
+}
+
+Scoring rubric:
+- 9-10 Strong: candidate clearly meets MUST-HAVES and has 2+ STRONG signals (same domain, same scale, same tech).
+- 7-8 Good: meets most must-haves, 1-2 gaps that are coachable.
+- 4-6 Fair: half the must-haves, meaningful gaps in seniority or core tech.
+- 1-3 Poor: missing the core requirement (role, level, or critical tech).
+
+Rules:
+- reasons: 3 SHORT phrases (max 6 words each), tied to specific JD requirements.
+- matchedSkills: up to 8 skills/tools present in BOTH resume and JD.
+- missingKeywords: 4-8 important JD keywords NOT in the resume (skills, tools, certs). Single words or short phrases.
+- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market (use $CAD if location is Canada, $USD otherwise). Format $80K-$110K. Empty string if truly unknown.
+- verdict: one honest sentence.`,
+          user: `JOB TITLE: ${jobTitle || ""}\nCOMPANY: ${company || ""}\n\nJOB DESCRIPTION:\n${(jobSnippet || "").slice(0, 3000)}\n\nRESUME:\n${JSON.stringify(resumeDigest).slice(0, 6000)}`,
         });
 
-        let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[], salaryEstimate: "" };
+        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string } = {};
         try {
           const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
@@ -397,10 +484,17 @@ Return ONLY valid JSON, no code fences:
 
         const score = Math.max(1, Math.min(10, Math.round(Number(parsed.score) || 5)));
         const validLabels = ["Poor", "Fair", "Good", "Strong"];
-        const matchLabel = validLabels.includes(parsed.matchLabel) ? parsed.matchLabel
-          : score >= 8 ? "Strong" : score >= 6 ? "Good" : score >= 4 ? "Fair" : "Poor";
+        const matchLabel = validLabels.includes(parsed.matchLabel || "") ? parsed.matchLabel!
+          : score >= 9 ? "Strong" : score >= 7 ? "Good" : score >= 4 ? "Fair" : "Poor";
 
-        return json({ score, matchLabel, reasons: (parsed.reasons || []).slice(0, 3), salaryEstimate: String(parsed.salaryEstimate || "") });
+        return json({
+          score, matchLabel,
+          reasons: (parsed.reasons || []).slice(0, 3),
+          matchedSkills: (parsed.matchedSkills || []).slice(0, 8),
+          missingKeywords: (parsed.missingKeywords || []).slice(0, 8),
+          salaryEstimate: String(parsed.salaryEstimate || ""),
+          verdict: String(parsed.verdict || ""),
+        });
       }
 
       // ext_suggest_roles: suggest best job titles to search for based on resume
@@ -447,38 +541,41 @@ Return ONLY valid JSON, no code fences:
         const userName = [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || "the candidate";
         const aboutMe = (profile?.default_answers as Record<string,unknown>)?.about_me as string || "";
 
-        const r = await callAI({
-          system: `You are a job search assistant helping a candidate find the right person to contact at a company about a job opening.
+        const candidateBackground = aboutMe.slice(0, 400) || JSON.stringify({
+          basics: resume?.content?.basics,
+          recent: ((resume?.content?.work as Array<Record<string, unknown>>) || []).slice(0, 2),
+        }).slice(0, 700);
 
-Return ONLY valid JSON, no code fences:
+        const r = await callAI({
+          system: `You help a candidate find the right humans to contact at a company about a specific role. Be CONCRETE — no generic recruiter copy.
+
+Return ONLY this JSON (no code fences):
 {
   "contacts": [
-    {
-      "role": "<likely role title e.g. 'Talent Acquisition Manager', 'HR Business Partner', 'Technical Recruiter'>",
-      "why": "<one sentence: why contact this person for this job>",
-      "linkedinSearchUrl": "<LinkedIn people search URL for this type of person at the company>",
-      "titles": ["<title variant 1>", "<title variant 2>"]
-    }
+    { "role": "<persona title>", "why": "<one sentence>", "linkedinSearchUrl": "<URL>", "titles": ["<variant>", "<variant>"] }
   ],
-  "emailFormats": ["<format e.g. firstname.lastname@company.com>", "<format e.g. f.lastname@company.com>"],
-  "companyDomain": "<best guess at company email domain e.g. shopify.com>",
-  "coldOutreach": "<a 3-sentence LinkedIn connection message or cold email from the candidate to a recruiter at this company. Professional, specific to the role, not generic. First person. No em dashes.>",
-  "subjectLine": "<email subject line for cold outreach>"
+  "emailFormats": ["firstname.lastname@<domain>", "f.lastname@<domain>"],
+  "companyDomain": "<domain.com>",
+  "coldOutreach": "<personalized message under 80 words>",
+  "subjectLine": "<email subject>"
 }
 
-LinkedIn search URL format:
-https://www.linkedin.com/search/results/people/?keywords=ENCODED_TITLE&currentCompany=["COMPANY_NAME"]&origin=FACETED_SEARCH
+LinkedIn search URL pattern:
+https://www.linkedin.com/search/results/people/?keywords=<URL-ENCODED ROLE TITLE>&currentCompany=%5B%22<URL-ENCODED COMPANY>%22%5D&origin=FACETED_SEARCH
 
 Rules:
-- Suggest 2-3 different contact types (Recruiter, HR Manager, Hiring Manager)  
-- Email formats: suggest 2-3 most common formats for this company size/type
-- Cold outreach: use the candidate name and their background. Make it specific to the role. Under 80 words. No "I hope this message finds you well".`,
+- Exactly 3 contact personas: (1) Technical/Hiring Recruiter for the role's function, (2) Hiring Manager (use the actual role's likely manager title — e.g. "Engineering Manager" for SWE, "Director of Marketing" for marketing), (3) Team Lead / Senior peer (e.g. "Staff Engineer", "Senior Product Designer").
+- For each: 2 title variants real people use at companies of this size.
+- emailFormats: 2-3 most likely formats for THIS company size (startups use firstname@, large enterprises use firstname.lastname@).
+- companyDomain: best guess from the company name (lowercase, no spaces). If well-known company, use the known domain.
+- coldOutreach: written FROM the candidate, addressed to the recruiter. First name reference, the specific role title, ONE concrete reason from candidate's background that maps to the JD, a clear ask (15-min chat). Under 80 words. No "hope this finds you well". No em dashes. Plain text.
+- subjectLine: short ("<Role> @ <Company> - <one-line angle>"). Use a dash, not em dash.`,
           user: `COMPANY: ${company}
 JOB TITLE: ${jobTitle || "Not specified"}
 JOB URL: ${jobUrl || ""}
-JOB SNIPPET: ${(jobSnippet || "").slice(0, 800)}
+JOB SNIPPET: ${(jobSnippet || "").slice(0, 1200)}
 CANDIDATE NAME: ${userName}
-CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?.basics || {}).slice(0, 400)}`,
+CANDIDATE BACKGROUND: ${candidateBackground}`,
         });
 
         let parsed: Record<string, unknown> = {};
@@ -499,12 +596,25 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
 
       // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
       if (action === "ext_cover_letter_text") {
-        const { resumeText, jdText, tone, company } = payload as {
-          resumeText?: string; jdText?: string; tone?: string; company?: string;
+        const { resumeText, jdText, tone, company, jobTitle } = payload as {
+          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string;
         };
         if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
         const r = await callAI({
-          system: `Write a concise cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés. No em dashes. Pull concrete achievements from the resume only.`,
+          model: QUALITY_MODEL,
+          system: `Write a cover letter under 280 words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
+
+STRUCTURE (4 short paragraphs):
+1) Opening: who you are + the specific role + the ONE thing about ${company || "this team"} that pulled you in (from the JD).
+2) Proof: ONE concrete achievement from the resume that maps to a JD requirement. Include the number/scale if present in the resume.
+3) Skill bridge: 2-3 specific tools/skills from the JD that also appear in the resume. Tie them to outcomes, not lists.
+4) Close: clear ask for a conversation + sign off.
+
+RULES:
+- Use ONLY facts from the resume. Never invent companies, metrics, or dates.
+- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate").
+- No em dashes. Use commas or periods.
+- Plain text, no markdown.`,
           user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 6000)}`,
         });
         return json({ body: r.text });
@@ -584,8 +694,30 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
         if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: `Extract 10-14 key job keywords and produce an ATS-formatted tailored resume. Never invent experience. Keep all facts/dates/titles exactly. Return ONLY JSON: {"keywords":[{"text":"...","inResume":true|false}],"tailoredText":"...","changes":["..."]}`,
-          user: `TARGET: ${jobTitle||""} at ${company||""}\n\nRESUME:\n${resumeText.slice(0,8000)}\n\nJOB:\n${jdText.slice(0,6000)}`,
+          system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
+
+Return ONLY this JSON (no code fences):
+{
+  "keywords": [{"text":"<keyword>","inResume": true|false, "importance":"high|medium|low"}],
+  "tailoredText": "<full plain-text ATS resume>",
+  "changes": ["<change 1>", "<change 2>", "..."],
+  "atsScore": <integer 0-100>,
+  "scoreReasoning": "<one sentence on the score>"
+}
+
+KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodologies from the JD. Mark inResume=true only if the EXACT term (or a very close variant) appears in the resume text. Mark importance: high if mentioned 2+ times or in "must have" / "required"; medium otherwise; low for nice-to-haves.
+
+TAILORED RESUME:
+- Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
+- Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
+- Re-order skills to surface JD-matching ones first.
+- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify when numbers exist in original. Never fabricate numbers.
+- Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
+
+CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme — already implied by 'container orchestration'.").
+
+ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0,6000)}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {
@@ -594,9 +726,11 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
           parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
         } catch { return json({ error: "Failed to parse AI response" }, 500); }
         return json({
-          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume) })) : [],
+          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume), importance: String(k.importance||"medium") })) : [],
           tailoredText: String(parsed.tailoredText || ""),
-          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,5) : [],
+          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,6) : [],
+          atsScore: Math.max(0, Math.min(100, Math.round(Number((parsed as Record<string, unknown>).atsScore) || 0))),
+          scoreReasoning: String((parsed as Record<string, unknown>).scoreReasoning || ""),
         });
       }
     }

@@ -193,10 +193,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const fillData = await callFunction('ext_autofill', {
           fields: fields.map(f => ({
-            id: f.id, label: f.label, type: f.type,
+            id: f.id, label: f.label, type: f.type, group: f.group,
             options: f.options, required: f.required, currentValue: f.currentValue,
           })),
           jobText: jobText?.text || '',
+          jobTitle: jobText?.title || '',
+          company: jobText?.company || '',
+          ats: scan.ats || 'unknown',
+          url: scan.url || '',
         });
 
         const values = (fillData.values || []).filter(v => v.value && v.value.trim());
@@ -212,6 +216,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           id: v.id,
           label: fields.find(f => f.id === v.id)?.label || v.id,
           value: v.value,
+          confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
+          reasoning: v.reasoning || '',
+          source: v.source || '',
           ok: resultMap[v.id]?.ok || false,
           reason: resultMap[v.id]?.reason || '',
         }));

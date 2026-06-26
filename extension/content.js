@@ -97,6 +97,35 @@
   // 2. FORM SCANNING
   // ══════════════════════════════════════════════════════════════════
 
+  function detectATS() {
+    const url = window.location.href;
+    const html = document.documentElement.outerHTML.slice(0, 30000);
+    if (/greenhouse\.io|boards\.greenhouse/i.test(url) || /greenhouse/i.test(html)) return 'greenhouse';
+    if (/jobs\.lever\.co/i.test(url)) return 'lever';
+    if (/myworkdayjobs\.com|workday/i.test(url)) return 'workday';
+    if (/icims\.com/i.test(url)) return 'icims';
+    if (/jobs\.ashbyhq\.com/i.test(url)) return 'ashby';
+    if (/smartrecruiters\.com/i.test(url)) return 'smartrecruiters';
+    if (/cornerstoneondemand|csod\.com/i.test(url)) return 'cornerstone';
+    if (/linkedin\.com\/jobs/i.test(url) && document.querySelector('[data-test-modal], .jobs-easy-apply-modal')) return 'linkedin_easy_apply';
+    return 'unknown';
+  }
+
+  // Walk up the DOM and harvest the nearest visible question text near the input
+  function nearestQuestionText(el) {
+    let node = el.parentElement;
+    for (let i = 0; i < 5 && node; i++) {
+      // Look for sibling text that looks like a question/label
+      const text = (node.innerText || '').slice(0, 300).trim();
+      if (text && text.length < 240 && /\?$|:$|^[A-Z]/.test(text)) {
+        // Strip the input's own value out
+        return text.replace(el.value || '', '').replace(/\s+/g, ' ').trim();
+      }
+      node = node.parentElement;
+    }
+    return '';
+  }
+
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
@@ -110,13 +139,56 @@
       const parts = lblId.split(' ').map(id => document.getElementById(id)?.innerText?.trim()).filter(Boolean);
       if (parts.length) return parts.join(' ');
     }
-    const section = el.closest('fieldset, [class*="field"], [class*="question"], [class*="form-group"], li, div');
+    const section = el.closest('fieldset, [class*="field"], [class*="question"], [class*="form-group"], [data-automation-id], li, div');
     if (section) {
-      const h = section.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4, strong');
-      if (h && !h.contains(el)) return h.innerText.trim();
+      const h = section.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4, strong, [data-automation-id*="label"]');
+      if (h && !h.contains(el)) {
+        const t = h.innerText.trim();
+        if (t && t.length < 240) return t;
+      }
     }
+    // Last resort: walk ancestors for the nearest question-shaped text
+    const near = nearestQuestionText(el);
+    if (near) return near;
     return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
   }
+
+  // Classify a field into a semantic group so the AI can reason about it
+  function classifyField(label, name, type) {
+    const l = ((label || '') + ' ' + (name || '')).toLowerCase();
+    if (/\bfirst\s*name|given\s*name|forename\b/.test(l)) return 'identity.first_name';
+    if (/\blast\s*name|surname|family\s*name\b/.test(l)) return 'identity.last_name';
+    if (/\bfull\s*name|legal\s*name\b/.test(l) || /^name$/i.test((label||'').trim())) return 'identity.full_name';
+    if (/\bemail\b/.test(l)) return 'identity.email';
+    if (/\bphone|mobile|cell\b/.test(l)) return 'identity.phone';
+    if (/\baddress|street\b/.test(l)) return 'identity.address';
+    if (/\bcity|town\b/.test(l)) return 'identity.city';
+    if (/\bstate|province|region\b/.test(l)) return 'identity.state';
+    if (/\bzip|postal\s*code|postcode\b/.test(l)) return 'identity.postal_code';
+    if (/\bcountry\b/.test(l)) return 'identity.country';
+    if (/linkedin/.test(l)) return 'link.linkedin';
+    if (/portfolio|website|personal\s*site/.test(l)) return 'link.portfolio';
+    if (/github/.test(l)) return 'link.github';
+    if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed)|right\s+to\s+work/.test(l)) return 'logic.work_auth';
+    if (/sponsor|visa|require.*sponsorship/.test(l)) return 'logic.sponsorship';
+    if (/relocat/.test(l)) return 'logic.relocate';
+    if (/remote|hybrid|on[\s-]?site/.test(l) && type !== 'text') return 'logic.work_mode';
+    if (/years?\s+of\s+experience|experience\s+(level|years)|how\s+many\s+years/.test(l)) return 'logic.years_experience';
+    if (/highest\s+(degree|education|level)|education\s+level|degree/.test(l) && type !== 'text') return 'logic.education_level';
+    if (/salary\s+(expectation|expected|range|requirement)|expected\s+salary|compensation/.test(l)) return 'logic.salary';
+    if (/notice\s+period|when\s+can\s+you\s+start|start\s+date|available/.test(l)) return 'logic.start_date';
+    if (/gender|sex\b/.test(l)) return 'eeo.gender';
+    if (/ethnic|race|hispanic/.test(l)) return 'eeo.ethnicity';
+    if (/veteran/.test(l)) return 'eeo.veteran';
+    if (/disab(ility|led)/.test(l)) return 'eeo.disability';
+    if (/pronoun/.test(l)) return 'eeo.pronouns';
+    if (/tell\s+(us|me)\s+about|about\s+yourself|introduce\s+yourself/.test(l)) return 'open.about';
+    if (/why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)/.test(l)) return 'open.why';
+    if (/cover\s+letter|message\s+to\s+(hiring|recruiter)/.test(l)) return 'open.cover';
+    if (/heard.*about|where.*find|how.*hear|source/.test(l)) return 'open.source';
+    return 'other';
+  }
+
 
   function getOptions(el) {
     if (el.tagName === 'SELECT') {
@@ -177,14 +249,16 @@
         if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
         if (!label && (!el.name || el.name.length < 2)) return;
 
+        const ftype = el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text');
         fields.push({
           id: prefix + (el.id || el.name || `f${idx}`),
           label: label || `Field ${idx}`,
-          type: el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text'),
+          type: ftype,
           name: el.name || '',
           currentValue: isFilled(el) ? (el.value || '') : '',
           options: getOptions(el),
           required: el.required || el.getAttribute('aria-required') === 'true',
+          group: classifyField(label, el.name || '', ftype),
           _idx: idx,
           _frame: prefix,
         });
@@ -481,7 +555,7 @@
     if (message.type === 'SCAN_FORM') {
       const fields = scanFormFields();
       const jobText = extractJobText();
-      sendResponse({ fields, fileFields: fields._fileFields || [], jobText });
+      sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href });
       return true;
     }
 
