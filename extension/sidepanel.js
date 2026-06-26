@@ -22,7 +22,6 @@ function show(id) {
   const li = id !== 'v-login';
   $('user-email').classList.toggle('hidden', !li);
   $('sign-out-btn').classList.toggle('hidden', !li);
-  $('switch-acct-btn')?.classList.toggle('hidden', !li);
   $('tabs').classList.toggle('hidden', !li);
   const inTailor = ['v-t1','v-t2','v-t3'].includes(id);
   $('stepper').classList.toggle('hidden', !inTailor);
