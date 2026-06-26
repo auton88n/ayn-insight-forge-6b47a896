@@ -669,15 +669,20 @@
       const isJobHost = JOB_PAGE_RE.test(url);
       const isAynHost = /aynn\.io|lovableproject\.com|lovable\.app|localhost/i.test(url);
       const hasJD = (job.text || '').length > 120;
-      const hasForm = fields.length >= 2 || fileFields.length > 0;
+      // Check for modal/popup forms — Indeed SmartApply, LinkedIn Easy Apply etc.
+      const modalForm = document.querySelector(
+        '.jobs-easy-apply-modal, [data-test-modal], .indeed-apply-widget, ' +
+        '.ia-BasePage, [class*="SmartApply"], [class*="easy-apply"], ' +
+        'dialog form, [role="dialog"] form, [role="dialog"] input'
+      );
+      const hasForm = fields.length >= 2 || fileFields.length > 0 || !!modalForm;
       const needsResume = fileFields.some(f => f.isResume);
       let kind = 'other';
       if (isAynHost) kind = 'ayn';
       else if (hasForm && (hasJD || isJobHost)) kind = 'application';
-      else if (hasJD) kind = 'job_listing';
-      else if (isJobHost) kind = 'job_board';
+      else if (hasJD || isJobHost) kind = 'job_listing';
       sendResponse({
-        kind, hasForm, hasJD, fieldCount: fields.length,
+        kind, hasForm, hasJD, fieldCount: fields.length + (modalForm ? 1 : 0),
         fileFieldCount: fileFields.length, needsResume,
         title: job.title, company: job.company,
         jdLength: (job.text || '').length, url,
@@ -761,7 +766,7 @@
   // 6. AUTO-DETECT JOB PAGES
   // ══════════════════════════════════════════════════════════════════
 
-  const JOB_PAGE_RE = /linkedin\.com\/jobs\/(view|search)|indeed\.com\/(viewjob|jobs)|ca\.indeed\.com\/(viewjob|jobs)|greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs/;
+  const JOB_PAGE_RE = /linkedin\.com\/jobs|indeed\.com|ca\.indeed\.com|greenhouse\.io|boards\.greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs|csod\.com|icims\.com|bamboohr\.com|taleo\.net|workable\.com|dover\.com|recruitee\.com|jazz\.co|pinpointhq\.com|loxo\.co/;
 
   if (JOB_PAGE_RE.test(window.location.href)) {
     setTimeout(() => {

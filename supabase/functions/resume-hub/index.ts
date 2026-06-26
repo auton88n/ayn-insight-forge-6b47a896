@@ -126,7 +126,7 @@ const EXT_ACTIONS = new Set([
   "ext_cover_letter", "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
-  "ext_download_resume_text", "smart_tailor",
+  "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
   "ext_ask", "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
 ]);
@@ -695,6 +695,23 @@ RULES:
         }
         if (skills.length) { lines.push("", "SKILLS", skills.join(", ")); }
         return json({ text: lines.join("\n"), filename: `${(basics.name || "Resume").replace(/\s+/g,"_")}_AYN.txt` });
+      }
+
+      // ext_ask — AI career assistant with full context
+      if (action === "ext_ask") {
+        const{sessionId,question,jobTitle,company,jobText,url}=payload as{sessionId?:string;question?:string;jobTitle?:string;company?:string;jobText?:string;url?:string};
+        if(!question)return json({error:"question required"},400);
+        const{data:resume}=await admin.from("resumes").select("content").eq("user_id",userId).eq("is_primary",true).maybeSingle();
+        const rb=resume?.content as Record<string,unknown>|undefined;
+        const bas=(rb?.basics||{}) as Record<string,string>;
+        const works=((rb?.work||[]) as Array<Record<string,unknown>>);
+        const skills=((rb?.skills||[]) as string[]);
+        const resumeCtx=bas.name?`CANDIDATE: ${bas.name}\nTITLE: ${works[0]?.title||""}\nSKILLS: ${skills.slice(0,15).join(", ")}\nSUMMARY: ${(bas.summary||"").slice(0,300)}`:"No resume loaded.";
+        const r = await callAI({
+          system:`You are AYN, a smart career assistant in a Chrome extension. See the job page and candidate resume below.\nBe direct and specific — max 4 sentences unless more is needed. Never be vague.\nYou help with: fit analysis, salary ranges, interview prep, cold outreach, application question answers, resume gaps.\nFor salary: ALWAYS give a real number range (e.g. $90K-$130K CAD) based on role + location.\nFor fit: give a clear verdict (Strong/Good/Fair/Poor) + top 2 gaps.\nFor interview prep: give 3 specific questions + brief answer frameworks.\nFor outreach: write the actual message.\n\n${resumeCtx}\n\n${jobText?`JOB: ${jobTitle||""} at ${company||""}\n${jobText.slice(0,2500)}`:"No job page — general career advice."}`,
+          user:question,
+        });
+        return json({answer:r.text,sessionId:sessionId||crypto.randomUUID()});
       }
 
       // smart_tailor (extension path) — same as JWT smart_tailor below
