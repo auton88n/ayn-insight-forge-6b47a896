@@ -92,9 +92,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // ── Sign out ───────────────────────────────────────────────────
+  // ── Sign out (wipe ALL local data for privacy) ─────────────────
   if (message.type === 'SIGN_OUT') {
-    chrome.storage.local.remove(['ayn_token', 'savedResume'], () => sendResponse({ ok: true }));
+    chrome.storage.local.clear(() => sendResponse({ ok: true }));
     return true;
   }
 

@@ -1,40 +1,29 @@
-## Problem
+## Change
 
-1. **Wrong account shown (ghazi vs crossmint7)** — The extension stores a single `ayn_token`. When you re-approve from a *different* AYN account, a new token is minted on the server, but the extension never receives it because polling only runs during an active "Sign in with AYN" flow inside the side panel. The old ghazi token stays in `chrome.storage.local` and `ext_bootstrap` keeps returning ghazi's profile.
-2. **Email source is misleading** — `ext_bootstrap` returns `profile.email` from `user_profile_data`, not the real `auth.users.email`. If a user changed their profile email or it was never set, the display can drift from the actual logged-in account.
-3. **"Other functions not working"** — Score / Contacts / Cover / Tailor / Tracker all gate on an active job page. Your current tab is `aynn.io/extension/approve`, which is detected as `kind: "ayn"`, so they correctly show the empty state. They are not broken, but the empty-state copy and the lack of a one-click "Switch account" hides the real issue.
+Remove account switching from the extension entirely. One browser = one AYN account. Strengthen sign-out so no data from a previous session can leak.
 
-## Fix
+## Edits
 
-### 1. Extension auth — force token to match the approving account
-- **`extension/sidepanel.js`**: replace silent `restoreSession()` with a check that calls `ext_bootstrap` and surfaces the real email. Add a visible **"Switch account"** button next to the current email that:
-  1. Calls `SIGN_OUT` (clears `ayn_token` + `savedResume`).
-  2. Immediately triggers `startSignIn()` so a fresh approval is required.
-- **Auto-recovery**: on every BOOTSTRAP failure (401 / invalid token), clear local token and show the sign-in screen — currently it only clears on 401s inside `callFunction`, not on stale-token startup.
-- **Display**: show the email from `auth.users` (see §2) and the device label underneath it, so you can confirm which account this browser is linked to.
+### 1. `extension/sidepanel.html`
+- Remove the `#switch-acct-btn` button I just added. Keep only the email label and **Sign out**.
 
-### 2. Edge function — return real auth email
-- **`supabase/functions/resume-hub/index.ts` → `ext_bootstrap`**: also fetch `auth.admin.getUserById(userId)` and return `{ user: { id, email, device } }`. The side panel uses this email as the source of truth, not the profile row.
+### 2. `extension/sidepanel.js`
+- Remove the `#switch-acct-btn` event listener and its toggle in `show()`.
+- Keep the stale-token auto-clear behavior from v1.2.4 (when `BOOTSTRAP` returns 401/error, wipe the token and show the sign-in screen).
+- Harden **Sign out** to wipe every cached key, not just `ayn_token` + `savedResume`: also clear `lastJobText`, `lastJobTitle`, `lastJobUrl`, `lastJobCompany`, `detectedAt`, and any tracker cache. Do this by calling `chrome.storage.local.clear()` on sign-out so nothing from user A is visible to user B on the same browser profile.
+- Update `background.js` `SIGN_OUT` handler to use `chrome.storage.local.clear()` instead of the targeted remove.
 
-### 3. Approve page — show which AYN account is about to be linked + "use a different account"
-- **`src/pages/ExtensionApprove.tsx`**: above the Approve button, show the currently signed-in AYN email in bold with a small **"Not you? Sign in as a different account"** link that signs out and reloads the approve flow with the same `code`. This prevents the exact mistake of approving as the wrong user.
+### 3. `src/pages/ExtensionApprove.tsx`
+- Keep the "This browser will be linked to: `<email>`" panel so the user can confirm the account before approving.
+- Remove the "Not you? Sign in as a different account" link. Privacy posture: if it's the wrong account, the user cancels and signs in fresh on their own.
 
-### 4. Verify the other tabs actually work on a real job page
-After the auth fix, I'll drive Playwright to:
-- Open a public Greenhouse / Lever job posting in a tab.
-- Confirm `DETECT_PAGE` returns `kind: "application"` and `hasForm: true`.
-- Trigger Fill, Cover Letter, and Tailor flows end-to-end against the live edge function with a valid token.
-
-If a tab fails, I'll fix the specific code path — but the architecture (background.js → resume-hub) is already wired, so this is verification, not a rewrite.
+### 4. Edge function — unchanged
+- `ext_bootstrap` still returns the real `auth.users.email` so the side panel shows the correct account.
 
 ### 5. Repack
-- Bump `extension/manifest.json` and `ExtensionTab.tsx` to **v1.2.4**.
-- Repack `public/ayn-extension.zip`.
+- Bump `extension/manifest.json` and `ExtensionTab.tsx` to **v1.2.5**.
+- Rebuild `public/ayn-extension.zip`.
 
 ## Out of scope
-- No UI redesign of the side panel beyond the "Switch account" button and email line.
-- No changes to Resume Hub dashboard tabs.
-- No new tables; the `extension_tokens` and `extension_link_codes` schemas are unchanged.
-
-## What you'll do after
-Reinstall v1.2.4, click **"Switch account"** in the side panel header, and approve as **crossmint7**. The header should then show `crossmint7@…` and all tabs will work on real job pages.
+- No DB or RLS changes — extension data is already per-`user_id` and tokens are per-account; the privacy boundary is already enforced server-side.
+- No UI changes elsewhere in Resume Hub.

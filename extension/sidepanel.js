@@ -22,7 +22,6 @@ function show(id) {
   const li = id !== 'v-login';
   $('user-email').classList.toggle('hidden', !li);
   $('sign-out-btn').classList.toggle('hidden', !li);
-  $('switch-acct-btn')?.classList.toggle('hidden', !li);
   $('tabs').classList.toggle('hidden', !li);
   const inTailor = ['v-t1','v-t2','v-t3'].includes(id);
   $('stepper').classList.toggle('hidden', !inTailor);
@@ -191,17 +190,6 @@ $('sign-out-btn').addEventListener('click', () => {
     resetSignInBtn();
     show('v-login');
     toast('Signed out');
-  });
-});
-$('switch-acct-btn').addEventListener('click', () => {
-  // Sign out then immediately start a fresh sign-in so user re-approves as the right account
-  chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
-    S.user = null;
-    clearPoll();
-    resetSignInBtn();
-    show('v-login');
-    toast('Sign in as the account you want to use');
-    setTimeout(startSignIn, 250);
   });
 });
 
