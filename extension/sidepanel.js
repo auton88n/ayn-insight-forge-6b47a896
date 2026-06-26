@@ -285,11 +285,16 @@ document.getElementById('fill-download-resume-btn')?.addEventListener('click', a
     const a = document.createElement('a');
     a.href = url; a.download = r.data.filename || 'Resume_AYN.txt'; a.click();
     URL.revokeObjectURL(url);
-    toast('Resume downloaded — now click "Attach" on the form', 'ok');
+    // Walk the stepper forward
+    document.getElementById('dl-step-1')?.classList.add('done');
+    document.getElementById('dl-step-2')?.classList.add('now');
+    document.getElementById('fill-dl-success')?.classList.remove('hidden');
+    toast('Downloaded ✓ — now attach it on the form', 'ok');
   } catch (err) {
     toast(err.message || 'Download failed', 'err');
   } finally {
-    btn.disabled = false; btn.innerHTML = orig;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i>Re-download';
   }
 });
 
