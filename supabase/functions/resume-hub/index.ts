@@ -555,10 +555,12 @@ Deno.serve(async (req) => {
           linkedin_url: profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           portfolio_url: profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           summary: basics.summary || "",
-          computed_years_experience: yoe,
-          computed_education_level: educationLevel,
-          current_title: (work[0] as { title?: string })?.title || basics.title || "",
-          current_company: (work[0] as { company?: string })?.company || "",
+          computed_years_experience: canonical?.derived?.total_yoe ?? yoe,
+          computed_education_level: canonical?.derived?.education_level || educationLevel,
+          current_title: canonical?.derived?.current_title || (work[0] as { title?: string })?.title || basics.title || "",
+          current_company: canonical?.derived?.current_company || (work[0] as { company?: string })?.company || "",
+          seniority: canonical?.derived?.seniority || "",
+          primary_function: canonical?.derived?.primary_function || "",
         };
 
         const r = await callAI({
