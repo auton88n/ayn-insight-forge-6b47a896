@@ -2250,6 +2250,51 @@ export type Database = {
         }
         Relationships: []
       }
+      job_applications: {
+        Row: {
+          applied_at: string | null
+          company: string
+          created_at: string
+          id: string
+          job_title: string
+          job_url: string | null
+          match_score: number | null
+          notes: string | null
+          salary_estimate: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          company: string
+          created_at?: string
+          id?: string
+          job_title: string
+          job_url?: string | null
+          match_score?: number | null
+          notes?: string | null
+          salary_estimate?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          company?: string
+          created_at?: string
+          id?: string
+          job_title?: string
+          job_url?: string | null
+          match_score?: number | null
+          notes?: string | null
+          salary_estimate?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       job_matches: {
         Row: {
           breakdown: Json
