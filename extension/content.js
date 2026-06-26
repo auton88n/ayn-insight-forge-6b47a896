@@ -192,14 +192,31 @@
     let filled = 0;
     const results = [];
 
-    values.forEach(({ id, value, _idx }) => {
+    values.forEach(({ id, value, _idx, _frame }) => {
       if (!value || !value.trim()) return;
 
-      let el = document.getElementById(id) || document.querySelector(`[name="${CSS.escape(id)}"]`);
+      // Resolve doc: top-level or iframe
+      let doc = document;
+      let rawId = id;
+      const m = /^frame(\d+):(.*)$/.exec(id);
+      if (m) {
+        const frame = document.querySelectorAll('iframe')[parseInt(m[1],10)];
+        try { if (frame?.contentDocument) doc = frame.contentDocument; } catch { /* ignore */ }
+        rawId = m[2];
+      } else if (_frame) {
+        const fm = /^frame(\d+):$/.exec(_frame);
+        if (fm) {
+          const frame = document.querySelectorAll('iframe')[parseInt(fm[1],10)];
+          try { if (frame?.contentDocument) doc = frame.contentDocument; } catch { /* ignore */ }
+        }
+      }
+
+      let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
       if (!el && _idx != null) {
-        const all = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
+        const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
       }
+
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); return; }
       if (isFilled(el) && el.type !== 'radio' && el.type !== 'checkbox') { results.push({ id, ok: false, reason: 'already filled' }); return; }
 
