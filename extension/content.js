@@ -152,15 +152,25 @@
     const SKIP_TYPES = new Set(['hidden','submit','button','file','image','reset','search']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
     const fields = [];
+    const fileFields = [];
     const seenNames = new Set();
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
-        if (SKIP_TYPES.has(el.type)) return;
         if (el.disabled) return;
         const rect = el.getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0) return;
+        if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
         const label = getLabelFor(el);
+
+        if (el.type === 'file') {
+          const lbl = (label || el.name || '').toLowerCase();
+          const accept = (el.accept || '').toLowerCase();
+          const isResume = /resume|cv|curriculum/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept);
+          fileFields.push({ label: label || el.name || 'File upload', isResume, accept: el.accept || '' });
+          return;
+        }
+
+        if (SKIP_TYPES.has(el.type)) return;
         const key = prefix + (el.name || '') + '|' + label;
         if (el.type === 'radio' && seenNames.has(key)) return;
         seenNames.add(key);
@@ -180,6 +190,7 @@
         });
       });
     });
+    fields._fileFields = fileFields;
     return fields;
   }
 
@@ -446,11 +457,13 @@
     if (message.type === 'DETECT_PAGE') {
       const job = extractJobText();
       const fields = scanFormFields();
+      const fileFields = fields._fileFields || [];
       const url = window.location.href;
       const isJobHost = JOB_PAGE_RE.test(url);
       const isAynHost = /aynn\.io|lovableproject\.com|lovable\.app|localhost/i.test(url);
       const hasJD = (job.text || '').length > 120;
-      const hasForm = fields.length >= 2;
+      const hasForm = fields.length >= 2 || fileFields.length > 0;
+      const needsResume = fileFields.some(f => f.isResume);
       let kind = 'other';
       if (isAynHost) kind = 'ayn';
       else if (hasForm && (hasJD || isJobHost)) kind = 'application';
@@ -458,6 +471,7 @@
       else if (isJobHost) kind = 'job_board';
       sendResponse({
         kind, hasForm, hasJD, fieldCount: fields.length,
+        fileFieldCount: fileFields.length, needsResume,
         title: job.title, company: job.company,
         jdLength: (job.text || '').length, url,
       });
@@ -467,7 +481,7 @@
     if (message.type === 'SCAN_FORM') {
       const fields = scanFormFields();
       const jobText = extractJobText();
-      sendResponse({ fields, jobText });
+      sendResponse({ fields, fileFields: fields._fileFields || [], jobText });
       return true;
     }
 

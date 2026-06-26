@@ -126,6 +126,7 @@ const EXT_ACTIONS = new Set([
   "ext_cover_letter", "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
+  "ext_download_resume_text", "smart_tailor",
 ]);
 
 // Public link-flow actions (no auth required for start/poll)
@@ -502,6 +503,58 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true });
       }
+
+      // ext_download_resume_text — returns primary resume as ATS plain text for manual upload
+      if (action === "ext_download_resume_text") {
+        const { data: resume } = await admin.from("resumes").select("title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        if (!resume?.content) return json({ error: "No primary resume saved in AYN" }, 404);
+        const c = resume.content as Record<string, unknown>;
+        const basics = (c.basics || {}) as Record<string, string>;
+        const work = (c.work || []) as Array<Record<string, unknown>>;
+        const edu = (c.education || []) as Array<Record<string, unknown>>;
+        const skills = (c.skills || []) as string[];
+        const lines: string[] = [];
+        if (basics.name) lines.push(String(basics.name).toUpperCase());
+        if (basics.title) lines.push(String(basics.title));
+        const contact = [basics.email, basics.phone, basics.location].filter(Boolean).join(" | ");
+        if (contact) lines.push(contact);
+        if (basics.summary) { lines.push("", "SUMMARY", String(basics.summary)); }
+        if (work.length) {
+          lines.push("", "EXPERIENCE");
+          work.forEach(w => {
+            lines.push("", `${w.title || ""} | ${w.company || ""}  ${w.start || ""} to ${w.end || "Present"}`);
+            ((w.bullets || []) as string[]).forEach(b => lines.push(`- ${b}`));
+          });
+        }
+        if (edu.length) {
+          lines.push("", "EDUCATION");
+          edu.forEach(e => lines.push(`${e.degree || ""} | ${e.school || ""}  ${e.end || ""}`));
+        }
+        if (skills.length) { lines.push("", "SKILLS", skills.join(", ")); }
+        return json({ text: lines.join("\n"), filename: `${(basics.name || "Resume").replace(/\s+/g,"_")}_AYN.txt` });
+      }
+
+      // smart_tailor (extension path) — same as JWT smart_tailor below
+      if (action === "smart_tailor") {
+        const { resumeText, jdText, jobTitle, company } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string };
+        if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+        const r = await callAI({
+          model: QUALITY_MODEL,
+          system: `Extract 10-14 key job keywords and produce an ATS-formatted tailored resume. Never invent experience. Keep all facts/dates/titles exactly. Return ONLY JSON: {"keywords":[{"text":"...","inResume":true|false}],"tailoredText":"...","changes":["..."]}`,
+          user: `TARGET: ${jobTitle||""} at ${company||""}\n\nRESUME:\n${resumeText.slice(0,8000)}\n\nJOB:\n${jdText.slice(0,6000)}`,
+        });
+        let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
+        try {
+          const raw = r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim();
+          const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+          parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
+        } catch { return json({ error: "Failed to parse AI response" }, 500); }
+        return json({
+          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume) })) : [],
+          tailoredText: String(parsed.tailoredText || ""),
+          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,5) : [],
+        });
+      }
     }
 
     // ============ DASHBOARD ACTIONS (Supabase JWT) ============
@@ -673,7 +726,12 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
       const tc = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       if (!tc) {
         const fallback = data?.choices?.[0]?.message?.content;
-        return json({ error: "AI did not return structured data", detail: typeof fallback === "string" ? fallback.slice(0, 400) : null }, 500);
+        return json({
+          error: isPdf
+            ? "Couldn't read this PDF — it may be scanned/image-based. Paste your resume text instead."
+            : "AI couldn't extract resume data. Paste your resume text instead.",
+          detail: typeof fallback === "string" ? fallback.slice(0, 400) : null,
+        }, 422);
       }
 
       let resume: unknown;

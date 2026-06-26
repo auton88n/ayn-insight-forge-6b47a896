@@ -110,6 +110,32 @@ function pollForApproval(code, deadline) {
   }, 2000);
 }
 
+function syncRemoteResume(resp) {
+  // Convert structured resume to plain text and cache locally so Cover/Tailor work out of the box
+  const c = resp?.resume?.content;
+  if (!c) return;
+  const basics = c.basics || {};
+  const lines = [];
+  if (basics.name) lines.push(basics.name);
+  const contact = [basics.email, basics.phone, basics.location].filter(Boolean).join(' | ');
+  if (contact) lines.push(contact);
+  if (basics.summary) lines.push('\nSUMMARY\n' + basics.summary);
+  if (Array.isArray(c.work) && c.work.length) {
+    lines.push('\nEXPERIENCE');
+    c.work.forEach(w => {
+      lines.push(`\n${w.title || ''} | ${w.company || ''}  ${w.start || ''} - ${w.end || 'Present'}`);
+      (w.bullets || []).forEach(b => lines.push(`- ${b}`));
+    });
+  }
+  if (Array.isArray(c.education) && c.education.length) {
+    lines.push('\nEDUCATION');
+    c.education.forEach(e => lines.push(`${e.degree || ''} | ${e.school || ''}  ${e.end || ''}`));
+  }
+  if (Array.isArray(c.skills) && c.skills.length) lines.push('\nSKILLS\n' + c.skills.join(', '));
+  const text = lines.join('\n').trim();
+  if (text) chrome.storage.local.set({ savedResume: text });
+}
+
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
@@ -120,6 +146,7 @@ async function bootAfterAuth() {
     }
     S.user = resp.user;
     $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    syncRemoteResume(resp);
     switchTab('fill');
     loadSavedResume();
     toast('Signed in ✓', 'ok');
@@ -133,6 +160,7 @@ async function restoreSession() {
     if (resp?.error || !resp?.user) { show('v-login'); return; }
     S.user = resp.user;
     $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    syncRemoteResume(resp);
     switchTab('fill');
     loadSavedResume();
   });
@@ -216,9 +244,38 @@ function detectForFill() {
       $('fill-field-count').textContent = r.fieldCount;
       $('fill-ready-note').style.display = '';
       $('autofill-now-btn').classList.remove('hidden');
+
+      // Show resume-attach hint + download button if page asks for a resume file
+      const dlWrap = $('fill-resume-dl-wrap');
+      if (dlWrap) {
+        if (r.needsResume) dlWrap.classList.remove('hidden');
+        else dlWrap.classList.add('hidden');
+      }
     });
   });
 }
+
+// Download AYN resume as ATS plain text (.txt) so the user can attach it manually
+document.getElementById('fill-download-resume-btn')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<div class="spinner"></div>Preparing...';
+  try {
+    const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'BG_FUNC', action: 'ext_download_resume_text', payload: {} }, res));
+    if (!r || !r.ok) throw new Error(r?.error || 'Failed');
+    const blob = new Blob([r.data.text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = r.data.filename || 'Resume_AYN.txt'; a.click();
+    URL.revokeObjectURL(url);
+    toast('Resume downloaded — now click "Attach" on the form', 'ok');
+  } catch (err) {
+    toast(err.message || 'Download failed', 'err');
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+});
 
 $('fill-rescan-btn')?.addEventListener('click', detectForFill);
 
