@@ -1,111 +1,63 @@
-## What we're building
 
-A new **Resume Hub** feature inside AYN (no impact on existing Command Center, chat, or intelligence modules) plus a **AYN Autofill** Chrome extension that pairs with the same account.
+## What I found (diagnosis)
 
-Inspired by jobright.ai: resume builder + AI rewrite, AI auto-tailor per job, job feed with match scores, application tracker (Kanban), one-click cover letters, and a browser extension that autofills any job application form (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, iCIMS, etc.).
+### 1. Resume upload returns wrong / incomplete data
+`supabase/functions/resume-hub/index.ts` action `parse_file`:
+- **PDFs**: sends payload as Anthropic-shaped `{ type: "document", source: { type:"base64", media_type, data } }` to the Lovable AI Gateway, which speaks **OpenAI** format. Gemini through this gateway never receives the file, so it hallucinates or returns generic content. That is why uploaded resumes "don't get the correct info".
+- **DOCX**: decodes the binary ZIP with `TextDecoder("utf-8")` and regex-greps `<w:t>` tags. This works only by accident and silently fails for most real DOCX files, then falls through to the broken PDF path.
+- No OCR fallback for scanned/image PDFs.
 
-## Privacy model (non-negotiable)
+### 2. Chrome extension can't do anything
+- Extension is token-gated (`x-ayn-ext-token`), but the in-app **Extension tab** (`ExtensionTab.tsx`) tells the user to "sign in with email and password" and has **no Generate Token button**. The options page expects a token starting with `ayn_…` that the UI never produces. Net effect: nobody can connect, so every popup action returns "Not connected".
+- `content.js` field detection collects inputs but never scrolls/expands multi-step ATS forms and skips React-rendered comboboxes (Workday/Greenhouse) because it only looks at `<select>`.
+- Saved jobs send raw `document.body.innerText` (often nav/footer noise), so JD scoring is poor.
 
-- Every new table has RLS scoped to `auth.uid()`. No cross-user reads.
-- Admins (via `has_role(uid,'admin')`) get **read-only** access *only* when a user opens a support ticket, and every read is written to `security_audit_logs`.
-- All AI calls (tailoring, cover letters, match scoring) run inside edge functions with the caller's JWT; user content never enters shared logs.
-- Resume files stored in a **private** Supabase Storage bucket `resumes/` with path `{user_id}/...` and an RLS policy that allows only the owner.
-- Extension auth uses a per-device token bound to the user (no password storage in the extension).
+### 3. Misc
+- `popup.js` `tailor`/`cover` call `ext_tailor` / `ext_cover_letter` but `ext_ingest_job` only returns `job_id` when it parses successfully; if AI fails, the chain dies with "Could not save job".
+- No clear error surfacing in popup; all failures show generic alerts.
 
-## Phase 1 — Database (one migration)
+## Fix plan
 
-New tables (all with `user_id uuid not null`, RLS `auth.uid() = user_id`, GRANTs to authenticated + service_role):
+### A. Resume parsing (edge function `resume-hub`, action `parse_file`)
+1. Replace the broken DOCX regex path with `mammoth` via `npm:mammoth@1.8.0` → real plain text extraction.
+2. Replace the broken Gemini "document" payload with the correct **Gemini-native** call (`generativelanguage.googleapis.com` is not available; instead use the Lovable Gateway OpenAI shape with `image_url` data-URL for PDFs which Gemini-2.5-flash accepts as `input_file`). Concretely: switch to the gateway's documented file input format:
+   ```
+   { role:"user", content: [
+     { type:"text", text:"..." },
+     { type:"file", file:{ filename:"resume.pdf", file_data:`data:application/pdf;base64,${b64}` } }
+   ]}
+   ```
+3. Add a two-stage extraction (per Lovable's vision-text pattern): try text extraction first; if extracted text < 50 useful chars, fall back to the vision/file call for OCR.
+4. Return both `resume` (structured) and `plainText` (raw text) so downstream match/tailor work on real content.
+5. Tighten the system prompt to forbid invention and require empty fields when missing.
 
-- `resumes` — id, title, is_primary, content jsonb (structured: basics, work, education, skills, projects, certs), pdf_path, ats_score, updated_at
-- `resume_versions` — id, resume_id, content jsonb, created_for_job_id, created_at (history of tailored variants)
-- `jobs` — id, source ('extension'|'linkedin'|'manual'), source_url, company, title, location, remote, salary_min, salary_max, jd_text, jd_html, posted_at, captured_at, dedupe_hash
-- `job_matches` — id, job_id, resume_id, score int, breakdown jsonb (skills_match, experience_match, missing_keywords), generated_at
-- `applications` — id, job_id, resume_version_id, status enum('saved','applied','interview','offer','rejected'), notes, applied_at, follow_up_at
-- `cover_letters` — id, job_id, resume_id, body text, tone, created_at
-- `user_profile_data` — id (= user_id), legal_name, phone, address jsonb, work_auth, links jsonb (linkedin, github, portfolio), demographics jsonb (optional EEO answers), default_answers jsonb (common application questions). This powers extension autofill.
-- `extension_tokens` — id, user_id, token_hash, device_label, last_used_at, revoked_at. Issued from the dashboard; extension stores raw token in `chrome.storage.local`.
-- `support_admin_reads` (audit) — admin_id, user_id, table_name, row_id, ticket_id, read_at.
+### B. Chrome extension authentication (make it actually connect)
+1. Add a real **Generate device token** UI to `src/components/resume-hub/ExtensionTab.tsx`:
+   - Button → calls existing `resumeHubApi.mintToken("Chrome")` → shows the `ayn_…` token once with copy button.
+   - List existing tokens with revoke buttons (uses existing `token_list` / `token_revoke`).
+   - Remove the misleading "sign in with email and password" copy.
+2. Update `extension/options.html` instructions to match the new flow (already pretty close).
+3. Add a "Test connection" button in options that calls `ext_bootstrap` and shows the connected email.
 
-Storage bucket: `resumes` (private) with owner-only policies.
+### C. Chrome extension content/runtime
+1. `content.js`:
+   - Include role=combobox, contenteditable, and custom listbox elements (Workday, Greenhouse).
+   - Scroll fields into view and dispatch `focus`/`blur` around the value set so React forms commit.
+   - Strip nav/footer when sending JD: use `document.querySelector('main, article, [role=main]')?.innerText` first, fallback to body, capped at 15k chars.
+2. `background.js`: surface server error messages verbatim in the popup (no more "unknown").
+3. `popup.js`: show a toast row with the last error and a "Reconnect" link when token is invalid.
 
-## Phase 2 — Edge functions
+### D. Edge function `ext_ingest_job` + `ext_autofill`
+1. Make `ext_ingest_job` never fail the whole save when AI parsing errors — store the raw URL/text and return `job_id` regardless.
+2. `ext_autofill`: include the user's `canadian_profile` row and primary resume `basics` in the prompt so the AI has ground truth to map fields against, not just labels.
 
-All call Lovable AI Gateway (`google/gemini-3-flash-preview` default; `gemini-2.5-pro` for resume rewrite quality mode):
+### E. Verification
+1. Manual upload of a real PDF + DOCX through `/resume-hub` → confirm name/email/work history match the file.
+2. Load `extension/` unpacked in Chrome → Generate token in UI → paste in options → Bootstrap shows email.
+3. On a Greenhouse/Workday posting: Save job (job_id returned), Autofill (≥70% fields filled), Tailor (markdown downloaded).
 
-- `resume-parse` — input: PDF/DOCX upload → parsed structured JSON (uses `document--parse_document` style flow + AI cleanup).
-- `resume-rewrite` — input: resume json + optional jd → improved bullets, ATS suggestions, score.
-- `resume-tailor` — input: resume_id + job_id → writes new `resume_versions` row tailored to that JD, returns PDF.
-- `resume-export-pdf` — renders the resume json to a clean ATS-friendly PDF (reportlab in a Deno-compatible alt or a JS renderer; we'll use `pdf-lib` via `npm:`).
-- `job-ingest` — receives job from extension (URL + raw HTML/text + parsed meta), dedupes, stores, kicks off `job-match` for primary resume.
-- `job-match` — scores a job vs a resume, writes `job_matches`.
-- `cover-letter-generate` — JD + resume + tone → letter.
-- `extension-auth` — POST { token } → validates against `extension_tokens.token_hash`, returns short-lived JWT for subsequent extension calls.
-- `extension-autofill-profile` — returns `user_profile_data` + primary resume summary for autofill (requires extension JWT).
-
-## Phase 3 — Frontend (Dashboard)
-
-New route group under `/dashboard/resume`:
-
-- **Overview** — primary resume card, ATS score, recent matches, application funnel counts.
-- **Resume Builder** — left: structured form (basics, experience, education, skills, projects). Right: live preview. Top actions: Import PDF, AI Improve, Tailor to Job, Export PDF, Set as Primary.
-- **Jobs** — filter/search feed of saved jobs (from extension or manual add). Each card: match score badge, company, title, location, "Tailor & Apply" button.
-- **Job Detail** — JD on left, match breakdown + missing keywords on right, buttons: Generate Tailored Resume, Generate Cover Letter, Move to Applied.
-- **Tracker** — Kanban: Saved → Applied → Interview → Offer / Rejected. Drag to update status. Notes drawer.
-- **Extension** — "Install AYN Autofill", token generation panel (one-click create, copy, revoke), connected devices list, profile data form that powers autofill (legal name, phone, work auth, EEO defaults, links).
-
-Aesthetic: matches AYN dark premium tokens (Syne headings, Inter body, JetBrains Mono for scores). No purple/indigo defaults.
-
-Sidebar gets one new entry: **Resume Hub** with sub-items.
-
-## Phase 4 — Chrome Extension (Manifest V3)
-
-Lives in `/extension/` in the repo. Built as a downloadable ZIP served from `/public/ayn-autofill.zip` via a fetch+blob link on the Extension page.
-
-Structure:
-
-```
-extension/
-  manifest.json   (MV3, host_permissions: <all_urls>, permissions: storage, activeTab, scripting, contextMenus)
-  background.js   (service worker — auth, message routing)
-  content.js      (injected on every page — field detection + autofill)
-  popup.html/js   (status, "Fill this form", "Save this job", "Tailor resume", "Generate cover letter")
-  options.html/js (paste token from dashboard, pick primary resume)
-  site-adapters/  (linkedin.js, workday.js, greenhouse.js, lever.js, ashby.js, icims.js, generic.js)
-```
-
-Capabilities:
-
-1. **Autofill** — content script scans the page for input/select/textarea, classifies each field with a heuristic + label-text matcher, falls back to AI (calls `extension-autofill-fill` edge fn with field labels → returns value map). Site adapters override for known ATS forms (Workday's stepper, LinkedIn Easy Apply iframes, Greenhouse's custom selects).
-2. **Save job** — popup "Save this job" sends URL + cleaned page text to `job-ingest`. Works on LinkedIn, Indeed, Glassdoor, company career pages.
-3. **Inline resume tailor** — when on a job posting (detected by site adapter or AI), popup shows match score and a "Tailor & Download" button → calls `resume-tailor`, downloads the PDF.
-4. **Cover letter** — same popup → calls `cover-letter-generate`, opens a side panel with the result, copy to clipboard.
-
-Auth: user generates a token in dashboard → pastes in extension Options → extension calls `extension-auth` and stores short-lived JWT, auto-refreshes.
-
-LinkedIn note: extension reads pages the user is viewing (no background crawling) to stay within reasonable use; we don't store LinkedIn cookies or scrape at scale.
-
-## Phase 5 — QA & ship
-
-- Unit edge function tests for parse, rewrite, tailor, match, ingest.
-- Manual extension test matrix: LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, iCIMS, plain HTML form.
-- Visual QA of generated PDF (render to image, inspect spacing/clipping per pdf skill).
-- Verify admin cannot read another user's resume via Supabase REST without a ticket.
-
-## Out of scope (v1)
-
-- Email interview reminders, calendar sync.
-- Background scraping of LinkedIn/Indeed (only user-visited pages via extension).
-- Recruiter-side features, team/org sharing.
-- Mobile app autofill.
-
-## Technical notes
-
-- Models: `google/gemini-3-flash-preview` for autofill/match/cover letters; `google/gemini-2.5-pro` for resume rewrite quality mode.
-- PDF rendering: `pdf-lib` (npm: in Deno edge function) for ATS-friendly export.
-- Parsing uploaded PDFs/DOCX: edge function delegates to a single call to Gemini multimodal with the file bytes (no separate OCR pipeline needed for v1).
-- Dedupe jobs by sha256 of (company + title + normalized URL).
-- Extension token: 32-byte random, stored as bcrypt hash; raw value shown once.
-- All new tables use the standard `update_updated_at_column()` trigger.
-- No native foreign keys (per project rule); referential integrity in app/edge functions.
-
-Once you approve, I'll start with Phase 1 (the migration), then move through the phases in order.
+### Technical notes
+- All edits stay in: `supabase/functions/resume-hub/index.ts`, `src/components/resume-hub/ExtensionTab.tsx`, `extension/{content,background,popup,options}.{js,html}`.
+- No DB schema changes — `extension_tokens` and `canadian_profile` tables already exist.
+- No new secrets — uses existing `LOVABLE_API_KEY`.
+- One edge function redeploy required (already deployed, only an update).

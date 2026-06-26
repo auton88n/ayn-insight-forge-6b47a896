@@ -459,77 +459,54 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
       const { fileBase64, mimeType } = payload as { fileBase64: string; mimeType: string };
       if (!fileBase64) return json({ error: "fileBase64 required" }, 400);
 
-      const isDocx = mimeType.includes("wordprocessingml") || mimeType.includes("docx");
-      const isPdf = mimeType.includes("pdf");
+      const isDocx = (mimeType || "").includes("wordprocessingml") || (mimeType || "").includes("docx");
+      const isPdf = (mimeType || "").includes("pdf");
+      const isText = (mimeType || "").startsWith("text/");
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
+      // Stage 1: try to extract plain text natively
       let resumeText = "";
 
-      if (isDocx) {
-        // Extract plain text from DOCX by unzipping and reading word/document.xml
+      const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+
+      if (isText) {
+        try { resumeText = new TextDecoder("utf-8").decode(b64ToBytes(fileBase64)); } catch (_) { /* noop */ }
+      } else if (isDocx) {
+        // Use mammoth for real DOCX text extraction
         try {
-          const bytes = Uint8Array.from(atob(fileBase64), c => c.charCodeAt(0));
-          // Find word/document.xml in the ZIP
-          // DOCX is a ZIP — find PK entries and extract document.xml text
-          const decoder = new TextDecoder("utf-8");
-          const raw = decoder.decode(bytes);
-          
-          // Find document.xml content between its markers
-          const xmlStart = raw.indexOf("word/document.xml");
-          if (xmlStart !== -1) {
-            // Extract a large chunk after the filename marker
-            const chunk = raw.slice(xmlStart, xmlStart + 500000);
-            // Extract all text from XML <w:t> tags
-            const textMatches = chunk.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
-            const extracted = textMatches
-              .map(m => m.replace(/<w:t[^>]*>/g, "").replace(/<\/w:t>/g, ""))
-              .join(" ")
-              .replace(/\s+/g, " ")
-              .trim();
-            if (extracted.length > 100) {
-              resumeText = extracted;
-            }
-          }
+          const mammoth = await import("npm:mammoth@1.8.0");
+          const { value } = await mammoth.extractRawText({ buffer: b64ToBytes(fileBase64) });
+          resumeText = (value || "").replace(/\s+\n/g, "\n").trim();
         } catch (e) {
-          console.warn("DOCX extraction failed, falling back to AI direct read", e);
+          console.warn("mammoth DOCX extraction failed", e);
         }
       }
 
-      // If we extracted text from DOCX, use the faster text-parse path
-      if (resumeText.length > 100) {
+      const isMeaningful = resumeText.replace(/\s+/g, " ").trim().length >= 80;
+
+      // Stage 2 — text path (fast, accurate when extraction worked)
+      if (isMeaningful) {
         const r = await callAI({
-          system: `You are extracting a resume from raw text. The text was extracted from a DOCX file and may have formatting artifacts.
-Extract every fact: full name, contact details, all job titles and companies with dates, all bullet points, education, skills.
-Be completely faithful — extract exactly what is written, do not invent, summarize, or skip anything.
-The person's real information is in this text. Names, companies, and dates are real.`,
-          user: `RESUME TEXT:\n${resumeText.slice(0, 15000)}`,
+          system: `You convert raw resume text into structured JSON. Be faithful — extract exactly what is written. Never invent names, employers, dates, or skills. If a field is missing, return an empty string or empty array. The name, contact info, and companies in this text are real.`,
+          user: `RESUME TEXT:\n${resumeText.slice(0, 18000)}`,
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
         });
-        const resume = r.structured;
-        const plainText = [
-          (resume as Record<string, unknown>)?.basics,
-          ...(((resume as Record<string, unknown>)?.work as unknown[]) ?? []),
-          ...(((resume as Record<string, unknown>)?.education as unknown[]) ?? []),
-        ].map(s => JSON.stringify(s)).join("\n");
-        return json({ resume, plainText });
+        return json({ resume: r.structured, plainText: resumeText.slice(0, 18000) });
       }
 
-      // For PDF or DOCX fallback — send directly to Gemini
+      // Stage 3 — vision/file fallback for PDFs (or DOCX when mammoth failed)
+      // Use the gateway's OpenAI-compatible `file` content block with a data URL.
+      const realMime = isPdf
+        ? "application/pdf"
+        : isDocx
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : (mimeType || "application/octet-stream");
+
       const userContent = [
-        {
-          type: "text",
-          text: "Extract ALL information from this resume. Every name, company, date, bullet point, skill, and education entry. Be exhaustive and faithful — extract exactly what is written, never invent.",
-        },
-        {
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: isPdf ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            data: fileBase64,
-          },
-        },
+        { type: "text", text: "Extract ALL information from this resume document: full name, contact details (email, phone, location, links), every job (company, title, dates, bullets), education, skills, certifications, projects. Be exhaustive and faithful — extract exactly what is written, never invent. Return through the emit_resume tool." },
+        { type: "file", file: { filename: isPdf ? "resume.pdf" : "resume.docx", file_data: `data:${realMime};base64,${fileBase64}` } },
       ];
 
       const r = await fetch(GATEWAY_URL, {
@@ -538,10 +515,7 @@ The person's real information is in this text. Names, companies, and dates are r
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages: [
-            {
-              role: "system",
-              content: "Convert this resume document into structured JSON. Extract every fact faithfully. The name, companies, and contact details are real — extract exactly what is written. Return only the tool call.",
-            },
+            { role: "system", content: "You convert resume documents into structured JSON. The name, employers, dates, and contact details in the document are real — extract them exactly. Never invent data. If a field is missing, leave it empty. Always call the emit_resume tool." },
             { role: "user", content: userContent },
           ],
           tools: [{ type: "function", function: { name: "emit_resume", description: "emit_resume", parameters: RESUME_SCHEMA } }],
@@ -551,11 +525,14 @@ The person's real information is in this text. Names, companies, and dates are r
 
       if (r.status === 429) return json({ error: "AI rate limit. Try again in a minute." }, 429);
       if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
-      if (!r.ok) { const t = await r.text(); return json({ error: `AI error ${r.status}: ${t.slice(0, 200)}` }, 500); }
+      if (!r.ok) { const t = await r.text(); return json({ error: `AI error ${r.status}: ${t.slice(0, 300)}` }, 500); }
 
       const data = await r.json();
       const tc = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-      if (!tc) return json({ error: "AI did not return structured data" }, 500);
+      if (!tc) {
+        const fallback = data?.choices?.[0]?.message?.content;
+        return json({ error: "AI did not return structured data", detail: typeof fallback === "string" ? fallback.slice(0, 400) : null }, 500);
+      }
 
       let resume: unknown;
       try { resume = JSON.parse(tc); } catch { return json({ error: "Failed to parse AI response" }, 500); }
