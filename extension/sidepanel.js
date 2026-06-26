@@ -285,11 +285,16 @@ document.getElementById('fill-download-resume-btn')?.addEventListener('click', a
     const a = document.createElement('a');
     a.href = url; a.download = r.data.filename || 'Resume_AYN.txt'; a.click();
     URL.revokeObjectURL(url);
-    toast('Resume downloaded — now click "Attach" on the form', 'ok');
+    // Walk the stepper forward
+    document.getElementById('dl-step-1')?.classList.add('done');
+    document.getElementById('dl-step-2')?.classList.add('now');
+    document.getElementById('fill-dl-success')?.classList.remove('hidden');
+    toast('Downloaded ✓ — now attach it on the form', 'ok');
   } catch (err) {
     toast(err.message || 'Download failed', 'err');
   } finally {
-    btn.disabled = false; btn.innerHTML = orig;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-check"></i>Re-download';
   }
 });
 
@@ -739,23 +744,24 @@ $('new-job-btn').addEventListener('click', () => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// Backend call helper — routes through background.js auth
+// Backend call helper — routes through background.js (handles 401)
+// Returns the function payload directly, throws on auth/network errors.
 // ════════════════════════════════════════════════════════════════
-async function bgFunc(action, body) {
-  // Direct fetch from sidepanel, going through background sign-out logic
-  const stored = await chrome.storage.local.get(['ayn_token']);
-  const token = stored.ayn_token;
-  if (!token) throw new Error('Not signed in');
-  const r = await fetch('https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/resume-hub', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw',
-      'x-ayn-ext-token': token,
-    },
-    body: JSON.stringify({ action, ...body }),
+function bgFunc(action, payload) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'BG_FUNC', action, payload: payload || {} }, resp => {
+      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+      if (!resp) return reject(new Error('No response from background. Reload the extension.'));
+      if (!resp.ok) {
+        if (/Not signed in|Invalid token|Token revoked/i.test(resp.error || '')) {
+          show('v-login');
+          return reject(new Error('Session expired. Please sign in again.'));
+        }
+        return reject(new Error(resp.error || 'Request failed'));
+      }
+      resolve(resp.data);
+    });
   });
-  return r.json();
 }
 
 // ── Helpers ──

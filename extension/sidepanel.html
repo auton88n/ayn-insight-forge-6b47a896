@@ -179,6 +179,9 @@
     .mt10 { margin-top: 10px; }
     .small-link { font-size: 11px; color: #888; text-decoration: none; display: block; text-align: center; margin-top: 9px; cursor: pointer; background: none; border: none; width: 100%; }
     .small-link:hover { color: #F97316; }
+    #fill-resume-steps li { transition: color .2s; }
+    #fill-resume-steps li.done { color: #15803d; text-decoration: line-through; opacity: .65; }
+    #fill-resume-steps li.now { color: #9a3412; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -248,9 +251,16 @@
     </div>
     <button class="btn btn-primary hidden" id="autofill-now-btn"><i class="ti ti-bolt"></i>Fill This Form Now</button>
     <div class="card hidden mt8" id="fill-resume-dl-wrap" style="background:#fff7ed;border-color:#fdba74">
-      <div class="card-title" style="color:#9a3412"><i class="ti ti-sparkles"></i> AYN filled every text field for you</div>
-      <div class="card-sub">Name, email, phone, work history and answers are filled automatically from your AYN resume — no upload needed for those. <br><br>This form also has a <b>Resume / CV file</b> field. Chrome security prevents extensions from attaching files for you, so just download your AYN resume below and drop it into that one field.</div>
-      <button class="btn btn-outline mt8" id="fill-download-resume-btn" style="padding:6px 10px;font-size:11px"><i class="ti ti-download"></i>Download my AYN resume (.txt)</button>
+      <div class="card-title" style="color:#9a3412"><i class="ti ti-paperclip"></i> Resume file attachment</div>
+      <div class="card-sub" style="margin-top:4px">This form has a Resume / CV upload field. Chrome blocks extensions from attaching files automatically — but it takes 10 seconds:</div>
+      <ol id="fill-resume-steps" style="margin:10px 0 4px 16px;padding:0;font-size:12px;color:#444;line-height:1.7">
+        <li id="dl-step-1" data-active="1">Click <b>Download my AYN resume</b> below</li>
+        <li id="dl-step-2">Find the <b>Resume / CV</b> field on this page</li>
+        <li id="dl-step-3">Click its <b>Browse / Attach / Upload</b> button</li>
+        <li id="dl-step-4">Select the file you just downloaded</li>
+      </ol>
+      <button class="btn btn-amber mt8" id="fill-download-resume-btn" style="padding:8px 12px;font-size:12px"><i class="ti ti-download"></i>Download my AYN resume (.txt)</button>
+      <div id="fill-dl-success" class="hidden mt8" style="font-size:11px;color:#15803d;font-weight:600"><i class="ti ti-check"></i> File downloaded — now follow steps 2 → 4 above.</div>
     </div>
     <div class="err hidden" id="err-fill"></div>
     <div id="fill-result-wrap" class="hidden mt10">
