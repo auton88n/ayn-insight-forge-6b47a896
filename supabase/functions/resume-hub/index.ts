@@ -126,6 +126,7 @@ const EXT_ACTIONS = new Set([
   "ext_cover_letter", "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
+  "ext_download_resume_text", "smart_tailor",
 ]);
 
 // Public link-flow actions (no auth required for start/poll)
