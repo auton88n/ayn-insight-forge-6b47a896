@@ -182,6 +182,43 @@
     #fill-resume-steps li { transition: color .2s; }
     #fill-resume-steps li.done { color: #15803d; text-decoration: line-through; opacity: .65; }
     #fill-resume-steps li.now { color: #9a3412; font-weight: 600; }
+
+    /* Job hero card (Fill + Score) */
+    .job-hero { background: linear-gradient(135deg,#fff7ed 0%, #fff 100%); border: 1px solid #fdba74; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .job-hero-row { display: flex; align-items: center; gap: 11px; }
+    .job-hero-logo { width: 42px; height: 42px; border-radius: 10px; background: #fff; border: 1px solid #fed7aa; display: flex; align-items: center; justify-content: center; color: #ea580c; font-weight: 700; font-size: 17px; flex-shrink: 0; text-transform: uppercase; }
+    .job-hero-text { flex: 1; min-width: 0; }
+    .job-hero-title { font-size: 14px; font-weight: 700; color: #111; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .job-hero-company { font-size: 12px; color: #ea580c; font-weight: 600; margin-top: 2px; }
+    .job-hero-meta { font-size: 11px; color: #888; margin-top: 1px; }
+
+    /* Progress bar */
+    .progress-wrap { margin: 10px 0 4px; }
+    .progress-bar { width: 100%; height: 6px; background: #f1f1f1; border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg,#16a34a,#22c55e); border-radius: 999px; transition: width .5s ease; }
+    .progress-fill.partial { background: linear-gradient(90deg,#d97706,#f59e0b); }
+    .progress-meta { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-top: 5px; font-weight: 500; }
+    .progress-meta b { color: #111; }
+
+    /* Score result */
+    .score-hero { background: #fff; border: 1px solid #e8e8e8; border-radius: 12px; padding: 16px; margin-bottom: 12px; text-align: center; }
+    .score-num { font-size: 44px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+    .score-num.s-strong { color: #15803d; } .score-num.s-good { color: #65a30d; }
+    .score-num.s-fair { color: #d97706; } .score-num.s-poor { color: #b91c1c; }
+    .score-num small { font-size: 17px; color: #aaa; font-weight: 600; }
+    .score-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-top: 4px; }
+    .score-salary { font-size: 12px; color: #555; margin-top: 8px; padding: 5px 10px; background: #f8f8f8; border-radius: 6px; display: inline-block; font-family: 'SF Mono','Consolas',monospace; }
+    .score-reasons { text-align: left; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
+    .score-reasons li { font-size: 12px; color: #444; padding: 4px 0 4px 16px; position: relative; }
+    .score-reasons li::before { content: '·'; position: absolute; left: 4px; color: #f97316; font-weight: 700; }
+
+    /* ATS card */
+    .ats-card { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; padding: 11px 13px; margin-bottom: 12px; }
+    .ats-ring { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; flex-shrink: 0; }
+    .ats-ring.s-strong { background: #16a34a; } .ats-ring.s-good { background: #65a30d; }
+    .ats-ring.s-fair { background: #d97706; } .ats-ring.s-poor { background: #b91c1c; }
+    .ats-text .ats-title { font-size: 12px; font-weight: 600; color: #111; }
+    .ats-text .ats-sub { font-size: 11px; color: #888; margin-top: 1px; }
   </style>
 </head>
 <body>
@@ -203,7 +240,7 @@
   <button class="tab" id="tab-contact" onclick="switchTab('contact')"><i class="ti ti-users"></i>Contacts</button>
   <button class="tab" id="tab-cover" onclick="switchTab('cover')"><i class="ti ti-file-text"></i>Cover</button>
   <button class="tab" id="tab-tracker" onclick="switchTab('tracker')"><i class="ti ti-layout-list"></i>Tracker</button>
-  <button class="tab" id="tab-tailor" onclick="switchTab('tailor')"><i class="ti ti-wand"></i>Tailor</button>
+  <button class="tab" id="tab-tailor" onclick="switchTab('tailor')"><i class="ti ti-wand"></i>Resume</button>
 </div>
 
 <div class="stepper hidden" id="stepper">
@@ -242,14 +279,17 @@
       <div class="banner-sub" id="fill-empty-sub">Open a job's apply page (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, SmartRecruiters…) and click Scan again.</div>
       <button class="btn btn-outline mt8" id="fill-rescan-btn" style="padding:6px 10px;font-size:11px">Scan again</button>
     </div>
-    <div class="card hidden" id="fill-job-banner">
-      <div class="card-title" id="fill-job-title">Job detected</div>
-      <div class="card-sub" id="fill-job-sub">AYN will use this job context to fill the form.</div>
+    <div class="job-hero hidden" id="fill-job-banner">
+      <div class="job-hero-row">
+        <div class="job-hero-logo" id="fill-job-logo">·</div>
+        <div class="job-hero-text">
+          <div class="job-hero-title" id="fill-job-title">Job detected</div>
+          <div class="job-hero-company" id="fill-job-sub"></div>
+          <div class="job-hero-meta"><span id="fill-field-count">0</span> fields ready · partial profile is fine</div>
+        </div>
+      </div>
     </div>
-    <div class="note" id="fill-ready-note" style="display:none">
-      Ready to fill <b id="fill-field-count">0</b> fields. AYN uses whatever profile info you've saved — partial profiles are fine.
-    </div>
-    <button class="btn btn-primary hidden" id="autofill-now-btn"><i class="ti ti-bolt"></i>Fill This Form Now</button>
+    <button class="btn btn-primary hidden" id="autofill-now-btn"><i class="ti ti-bolt"></i>Autofill This Application</button>
     <div class="card hidden mt8" id="fill-resume-dl-wrap" style="background:#fff7ed;border-color:#fdba74">
       <div class="card-title" style="color:#9a3412"><i class="ti ti-paperclip"></i> Resume file attachment</div>
       <div class="card-sub" style="margin-top:4px">This form has a Resume / CV upload field. Chrome blocks extensions from attaching files automatically — but it takes 10 seconds:</div>
@@ -264,11 +304,11 @@
     </div>
     <div class="err hidden" id="err-fill"></div>
     <div id="fill-result-wrap" class="hidden mt10">
-      <div class="fill-result">
-        <div class="fill-stat" id="fill-stat-n">0/0</div>
-        <div class="fill-stat-lbl" id="fill-stat-lbl">fields filled</div>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="fill-progress-fill" style="width:0%"></div></div>
+        <div class="progress-meta"><span><b id="fill-stat-n">0/0</b> fields filled</span><span id="fill-stat-lbl">0%</span></div>
       </div>
-      <div class="field-list" id="fill-result-list"></div>
+      <div class="field-list mt8" id="fill-result-list"></div>
       <button class="btn btn-green mt8 hidden" id="fill-save-tracker-btn"><i class="ti ti-bookmark"></i>Save this job to tracker</button>
       <div class="btn-row mt8">
         <button class="btn btn-outline" id="fill-reset-btn">Done</button>
@@ -279,12 +319,36 @@
 
   <!-- JOBS -->
   <div class="view" id="v-jobs">
+    <div class="sl">Score this job</div>
+    <div class="job-hero hidden" id="score-job-banner">
+      <div class="job-hero-row">
+        <div class="job-hero-logo" id="score-job-logo">·</div>
+        <div class="job-hero-text">
+          <div class="job-hero-title" id="score-job-title">Job detected</div>
+          <div class="job-hero-company" id="score-job-company"></div>
+        </div>
+      </div>
+    </div>
+    <div id="score-no-job" class="banner b-blue hidden">
+      <div class="banner-title">Open a job posting</div>
+      <div class="banner-sub">Navigate to a job page (LinkedIn, Indeed, Greenhouse, Lever, Workday…) then click Score This Job.</div>
+    </div>
+    <button class="btn btn-primary" id="score-this-job-btn"><i class="ti ti-target-arrow"></i>Score This Job</button>
+    <div class="err hidden" id="err-score-job"></div>
+    <div id="score-result" class="score-hero hidden mt10">
+      <div class="score-num" id="score-num">—<small>/10</small></div>
+      <div class="score-label" id="score-label"></div>
+      <div class="score-salary hidden" id="score-salary"></div>
+      <ul class="score-reasons" id="score-reasons"></ul>
+    </div>
+
+    <div class="divider"></div>
     <div class="score-toggle" onclick="toggleScoring()">
       <div class="score-toggle-info">
-        <div class="score-toggle-icon"><i class="ti ti-target-arrow"></i></div>
+        <div class="score-toggle-icon"><i class="ti ti-eye"></i></div>
         <div class="score-toggle-text">
-          <div class="title">Show match scores</div>
-          <div class="sub" id="score-status-note">Turn on to see a 1-10 match score on every job card.</div>
+          <div class="title">Auto-score job cards</div>
+          <div class="sub" id="score-status-note">Turn on to see a 1-10 match score on every job card as you browse.</div>
         </div>
       </div>
       <div class="toggle-pill" id="score-switch"><div class="toggle-knob"></div></div>
@@ -397,6 +461,13 @@
   </div>
 
   <div class="view" id="v-t2">
+    <div class="ats-card" id="ats-card">
+      <div class="ats-ring" id="ats-ring">—</div>
+      <div class="ats-text">
+        <div class="ats-title">ATS match score</div>
+        <div class="ats-sub" id="ats-sub">Based on keywords found in your resume vs. the job description.</div>
+      </div>
+    </div>
     <div class="sl">Keywords <span id="kw-count" style="color:#F97316;font-weight:500"></span></div>
     <div class="kw-chips" id="kw-chips"></div>
     <button class="btn btn-primary" id="tailor-btn">Tailor My Resume ✦</button>

@@ -39,7 +39,7 @@ function switchTab(tab) {
   S.tab = tab;
   ['fill','jobs','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
   if (tab === 'fill')    { show('v-fill');    detectForFill(); }
-  if (tab === 'jobs')    { show('v-jobs'); }
+  if (tab === 'jobs')    { show('v-jobs');    detectForScore(); }
   if (tab === 'contact') { show('v-contact'); detectForContacts(); }
   if (tab === 'cover')   { show('v-cover');   detectForCover(); }
   if (tab === 'tracker') { show('v-tracker'); loadTracker(); }
@@ -210,7 +210,7 @@ function detectForFill() {
   // Reset UI
   $('fill-empty').classList.add('hidden');
   $('fill-job-banner').classList.add('hidden');
-  $('fill-ready-note').style.display = 'none';
+  $('fill-result-wrap').classList.add('hidden');
   $('autofill-now-btn').classList.add('hidden');
   $('err-fill').classList.add('hidden');
 
@@ -254,11 +254,11 @@ function detectForFill() {
       // Form found — show ready state
       if (r.title) {
         $('fill-job-title').textContent = r.title;
-        $('fill-job-sub').textContent = F.company ? `at ${F.company}` : 'AYN will use this page context.';
+        $('fill-job-sub').textContent = F.company || '';
+        $('fill-job-logo').textContent = (F.company || r.title || '·').trim().charAt(0) || '·';
         $('fill-job-banner').classList.remove('hidden');
       }
       $('fill-field-count').textContent = r.fieldCount;
-      $('fill-ready-note').style.display = '';
       $('autofill-now-btn').classList.remove('hidden');
 
       // Show resume-attach hint + download button if page asks for a resume file
@@ -333,8 +333,10 @@ $('autofill-now-btn').addEventListener('click', () => {
       const { filled, total, details } = response;
       const pct = total > 0 ? Math.round(filled/total*100) : 0;
       $('fill-stat-n').textContent = `${filled}/${total}`;
-      $('fill-stat-n').className = `fill-stat ${pct >= 65 ? 'good' : 'partial'}`;
-      $('fill-stat-lbl').textContent = `fields filled (${pct}%)`;
+      $('fill-stat-lbl').textContent = `${pct}%`;
+      const fillBar = $('fill-progress-fill');
+      fillBar.style.width = pct + '%';
+      fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
 
       const list = $('fill-result-list');
       list.innerHTML = '';
@@ -384,6 +386,58 @@ function toggleScoring() {
   toast(scoringOn ? 'Job scoring ON' : 'Job scoring OFF', 'ok');
 }
 window.toggleScoring = toggleScoring;
+
+// ── Score THIS job (any job page, panel result) ─────────────────
+const SJ = { jobTitle: '', company: '', jobText: '' };
+function detectForScore() {
+  $('score-job-banner').classList.add('hidden');
+  $('score-no-job').classList.add('hidden');
+  $('score-result').classList.add('hidden');
+  $('err-score-job').classList.add('hidden');
+  getTab(tab => {
+    if (!tab) { $('score-no-job').classList.remove('hidden'); return; }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
+        $('score-no-job').classList.remove('hidden'); return;
+      }
+      SJ.jobTitle = r.title || '';
+      SJ.company = r.company || extractCompanyFromTitle(r.title || '');
+      SJ.jobText = r.text;
+      $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
+      $('score-job-company').textContent = SJ.company || tab.url;
+      $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
+      $('score-job-banner').classList.remove('hidden');
+    });
+  });
+}
+
+function scoreTier(n) {
+  if (n >= 9) return 's-strong'; if (n >= 7) return 's-good';
+  if (n >= 4) return 's-fair';   return 's-poor';
+}
+
+$('score-this-job-btn')?.addEventListener('click', async () => {
+  const btn = $('score-this-job-btn'), err = $('err-score-job');
+  err.classList.add('hidden');
+  $('score-result').classList.add('hidden');
+  if (!SJ.jobText) { err.textContent = 'Open a job posting first, then click Score This Job.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Scoring...';
+  try {
+    const d = await bgFunc('ext_job_score', { jobTitle: SJ.jobTitle, company: SJ.company, jobSnippet: SJ.jobText.slice(0, 2000) });
+    const score = d.score || 0;
+    const tier = scoreTier(score);
+    $('score-num').innerHTML = `${score}<small>/10</small>`;
+    $('score-num').className = 'score-num ' + tier;
+    $('score-label').textContent = d.matchLabel || '';
+    $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
+    const sal = $('score-salary');
+    if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
+    const ul = $('score-reasons'); ul.innerHTML = '';
+    (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
+    $('score-result').classList.remove('hidden');
+  } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
+});
 
 $('suggest-roles-btn').addEventListener('click', async () => {
   const btn = $('suggest-roles-btn'), err = $('err-jobs');
@@ -700,7 +754,14 @@ $('analyze-btn').addEventListener('click', async () => {
 
 function renderKw(kws) {
   const m = kws.filter(k=>k.inResume).length;
+  const total = kws.length || 1;
+  const pct = Math.round(m / total * 100);
   $('kw-count').textContent = `${m}/${kws.length} matched`;
+  const tier = pct >= 80 ? 's-strong' : pct >= 60 ? 's-good' : pct >= 35 ? 's-fair' : 's-poor';
+  const ring = $('ats-ring');
+  if (ring) { ring.textContent = pct + '%'; ring.className = 'ats-ring ' + tier; }
+  const sub = $('ats-sub');
+  if (sub) sub.textContent = `${m} of ${kws.length} key terms already in your resume. Tailor to lift this above 80%.`;
   const wrap = $('kw-chips'); wrap.innerHTML = '';
   kws.forEach(kw => {
     const s = document.createElement('span');
