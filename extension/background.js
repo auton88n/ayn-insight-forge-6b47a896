@@ -24,8 +24,12 @@ async function callApi(action, payload) {
   });
   const text = await r.text();
   let data;
-  try { data = JSON.parse(text); } catch { data = { error: text }; }
-  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+  try { data = JSON.parse(text); } catch { data = { error: text.slice(0, 400) }; }
+  if (!r.ok) {
+    const msg = data?.error || data?.detail || `Request failed (${r.status})`;
+    if (r.status === 401) throw new Error("Not connected. Open AYN extension Options and paste a fresh device token.");
+    throw new Error(msg);
+  }
   return data;
 }
 
