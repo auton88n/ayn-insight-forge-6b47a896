@@ -210,7 +210,7 @@ function detectForFill() {
   // Reset UI
   $('fill-empty').classList.add('hidden');
   $('fill-job-banner').classList.add('hidden');
-  $('fill-ready-note').style.display = 'none';
+  $('fill-result-wrap').classList.add('hidden');
   $('autofill-now-btn').classList.add('hidden');
   $('err-fill').classList.add('hidden');
 
