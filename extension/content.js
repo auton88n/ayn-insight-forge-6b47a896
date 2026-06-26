@@ -457,11 +457,13 @@
     if (message.type === 'DETECT_PAGE') {
       const job = extractJobText();
       const fields = scanFormFields();
+      const fileFields = fields._fileFields || [];
       const url = window.location.href;
       const isJobHost = JOB_PAGE_RE.test(url);
       const isAynHost = /aynn\.io|lovableproject\.com|lovable\.app|localhost/i.test(url);
       const hasJD = (job.text || '').length > 120;
-      const hasForm = fields.length >= 2;
+      const hasForm = fields.length >= 2 || fileFields.length > 0;
+      const needsResume = fileFields.some(f => f.isResume);
       let kind = 'other';
       if (isAynHost) kind = 'ayn';
       else if (hasForm && (hasJD || isJobHost)) kind = 'application';
@@ -469,6 +471,7 @@
       else if (isJobHost) kind = 'job_board';
       sendResponse({
         kind, hasForm, hasJD, fieldCount: fields.length,
+        fileFieldCount: fileFields.length, needsResume,
         title: job.title, company: job.company,
         jdLength: (job.text || '').length, url,
       });
@@ -478,7 +481,7 @@
     if (message.type === 'SCAN_FORM') {
       const fields = scanFormFields();
       const jobText = extractJobText();
-      sendResponse({ fields, jobText });
+      sendResponse({ fields, fileFields: fields._fileFields || [], jobText });
       return true;
     }
 
