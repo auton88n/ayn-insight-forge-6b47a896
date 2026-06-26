@@ -103,7 +103,7 @@ export default function BuilderTab({ userId }: Props) {
       const { data: inserted } = await supabase.from("resumes").insert({
         user_id: userId,
         title: autoTitle,
-        content: resume as unknown as Record<string, unknown>,
+        content: resume as never,
         is_primary: true,
       }).select("id").single();
       if (inserted) setActiveId(inserted.id);
