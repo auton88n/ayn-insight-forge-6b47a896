@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_URL } from "@/config";
 
-const FUNCTIONS_BASE = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.functions.supabase.co`;
+const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
 
 async function authHeaders() {
   const { data } = await supabase.auth.getSession();
