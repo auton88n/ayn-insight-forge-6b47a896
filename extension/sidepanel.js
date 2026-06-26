@@ -453,6 +453,24 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
         mkWrap.appendChild(chip);
       });
     }
+    // Matched skills (green chips)
+    let msWrap = $('score-matched-kw');
+    if (!msWrap) { msWrap = document.createElement('div'); msWrap.id = 'score-matched-kw'; msWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(msWrap); }
+    msWrap.innerHTML = '';
+    if (d.matchedSkills && d.matchedSkills.length) {
+      msWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Skills you match</div>';
+      d.matchedSkills.forEach(kw => {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;margin:2px;';
+        chip.textContent = kw;
+        msWrap.appendChild(chip);
+      });
+    }
+    // Verdict line
+    let vWrap = $('score-verdict');
+    if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; vWrap.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:12px;color:#374151;line-height:1.45;'; $('score-result').appendChild(vWrap); }
+    vWrap.textContent = d.verdict || '';
+    vWrap.style.display = d.verdict ? 'block' : 'none';
     $('score-result').classList.remove('hidden');
   } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
