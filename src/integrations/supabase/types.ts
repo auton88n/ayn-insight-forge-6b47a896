@@ -2050,6 +2050,42 @@ export type Database = {
         }
         Relationships: []
       }
+      extension_link_codes: {
+        Row: {
+          approved_at: string | null
+          code: string
+          created_at: string
+          device_label: string
+          expires_at: string
+          id: string
+          status: string
+          token: string | null
+          user_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          code: string
+          created_at?: string
+          device_label?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          token?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          code?: string
+          created_at?: string
+          device_label?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          token?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       extension_tokens: {
         Row: {
           created_at: string

@@ -1,21 +1,13 @@
-// sidepanel.js — AYN (Fill Form | Job Score | Tailor CV)
-
-const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
+// sidepanel.js — AYN Resume Tailor (one-click sign-in via background)
 
 const S = {
-  session: null,
-  tab: 'fill',           // fill | jobs | tailor
-  scoringOn: false,
-  // Tailor state
+  user: null,
+  tab: 'fill',
   resume: '', job: '', jobTitle: '', company: '',
   keywords: [], tailoredText: '', changes: [],
-  detectedJob: null,
 };
 
 const $ = id => document.getElementById(id);
-
-// ── Toast ──────────────────────────────────────────────────────────
 function toast(msg, type = '') {
   const t = $('toast');
   t.textContent = msg;
@@ -24,7 +16,6 @@ function toast(msg, type = '') {
   t._t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-// ── View management ───────────────────────────────────────────────
 const VIEWS = ['v-login','v-fill','v-jobs','v-contact','v-cover','v-tracker','v-t1','v-t2','v-t3'];
 function show(id) {
   VIEWS.forEach(v => $(v)?.classList.toggle('active', v === id));
@@ -44,7 +35,6 @@ function show(id) {
   }
 }
 
-// ── Tab switching ─────────────────────────────────────────────────
 function switchTab(tab) {
   S.tab = tab;
   ['fill','jobs','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
@@ -57,149 +47,178 @@ function switchTab(tab) {
 }
 window.switchTab = switchTab;
 
-// ── Auth ──────────────────────────────────────────────────────────
-async function supaPost(path, body, token) {
-  const h = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY };
-  if (token) h['Authorization'] = `Bearer ${token}`;
-  const r = await fetch(`${SUPABASE_URL}${path}`, { method: 'POST', headers: h, body: JSON.stringify(body) });
-  return r.json();
-}
-async function signIn(email, pw) {
-  const d = await supaPost('/auth/v1/token?grant_type=password', { email, password: pw });
-  if (d.error || !d.access_token) throw new Error(d.error_description || d.message || 'Sign in failed');
-  return d;
-}
-async function refreshSession(rt) {
-  const d = await supaPost('/auth/v1/token?grant_type=refresh_token', { refresh_token: rt });
-  if (d.error || !d.access_token) throw new Error('Session expired');
-  return d;
-}
-async function callFn(action, body) {
-  if (!S.session) throw new Error('Not signed in');
-  const exp = (S.session.expires_at || 0) * 1000;
-  if (Date.now() > exp - 60000) {
-    try { const r = await refreshSession(S.session.refresh_token); S.session = { ...S.session, ...r }; await chrome.storage.local.set({ session: S.session }); }
-    catch { await doSignOut(); throw new Error('Session expired. Please sign in again.'); }
-  }
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/resume-hub`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${S.session.access_token}` },
-    body: JSON.stringify({ action, ...body }),
+// ════════════════════════════════════════════════════════════════
+// AUTH — one-click sign-in via aynn.io
+// ════════════════════════════════════════════════════════════════
+
+let pollTimer = null;
+function clearPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+async function startSignIn() {
+  $('login-err').classList.add('hidden');
+  $('signin-btn').disabled = true;
+  $('signin-btn').innerHTML = '<div class="spinner"></div>Opening AYN...';
+  $('login-status').textContent = '';
+
+  // Build a friendly device label
+  const platformInfo = await (chrome.runtime.getPlatformInfo?.() || Promise.resolve({ os: 'Chrome' }));
+  const deviceLabel = `Chrome — ${platformInfo.os || 'Browser'}`;
+
+  chrome.runtime.sendMessage({ type: 'LINK_START', deviceLabel }, resp => {
+    if (!resp?.ok) {
+      $('login-err').textContent = resp?.error || 'Could not start sign-in';
+      $('login-err').classList.remove('hidden');
+      resetSignInBtn();
+      return;
+    }
+    $('signin-btn').innerHTML = '<div class="spinner"></div>Waiting for approval...';
+    $('login-status').textContent = 'Approve in the new tab. This page will refresh automatically.';
+    pollForApproval(resp.code, Date.now() + 5 * 60 * 1000);
   });
-  const d = await r.json();
-  if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
-  return d;
 }
+
+function resetSignInBtn() {
+  $('signin-btn').disabled = false;
+  $('signin-btn').innerHTML = '<i class="ti ti-shield-check"></i>Sign in with AYN';
+}
+
+function pollForApproval(code, deadline) {
+  clearPoll();
+  pollTimer = setInterval(() => {
+    if (Date.now() > deadline) {
+      clearPoll();
+      $('login-err').textContent = 'Sign-in timed out. Try again.';
+      $('login-err').classList.remove('hidden');
+      $('login-status').textContent = '';
+      resetSignInBtn();
+      return;
+    }
+    chrome.runtime.sendMessage({ type: 'LINK_POLL', code }, resp => {
+      if (!resp) return;
+      if (resp.status === 'approved') {
+        clearPoll();
+        $('login-status').textContent = 'Approved! Signing in...';
+        bootAfterAuth();
+      } else if (resp.status === 'expired' || resp.status === 'not_found') {
+        clearPoll();
+        $('login-err').textContent = 'Approval expired. Try again.';
+        $('login-err').classList.remove('hidden');
+        $('login-status').textContent = '';
+        resetSignInBtn();
+      }
+    });
+  }, 2000);
+}
+
+async function bootAfterAuth() {
+  chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
+    if (resp?.error || !resp?.user) {
+      $('login-err').textContent = resp?.error || 'Sign-in failed';
+      $('login-err').classList.remove('hidden');
+      resetSignInBtn();
+      return;
+    }
+    S.user = resp.user;
+    $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    switchTab('fill');
+    loadSavedResume();
+    toast('Signed in ✓', 'ok');
+  });
+}
+
 async function restoreSession() {
-  const stored = await chrome.storage.local.get(['session']);
-  if (!stored.session?.access_token) { show('v-login'); return; }
-  try {
-    const r = await refreshSession(stored.session.refresh_token);
-    S.session = { ...stored.session, ...r };
-    await chrome.storage.local.set({ session: S.session });
-    onSignedIn();
-  } catch { await chrome.storage.local.remove('session'); show('v-login'); }
-}
-function onSignedIn() {
-  $('user-email').textContent = S.session.user?.email || '';
-  switchTab('fill');
-  loadSavedResume();
-}
-async function doSignOut() {
-  if (S.scoringOn) stopScoring();
-  // Clear all user-specific state so nothing bleeds between accounts
-  S.session = null;
-  S.resume = ''; S.job = ''; S.keywords = []; S.tailoredText = ''; S.changes = [];
-  S.detectedJob = null; S.jobTitle = ''; S.company = '';
-  CL.jobTitle = ''; CL.company = ''; CL.jobText = ''; CL.resumeText = '';
-  trackerApps = [];
-  $('tracker-list').innerHTML = '';
-  $('cover-out').textContent = '';
-  $('cover-result').classList.add('hidden');
-  await chrome.storage.local.remove('session');
-  // Do NOT clear savedResume — that's intentional across sessions
-  show('v-login');
+  const stored = await chrome.storage.local.get(['ayn_token']);
+  if (!stored.ayn_token) { show('v-login'); return; }
+  chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
+    if (resp?.error || !resp?.user) { show('v-login'); return; }
+    S.user = resp.user;
+    $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    switchTab('fill');
+    loadSavedResume();
+  });
 }
 
-$('login-btn').addEventListener('click', async () => {
-  const email = $('login-email').value.trim(), pw = $('login-password').value;
-  const err = $('login-err'); err.classList.add('hidden');
-  if (!email || !pw) { err.textContent = 'Enter your email and password.'; err.classList.remove('hidden'); return; }
-  const btn = $('login-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Signing in...';
-  try { S.session = await signIn(email, pw); await chrome.storage.local.set({ session: S.session }); onSignedIn(); toast('Signed in ✓','ok'); }
-  catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
-  finally { btn.disabled = false; btn.innerHTML = 'Sign In'; }
+$('signin-btn').addEventListener('click', startSignIn);
+$('sign-out-btn').addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
+    S.user = null;
+    clearPoll();
+    resetSignInBtn();
+    show('v-login');
+    toast('Signed out');
+  });
 });
-['login-email','login-password'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key==='Enter') $('login-btn').click(); }));
-$('sign-out-btn').addEventListener('click', doSignOut);
 
-// ══════════════════════════════════════════════════════════════════
-// FILL FORM TAB
-// ══════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// Helper: call backend via background (handles auth)
+// ════════════════════════════════════════════════════════════════
+function bg(type, payload) {
+  return new Promise(resolve => chrome.runtime.sendMessage({ type, ...payload }, resolve));
+}
+
+// ════════════════════════════════════════════════════════════════
+// FILL FORM
+// ════════════════════════════════════════════════════════════════
 
 function detectForFill() {
   getTab(tab => {
     if (!tab) return;
     chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text || r.text.length < 80) return;
-      $('fill-job-banner').classList.remove('hidden');
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 80) {
+        $('fill-job-banner').style.display = 'none';
+        return;
+      }
+      $('fill-job-banner').style.display = '';
       $('fill-job-title').textContent = r.title || 'Job detected on this page';
     });
   });
 }
 
-// One-click fill — everything happens in background.js
 $('autofill-now-btn').addEventListener('click', () => {
   const btn = $('autofill-now-btn');
   const err = $('err-fill');
   err.classList.add('hidden');
   $('fill-result-wrap').classList.add('hidden');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner dk"></div> Reading form...';
+  btn.innerHTML = '<div class="spinner"></div>Reading form...';
 
   getTab(tab => {
-    if (!tab) { err.textContent = 'No active tab.'; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '✦ Fill This Form Now'; return; }
-
-    // Pass tabId explicitly — sidepanel is not a tab so background can't get it from sender
+    if (!tab) { err.textContent = 'No active tab.'; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; return; }
     chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, response => {
       btn.disabled = false;
-      btn.innerHTML = '✦ Fill This Form Now';
+      btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now';
 
-      if (chrome.runtime.lastError || !response) {
-        err.textContent = 'Refresh this page first, then try again. The AYN script needs to load on the page.';
-        err.classList.remove('hidden');
-        return;
+      if (!response) {
+        err.textContent = 'Refresh this page (Cmd+R / Ctrl+R) and try again.';
+        err.classList.remove('hidden'); return;
       }
       if (!response.ok) {
-        const errorMessages = {
-          'no_content_script': '⟳ Refresh this page (Cmd+R or Ctrl+R) then try again. AYN needs to reload with the page.',
-          'no_fields': 'This page has no fillable form fields. Make sure you are on the actual application form — not a job listing page. On LinkedIn click Easy Apply first.',
-          'no_values': 'Could not fill any fields. Make sure your profile is completed at aynn.io under Resume Hub → Extension tab.',
+        const m = {
+          'not_signed_in': 'Sign in first.',
+          'no_content_script': 'Refresh this page (Cmd+R / Ctrl+R), then try again.',
+          'no_fields': 'No fillable form fields on this page. Make sure you are on the actual application form, not a job listing. On LinkedIn click Easy Apply first.',
+          'no_values': 'Could not fill any fields. Make sure your profile is completed in AYN under Resume Hub.',
         };
-        err.textContent = errorMessages[response.error] || response.error || 'Fill failed. Try again.';
-        err.classList.remove('hidden');
-        return;
+        err.textContent = m[response.error] || response.error || 'Fill failed. Try again.';
+        err.classList.remove('hidden'); return;
       }
 
       const { filled, total, details } = response;
       const pct = total > 0 ? Math.round(filled/total*100) : 0;
       $('fill-stat-n').textContent = `${filled}/${total}`;
       $('fill-stat-n').className = `fill-stat ${pct >= 65 ? 'good' : 'partial'}`;
-      $('fill-stat-lbl').textContent = `fields filled (${pct}% of form)`;
+      $('fill-stat-lbl').textContent = `fields filled (${pct}%)`;
 
-      // Populate the detail list
       const list = $('fill-result-list');
-      if (list && Array.isArray(details)) {
-        list.innerHTML = '';
-        details.forEach(d => {
-          list.innerHTML += `
-            <div class="fi">
-              <div class="fd ${d.ok ? 'on' : 'off'}"></div>
-              <div class="fl">${esc(d.label || d.id)}</div>
-              <div class="fv" style="color:${d.ok ? 'var(--green)' : 'var(--muted)'}">${d.ok ? esc((d.value||'').slice(0,22)) : (d.reason||'skipped')}</div>
-            </div>`;
-        });
-      }
+      list.innerHTML = '';
+      (details || []).forEach(d => {
+        list.innerHTML += `
+          <div class="fi">
+            <div class="fd ${d.ok ? 'on' : 'off'}"></div>
+            <div class="fl">${esc(d.label || d.id)}</div>
+            <div class="fv">${d.ok ? esc((d.value||'').slice(0,22)) : esc(d.reason||'skipped')}</div>
+          </div>`;
+      });
 
       $('fill-result-wrap').classList.remove('hidden');
       toast(`${filled} fields filled ✓`, 'ok');
@@ -211,48 +230,40 @@ $('fill-retry-btn').addEventListener('click', () => $('autofill-now-btn').click(
 $('fill-reset-btn').addEventListener('click', () => {
   $('fill-result-wrap').classList.add('hidden');
   $('err-fill').classList.add('hidden');
-  toast('Ready to fill again', 'ok');
 });
 
-// ══════════════════════════════════════════════════════════════════
-// JOB SCORE TAB
-// ══════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// JOB SCORE
+// ════════════════════════════════════════════════════════════════
 
 let scoringOn = false;
-
 function toggleScoring() {
   scoringOn = !scoringOn;
   $('score-switch').classList.toggle('on', scoringOn);
   $('score-status-note').textContent = scoringOn
-    ? 'Scoring is ON — AYN will show your match score on every job card as you scroll.'
-    : 'Turn on to see a 1–10 match score on every job card as you scroll LinkedIn, Indeed, or Jobright.';
-
+    ? 'ON — AYN scores every job card as you scroll.'
+    : 'Turn on to see a 1-10 match score on every job card.';
   getTab(tab => {
     if (!tab) return;
     chrome.tabs.sendMessage(tab.id, { type: scoringOn ? 'START_CARD_SCORING' : 'STOP_CARD_SCORING' });
   });
-  if (scoringOn) toast('Job scoring ON — scroll to see scores','ok');
-  else toast('Job scoring OFF');
+  toast(scoringOn ? 'Job scoring ON' : 'Job scoring OFF', 'ok');
 }
 window.toggleScoring = toggleScoring;
 
-// Role suggestions
 $('suggest-roles-btn').addEventListener('click', async () => {
-  const btn = $('suggest-roles-btn');
-  const err = $('err-jobs');
+  const btn = $('suggest-roles-btn'), err = $('err-jobs');
   err.classList.add('hidden');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Analysing your resume...';
-
-  chrome.runtime.sendMessage({ type: 'SUGGEST_ROLES' }, response => {
+  btn.innerHTML = '<div class="spinner dk"></div>Analysing...';
+  chrome.runtime.sendMessage({ type: 'SUGGEST_ROLES' }, resp => {
     btn.disabled = false;
     btn.innerHTML = 'Get My Best Job Titles →';
-    if (!response?.roles?.length) {
+    if (!resp?.roles?.length) {
       err.textContent = 'Could not get suggestions. Make sure your primary resume is saved in AYN.';
-      err.classList.remove('hidden');
-      return;
+      err.classList.remove('hidden'); return;
     }
-    renderRoles(response);
+    renderRoles(resp);
   });
 });
 
@@ -260,36 +271,248 @@ function renderRoles({ roles, keywords, summary }) {
   $('suggest-roles-btn').classList.add('hidden');
   $('roles-result').classList.remove('hidden');
   if (summary) $('roles-summary').textContent = summary;
-
-  const rc = $('roles-chips');
-  rc.innerHTML = '';
+  const rc = $('roles-chips'); rc.innerHTML = '';
   roles.forEach(role => {
     const chip = document.createElement('span');
     chip.className = 'role-chip';
-    chip.innerHTML = `${esc(role)} <span class="copy-icon">⎘</span>`;
-    chip.addEventListener('click', () => {
-      navigator.clipboard.writeText(role).then(() => toast(`Copied: "${role}"`, 'ok'));
-    });
+    chip.innerHTML = `${esc(role)} <span style="opacity:.5">⎘</span>`;
+    chip.addEventListener('click', () => navigator.clipboard.writeText(role).then(() => toast(`Copied: "${role}"`, 'ok')));
     rc.appendChild(chip);
   });
-
-  const kc = $('kw-search-chips');
-  kc.innerHTML = '';
+  const kc = $('kw-search-chips'); kc.innerHTML = '';
   (keywords || []).forEach(kw => {
     const chip = document.createElement('span');
     chip.className = 'kw-chip-s';
     chip.textContent = kw;
-    chip.style.cursor = 'pointer';
-    chip.addEventListener('click', () => {
-      navigator.clipboard.writeText(kw).then(() => toast(`Copied: "${kw}"`, 'ok'));
-    });
+    chip.addEventListener('click', () => navigator.clipboard.writeText(kw).then(() => toast(`Copied: "${kw}"`, 'ok')));
     kc.appendChild(chip);
   });
 }
 
-// ══════════════════════════════════════════════════════════════════
-// TAILOR CV TAB
-// ══════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// CONTACTS
+// ════════════════════════════════════════════════════════════════
+
+const C = { jobTitle: '', company: '', jobUrl: '', jobSnippet: '' };
+
+function detectForContacts() {
+  $('contact-no-job').classList.add('hidden');
+  $('contact-job-info').classList.add('hidden');
+  getTab(tab => {
+    if (!tab) { $('contact-no-job').classList.remove('hidden'); return; }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
+        $('contact-no-job').classList.remove('hidden'); return;
+      }
+      C.jobTitle = r.title || ''; C.company = r.company || extractCompanyFromTitle(r.title || '');
+      C.jobUrl = tab.url || ''; C.jobSnippet = r.text.slice(0, 800);
+      $('contact-job-info').classList.remove('hidden');
+      $('contact-job-title').textContent = C.jobTitle || 'Job detected';
+      $('contact-company-name').textContent = C.company ? `at ${C.company}` : tab.url;
+    });
+  });
+}
+
+function extractCompanyFromTitle(title) {
+  const parts = title.split(/\s+at\s+|\s+[-|@]\s+/i);
+  if (parts.length > 1) return parts[1].replace(/linkedin|indeed|glassdoor|jobright|greenhouse/gi,'').trim();
+  return '';
+}
+
+$('find-contacts-btn').addEventListener('click', async () => {
+  const btn = $('find-contacts-btn'), err = $('err-contact');
+  err.classList.add('hidden');
+  $('contact-results').classList.add('hidden');
+  if (!C.company && !C.jobTitle) {
+    err.textContent = 'Navigate to a job posting first, then try again.';
+    err.classList.remove('hidden'); return;
+  }
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Finding contacts...';
+  try {
+    const data = await bgFunc('ext_find_contacts', { company: C.company, jobTitle: C.jobTitle, jobUrl: C.jobUrl, jobSnippet: C.jobSnippet });
+    if (data.error) throw new Error(data.error);
+    renderContacts(data);
+    $('contact-results').classList.remove('hidden');
+  } catch (e) {
+    err.textContent = e.message || 'Could not find contacts. Try again.';
+    err.classList.remove('hidden');
+  } finally { btn.disabled = false; btn.innerHTML = 'Find Who to Contact →'; }
+});
+
+function renderContacts({ contacts = [], emailFormats = [], companyDomain = '', coldOutreach = '', subjectLine = '' }) {
+  const cards = $('contact-cards'); cards.innerHTML = '';
+  contacts.forEach(c => {
+    const titles = (c.titles || [c.role]).join(', ');
+    const liSearch = c.linkedinSearchUrl ||
+      `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.role)}&currentCompany=%5B%22${encodeURIComponent(C.company)}%22%5D`;
+    cards.innerHTML += `
+      <div class="contact-card">
+        <div class="contact-card-title">${esc(c.role)}</div>
+        <div class="contact-card-why">${esc(c.why || '')} <span style="color:#aaa;font-size:10px">${esc(titles)}</span></div>
+        <div class="contact-actions">
+          <a class="contact-link linkedin" href="${liSearch}" target="_blank" rel="noopener noreferrer">Search on LinkedIn</a>
+          <button class="contact-link copy" data-link="${liSearch}">Copy Link</button>
+        </div>
+      </div>`;
+  });
+  cards.querySelectorAll('button.copy').forEach(b => {
+    b.addEventListener('click', () => copyToClip(b.dataset.link, 'LinkedIn search link copied'));
+  });
+
+  const domain = companyDomain || (C.company || '').toLowerCase().replace(/\s+/g,'')+'.com';
+  $('domain-name').textContent = domain;
+  const fmts = $('email-fmts'); fmts.innerHTML = '';
+  const exampleFormats = emailFormats.length ? emailFormats : ['firstname.lastname@' + domain, 'f.lastname@' + domain, 'firstname@' + domain];
+  exampleFormats.forEach(fmt => {
+    const btn = document.createElement('button');
+    btn.className = 'email-fmt';
+    btn.textContent = fmt;
+    btn.addEventListener('click', () => copyToClip(fmt, `Copied: ${fmt}`));
+    fmts.appendChild(btn);
+  });
+
+  $('subject-line').textContent = subjectLine || `Re: ${C.jobTitle} at ${C.company}`;
+  $('outreach-text').textContent = coldOutreach || '';
+}
+
+function copyToClip(text, msg) { navigator.clipboard.writeText(text).then(() => toast(msg || 'Copied', 'ok')); }
+window.copySubject = () => { const t = $('subject-line').textContent; if (t) copyToClip(t, 'Subject copied'); };
+window.copyOutreach = () => { const t = $('outreach-text').textContent; if (t) copyToClip(t, 'Message copied'); };
+
+// ════════════════════════════════════════════════════════════════
+// COVER LETTER
+// ════════════════════════════════════════════════════════════════
+
+const CL = { jobTitle: '', company: '', jobText: '', resumeText: '' };
+
+function detectForCover() {
+  $('cover-no-job').classList.add('hidden');
+  $('cover-job-banner').classList.add('hidden');
+  getTab(tab => {
+    if (!tab) { $('cover-no-job').classList.remove('hidden'); return; }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
+        $('cover-no-job').classList.remove('hidden'); return;
+      }
+      CL.jobTitle = r.title || ''; CL.company = r.company || extractCompanyFromTitle(r.title || '');
+      CL.jobText = r.text;
+      $('cover-job-banner').classList.remove('hidden');
+      $('cover-job-title').textContent = CL.jobTitle || 'Job detected';
+      $('cover-job-sub').textContent = CL.company ? `at ${CL.company}` : '';
+    });
+  });
+  chrome.storage.local.get(['savedResume'], d => { CL.resumeText = d.savedResume || ''; });
+}
+
+async function generateCoverLetter() {
+  const err = $('err-cover');
+  err.classList.add('hidden');
+  if (!CL.jobText) { err.textContent = 'Navigate to a job posting first.'; err.classList.remove('hidden'); return; }
+  if (!CL.resumeText) { err.textContent = 'No saved resume. Paste your resume in the Tailor tab first.'; err.classList.remove('hidden'); return; }
+  const btn = $('gen-cover-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Writing...';
+  try {
+    const tone = $('cover-tone').value;
+    const data = await bgFunc('ext_cover_letter_text', {
+      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company,
+    });
+    if (data.error) throw new Error(data.error);
+    $('cover-out').textContent = data.body || '';
+    $('cover-result').classList.remove('hidden');
+  } catch (e) {
+    err.textContent = e.message || 'Failed to generate.'; err.classList.remove('hidden');
+  } finally { btn.disabled = false; btn.innerHTML = 'Generate Cover Letter →'; }
+}
+
+$('gen-cover-btn').addEventListener('click', generateCoverLetter);
+$('cover-regen-btn').addEventListener('click', generateCoverLetter);
+$('cover-copy-btn').addEventListener('click', () => {
+  const text = $('cover-out').textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => { $('cover-copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('cover-copy-btn').textContent='Copy',1800); });
+});
+$('cover-save-btn').addEventListener('click', () => {
+  if (!CL.company || !CL.jobTitle) { toast('No job detected', 'err'); return; }
+  saveApplication({ jobTitle: CL.jobTitle, company: CL.company, jobUrl: '', status: 'saved' });
+});
+
+// ════════════════════════════════════════════════════════════════
+// TRACKER
+// ════════════════════════════════════════════════════════════════
+
+let trackerApps = [];
+
+function saveApplication(app) {
+  chrome.runtime.sendMessage({ type: 'SAVE_APPLICATION', payload: app }, r => {
+    if (r?.ok) { toast('Saved to tracker ✓','ok'); loadTracker(); }
+    else toast(r?.error || 'Could not save','err');
+  });
+}
+
+function loadTracker() {
+  $('tracker-loading').classList.remove('hidden');
+  $('tracker-empty').classList.add('hidden');
+  $('tracker-list').innerHTML = '';
+  chrome.runtime.sendMessage({ type: 'GET_APPLICATIONS', payload: {} }, r => {
+    $('tracker-loading').classList.add('hidden');
+    if (!r?.applications) { $('tracker-empty').classList.remove('hidden'); return; }
+    trackerApps = r.applications;
+    if (trackerApps.length === 0) { $('tracker-empty').classList.remove('hidden'); return; }
+    renderTracker(trackerApps);
+  });
+}
+
+function renderTracker(apps) {
+  const list = $('tracker-list'); list.innerHTML = '';
+  const statusOrder = ['offer','interview','applied','saved','rejected'];
+  const sorted = [...apps].sort((a,b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
+  sorted.forEach(app => {
+    const date = app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) :
+                 new Date(app.updated_at || app.created_at).toLocaleDateString('en-CA',{month:'short',day:'numeric'});
+    const div = document.createElement('div');
+    div.className = 'app-card';
+    div.dataset.id = app.id;
+    div.innerHTML = `
+      <div class="app-card-top">
+        <div>
+          <div class="app-card-title">${esc(app.job_title)}</div>
+          <div class="app-card-company">${esc(app.company)}</div>
+        </div>
+        <span class="app-status ${app.status}" data-id="${app.id}" data-status="${app.status}">${app.status}</span>
+      </div>
+      <div class="app-meta">
+        <span>${date}</span>
+        ${app.match_score ? `<span style="color:#F97316">⬡ ${app.match_score}/10</span>` : ''}
+        ${app.salary_estimate ? `<span>${esc(app.salary_estimate)}</span>` : ''}
+        ${app.job_url ? `<a href="${esc(app.job_url)}" target="_blank" style="color:#F97316;text-decoration:none;font-size:11px">View ↗</a>` : ''}
+      </div>`;
+    list.appendChild(div);
+  });
+  list.querySelectorAll('.app-status').forEach(el => el.addEventListener('click', () => cycleStatus(el.dataset.id, el.dataset.status)));
+}
+
+const STATUS_CYCLE = ['saved','applied','interview','offer','rejected'];
+function cycleStatus(id, current) {
+  const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
+  chrome.runtime.sendMessage({ type: 'UPDATE_APPLICATION', payload: { id, status: next } }, r => {
+    if (r?.ok) loadTracker();
+  });
+}
+
+$('tracker-save-current-btn').addEventListener('click', () => {
+  getTab(tab => {
+    if (!tab) { toast('No active tab','err'); return; }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text) { toast('No job detected','err'); return; }
+      const company = r.company || extractCompanyFromTitle(r.title || '');
+      const jobTitle = (r.title || '').split(/at|\s[-|]\s/i)[0].trim() || 'Job';
+      saveApplication({ jobTitle, company, jobUrl: tab.url, status: 'saved' });
+    });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// TAILOR
+// ════════════════════════════════════════════════════════════════
 
 function loadSavedResume() {
   chrome.storage.local.get(['savedResume'], d => {
@@ -311,17 +534,18 @@ function detectForTailor() {
       const parts = r.title?.split(/\bat\b|\s[-|]\s/i) || [];
       S.jobTitle = parts[0]?.trim() || '';
       S.company = parts[1]?.replace(/linkedin|indeed|glassdoor|jobright/gi,'').trim() || '';
-      $('t-job-banner').classList.remove('hidden');
+      $('t-job-banner').style.display = '';
       $('t-job-title').textContent = r.title || 'Job detected';
       $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars`;
       $('t-job-banner').dataset.text = r.text;
     });
   });
 }
+
 $('use-job-btn').addEventListener('click', () => {
   const text = $('t-job-banner').dataset.text || '';
   $('job-input').value = text; $('job-chars').textContent = text.length;
-  $('t-job-banner').classList.add('hidden'); toast('Job loaded ✓','ok');
+  $('t-job-banner').style.display = 'none'; toast('Job loaded ✓','ok');
 });
 
 $('analyze-btn').addEventListener('click', async () => {
@@ -330,9 +554,10 @@ $('analyze-btn').addEventListener('click', async () => {
   if (resume.length < 50) { err.textContent = 'Paste your resume first.'; err.classList.remove('hidden'); return; }
   if (job.length < 50) { err.textContent = 'Load or paste the job description first.'; err.classList.remove('hidden'); return; }
   S.resume = resume; S.job = job;
-  const btn = $('analyze-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Analysing...';
+  const btn = $('analyze-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Analysing...';
   try {
-    const d = await callFn('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company });
+    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company });
+    if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     renderKw(S.keywords); show('v-t2');
   } catch(e) { err.textContent = e.message; err.classList.remove('hidden'); }
@@ -352,12 +577,13 @@ function renderKw(kws) {
 }
 
 $('tailor-btn').addEventListener('click', async () => {
-  if (S.tailoredText) { renderResult(S.tailoredText,S.changes); show('v-t3'); return; }
-  const btn = $('tailor-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Tailoring...';
+  if (S.tailoredText) { renderResult(S.tailoredText, S.changes); show('v-t3'); return; }
+  const btn = $('tailor-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Tailoring...';
   try {
-    const d = await callFn('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company });
+    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company });
+    if (d.error) throw new Error(d.error);
     S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
-    renderResult(S.tailoredText,S.changes); show('v-t3');
+    renderResult(S.tailoredText, S.changes); show('v-t3');
   } catch(e) { $('err-t2').textContent = e.message; $('err-t2').classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = 'Tailor My Resume ✦'; }
 });
@@ -374,297 +600,38 @@ $('back-t1').addEventListener('click', () => show('v-t1'));
 $('back-t2').addEventListener('click', () => show('v-t2'));
 $('copy-btn').addEventListener('click', () => {
   if (!S.tailoredText) return;
-  navigator.clipboard.writeText(S.tailoredText).then(() => { $('copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('copy-btn').textContent='Copy Resume',2000); });
+  navigator.clipboard.writeText(S.tailoredText).then(() => { $('copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('copy-btn').textContent='Copy Resume',1800); });
 });
 $('new-job-btn').addEventListener('click', () => {
   S.keywords=[]; S.tailoredText=''; S.changes=[]; S.jobTitle=''; S.company='';
   $('job-input').value=''; $('job-chars').textContent='0';
-  $('t-job-banner').classList.add('hidden');
+  $('t-job-banner').style.display = 'none';
   show('v-t1'); detectForTailor();
 });
 
-// ══════════════════════════════════════════════════════════════════
-// CONTACTS TAB
-// ══════════════════════════════════════════════════════════════════
-
-// Store current job context for contacts
-const C = { jobTitle: '', company: '', jobUrl: '', jobSnippet: '' };
-
-function detectForContacts() {
-  const noJob = $('contact-no-job');
-  const jobInfo = $('contact-job-info');
-  noJob.classList.add('hidden');
-  jobInfo.classList.add('hidden');
-
-  getTab(tab => {
-    if (!tab) { noJob.classList.remove('hidden'); return; }
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
-        noJob.classList.remove('hidden');
-        return;
-      }
-      C.jobTitle   = r.title || '';
-      C.company    = r.company || extractCompanyFromTitle(r.title || '');
-      C.jobUrl     = tab.url || '';
-      C.jobSnippet = r.text.slice(0, 800);
-
-      jobInfo.classList.remove('hidden');
-      $('contact-job-title').textContent = C.jobTitle || 'Job detected';
-      $('contact-company-name').textContent = C.company ? `at ${C.company}` : tab.url;
-    });
+// ════════════════════════════════════════════════════════════════
+// Backend call helper — routes through background.js auth
+// ════════════════════════════════════════════════════════════════
+async function bgFunc(action, body) {
+  // Direct fetch from sidepanel, going through background sign-out logic
+  const stored = await chrome.storage.local.get(['ayn_token']);
+  const token = stored.ayn_token;
+  if (!token) throw new Error('Not signed in');
+  const r = await fetch('https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/resume-hub', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw',
+      'x-ayn-ext-token': token,
+    },
+    body: JSON.stringify({ action, ...body }),
   });
+  return r.json();
 }
 
-function extractCompanyFromTitle(title) {
-  // "Senior PM at Shopify | LinkedIn" → "Shopify"
-  const parts = title.split(/\s+at\s+|\s+[-|@]\s+/i);
-  if (parts.length > 1) {
-    return parts[1].replace(/linkedin|indeed|glassdoor|jobright|greenhouse/gi,'').trim();
-  }
-  return '';
-}
-
-$('find-contacts-btn').addEventListener('click', async () => {
-  const btn = $('find-contacts-btn');
-  const err = $('err-contact');
-  err.classList.add('hidden');
-  $('contact-results').classList.add('hidden');
-
-  if (!C.company && !C.jobTitle) {
-    err.textContent = 'Navigate to a job posting first, then try again.';
-    err.classList.remove('hidden');
-    return;
-  }
-
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Finding contacts...';
-
-  try {
-    const data = await callFn('ext_find_contacts', {
-      company:     C.company,
-      jobTitle:    C.jobTitle,
-      jobUrl:      C.jobUrl,
-      jobSnippet:  C.jobSnippet,
-    });
-
-    renderContacts(data);
-    $('contact-results').classList.remove('hidden');
-  } catch (e) {
-    err.textContent = e.message || 'Could not find contacts. Try again.';
-    err.classList.remove('hidden');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = 'Find Who to Contact →';
-  }
-});
-
-function renderContacts({ contacts = [], emailFormats = [], companyDomain = '', coldOutreach = '', subjectLine = '' }) {
-  // Contact cards
-  const cards = $('contact-cards');
-  cards.innerHTML = '';
-  contacts.forEach(c => {
-    const titles = (c.titles || [c.role]).join(', ');
-    // Build LinkedIn search URL — search for this type of person at the company
-    const liSearch = c.linkedinSearchUrl ||
-      `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.role)}&currentCompany=%5B%22${encodeURIComponent(C.company)}%22%5D`;
-
-    cards.innerHTML += `
-      <div class="contact-card">
-        <div class="contact-card-title">${esc(c.role)}</div>
-        <div class="contact-card-why">${esc(c.why || '')} <span style="color:var(--muted);font-size:10px">${esc(titles)}</span></div>
-        <div class="contact-actions">
-          <a class="contact-link linkedin" href="${liSearch}" target="_blank" rel="noopener noreferrer">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-            Search on LinkedIn
-          </a>
-          <button class="contact-link copy" onclick="copyToClip('${liSearch.replace(/'/g,"\\'")}', 'LinkedIn search link copied')">
-            Copy Link
-          </button>
-        </div>
-      </div>`;
-  });
-
-  // Email domain + formats
-  const domain = companyDomain || (C.company || '').toLowerCase().replace(/\s+/g,'')+'.com';
-  $('domain-name').textContent = domain;
-  const fmts = $('email-fmts');
-  fmts.innerHTML = '';
-  const exampleFormats = emailFormats.length ? emailFormats : ['firstname.lastname@' + domain, 'f.lastname@' + domain, 'firstname@' + domain];
-  exampleFormats.forEach(fmt => {
-    const btn = document.createElement('button');
-    btn.className = 'email-fmt';
-    btn.textContent = fmt;
-    btn.title = 'Click to copy';
-    btn.addEventListener('click', () => copyToClip(fmt, `Copied: ${fmt}`));
-    fmts.appendChild(btn);
-  });
-
-  // Outreach message
-  $('subject-line').textContent = subjectLine || `Re: ${C.jobTitle} at ${C.company}`;
-  $('outreach-text').textContent = coldOutreach || '';
-}
-
-function copyToClip(text, successMsg) {
-  navigator.clipboard.writeText(text).then(() => toast(successMsg || 'Copied', 'ok'));
-}
-window.copySubject = () => {
-  const t = $('subject-line').textContent;
-  if (t) copyToClip(t, 'Subject line copied');
-};
-window.copyOutreach = () => {
-  const t = $('outreach-text').textContent;
-  if (t) copyToClip(t, 'Outreach message copied');
-};
-
-// ══════════════════════════════════════════════════════════════════
-// COVER LETTER TAB
-// ══════════════════════════════════════════════════════════════════
-
-const CL = { jobTitle: '', company: '', jobText: '', resumeText: '' };
-
-function detectForCover() {
-  $('cover-no-job').classList.add('hidden');
-  $('cover-job-banner').classList.add('hidden');
-  getTab(tab => {
-    if (!tab) { $('cover-no-job').classList.remove('hidden'); return; }
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
-        $('cover-no-job').classList.remove('hidden'); return;
-      }
-      CL.jobTitle = r.title || '';
-      CL.company = r.company || extractCompanyFromTitle(r.title || '');
-      CL.jobText = r.text;
-      $('cover-job-banner').classList.remove('hidden');
-      $('cover-job-title').textContent = CL.jobTitle || 'Job detected';
-      $('cover-job-sub').textContent = CL.company ? `at ${CL.company}` : '';
-    });
-  });
-  chrome.storage.local.get(['savedResume'], d => { CL.resumeText = d.savedResume || ''; });
-}
-
-async function generateCoverLetter() {
-  const err = $('err-cover');
-  err.classList.add('hidden');
-  if (!CL.jobText) { err.textContent = 'Navigate to a job posting first.'; err.classList.remove('hidden'); return; }
-  if (!CL.resumeText) { err.textContent = 'No resume found. Paste your resume in the Tailor tab first.'; err.classList.remove('hidden'); return; }
-
-  const btn = $('gen-cover-btn');
-  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Writing...';
-
-  try {
-    const tone = $('cover-tone').value;
-    const data = await callFn('cover_letter', {
-      resume: { basics: { summary: CL.resumeText.slice(0, 3000) } },
-      jdText: CL.jobText.slice(0, 4000),
-      tone,
-      company: CL.company,
-    });
-    $('cover-out').textContent = data.body || '';
-    $('cover-result').classList.remove('hidden');
-  } catch (e) {
-    err.textContent = e.message || 'Failed to generate. Try again.';
-    err.classList.remove('hidden');
-  } finally { btn.disabled = false; btn.innerHTML = 'Generate Cover Letter →'; }
-}
-
-$('gen-cover-btn').addEventListener('click', generateCoverLetter);
-$('cover-regen-btn').addEventListener('click', generateCoverLetter);
-
-$('cover-copy-btn').addEventListener('click', () => {
-  const text = $('cover-out').textContent;
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(() => { $('cover-copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('cover-copy-btn').textContent='Copy',2000); });
-});
-
-$('cover-save-btn').addEventListener('click', () => {
-  if (!CL.company || !CL.jobTitle) { toast('No job detected to save','err'); return; }
-  saveApplication({ jobTitle: CL.jobTitle, company: CL.company, jobUrl: '', status: 'saved' });
-  toast('Saved to tracker ✓','ok');
-});
-
-// ══════════════════════════════════════════════════════════════════
-// APPLICATION TRACKER TAB
-// ══════════════════════════════════════════════════════════════════
-
-let trackerApps = [];
-
-function saveApplication(app) {
-  chrome.runtime.sendMessage({ type: 'SAVE_APPLICATION', payload: app }, r => {
-    if (r?.ok) { loadTracker(); }
-  });
-}
-
-function loadTracker() {
-  $('tracker-loading').classList.remove('hidden');
-  $('tracker-empty').classList.add('hidden');
-  $('tracker-list').innerHTML = '';
-  chrome.runtime.sendMessage({ type: 'GET_APPLICATIONS', payload: {} }, r => {
-    $('tracker-loading').classList.add('hidden');
-    if (!r?.applications) { $('tracker-empty').classList.remove('hidden'); return; }
-    trackerApps = r.applications;
-    if (trackerApps.length === 0) { $('tracker-empty').classList.remove('hidden'); return; }
-    renderTracker(trackerApps);
-  });
-}
-
-function renderTracker(apps) {
-  const list = $('tracker-list');
-  list.innerHTML = '';
-  const statusOrder = ['offer','interview','applied','saved','rejected'];
-  const sorted = [...apps].sort((a,b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
-  sorted.forEach(app => {
-    const date = app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) :
-                 new Date(app.updated_at || app.created_at).toLocaleDateString('en-CA',{month:'short',day:'numeric'});
-    const scoreHtml = app.match_score ? `<span class="app-score-pill" style="color:${app.match_score>=8?'var(--green)':app.match_score>=6?'var(--amber)':'var(--muted)'}">⬡ ${app.match_score}/10</span>` : '';
-    const salaryHtml = app.salary_estimate ? `<span>${app.salary_estimate}</span>` : '';
-    const div = document.createElement('div');
-    div.className = 'app-card';
-    div.dataset.id = app.id;
-    div.innerHTML = `
-      <div class="app-card-top">
-        <div>
-          <div class="app-card-title">${esc(app.job_title)}</div>
-          <div class="app-card-company">${esc(app.company)}</div>
-        </div>
-        <span class="app-status ${app.status}" onclick="cycleStatus('${app.id}','${app.status}')">${app.status}</span>
-      </div>
-      <div class="app-meta">
-        <span>${date}</span>
-        ${scoreHtml}
-        ${salaryHtml}
-        ${app.job_url ? `<a href="${esc(app.job_url)}" target="_blank" style="color:var(--accent2);text-decoration:none;font-size:10px">View job ↗</a>` : ''}
-      </div>`;
-    list.appendChild(div);
-  });
-}
-
-const STATUS_CYCLE = ['saved','applied','interview','offer','rejected'];
-function cycleStatus(id, current) {
-  const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
-  chrome.runtime.sendMessage({ type: 'UPDATE_APPLICATION', payload: { id, status: next } }, r => {
-    if (r?.ok) loadTracker();
-  });
-}
-window.cycleStatus = cycleStatus;
-
-// Save current job to tracker
-$('tracker-save-current-btn').addEventListener('click', () => {
-  getTab(tab => {
-    if (!tab) { toast('No active tab','err'); return; }
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text) { toast('No job detected on this page','err'); return; }
-      const company = r.company || extractCompanyFromTitle(r.title || '');
-      const jobTitle = (r.title || '').split(/at|\s[-|]\s/i)[0].trim() || 'Job';
-      saveApplication({ jobTitle, company, jobUrl: tab.url, status: 'saved' });
-      toast(`Saved: ${jobTitle} at ${company}`, 'ok');
-    });
-  });
-});
-
-
-// ── Helpers ───────────────────────────────────────────────────────
+// ── Helpers ──
 function getTab(cb) { chrome.tabs.query({ active:true, currentWindow:true }, tabs => cb(tabs[0]||null)); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ── Boot ──────────────────────────────────────────────────────────
+// ── Boot ──
 restoreSession();

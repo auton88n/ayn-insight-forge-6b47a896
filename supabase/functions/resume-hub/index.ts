@@ -121,7 +121,15 @@ async function sha256Hex(s: string) {
   return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter", "ext_job_score", "ext_suggest_roles", "ext_find_contacts"]);
+const EXT_ACTIONS = new Set([
+  "ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor",
+  "ext_cover_letter", "ext_cover_letter_text",
+  "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
+  "ext_save_application", "ext_get_applications", "ext_update_application",
+]);
+
+// Public link-flow actions (no auth required for start/poll)
+const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -133,6 +141,43 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, ...payload } = body;
+
+    // ============ PUBLIC LINK FLOW (no auth) ============
+    // Extension generates a random code, opens /extension/approve?code=...
+    // in a tab, polls link_poll until status=approved, then receives the token.
+    if (typeof action === "string" && LINK_PUBLIC_ACTIONS.has(action)) {
+      const admin = createClient(supabaseUrl, serviceKey);
+
+      if (action === "link_start") {
+        const { device_label } = payload as { device_label?: string };
+        const bytes = new Uint8Array(24);
+        crypto.getRandomValues(bytes);
+        const code = "ayn_link_" + Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+        const { error } = await admin.from("extension_link_codes").insert({
+          code, device_label: device_label || "Chrome", status: "pending",
+        });
+        if (error) return json({ error: error.message }, 500);
+        return json({ code, expires_in: 300 });
+      }
+
+      if (action === "link_poll") {
+        const { code } = payload as { code?: string };
+        if (!code) return json({ error: "code required" }, 400);
+        const { data, error } = await admin.from("extension_link_codes")
+          .select("status, token, expires_at").eq("code", code).maybeSingle();
+        if (error || !data) return json({ status: "not_found" }, 404);
+        if (new Date(data.expires_at).getTime() < Date.now()) {
+          await admin.from("extension_link_codes").delete().eq("code", code);
+          return json({ status: "expired" });
+        }
+        if (data.status === "approved" && data.token) {
+          // Consume — delete after returning token
+          await admin.from("extension_link_codes").delete().eq("code", code);
+          return json({ status: "approved", token: data.token });
+        }
+        return json({ status: data.status || "pending" });
+      }
+    }
 
     // ============ EXTENSION-AUTH ACTIONS (x-ayn-ext-token) ============
     if (typeof action === "string" && EXT_ACTIONS.has(action)) {
@@ -394,6 +439,57 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
           subjectLine: parsed.subjectLine || "",
         });
       }
+
+      // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
+      if (action === "ext_cover_letter_text") {
+        const { resumeText, jdText, tone, company } = payload as {
+          resumeText?: string; jdText?: string; tone?: string; company?: string;
+        };
+        if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+        const r = await callAI({
+          system: `Write a concise cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés. No em dashes. Pull concrete achievements from the resume only.`,
+          user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 6000)}`,
+        });
+        return json({ body: r.text });
+      }
+
+      // ext_save_application — save to tracker via extension token
+      if (action === "ext_save_application") {
+        const { jobTitle, company, jobUrl, status, score, salaryEstimate, notes } = payload as {
+          jobTitle?: string; company?: string; jobUrl?: string;
+          status?: string; score?: number; salaryEstimate?: string; notes?: string;
+        };
+        if (!company || !jobTitle) return json({ error: "company and jobTitle required" }, 400);
+        const { data, error } = await admin.from("job_applications").upsert({
+          user_id: userId, job_title: jobTitle, company,
+          job_url: jobUrl || "", status: status || "saved",
+          match_score: score || null, salary_estimate: salaryEstimate || "",
+          notes: notes || "",
+          applied_at: status === "applied" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, id: data.id });
+      }
+
+      if (action === "ext_get_applications") {
+        const { data, error } = await admin.from("job_applications")
+          .select("id,job_title,company,job_url,status,match_score,salary_estimate,notes,applied_at,updated_at,created_at")
+          .eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
+        if (error) return json({ error: error.message }, 500);
+        return json({ applications: data || [] });
+      }
+
+      if (action === "ext_update_application") {
+        const { id, status, notes } = payload as { id?: string; status?: string; notes?: string };
+        if (!id) return json({ error: "id required" }, 400);
+        const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (status) { updates.status = status; if (status === "applied") updates.applied_at = new Date().toISOString(); }
+        if (notes !== undefined) updates.notes = notes;
+        const { error } = await admin.from("job_applications").update(updates).eq("id", id).eq("user_id", userId);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
     }
 
     // ============ DASHBOARD ACTIONS (Supabase JWT) ============
@@ -407,6 +503,40 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
     const { data: u } = await supa.auth.getUser();
     const user = u?.user;
     if (!user) return json({ error: "Invalid session" }, 401);
+
+    // ---------------- link_approve: user clicks Approve on /extension/approve ----------------
+    if (action === "link_approve") {
+      const { code, device_label } = payload as { code?: string; device_label?: string };
+      if (!code) return json({ error: "code required" }, 400);
+      const admin2 = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+      const { data: link } = await admin2.from("extension_link_codes")
+        .select("status, expires_at").eq("code", code).maybeSingle();
+      if (!link) return json({ error: "Invalid code" }, 404);
+      if (new Date(link.expires_at).getTime() < Date.now()) return json({ error: "Code expired" }, 410);
+      if (link.status !== "pending") return json({ error: "Code already used" }, 409);
+
+      // Mint a device token bound to this user
+      const tokBytes = new Uint8Array(32);
+      crypto.getRandomValues(tokBytes);
+      const token = "ayn_" + Array.from(tokBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+      const tokHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))))
+        .map(x => x.toString(16).padStart(2, "0")).join("");
+      const prefix = token.slice(0, 12) + "…";
+      const label = device_label || "Chrome";
+
+      const { error: tokErr } = await admin2.from("extension_tokens")
+        .insert({ user_id: user.id, token_hash: tokHash, token_prefix: prefix, device_label: label });
+      if (tokErr) return json({ error: tokErr.message }, 500);
+
+      const { error: updErr } = await admin2.from("extension_link_codes")
+        .update({ user_id: user.id, token, status: "approved", approved_at: new Date().toISOString(), device_label: label })
+        .eq("code", code);
+      if (updErr) return json({ error: updErr.message }, 500);
+
+      return json({ ok: true });
+    }
+
 
 
 
