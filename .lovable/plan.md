@@ -1,94 +1,86 @@
-# AYN Extension v1.3.0 — "Beat Jobright" UI Overhaul
+# Smarter AI for AYN Chrome Extension
 
-Goal: make every tab feel as obvious and scannable as Jobright's panel — clear hero card, one primary action, soft helper card, never a wall of text.
+Goal: every tab (Fill, Score, Contacts, Cover Letter, Tracker, Resume) uses a smarter, context-aware AI pipeline instead of shallow pattern matching. The AI reads the actual page, reasons about the job and the user's profile, and produces tailored output.
 
-## What changes (UI/UX only — backend stays as-is)
+## What changes
 
-### 1. Universal "Job Hero" card (top of every tab)
-Mirror Jobright's company card but cleaner:
-- Company favicon (auto-fetched from job URL domain) in a rounded square
-- Company name (small, muted) + Job title (bold, 2 lines max)
-- Right side: circular Match Score ring (e.g. `78%`) — green/amber/red based on score
-- Below: small meta row → posting age · location · salary estimate
-- If no job detected: collapse hero to a soft "Open a job posting to begin" empty state
+### 1. Smarter page reader (`extension/content.js`)
+- Extract a richer **PageContext** payload, not just form fields:
+  - Detected page kind: `application | job_post | company_page | search_results | unknown`
+  - Job: title, company, location, salary, employment type, seniority, full JD text (cleaned, deduped, capped)
+  - Form fields: label (resolved from `<label for>`, `aria-label`, surrounding text, placeholder), input type, required, options, current value, group (e.g. "Work Authorization", "EEO")
+  - ATS detected: Greenhouse / Lever / Workday / iCIMS / Cornerstone / Ashby / SmartRecruiters / LinkedIn Easy Apply
+- Add label resolver that walks DOM/ARIA so "Are you authorized to work in the US?" is understood instead of `input#q_42`.
 
-### 2. Primary action button (orange, full width)
-One bold orange CTA per tab, exactly like Jobright's green "Autofill":
-- Fill tab → `⚡ Autofill This Application`
-- Score tab → `📊 Score This Job`
-- Contacts tab → `🔍 Find Recruiters`
-- Cover tab → `✉ Generate Cover Letter`
-- Resume tab → `✦ Tailor My Resume`
-- Tracker tab → `+ Save Current Job`
+### 2. New unified AI router on the backend (`supabase/functions/resume-hub/index.ts`)
+One smarter action per tab, all sharing the same profile+resume context loader:
 
-Below the CTA: tiny usage line (e.g. "Unlimited on Pro") — matches Jobright's "4 Credits Left" pattern but cleaner.
-
-### 3. Result cards (replace raw text blocks)
-Each result becomes a labeled card with an icon header, not a paragraph dump:
-- **Fill results**: "✓ 14 fields filled" hero + collapsible "See what was filled" list grouped by section (Identity, Work Auth, Experience, Questions)
-- **Score results**: big number ring + 3 reason chips ("Strong skill match", "Salary fit", "Location match") + salary range card
-- **Contacts**: 3 stacked contact cards (Recruiter / HRBP / Hiring Manager) each with LinkedIn-search button + email pattern + "Copy outreach" button
-- **Cover letter**: preview card with tone selector pills on top, Copy + Save-to-tracker buttons on bottom
-- **Resume tailor**: keyword chips (green=present, grey=missing) + ATS score ring + Copy tailored resume button
-- **Tracker**: vertical timeline cards sorted by stage, status pill click-to-cycle
-
-### 4. Resume attachment card (keep, but polish)
-Current amber card is good but make it match Jobright's soft style:
-- Light orange tinted background, single rounded card
-- Numbered steps with monospaced numbers
-- Big orange "Download AYN resume (.txt)" button
-- Only show this card when page has a file input AND user is on Fill tab
-
-### 5. Tab bar polish
-- Underline-style active tab (already done) but tighten spacing
-- Add subtle icon-only mode on narrow widths
-- Remove "Sign out" link from header; move to a small ⚙ menu
-
-### 6. Empty + error states
-Every tab gets a friendly empty state with:
-- Soft icon
-- One sentence what this tab does
-- One sentence what to do next
-
-Errors get a red-tinted inline card (not toast) with retry button.
-
-### 7. Typography & spacing
-- Switch panel font stack to `Inter, system-ui` with `font-feature-settings: "cv11"`
-- 14px base, 13px meta, 16px headings
-- Consistent 16px card padding, 12px gap between cards
-- Card radius `10px`, shadow `0 1px 2px rgba(0,0,0,0.04)`
-
-### 8. Color tokens (extension-local CSS vars)
 ```text
---ayn-orange: #F97316
---ayn-orange-soft: #FFF4EC
---ayn-green: #16A34A
---ayn-amber: #F59E0B
---ayn-red: #DC2626
---ayn-ink: #0F172A
---ayn-muted: #64748B
---ayn-border: #E2E8F0
---ayn-card: #FFFFFF
---ayn-bg: #F8FAFC
+ext_smart_autofill   → reads PageContext + profile + resume, returns per-field {value, confidence, reasoning, source}
+ext_smart_score      → reads JD + resume, returns {score 0-100, skills_match[], gaps[], salary_estimate, verdict}
+ext_smart_contacts   → reads JD + company, returns recruiter/HM personas, LinkedIn search URLs, email patterns, 80-word outreach
+ext_smart_cover      → reads JD + resume + tone, returns ≤280 word letter grounded in real experience
+ext_smart_tailor     → reads JD + resume, returns keywords[{text,inResume}], rewritten resume (no fabrication), ATS score, change log
+ext_smart_tracker    → normalizes saved jobs (company, title, salary parse, status, next action)
 ```
 
-## Files touched
-- `extension/sidepanel.html` — restructure each tab into Hero + CTA + Result-cards
-- `extension/sidepanel.css` (new) — extract styles, add tokens above
-- `extension/sidepanel.js` — render new card components, no logic changes
-- `extension/manifest.json` — bump to v1.3.0
-- `public/ayn-extension.zip` — repack
-- `src/components/resume-hub/ExtensionTab.tsx` — version label v1.3.0
+Shared rules baked into the system prompt:
+- Never invent facts, dates, employers, or numbers.
+- Yes/No questions answered from profile logic (work auth, sponsorship, relocation).
+- Years-of-experience computed from `work[]` dates, not asked.
+- Education level mapped to the closest dropdown option.
+- Salary expectation pulled from profile, else inferred range from JD + location.
+- Short open-ended answers ("Why this role?") composed from resume highlights matching the JD.
 
-## What does NOT change
-- Backend (`supabase/functions/resume-hub/index.ts`) — no edits
-- `content.js` / `background.js` logic — no edits (only messaging stays the same)
-- Auth flow, token storage, privacy model — untouched
-- All existing feature behavior — only presentation improves
+### 3. Smarter Fill UX (`extension/sidepanel.js` + `sidepanel.html`)
+- Show each filled field as a card with: label, value, confidence bar, why this answer, edit button.
+- Highlight low-confidence (<60%) for user review before submit.
+- "Refill only this field" and "Refill all" actions.
+- Real progress bar driven by streamed field results.
+
+### 4. Smarter Score UX
+- Top: ATS-style ring score + verdict (Strong / Good / Fair / Poor).
+- Skills matched (green chips) vs missing (grey chips).
+- Salary estimate + 3 reasons.
+- "Improve my match" button → jumps to Resume tab pre-loaded with this JD.
+
+### 5. Smarter Contacts
+- 3 persona cards: Recruiter, Hiring Manager, Team Lead.
+- Each card: LinkedIn search URL (filtered to company + title), likely email pattern for the domain, ready-to-send 80-word message personalized to the user and role.
+
+### 6. Smarter Cover Letter
+- Tone selector (Professional / Confident / Enthusiastic / Executive).
+- Generated letter grounded in resume bullets that match JD keywords.
+- "Copy" and "Save to tracker" inline.
+
+### 7. Smarter Tracker
+- AI auto-fills company, title, salary range, location, source on save.
+- Status cycles Saved → Applied → Interview → Offer → Rejected.
+- Sort by furthest stage, then date.
+
+### 8. Smarter Resume (Tailor)
+- Auto-pulls JD from current page if present.
+- Keyword chips: green = in resume, grey = missing.
+- One-click tailor rewrites resume weaving in only supported keywords; shows change log.
+- ATS Match Score ring before/after.
+
+## Privacy & reliability
+- All AI calls go through `BG_FUNC` with the per-user device token; no cross-user data.
+- Each AI call wrapped with timeout + clear user-facing error (rate limit, credits, network).
+- Diagnostic logs in side panel console behind a debug flag.
+
+## Files touched
+- `extension/content.js` — richer PageContext + label resolver + ATS detection
+- `extension/background.js` — route new `ext_smart_*` actions
+- `extension/sidepanel.html` — new Fill cards, Score ring, Contacts personas, Resume diff
+- `extension/sidepanel.js` — call new actions, render confidence/edit UI, streaming progress
+- `extension/manifest.json` — bump to v1.4.0
+- `supabase/functions/resume-hub/index.ts` — add 6 `ext_smart_*` actions, shared loader, hardened prompts
+- `src/components/resume-hub/ExtensionTab.tsx` — version label v1.4.0
+- `public/ayn-extension.zip` — repacked
+
+Frames/motion on the landing page are not touched.
 
 ## Out of scope
-- New backend actions
-- New tabs
-- Pricing/credits system (Jobright's "4 Credits" is just visual reference, not copied)
-
-Ready to implement on approval.
+- No new tabs, no UI redesign of the side panel chrome.
+- No changes to dashboard pages other than the extension version label.
