@@ -241,7 +241,9 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText } = payload as { fields?: unknown; jobText?: string };
+        const { fields, jobText, jobTitle, company, ats, url } = payload as {
+          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string;
+        };
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
         const [{ data: profile }, { data: resume }] = await Promise.all([
@@ -254,10 +256,31 @@ Deno.serve(async (req) => {
           : [];
         const hasAnyData = profileFieldsAvailable.length > 0 || !!resume?.content;
 
-        // Derive merged basics so the AI always has name/email/phone even when profile is empty
-        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: unknown[]; skills?: unknown[]; education?: unknown[] } | null) || null;
+        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: Array<Record<string, unknown>>; skills?: unknown[]; education?: Array<Record<string, unknown>> } | null) || null;
         const basics = (rb?.basics || {}) as Record<string, string>;
+        const work = (rb?.work || []) as Array<Record<string, unknown>>;
+        const edu = (rb?.education || []) as Array<Record<string, unknown>>;
         const [firstFromResume, ...restFromResume] = (basics.name || "").trim().split(/\s+/);
+
+        const parseYear = (s: unknown): number | null => {
+          const m = String(s || "").match(/(19|20)\d{2}/);
+          return m ? parseInt(m[0], 10) : null;
+        };
+        const nowYear = new Date().getFullYear();
+        let yoe = 0;
+        for (const w of work) {
+          const sy = parseYear(w.start);
+          const ey = /present|current/i.test(String(w.end || "")) ? nowYear : (parseYear(w.end) || nowYear);
+          if (sy) yoe += Math.max(0, ey - sy);
+        }
+        const eduStr = edu.map(e => `${e.degree || ""} ${e.field || ""}`).join(" ").toLowerCase();
+        let educationLevel = "";
+        if (/ph\.?d|doctor/.test(eduStr)) educationLevel = "PhD";
+        else if (/master|m\.?sc|m\.?a\.|mba|m\.?eng/.test(eduStr)) educationLevel = "Master's";
+        else if (/bachelor|b\.?sc|b\.?a\.|b\.?eng|undergrad/.test(eduStr)) educationLevel = "Bachelor's";
+        else if (/associate|diploma/.test(eduStr)) educationLevel = "Associate's";
+        else if (eduStr.trim()) educationLevel = "High School";
+
         const merged = {
           first_name: profile?.legal_first_name || firstFromResume || "",
           last_name: profile?.legal_last_name || restFromResume.join(" ") || "",
@@ -268,67 +291,103 @@ Deno.serve(async (req) => {
           linkedin_url: profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           portfolio_url: profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           summary: basics.summary || "",
+          computed_years_experience: yoe,
+          computed_education_level: educationLevel,
+          current_title: (work[0] as { title?: string })?.title || basics.title || "",
+          current_company: (work[0] as { company?: string })?.company || "",
         };
 
         const r = await callAI({
-          system: `You are filling a real job application form. READ EACH FIELD LABEL CAREFULLY before deciding the value. Match the answer to what the question is actually asking — never paste a name into a "work authorization" field or a summary into a "years of experience" dropdown.
+          model: QUALITY_MODEL,
+          system: `You are a senior career coach filling a real job application. The user gave you their profile and resume; do NOT invent anything that isn't there.
 
-DATA SOURCES (in priority order): profile → mergedBasics → resume.basics → resume.work/skills/education.
+For EACH field, READ THE LABEL AND THE "group" HINT before deciding. Output one object per field you choose to fill:
+{ "id":"<field id>", "value":"<exact value>", "confidence":<0..1>, "reasoning":"<one short sentence>", "source":"<profile|resume|computed|inferred>" }
 
-FIELD-TYPE RULES — apply per-field, based on the LABEL:
+DATA PRIORITY: profile -> mergedBasics (incl. computed_years_experience, computed_education_level) -> resume.basics -> resume.work/skills/education.
 
-1. IDENTITY ("Name", "First name", "Last name", "Full name", "Email", "Phone", "Mobile", "Address", "City", "Postal/ZIP code", "Country"):
-   → Fill from profile or mergedBasics. Always fill these when ANY source has them.
+FIELD-GROUP RULES (use "group", then fall back to LABEL):
 
-2. LINKS ("LinkedIn URL/Profile", "Portfolio", "Website", "GitHub"):
-   → Fill the full URL (include https://). LinkedIn → profile.linkedin_url or resume basics.links where label matches /linkedin/i.
+identity.first_name / last_name / full_name / email / phone / address / city / state / postal_code / country
+  -> Fill from profile + mergedBasics. ALWAYS fill if any source has it.
 
-3. YES/NO QUESTIONS (work authorization, sponsorship, criminal record, relocate, remote, age 18+, equity disclosures, etc.):
-   → Look at the field options. Output exactly the option text ("Yes" / "No" / "I do not wish to answer"). Use profile.work_authorization, default_answers.criminal_record, default_answers.willing_to_relocate, etc. If unknown and required, default to the most reasonable answer for that question (e.g. "Yes" for "Are you legally authorized to work?" only if profile says so; otherwise leave empty).
+link.linkedin / link.portfolio / link.github
+  -> Full URL with https://. From profile or basics.links.
 
-4. YEARS OF EXPERIENCE dropdowns/selects:
-   → CALCULATE from resume.work: sum (end || current year) - start across roles. Pick the closest option from the provided options (e.g. "5-7 years", "3+ years"). Never guess "10+" without evidence.
+logic.work_auth
+  -> Yes/No from profile.work_authorization or profile.default_answers. Unknown -> skip.
 
-5. EDUCATION LEVEL ("Highest degree", "Education"):
-   → Pick the option matching the highest entry in resume.education (Bachelor's / Master's / PhD / High School / Associate's). Match by keyword in the options list.
+logic.sponsorship
+  -> Yes/No from profile.default_answers.requires_sponsorship. Authorized + no flag -> "No".
 
-6. SALARY EXPECTATION:
-   → Use profile.default_answers.salary_expectation if present. Otherwise leave empty.
+logic.relocate / logic.work_mode -> Yes/No / mode from profile.default_answers.
 
-7. OPEN-TEXT QUESTIONS ("Tell us about yourself", "Why this role/company", "What interests you", "Cover letter"):
-   → Compose a SHORT (2-4 sentences max) tailored answer using resume.basics.summary + 1-2 relevant work bullets + the job description context. Never paste the raw summary. Never invent facts.
+logic.years_experience
+  -> Use mergedBasics.computed_years_experience. Match closest option text (e.g. "5-7 years"). Never inflate.
 
-8. SELECT / RADIO with options:
-   → Match the candidate's real attribute to the closest option TEXT (e.g. gender, ethnicity, pronouns, veteran status from profile.default_answers if present). If no clear match, leave empty.
+logic.education_level
+  -> Use mergedBasics.computed_education_level. Match closest option text.
 
-9. SKIP entirely: SIN/SSN, full date of birth, bank info, passwords, security questions, anything not in any source.
+logic.salary -> profile.default_answers.salary_expectation only. Else skip.
+
+logic.start_date -> profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
+
+eeo.* -> profile.default_answers only. Else "Decline to self-identify" / "Prefer not to say" when offered, else skip.
+
+open.about -> 2-3 sentences. Lead with current role + years. ONE concrete achievement from resume.work bullets that maps to the JD. No clichés. No em dashes.
+
+open.why -> 2-3 sentences tying ONE specific JD requirement to ONE concrete resume bullet. Name the company once.
+
+open.cover -> 4-5 sentences, same rules as open.why but longer. Grounded in resume only.
+
+open.source -> "LinkedIn" by default; check url for indeed/glassdoor/jobright hints.
 
 GENERAL:
-- Partial profiles are FINE. Fill what you can; skip what you can't.
-- Output one entry per field id you filled. Omit fields you're leaving empty.
-- For select/radio fields, the "value" MUST match one of the field's option strings exactly (or a clear substring).`,
+- For select/radio: "value" must be a substring of one option text. No clear match -> skip.
+- Skip silently: SIN/SSN, full DOB, bank info, passwords, anything not in any source.
+- confidence: 1.0 exact data match, 0.7-0.9 strong inference, 0.4-0.6 best guess, <0.4 skip.
+- reasoning: ONE short sentence ("From profile.email", "Computed from 5 roles since 2019", "Matched PM bullet to JD").`,
           user: JSON.stringify({
+            context: { jobTitle, company, ats, url },
             fields,
             mergedBasics: merged,
             profile,
             resume: resume?.content,
-            jobDescription: (jobText || "").slice(0, 3000),
-          }).slice(0, 35000),
+            jobDescription: (jobText || "").slice(0, 3500),
+          }).slice(0, 38000),
           toolName: "emit_autofill",
           toolSchema: {
             type: "object",
-            properties: { values: { type: "array", items: { type: "object", properties: { id: { type: "string" }, value: { type: "string" } }, required: ["id", "value"] } } },
+            properties: {
+              values: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    value: { type: "string" },
+                    confidence: { type: "number" },
+                    reasoning: { type: "string" },
+                    source: { type: "string" },
+                  },
+                  required: ["id", "value"],
+                },
+              },
+            },
             required: ["values"],
           },
         });
-        const out = (r.structured as { values?: Array<{ id: string; value: string }> }) || { values: [] };
+        const out = (r.structured as { values?: Array<{ id: string; value: string; confidence?: number; reasoning?: string; source?: string }> }) || { values: [] };
+        const filtered = (out.values || []).filter(v => v.value && (typeof v.confidence !== 'number' || v.confidence >= 0.4));
         return json({
-          values: out.values || [],
+          values: filtered,
           meta: {
             jobDetected: !!(jobText && jobText.length > 80),
             profileFieldsAvailable: profileFieldsAvailable.length,
             hasResume: !!resume?.content,
             hasAnyData,
+            yearsExperience: yoe,
+            educationLevel,
           },
         });
       }
