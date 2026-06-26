@@ -428,26 +428,54 @@ GENERAL:
         return json({ body: r.text });
       }
 
-      // ext_job_score: score a job snippet against the user's resume quickly
-      // Returns score 1-10, matchLabel, and 3 key reasons
+      // ext_job_score: score a job snippet against the user's resume
+      // Returns score 1-10, label, reasons, missingKeywords, matchedSkills, salary
       if (action === "ext_job_score") {
         const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
-        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "" });
+        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
         const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "" });
+        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
+
+        const rc = resume.content as Record<string, unknown>;
+        const resumeDigest = {
+          basics: rc.basics,
+          skills: rc.skills,
+          work: ((rc.work as Array<Record<string, unknown>>) || []).slice(0, 6).map(w => ({
+            title: w.title, company: w.company, start: w.start, end: w.end,
+            bullets: ((w.bullets as string[]) || []).slice(0, 4),
+          })),
+        };
 
         const r = await callAI({
-          system: `You are a fast job-resume matcher. Given a job snippet and resume, score the match and estimate salary.
-Return ONLY valid JSON, no code fences:
-{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<r1>","<r2>","<r3>"], "salaryEstimate": "<e.g. $90K-$120K or empty string if unknown>" }
-- score: 1-3 Poor, 4-6 Fair, 7-8 Good, 9-10 Strong
-- reasons: 3 short phrases max 5 words each
-- salaryEstimate: extract from snippet if mentioned, or estimate based on role/seniority for US/Canada market. Use $CAD if Canada role, $USD otherwise. Format: $80K-$110K. Empty string if truly unknown.
-- Be honest and fast`,
-          user: `JOB: ${jobTitle || ""} at ${company || ""}\n${(jobSnippet || "").slice(0, 1500)}\n\nRESUME:\n${JSON.stringify(resume.content?.basics || {}).slice(0, 600)}\nSKILLS: ${JSON.stringify(resume.content?.skills || []).slice(0, 300)}`,
+          system: `You are a senior tech recruiter. Score how well this candidate matches the job. Be honest, calibrated, and concrete.
+
+Return ONLY this JSON (no code fences):
+{
+  "score": <integer 1-10>,
+  "matchLabel": "Poor|Fair|Good|Strong",
+  "reasons": ["<reason 1>","<reason 2>","<reason 3>"],
+  "matchedSkills": ["<skill>", ...],
+  "missingKeywords": ["<keyword>", ...],
+  "salaryEstimate": "<$80K-$110K or empty>",
+  "verdict": "<one sentence verdict>"
+}
+
+Scoring rubric:
+- 9-10 Strong: candidate clearly meets MUST-HAVES and has 2+ STRONG signals (same domain, same scale, same tech).
+- 7-8 Good: meets most must-haves, 1-2 gaps that are coachable.
+- 4-6 Fair: half the must-haves, meaningful gaps in seniority or core tech.
+- 1-3 Poor: missing the core requirement (role, level, or critical tech).
+
+Rules:
+- reasons: 3 SHORT phrases (max 6 words each), tied to specific JD requirements.
+- matchedSkills: up to 8 skills/tools present in BOTH resume and JD.
+- missingKeywords: 4-8 important JD keywords NOT in the resume (skills, tools, certs). Single words or short phrases.
+- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market (use $CAD if location is Canada, $USD otherwise). Format $80K-$110K. Empty string if truly unknown.
+- verdict: one honest sentence.`,
+          user: `JOB TITLE: ${jobTitle || ""}\nCOMPANY: ${company || ""}\n\nJOB DESCRIPTION:\n${(jobSnippet || "").slice(0, 3000)}\n\nRESUME:\n${JSON.stringify(resumeDigest).slice(0, 6000)}`,
         });
 
-        let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[], salaryEstimate: "" };
+        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string } = {};
         try {
           const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
@@ -456,10 +484,17 @@ Return ONLY valid JSON, no code fences:
 
         const score = Math.max(1, Math.min(10, Math.round(Number(parsed.score) || 5)));
         const validLabels = ["Poor", "Fair", "Good", "Strong"];
-        const matchLabel = validLabels.includes(parsed.matchLabel) ? parsed.matchLabel
-          : score >= 8 ? "Strong" : score >= 6 ? "Good" : score >= 4 ? "Fair" : "Poor";
+        const matchLabel = validLabels.includes(parsed.matchLabel || "") ? parsed.matchLabel!
+          : score >= 9 ? "Strong" : score >= 7 ? "Good" : score >= 4 ? "Fair" : "Poor";
 
-        return json({ score, matchLabel, reasons: (parsed.reasons || []).slice(0, 3), salaryEstimate: String(parsed.salaryEstimate || "") });
+        return json({
+          score, matchLabel,
+          reasons: (parsed.reasons || []).slice(0, 3),
+          matchedSkills: (parsed.matchedSkills || []).slice(0, 8),
+          missingKeywords: (parsed.missingKeywords || []).slice(0, 8),
+          salaryEstimate: String(parsed.salaryEstimate || ""),
+          verdict: String(parsed.verdict || ""),
+        });
       }
 
       // ext_suggest_roles: suggest best job titles to search for based on resume
