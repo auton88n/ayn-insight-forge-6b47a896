@@ -79,6 +79,9 @@ export default function ResumeHub() {
           <TabsContent value="overview" className="mt-6">
             <OverviewTab userId={userId!} onOpenBuilder={() => setTab("builder")} onOpenJobs={() => setTab("jobs")} />
           </TabsContent>
+          <TabsContent value="profile" className="mt-6">
+            <ProfileTab userId={userId!} />
+          </TabsContent>
           <TabsContent value="builder" className="mt-6">
             <BuilderTab userId={userId!} />
           </TabsContent>
