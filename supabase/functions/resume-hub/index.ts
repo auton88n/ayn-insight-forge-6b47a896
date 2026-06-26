@@ -31,39 +31,75 @@ async function callAI(opts: {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-  const body: Record<string, unknown> = {
-    model: opts.model ?? DEFAULT_MODEL,
-    messages: [
-      { role: "system", content: opts.system },
-      { role: "user", content: opts.user },
-    ],
+  const primary = opts.model ?? DEFAULT_MODEL;
+  // Fallback chain: try a cheaper/different model when the primary 402/5xx's.
+  const FALLBACKS: Record<string, string[]> = {
+    [QUALITY_MODEL]: [DEFAULT_MODEL, "google/gemini-2.5-flash-lite"],
+    [DEFAULT_MODEL]: ["google/gemini-2.5-flash-lite"],
   };
-  if (opts.toolName && opts.toolSchema) {
-    body.tools = [{
-      type: "function",
-      function: { name: opts.toolName, description: opts.toolName, parameters: opts.toolSchema },
-    }];
-    body.tool_choice = { type: "function", function: { name: opts.toolName } };
-  }
+  const chain = [primary, ...(FALLBACKS[primary] || [])];
 
-  const r = await fetch(GATEWAY_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (r.status === 429) throw new Error("AI rate limit. Try again in a minute.");
-  if (r.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`AI error ${r.status}: ${t.slice(0, 200)}`);
+  let lastErr = "";
+  for (let mi = 0; mi < chain.length; mi++) {
+    const model = chain[mi];
+    const body: Record<string, unknown> = {
+      model,
+      messages: [
+        { role: "system", content: opts.system },
+        { role: "user", content: opts.user },
+      ],
+    };
+    if (opts.toolName && opts.toolSchema) {
+      body.tools = [{
+        type: "function",
+        function: { name: opts.toolName, description: opts.toolName, parameters: opts.toolSchema },
+      }];
+      body.tool_choice = { type: "function", function: { name: opts.toolName } };
+    }
+
+    // Up to 3 attempts per model with exponential backoff on 429 / transient 5xx.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let r: Response;
+      try {
+        r = await fetch(GATEWAY_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        lastErr = `network: ${(e as Error).message}`;
+        await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        continue;
+      }
+
+      if (r.ok) {
+        const data = await r.json();
+        const msg = data?.choices?.[0]?.message;
+        const tc = msg?.tool_calls?.[0]?.function?.arguments;
+        if (tc) {
+          try { return { text: "", structured: JSON.parse(tc) }; }
+          catch { return { text: tc, structured: undefined }; }
+        }
+        return { text: msg?.content ?? "" };
+      }
+
+      // 402 = credits — don't retry same model, jump to next in chain.
+      if (r.status === 402) {
+        lastErr = "AI credits exhausted.";
+        break;
+      }
+      // 429 / 5xx = transient — backoff then retry same model.
+      if (r.status === 429 || (r.status >= 500 && r.status < 600)) {
+        lastErr = `AI ${r.status}`;
+        await new Promise(res => setTimeout(res, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      // 4xx other = terminal, stop everything.
+      const t = await r.text();
+      throw new Error(`AI error ${r.status}: ${t.slice(0, 200)}`);
+    }
   }
-  const data = await r.json();
-  const msg = data?.choices?.[0]?.message;
-  const tc = msg?.tool_calls?.[0]?.function?.arguments;
-  if (tc) {
-    return { text: "", structured: JSON.parse(tc) };
-  }
-  return { text: msg?.content ?? "" };
+  throw new Error(lastErr || "AI request failed");
 }
 
 const RESUME_SCHEMA = {
@@ -128,7 +164,7 @@ const EXT_ACTIONS = new Set([
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
-  "ext_ask", "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
+  "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
 ]);
 
 // Public link-flow actions (no auth required for start/poll)
