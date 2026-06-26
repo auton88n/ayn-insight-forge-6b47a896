@@ -1,52 +1,84 @@
 
-# Fix AYN Extension Features (Phase 1 + Phase 2)
+# The honest diagnosis (and why we keep going in circles)
 
-Goal: make the extension actually *read* job pages correctly and make the AI backend resilient, so Score / Autofill / Contacts / Cover / Tailor stop feeling shallow or broken. No new features — just fix what's already there.
+I examined jobright.ai end-to-end. The reason every round of fixes "doesn't feel smarter" is **architectural, not a bug**. We keep editing `extension/content.js` selectors and prompts, but the thing that makes jobright feel intelligent has nothing to do with their extension — it's three server-side assets we don't have:
 
-## Phase 1 — `extension/content.js` (page-reading layer)
+1. **A pre-ingested job corpus** (8M jobs, refreshed hourly, full JD text, semantically indexed in a vector DB). Their score is a `<50ms` lookup against this corpus. Ours is a live LLM call on whatever truncated DOM we managed to scrape. That's why our scores feel random and theirs feel calibrated — and why "See more" truncation isn't even a problem for them.
+2. **A canonical structured profile** parsed once from the resume (`skills[]`, `experiences[] with dates`, `education[]`, `certs[]`, work auth, YoE per skill, sponsorship needs). Every autofill, score, tailor, cover-letter call reads from this one source of truth. We re-send raw resume text every time, so the AI guesses differently each call — that's why autofill answers are inconsistent and tabs feel disconnected.
+3. **Answer memory keyed to the user, not the page.** Their profile stores "5 years Python", "needs H-1B", "OK with relocation" once. Ours re-derives them from raw text per request.
 
-The single biggest reason features feel dumb: the extension reads a truncated, partial, stale page.
+Everything else (Workday iframe pain, hallucinated bullets, custom-question weakness) — jobright has those bugs too. Those are industry-wide. We don't need to beat them there; we need to **stop losing on the parts they actually win on**.
 
-1. **Full JD extraction.** Replace the single `document.querySelector(sel.desc)` in `extractJobText` with a `combinedText` helper that:
-   - collects **all** matching nodes,
-   - drops nodes nested inside another match (dedupe),
-   - joins them into one full description string.
-2. **"See more" expansion before reading.** Add a conservative `expandSeeMore` that clicks "see more / show more / read more / view more" controls once per URL. Hard-skip anything matching `apply|submit|sign in|save|follow|message|connect|easy apply`. Cap at 4 clicks.
-3. **SPA re-detection.** Patch `history.pushState` / `replaceState` and listen for `popstate`. On every route change re-run: expand → arm auto-tracker → re-score cards → re-detect job, with retry backoff (up to 5 tries) because SPA content renders after the URL changes.
-4. **`ca.indeed.com` selector fix.** Sort the selector map longest-pattern-first so `ca.indeed.com/viewjob` is no longer shadowed by `indeed.com/viewjob`.
-5. **Quiet `chrome.runtime.lastError`** on `JOB_DETECTED` / `AUTO_TRACK_SUBMIT` via a `sendQuiet` helper (kills console noise + dropped events when side panel is closed).
-6. **Tighten `nearestQuestionText`.** Prefer real `label` / `legend` / `aria-labelledby` / `aria-label` associations; only fall back to proximity text that actually looks like a question (ends in `?` or starts with `What|How|Are|Do|Have|Why|When|Where|Which`). Stops autofill from mislabeling fields and injecting wrong values.
+The mistake we keep making: we treat the extension as the product. Jobright treats the extension as a thin client over a backend brain. Until we flip that, every round of "fix the extension" gives us the same disappointment.
 
-## Phase 2 — `supabase/functions/resume-hub/index.ts` (backend resilience)
+# What we're going to build (the brain, not more selectors)
 
-1. **Delete dead duplicate handlers.** `ext_job_score`, `ext_suggest_roles`, `smart_tailor`, and the second `ext_ask` are defined twice; only the first runs. Delete the unreachable second copies so there's one source of truth (prevents "I fixed it but nothing changed" traps).
-2. **Verify retry/backoff + fallback on `callAI`.** HEAD already has some retry logic — confirm it covers: exponential backoff on `429`, fallback model on `402` (credits exhausted) and sustained `5xx`, and graceful degradation (keyword-only score) instead of throwing when AI is fully unavailable.
-3. **Score the *full* JD, not a 500-char teaser.** Card-badge path stays cheap (title + company + snippet). When a full job page is open, `ext_job_score` should accept the full extracted JD from the new Phase 1 extractor and use it in the "senior recruiter" prompt so the must-have verification actually has something to verify against.
+Four backend assets, in this order. The extension barely changes in Phase 1–3 — it just calls the new endpoints.
 
-## Phase 3 — `extension/manifest.json` + side panel wiring
+## Phase 1 — Canonical Structured Profile (highest leverage, smallest scope)
 
-1. Bump `manifest.json` version to `1.4.3`.
-2. Update the version label shown in `src/components/resume-hub/ExtensionTab.tsx`.
-3. Rebuild `public/ayn-extension.zip` from `extension/` using `nix run nixpkgs#zip`.
+The single change that fixes Fill, Score, Cover Letter, and Tailor at once.
 
-## Out of scope (deliberately deferred)
+- New table `user_profile_canonical`: one row per user. Columns for `skills jsonb` (each skill: name, years, last_used, evidence), `experiences jsonb` (company, title, start, end, bullets, tech), `education jsonb`, `certifications jsonb`, `work_auth jsonb` (citizenship, needs_sponsorship_now, needs_sponsorship_future, visa_type), `preferences jsonb` (remote, relocation, salary_min, willing_to_travel), `derived jsonb` (total_yoe, seniority, primary_function), `updated_at`. RLS scoped to `auth.uid()`, full grants block.
+- New edge function `profile-extract`: takes the user's primary resume + any uploaded profile docs, runs Gemini-2.5-pro with a strict JSON schema (no free text) to produce the canonical profile. Idempotent — re-running just updates. Runs once on resume upload, re-runs on user edit.
+- New "Profile" tab in Resume Hub showing the structured profile with inline edit. Users can correct any field; corrections persist and override AI-extracted values (so we stop the hallucination loop).
+- All existing handlers (`ext_autofill`, `ext_job_score`, `ext_cover_letter`, `smart_tailor`) updated to **load the canonical profile** instead of receiving raw resume text in the request body. Extension stops sending resume text on every call.
 
-- `"all_frames": true` + cross-origin iframe autofill (Phase 3 of the bigger plan — bigger structural change, do it next round).
-- Per-ATS deep field maps for Workday/Greenhouse/Lever (Phase 3).
-- Narrowing `host_permissions` from `https://*/*` to JOB_PAGE_RE domains (Web Store readiness — Phase 4).
-- Backend "ingest + cache job by key" hybrid path (will follow once Phase 1's richer JD is live and we see real payload sizes).
+Outcome after Phase 1: autofill answers become consistent across applications; YoE math becomes deterministic (no more "let the AI guess"); work-auth/sponsorship questions filled from a real stored value, not inferred.
 
-## Verification
+## Phase 2 — Server-Side Job Ingest & Cache
 
-- Reload unpacked extension at `chrome://extensions`, confirm version `1.4.3`.
-- Open a LinkedIn job, click through 2-3 postings without reloading — side panel JD must update each time and show full text (not the truncated blurb).
-- Open a `ca.indeed.com` posting — company field populates.
-- Open a Workday posting — JD updates on next-job navigation.
-- Trigger Score with credits exhausted (or mock 402) — must fall back, not crash.
-- Grep `supabase/functions/resume-hub/index.ts` for `ext_job_score` / `smart_tailor` — exactly one definition each.
+Stops the "truncated JD" problem and makes scoring real.
 
-## Technical notes
+- New table `job_corpus`: `id`, `source` (linkedin/indeed/workday/greenhouse/lever/manual), `source_job_key` (unique per source — the LinkedIn job ID, Greenhouse posting ID, etc.), `url`, `company`, `title`, `location`, `jd_text_full`, `jd_html`, `parsed jsonb` (must_have_skills, nice_to_have, min_yoe, seniority, work_auth, salary_range), `embedding vector(768)` if pgvector available else skip for now, `ingested_at`, `last_seen_at`. Unique index on `(source, source_job_key)` for dedup.
+- Extension change (the only Phase-2 extension edit): when a job is detected, send `{ source, source_job_key, url, raw_dom_text }` to a new `job-ingest` endpoint. Backend uses the raw DOM as a seed, but if it's clearly truncated (`< 800 chars` or contains "See more"), it server-side fetches the URL with the existing `firecrawl` connector to get the full JD. Stores parsed `must_have_skills` / `min_yoe` / `seniority` once. Re-detections of the same `source_job_key` are instant cache hits.
+- Score becomes: `canonical_profile × job_corpus.parsed` — a deterministic rubric (skills coverage %, YoE gap, seniority match, location match, work-auth compatibility) plus a small LLM call only for the qualitative summary. Returns per-axis breakdown, not one blended number.
 
-- Phase 1 edits are localized to `extension/content.js`; no other extension files change in Phase 1.
-- Phase 2 edits are localized to `supabase/functions/resume-hub/index.ts`; deploys automatically.
-- Sync against current HEAD (`04a8318`) before editing — recent "page detection" commit touched side panel + DETECT_PAGE but left `extractJobText` and the one-shot 1500ms timer intact, so Phase 1 still applies cleanly.
+Outcome after Phase 2: scores load in <500ms (cache hit) instead of 3–8s; same job clicked twice returns the exact same score; per-axis breakdown actually explains *why* a job is 72 vs 41.
+
+## Phase 3 — Answer Memory & Per-ATS Field Maps
+
+Makes Fill actually fill.
+
+- New table `user_form_answers`: `user_id`, `question_canonical` (normalized question text — lowercased, stripped of company/role), `question_type` (yesno / number / freetext / select), `answer`, `answer_source` (profile / user_edit / ai_generated), `times_used`, `last_used_at`. Unique on `(user_id, question_canonical)`. When autofill hits a question we've answered before, reuse the stored answer (no LLM call). When the user edits an autofilled answer, upsert with `answer_source = user_edit` so we never overwrite their correction.
+- Per-ATS field maps in `extension/ats/` (new folder): one file per ATS (`workday.js`, `greenhouse.js`, `lever.js`, `ashby.js`, `linkedin.js`, `indeed.js`). Each exports `{ matches(url), fieldMap, fileInputSelector, submitSelector, iframeStrategy }`. Generic semantic matcher stays as the fallback, but known ATSes use the explicit map first. This is the single biggest accuracy win for autofill — jobright's edge here isn't AI, it's hand-tuned selectors.
+- `all_frames: true` added to `manifest.json` content script registration so Workday's nested iframe forms actually receive the script. Drops `host_permissions` to the ATS domains we actually support (Web Store readiness side-effect).
+
+Outcome after Phase 3: Workday/Greenhouse fields filled at ~90% accuracy instead of ~50%; second time you apply to a Workday job, custom answers are instant (no LLM call); file input attachment best-effort via per-ATS file selector.
+
+## Phase 4 — Honest UX (no more fake "AI Agent")
+
+- Rename "AYN AI Agent" anywhere it implies auto-submission to "AYN Autofill Assistant". Match jobright's reality: extension fills, **user clicks Submit**. Stop overpromising.
+- Score tab shows the per-axis breakdown from Phase 2 plus missing must-have skills as removable chips (so the user can see exactly *why* the score is what it is).
+- Tracker auto-logs on submit-button click (already partly built) but now writes to `user_form_answers` so the next similar app is faster.
+- Cover letter draws from canonical profile + job_corpus.parsed only — no raw text round-trip.
+
+# Out of scope (deliberately, to avoid another "touched 6 things" round)
+
+- No real-time vector embeddings / pgvector setup yet. Phase 2's rubric is deterministic + LLM-summary; embeddings are Phase 5 if/when we want jobright-style "recommend jobs you haven't seen".
+- No H-1B/LCA primary-data integration (jobright's unique moat — separate project).
+- No insider-connections feature (requires LinkedIn data licensing we don't have).
+- No autonomous submission. Be honest: we don't have it, jobright doesn't really have it either.
+- No UI redesign. Visual changes only where Phase 2's per-axis score breakdown requires new components.
+
+# Technical notes
+
+- All new tables get the standard grant block (`GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO authenticated; GRANT ALL ON ... TO service_role;`) immediately after `CREATE TABLE` and before `ENABLE ROW LEVEL SECURITY` — non-negotiable per project memory.
+- `profile-extract` and `job-ingest` are new edge functions; existing `resume-hub/index.ts` handlers get refactored to read from `user_profile_canonical` and `job_corpus` instead of receiving raw text.
+- Firecrawl already wired in the project — Phase 2's fallback fetch reuses the existing API key, no new connector.
+- All AI calls use the existing `callAI` (with the fallback chain we shipped in v1.4.3). Model: `google/gemini-2.5-pro` for `profile-extract` (one-shot, accuracy matters), `gemini-2.5-flash` for everything else.
+- Extension version stays on 1.4.x through Phase 1–2 (only payload shape changes, not behavior); bumps to 1.5.0 at Phase 3 when `all_frames` and ATS maps ship.
+
+# Verification per phase (so we stop shipping "fixed but nothing changed")
+
+- **Phase 1**: Re-run autofill on the same Greenhouse form twice — answers identical. Edit "Years of Python" in the Profile tab to 7, re-autofill — form shows 7. Delete the user's resume — autofill still works from canonical profile.
+- **Phase 2**: Click the same LinkedIn job twice — second load <500ms, identical score. Open a job with "See more" truncated description — score reflects the full text. Score returns five axes, not one number.
+- **Phase 3**: Open a Workday application in an iframe — fields populate. Answer a custom Workday question, navigate to another Workday job with the same question — auto-filled with the prior answer, no LLM call.
+- **Phase 4**: Read the extension UI top to bottom — no claim the extension submits anything.
+
+# What I need from you before I start
+
+One decision: **do Phase 1 alone first** (ship the canonical profile, prove it fixes consistency, then go), or **commit to all 4 phases as a single push** (longer turnaround, but a coherent v1.5 release)?
+
+My recommendation: Phase 1 alone, this round. It's the change that mathematically can't fail to improve the other tabs, and it un-blocks Phase 2–4 cleanly. If we batch all four, we repeat exactly the mistake you're calling out.
+
