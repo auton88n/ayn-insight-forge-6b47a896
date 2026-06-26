@@ -527,6 +527,91 @@
       text-align: center; font-size: 11px; color: var(--ayn-muted);
       margin-top: 8px; font-weight: 500;
     }
+
+    /* ═══════════════════════════════════════════════════════════
+       v1.4.0: Ask AYN chat
+       ═══════════════════════════════════════════════════════════ */
+    .ask-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .ask-context-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 999px;
+      background: var(--ayn-orange-soft); color: var(--ayn-orange-2);
+      border: 1px solid var(--ayn-orange-border);
+      font-size: 11px; font-weight: 700; margin-bottom: 10px;
+    }
+    .ask-context-pill i { font-size: 13px; }
+    .ask-empty {
+      text-align: center; padding: 18px 8px; color: var(--ayn-muted);
+      font-size: 12.5px; line-height: 1.55;
+    }
+    .ask-msgs { flex: 1; overflow-y: auto; padding: 4px 2px 8px; }
+    .ask-msgs::-webkit-scrollbar { width: 4px; }
+    .ask-msgs::-webkit-scrollbar-thumb { background: var(--ayn-border); border-radius: 4px; }
+    .ask-bubble {
+      max-width: 92%; padding: 10px 13px; border-radius: 13px;
+      margin-bottom: 8px; font-size: 13px; line-height: 1.55;
+      word-wrap: break-word; white-space: pre-wrap;
+    }
+    .ask-bubble.user {
+      background: var(--ayn-orange); color: #fff;
+      margin-left: auto; border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 6px rgba(249,115,22,.2);
+    }
+    .ask-bubble.assistant {
+      background: var(--ayn-card); color: var(--ayn-ink);
+      border: 1px solid var(--ayn-border);
+      border-bottom-left-radius: 4px;
+    }
+    .ask-bubble.thinking {
+      background: var(--ayn-card); color: var(--ayn-muted);
+      border: 1px solid var(--ayn-border-2);
+      font-style: italic; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .ask-bubble-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .ask-mini-btn {
+      font-size: 10.5px; padding: 3px 8px; border-radius: 6px;
+      background: var(--ayn-bg); border: 1px solid var(--ayn-border);
+      color: var(--ayn-muted); cursor: pointer; font-weight: 600;
+    }
+    .ask-mini-btn:hover { color: var(--ayn-orange); border-color: var(--ayn-orange-border); }
+    .ask-input-row {
+      display: flex; gap: 8px; padding-top: 10px;
+      border-top: 1px solid var(--ayn-border-2); flex-shrink: 0;
+    }
+    .ask-input {
+      flex: 1; min-height: 38px; max-height: 120px;
+      padding: 9px 12px; border-radius: 10px; border: 1px solid var(--ayn-border);
+      font-family: inherit; font-size: 13px; resize: none; line-height: 1.4;
+    }
+    .ask-input:focus { outline: none; border-color: var(--ayn-orange); box-shadow: 0 0 0 3px rgba(249,115,22,.12); }
+    .ask-send-btn {
+      width: 38px; height: 38px; border-radius: 10px; border: none;
+      background: var(--ayn-orange); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: background .15s, transform .1s;
+    }
+    .ask-send-btn:hover:not(:disabled) { background: var(--ayn-orange-2); }
+    .ask-send-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .ask-send-btn i { font-size: 18px; }
+    .ask-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .ask-sugg {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+      background: var(--ayn-card); border: 1px solid var(--ayn-border);
+      color: var(--ayn-text); cursor: pointer; transition: all .15s;
+    }
+    .ask-sugg:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); background: var(--ayn-orange-soft); }
+
+    /* Must-have requirements list */
+    .req-card { background: var(--ayn-card); border: 1px solid var(--ayn-border); border-radius: 12px; padding: 13px; margin-bottom: 10px; }
+    .req-card .req-title { font-size: 11px; font-weight: 800; color: var(--ayn-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 9px; }
+    .req-row { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; font-size: 12.5px; line-height: 1.45; }
+    .req-row + .req-row { border-top: 1px solid var(--ayn-border-2); }
+    .req-icon { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; margin-top: 1px; }
+    .req-icon.met  { background: var(--ayn-green); }
+    .req-icon.miss { background: #d1d5db; color: #6b7280; }
+    .req-text { color: var(--ayn-text); }
+    .req-row.miss .req-text { color: var(--ayn-muted); }
   </style>
 </head>
 <body>
