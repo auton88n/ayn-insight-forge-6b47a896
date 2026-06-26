@@ -609,14 +609,22 @@
 
     <div class="card hidden mt12" id="fill-resume-dl-wrap" style="background:linear-gradient(135deg,var(--ayn-orange-soft) 0%,var(--ayn-card) 100%);border-color:var(--ayn-orange-border)">
       <div class="card-title" style="color:var(--ayn-orange-2)"><i class="ti ti-paperclip"></i>Resume file attachment</div>
-      <div class="card-sub" style="margin-top:5px">This form needs a Resume / CV file. Chrome blocks extensions from attaching files for you — it takes about 10 seconds:</div>
+      <div class="card-sub" style="margin-top:5px">This form has a Resume / CV upload. Try the one-click attach first — if the site blocks it, use the manual download below.</div>
+
+      <button class="btn btn-primary mt12" id="fill-auto-attach-btn">
+        <i class="ti ti-bolt"></i>Try auto-attach my AYN resume
+      </button>
+      <div id="fill-attach-status" class="mt8 hidden" style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px"></div>
+
+      <div style="text-align:center;margin:10px 0;font-size:10px;color:var(--ayn-faint);text-transform:uppercase;letter-spacing:.1em">— or do it manually —</div>
+
       <ol id="fill-resume-steps">
         <li id="dl-step-1" data-active="1">Click <b>Download my AYN resume</b> below</li>
         <li id="dl-step-2">Find the <b>Resume / CV</b> field on this page</li>
         <li id="dl-step-3">Click its <b>Browse / Attach / Upload</b> button</li>
         <li id="dl-step-4">Select the file you just downloaded</li>
       </ol>
-      <button class="btn btn-amber mt12" id="fill-download-resume-btn">
+      <button class="btn btn-outline mt8" id="fill-download-resume-btn">
         <i class="ti ti-download"></i>Download my AYN resume (.txt)
       </button>
       <div id="fill-dl-success" class="hidden mt8" style="font-size:12px;color:var(--ayn-green);font-weight:700;display:flex;align-items:center;gap:6px">
