@@ -632,6 +632,37 @@ async function bgFunc(action, body) {
 // ── Helpers ──
 function getTab(cb) { chrome.tabs.query({ active:true, currentWindow:true }, tabs => cb(tabs[0]||null)); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function cleanTitle(t) {
+  return String(t||'').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
+}
+window.cleanTitle = cleanTitle;
+
+// ── Re-detect on tab change / navigation ──
+function refreshForActiveTab() {
+  if (!S.user) return;
+  // Clear stale banners before re-detect so previous tab's data never lingers
+  const fb = $('fill-job-banner'); if (fb) fb.style.display = 'none';
+  $('contact-no-job')?.classList.add('hidden');
+  $('contact-job-info')?.classList.add('hidden');
+  $('cover-no-job')?.classList.add('hidden');
+  $('cover-job-banner')?.classList.add('hidden');
+  $('err-fill')?.classList.add('hidden');
+  $('fill-result-wrap')?.classList.add('hidden');
+
+  if (S.tab === 'fill')    detectForFill();
+  if (S.tab === 'contact') detectForContacts();
+  if (S.tab === 'cover')   detectForCover();
+  if (S.tab === 'tailor' && typeof detectForTailor === 'function') detectForTailor();
+}
+
+chrome.tabs.onActivated.addListener(() => refreshForActiveTab());
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.status === 'complete') {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      if (tabs[0] && tabs[0].id === tabId) refreshForActiveTab();
+    });
+  }
+});
 
 // ── Boot ──
 restoreSession();
