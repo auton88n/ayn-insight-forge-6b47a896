@@ -135,37 +135,54 @@
     return (el.value || '').trim().length > 0;
   }
 
+  function collectScannableDocs() {
+    const docs = [{ doc: document, prefix: '' }];
+    document.querySelectorAll('iframe').forEach((frame, i) => {
+      try {
+        const fdoc = frame.contentDocument;
+        if (fdoc && fdoc.querySelector('input, textarea, select')) {
+          docs.push({ doc: fdoc, prefix: `frame${i}:` });
+        }
+      } catch { /* cross-origin, ignore */ }
+    });
+    return docs;
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','file','image','reset','search']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
     const fields = [];
     const seenNames = new Set();
 
-    document.querySelectorAll('input, textarea, select').forEach((el, idx) => {
-      if (SKIP_TYPES.has(el.type)) return;
-      if (el.disabled) return;
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return;
-      const label = getLabelFor(el);
-      const key = (el.name || '') + '|' + label;
-      if (el.type === 'radio' && seenNames.has(key)) return;
-      seenNames.add(key);
-      if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
-      if (!label && (!el.name || el.name.length < 2)) return;
+    collectScannableDocs().forEach(({ doc, prefix }) => {
+      doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
+        if (SKIP_TYPES.has(el.type)) return;
+        if (el.disabled) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+        const label = getLabelFor(el);
+        const key = prefix + (el.name || '') + '|' + label;
+        if (el.type === 'radio' && seenNames.has(key)) return;
+        seenNames.add(key);
+        if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
+        if (!label && (!el.name || el.name.length < 2)) return;
 
-      fields.push({
-        id: el.id || el.name || `f${idx}`,
-        label: label || `Field ${idx}`,
-        type: el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text'),
-        name: el.name || '',
-        currentValue: isFilled(el) ? (el.value || '') : '',
-        options: getOptions(el),
-        required: el.required || el.getAttribute('aria-required') === 'true',
-        _idx: idx,
+        fields.push({
+          id: prefix + (el.id || el.name || `f${idx}`),
+          label: label || `Field ${idx}`,
+          type: el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text'),
+          name: el.name || '',
+          currentValue: isFilled(el) ? (el.value || '') : '',
+          options: getOptions(el),
+          required: el.required || el.getAttribute('aria-required') === 'true',
+          _idx: idx,
+          _frame: prefix,
+        });
       });
     });
     return fields;
   }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 3. VALUE INJECTION
