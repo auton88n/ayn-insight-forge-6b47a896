@@ -127,6 +127,8 @@ const EXT_ACTIONS = new Set([
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor",
+  // v1.4.0: smarter AI
+  "ext_ask", "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
 ]);
 
 // Public link-flow actions (no auth required for start/poll)
