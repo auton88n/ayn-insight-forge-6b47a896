@@ -726,7 +726,12 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
       const tc = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       if (!tc) {
         const fallback = data?.choices?.[0]?.message?.content;
-        return json({ error: "AI did not return structured data", detail: typeof fallback === "string" ? fallback.slice(0, 400) : null }, 500);
+        return json({
+          error: isPdf
+            ? "Couldn't read this PDF — it may be scanned/image-based. Paste your resume text instead."
+            : "AI couldn't extract resume data. Paste your resume text instead.",
+          detail: typeof fallback === "string" ? fallback.slice(0, 400) : null,
+        }, 422);
       }
 
       let resume: unknown;
