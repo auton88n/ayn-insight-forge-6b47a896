@@ -1000,3 +1000,105 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 
 // ── Boot ──
 restoreSession();
+
+// ═══════════════════════════════════════════════════════════════════
+// v1.4.0: ASK AYN — context-aware chat copilot
+// ═══════════════════════════════════════════════════════════════════
+const ASK = { sessionId: null, jobText: '', jobTitle: '', company: '', url: '', loaded: false, busy: false };
+
+async function detectForAsk() {
+  // Pull current page context (job + form) once per page load
+  const pill = $('ask-context-pill-wrap');
+  pill.innerHTML = `<div class="ask-context-pill"><i class="ti ti-loader-2 spin"></i>Reading the page…</div>`;
+  try {
+    const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
+    if (!tab?.id) throw new Error('no_tab');
+    const scan = await new Promise(res => chrome.tabs.sendMessage(tab.id, { type: 'SCAN_FORM' }, r => res(r || null)));
+    ASK.url = tab.url || '';
+    ASK.jobText  = scan?.jobText?.text  || '';
+    ASK.jobTitle = scan?.jobText?.title || '';
+    ASK.company  = scan?.jobText?.company || '';
+    if (ASK.jobTitle || ASK.company) {
+      pill.innerHTML = `<div class="ask-context-pill"><i class="ti ti-target-arrow"></i>${[ASK.jobTitle, ASK.company].filter(Boolean).join(' · ').slice(0, 80)}</div>`;
+    } else {
+      pill.innerHTML = `<div class="ask-context-pill" style="background:#f3f4f6;border-color:#e5e7eb;color:#6b7280"><i class="ti ti-info-circle"></i>No job detected — I'll answer using your resume only.</div>`;
+    }
+    ASK.loaded = true;
+  } catch {
+    pill.innerHTML = `<div class="ask-context-pill" style="background:#f3f4f6;border-color:#e5e7eb;color:#6b7280"><i class="ti ti-info-circle"></i>Reload the page if I can't see it.</div>`;
+  }
+}
+
+function askAddBubble(role, text, opts = {}) {
+  $('ask-empty')?.classList.add('hidden');
+  const msgs = $('ask-msgs');
+  const b = document.createElement('div');
+  b.className = `ask-bubble ${role}` + (opts.thinking ? ' thinking' : '');
+  if (opts.thinking) {
+    b.innerHTML = `<div class="spinner"></div>${text}`;
+  } else {
+    b.textContent = text;
+  }
+  msgs.appendChild(b);
+
+  if (role === 'assistant' && !opts.thinking && text) {
+    const actions = document.createElement('div');
+    actions.className = 'ask-bubble-actions';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'ask-mini-btn';
+    copyBtn.innerHTML = '<i class="ti ti-copy"></i> Copy';
+    copyBtn.onclick = () => { navigator.clipboard.writeText(text); copyBtn.innerHTML = '<i class="ti ti-check"></i> Copied'; setTimeout(()=>{ copyBtn.innerHTML='<i class="ti ti-copy"></i> Copy'; }, 1500); };
+    actions.appendChild(copyBtn);
+    b.appendChild(actions);
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+  return b;
+}
+
+async function askSend(question) {
+  if (!question || ASK.busy) return;
+  ASK.busy = true;
+  const input = $('ask-input');
+  const sendBtn = $('ask-send-btn');
+  input.value = ''; input.style.height = '38px';
+  sendBtn.disabled = true;
+  $('ask-suggestions')?.classList.add('hidden');
+
+  askAddBubble('user', question);
+  const thinking = askAddBubble('assistant', 'Thinking…', { thinking: true });
+
+  try {
+    const r = await bgFunc('ext_ask', {
+      sessionId: ASK.sessionId,
+      question,
+      jobTitle: ASK.jobTitle,
+      company: ASK.company,
+      jobText: (ASK.jobText || '').slice(0, 3500),
+      url: ASK.url,
+    });
+    ASK.sessionId = r.sessionId || ASK.sessionId;
+    thinking.remove();
+    askAddBubble('assistant', r.answer || '(no answer)');
+  } catch (e) {
+    thinking.remove();
+    askAddBubble('assistant', `Couldn't reach AYN: ${e.message || 'error'}`);
+  } finally {
+    ASK.busy = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const s = e.target.closest('.ask-sugg');
+  if (s) askSend(s.dataset.q || s.textContent.trim());
+});
+
+$('ask-send-btn')?.addEventListener('click', () => askSend(($('ask-input').value || '').trim()));
+$('ask-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askSend(($('ask-input').value || '').trim()); }
+});
+$('ask-input')?.addEventListener('input', (e) => {
+  e.target.style.height = '38px';
+  e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px';
+});
