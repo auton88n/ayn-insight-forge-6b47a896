@@ -240,26 +240,29 @@ Deno.serve(async (req) => {
       if (action === "ext_autofill") {
         const { fields, jobText } = payload as { fields?: unknown; jobText?: string };
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
+        if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
         const [{ data: profile }, { data: resume }] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
         ]);
+
+        const profileFieldsAvailable = profile
+          ? Object.entries(profile).filter(([_, v]) => v != null && v !== "" && (Array.isArray(v) ? v.length : true)).map(([k]) => k)
+          : [];
+        const hasAnyData = profileFieldsAvailable.length > 0 || !!resume?.content;
+
         const r = await callAI({
-          system: `You are filling out a job application form for a job seeker applying to jobs in the US and Canada.
+          system: `You are filling out a job application form for a real candidate. Use ONLY the candidate's profile, resume, and the job description provided.
 
-You have: their profile (name, address, phone, work authorization, answers), their resume (experience, skills, education), and the job description.
+IT IS COMPLETELY FINE IF THE PROFILE IS PARTIAL. Fill every field you can from the available data. Leave fields you cannot answer as an empty string. NEVER refuse to fill the form because some profile fields are missing — partial answers are better than no answers.
 
-RULES:
-- Only use real data from profile and resume — never invent information
-- Work authorization questions (legally eligible to work in Canada or the US): use work_auth.legally_eligible
-- Salary: use default_answers.salary_expectation if set, else leave empty
-- "Tell us about yourself": use default_answers.about_me adapted to the job
-- "Why this role": use default_answers.why_this_role adapted to the job
-- Criminal record: use default_answers.criminal_record
-- Equity/diversity: use equity flags from default_answers (voluntary only)
-- Select fields: pick the closest matching option from the provided options list
-- Leave empty: SIN, exact birth date, banking info, passwords, anything not in profile
-- If not confident: return empty string — never guess sensitive fields`,
+Rules:
+- Only use real data — never invent names, phone numbers, addresses, eligibility, or experience.
+- Map common application fields from profile (legal_first_name, legal_last_name, email, phone, address, city, province_state, postal_code, country, linkedin_url, portfolio_url, work_authorization, default_answers.salary_expectation, default_answers.about_me, default_answers.why_this_role, default_answers.criminal_record, equity flags).
+- For "Tell us about yourself" / "Why this role" use default_answers.about_me / default_answers.why_this_role lightly adapted to the job; if missing, leave empty.
+- For select / radio fields, pick the closest matching option from the provided options list when you have a clear answer; otherwise leave empty.
+- Skip and leave empty: SIN/SSN, full birth date, bank info, passwords, anything not in profile.
+- Return one entry per field id you confidently filled. Omit fields you are leaving empty.`,
           user: JSON.stringify({
             fields,
             profile,
@@ -273,7 +276,16 @@ RULES:
             required: ["values"],
           },
         });
-        return json(r.structured);
+        const out = (r.structured as { values?: Array<{ id: string; value: string }> }) || { values: [] };
+        return json({
+          values: out.values || [],
+          meta: {
+            jobDetected: !!(jobText && jobText.length > 80),
+            profileFieldsAvailable: profileFieldsAvailable.length,
+            hasResume: !!resume?.content,
+            hasAnyData,
+          },
+        });
       }
 
       if (action === "ext_tailor") {

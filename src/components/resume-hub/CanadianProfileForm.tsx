@@ -223,9 +223,7 @@ function ProfileCompletion({ pct }: { pct: number }) {
         <div className={cn("h-full transition-all duration-700 rounded-full", color)} style={{ width: `${pct}%` }} />
       </div>
       <p className="text-xs text-muted-foreground mt-1.5">
-        {pct < 50 ? "Complete your profile so AYN can autofill Canadian job applications for you."
-          : pct < 80 ? "Almost there — a few more answers will unlock full autofill coverage."
-          : "Your profile is ready. AYN can autofill most Canadian application forms."}
+        AYN autofills using whatever fields are saved. The more you add, the more application questions it can answer for you.
       </p>
     </div>
   );

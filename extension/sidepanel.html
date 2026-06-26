@@ -234,14 +234,19 @@
 
   <!-- FILL -->
   <div class="view" id="v-fill">
-    <div class="card" id="fill-job-banner" style="display:none">
+    <div id="fill-empty" class="banner b-blue hidden">
+      <div class="banner-title" id="fill-empty-title">No application form detected</div>
+      <div class="banner-sub" id="fill-empty-sub">Open a job's apply page (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, SmartRecruiters…) and click Scan again.</div>
+      <button class="btn btn-outline mt8" id="fill-rescan-btn" style="padding:6px 10px;font-size:11px">Scan again</button>
+    </div>
+    <div class="card hidden" id="fill-job-banner">
       <div class="card-title" id="fill-job-title">Job detected</div>
-      <div class="card-sub">AYN will use this job context to fill the form.</div>
+      <div class="card-sub" id="fill-job-sub">AYN will use this job context to fill the form.</div>
     </div>
-    <div class="note">
-      Navigate to an <b>application form</b>, then click below. On LinkedIn use Easy Apply first.
+    <div class="note" id="fill-ready-note" style="display:none">
+      Ready to fill <b id="fill-field-count">0</b> fields. AYN uses whatever profile info you've saved — partial profiles are fine.
     </div>
-    <button class="btn btn-primary" id="autofill-now-btn"><i class="ti ti-bolt"></i>Fill This Form Now</button>
+    <button class="btn btn-primary hidden" id="autofill-now-btn"><i class="ti ti-bolt"></i>Fill This Form Now</button>
     <div class="err hidden" id="err-fill"></div>
     <div id="fill-result-wrap" class="hidden mt10">
       <div class="fill-result">
@@ -249,7 +254,8 @@
         <div class="fill-stat-lbl" id="fill-stat-lbl">fields filled</div>
       </div>
       <div class="field-list" id="fill-result-list"></div>
-      <div class="btn-row">
+      <button class="btn btn-green mt8 hidden" id="fill-save-tracker-btn"><i class="ti ti-bookmark"></i>Save this job to tracker</button>
+      <div class="btn-row mt8">
         <button class="btn btn-outline" id="fill-reset-btn">Done</button>
         <button class="btn btn-primary" id="fill-retry-btn">Fill again</button>
       </div>
@@ -283,9 +289,9 @@
 
   <!-- CONTACTS -->
   <div class="view" id="v-contact">
-    <div id="contact-no-job" class="banner b-amber hidden">
-      <div class="banner-title">No job detected</div>
-      <div class="banner-sub">Navigate to a job posting first.</div>
+    <div id="contact-no-job" class="banner b-blue hidden">
+      <div class="banner-title">Open a job posting first</div>
+      <div class="banner-sub">Find the role on LinkedIn, Indeed, Greenhouse, Lever, etc. — then come back here to find recruiters and email formats.</div>
     </div>
     <div id="contact-job-info" class="card hidden">
       <div class="card-title" id="contact-job-title">Job detected</div>
@@ -312,9 +318,9 @@
 
   <!-- COVER LETTER -->
   <div class="view" id="v-cover">
-    <div id="cover-no-job" class="banner b-amber hidden">
-      <div class="banner-title">No job detected</div>
-      <div class="banner-sub">Navigate to a job posting first.</div>
+    <div id="cover-no-job" class="banner b-blue hidden">
+      <div class="banner-title">Open a job posting first</div>
+      <div class="banner-sub">AYN writes the letter from the page's job description plus your saved resume.</div>
     </div>
     <div id="cover-job-banner" class="card hidden">
       <div class="card-title" id="cover-job-title"></div>
