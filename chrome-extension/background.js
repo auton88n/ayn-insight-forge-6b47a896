@@ -45,21 +45,39 @@ async function callFunction(action, body, session) {
   return res.json();
 }
 
-// Safe wrapper for tabs.sendMessage — returns null instead of throwing
-function safeSendMessage(tabId, message) {
-  return new Promise(resolve => {
+// Safe wrapper for tabs.sendMessage — auto-injects content script if missing
+async function safeSendMessage(tabId, message) {
+  // First try sending directly
+  const direct = await new Promise(resolve => {
     try {
       chrome.tabs.sendMessage(tabId, message, response => {
-        if (chrome.runtime.lastError) {
-          resolve(null);
-        } else {
-          resolve(response);
-        }
+        if (chrome.runtime.lastError) resolve(null);
+        else resolve(response);
       });
-    } catch {
-      resolve(null);
-    }
+    } catch { resolve(null); }
   });
+  if (direct !== null) return direct;
+
+  // Content script not loaded — inject it now
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content.js'],
+    });
+    // Wait for it to initialise
+    await new Promise(r => setTimeout(r, 300));
+    // Retry the message
+    return new Promise(resolve => {
+      try {
+        chrome.tabs.sendMessage(tabId, message, response => {
+          if (chrome.runtime.lastError) resolve(null);
+          else resolve(response);
+        });
+      } catch { resolve(null); }
+    });
+  } catch {
+    return null;
+  }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

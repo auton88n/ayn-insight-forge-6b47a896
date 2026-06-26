@@ -1,26 +1,17 @@
 {
   "manifest_version": 3,
   "name": "AYN Resume Tailor",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "On any job posting in the US or Canada, instantly see your match score, autofill the application, find the recruiter, and tailor your resume. Powered by AYN AI.",
   "permissions": [
     "activeTab",
     "storage",
     "sidePanel",
-    "identity"
+    "scripting"
   ],
   "host_permissions": [
-    "https://dfkoxuokfkttjhfjcecx.supabase.co/*",
-    "https://*.linkedin.com/*",
-    "https://*.indeed.com/*",
-    "https://jobright.ai/*",
-    "https://*.glassdoor.com/*",
-    "https://jobs.lever.co/*",
-    "https://boards.greenhouse.io/*",
-    "https://jobs.ashbyhq.com/*",
-    "https://*.workday.com/*",
-    "https://*.greenhouse.io/*",
-    "https://*.smartrecruiters.com/*"
+    "https://*/*",
+    "http://*/*"
   ],
   "background": {
     "service_worker": "background.js"

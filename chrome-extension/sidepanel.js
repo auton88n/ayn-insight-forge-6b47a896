@@ -172,9 +172,9 @@ $('autofill-now-btn').addEventListener('click', () => {
       }
       if (!response.ok) {
         const errorMessages = {
-          'no_content_script': 'Refresh this page first — AYN needs to load on the page before it can fill the form.',
-          'no_fields': 'No application form found on this page. Navigate to the actual application form (not the job listing), then try again.',
-          'no_values': 'AYN could not fill any fields. Make sure your Canadian profile is filled in at aynn.io first.',
+          'no_content_script': '⟳ Refresh this page (Cmd+R or Ctrl+R) then try again. AYN needs to reload with the page.',
+          'no_fields': 'This page has no fillable form fields. Make sure you are on the actual application form — not a job listing page. On LinkedIn click Easy Apply first.',
+          'no_values': 'Could not fill any fields. Make sure your profile is completed at aynn.io under Resume Hub → Extension tab.',
         };
         err.textContent = errorMessages[response.error] || response.error || 'Fill failed. Try again.';
         err.classList.remove('hidden');
