@@ -150,6 +150,28 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
+      {/* Resume upload — feeds canonical extraction */}
+      <Card className="p-4 sm:p-6 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm">
+            <FileUp className="w-4 h-4 text-primary" />
+            <span className="font-medium">Resume source</span>
+            {primaryResume
+              ? <Badge variant="secondary" className="truncate max-w-[260px]">Primary: {primaryResume.title}</Badge>
+              : <Badge variant="outline">No primary resume yet</Badge>}
+          </div>
+          {uploading && (
+            <span className="text-xs text-muted-foreground flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving & extracting…
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Upload a PDF, DOCX, or TXT. AYN saves it as your primary resume and instantly drafts your canonical profile below.
+        </p>
+        <ResumeUpload onParsed={handleResumeParsed} variant="full" />
+      </Card>
+
       <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm">
