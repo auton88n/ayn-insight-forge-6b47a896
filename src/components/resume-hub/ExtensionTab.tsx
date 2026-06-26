@@ -83,7 +83,7 @@ export default function ExtensionTab({ userId }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-base">AYN Resume Tailor for Chrome</h3>
-            <p className="text-xs font-mono text-muted-foreground mt-0.5">v1.2.9 · Side panel · MV3</p>
+            <p className="text-xs font-mono text-muted-foreground mt-0.5">v1.3.0 · Side panel · MV3</p>
             <p className="text-sm text-muted-foreground mt-2">
               One click to sign in. Autofill any job application, score jobs while you browse, find recruiters, generate cover letters, track applications, and tailor your resume.
             </p>
