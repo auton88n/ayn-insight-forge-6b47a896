@@ -504,6 +504,40 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
     const user = u?.user;
     if (!user) return json({ error: "Invalid session" }, 401);
 
+    // ---------------- link_approve: user clicks Approve on /extension/approve ----------------
+    if (action === "link_approve") {
+      const { code, device_label } = payload as { code?: string; device_label?: string };
+      if (!code) return json({ error: "code required" }, 400);
+      const admin2 = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+      const { data: link } = await admin2.from("extension_link_codes")
+        .select("status, expires_at").eq("code", code).maybeSingle();
+      if (!link) return json({ error: "Invalid code" }, 404);
+      if (new Date(link.expires_at).getTime() < Date.now()) return json({ error: "Code expired" }, 410);
+      if (link.status !== "pending") return json({ error: "Code already used" }, 409);
+
+      // Mint a device token bound to this user
+      const tokBytes = new Uint8Array(32);
+      crypto.getRandomValues(tokBytes);
+      const token = "ayn_" + Array.from(tokBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+      const tokHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))))
+        .map(x => x.toString(16).padStart(2, "0")).join("");
+      const prefix = token.slice(0, 12) + "…";
+      const label = device_label || "Chrome";
+
+      const { error: tokErr } = await admin2.from("extension_tokens")
+        .insert({ user_id: user.id, token_hash: tokHash, token_prefix: prefix, device_label: label });
+      if (tokErr) return json({ error: tokErr.message }, 500);
+
+      const { error: updErr } = await admin2.from("extension_link_codes")
+        .update({ user_id: user.id, token, status: "approved", approved_at: new Date().toISOString(), device_label: label })
+        .eq("code", code);
+      if (updErr) return json({ error: updErr.message }, 500);
+
+      return json({ ok: true });
+    }
+
+
 
 
     // ---------------- extension token management ----------------
