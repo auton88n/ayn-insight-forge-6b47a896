@@ -249,14 +249,16 @@
         if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
         if (!label && (!el.name || el.name.length < 2)) return;
 
+        const ftype = el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text');
         fields.push({
           id: prefix + (el.id || el.name || `f${idx}`),
           label: label || `Field ${idx}`,
-          type: el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text'),
+          type: ftype,
           name: el.name || '',
           currentValue: isFilled(el) ? (el.value || '') : '',
           options: getOptions(el),
           required: el.required || el.getAttribute('aria-required') === 'true',
+          group: classifyField(label, el.name || '', ftype),
           _idx: idx,
           _frame: prefix,
         });
