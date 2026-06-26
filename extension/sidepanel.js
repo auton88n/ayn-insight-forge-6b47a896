@@ -192,17 +192,6 @@ $('sign-out-btn').addEventListener('click', () => {
     toast('Signed out');
   });
 });
-$('switch-acct-btn').addEventListener('click', () => {
-  // Sign out then immediately start a fresh sign-in so user re-approves as the right account
-  chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
-    S.user = null;
-    clearPoll();
-    resetSignInBtn();
-    show('v-login');
-    toast('Sign in as the account you want to use');
-    setTimeout(startSignIn, 250);
-  });
-});
 
 // ════════════════════════════════════════════════════════════════
 // Helper: call backend via background (handles auth)

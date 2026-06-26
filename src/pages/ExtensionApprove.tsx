@@ -91,17 +91,6 @@ export default function ExtensionApprove() {
               <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3 space-y-1">
                 <p className="text-xs text-muted-foreground">This browser will be linked to:</p>
                 <p className="text-sm font-semibold font-mono break-all">{email}</p>
-                <button
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    const here = window.location.href;
-                    sessionStorage.setItem("post_login_redirect", here);
-                    window.location.href = "/?signin=1";
-                  }}
-                  className="text-xs text-orange-600 hover:underline"
-                >
-                  Not you? Sign in as a different account →
-                </button>
               </div>
             )}
             <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
