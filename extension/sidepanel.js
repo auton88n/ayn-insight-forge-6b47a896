@@ -819,15 +819,23 @@ $('analyze-btn').addEventListener('click', async () => {
 function renderKw(kws) {
   const m = kws.filter(k=>k.inResume).length;
   const total = kws.length || 1;
-  const pct = Math.round(m / total * 100);
+  const keywordPct = Math.round(m / total * 100);
+  const pct = (typeof S.atsScore === 'number' && S.atsScore > 0) ? S.atsScore : keywordPct;
   $('kw-count').textContent = `${m}/${kws.length} matched`;
   const tier = pct >= 80 ? 's-strong' : pct >= 60 ? 's-good' : pct >= 35 ? 's-fair' : 's-poor';
   const ring = $('ats-ring');
   if (ring) { ring.textContent = pct + '%'; ring.className = 'ats-ring ' + tier; }
   const sub = $('ats-sub');
-  if (sub) sub.textContent = `${m} of ${kws.length} key terms already in your resume. Tailor to lift this above 80%.`;
+  if (sub) sub.textContent = S.scoreReasoning || `${m} of ${kws.length} key terms already in your resume. Tailor to lift this above 80%.`;
   const wrap = $('kw-chips'); wrap.innerHTML = '';
-  kws.forEach(kw => {
+  // Sort: high-importance missing first, then matched
+  const sorted = [...kws].sort((a,b) => {
+    const imp = { high: 3, medium: 2, low: 1 };
+    const ai = imp[a.importance] || 2, bi = imp[b.importance] || 2;
+    if (a.inResume !== b.inResume) return a.inResume ? 1 : -1;
+    return bi - ai;
+  });
+  sorted.forEach(kw => {
     const s = document.createElement('span');
     s.className = `kc ${kw.inResume?'matched':'missing'}`;
     s.textContent = (kw.inResume?'✓ ':'')+kw.text;
