@@ -165,7 +165,231 @@ const EXT_ACTIONS = new Set([
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
   "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
+  // v1.5.0 Phase 1: canonical profile read for extension
+  "ext_profile_canonical_get",
 ]);
+
+// ---------------- Canonical structured profile (Phase 1) ----------------
+// Single source of truth for skills, experiences, work auth, and derived
+// fields like total YoE / seniority. Read by autofill, scoring, tailoring,
+// cover letter. Extracted once from primary resume + user_profile_data;
+// users can edit it in the Profile tab and edits win over re-extraction.
+type CanonicalProfile = {
+  skills: Array<{ name: string; years?: number; last_used?: string; level?: string; evidence?: string }>;
+  experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[] }>;
+  education: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string; gpa?: string }>;
+  certifications: Array<{ name: string; issuer?: string; year?: string }>;
+  work_auth: {
+    citizenship?: string;
+    work_authorized_us?: boolean;
+    work_authorized_ca?: boolean;
+    needs_sponsorship_now?: boolean;
+    needs_sponsorship_future?: boolean;
+    visa_type?: string;
+    notes?: string;
+  };
+  preferences: {
+    open_to_remote?: boolean;
+    open_to_relocation?: boolean;
+    open_to_travel?: boolean;
+    salary_min_usd?: number;
+    salary_currency?: string;
+    start_date_availability?: string;
+    desired_titles?: string[];
+    desired_locations?: string[];
+  };
+  derived: {
+    total_yoe?: number;
+    seniority?: string;
+    primary_function?: string;
+    top_skills?: string[];
+    education_level?: string;
+    current_title?: string;
+    current_company?: string;
+  };
+};
+
+const EMPTY_CANONICAL: CanonicalProfile = {
+  skills: [], experiences: [], education: [], certifications: [],
+  work_auth: {}, preferences: {}, derived: {},
+};
+
+async function loadCanonical(admin: ReturnType<typeof createClient>, userId: string): Promise<CanonicalProfile | null> {
+  const { data } = await admin.from("user_profile_canonical")
+    .select("skills, experiences, education, certifications, work_auth, preferences, derived")
+    .eq("user_id", userId).maybeSingle();
+  if (!data) return null;
+  return {
+    skills: (data.skills as CanonicalProfile["skills"]) || [],
+    experiences: (data.experiences as CanonicalProfile["experiences"]) || [],
+    education: (data.education as CanonicalProfile["education"]) || [],
+    certifications: (data.certifications as CanonicalProfile["certifications"]) || [],
+    work_auth: (data.work_auth as CanonicalProfile["work_auth"]) || {},
+    preferences: (data.preferences as CanonicalProfile["preferences"]) || {},
+    derived: (data.derived as CanonicalProfile["derived"]) || {},
+  };
+}
+
+// Compact textual digest of the canonical profile for inclusion in LLM
+// prompts. Keeps token count low and prevents the model from drifting.
+function canonicalDigest(c: CanonicalProfile | null): string {
+  if (!c) return "";
+  const skills = c.skills.slice(0, 30).map(s => s.years ? `${s.name} (${s.years}y)` : s.name).join(", ");
+  const exp = c.experiences.slice(0, 5).map(e => `${e.title} @ ${e.company} [${e.start || "?"}-${e.end || (e.current ? "Now" : "?")}]`).join("; ");
+  const edu = c.education.slice(0, 3).map(e => `${e.degree || ""} ${e.field || ""} @ ${e.school}`.trim()).join("; ");
+  const wa = c.work_auth;
+  const waLine = `citizenship=${wa.citizenship || "?"}, us_auth=${wa.work_authorized_us ?? "?"}, needs_sponsorship=${wa.needs_sponsorship_now ?? "?"}, visa=${wa.visa_type || "n/a"}`;
+  const pr = c.preferences;
+  const prLine = `remote=${pr.open_to_remote ?? "?"}, relocate=${pr.open_to_relocation ?? "?"}, salary_min=${pr.salary_min_usd ?? "?"} ${pr.salary_currency || ""}, start=${pr.start_date_availability || "?"}`;
+  const d = c.derived;
+  return [
+    `TOTAL_YOE=${d.total_yoe ?? "?"} | SENIORITY=${d.seniority || "?"} | FUNCTION=${d.primary_function || "?"} | EDU_LEVEL=${d.education_level || "?"}`,
+    `CURRENT=${d.current_title || "?"} @ ${d.current_company || "?"}`,
+    `TOP_SKILLS: ${(d.top_skills || []).slice(0, 12).join(", ")}`,
+    `ALL_SKILLS: ${skills}`,
+    `EXPERIENCE: ${exp}`,
+    `EDUCATION: ${edu}`,
+    `WORK_AUTH: ${waLine}`,
+    `PREFERENCES: ${prLine}`,
+  ].join("\n");
+}
+
+// LLM extraction schema for the canonical profile. Strict: model fills only
+// what it can see in the resume + supplemental profile fields; missing data
+// stays empty rather than being hallucinated.
+const CANONICAL_SCHEMA = {
+  type: "object",
+  properties: {
+    skills: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          years: { type: "number" },
+          last_used: { type: "string" },
+          level: { type: "string" },
+          evidence: { type: "string" },
+        },
+        required: ["name"],
+      },
+    },
+    experiences: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          company: { type: "string" },
+          title: { type: "string" },
+          location: { type: "string" },
+          start: { type: "string" },
+          end: { type: "string" },
+          current: { type: "boolean" },
+          bullets: { type: "array", items: { type: "string" } },
+          tech: { type: "array", items: { type: "string" } },
+        },
+        required: ["company", "title"],
+      },
+    },
+    education: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          school: { type: "string" }, degree: { type: "string" }, field: { type: "string" },
+          start: { type: "string" }, end: { type: "string" }, gpa: { type: "string" },
+        },
+        required: ["school"],
+      },
+    },
+    certifications: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { name: { type: "string" }, issuer: { type: "string" }, year: { type: "string" } },
+        required: ["name"],
+      },
+    },
+    work_auth: {
+      type: "object",
+      properties: {
+        citizenship: { type: "string" },
+        work_authorized_us: { type: "boolean" },
+        work_authorized_ca: { type: "boolean" },
+        needs_sponsorship_now: { type: "boolean" },
+        needs_sponsorship_future: { type: "boolean" },
+        visa_type: { type: "string" },
+        notes: { type: "string" },
+      },
+    },
+    preferences: {
+      type: "object",
+      properties: {
+        open_to_remote: { type: "boolean" },
+        open_to_relocation: { type: "boolean" },
+        open_to_travel: { type: "boolean" },
+        salary_min_usd: { type: "number" },
+        salary_currency: { type: "string" },
+        start_date_availability: { type: "string" },
+        desired_titles: { type: "array", items: { type: "string" } },
+        desired_locations: { type: "array", items: { type: "string" } },
+      },
+    },
+    derived: {
+      type: "object",
+      properties: {
+        total_yoe: { type: "number" },
+        seniority: { type: "string" },
+        primary_function: { type: "string" },
+        top_skills: { type: "array", items: { type: "string" } },
+        education_level: { type: "string" },
+        current_title: { type: "string" },
+        current_company: { type: "string" },
+      },
+    },
+  },
+  required: ["skills", "experiences", "education", "certifications", "work_auth", "preferences", "derived"],
+};
+
+async function extractCanonical(opts: {
+  resumeContent?: unknown;
+  resumeText?: string;
+  profileExtras?: unknown;
+}): Promise<CanonicalProfile> {
+  const r = await callAI({
+    model: QUALITY_MODEL,
+    system: `You convert a resume + supplemental profile fields into a strict canonical profile JSON.
+
+RULES:
+- Faithful: never invent skills, years, titles, or work-auth values not in the input.
+- Years: only set "years" on a skill if the resume gives explicit evidence (e.g. "5 years of Python", or you can compute it from dated jobs that explicitly used it).
+- derived.total_yoe: sum of distinct, non-overlapping professional years (count "Present" as ${new Date().getFullYear()}). Internships count as 0.5x. Cap at 50.
+- derived.seniority: one of "intern","entry","mid","senior","staff","principal","manager","director","vp","cxo". Pick from titles.
+- derived.education_level: one of "High School","Associate's","Bachelor's","Master's","PhD". Pick the highest completed.
+- derived.top_skills: 8-12 skills you would put on a resume for this person, ordered by relevance.
+- work_auth: leave booleans missing if unstated. Do NOT guess citizenship from name.
+- preferences: leave fields missing if unstated. Do NOT default to true/false.
+- All dates: keep the format as written ("2021", "Jan 2021", "2021-03"). Do not normalize.`,
+    user: JSON.stringify({
+      resumeContent: opts.resumeContent ?? null,
+      resumeText: (opts.resumeText || "").slice(0, 30000),
+      profileExtras: opts.profileExtras ?? null,
+    }).slice(0, 45000),
+    toolName: "emit_canonical_profile",
+    toolSchema: CANONICAL_SCHEMA,
+  });
+  const out = r.structured as CanonicalProfile | undefined;
+  if (!out) throw new Error("Canonical extraction returned no structured output");
+  return {
+    skills: out.skills || [],
+    experiences: out.experiences || [],
+    education: out.education || [],
+    certifications: out.certifications || [],
+    work_auth: out.work_auth || {},
+    preferences: out.preferences || {},
+    derived: out.derived || {},
+  };
+}
 
 // Public link-flow actions (no auth required for start/poll)
 const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
@@ -284,10 +508,12 @@ Deno.serve(async (req) => {
         };
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
-        const [{ data: profile }, { data: resume }] = await Promise.all([
+        const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
         ]);
+        const canonicalText = canonicalDigest(canonical);
 
         const profileFieldsAvailable = profile
           ? Object.entries(profile).filter(([_, v]) => v != null && v !== "" && (Array.isArray(v) ? v.length : true)).map(([k]) => k)
@@ -329,10 +555,12 @@ Deno.serve(async (req) => {
           linkedin_url: profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           portfolio_url: profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           summary: basics.summary || "",
-          computed_years_experience: yoe,
-          computed_education_level: educationLevel,
-          current_title: (work[0] as { title?: string })?.title || basics.title || "",
-          current_company: (work[0] as { company?: string })?.company || "",
+          computed_years_experience: canonical?.derived?.total_yoe ?? yoe,
+          computed_education_level: canonical?.derived?.education_level || educationLevel,
+          current_title: canonical?.derived?.current_title || (work[0] as { title?: string })?.title || basics.title || "",
+          current_company: canonical?.derived?.current_company || (work[0] as { company?: string })?.company || "",
+          seniority: canonical?.derived?.seniority || "",
+          primary_function: canonical?.derived?.primary_function || "",
         };
 
         const r = await callAI({
@@ -366,9 +594,11 @@ logic.years_experience
 logic.education_level
   -> Use mergedBasics.computed_education_level. Match closest option text.
 
-logic.salary -> profile.default_answers.salary_expectation only. Else skip.
+logic.salary -> canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation. Else skip.
 
-logic.start_date -> profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
+logic.start_date -> canonical.preferences.start_date_availability or profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
+
+CANONICAL OVERRIDES (Phase 1): canonical.work_auth and canonical.preferences are the user-confirmed source of truth. If canonical says needs_sponsorship_now=true, answer Yes on sponsorship questions. If canonical says work_authorized_us=true, answer Yes on US work auth. If canonical.skills lists a skill with years=N, use N for "How many years of <skill>" questions verbatim. Never override these with guesses.
 
 eeo.* -> profile.default_answers only. Else "Decline to self-identify" / "Prefer not to say" when offered, else skip.
 
@@ -389,10 +619,12 @@ GENERAL:
             context: { jobTitle, company, ats, url },
             fields,
             mergedBasics: merged,
+            canonical,
+            canonicalSummary: canonicalText,
             profile,
             resume: resume?.content,
             jobDescription: (jobText || "").slice(0, 3500),
-          }).slice(0, 38000),
+          }).slice(0, 45000),
           toolName: "emit_autofill",
           toolSchema: {
             type: "object",
@@ -433,15 +665,16 @@ GENERAL:
       if (action === "ext_tailor") {
         const jobId = (payload as { job_id?: string }).job_id;
         if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }] = await Promise.all([
+        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
           admin.from("jobs").select("id, jd_text, company, title").eq("user_id", userId).eq("id", jobId).maybeSingle(),
           admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Return same schema.",
-          user: JSON.stringify({ resume: resume.content, jdText: job.jd_text }).slice(0, 40000),
+          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema.",
+          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text }).slice(0, 45000),
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
         });
@@ -453,14 +686,15 @@ GENERAL:
         const jobId = (payload as { job_id?: string }).job_id;
         const tone = (payload as { tone?: string }).tone || "professional, warm";
         if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }] = await Promise.all([
+        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
           admin.from("jobs").select("id, jd_text, company").eq("user_id", userId).eq("id", jobId).maybeSingle(),
           admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
-          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés.`,
-          user: JSON.stringify({ resume: resume.content, jdText: job.jd_text }).slice(0, 30000),
+          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés. Ground every claim in the canonicalProfile or resume.`,
+          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
         });
         await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
         return json({ body: r.text });
@@ -471,10 +705,13 @@ GENERAL:
       if (action === "ext_job_score") {
         const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
         if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
-        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
+        const [{ data: resume }, canonical] = await Promise.all([
+          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
+        ]);
+        if (!resume?.content && !canonical) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
 
-        const rc = resume.content as Record<string, unknown>;
+        const rc = (resume?.content || {}) as Record<string, unknown>;
         const resumeDigest = {
           basics: rc.basics,
           skills: rc.skills,
@@ -482,6 +719,7 @@ GENERAL:
             title: w.title, company: w.company, start: w.start, end: w.end,
             bullets: ((w.bullets as string[]) || []).slice(0, 4),
           })),
+          canonical: canonicalDigest(canonical),
         };
 
         const r = await callAI({
@@ -863,6 +1101,11 @@ ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority ma
         const b64 = btoa(bin);
         const filename = `${(basics.name || "Resume").replace(/\s+/g, "_")}_AYN.txt`;
         return json({ base64: b64, filename, mime: "text/plain", size: bytes.length });
+      }
+
+      if (action === "ext_profile_canonical_get") {
+        const canonical = await loadCanonical(admin, userId);
+        return json({ canonical: canonical || EMPTY_CANONICAL, hasProfile: !!canonical });
       }
     }
 
@@ -1246,6 +1489,49 @@ BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).
       if (status) { updates.status = status; if (status === "applied") updates.applied_at = new Date().toISOString(); }
       if (notes !== undefined) updates.notes = notes;
       const { error } = await admin.from("job_applications").update(updates).eq("id", id).eq("user_id", userId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // ---------------- Canonical Profile (Phase 1) ----------------
+    // profile_canonical_get: load the saved canonical profile (empty shell if none)
+    if (action === "profile_canonical_get") {
+      const canonical = await loadCanonical(adminForNew, userId);
+      return json({ canonical: canonical || EMPTY_CANONICAL, hasProfile: !!canonical });
+    }
+
+    // profile_canonical_extract: run AI to (re)build canonical from primary resume + user_profile_data.
+    // Does NOT save automatically; UI shows the result for confirmation/edit.
+    if (action === "profile_canonical_extract") {
+      const [{ data: resume }, { data: profile }] = await Promise.all([
+        adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        adminForNew.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
+      ]);
+      if (!resume?.content && !profile) return json({ error: "No primary resume or profile to extract from" }, 404);
+      const canonical = await extractCanonical({
+        resumeContent: resume?.content || null,
+        profileExtras: profile || null,
+      });
+      return json({ canonical });
+    }
+
+    // profile_canonical_save: persist user-edited canonical profile (upsert by user_id).
+    if (action === "profile_canonical_save") {
+      const { canonical } = payload as { canonical?: Partial<CanonicalProfile> };
+      if (!canonical || typeof canonical !== "object") return json({ error: "canonical required" }, 400);
+      const row = {
+        user_id: userId,
+        skills: canonical.skills ?? [],
+        experiences: canonical.experiences ?? [],
+        education: canonical.education ?? [],
+        certifications: canonical.certifications ?? [],
+        work_auth: canonical.work_auth ?? {},
+        preferences: canonical.preferences ?? {},
+        derived: canonical.derived ?? {},
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await adminForNew.from("user_profile_canonical")
+        .upsert(row, { onConflict: "user_id" });
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }

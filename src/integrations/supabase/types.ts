@@ -3850,6 +3850,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profile_canonical: {
+        Row: {
+          certifications: Json
+          created_at: string
+          derived: Json
+          education: Json
+          experiences: Json
+          extracted_at: string | null
+          preferences: Json
+          skills: Json
+          source_resume_id: string | null
+          updated_at: string
+          user_id: string
+          work_auth: Json
+        }
+        Insert: {
+          certifications?: Json
+          created_at?: string
+          derived?: Json
+          education?: Json
+          experiences?: Json
+          extracted_at?: string | null
+          preferences?: Json
+          skills?: Json
+          source_resume_id?: string | null
+          updated_at?: string
+          user_id: string
+          work_auth?: Json
+        }
+        Update: {
+          certifications?: Json
+          created_at?: string
+          derived?: Json
+          education?: Json
+          experiences?: Json
+          extracted_at?: string | null
+          preferences?: Json
+          skills?: Json
+          source_resume_id?: string | null
+          updated_at?: string
+          user_id?: string
+          work_auth?: Json
+        }
+        Relationships: []
+      }
       user_profile_data: {
         Row: {
           address: Json | null

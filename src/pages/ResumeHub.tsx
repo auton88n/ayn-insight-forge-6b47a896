@@ -10,6 +10,7 @@ import BuilderTab from "@/components/resume-hub/BuilderTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
 import TrackerTab from "@/components/resume-hub/TrackerTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
+import ProfileTab from "@/components/resume-hub/ProfileTab";
 
 export default function ResumeHub() {
   const navigate = useNavigate();
@@ -66,8 +67,9 @@ export default function ResumeHub() {
         </div>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-6 w-full max-w-3xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="builder">Builder</TabsTrigger>
             <TabsTrigger value="jobs">Jobs</TabsTrigger>
             <TabsTrigger value="tracker">Tracker</TabsTrigger>
@@ -76,6 +78,9 @@ export default function ResumeHub() {
 
           <TabsContent value="overview" className="mt-6">
             <OverviewTab userId={userId!} onOpenBuilder={() => setTab("builder")} onOpenJobs={() => setTab("jobs")} />
+          </TabsContent>
+          <TabsContent value="profile" className="mt-6">
+            <ProfileTab userId={userId!} />
           </TabsContent>
           <TabsContent value="builder" className="mt-6">
             <BuilderTab userId={userId!} />
