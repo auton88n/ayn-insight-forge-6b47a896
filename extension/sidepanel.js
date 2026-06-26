@@ -299,6 +299,37 @@ document.getElementById('fill-download-resume-btn')?.addEventListener('click', a
   }
 });
 
+// v1.4.0: One-click auto-attach (best-effort — Chrome blocks this on many sites)
+document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const status = document.getElementById('fill-attach-status');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<div class="spinner"></div>Attaching…';
+  status.classList.add('hidden');
+  try {
+    const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
+    const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'ATTACH_RESUME', tabId: tab?.id }, res));
+    if (r?.ok) {
+      status.innerHTML = `<i class="ti ti-check" style="color:var(--ayn-green)"></i><span style="color:var(--ayn-green)">Attached ${r.filename} to ${r.count} field${r.count>1?'s':''} ✓ Now click Submit.</span>`;
+      status.classList.remove('hidden');
+      toast('Resume attached ✓', 'ok');
+    } else {
+      const reason = r?.error === 'blocked' ? 'This site blocks programmatic upload — use the manual download below.'
+                    : r?.error === 'no_resume' ? 'No resume on file. Upload one in the AYN dashboard.'
+                    : r?.error === 'no_file_input' ? 'No file upload field detected on this page.'
+                    : r?.error || 'Could not auto-attach. Use the manual download below.';
+      status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-muted)">${reason}</span>`;
+      status.classList.remove('hidden');
+    }
+  } catch (err) {
+    status.innerHTML = `<i class="ti ti-x" style="color:var(--ayn-red)"></i><span style="color:var(--ayn-red)">${err.message || 'Failed'}</span>`;
+    status.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+
 $('fill-rescan-btn')?.addEventListener('click', detectForFill);
 
 $('autofill-now-btn').addEventListener('click', () => {
