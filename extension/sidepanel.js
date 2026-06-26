@@ -39,7 +39,7 @@ function switchTab(tab) {
   S.tab = tab;
   ['fill','jobs','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
   if (tab === 'fill')    { show('v-fill');    detectForFill(); }
-  if (tab === 'jobs')    { show('v-jobs'); }
+  if (tab === 'jobs')    { show('v-jobs');    detectForScore(); }
   if (tab === 'contact') { show('v-contact'); detectForContacts(); }
   if (tab === 'cover')   { show('v-cover');   detectForCover(); }
   if (tab === 'tracker') { show('v-tracker'); loadTracker(); }
