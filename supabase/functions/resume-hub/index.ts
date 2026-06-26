@@ -726,9 +726,11 @@ ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority ma
           parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
         } catch { return json({ error: "Failed to parse AI response" }, 500); }
         return json({
-          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume) })) : [],
+          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume), importance: String(k.importance||"medium") })) : [],
           tailoredText: String(parsed.tailoredText || ""),
-          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,5) : [],
+          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,6) : [],
+          atsScore: Math.max(0, Math.min(100, Math.round(Number((parsed as Record<string, unknown>).atsScore) || 0))),
+          scoreReasoning: String((parsed as Record<string, unknown>).scoreReasoning || ""),
         });
       }
     }
