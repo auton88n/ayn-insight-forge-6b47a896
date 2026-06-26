@@ -1493,6 +1493,49 @@ BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).
       return json({ ok: true });
     }
 
+    // ---------------- Canonical Profile (Phase 1) ----------------
+    // profile_canonical_get: load the saved canonical profile (empty shell if none)
+    if (action === "profile_canonical_get") {
+      const canonical = await loadCanonical(adminForNew, userId);
+      return json({ canonical: canonical || EMPTY_CANONICAL, hasProfile: !!canonical });
+    }
+
+    // profile_canonical_extract: run AI to (re)build canonical from primary resume + user_profile_data.
+    // Does NOT save automatically; UI shows the result for confirmation/edit.
+    if (action === "profile_canonical_extract") {
+      const [{ data: resume }, { data: profile }] = await Promise.all([
+        adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        adminForNew.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
+      ]);
+      if (!resume?.content && !profile) return json({ error: "No primary resume or profile to extract from" }, 404);
+      const canonical = await extractCanonical({
+        resumeContent: resume?.content || null,
+        profileExtras: profile || null,
+      });
+      return json({ canonical });
+    }
+
+    // profile_canonical_save: persist user-edited canonical profile (upsert by user_id).
+    if (action === "profile_canonical_save") {
+      const { canonical } = payload as { canonical?: Partial<CanonicalProfile> };
+      if (!canonical || typeof canonical !== "object") return json({ error: "canonical required" }, 400);
+      const row = {
+        user_id: userId,
+        skills: canonical.skills ?? [],
+        experiences: canonical.experiences ?? [],
+        education: canonical.education ?? [],
+        certifications: canonical.certifications ?? [],
+        work_auth: canonical.work_auth ?? {},
+        preferences: canonical.preferences ?? {},
+        derived: canonical.derived ?? {},
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await adminForNew.from("user_profile_canonical")
+        .upsert(row, { onConflict: "user_id" });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("resume-hub error", e);
