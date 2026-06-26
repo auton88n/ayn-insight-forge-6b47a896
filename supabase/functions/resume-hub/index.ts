@@ -254,20 +254,38 @@ Deno.serve(async (req) => {
           : [];
         const hasAnyData = profileFieldsAvailable.length > 0 || !!resume?.content;
 
-        const r = await callAI({
-          system: `You are filling out a job application form for a real candidate. Use ONLY the candidate's profile, resume, and the job description provided.
+        // Derive merged basics so the AI always has name/email/phone even when profile is empty
+        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: unknown[]; skills?: unknown[]; education?: unknown[] } | null) || null;
+        const basics = (rb?.basics || {}) as Record<string, string>;
+        const [firstFromResume, ...restFromResume] = (basics.name || "").trim().split(/\s+/);
+        const merged = {
+          first_name: profile?.legal_first_name || firstFromResume || "",
+          last_name: profile?.legal_last_name || restFromResume.join(" ") || "",
+          full_name: [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || basics.name || "",
+          email: profile?.email || basics.email || "",
+          phone: profile?.phone || basics.phone || "",
+          location: profile?.city || basics.location || "",
+          linkedin_url: profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin/i.test(l?.label || l?.url || ""))?.url || "",
+          portfolio_url: profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin/i.test(l?.label || l?.url || ""))?.url || "",
+          summary: basics.summary || "",
+        };
 
-IT IS COMPLETELY FINE IF THE PROFILE IS PARTIAL. Fill every field you can from the available data. Leave fields you cannot answer as an empty string. NEVER refuse to fill the form because some profile fields are missing — partial answers are better than no answers.
+        const r = await callAI({
+          system: `You are filling out a job application form for a real candidate. Use ONLY the candidate's profile, resume basics, and the job description provided.
+
+IT IS COMPLETELY FINE IF THE PROFILE IS PARTIAL. Fill every field you can from the available data — including basic identity fields (name, email, phone) which are almost always present in either the profile OR the resume basics. Prefer profile values when present; otherwise fall back to resume basics (basics.name, basics.email, basics.phone, basics.location, basics.links). NEVER refuse to fill the form because the profile is partial — partial answers are far better than no answers.
 
 Rules:
 - Only use real data — never invent names, phone numbers, addresses, eligibility, or experience.
+- Always fill name / first name / last name / email / phone / city / LinkedIn URL when ANY source (profile, mergedBasics, or resume.basics) contains them.
 - Map common application fields from profile (legal_first_name, legal_last_name, email, phone, address, city, province_state, postal_code, country, linkedin_url, portfolio_url, work_authorization, default_answers.salary_expectation, default_answers.about_me, default_answers.why_this_role, default_answers.criminal_record, equity flags).
-- For "Tell us about yourself" / "Why this role" use default_answers.about_me / default_answers.why_this_role lightly adapted to the job; if missing, leave empty.
+- For "Tell us about yourself" / "Why this role" use default_answers.about_me / default_answers.why_this_role (or resume.basics.summary lightly adapted) — if no source, leave empty.
 - For select / radio fields, pick the closest matching option from the provided options list when you have a clear answer; otherwise leave empty.
-- Skip and leave empty: SIN/SSN, full birth date, bank info, passwords, anything not in profile.
+- Skip and leave empty: SIN/SSN, full birth date, bank info, passwords, anything not in any source.
 - Return one entry per field id you confidently filled. Omit fields you are leaving empty.`,
           user: JSON.stringify({
             fields,
+            mergedBasics: merged,
             profile,
             resume: resume?.content,
             jobDescription: (jobText || "").slice(0, 3000),
