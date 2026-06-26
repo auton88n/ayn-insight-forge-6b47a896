@@ -257,6 +257,7 @@
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
+        try {
         if (el.disabled) return;
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
@@ -290,6 +291,7 @@
           _idx: idx,
           _frame: prefix,
         });
+        } catch { /* skip a single bad node, keep scanning */ }
       });
     });
     fields._fileFields = fileFields;
