@@ -1,54 +1,51 @@
 // background.js — AYN Resume Tailor service worker
+// Auth: device tokens via "Sign in with AYN" one-click flow.
 
 const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
+const AYN_WEB = 'https://aynn.io';
 
 // Open side panel when toolbar icon clicked
 chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id }));
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
-async function getSession() {
-  const data = await chrome.storage.local.get(['session']);
-  return data.session || null;
+async function getToken() {
+  const d = await chrome.storage.local.get(['ayn_token']);
+  return d.ayn_token || null;
 }
 
-async function refreshIfNeeded(session) {
-  if (!session) return null;
-  const expiresAt = (session.expires_at || 0) * 1000;
-  if (Date.now() < expiresAt - 60000) return session;
-  try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-      body: JSON.stringify({ refresh_token: session.refresh_token }),
-    });
-    const data = await res.json();
-    if (data.access_token) {
-      const refreshed = { ...session, ...data };
-      await chrome.storage.local.set({ session: refreshed });
-      return refreshed;
-    }
-  } catch {}
-  return null;
-}
-
-async function callFunction(action, body, session) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/resume-hub`, {
+async function callFunction(action, body) {
+  const token = await getToken();
+  if (!token) throw new Error('Not signed in');
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/resume-hub`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${session.access_token}`,
+      'x-ayn-ext-token': token,
     },
     body: JSON.stringify({ action, ...body }),
   });
-  return res.json();
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.error) {
+    if (r.status === 401) { await chrome.storage.local.remove('ayn_token'); }
+    throw new Error(data.error || `HTTP ${r.status}`);
+  }
+  return data;
 }
 
-// Safe wrapper for tabs.sendMessage — auto-injects content script if missing
+async function callPublic(action, body) {
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/resume-hub`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify({ action, ...body }),
+  });
+  return r.json().catch(() => ({}));
+}
+
+// Inject content script if not loaded
 async function safeSendMessage(tabId, message) {
-  // First try sending directly
-  const direct = await new Promise(resolve => {
+  const tryOnce = () => new Promise(resolve => {
     try {
       chrome.tabs.sendMessage(tabId, message, response => {
         if (chrome.runtime.lastError) resolve(null);
@@ -56,71 +53,88 @@ async function safeSendMessage(tabId, message) {
       });
     } catch { resolve(null); }
   });
+  const direct = await tryOnce();
   if (direct !== null) return direct;
-
-  // Content script not loaded — inject it now
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content.js'],
-    });
-    // Wait for it to initialise
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
     await new Promise(r => setTimeout(r, 300));
-    // Retry the message
-    return new Promise(resolve => {
-      try {
-        chrome.tabs.sendMessage(tabId, message, response => {
-          if (chrome.runtime.lastError) resolve(null);
-          else resolve(response);
-        });
-      } catch { resolve(null); }
-    });
-  } catch {
-    return null;
-  }
+    return tryOnce();
+  } catch { return null; }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
-  // Store detected job text
+  // ── Link flow: start ────────────────────────────────────────────
+  if (message.type === 'LINK_START') {
+    (async () => {
+      try {
+        const r = await callPublic('link_start', { device_label: message.deviceLabel || 'Chrome' });
+        if (!r.code) { sendResponse({ ok: false, error: r.error || 'Could not start link' }); return; }
+        const url = `${AYN_WEB}/extension/approve?code=${encodeURIComponent(r.code)}&name=${encodeURIComponent(message.deviceLabel || 'Chrome')}`;
+        await chrome.tabs.create({ url });
+        sendResponse({ ok: true, code: r.code });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
+  // ── Link flow: poll ─────────────────────────────────────────────
+  if (message.type === 'LINK_POLL') {
+    (async () => {
+      try {
+        const r = await callPublic('link_poll', { code: message.code });
+        if (r.status === 'approved' && r.token) {
+          await chrome.storage.local.set({ ayn_token: r.token });
+        }
+        sendResponse(r);
+      } catch (e) { sendResponse({ status: 'error', error: e.message }); }
+    })();
+    return true;
+  }
+
+  // ── Sign out ───────────────────────────────────────────────────
+  if (message.type === 'SIGN_OUT') {
+    chrome.storage.local.remove(['ayn_token', 'savedResume'], () => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // ── Bootstrap (verify token, get user) ──────────────────────────
+  if (message.type === 'BOOTSTRAP') {
+    (async () => {
+      try { sendResponse(await callFunction('ext_bootstrap', {})); }
+      catch (e) { sendResponse({ error: e.message }); }
+    })();
+    return true;
+  }
+
+  // Store detected job
   if (message.type === 'JOB_DETECTED') {
     chrome.storage.local.set({
-      lastJobText: message.text,
-      lastJobTitle: message.title,
-      lastJobUrl: sender.tab?.url || '',
-      lastJobCompany: message.company || '',
+      lastJobText: message.text, lastJobTitle: message.title,
+      lastJobUrl: sender.tab?.url || '', lastJobCompany: message.company || '',
       detectedAt: Date.now(),
     }, () => sendResponse({ ok: true }));
     return true;
   }
 
-  // Return stored job
   if (message.type === 'GET_JOB') {
     chrome.storage.local.get(['lastJobText','lastJobTitle','lastJobUrl','lastJobCompany','detectedAt'], sendResponse);
     return true;
   }
 
-  // Score a job card — needs auth
+  // Score a job card
   if (message.type === 'SCORE_JOB_CARD') {
     (async () => {
       try {
-        let session = await getSession();
-        if (!session) { sendResponse(null); return; }
-        session = await refreshIfNeeded(session);
-        if (!session) { sendResponse(null); return; }
         const data = await callFunction('ext_job_score', {
-          jobTitle: message.jobTitle,
-          company: message.company,
-          jobSnippet: message.jobSnippet,
-        }, session);
+          jobTitle: message.jobTitle, company: message.company, jobSnippet: message.jobSnippet,
+        });
         sendResponse({
-          score: data.score || 5,
-          matchLabel: data.matchLabel || 'Fair',
-          reasons: data.reasons || [],
-          salaryEstimate: data.salaryEstimate || '',
+          score: data.score || 5, matchLabel: data.matchLabel || 'Fair',
+          reasons: data.reasons || [], salaryEstimate: data.salaryEstimate || '',
           key: message.key,
         });
-      } catch (e) { sendResponse(null); }
+      } catch { sendResponse(null); }
     })();
     return true;
   }
@@ -129,17 +143,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (['SAVE_APPLICATION','GET_APPLICATIONS','UPDATE_APPLICATION'].includes(message.type)) {
     (async () => {
       try {
-        let session = await getSession();
-        if (!session) { sendResponse({ error: 'Not signed in' }); return; }
-        session = await refreshIfNeeded(session);
-        if (!session) { sendResponse({ error: 'Session expired' }); return; }
         const actionMap = {
           SAVE_APPLICATION: 'ext_save_application',
           GET_APPLICATIONS: 'ext_get_applications',
           UPDATE_APPLICATION: 'ext_update_application',
         };
-        const data = await callFunction(actionMap[message.type], message.payload || {}, session);
-        sendResponse(data);
+        sendResponse(await callFunction(actionMap[message.type], message.payload || {}));
       } catch (e) { sendResponse({ error: e.message }); }
     })();
     return true;
@@ -148,70 +157,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Suggest roles
   if (message.type === 'SUGGEST_ROLES') {
     (async () => {
-      try {
-        let session = await getSession();
-        if (!session) { sendResponse(null); return; }
-        session = await refreshIfNeeded(session);
-        if (!session) { sendResponse(null); return; }
-        const data = await callFunction('ext_suggest_roles', {}, session);
-        sendResponse(data);
-      } catch { sendResponse(null); }
+      try { sendResponse(await callFunction('ext_suggest_roles', {})); }
+      catch { sendResponse(null); }
     })();
     return true;
   }
 
-  // Auto-autofill: scan + AI + inject in one shot
+  // Auto-autofill: scan + AI + inject
   if (message.type === 'AUTO_AUTOFILL') {
     (async () => {
       try {
         const tabId = message.tabId;
-        if (!tabId) { sendResponse({ ok: false, error: 'No tab ID provided' }); return; }
+        if (!tabId) { sendResponse({ ok: false, error: 'No tab ID' }); return; }
+        const token = await getToken();
+        if (!token) { sendResponse({ ok: false, error: 'not_signed_in' }); return; }
 
-        let session = await getSession();
-        if (!session) { sendResponse({ ok: false, error: 'Not signed in' }); return; }
-        session = await refreshIfNeeded(session);
-        if (!session) { sendResponse({ ok: false, error: 'Session expired' }); return; }
-
-        // 1. Scan the form — safe, won't throw
         const scan = await safeSendMessage(tabId, { type: 'SCAN_FORM' });
-
-        // Content script not loaded on this page
-        if (!scan) {
-          sendResponse({ ok: false, error: 'no_content_script' });
-          return;
-        }
+        if (!scan) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
 
         const fields = scan.fields || [];
         const jobText = scan.jobText || {};
+        if (fields.length === 0) { sendResponse({ ok: false, error: 'no_fields' }); return; }
 
-        if (fields.length === 0) {
-          sendResponse({ ok: false, error: 'no_fields' });
-          return;
-        }
-
-        // 2. Get AI values
         const fillData = await callFunction('ext_autofill', {
           fields: fields.map(f => ({
             id: f.id, label: f.label, type: f.type,
             options: f.options, required: f.required, currentValue: f.currentValue,
           })),
           jobText: jobText?.text || '',
-        }, session);
+        });
 
         const values = (fillData.values || []).filter(v => v.value && v.value.trim());
-        if (values.length === 0) {
-          sendResponse({ ok: false, error: 'no_values' });
-          return;
-        }
+        if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
-        // 3. Highlight briefly
         await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
         await new Promise(r => setTimeout(r, 400));
 
-        // 4. Inject values
         const fillResult = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values });
-
-        // Build details
         const resultMap = {};
         (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
         const details = values.map(v => ({
@@ -223,9 +205,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }));
 
         sendResponse({ ok: true, filled: fillResult?.filled || 0, total: values.length, details });
-      } catch (e) {
-        sendResponse({ ok: false, error: e.message });
-      }
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
   }
