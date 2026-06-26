@@ -333,8 +333,10 @@ $('autofill-now-btn').addEventListener('click', () => {
       const { filled, total, details } = response;
       const pct = total > 0 ? Math.round(filled/total*100) : 0;
       $('fill-stat-n').textContent = `${filled}/${total}`;
-      $('fill-stat-n').className = `fill-stat ${pct >= 65 ? 'good' : 'partial'}`;
-      $('fill-stat-lbl').textContent = `fields filled (${pct}%)`;
+      $('fill-stat-lbl').textContent = `${pct}%`;
+      const fillBar = $('fill-progress-fill');
+      fillBar.style.width = pct + '%';
+      fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
 
       const list = $('fill-result-list');
       list.innerHTML = '';
