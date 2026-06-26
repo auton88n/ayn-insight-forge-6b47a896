@@ -5,6 +5,25 @@
 (function () {
   'use strict';
 
+  // ── Install guard: prevent double-injection from registering duplicate listeners ──
+  if (window.__AYN_CONTENT_LOADED__) {
+    try { console.log('[AYN] content script already loaded, skipping re-init'); } catch {}
+    return;
+  }
+  window.__AYN_CONTENT_LOADED__ = true;
+  const AYN_BUILD = '1.4.2';
+
+  // Safe text helper — never throws on weird/SVG/null nodes
+  function safeText(el) {
+    if (!el) return '';
+    try {
+      const t = (typeof el.innerText === 'string' ? el.innerText : null)
+              ?? (typeof el.textContent === 'string' ? el.textContent : '');
+      return t || '';
+    } catch { return ''; }
+  }
+  function safeLen(el) { return safeText(el).length; }
+
   // ══════════════════════════════════════════════════════════════════
   // 1. JOB TEXT EXTRACTION
   // ══════════════════════════════════════════════════════════════════
@@ -14,6 +33,7 @@
   }
 
   function extractJobText() {
+    try {
     const url = window.location.href;
     const docTitle = cleanTitle(document.title);
 
@@ -77,19 +97,27 @@
         const title = document.querySelector(sel.title);
         const company = document.querySelector(sel.company);
         return {
-          text: desc?.innerText?.trim() || '',
-          title: cleanTitle(title?.innerText?.trim() || docTitle),
-          company: company?.innerText?.trim() || '',
+          text: safeText(desc).trim(),
+          title: cleanTitle(safeText(title).trim() || docTitle),
+          company: safeText(company).trim(),
         };
       }
     }
 
-    // Generic fallback
-    const candidates = Array.from(document.querySelectorAll(
+    // Generic fallback — safeText-guarded so a broken node never throws
+    let best = null; let bestLen = 0;
+    const candidates = document.querySelectorAll(
       'article, main, [class*="description"], [class*="job"], [id*="description"]'
-    ));
-    const best = candidates.reduce((p, el) => el.innerText.length > (p?.innerText?.length || 0) ? el : p, null);
-    return { text: best?.innerText?.trim() || '', title: docTitle, company: '' };
+    );
+    candidates.forEach(el => {
+      const len = safeLen(el);
+      if (len > bestLen) { bestLen = len; best = el; }
+    });
+    return { text: safeText(best).trim(), title: docTitle, company: '' };
+    } catch (err) {
+      try { console.warn('[AYN] extractJobText failed:', err?.message); } catch {}
+      return { text: '', title: cleanTitle(document.title || ''), company: '' };
+    }
   }
 
 
@@ -229,6 +257,7 @@
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
+        try {
         if (el.disabled) return;
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
@@ -262,6 +291,7 @@
           _idx: idx,
           _frame: prefix,
         });
+        } catch { /* skip a single bad node, keep scanning */ }
       });
     });
     fields._fileFields = fileFields;
