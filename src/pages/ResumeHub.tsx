@@ -10,6 +10,7 @@ import BuilderTab from "@/components/resume-hub/BuilderTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
 import TrackerTab from "@/components/resume-hub/TrackerTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
+import ProfileTab from "@/components/resume-hub/ProfileTab";
 
 export default function ResumeHub() {
   const navigate = useNavigate();
