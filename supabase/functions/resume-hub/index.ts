@@ -197,11 +197,13 @@ Deno.serve(async (req) => {
       admin.from("extension_tokens").update({ last_used_at: new Date().toISOString() }).eq("token_hash", tokenHash).then(() => {});
 
       if (action === "ext_bootstrap") {
-        const [{ data: profile }, { data: resume }] = await Promise.all([
+        const [{ data: profile }, { data: resume }, authUserRes] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
           admin.from("resumes").select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          admin.auth.admin.getUserById(userId),
         ]);
-        return json({ user: { id: userId, device: tok.device_label }, profile, resume });
+        const authEmail = authUserRes?.data?.user?.email || null;
+        return json({ user: { id: userId, email: authEmail, device: tok.device_label }, profile, resume });
       }
 
       if (action === "ext_ingest_job") {
