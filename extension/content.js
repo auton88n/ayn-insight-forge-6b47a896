@@ -712,6 +712,19 @@
       sendResponse({ ok: true });
       return true;
     }
+
+    // v1.4.0: expand "Add another experience" / "Show more" buttons before scanning
+    if (message.type === 'EXPAND_SECTIONS') {
+      const clicked = expandRepeatingSections();
+      sendResponse({ ok: true, clicked });
+      return true;
+    }
+
+    // v1.4.0: programmatic resume attach (best-effort)
+    if (message.type === 'TRY_ATTACH_RESUME') {
+      sendResponse(tryAttachResume(message.payload || {}));
+      return true;
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════
