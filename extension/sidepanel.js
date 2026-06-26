@@ -724,8 +724,16 @@ function detectForTailor() {
       S.company = parts[1]?.replace(/linkedin|indeed|glassdoor|jobright/gi,'').trim() || '';
       $('t-job-banner').style.display = '';
       $('t-job-title').textContent = r.title || 'Job detected';
-      $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars`;
+      $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars · click to load`;
       $('t-job-banner').dataset.text = r.text;
+      // Auto-load JD if user has a resume but no JD yet
+      const resume = $('resume-input').value.trim();
+      const job = $('job-input').value.trim();
+      if (resume.length >= 50 && job.length < 50) {
+        $('job-input').value = r.text;
+        $('job-chars').textContent = r.text.length;
+        $('t-job-banner').style.display = 'none';
+      }
     });
   });
 }
@@ -809,17 +817,26 @@ $('new-job-btn').addEventListener('click', () => {
 // Returns the function payload directly, throws on auth/network errors.
 // ════════════════════════════════════════════════════════════════
 function bgFunc(action, payload) {
+  console.log('[AYN] →', action, payload);
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ type: 'BG_FUNC', action, payload: payload || {} }, resp => {
-      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-      if (!resp) return reject(new Error('No response from background. Reload the extension.'));
+      if (chrome.runtime.lastError) {
+        console.warn('[AYN] runtime err', action, chrome.runtime.lastError.message);
+        return reject(new Error(chrome.runtime.lastError.message));
+      }
+      if (!resp) {
+        console.warn('[AYN] no response', action);
+        return reject(new Error('No response from background. Reload the extension at chrome://extensions.'));
+      }
       if (!resp.ok) {
+        console.warn('[AYN] err', action, resp.error);
         if (/Not signed in|Invalid token|Token revoked/i.test(resp.error || '')) {
           show('v-login');
           return reject(new Error('Session expired. Please sign in again.'));
         }
         return reject(new Error(resp.error || 'Request failed'));
       }
+      console.log('[AYN] ←', action, resp.data);
       resolve(resp.data);
     });
   });
