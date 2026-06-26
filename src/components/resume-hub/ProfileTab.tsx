@@ -8,8 +8,10 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, Save, Plus, X, ShieldCheck } from "lucide-react";
+import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
+import type { ResumeContent } from "@/lib/resumeHub";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
 type Skill = { name: string; years?: number; last_used?: string; level?: string };
@@ -62,6 +64,18 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const loadPrimary = useCallback(async () => {
+    const { data } = await supabase
+      .from("resumes")
+      .select("id, title")
+      .eq("user_id", userId)
+      .eq("is_primary", true)
+      .maybeSingle();
+    setPrimaryResume(data ?? null);
+  }, [userId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,7 +86,39 @@ export default function ProfileTab({ userId }: { userId: string }) {
     setHasProfile(!!data?.hasProfile);
   }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadPrimary(); }, [load, loadPrimary]);
+
+  const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
+    setUploading(true);
+    try {
+      // Save as primary resume (replace existing primary)
+      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      const autoTitle = resume.basics?.name ? `${resume.basics.name} – Resume` : "Uploaded Resume";
+      const { error: insErr } = await supabase.from("resumes").insert({
+        user_id: userId,
+        title: autoTitle,
+        content: resume as never,
+        is_primary: true,
+      });
+      if (insErr) throw insErr;
+      await loadPrimary();
+      toast({ title: "Resume saved as primary", description: "Extracting your canonical profile…" });
+
+      // Auto-run canonical extraction
+      setExtracting(true);
+      const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_extract" } });
+      setExtracting(false);
+      if (error) throw error;
+      if (data?.canonical) {
+        setProfile(data.canonical as Canonical);
+        toast({ title: "Profile drafted", description: "Review the fields below, then click Save." });
+      }
+    } catch (e) {
+      toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -104,6 +150,28 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
+      {/* Resume upload — feeds canonical extraction */}
+      <Card className="p-4 sm:p-6 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-sm">
+            <FileUp className="w-4 h-4 text-primary" />
+            <span className="font-medium">Resume source</span>
+            {primaryResume
+              ? <Badge variant="secondary" className="truncate max-w-[260px]">Primary: {primaryResume.title}</Badge>
+              : <Badge variant="outline">No primary resume yet</Badge>}
+          </div>
+          {uploading && (
+            <span className="text-xs text-muted-foreground flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving & extracting…
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Upload a PDF, DOCX, or TXT. AYN saves it as your primary resume and instantly drafts your canonical profile below.
+        </p>
+        <ResumeUpload onParsed={handleResumeParsed} variant="full" />
+      </Card>
+
       <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm">
