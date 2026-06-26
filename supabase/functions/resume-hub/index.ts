@@ -1102,6 +1102,11 @@ ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority ma
         const filename = `${(basics.name || "Resume").replace(/\s+/g, "_")}_AYN.txt`;
         return json({ base64: b64, filename, mime: "text/plain", size: bytes.length });
       }
+
+      if (action === "ext_profile_canonical_get") {
+        const canonical = await loadCanonical(admin, userId);
+        return json({ canonical: canonical || EMPTY_CANONICAL, hasProfile: !!canonical });
+      }
     }
 
     // ============ DASHBOARD ACTIONS (Supabase JWT) ============
