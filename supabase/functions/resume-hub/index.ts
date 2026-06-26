@@ -703,10 +703,13 @@ GENERAL:
       if (action === "ext_job_score") {
         const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
         if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
-        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
+        const [{ data: resume }, canonical] = await Promise.all([
+          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
+        ]);
+        if (!resume?.content && !canonical) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
 
-        const rc = resume.content as Record<string, unknown>;
+        const rc = (resume?.content || {}) as Record<string, unknown>;
         const resumeDigest = {
           basics: rc.basics,
           skills: rc.skills,
@@ -714,6 +717,7 @@ GENERAL:
             title: w.title, company: w.company, start: w.start, end: w.end,
             bullets: ((w.bullets as string[]) || []).slice(0, 4),
           })),
+          canonical: canonicalDigest(canonical),
         };
 
         const r = await callAI({
