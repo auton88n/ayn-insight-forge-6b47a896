@@ -11,7 +11,16 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.4.2';
+  const AYN_BUILD = '1.4.3';
+
+  // Quiet message sender — swallows chrome.runtime.lastError when no receiver
+  function sendQuiet(message) {
+    try {
+      chrome.runtime.sendMessage(message, () => {
+        void chrome.runtime.lastError; // read & discard
+      });
+    } catch { /* extension context invalidated, ignore */ }
+  }
 
   // Safe text helper — never throws on weird/SVG/null nodes
   function safeText(el) {
@@ -32,27 +41,74 @@
     return String(t || '').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
   }
 
+  // Concatenate text from ALL matching nodes, dropping nodes nested inside another match.
+  function combinedText(selector) {
+    if (!selector) return '';
+    let nodes;
+    try { nodes = Array.from(document.querySelectorAll(selector)); } catch { return ''; }
+    if (!nodes.length) return '';
+    // Drop nodes nested inside another match
+    const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
+    const seen = new Set();
+    const parts = [];
+    for (const n of top) {
+      const t = safeText(n).trim();
+      if (!t) continue;
+      const key = t.slice(0, 80);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      parts.push(t);
+    }
+    return parts.join('\n\n').trim();
+  }
+
+  // Click "See more / Show more / Read more" controls so the full JD is in the DOM
+  // before we extract. Idempotent per URL. Hard-skip dangerous controls.
+  const _expandedFor = new Set();
+  function expandSeeMore() {
+    try {
+      const key = location.href;
+      if (_expandedFor.has(key)) return 0;
+      _expandedFor.add(key);
+      const POS_RE = /^\s*(see|show|read|view)\s+(more|full|all|details?|description)\b/i;
+      const NEG_RE = /\b(apply|submit|sign\s*in|sign\s*up|save|follow|message|connect|easy\s*apply|share|report)\b/i;
+      const ctrls = Array.from(document.querySelectorAll(
+        'button, a[role="button"], [role="button"], .show-more-less-html__button, [aria-label*="more" i]'
+      ));
+      let clicked = 0;
+      for (const b of ctrls) {
+        const txt = (safeText(b) || b.getAttribute('aria-label') || '').trim();
+        if (!txt || txt.length > 40) continue;
+        if (NEG_RE.test(txt)) continue;
+        if (!POS_RE.test(txt) && !/^(more|show more)$/i.test(txt)) continue;
+        try { b.click(); clicked++; } catch {}
+        if (clicked >= 4) break;
+      }
+      return clicked;
+    } catch { return 0; }
+  }
+
   function extractJobText() {
     try {
     const url = window.location.href;
     const docTitle = cleanTitle(document.title);
 
-
     const map = {
       'linkedin.com/jobs/view': {
-        desc: '.jobs-description__content, .jobs-box__html-content, [class*="description__content"]',
+        desc: '.jobs-description__content, .jobs-box__html-content, [class*="description__content"], [class*="jobs-description"]',
         title: '.job-details-jobs-unified-top-card__job-title, h1',
         company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]',
+      },
+      // ca.indeed BEFORE indeed so the more-specific pattern wins
+      'ca.indeed.com/viewjob': {
+        desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
+        title: '[class*="jobsearch-JobInfoHeader-title"], h1',
+        company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]',
       },
       'indeed.com/viewjob': {
         desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
         title: '[class*="jobsearch-JobInfoHeader-title"], h1',
         company: '[class*="jobsearch-CompanyInfoContainer"], [data-testid="inlineHeader-companyName"]',
-      },
-      'ca.indeed.com/viewjob': {
-        desc: '#jobDescriptionText',
-        title: 'h1',
-        company: '[data-testid="inlineHeader-companyName"]',
       },
       'jobright.ai/jobs': {
         desc: '[class*="description"], [class*="job-desc"], main article',
@@ -91,15 +147,17 @@
       },
     };
 
-    for (const [pattern, sel] of Object.entries(map)) {
+    // Iterate longest-pattern-first so ca.indeed.com isn't shadowed by indeed.com.
+    const entries = Object.entries(map).sort((a, b) => b[0].length - a[0].length);
+    for (const [pattern, sel] of entries) {
       if (url.includes(pattern)) {
-        const desc = document.querySelector(sel.desc);
-        const title = document.querySelector(sel.title);
-        const company = document.querySelector(sel.company);
+        const desc = combinedText(sel.desc);
+        const titleEl = document.querySelector(sel.title);
+        const companyEl = document.querySelector(sel.company);
         return {
-          text: safeText(desc).trim(),
-          title: cleanTitle(safeText(title).trim() || docTitle),
-          company: safeText(company).trim(),
+          text: desc,
+          title: cleanTitle(safeText(titleEl).trim() || docTitle),
+          company: safeText(companyEl).trim(),
         };
       }
     }
@@ -139,15 +197,19 @@
     return 'unknown';
   }
 
-  // Walk up the DOM and harvest the nearest visible question text near the input
+  // Walk up the DOM and harvest the nearest visible question text near the input.
+  // Tightened: only accept text that actually looks like a question/prompt,
+  // not any capitalized blob — stops autofill from mislabeling fields.
+  const QUESTION_RE = /\?\s*$|^(what|how|are|do|did|have|has|why|when|where|which|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
   function nearestQuestionText(el) {
     let node = el.parentElement;
     for (let i = 0; i < 5 && node; i++) {
-      // Look for sibling text that looks like a question/label
-      const text = (node.innerText || '').slice(0, 300).trim();
-      if (text && text.length < 240 && /\?$|:$|^[A-Z]/.test(text)) {
-        // Strip the input's own value out
-        return text.replace(el.value || '', '').replace(/\s+/g, ' ').trim();
+      const raw = safeText(node).slice(0, 400).trim();
+      if (!raw) { node = node.parentElement; continue; }
+      // Try the first non-empty line — that's usually the actual question
+      const firstLine = raw.split(/\n+/).map(s => s.trim()).find(s => s.length >= 3 && s.length <= 240);
+      if (firstLine && QUESTION_RE.test(firstLine)) {
+        return firstLine.replace(el.value || '', '').replace(/\s+/g, ' ').trim();
       }
       node = node.parentElement;
     }
@@ -632,7 +694,7 @@
       if (submitNotified) return;
       submitNotified = true;
       const job = extractJobText();
-      chrome.runtime.sendMessage({
+      sendQuiet({
         type: 'AUTO_TRACK_SUBMIT',
         title: job.title, company: job.company, url: window.location.href,
       });
@@ -768,18 +830,58 @@
 
   const JOB_PAGE_RE = /linkedin\.com\/jobs|indeed\.com|ca\.indeed\.com|greenhouse\.io|boards\.greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs|csod\.com|icims\.com|bamboohr\.com|taleo\.net|workable\.com|dover\.com|recruitee\.com|jazz\.co|pinpointhq\.com|loxo\.co/;
 
-  if (JOB_PAGE_RE.test(window.location.href)) {
-    setTimeout(() => {
-      const result = extractJobText();
-      if (result.text.length > 100) {
-        chrome.runtime.sendMessage({
-          type: 'JOB_DETECTED',
-          text: result.text,
-          title: result.title,
-          company: result.company || '',
-        });
-      }
-    }, 1500);
+  // Try to detect & report the current job with retry, because SPA content
+  // typically renders AFTER the URL changes.
+  let _lastDetectedUrl = '';
+  function detectAndReport(attempt = 0) {
+    if (!JOB_PAGE_RE.test(location.href)) return;
+    expandSeeMore();
+    const result = extractJobText();
+    if (result.text && result.text.length > 100) {
+      if (location.href === _lastDetectedUrl) return; // already reported
+      _lastDetectedUrl = location.href;
+      sendQuiet({
+        type: 'JOB_DETECTED',
+        text: result.text,
+        title: result.title,
+        company: result.company || '',
+      });
+      // Card scoring will keep itself fresh via its MutationObserver
+      return;
+    }
+    if (attempt < 5) {
+      setTimeout(() => detectAndReport(attempt + 1), 700 * (attempt + 1));
+    }
+  }
+
+  // First-load detection
+  setTimeout(() => detectAndReport(0), 1200);
+
+  // SPA navigation hooks — patch history + listen popstate so we re-detect
+  // when LinkedIn / Indeed / Workday change job without a full reload.
+  function onRouteChange() {
+    _lastDetectedUrl = ''; // reset so the new URL gets a fresh report
+    _expandedFor.clear(); // allow re-expanding "See more" on the new page
+    submitNotified = false;
+    setTimeout(() => detectAndReport(0), 600);
+  }
+  try {
+    const _push = history.pushState;
+    history.pushState = function () {
+      const r = _push.apply(this, arguments);
+      try { window.dispatchEvent(new Event('ayn:locationchange')); } catch {}
+      return r;
+    };
+    const _replace = history.replaceState;
+    history.replaceState = function () {
+      const r = _replace.apply(this, arguments);
+      try { window.dispatchEvent(new Event('ayn:locationchange')); } catch {}
+      return r;
+    };
+    window.addEventListener('popstate', onRouteChange);
+    window.addEventListener('ayn:locationchange', onRouteChange);
+  } catch (e) {
+    try { console.warn('[AYN] SPA hooks failed:', e?.message); } catch {}
   }
 
 })();

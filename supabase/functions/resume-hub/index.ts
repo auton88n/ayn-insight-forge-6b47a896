@@ -31,39 +31,75 @@ async function callAI(opts: {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-  const body: Record<string, unknown> = {
-    model: opts.model ?? DEFAULT_MODEL,
-    messages: [
-      { role: "system", content: opts.system },
-      { role: "user", content: opts.user },
-    ],
+  const primary = opts.model ?? DEFAULT_MODEL;
+  // Fallback chain: try a cheaper/different model when the primary 402/5xx's.
+  const FALLBACKS: Record<string, string[]> = {
+    [QUALITY_MODEL]: [DEFAULT_MODEL, "google/gemini-2.5-flash-lite"],
+    [DEFAULT_MODEL]: ["google/gemini-2.5-flash-lite"],
   };
-  if (opts.toolName && opts.toolSchema) {
-    body.tools = [{
-      type: "function",
-      function: { name: opts.toolName, description: opts.toolName, parameters: opts.toolSchema },
-    }];
-    body.tool_choice = { type: "function", function: { name: opts.toolName } };
-  }
+  const chain = [primary, ...(FALLBACKS[primary] || [])];
 
-  const r = await fetch(GATEWAY_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (r.status === 429) throw new Error("AI rate limit. Try again in a minute.");
-  if (r.status === 402) throw new Error("AI credits exhausted. Add credits in workspace billing.");
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`AI error ${r.status}: ${t.slice(0, 200)}`);
+  let lastErr = "";
+  for (let mi = 0; mi < chain.length; mi++) {
+    const model = chain[mi];
+    const body: Record<string, unknown> = {
+      model,
+      messages: [
+        { role: "system", content: opts.system },
+        { role: "user", content: opts.user },
+      ],
+    };
+    if (opts.toolName && opts.toolSchema) {
+      body.tools = [{
+        type: "function",
+        function: { name: opts.toolName, description: opts.toolName, parameters: opts.toolSchema },
+      }];
+      body.tool_choice = { type: "function", function: { name: opts.toolName } };
+    }
+
+    // Up to 3 attempts per model with exponential backoff on 429 / transient 5xx.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let r: Response;
+      try {
+        r = await fetch(GATEWAY_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        lastErr = `network: ${(e as Error).message}`;
+        await new Promise(res => setTimeout(res, 400 * (attempt + 1)));
+        continue;
+      }
+
+      if (r.ok) {
+        const data = await r.json();
+        const msg = data?.choices?.[0]?.message;
+        const tc = msg?.tool_calls?.[0]?.function?.arguments;
+        if (tc) {
+          try { return { text: "", structured: JSON.parse(tc) }; }
+          catch { return { text: tc, structured: undefined }; }
+        }
+        return { text: msg?.content ?? "" };
+      }
+
+      // 402 = credits — don't retry same model, jump to next in chain.
+      if (r.status === 402) {
+        lastErr = "AI credits exhausted.";
+        break;
+      }
+      // 429 / 5xx = transient — backoff then retry same model.
+      if (r.status === 429 || (r.status >= 500 && r.status < 600)) {
+        lastErr = `AI ${r.status}`;
+        await new Promise(res => setTimeout(res, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      // 4xx other = terminal, stop everything.
+      const t = await r.text();
+      throw new Error(`AI error ${r.status}: ${t.slice(0, 200)}`);
+    }
   }
-  const data = await r.json();
-  const msg = data?.choices?.[0]?.message;
-  const tc = msg?.tool_calls?.[0]?.function?.arguments;
-  if (tc) {
-    return { text: "", structured: JSON.parse(tc) };
-  }
-  return { text: msg?.content ?? "" };
+  throw new Error(lastErr || "AI request failed");
 }
 
 const RESUME_SCHEMA = {
@@ -128,7 +164,7 @@ const EXT_ACTIONS = new Set([
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
-  "ext_ask", "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
+  "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
 ]);
 
 // Public link-flow actions (no auth required for start/poll)
@@ -760,74 +796,8 @@ ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority ma
         });
       }
 
-      // ──────────────────────────────────────────────────────────────
-      // v1.4.0: ASK AYN — chat copilot inside the extension.
-      // Knows: user's resume, current JD, current company, prior msgs in session.
-      // ──────────────────────────────────────────────────────────────
-      if (action === "ext_ask") {
-        const { sessionId, question, jobText, jobTitle, company, formField } = payload as {
-          sessionId?: string; question?: string; jobText?: string; jobTitle?: string; company?: string; formField?: { label?: string; type?: string; options?: string[] };
-        };
-        if (!sessionId || !question) return json({ error: "sessionId and question required" }, 400);
+      // ext_ask: see earlier handler in this block (single source of truth).
 
-        const [{ data: resume }, { data: history }] = await Promise.all([
-          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          admin.from("ext_ask_messages").select("role, content").eq("user_id", userId).eq("session_id", sessionId).order("created_at", { ascending: true }).limit(20),
-        ]);
-
-        const resumeDigest = resume?.content ? {
-          basics: (resume.content as Record<string, unknown>).basics,
-          skills: (resume.content as Record<string, unknown>).skills,
-          work: (((resume.content as Record<string, unknown>).work as Array<Record<string, unknown>>) || []).slice(0, 5).map(w => ({
-            title: w.title, company: w.company, start: w.start, end: w.end,
-            bullets: ((w.bullets as string[]) || []).slice(0, 4),
-          })),
-        } : null;
-
-        const systemPrompt = `You are AYN, the user's job-search copilot inside their Chrome extension side panel. You are looking at the same job page they are looking at.
-
-YOU KNOW:
-- The user's resume (below as JSON).
-- The current job description, title, and company (below).
-- ${formField ? `The exact form field the user is asking about: ${JSON.stringify(formField)}` : "No specific form field — answer their general question."}
-
-HOW TO RESPOND:
-- Speak in plain, confident English. Short sentences. No clichés. No em dashes. No corporate jargon.
-- Ground every claim in the user's resume. Never invent jobs, dates, or numbers.
-- If they ask you to write an application answer, return ONLY the answer text — no preamble like "Here's a draft".
-- If they ask "should I apply" or "am I qualified", give an honest 2-3 sentence verdict with one specific reason.
-- If they ask to improve a bullet or paragraph, return the rewrite only.
-- Default length: 2-4 sentences. Longer ONLY when explicitly asked for a draft / essay / cover letter.
-- If their resume is missing what they're asking about, say so plainly and suggest what to add.`;
-
-        const messages: Array<{ role: string; content: string }> = [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `CONTEXT\n--------\nResume: ${JSON.stringify(resumeDigest).slice(0, 4500)}\n\nJob: ${jobTitle || ""} @ ${company || ""}\n${(jobText || "").slice(0, 2500)}` },
-          ...((history || []).map(m => ({ role: m.role, content: m.content }))),
-          { role: "user", content: question.slice(0, 2000) },
-        ];
-
-        const apiKey = Deno.env.get("LOVABLE_API_KEY");
-        if (!apiKey) return json({ error: "AI not configured" }, 500);
-        const r = await fetch(GATEWAY_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: DEFAULT_MODEL, messages }),
-        });
-        if (r.status === 429) return json({ error: "AI rate limit. Try again in a minute." }, 429);
-        if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
-        if (!r.ok) return json({ error: `AI error ${r.status}` }, 500);
-        const data = await r.json();
-        const reply = String(data?.choices?.[0]?.message?.content || "").trim();
-
-        // Persist both turns (best-effort, don't block the response)
-        admin.from("ext_ask_messages").insert([
-          { user_id: userId, session_id: sessionId, role: "user", content: question.slice(0, 2000), context: { jobTitle, company } },
-          { user_id: userId, session_id: sessionId, role: "assistant", content: reply },
-        ]).then(() => {});
-
-        return json({ reply });
-      }
 
       // ──────────────────────────────────────────────────────────────
       // v1.4.0: ANSWER MEMORY — remember good open-text answers
@@ -1160,94 +1130,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ resume: r.structured });
     }
 
-    // ---------------- smart_tailor ----------------
-    // Accepts resumeText (plain text) + jdText, returns:
-    //   keywords: { text, inResume }[]  — job keywords with match status
-    //   tailoredText: string            — ATS-formatted plain text resume
-    //   changes: string[]               — brief list of what was changed
-    if (action === "smart_tailor") {
-      const { resumeText, jdText, jobTitle, company } = payload as { resumeText: string; jdText: string; jobTitle?: string; company?: string };
-      if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+    // smart_tailor: see EXT_ACTIONS handler above (single source of truth).
 
-      const r = await callAI({
-        model: QUALITY_MODEL,
-        system: `You are an expert Canadian resume writer and ATS specialist. Given a resume and job description, do two things:
-
-1. Extract the 10-14 most important keywords and skills from the job description.
-2. Produce a tailored version of the resume that passes ATS and reads naturally to a human recruiter.
-
-STRICT RULES — follow every one without exception:
-- NEVER invent, add, or imply experience, skills, tools, certifications, or achievements not already in the resume.
-- ONLY reword existing bullets to naturally include job keywords where the underlying experience already supports it.
-- Keep every fact, number, company name, job title, date, and result exactly as written.
-- You may reorder the skills section to put the most relevant items first.
-- You may adjust the summary to echo 2-3 key phrases from the job — only using experience the resume already contains.
-- Do NOT change job titles, company names, or employment dates.
-- No em dashes, no en dashes. Dates written as "2020 to 2022" or "2023 to Present".
-- Output the resume in clean ATS plain text using this exact format:
-
-[FULL NAME]
-[JOB TITLE LINE — what the person calls themselves, can echo the target role if resume supports it]
-[Phone] | [Email] | [Website/LinkedIn] | [Citizenship/Status] | [City, Province] | [Open to Remote if applicable]
-
-SUMMARY
-[2-4 sentences. First person voice. Specific, no clichés. Echo the role's key requirements only where resume supports them.]
-
-EXPERIENCE
-
-[Job Title] | [Company Name]  [Start to End]
-- [Bullet]
-- [Bullet]
-
-[repeat for each role]
-
-EDUCATION
-
-[Credential] | [Institution]  [Year]
-
-SKILLS
-[Category]: [comma separated skills]
-[repeat]
-
-Return ONLY valid JSON in this exact shape, no code fences:
-{
-  "keywords": [{ "text": "<keyword>", "inResume": <true|false> }],
-  "tailoredText": "<full resume as plain text>",
-  "changes": ["<what changed, max 5 short items>"]
-}`,
-        user: `TARGET ROLE: ${jobTitle || "Not specified"} at ${company || "Not specified"}
-
-RESUME:
-${resumeText.slice(0, 8000)}
-
-JOB DESCRIPTION:
-${jdText.slice(0, 6000)}`,
-      });
-
-      // Parse the JSON response
-      let parsed: { keywords: unknown; tailoredText: unknown; changes: unknown };
-      try {
-        const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-        const start = raw.indexOf("{");
-        const end = raw.lastIndexOf("}");
-        parsed = JSON.parse(start !== -1 ? raw.slice(start, end + 1) : raw);
-      } catch {
-        return json({ error: "Failed to parse AI response", raw: r.text.slice(0, 500) }, 500);
-      }
-
-      const keywords = Array.isArray(parsed.keywords)
-        ? (parsed.keywords as Array<Record<string, unknown>>).slice(0, 14).map(k => ({
-            text: String(k.text || ""),
-            inResume: Boolean(k.inResume),
-          }))
-        : [];
-
-      return json({
-        keywords,
-        tailoredText: String(parsed.tailoredText || ""),
-        changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0, 5) : [],
-      });
-    }
 
     // ---------------- cover_letter ----------------
     if (action === "cover_letter") {
@@ -1286,44 +1170,11 @@ ${jdText.slice(0, 6000)}`,
     const userId = user.id;
     const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    if (action === "ext_job_score") {
-      const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
-      if (!jobSnippet) return json({ score: 5, matchLabel: "Fair", reasons: [] });
-      const { data: resume } = await adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-      if (!resume?.content) return json({ score: 0, matchLabel: "No resume", reasons: ["Upload your resume in AYN first"] });
-      const r = await callAI({
-        system: `You are a fast job-resume matcher. Return ONLY valid JSON, no code fences:
-{ "score": <integer 1-10>, "matchLabel": "<Poor|Fair|Good|Strong>", "reasons": ["<reason1>","<reason2>","<reason3>"] }
-- 1-3=Poor, 4-6=Fair, 7-8=Good, 9-10=Strong. Reasons: 5 words max each.`,
-        user: `JOB: ${jobTitle||""} at ${company||""}
-${(jobSnippet||"").slice(0,1500)}
+    // ext_job_score: see EXT_ACTIONS handler above (single source of truth).
 
-RESUME:
-${JSON.stringify(resume.content?.basics||{}).slice(0,600)}
-SKILLS: ${JSON.stringify(resume.content?.skills||[]).slice(0,300)}`,
-      });
-      let parsed = { score: 5, matchLabel: "Fair", reasons: [] as string[] };
-      try { const raw = r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
-      const score = Math.max(1,Math.min(10,Math.round(Number(parsed.score)||5)));
-      const vl = ["Poor","Fair","Good","Strong"];
-      return json({ score, matchLabel: vl.includes(parsed.matchLabel)?parsed.matchLabel:score>=8?"Strong":score>=6?"Good":score>=4?"Fair":"Poor", reasons:(parsed.reasons||[]).slice(0,3) });
-    }
 
-    if (action === "ext_suggest_roles") {
-      const { data: resume } = await adminForNew.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-      if (!resume?.content) return json({ roles: [], keywords: [], summary: "No resume found. Add your resume in AYN first." });
-      const r = await callAI({
-        system: `Canadian job search expert. Return ONLY valid JSON:
-{"roles":["<title>",...],"keywords":["<kw>",...],"summary":"<one sentence>"}
-- 8-10 job titles ordered best match first
-- 6-8 skill keywords for searches
-- Specific to Canadian market`,
-        user: JSON.stringify({basics:resume.content?.basics,work:resume.content?.work,skills:resume.content?.skills}).slice(0,5000),
-      });
-      let parsed = { roles:[] as string[], keywords:[] as string[], summary:"" };
-      try { const raw=r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
-      return json({ roles:(parsed.roles||[]).slice(0,10), keywords:(parsed.keywords||[]).slice(0,8), summary:parsed.summary||"" });
-    }
+    // ext_suggest_roles: see EXT_ACTIONS handler above (single source of truth).
+
 
     if (action === "ext_find_contacts") {
       const { company, jobTitle, jobUrl, jobSnippet } = payload as { company?:string; jobTitle?:string; jobUrl?:string; jobSnippet?:string };
