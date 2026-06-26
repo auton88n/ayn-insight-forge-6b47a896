@@ -1,59 +1,52 @@
-## What is actually wrong
 
-Most errors you pasted are from Indeed itself, not AYN:
-- `homepageRemoteEntry... Unsatisfied version...`, Apollo invariant errors, 403 logging, 404 svg, `share-modal.js` are Indeed page scripts.
-- AYN should not try to fix those. The extension must avoid making them worse and keep working even when the page has its own errors.
+# Fix AYN Extension Features (Phase 1 + Phase 2)
 
-The real AYN error is this:
-- `chrome-extension://.../content.js:91:60 Cannot read properties of undefined (reading 'length')`
+Goal: make the extension actually *read* job pages correctly and make the AI backend resilient, so Score / Autofill / Contacts / Cover / Tailor stop feeling shallow or broken. No new features — just fix what's already there.
 
-That crash happens inside `extractJobText()` when the generic fallback reads `el.innerText.length` on elements that do not expose `innerText`. Once that throws, the side panel loses job detection, Score, Contacts, Cover Letter, Resume tailoring, and Fill context.
+## Phase 1 — `extension/content.js` (page-reading layer)
 
-There is also a delivery problem:
-- You may still be downloading or loading an older unpacked folder, so the dashboard needs a clearer version and fresh package path.
+The single biggest reason features feel dumb: the extension reads a truncated, partial, stale page.
 
-## Plan
+1. **Full JD extraction.** Replace the single `document.querySelector(sel.desc)` in `extractJobText` with a `combinedText` helper that:
+   - collects **all** matching nodes,
+   - drops nodes nested inside another match (dedupe),
+   - joins them into one full description string.
+2. **"See more" expansion before reading.** Add a conservative `expandSeeMore` that clicks "see more / show more / read more / view more" controls once per URL. Hard-skip anything matching `apply|submit|sign in|save|follow|message|connect|easy apply`. Cap at 4 clicks.
+3. **SPA re-detection.** Patch `history.pushState` / `replaceState` and listen for `popstate`. On every route change re-run: expand → arm auto-tracker → re-score cards → re-detect job, with retry backoff (up to 5 tries) because SPA content renders after the URL changes.
+4. **`ca.indeed.com` selector fix.** Sort the selector map longest-pattern-first so `ca.indeed.com/viewjob` is no longer shadowed by `indeed.com/viewjob`.
+5. **Quiet `chrome.runtime.lastError`** on `JOB_DETECTED` / `AUTO_TRACK_SUBMIT` via a `sendQuiet` helper (kills console noise + dropped events when side panel is closed).
+6. **Tighten `nearestQuestionText`.** Prefer real `label` / `legend` / `aria-labelledby` / `aria-label` associations; only fall back to proximity text that actually looks like a question (ends in `?` or starts with `What|How|Are|Do|Have|Why|When|Where|Which`). Stops autofill from mislabeling fields and injecting wrong values.
 
-1. **Harden AYN content script so it cannot crash on Indeed or broken pages**
-   - Replace unsafe `el.innerText.length` with a safe text helper.
-   - Wrap `extractJobText()`, `DETECT_PAGE`, and `SCAN_FORM` in defensive fallbacks so one bad DOM node never breaks the extension.
-   - Add safer handling for hidden or non HTMLElement nodes.
+## Phase 2 — `supabase/functions/resume-hub/index.ts` (backend resilience)
 
-2. **Prevent duplicate content script listeners**
-   - Add an install guard at the top of `content.js` so if Chrome injects the script twice, it does not register duplicate submit listeners, message listeners, mutation observers, or scoring handlers.
-   - Clean up old AYN listeners before reinitializing where possible.
-   - This targets the repeated listener symptom without touching Indeed’s own `contentscript.js` warnings.
+1. **Delete dead duplicate handlers.** `ext_job_score`, `ext_suggest_roles`, `smart_tailor`, and the second `ext_ask` are defined twice; only the first runs. Delete the unreachable second copies so there's one source of truth (prevents "I fixed it but nothing changed" traps).
+2. **Verify retry/backoff + fallback on `callAI`.** HEAD already has some retry logic — confirm it covers: exponential backoff on `429`, fallback model on `402` (credits exhausted) and sustained `5xx`, and graceful degradation (keyword-only score) instead of throwing when AI is fully unavailable.
+3. **Score the *full* JD, not a 500-char teaser.** Card-badge path stays cheap (title + company + snippet). When a full job page is open, `ext_job_score` should accept the full extracted JD from the new Phase 1 extractor and use it in the "senior recruiter" prompt so the must-have verification actually has something to verify against.
 
-3. **Make scoring safer and less spammy on job cards**
-   - Throttle/debounce the card MutationObserver.
-   - Track cards already being scored to avoid repeated requests while scrolling.
-   - Limit simultaneous card scoring so Indeed pages do not become noisy or slow.
+## Phase 3 — `extension/manifest.json` + side panel wiring
 
-4. **Fix field injection reliability**
-   - Make radio and checkbox matching frame aware.
-   - Improve fallback lookup for inputs whose id/name changes.
-   - Report exact skipped fields instead of silently failing.
+1. Bump `manifest.json` version to `1.4.3`.
+2. Update the version label shown in `src/components/resume-hub/ExtensionTab.tsx`.
+3. Rebuild `public/ayn-extension.zip` from `extension/` using `nix run nixpkgs#zip`.
 
-5. **Make the extension package impossible to confuse with the old one**
-   - Bump the extension to `v1.4.2`.
-   - Add a visible “build version” line in the side panel and dashboard download card.
-   - Rebuild `/public/ayn-extension.zip` from the current `extension/` folder.
-   - Optionally remove or stop referencing old package names like `ayn-autofill.zip` if they are not used.
+## Out of scope (deliberately deferred)
 
-6. **Add a simple local diagnostic panel**
-   - Show “Content script connected”, “Job detected”, “Fields found”, and “Last error” in the side panel.
-   - This lets you see immediately whether Chrome loaded the newest extension and whether the page is scannable.
+- `"all_frames": true` + cross-origin iframe autofill (Phase 3 of the bigger plan — bigger structural change, do it next round).
+- Per-ATS deep field maps for Workday/Greenhouse/Lever (Phase 3).
+- Narrowing `host_permissions` from `https://*/*` to JOB_PAGE_RE domains (Web Store readiness — Phase 4).
+- Backend "ingest + cache job by key" hybrid path (will follow once Phase 1's richer JD is live and we see real payload sizes).
 
-## What I will not change
+## Verification
 
-- I will not try to fix Indeed’s internal React, Apollo, Mosaic, 403, or SVG errors because they are not from AYN.
-- I will not change your account privacy model.
-- I will not redesign the whole extension UI again. This is a reliability fix first.
+- Reload unpacked extension at `chrome://extensions`, confirm version `1.4.3`.
+- Open a LinkedIn job, click through 2-3 postings without reloading — side panel JD must update each time and show full text (not the truncated blurb).
+- Open a `ca.indeed.com` posting — company field populates.
+- Open a Workday posting — JD updates on next-job navigation.
+- Trigger Score with credits exhausted (or mock 402) — must fall back, not crash.
+- Grep `supabase/functions/resume-hub/index.ts` for `ext_job_score` / `smart_tailor` — exactly one definition each.
 
-## Validation
+## Technical notes
 
-After implementation I will:
-- Check `content.js` parse safety.
-- Rebuild the zip.
-- Confirm the dashboard points to the rebuilt `v1.4.2` zip.
-- Provide exact install steps so Chrome does not keep using the old unpacked extension folder.
+- Phase 1 edits are localized to `extension/content.js`; no other extension files change in Phase 1.
+- Phase 2 edits are localized to `supabase/functions/resume-hub/index.ts`; deploys automatically.
+- Sync against current HEAD (`04a8318`) before editing — recent "page detection" commit touched side panel + DETECT_PAGE but left `extractJobText` and the one-shot 1500ms timer intact, so Phase 1 still applies cleanly.
