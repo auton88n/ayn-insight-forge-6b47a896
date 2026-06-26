@@ -86,7 +86,39 @@ export default function ProfileTab({ userId }: { userId: string }) {
     setHasProfile(!!data?.hasProfile);
   }, [toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadPrimary(); }, [load, loadPrimary]);
+
+  const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
+    setUploading(true);
+    try {
+      // Save as primary resume (replace existing primary)
+      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      const autoTitle = resume.basics?.name ? `${resume.basics.name} – Resume` : "Uploaded Resume";
+      const { error: insErr } = await supabase.from("resumes").insert({
+        user_id: userId,
+        title: autoTitle,
+        content: resume as never,
+        is_primary: true,
+      });
+      if (insErr) throw insErr;
+      await loadPrimary();
+      toast({ title: "Resume saved as primary", description: "Extracting your canonical profile…" });
+
+      // Auto-run canonical extraction
+      setExtracting(true);
+      const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_extract" } });
+      setExtracting(false);
+      if (error) throw error;
+      if (data?.canonical) {
+        setProfile(data.canonical as Canonical);
+        toast({ title: "Profile drafted", description: "Review the fields below, then click Save." });
+      }
+    } catch (e) {
+      toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
