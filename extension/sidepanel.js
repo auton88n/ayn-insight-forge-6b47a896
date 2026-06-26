@@ -724,8 +724,16 @@ function detectForTailor() {
       S.company = parts[1]?.replace(/linkedin|indeed|glassdoor|jobright/gi,'').trim() || '';
       $('t-job-banner').style.display = '';
       $('t-job-title').textContent = r.title || 'Job detected';
-      $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars`;
+      $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars · click to load`;
       $('t-job-banner').dataset.text = r.text;
+      // Auto-load JD if user has a resume but no JD yet
+      const resume = $('resume-input').value.trim();
+      const job = $('job-input').value.trim();
+      if (resume.length >= 50 && job.length < 50) {
+        $('job-input').value = r.text;
+        $('job-chars').textContent = r.text.length;
+        $('t-job-banner').style.display = 'none';
+      }
     });
   });
 }
