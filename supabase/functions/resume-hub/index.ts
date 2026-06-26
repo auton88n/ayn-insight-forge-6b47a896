@@ -121,7 +121,15 @@ async function sha256Hex(s: string) {
   return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-const EXT_ACTIONS = new Set(["ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor", "ext_cover_letter", "ext_job_score", "ext_suggest_roles", "ext_find_contacts"]);
+const EXT_ACTIONS = new Set([
+  "ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor",
+  "ext_cover_letter", "ext_cover_letter_text",
+  "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
+  "ext_save_application", "ext_get_applications", "ext_update_application",
+]);
+
+// Public link-flow actions (no auth required for start/poll)
+const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -133,6 +141,43 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, ...payload } = body;
+
+    // ============ PUBLIC LINK FLOW (no auth) ============
+    // Extension generates a random code, opens /extension/approve?code=...
+    // in a tab, polls link_poll until status=approved, then receives the token.
+    if (typeof action === "string" && LINK_PUBLIC_ACTIONS.has(action)) {
+      const admin = createClient(supabaseUrl, serviceKey);
+
+      if (action === "link_start") {
+        const { device_label } = payload as { device_label?: string };
+        const bytes = new Uint8Array(24);
+        crypto.getRandomValues(bytes);
+        const code = "ayn_link_" + Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+        const { error } = await admin.from("extension_link_codes").insert({
+          code, device_label: device_label || "Chrome", status: "pending",
+        });
+        if (error) return json({ error: error.message }, 500);
+        return json({ code, expires_in: 300 });
+      }
+
+      if (action === "link_poll") {
+        const { code } = payload as { code?: string };
+        if (!code) return json({ error: "code required" }, 400);
+        const { data, error } = await admin.from("extension_link_codes")
+          .select("status, token, expires_at").eq("code", code).maybeSingle();
+        if (error || !data) return json({ status: "not_found" }, 404);
+        if (new Date(data.expires_at).getTime() < Date.now()) {
+          await admin.from("extension_link_codes").delete().eq("code", code);
+          return json({ status: "expired" });
+        }
+        if (data.status === "approved" && data.token) {
+          // Consume — delete after returning token
+          await admin.from("extension_link_codes").delete().eq("code", code);
+          return json({ status: "approved", token: data.token });
+        }
+        return json({ status: data.status || "pending" });
+      }
+    }
 
     // ============ EXTENSION-AUTH ACTIONS (x-ayn-ext-token) ============
     if (typeof action === "string" && EXT_ACTIONS.has(action)) {
