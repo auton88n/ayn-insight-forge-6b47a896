@@ -1,66 +1,82 @@
-## What Jobright actually does (that we don't)
+## What I found
 
-After reviewing their product + your screenshot, here is the honest gap:
+The extension is not just missing polish, it has a real wiring bug: the Autofill event listener is currently nested inside the Auto attach click handler. That means the main Fill button can appear in the UI but not actually be connected until after another button is clicked. This explains why you keep seeing the same broken behavior even after updates.
 
-| Capability | Jobright | AYN today |
-|---|---|---|
-| **Autofill** reads the JD, the page, AND the candidate's resume — fills 50-100+ fields including long open-text answers | Yes, with reasoning shown per field | Fills, shows reasoning + confidence ✅, but only ~6/11 fields on most ATS because it doesn't probe Workday/Greenhouse multi-step screens, doesn't open hidden sections, and doesn't fill repeating sections (work history, education) |
-| **Resume attach** | Uploads the actual PDF for you (when the input is reachable) and stores a Jobright-generated PDF | Only offers a `.txt` download — user must manually attach |
-| **AI Orion (chat assistant inside the extension)** | Conversational copilot: "rewrite this bullet", "make this more senior", "explain the gap" | Missing entirely |
-| **Insider / Connections** | Returns real recruiter names + verified profile links + alumni angle | Returns search-URL templates only — no real names |
-| **JD insights** | "Why you got 78/100", "must-have you're missing", "salary verified vs estimated", company growth signals | We return score + 3 reasons + missing keywords — no growth signals, no must-have vs nice-to-have split |
-| **Resume tailor** | Side-by-side diff + accept/reject per change + downloads as PDF/DOCX | We return plain-text only, no diff, no PDF/DOCX |
-| **Tracker** | Auto-detects when you submit on the ATS and logs status automatically | User must click "Save to tracker" manually |
-| **Cover letter** | Multiple tones + saved templates + per-paragraph regenerate | One-shot generate only |
+Some console errors you pasted are from Greenhouse and other installed extensions, but AYN still needs stronger Greenhouse handling and better visible error states.
 
-## What I will build to close the gap (v1.4.0)
+## Plan
 
-### 1. Smarter Autofill engine
-- **Multi-pass fill**: re-scan after each click — Workday/Greenhouse reveal new fields once earlier ones are answered.
-- **Expand-and-fill**: auto-click "Add another", "Show more", and accordion toggles for Work History / Education / Languages so repeating sections actually get populated row-by-row from `resume.work[]` and `resume.education[]`.
-- **Resume file attach (real upload)**: generate a proper PDF server-side (not just .txt), then use `DataTransfer` + `input.files = …` to programmatically attach it to the form's file input. Falls back to the current download/attach flow only when the site blocks it (rare; mostly Workday).
-- **Address parser**: split "123 Main St, Toronto, ON M5V 2K7" into street/city/state/postal/country across separate inputs.
-- **Custom-question memory**: when AYN generates an open-text answer (e.g. "Why this company?"), save it to `user_answers` keyed by question hash so the next similar question is instant and consistent.
+### 1. Fix the extension wiring first
+- Move all Fill tab event listeners out of the Auto attach handler.
+- Make every tab button register exactly once on startup.
+- Add visible diagnostic states inside the side panel so it says what failed: no page access, no fields found, no resume, AI failed, upload blocked, backend error.
+- Bump extension version so Chrome clearly shows a new build.
 
-### 2. AI Orion-style copilot tab ("Ask AYN")
-- New 7th tab "Ask" with a chat surface inside the side panel.
-- Knows the current page (JD + scraped fields), the user's resume, and the last fill/score result.
-- Common intents: rewrite bullet, draft an answer for a question on this form, explain the score, suggest a salary ask, write a follow-up email.
-- Uses `google/gemini-3-flash-preview` via Lovable AI Gateway (streamed). Conversation kept in memory per tab session; cleared on sign-out.
+### 2. Rebuild Greenhouse detection
+- Add Greenhouse specific selectors for:
+  - hosted Greenhouse job pages
+  - embedded Greenhouse application forms
+  - application iframes
+  - file upload fields
+  - radio groups and Yes or No questions
+- Improve company and job title extraction when Greenhouse hides them or puts them in document title.
+- Make Scan show exactly how many text fields, dropdowns, radio groups, checkboxes, and file uploads were detected.
 
-### 3. Score tab upgrades
-- Split into **Must-haves you meet / Must-haves you're missing / Nice-to-haves** instead of 3 generic reasons.
-- Add **Salary** badge: "verified" (pulled from JD) vs "estimated".
-- Add **Company signals** mini-card: industry, size band, recent growth/layoff signal (best-effort from JD + url heuristics; never invented).
+### 3. Make Autofill smarter and safer
+- Replace basic injection with a field resolver that uses stable selectors, label proximity, name, id, aria attributes, and frame prefix.
+- Handle:
+  - first name, last name, email, phone, address, city, province, postal code
+  - LinkedIn, portfolio, website
+  - work authorization
+  - sponsorship
+  - relocation
+  - salary expectation
+  - start date
+  - years of experience calculated from resume dates
+  - required Yes or No questions
+  - EEO questions with safe defaults or skip when sensitive
+- Show a result row for every field: filled, skipped, blocked, already filled, or needs manual review.
 
-### 4. Contacts tab upgrades
-- Replace "search URL templates" with **real names** by calling `google/gemini-3-flash-preview` with the company + role to surface 3 likely-named contacts (LinkedIn-public titles), each with: name (if confident), exact title, verified LinkedIn search URL, "shared signal" line (alumni / same prior company / same skill).
-- Add **email permutation tester** UI: shows the 3 likely email formats and a one-click "copy all" so the user can BCC them.
+### 4. Fix resume upload UX
+- Keep both buttons visible as requested:
+  - Try auto attach
+  - Download my AYN resume
+- Make auto attach more reliable by dispatching drag, input, change, and React compatible events where possible.
+- If Greenhouse blocks programmatic upload, show a clear one line reason and keep manual upload ready.
+- Stop promising impossible browser behavior. Chrome and job sites can block file assignment, but AYN should still automate everything else.
 
-### 5. Resume tab upgrades
-- **Side-by-side diff** (original vs tailored) with green inserts / red deletes per line, accept/reject per change.
-- Server returns the same ATS plain text we already produce + a generated PDF/DOCX download.
-- ATS Score becomes **Match Score** with the same must-have breakdown used on the Score tab — one consistent number across the extension.
+### 5. Repair Score, Contacts, Cover Letter, Tracker, Resume
+- Score tab: always extract current job context, show loading, score, must have match, nice to have match, matched skills, missing keywords, salary estimate, and verdict.
+- Contacts tab: work even if company extraction is weak by using job URL/title fallback, and show generated LinkedIn search links plus cold outreach.
+- Cover tab: use saved AYN resume from the backend, not only local cache, so it does not fail after reinstall.
+- Tracker tab: add better save/update error handling and refresh after save.
+- Resume tab: auto load current job description, generate ATS score, change notes, keyword list, and copy/download actions.
 
-### 6. Cover letter tab upgrades
-- Add per-paragraph **Regenerate** buttons.
-- Persist generated letters to `cover_letters` table, list the last 5 in a dropdown for reuse.
+### 6. Package the extension correctly
+- Rebuild `public/ayn-extension.zip` from the updated `extension/` folder.
+- Update the dashboard download card version from old `v1.3.1` to the new version so you can confirm you downloaded the latest package.
+- Add a short “latest version loaded” note in the extension header.
 
-### 7. Tracker auto-capture
-- Content script listens for `submit` events on detected application forms.
-- On submit, auto-saves the job + status="applied" + the fields AYN filled, so the user never has to click "Save to tracker" again.
+### 7. Verify with Greenhouse
+- Use a real Greenhouse job page in the browser test.
+- Confirm:
+  - content script loads
+  - Scan detects form fields
+  - Autofill button is wired before Auto attach is clicked
+  - Score tab renders instead of staying empty
+  - Contacts and Cover generate output
+  - Tracker loads without silently failing
+  - Resume tab loads the job description and generates tailored output
 
-### Technical notes (for the engineer reading)
+## Technical notes
 
-- Edge function `resume-hub` gets 4 new actions: `ext_ask` (streaming chat), `ext_company_signals`, `ext_generate_resume_pdf`, `ext_save_answer` / `ext_lookup_answer`.
-- New table `ext_answers (user_id, question_hash, question_text, answer_text, updated_at)` with RLS scoped to `auth.uid()`; reused across applications.
-- New table `ext_chat_messages (user_id, session_id, role, content, created_at)` for the Ask tab, RLS scoped to `auth.uid()`.
-- Resume PDF generated server-side via a lightweight Deno PDF builder (no headless browser); DOCX via `docx` npm shim.
-- All AI calls keep using Lovable AI Gateway. Default model `google/gemini-3-flash-preview`; `google/gemini-2.5-pro` reserved for tailor + cover letter where reasoning depth matters.
-- Privacy is unchanged: every new table scoped to `auth.uid()`, no cross-account data, extension token still single-account.
-- Extension version bumps to **v1.4.0**; zip repacked at `public/ayn-extension.zip`.
+Files to update:
+- `extension/sidepanel.js`
+- `extension/content.js`
+- `extension/background.js`
+- `extension/sidepanel.html`
+- `extension/manifest.json`
+- `src/components/resume-hub/ExtensionTab.tsx`
+- `public/ayn-extension.zip`
 
-### Out of scope (tell me if you want them)
-- Job aggregator inside the extension (Jobright's "Job Finder"). You said earlier you don't want to replace LinkedIn/Indeed browsing.
-- AI Mock Interviews (separate product).
-- Auto-apply on Easy Apply without user click (Chrome will eventually flag the extension).
+No new database tables are needed for this fix. The existing extension token privacy model remains per user, so accounts stay isolated.
