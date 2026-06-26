@@ -175,7 +175,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Auto-autofill: scan + AI + inject
+  // v1.4.0: Auto-tracker — content script tells us the user submitted the form
+  if (message.type === 'AUTO_TRACK_SUBMIT') {
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) { sendResponse({ ok: false }); return; }
+        const company = message.company || '';
+        const title = (message.title || '').split(/\s+at\s+|\s+[-|@]\s+/i)[0].trim() || 'Job';
+        await callFunction('ext_save_application', {
+          jobTitle: title, company: company || 'Unknown', jobUrl: message.url || '', status: 'applied',
+        });
+        sendResponse({ ok: true });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
+  // v1.4.0: Programmatic resume attach — fetch resume bytes then attach in-page
+  if (message.type === 'ATTACH_RESUME') {
+    (async () => {
+      try {
+        const tabId = message.tabId;
+        if (!tabId) { sendResponse({ ok: false, error: 'no_tab' }); return; }
+        const blob = await callFunction('ext_get_resume_blob', {});
+        if (!blob?.base64) { sendResponse({ ok: false, error: 'no_resume' }); return; }
+        const r = await safeSendMessage(tabId, { type: 'TRY_ATTACH_RESUME', payload: blob });
+        if (!r) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
+        if (!r.attached) { sendResponse({ ok: false, error: r.reason || 'blocked', filename: blob.filename }); return; }
+        sendResponse({ ok: true, count: r.count || 1, filename: blob.filename });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
+  // Auto-autofill: scan + AI + inject (with v1.4.0 multi-pass for revealed fields)
   if (message.type === 'AUTO_AUTOFILL') {
     (async () => {
       try {
@@ -183,6 +217,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tabId) { sendResponse({ ok: false, error: 'No tab ID' }); return; }
         const token = await getToken();
         if (!token) { sendResponse({ ok: false, error: 'not_signed_in' }); return; }
+
+        // v1.4.0: First expand "Add another" buttons so repeating sections appear
+        await safeSendMessage(tabId, { type: 'EXPAND_SECTIONS' });
+        await new Promise(r => setTimeout(r, 350));
 
         const scan = await safeSendMessage(tabId, { type: 'SCAN_FORM' });
         if (!scan) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
@@ -207,9 +245,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 350));
 
         const fillResult = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values });
+
+        // v1.4.0: Second pass — re-scan in case filling revealed new fields (conditional questions)
+        let secondPassFilled = 0;
+        try {
+          await new Promise(r => setTimeout(r, 700));
+          const scan2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' });
+          const newFields = (scan2?.fields || []).filter(f =>
+            !fields.some(old => old.id === f.id) && !f.currentValue
+          );
+          if (newFields.length > 0) {
+            const fill2 = await callFunction('ext_autofill', {
+              fields: newFields.map(f => ({
+                id: f.id, label: f.label, type: f.type, group: f.group,
+                options: f.options, required: f.required, currentValue: f.currentValue,
+              })),
+              jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
+              ats: scan.ats || 'unknown', url: scan.url || '',
+            });
+            const newValues = (fill2.values || []).filter(v => v.value && v.value.trim());
+            if (newValues.length > 0) {
+              const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: newValues });
+              secondPassFilled = fr2?.filled || 0;
+              // Merge into result
+              (fr2?.results || []).forEach(r => fillResult.results.push(r));
+              newValues.forEach(v => values.push(v));
+            }
+          }
+        } catch { /* ignore second-pass errors */ }
+
         const resultMap = {};
         (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
         const details = values.map(v => ({
@@ -223,7 +290,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           reason: resultMap[v.id]?.reason || '',
         }));
 
-        sendResponse({ ok: true, filled: fillResult?.filled || 0, total: values.length, details });
+        sendResponse({
+          ok: true,
+          filled: (fillResult?.filled || 0) + secondPassFilled,
+          total: values.length,
+          details,
+          passes: secondPassFilled > 0 ? 2 : 1,
+        });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
