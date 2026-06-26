@@ -619,10 +619,12 @@ GENERAL:
             context: { jobTitle, company, ats, url },
             fields,
             mergedBasics: merged,
+            canonical,
+            canonicalSummary: canonicalText,
             profile,
             resume: resume?.content,
             jobDescription: (jobText || "").slice(0, 3500),
-          }).slice(0, 38000),
+          }).slice(0, 45000),
           toolName: "emit_autofill",
           toolSchema: {
             type: "object",
