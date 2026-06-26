@@ -2050,6 +2050,75 @@ export type Database = {
         }
         Relationships: []
       }
+      ext_answers: {
+        Row: {
+          answer_text: string
+          created_at: string
+          id: string
+          last_company: string | null
+          last_role: string | null
+          question_hash: string
+          question_text: string
+          updated_at: string
+          use_count: number
+          user_id: string
+        }
+        Insert: {
+          answer_text: string
+          created_at?: string
+          id?: string
+          last_company?: string | null
+          last_role?: string | null
+          question_hash: string
+          question_text: string
+          updated_at?: string
+          use_count?: number
+          user_id: string
+        }
+        Update: {
+          answer_text?: string
+          created_at?: string
+          id?: string
+          last_company?: string | null
+          last_role?: string | null
+          question_hash?: string
+          question_text?: string
+          updated_at?: string
+          use_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ext_ask_messages: {
+        Row: {
+          content: string
+          context: Json | null
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          context?: Json | null
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          context?: Json | null
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       extension_link_codes: {
         Row: {
           approved_at: string | null
