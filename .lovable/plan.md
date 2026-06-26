@@ -1,98 +1,96 @@
-# Plan: Resume Hub v2 — Diff Review + New AYN Extension
+## Goal
+Replace the paste-a-token login in the Chrome extension with a one-click "Sign in with AYN" flow, and fix every broken feature (autofill, score, contacts, cover letter, tracker, tailor) so the extension actually works end-to-end.
 
-## 1. Replace `/extension` with the uploaded side-panel build
+## Part 1 — One-click "Sign in with AYN"
 
-Remove old popup-based extension. New `/extension/` directory contains:
-
-- `manifest.json` (MV3, sidePanel, scripting, storage, host_permissions `<all_urls>`)
-- `background.js` — opens side panel on icon click, refreshes Supabase token, `safeSendMessage` auto-injects `content.js` when missing
-- `content.js` — job text extraction for LinkedIn, Indeed (US/CA), Jobright, Greenhouse, Lever, Ashby, Glassdoor, Workday, SmartRecruiters, plus generic fallback; form field scanning + React-native value setter for autofill; job card scoring overlays on search pages
-- `sidepanel.html` + `sidepanel.js` — 6 working tabs:
-  1. **Fill Form** — detect form fields, autofill from saved profile
-  2. **Job Score** — arc gauge, comparison table, keyword chips
-  3. **Contact** — find recruiter (LinkedIn search builder)
-  4. **Cover Letter** — AI-generated, copy button
-  5. **Tracker** — list of saved applications from `applications` table
-  6. **Tailor CV** — 3-step flow with the new diff viewer
-- `icons/` — copy the 4 uploaded AYN orange-eye PNGs
-
-### Polish on top of the uploaded version
-- Swap purple `#4F46E5` accent → AYN orange `#F97316` / `#FB923C`
-- Replace hardcoded SUPABASE keys with `config.js` (still publishable anon keys, but one place to update)
-- Fix the "device token" auth path: side-panel signs in via email magic-link OR pastes a device token generated in Resume Hub → Extension tab (matches our existing `extension_tokens` table)
-- Inter font via system stack, JetBrains Mono for score numerals
-- Add empty/error/loading states for every tab
-- Persist last resume + last job per user in `chrome.storage.local`
-
-## 2. Side-by-side diff viewer (web + extension)
-
-New component `src/components/resume-hub/ResumeDiffViewer.tsx`:
-
+### Flow the user sees
 ```text
-┌─────────────────────────┬─────────────────────────┐
-│ ORIGINAL                │ IMPROVED                │
-├─────────────────────────┼─────────────────────────┤
-│ Built dashboards using  │ Built  real-time        │ ← change #1
-│ React.                  │ dashboards in React,    │   [Accept] [Reject]
-│                         │ cutting load time 40%.  │
-├─────────────────────────┼─────────────────────────┤
-│ ...unchanged line...    │ ...unchanged line...    │
-└─────────────────────────┴─────────────────────────┘
+[ Extension side panel ]                [ aynn.io in a new tab ]
+  "Sign in with AYN"  ─── click ───▶   /extension/approve?code=ABC123
+                                        - Must be logged in to AYN
+                                        - Shows: "AYN Resume Tailor wants
+                                          to connect this browser"
+                                        - [ Approve ]   [ Cancel ]
+                                              │
+                                              ▼
+                                        Mints a device token bound to ABC123
+                                              │
+   Extension polls ◀────────────────────────  │
+   gets the token, saves it, signs in.
 ```
 
-- Use `diff` npm package (`diffWordsWithSpace`) to compute hunks
-- Group consecutive changed lines into one "change" with stable `id`
-- Highlight insertions green, deletions red strikethrough
-- Each change row gets **Accept** / **Reject** buttons; Reject reverts that hunk to original text
-- Sticky header: `Accept All` · `Reject All` · `Copy Final` · `Download .docx`
-- Footer counter: `12 of 18 changes accepted`
-- Mobile: stacks to single column, swipe between Original/Improved
+### How it works under the hood
+1. Extension generates a random `code` (e.g. `ayn_link_xxx`) and opens `https://aynn.io/extension/approve?code=...&name=Chrome%20-%20MacBook` in a new tab.
+2. New page `/extension/approve` shows the consent screen. If the user is not signed into AYN, it routes them through normal login first, then returns.
+3. User clicks Approve → frontend calls `resume-hub` action `link_approve` with the `code` and a device label. Backend mints a device token tied to that `code` and stores the user_id + token in a short-lived `extension_link_codes` table.
+4. The extension polls `resume-hub` action `link_poll` with the same `code` every 2 seconds (max 5 minutes). When it sees `approved`, it saves the token in `chrome.storage.local` and switches to the signed-in view.
+5. Codes expire after 5 minutes. Once consumed, they are deleted.
 
-### Wire into `ResumeMatch.tsx`
-Replace current Step 3 `<pre>{rewriteMarkdown}</pre>` with `<ResumeDiffViewer original={resume} improved={rewriteMarkdown} onConfirm={...}/>`. On Confirm, save the accepted version as a new `resume_versions` row labelled `Tailored for {jobTitle} @ {company}`.
+### Why this is secure
+- The token never travels through the URL or the clipboard.
+- Approval requires being signed into AYN in the browser (same SSO/Google flow you already use).
+- Each browser gets its own revokable token, scoped only to `ext_*` actions.
+- Codes are single-use, short-lived, and bound to one user_id.
 
-### Update `resume-match` edge function
-Return both:
-- `improved`: full improved resume text (already returned as `markdown`)
-- `changeSummary`: array of `{ section, before, after, reason }` so the UI can show "why" tooltips on each change
+## Part 2 — Fix every extension feature
 
-## 3. Download link in Resume Hub → Extension tab
+### Backend (`supabase/functions/resume-hub/index.ts`)
+- Add `link_start`, `link_approve`, `link_poll` actions for the new flow.
+- Add `ext_save_application`, `ext_get_applications`, `ext_update_application` to the extension-token whitelist so the Tracker tab works.
+- Make `ext_cover_letter` accept pasted resume + job text (not just a stored `job_id`) so it works from the Cover Letter tab.
+- Tighten `ext_autofill` to return per-field reasons (matched / no data / sensitive / skipped) so the UI can show exactly what happened.
 
-In `src/components/resume-hub/ExtensionTab.tsx`:
+### Database
+- New table `extension_link_codes` (code, user_id nullable, token nullable, status, expires_at, device_label).
+- Per-user RLS so users only see their own pending codes.
+- GRANTs as required.
 
-1. Add a build step that zips `/extension/` → `/public/ayn-extension.zip` (run via existing `nix run nixpkgs#zip` recipe; document in README, the user re-runs when extension changes)
-2. New hero card at top of tab:
-   - Big AYN icon + "AYN Resume Tailor for Chrome — v1.1.0"
-   - **Download Extension** button (fetch+blob pattern, not direct `<a>`)
-   - 4 install steps inline (unzip → chrome://extensions → Dev mode → Load unpacked)
-3. Below: existing device-token generator + revoke list
-4. "What's new in this version" changelog block
+### Frontend page (new)
+- `/extension/approve` route on aynn.io:
+  - Reads `?code=...&name=...` from URL.
+  - Requires login; if not logged in, redirects through normal auth and back.
+  - Shows clean "Allow AYN Resume Tailor to connect this browser?" card with Approve / Cancel.
+  - On Approve calls `link_approve`, on success shows "You can close this tab" message.
 
-## 4. Files touched
+### Extension
+- Replace the email/password login screen with a single big "Sign in with AYN" button + small "Paste token instead" link as fallback.
+- New `background.js` flow: generate code, open approve URL, poll, save token, notify side panel.
+- Switch every backend call to use `x-ayn-ext-token` + anon key (no Supabase JWT, no refresh tokens).
+- Standardize action names: `ext_autofill`, `ext_job_score`, `ext_suggest_roles`, `ext_find_contacts`, `ext_cover_letter`, `ext_save_application`, `ext_get_applications`, `ext_update_application`.
 
-**New**
-- `extension/` (full rewrite — 8 files)
-- `extension/icons/icon{16,32,48,128}.png` (copied from uploads)
-- `src/components/resume-hub/ResumeDiffViewer.tsx`
-- `public/ayn-extension.zip` (built artifact)
+### Content script (form detection + injection)
+- Stronger field scanner for CSOD, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, LinkedIn Easy Apply, and generic forms.
+- Late-load retry (re-scan after 1s and 3s for SPA forms).
+- Scan inside same-origin iframes when accessible.
+- Injection uses React-native setters, dispatches `input` / `change` / `blur` / keyboard events, and supports selects, radios, checkboxes, contenteditable, and common combobox controls.
+- Returns detailed per-field results.
 
-**Modified**
-- `src/pages/ResumeMatch.tsx` (Step 3 uses diff viewer)
-- `src/components/resume-hub/ExtensionTab.tsx` (download card + install guide)
-- `supabase/functions/resume-match/index.ts` (add `changeSummary` to response)
-- `package.json` (`bun add diff @types/diff`)
+### Side panel UI
+- Replace misleading "no fillable fields" message with specific states: page blocked, refresh needed, iframe inaccessible, no profile data, no AI values, partial fill.
+- Show a small "X of Y fields filled" summary plus a per-field list with reasons.
+- Clean up unused login form code.
 
-**Untouched**
-- Resume parsing, jobs tab, tracker, all other Resume Hub backend
-- Auth, RLS, storage buckets
-- Any landing page / dashboard code
+### Resume Hub → Extension tab
+- Remove the device-token UI noise (keep it as an advanced fallback).
+- Make the primary CTA the download button.
+- Keep the "Connected devices" list so users can revoke any browser.
 
-## 5. Out of scope
-- Publishing to Chrome Web Store (still developer-mode load-unpacked)
-- Changing the resume parsing pipeline (it works now)
-- Editing landing page or dashboard
+### Repackage
+- Rebuild `public/ayn-extension.zip` so the download button serves the fixed version.
 
-## Acceptance
-- Download button in Extension tab pulls `ayn-extension.zip` and saves locally
-- Loaded extension opens side panel, lists 6 tabs, signs in with device token, autofills a LinkedIn application, scores against the detected JD
-- After clicking "Improve My Resume", user sees side-by-side diff, can accept/reject each change, sees live count, and confirms to save as a new resume version
+## Files I will touch
+- `extension/manifest.json`
+- `extension/background.js`
+- `extension/content.js`
+- `extension/sidepanel.html`
+- `extension/sidepanel.js`
+- `extension/README.md`
+- `supabase/functions/resume-hub/index.ts`
+- New migration for `extension_link_codes`
+- `src/pages/ExtensionApprove.tsx` (new)
+- `src/App.tsx` (add `/extension/approve` route)
+- `src/components/resume-hub/ExtensionTab.tsx` (simplify)
+- `public/ayn-extension.zip` (rebuild)
+
+## Out of scope (won't touch)
+- Landing page, dashboard chat, admin panel, billing, world intelligence, any other feature outside the extension.
