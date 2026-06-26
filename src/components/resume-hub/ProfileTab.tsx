@@ -11,21 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, Save, Plus, X, ShieldCheck } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
-function computeCompleteness(p: Canonical): { pct: number; checks: { label: string; done: boolean }[] } {
-  const checks = [
-    { label: "Current title", done: !!p.derived?.current_title },
-    { label: "Total years of experience", done: typeof p.derived?.total_yoe === "number" },
-    { label: "5+ skills", done: (p.skills?.length || 0) >= 5 },
-    { label: "1+ experience", done: (p.experiences?.length || 0) >= 1 },
-    { label: "1+ education", done: (p.education?.length || 0) >= 1 },
-    { label: "Work authorization set", done: !!(p.work_auth?.citizenship || p.work_auth?.work_authorized_us || p.work_auth?.work_authorized_ca) },
-    { label: "Salary preference", done: typeof p.preferences?.salary_min_usd === "number" },
-    { label: "Desired titles", done: (p.preferences?.desired_titles?.length || 0) >= 1 },
-  ];
-  const pct = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
-  return { pct, checks };
-}
-
 // Canonical profile types must mirror the edge-function CanonicalProfile.
 type Skill = { name: string; years?: number; last_used?: string; level?: string };
 type Exp = { company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[] };
