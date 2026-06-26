@@ -9,8 +9,14 @@
   // 1. JOB TEXT EXTRACTION
   // ══════════════════════════════════════════════════════════════════
 
+  function cleanTitle(t) {
+    return String(t || '').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
+  }
+
   function extractJobText() {
     const url = window.location.href;
+    const docTitle = cleanTitle(document.title);
+
 
     const map = {
       'linkedin.com/jobs/view': {
@@ -72,7 +78,7 @@
         const company = document.querySelector(sel.company);
         return {
           text: desc?.innerText?.trim() || '',
-          title: title?.innerText?.trim() || document.title,
+          title: cleanTitle(title?.innerText?.trim() || docTitle),
           company: company?.innerText?.trim() || '',
         };
       }
@@ -83,8 +89,9 @@
       'article, main, [class*="description"], [class*="job"], [id*="description"]'
     ));
     const best = candidates.reduce((p, el) => el.innerText.length > (p?.innerText?.length || 0) ? el : p, null);
-    return { text: best?.innerText?.trim() || '', title: document.title, company: '' };
+    return { text: best?.innerText?.trim() || '', title: docTitle, company: '' };
   }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 2. FORM SCANNING
@@ -128,37 +135,54 @@
     return (el.value || '').trim().length > 0;
   }
 
+  function collectScannableDocs() {
+    const docs = [{ doc: document, prefix: '' }];
+    document.querySelectorAll('iframe').forEach((frame, i) => {
+      try {
+        const fdoc = frame.contentDocument;
+        if (fdoc && fdoc.querySelector('input, textarea, select')) {
+          docs.push({ doc: fdoc, prefix: `frame${i}:` });
+        }
+      } catch { /* cross-origin, ignore */ }
+    });
+    return docs;
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','file','image','reset','search']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
     const fields = [];
     const seenNames = new Set();
 
-    document.querySelectorAll('input, textarea, select').forEach((el, idx) => {
-      if (SKIP_TYPES.has(el.type)) return;
-      if (el.disabled) return;
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return;
-      const label = getLabelFor(el);
-      const key = (el.name || '') + '|' + label;
-      if (el.type === 'radio' && seenNames.has(key)) return;
-      seenNames.add(key);
-      if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
-      if (!label && (!el.name || el.name.length < 2)) return;
+    collectScannableDocs().forEach(({ doc, prefix }) => {
+      doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
+        if (SKIP_TYPES.has(el.type)) return;
+        if (el.disabled) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+        const label = getLabelFor(el);
+        const key = prefix + (el.name || '') + '|' + label;
+        if (el.type === 'radio' && seenNames.has(key)) return;
+        seenNames.add(key);
+        if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
+        if (!label && (!el.name || el.name.length < 2)) return;
 
-      fields.push({
-        id: el.id || el.name || `f${idx}`,
-        label: label || `Field ${idx}`,
-        type: el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text'),
-        name: el.name || '',
-        currentValue: isFilled(el) ? (el.value || '') : '',
-        options: getOptions(el),
-        required: el.required || el.getAttribute('aria-required') === 'true',
-        _idx: idx,
+        fields.push({
+          id: prefix + (el.id || el.name || `f${idx}`),
+          label: label || `Field ${idx}`,
+          type: el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text'),
+          name: el.name || '',
+          currentValue: isFilled(el) ? (el.value || '') : '',
+          options: getOptions(el),
+          required: el.required || el.getAttribute('aria-required') === 'true',
+          _idx: idx,
+          _frame: prefix,
+        });
       });
     });
     return fields;
   }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 3. VALUE INJECTION
@@ -168,14 +192,31 @@
     let filled = 0;
     const results = [];
 
-    values.forEach(({ id, value, _idx }) => {
+    values.forEach(({ id, value, _idx, _frame }) => {
       if (!value || !value.trim()) return;
 
-      let el = document.getElementById(id) || document.querySelector(`[name="${CSS.escape(id)}"]`);
+      // Resolve doc: top-level or iframe
+      let doc = document;
+      let rawId = id;
+      const m = /^frame(\d+):(.*)$/.exec(id);
+      if (m) {
+        const frame = document.querySelectorAll('iframe')[parseInt(m[1],10)];
+        try { if (frame?.contentDocument) doc = frame.contentDocument; } catch { /* ignore */ }
+        rawId = m[2];
+      } else if (_frame) {
+        const fm = /^frame(\d+):$/.exec(_frame);
+        if (fm) {
+          const frame = document.querySelectorAll('iframe')[parseInt(fm[1],10)];
+          try { if (frame?.contentDocument) doc = frame.contentDocument; } catch { /* ignore */ }
+        }
+      }
+
+      let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
       if (!el && _idx != null) {
-        const all = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
+        const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
       }
+
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); return; }
       if (isFilled(el) && el.type !== 'radio' && el.type !== 'checkbox') { results.push({ id, ok: false, reason: 'already filled' }); return; }
 
