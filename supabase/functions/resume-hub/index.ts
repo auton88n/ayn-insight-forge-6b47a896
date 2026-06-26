@@ -594,9 +594,11 @@ logic.years_experience
 logic.education_level
   -> Use mergedBasics.computed_education_level. Match closest option text.
 
-logic.salary -> profile.default_answers.salary_expectation only. Else skip.
+logic.salary -> canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation. Else skip.
 
-logic.start_date -> profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
+logic.start_date -> canonical.preferences.start_date_availability or profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
+
+CANONICAL OVERRIDES (Phase 1): canonical.work_auth and canonical.preferences are the user-confirmed source of truth. If canonical says needs_sponsorship_now=true, answer Yes on sponsorship questions. If canonical says work_authorized_us=true, answer Yes on US work auth. If canonical.skills lists a skill with years=N, use N for "How many years of <skill>" questions verbatim. Never override these with guesses.
 
 eeo.* -> profile.default_answers only. Else "Decline to self-identify" / "Prefer not to say" when offered, else skip.
 
