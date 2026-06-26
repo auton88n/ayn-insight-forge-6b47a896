@@ -128,7 +128,7 @@ const ResumeMatch = () => {
   const [rewriting, setRewriting] = useState(false);
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [rewriteMarkdown, setRewriteMarkdown] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  
 
   const scrollToResults = () => setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
 
@@ -163,12 +163,6 @@ const ResumeMatch = () => {
     } catch (err: unknown) {
       toast({ title: 'Error', description: err instanceof Error ? err.message : 'Something went wrong', variant: 'destructive' });
     } finally { setRewriting(false); }
-  };
-
-  const handleCopy = async () => {
-    if (!rewriteMarkdown) return;
-    await navigator.clipboard.writeText(rewriteMarkdown);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
   const handleReset = () => { setStep(1); setResult(null); setRewriteMarkdown(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
