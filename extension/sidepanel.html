@@ -214,6 +214,7 @@
     .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
     .spinner.dark, .spinner.dk { border-color: rgba(0,0,0,.12); border-top-color: var(--ayn-muted); }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin 1s linear infinite; }
 
     /* ═══════════════════════════════════════════════════════════
        Cards
@@ -527,6 +528,91 @@
       text-align: center; font-size: 11px; color: var(--ayn-muted);
       margin-top: 8px; font-weight: 500;
     }
+
+    /* ═══════════════════════════════════════════════════════════
+       v1.4.0: Ask AYN chat
+       ═══════════════════════════════════════════════════════════ */
+    .ask-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .ask-context-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 999px;
+      background: var(--ayn-orange-soft); color: var(--ayn-orange-2);
+      border: 1px solid var(--ayn-orange-border);
+      font-size: 11px; font-weight: 700; margin-bottom: 10px;
+    }
+    .ask-context-pill i { font-size: 13px; }
+    .ask-empty {
+      text-align: center; padding: 18px 8px; color: var(--ayn-muted);
+      font-size: 12.5px; line-height: 1.55;
+    }
+    .ask-msgs { flex: 1; overflow-y: auto; padding: 4px 2px 8px; }
+    .ask-msgs::-webkit-scrollbar { width: 4px; }
+    .ask-msgs::-webkit-scrollbar-thumb { background: var(--ayn-border); border-radius: 4px; }
+    .ask-bubble {
+      max-width: 92%; padding: 10px 13px; border-radius: 13px;
+      margin-bottom: 8px; font-size: 13px; line-height: 1.55;
+      word-wrap: break-word; white-space: pre-wrap;
+    }
+    .ask-bubble.user {
+      background: var(--ayn-orange); color: #fff;
+      margin-left: auto; border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 6px rgba(249,115,22,.2);
+    }
+    .ask-bubble.assistant {
+      background: var(--ayn-card); color: var(--ayn-ink);
+      border: 1px solid var(--ayn-border);
+      border-bottom-left-radius: 4px;
+    }
+    .ask-bubble.thinking {
+      background: var(--ayn-card); color: var(--ayn-muted);
+      border: 1px solid var(--ayn-border-2);
+      font-style: italic; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .ask-bubble-actions { display: flex; gap: 6px; margin-top: 6px; }
+    .ask-mini-btn {
+      font-size: 10.5px; padding: 3px 8px; border-radius: 6px;
+      background: var(--ayn-bg); border: 1px solid var(--ayn-border);
+      color: var(--ayn-muted); cursor: pointer; font-weight: 600;
+    }
+    .ask-mini-btn:hover { color: var(--ayn-orange); border-color: var(--ayn-orange-border); }
+    .ask-input-row {
+      display: flex; gap: 8px; padding-top: 10px;
+      border-top: 1px solid var(--ayn-border-2); flex-shrink: 0;
+    }
+    .ask-input {
+      flex: 1; min-height: 38px; max-height: 120px;
+      padding: 9px 12px; border-radius: 10px; border: 1px solid var(--ayn-border);
+      font-family: inherit; font-size: 13px; resize: none; line-height: 1.4;
+    }
+    .ask-input:focus { outline: none; border-color: var(--ayn-orange); box-shadow: 0 0 0 3px rgba(249,115,22,.12); }
+    .ask-send-btn {
+      width: 38px; height: 38px; border-radius: 10px; border: none;
+      background: var(--ayn-orange); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: background .15s, transform .1s;
+    }
+    .ask-send-btn:hover:not(:disabled) { background: var(--ayn-orange-2); }
+    .ask-send-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .ask-send-btn i { font-size: 18px; }
+    .ask-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .ask-sugg {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+      background: var(--ayn-card); border: 1px solid var(--ayn-border);
+      color: var(--ayn-text); cursor: pointer; transition: all .15s;
+    }
+    .ask-sugg:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); background: var(--ayn-orange-soft); }
+
+    /* Must-have requirements list */
+    .req-card { background: var(--ayn-card); border: 1px solid var(--ayn-border); border-radius: 12px; padding: 13px; margin-bottom: 10px; }
+    .req-card .req-title { font-size: 11px; font-weight: 800; color: var(--ayn-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 9px; }
+    .req-row { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; font-size: 12.5px; line-height: 1.45; }
+    .req-row + .req-row { border-top: 1px solid var(--ayn-border-2); }
+    .req-icon { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; margin-top: 1px; }
+    .req-icon.met  { background: var(--ayn-green); }
+    .req-icon.miss { background: #d1d5db; color: #6b7280; }
+    .req-text { color: var(--ayn-text); }
+    .req-row.miss .req-text { color: var(--ayn-muted); }
   </style>
 </head>
 <body>
@@ -545,6 +631,7 @@
 <div class="tabs hidden" id="tabs">
   <button class="tab active" id="tab-fill"    onclick="switchTab('fill')"><i class="ti ti-bolt"></i>Fill</button>
   <button class="tab"        id="tab-jobs"    onclick="switchTab('jobs')"><i class="ti ti-target-arrow"></i>Score</button>
+  <button class="tab"        id="tab-ask"     onclick="switchTab('ask')"><i class="ti ti-sparkles"></i>Ask AYN</button>
   <button class="tab"        id="tab-contact" onclick="switchTab('contact')"><i class="ti ti-users"></i>Contacts</button>
   <button class="tab"        id="tab-cover"   onclick="switchTab('cover')"><i class="ti ti-mail"></i>Cover</button>
   <button class="tab"        id="tab-tracker" onclick="switchTab('tracker')"><i class="ti ti-checkbox"></i>Tracker</button>
@@ -608,14 +695,22 @@
 
     <div class="card hidden mt12" id="fill-resume-dl-wrap" style="background:linear-gradient(135deg,var(--ayn-orange-soft) 0%,var(--ayn-card) 100%);border-color:var(--ayn-orange-border)">
       <div class="card-title" style="color:var(--ayn-orange-2)"><i class="ti ti-paperclip"></i>Resume file attachment</div>
-      <div class="card-sub" style="margin-top:5px">This form needs a Resume / CV file. Chrome blocks extensions from attaching files for you — it takes about 10 seconds:</div>
+      <div class="card-sub" style="margin-top:5px">This form has a Resume / CV upload. Try the one-click attach first — if the site blocks it, use the manual download below.</div>
+
+      <button class="btn btn-primary mt12" id="fill-auto-attach-btn">
+        <i class="ti ti-bolt"></i>Try auto-attach my AYN resume
+      </button>
+      <div id="fill-attach-status" class="mt8 hidden" style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px"></div>
+
+      <div style="text-align:center;margin:10px 0;font-size:10px;color:var(--ayn-faint);text-transform:uppercase;letter-spacing:.1em">— or do it manually —</div>
+
       <ol id="fill-resume-steps">
         <li id="dl-step-1" data-active="1">Click <b>Download my AYN resume</b> below</li>
         <li id="dl-step-2">Find the <b>Resume / CV</b> field on this page</li>
         <li id="dl-step-3">Click its <b>Browse / Attach / Upload</b> button</li>
         <li id="dl-step-4">Select the file you just downloaded</li>
       </ol>
-      <button class="btn btn-amber mt12" id="fill-download-resume-btn">
+      <button class="btn btn-outline mt8" id="fill-download-resume-btn">
         <i class="ti ti-download"></i>Download my AYN resume (.txt)
       </button>
       <div id="fill-dl-success" class="hidden mt8" style="font-size:12px;color:var(--ayn-green);font-weight:700;display:flex;align-items:center;gap:6px">
@@ -677,6 +772,10 @@
       <ul class="score-reasons" id="score-reasons"></ul>
     </div>
 
+    <!-- v1.4.0: must-have / nice-to-have requirements breakdown -->
+    <div id="score-requirements" class="hidden mt12"></div>
+
+
     <div class="divider"></div>
 
     <div class="sl">Browse smarter</div>
@@ -704,6 +803,33 @@
       <div id="roles-chips" class="mt8"></div>
       <div class="sl mt12">Add these keywords</div>
       <div id="kw-search-chips" class="mt8"></div>
+    </div>
+  </div>
+
+  <!-- ════════════ ASK AYN (v1.4.0 chat copilot) ════════════ -->
+  <div class="view" id="v-ask">
+    <div class="ask-shell">
+      <div id="ask-context-pill-wrap"></div>
+
+      <div id="ask-suggestions" class="ask-suggestions">
+        <span class="ask-sugg" data-q="Am I qualified for this role? Be honest.">Am I qualified?</span>
+        <span class="ask-sugg" data-q="Write a 3-sentence 'Why this company?' answer for this job.">Why this company?</span>
+        <span class="ask-sugg" data-q="What are my biggest gaps for this role and how do I address them?">My biggest gaps</span>
+        <span class="ask-sugg" data-q="Rewrite my most relevant resume bullet for this job, tighter and more results-oriented.">Improve a bullet</span>
+        <span class="ask-sugg" data-q="What salary should I ask for in this role?">Salary range</span>
+        <span class="ask-sugg" data-q="What questions should I ask the interviewer?">Interview questions</span>
+      </div>
+
+      <div class="ask-empty" id="ask-empty">
+        Ask AYN anything about this job, your resume, or the application form. AYN already sees the page you're on.
+      </div>
+
+      <div class="ask-msgs" id="ask-msgs"></div>
+
+      <div class="ask-input-row">
+        <textarea class="ask-input" id="ask-input" rows="1" placeholder="Ask about this job, your resume, or any form question…"></textarea>
+        <button class="ask-send-btn" id="ask-send-btn" title="Send"><i class="ti ti-arrow-up"></i></button>
+      </div>
     </div>
   </div>
 

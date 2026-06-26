@@ -518,6 +518,109 @@
   }
 
   // ══════════════════════════════════════════════════════════════════
+  // v1.4.0: EXPAND REPEATING SECTIONS
+  // Click "Add another experience", "Show more", section toggles BEFORE scanning.
+  // Greenhouse, Workday, Lever, Ashby all use a button to reveal more fields.
+  // ══════════════════════════════════════════════════════════════════
+  function expandRepeatingSections() {
+    const ADD_RE = /^\s*(\+\s*)?(add\s+(another|more|new)?|add (experience|education|employment|work|position)|show more|see more|expand)/i;
+    const buttons = Array.from(document.querySelectorAll('button, a[role="button"], [class*="add-row"], [data-automation-id*="add"], [aria-label*="Add"]'));
+    let clicked = 0;
+    buttons.forEach(btn => {
+      const txt = (btn.innerText || btn.getAttribute('aria-label') || '').trim();
+      if (!txt || txt.length > 60) return;
+      if (!ADD_RE.test(txt)) return;
+      // Don't expand "add comment" / "add note" / "add file"
+      if (/comment|note|file|upload|attachment/i.test(txt)) return;
+      try {
+        btn.click();
+        clicked++;
+        if (clicked >= 6) return; // cap so we don't spam-click
+      } catch { /* ignore */ }
+    });
+    return clicked;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // v1.4.0: PROGRAMMATIC RESUME ATTACH (DataTransfer)
+  // Tries to attach the user's AYN resume to a Resume / CV file input.
+  // Many sites block this for security (Workday, some Greenhouse), so we
+  // return { attached: false, reason } and the side panel falls back to
+  // the manual download flow.
+  // ══════════════════════════════════════════════════════════════════
+  function tryAttachResume({ base64, filename, mime }) {
+    try {
+      const fileInputs = [];
+      collectScannableDocs().forEach(({ doc }) => {
+        doc.querySelectorAll('input[type="file"]').forEach(el => {
+          if (el.disabled) return;
+          const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
+          const accept = (el.accept || '').toLowerCase();
+          const isResume = /resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf|\.txt/.test(accept) || !el.accept;
+          if (isResume) fileInputs.push(el);
+        });
+      });
+      if (fileInputs.length === 0) return { attached: false, reason: 'no_file_input' };
+
+      // Decode base64
+      const bin = atob(base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const file = new File([bytes], filename, { type: mime || 'text/plain' });
+
+      let attachedCount = 0;
+      fileInputs.forEach(input => {
+        try {
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          // Verify the assignment actually stuck (some sites use a hidden replacement input)
+          if (input.files && input.files.length > 0) {
+            attachedCount++;
+            input.style.outline = '2px solid #16a34a';
+            input.style.outlineOffset = '2px';
+            setTimeout(() => { input.style.outline = ''; input.style.outlineOffset = ''; }, 3000);
+          }
+        } catch (e) { /* per-input failure, keep going */ }
+      });
+      if (attachedCount === 0) return { attached: false, reason: 'blocked_by_site' };
+      return { attached: true, count: attachedCount };
+    } catch (e) {
+      return { attached: false, reason: e.message || 'unknown_error' };
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // v1.4.0: AUTO-TRACKER — listen for form submission on apply pages
+  // and notify background so it can save the job to the tracker.
+  // ══════════════════════════════════════════════════════════════════
+  let submitNotified = false;
+  function attachSubmitListener() {
+    const handler = () => {
+      if (submitNotified) return;
+      submitNotified = true;
+      const job = extractJobText();
+      chrome.runtime.sendMessage({
+        type: 'AUTO_TRACK_SUBMIT',
+        title: job.title, company: job.company, url: window.location.href,
+      });
+      // Reset after a while in case the submit failed
+      setTimeout(() => { submitNotified = false; }, 8000);
+    };
+    document.addEventListener('submit', handler, true);
+    // Also catch single-page-app submit buttons that don't fire a form submit
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('button, [role="button"]');
+      if (!btn) return;
+      const txt = (btn.innerText || btn.getAttribute('aria-label') || '').trim();
+      if (/^(submit application|submit|apply now|send application)$/i.test(txt)) handler();
+    }, true);
+  }
+  attachSubmitListener();
+
+  // ══════════════════════════════════════════════════════════════════
   // 5. MESSAGE LISTENER
   // ══════════════════════════════════════════════════════════════════
 
@@ -607,6 +710,19 @@
         });
       }
       sendResponse({ ok: true });
+      return true;
+    }
+
+    // v1.4.0: expand "Add another experience" / "Show more" buttons before scanning
+    if (message.type === 'EXPAND_SECTIONS') {
+      const clicked = expandRepeatingSections();
+      sendResponse({ ok: true, clicked });
+      return true;
+    }
+
+    // v1.4.0: programmatic resume attach (best-effort)
+    if (message.type === 'TRY_ATTACH_RESUME') {
+      sendResponse(tryAttachResume(message.payload || {}));
       return true;
     }
   });

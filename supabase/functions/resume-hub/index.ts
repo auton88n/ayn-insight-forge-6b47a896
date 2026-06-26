@@ -127,6 +127,8 @@ const EXT_ACTIONS = new Set([
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor",
+  // v1.4.0: smarter AI
+  "ext_ask", "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
 ]);
 
 // Public link-flow actions (no auth required for start/poll)
@@ -447,6 +449,7 @@ GENERAL:
         };
 
         const r = await callAI({
+          model: QUALITY_MODEL,
           system: `You are a senior tech recruiter. Score how well this candidate matches the job. Be honest, calibrated, and concrete.
 
 Return ONLY this JSON (no code fences):
@@ -454,6 +457,8 @@ Return ONLY this JSON (no code fences):
   "score": <integer 1-10>,
   "matchLabel": "Poor|Fair|Good|Strong",
   "reasons": ["<reason 1>","<reason 2>","<reason 3>"],
+  "mustHaves": [{"text":"<requirement>","met":true|false}, ...],
+  "niceToHaves": [{"text":"<nice-to-have>","met":true|false}, ...],
   "matchedSkills": ["<skill>", ...],
   "missingKeywords": ["<keyword>", ...],
   "salaryEstimate": "<$80K-$110K or empty>",
@@ -461,21 +466,23 @@ Return ONLY this JSON (no code fences):
 }
 
 Scoring rubric:
-- 9-10 Strong: candidate clearly meets MUST-HAVES and has 2+ STRONG signals (same domain, same scale, same tech).
-- 7-8 Good: meets most must-haves, 1-2 gaps that are coachable.
-- 4-6 Fair: half the must-haves, meaningful gaps in seniority or core tech.
-- 1-3 Poor: missing the core requirement (role, level, or critical tech).
+- 9-10 Strong: meets ALL must-haves + 2+ strong signals (same domain, scale, tech).
+- 7-8 Good: meets most must-haves, 1-2 coachable gaps.
+- 4-6 Fair: half the must-haves, real gaps in seniority or core tech.
+- 1-3 Poor: missing the core requirement (role, level, critical tech).
 
 Rules:
+- mustHaves: 3-5 things the JD lists as required/must (years, degree, core stack). Mark met=true only if the resume clearly shows it.
+- niceToHaves: 2-4 preferred items. Mark met based on resume evidence.
 - reasons: 3 SHORT phrases (max 6 words each), tied to specific JD requirements.
 - matchedSkills: up to 8 skills/tools present in BOTH resume and JD.
-- missingKeywords: 4-8 important JD keywords NOT in the resume (skills, tools, certs). Single words or short phrases.
-- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market (use $CAD if location is Canada, $USD otherwise). Format $80K-$110K. Empty string if truly unknown.
+- missingKeywords: 4-8 important JD keywords NOT in the resume.
+- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market. Format $80K-$110K. Empty if truly unknown.
 - verdict: one honest sentence.`,
           user: `JOB TITLE: ${jobTitle || ""}\nCOMPANY: ${company || ""}\n\nJOB DESCRIPTION:\n${(jobSnippet || "").slice(0, 3000)}\n\nRESUME:\n${JSON.stringify(resumeDigest).slice(0, 6000)}`,
         });
 
-        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string } = {};
+        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string; mustHaves?: Array<{text:string;met:boolean}>; niceToHaves?: Array<{text:string;met:boolean}> } = {};
         try {
           const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
@@ -490,6 +497,8 @@ Rules:
         return json({
           score, matchLabel,
           reasons: (parsed.reasons || []).slice(0, 3),
+          mustHaves: (parsed.mustHaves || []).slice(0, 5).map(m => ({ text: String(m.text || ""), met: !!m.met })),
+          niceToHaves: (parsed.niceToHaves || []).slice(0, 4).map(m => ({ text: String(m.text || ""), met: !!m.met })),
           matchedSkills: (parsed.matchedSkills || []).slice(0, 8),
           missingKeywords: (parsed.missingKeywords || []).slice(0, 8),
           salaryEstimate: String(parsed.salaryEstimate || ""),
@@ -732,6 +741,141 @@ ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority ma
           atsScore: Math.max(0, Math.min(100, Math.round(Number((parsed as Record<string, unknown>).atsScore) || 0))),
           scoreReasoning: String((parsed as Record<string, unknown>).scoreReasoning || ""),
         });
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // v1.4.0: ASK AYN — chat copilot inside the extension.
+      // Knows: user's resume, current JD, current company, prior msgs in session.
+      // ──────────────────────────────────────────────────────────────
+      if (action === "ext_ask") {
+        const { sessionId, question, jobText, jobTitle, company, formField } = payload as {
+          sessionId?: string; question?: string; jobText?: string; jobTitle?: string; company?: string; formField?: { label?: string; type?: string; options?: string[] };
+        };
+        if (!sessionId || !question) return json({ error: "sessionId and question required" }, 400);
+
+        const [{ data: resume }, { data: history }] = await Promise.all([
+          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          admin.from("ext_ask_messages").select("role, content").eq("user_id", userId).eq("session_id", sessionId).order("created_at", { ascending: true }).limit(20),
+        ]);
+
+        const resumeDigest = resume?.content ? {
+          basics: (resume.content as Record<string, unknown>).basics,
+          skills: (resume.content as Record<string, unknown>).skills,
+          work: (((resume.content as Record<string, unknown>).work as Array<Record<string, unknown>>) || []).slice(0, 5).map(w => ({
+            title: w.title, company: w.company, start: w.start, end: w.end,
+            bullets: ((w.bullets as string[]) || []).slice(0, 4),
+          })),
+        } : null;
+
+        const systemPrompt = `You are AYN, the user's job-search copilot inside their Chrome extension side panel. You are looking at the same job page they are looking at.
+
+YOU KNOW:
+- The user's resume (below as JSON).
+- The current job description, title, and company (below).
+- ${formField ? `The exact form field the user is asking about: ${JSON.stringify(formField)}` : "No specific form field — answer their general question."}
+
+HOW TO RESPOND:
+- Speak in plain, confident English. Short sentences. No clichés. No em dashes. No corporate jargon.
+- Ground every claim in the user's resume. Never invent jobs, dates, or numbers.
+- If they ask you to write an application answer, return ONLY the answer text — no preamble like "Here's a draft".
+- If they ask "should I apply" or "am I qualified", give an honest 2-3 sentence verdict with one specific reason.
+- If they ask to improve a bullet or paragraph, return the rewrite only.
+- Default length: 2-4 sentences. Longer ONLY when explicitly asked for a draft / essay / cover letter.
+- If their resume is missing what they're asking about, say so plainly and suggest what to add.`;
+
+        const messages: Array<{ role: string; content: string }> = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `CONTEXT\n--------\nResume: ${JSON.stringify(resumeDigest).slice(0, 4500)}\n\nJob: ${jobTitle || ""} @ ${company || ""}\n${(jobText || "").slice(0, 2500)}` },
+          ...((history || []).map(m => ({ role: m.role, content: m.content }))),
+          { role: "user", content: question.slice(0, 2000) },
+        ];
+
+        const apiKey = Deno.env.get("LOVABLE_API_KEY");
+        if (!apiKey) return json({ error: "AI not configured" }, 500);
+        const r = await fetch(GATEWAY_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: DEFAULT_MODEL, messages }),
+        });
+        if (r.status === 429) return json({ error: "AI rate limit. Try again in a minute." }, 429);
+        if (r.status === 402) return json({ error: "AI credits exhausted." }, 402);
+        if (!r.ok) return json({ error: `AI error ${r.status}` }, 500);
+        const data = await r.json();
+        const reply = String(data?.choices?.[0]?.message?.content || "").trim();
+
+        // Persist both turns (best-effort, don't block the response)
+        admin.from("ext_ask_messages").insert([
+          { user_id: userId, session_id: sessionId, role: "user", content: question.slice(0, 2000), context: { jobTitle, company } },
+          { user_id: userId, session_id: sessionId, role: "assistant", content: reply },
+        ]).then(() => {});
+
+        return json({ reply });
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // v1.4.0: ANSWER MEMORY — remember good open-text answers
+      // so they auto-reuse on future similar questions across apps.
+      // ──────────────────────────────────────────────────────────────
+      if (action === "ext_save_answer") {
+        const { questionText, answerText, company, role } = payload as { questionText?: string; answerText?: string; company?: string; role?: string };
+        if (!questionText || !answerText) return json({ error: "questionText + answerText required" }, 400);
+        const normalized = questionText.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
+        const hash = await sha256Hex(normalized);
+        const { error } = await admin.from("ext_answers").upsert({
+          user_id: userId, question_hash: hash, question_text: questionText.slice(0, 500), answer_text: answerText.slice(0, 4000),
+          last_company: company || null, last_role: role || null, use_count: 1, updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,question_hash" });
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
+
+      if (action === "ext_lookup_answer") {
+        const { questionText } = payload as { questionText?: string };
+        if (!questionText) return json({ error: "questionText required" }, 400);
+        const normalized = questionText.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
+        const hash = await sha256Hex(normalized);
+        const { data } = await admin.from("ext_answers").select("answer_text, use_count, last_company").eq("user_id", userId).eq("question_hash", hash).maybeSingle();
+        if (!data) return json({ found: false });
+        admin.from("ext_answers").update({ use_count: (data.use_count || 0) + 1, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("question_hash", hash).then(() => {});
+        return json({ found: true, answer: data.answer_text, useCount: data.use_count, lastCompany: data.last_company });
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // v1.4.0: ext_get_resume_blob — return resume as base64 .txt for programmatic file attach
+      // ──────────────────────────────────────────────────────────────
+      if (action === "ext_get_resume_blob") {
+        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        if (!resume?.content) return json({ error: "No resume on file. Upload one at aynn.io first." }, 404);
+        const rc = resume.content as Record<string, unknown>;
+        const basics = (rc.basics || {}) as Record<string, string>;
+        const work = (rc.work || []) as Array<Record<string, unknown>>;
+        const edu = (rc.education || []) as Array<Record<string, unknown>>;
+        const skills = (rc.skills || []) as string[];
+        const lines: string[] = [];
+        if (basics.name) lines.push(basics.name);
+        const contact = [basics.email, basics.phone, basics.location].filter(Boolean).join("  |  ");
+        if (contact) lines.push(contact);
+        if (basics.summary) lines.push("", "SUMMARY", basics.summary);
+        if (work.length) {
+          lines.push("", "EXPERIENCE");
+          work.forEach(w => {
+            lines.push("", `${w.title || ""} — ${w.company || ""}   ${w.start || ""} - ${w.end || "Present"}`);
+            ((w.bullets as string[]) || []).forEach(b => lines.push(`- ${b}`));
+          });
+        }
+        if (edu.length) {
+          lines.push("", "EDUCATION");
+          edu.forEach(e => lines.push(`${e.degree || ""} ${e.field ? "in " + e.field : ""} — ${e.school || ""}  ${e.end || ""}`));
+        }
+        if (skills.length) { lines.push("", "SKILLS", skills.join(", ")); }
+        const text = lines.join("\n");
+        const bytes = new TextEncoder().encode(text);
+        // base64 encode
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const b64 = btoa(bin);
+        const filename = `${(basics.name || "Resume").replace(/\s+/g, "_")}_AYN.txt`;
+        return json({ base64: b64, filename, mime: "text/plain", size: bytes.length });
       }
     }
 
