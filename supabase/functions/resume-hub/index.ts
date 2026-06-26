@@ -694,8 +694,30 @@ RULES:
         if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: `Extract 10-14 key job keywords and produce an ATS-formatted tailored resume. Never invent experience. Keep all facts/dates/titles exactly. Return ONLY JSON: {"keywords":[{"text":"...","inResume":true|false}],"tailoredText":"...","changes":["..."]}`,
-          user: `TARGET: ${jobTitle||""} at ${company||""}\n\nRESUME:\n${resumeText.slice(0,8000)}\n\nJOB:\n${jdText.slice(0,6000)}`,
+          system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
+
+Return ONLY this JSON (no code fences):
+{
+  "keywords": [{"text":"<keyword>","inResume": true|false, "importance":"high|medium|low"}],
+  "tailoredText": "<full plain-text ATS resume>",
+  "changes": ["<change 1>", "<change 2>", "..."],
+  "atsScore": <integer 0-100>,
+  "scoreReasoning": "<one sentence on the score>"
+}
+
+KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodologies from the JD. Mark inResume=true only if the EXACT term (or a very close variant) appears in the resume text. Mark importance: high if mentioned 2+ times or in "must have" / "required"; medium otherwise; low for nice-to-haves.
+
+TAILORED RESUME:
+- Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
+- Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
+- Re-order skills to surface JD-matching ones first.
+- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify when numbers exist in original. Never fabricate numbers.
+- Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
+
+CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme — already implied by 'container orchestration'.").
+
+ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0,6000)}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {
