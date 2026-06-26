@@ -1,37 +1,44 @@
 {
   "manifest_version": 3,
-  "name": "AYN Autofill",
-  "version": "1.0.0",
-  "description": "Autofill any job application, save jobs, and tailor your resume — powered by AYN.",
-  "permissions": ["storage", "activeTab", "scripting", "contextMenus", "notifications"],
-  "host_permissions": ["<all_urls>"],
+  "name": "AYN Resume Tailor",
+  "version": "1.1.0",
+  "description": "On any job posting in the US or Canada, instantly see your match score, autofill the application, find the recruiter, and tailor your resume. Powered by AYN AI.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "sidePanel",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_popup": "popup.html",
+    "default_title": "AYN Resume Tailor",
     "default_icon": {
-      "16": "icons/icon128.png",
-      "48": "icons/icon128.png",
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
   },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "icons": {
-    "16": "icons/icon128.png",
-    "48": "icons/icon128.png",
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "options_page": "options.html",
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["https://*/*", "http://*/*"],
       "js": ["content.js"],
-      "run_at": "document_idle",
-      "all_frames": true
+      "run_at": "document_idle"
     }
-  ],
-  "web_accessible_resources": [
-    { "resources": ["panel.css"], "matches": ["<all_urls>"] }
   ]
 }

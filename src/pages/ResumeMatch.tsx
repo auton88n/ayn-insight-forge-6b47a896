@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Loader2, Copy, CheckCheck, Sparkles, CheckCircle2, XCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, XCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,7 @@ import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { ResumeUpload } from '@/components/resume-hub/ResumeUpload';
+import { ResumeDiffViewer } from '@/components/resume-hub/ResumeDiffViewer';
 
 interface ComparisonRow {
   label: string;
@@ -127,7 +128,7 @@ const ResumeMatch = () => {
   const [rewriting, setRewriting] = useState(false);
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [rewriteMarkdown, setRewriteMarkdown] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  
 
   const scrollToResults = () => setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
 
@@ -162,12 +163,6 @@ const ResumeMatch = () => {
     } catch (err: unknown) {
       toast({ title: 'Error', description: err instanceof Error ? err.message : 'Something went wrong', variant: 'destructive' });
     } finally { setRewriting(false); }
-  };
-
-  const handleCopy = async () => {
-    if (!rewriteMarkdown) return;
-    await navigator.clipboard.writeText(rewriteMarkdown);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
   const handleReset = () => { setStep(1); setResult(null); setRewriteMarkdown(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
@@ -360,19 +355,13 @@ const ResumeMatch = () => {
             {/* STEP 3 */}
             {step === 3 && rewriteMarkdown && (
               <div ref={resultsRef} className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold font-serif">Your Improved Resume</h2>
-                    <p className="text-sm text-muted-foreground mt-1">Keywords woven in, facts kept true. Copy and paste into your resume editor.</p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={handleCopy}
-                    className="rounded-none font-mono text-xs uppercase tracking-wider gap-2 border-2 shrink-0">
-                    {copied ? <><CheckCheck className="h-4 w-4 text-emerald-500" />Copied</> : <><Copy className="h-4 w-4" />Copy All</>}
-                  </Button>
+                <div>
+                  <h2 className="text-xl font-bold font-serif">Review the changes</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Original on the left, improved on the right. Accept or reject each change before you copy the final resume.
+                  </p>
                 </div>
-                <div className="border-2 border-border p-6 bg-muted/20">
-                  <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-foreground">{rewriteMarkdown}</pre>
-                </div>
+                <ResumeDiffViewer original={resume} improved={rewriteMarkdown} />
                 <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
                   <Button variant="outline" size="lg" onClick={() => { setStep(2); scrollToResults(); }}
                     className="h-12 px-8 rounded-none font-mono uppercase tracking-wider border-2">Back to Score</Button>

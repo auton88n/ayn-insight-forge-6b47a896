@@ -1,63 +1,98 @@
+# Plan: Resume Hub v2 — Diff Review + New AYN Extension
 
-## What I found (diagnosis)
+## 1. Replace `/extension` with the uploaded side-panel build
 
-### 1. Resume upload returns wrong / incomplete data
-`supabase/functions/resume-hub/index.ts` action `parse_file`:
-- **PDFs**: sends payload as Anthropic-shaped `{ type: "document", source: { type:"base64", media_type, data } }` to the Lovable AI Gateway, which speaks **OpenAI** format. Gemini through this gateway never receives the file, so it hallucinates or returns generic content. That is why uploaded resumes "don't get the correct info".
-- **DOCX**: decodes the binary ZIP with `TextDecoder("utf-8")` and regex-greps `<w:t>` tags. This works only by accident and silently fails for most real DOCX files, then falls through to the broken PDF path.
-- No OCR fallback for scanned/image PDFs.
+Remove old popup-based extension. New `/extension/` directory contains:
 
-### 2. Chrome extension can't do anything
-- Extension is token-gated (`x-ayn-ext-token`), but the in-app **Extension tab** (`ExtensionTab.tsx`) tells the user to "sign in with email and password" and has **no Generate Token button**. The options page expects a token starting with `ayn_…` that the UI never produces. Net effect: nobody can connect, so every popup action returns "Not connected".
-- `content.js` field detection collects inputs but never scrolls/expands multi-step ATS forms and skips React-rendered comboboxes (Workday/Greenhouse) because it only looks at `<select>`.
-- Saved jobs send raw `document.body.innerText` (often nav/footer noise), so JD scoring is poor.
+- `manifest.json` (MV3, sidePanel, scripting, storage, host_permissions `<all_urls>`)
+- `background.js` — opens side panel on icon click, refreshes Supabase token, `safeSendMessage` auto-injects `content.js` when missing
+- `content.js` — job text extraction for LinkedIn, Indeed (US/CA), Jobright, Greenhouse, Lever, Ashby, Glassdoor, Workday, SmartRecruiters, plus generic fallback; form field scanning + React-native value setter for autofill; job card scoring overlays on search pages
+- `sidepanel.html` + `sidepanel.js` — 6 working tabs:
+  1. **Fill Form** — detect form fields, autofill from saved profile
+  2. **Job Score** — arc gauge, comparison table, keyword chips
+  3. **Contact** — find recruiter (LinkedIn search builder)
+  4. **Cover Letter** — AI-generated, copy button
+  5. **Tracker** — list of saved applications from `applications` table
+  6. **Tailor CV** — 3-step flow with the new diff viewer
+- `icons/` — copy the 4 uploaded AYN orange-eye PNGs
 
-### 3. Misc
-- `popup.js` `tailor`/`cover` call `ext_tailor` / `ext_cover_letter` but `ext_ingest_job` only returns `job_id` when it parses successfully; if AI fails, the chain dies with "Could not save job".
-- No clear error surfacing in popup; all failures show generic alerts.
+### Polish on top of the uploaded version
+- Swap purple `#4F46E5` accent → AYN orange `#F97316` / `#FB923C`
+- Replace hardcoded SUPABASE keys with `config.js` (still publishable anon keys, but one place to update)
+- Fix the "device token" auth path: side-panel signs in via email magic-link OR pastes a device token generated in Resume Hub → Extension tab (matches our existing `extension_tokens` table)
+- Inter font via system stack, JetBrains Mono for score numerals
+- Add empty/error/loading states for every tab
+- Persist last resume + last job per user in `chrome.storage.local`
 
-## Fix plan
+## 2. Side-by-side diff viewer (web + extension)
 
-### A. Resume parsing (edge function `resume-hub`, action `parse_file`)
-1. Replace the broken DOCX regex path with `mammoth` via `npm:mammoth@1.8.0` → real plain text extraction.
-2. Replace the broken Gemini "document" payload with the correct **Gemini-native** call (`generativelanguage.googleapis.com` is not available; instead use the Lovable Gateway OpenAI shape with `image_url` data-URL for PDFs which Gemini-2.5-flash accepts as `input_file`). Concretely: switch to the gateway's documented file input format:
-   ```
-   { role:"user", content: [
-     { type:"text", text:"..." },
-     { type:"file", file:{ filename:"resume.pdf", file_data:`data:application/pdf;base64,${b64}` } }
-   ]}
-   ```
-3. Add a two-stage extraction (per Lovable's vision-text pattern): try text extraction first; if extracted text < 50 useful chars, fall back to the vision/file call for OCR.
-4. Return both `resume` (structured) and `plainText` (raw text) so downstream match/tailor work on real content.
-5. Tighten the system prompt to forbid invention and require empty fields when missing.
+New component `src/components/resume-hub/ResumeDiffViewer.tsx`:
 
-### B. Chrome extension authentication (make it actually connect)
-1. Add a real **Generate device token** UI to `src/components/resume-hub/ExtensionTab.tsx`:
-   - Button → calls existing `resumeHubApi.mintToken("Chrome")` → shows the `ayn_…` token once with copy button.
-   - List existing tokens with revoke buttons (uses existing `token_list` / `token_revoke`).
-   - Remove the misleading "sign in with email and password" copy.
-2. Update `extension/options.html` instructions to match the new flow (already pretty close).
-3. Add a "Test connection" button in options that calls `ext_bootstrap` and shows the connected email.
+```text
+┌─────────────────────────┬─────────────────────────┐
+│ ORIGINAL                │ IMPROVED                │
+├─────────────────────────┼─────────────────────────┤
+│ Built dashboards using  │ Built  real-time        │ ← change #1
+│ React.                  │ dashboards in React,    │   [Accept] [Reject]
+│                         │ cutting load time 40%.  │
+├─────────────────────────┼─────────────────────────┤
+│ ...unchanged line...    │ ...unchanged line...    │
+└─────────────────────────┴─────────────────────────┘
+```
 
-### C. Chrome extension content/runtime
-1. `content.js`:
-   - Include role=combobox, contenteditable, and custom listbox elements (Workday, Greenhouse).
-   - Scroll fields into view and dispatch `focus`/`blur` around the value set so React forms commit.
-   - Strip nav/footer when sending JD: use `document.querySelector('main, article, [role=main]')?.innerText` first, fallback to body, capped at 15k chars.
-2. `background.js`: surface server error messages verbatim in the popup (no more "unknown").
-3. `popup.js`: show a toast row with the last error and a "Reconnect" link when token is invalid.
+- Use `diff` npm package (`diffWordsWithSpace`) to compute hunks
+- Group consecutive changed lines into one "change" with stable `id`
+- Highlight insertions green, deletions red strikethrough
+- Each change row gets **Accept** / **Reject** buttons; Reject reverts that hunk to original text
+- Sticky header: `Accept All` · `Reject All` · `Copy Final` · `Download .docx`
+- Footer counter: `12 of 18 changes accepted`
+- Mobile: stacks to single column, swipe between Original/Improved
 
-### D. Edge function `ext_ingest_job` + `ext_autofill`
-1. Make `ext_ingest_job` never fail the whole save when AI parsing errors — store the raw URL/text and return `job_id` regardless.
-2. `ext_autofill`: include the user's `canadian_profile` row and primary resume `basics` in the prompt so the AI has ground truth to map fields against, not just labels.
+### Wire into `ResumeMatch.tsx`
+Replace current Step 3 `<pre>{rewriteMarkdown}</pre>` with `<ResumeDiffViewer original={resume} improved={rewriteMarkdown} onConfirm={...}/>`. On Confirm, save the accepted version as a new `resume_versions` row labelled `Tailored for {jobTitle} @ {company}`.
 
-### E. Verification
-1. Manual upload of a real PDF + DOCX through `/resume-hub` → confirm name/email/work history match the file.
-2. Load `extension/` unpacked in Chrome → Generate token in UI → paste in options → Bootstrap shows email.
-3. On a Greenhouse/Workday posting: Save job (job_id returned), Autofill (≥70% fields filled), Tailor (markdown downloaded).
+### Update `resume-match` edge function
+Return both:
+- `improved`: full improved resume text (already returned as `markdown`)
+- `changeSummary`: array of `{ section, before, after, reason }` so the UI can show "why" tooltips on each change
 
-### Technical notes
-- All edits stay in: `supabase/functions/resume-hub/index.ts`, `src/components/resume-hub/ExtensionTab.tsx`, `extension/{content,background,popup,options}.{js,html}`.
-- No DB schema changes — `extension_tokens` and `canadian_profile` tables already exist.
-- No new secrets — uses existing `LOVABLE_API_KEY`.
-- One edge function redeploy required (already deployed, only an update).
+## 3. Download link in Resume Hub → Extension tab
+
+In `src/components/resume-hub/ExtensionTab.tsx`:
+
+1. Add a build step that zips `/extension/` → `/public/ayn-extension.zip` (run via existing `nix run nixpkgs#zip` recipe; document in README, the user re-runs when extension changes)
+2. New hero card at top of tab:
+   - Big AYN icon + "AYN Resume Tailor for Chrome — v1.1.0"
+   - **Download Extension** button (fetch+blob pattern, not direct `<a>`)
+   - 4 install steps inline (unzip → chrome://extensions → Dev mode → Load unpacked)
+3. Below: existing device-token generator + revoke list
+4. "What's new in this version" changelog block
+
+## 4. Files touched
+
+**New**
+- `extension/` (full rewrite — 8 files)
+- `extension/icons/icon{16,32,48,128}.png` (copied from uploads)
+- `src/components/resume-hub/ResumeDiffViewer.tsx`
+- `public/ayn-extension.zip` (built artifact)
+
+**Modified**
+- `src/pages/ResumeMatch.tsx` (Step 3 uses diff viewer)
+- `src/components/resume-hub/ExtensionTab.tsx` (download card + install guide)
+- `supabase/functions/resume-match/index.ts` (add `changeSummary` to response)
+- `package.json` (`bun add diff @types/diff`)
+
+**Untouched**
+- Resume parsing, jobs tab, tracker, all other Resume Hub backend
+- Auth, RLS, storage buckets
+- Any landing page / dashboard code
+
+## 5. Out of scope
+- Publishing to Chrome Web Store (still developer-mode load-unpacked)
+- Changing the resume parsing pipeline (it works now)
+- Editing landing page or dashboard
+
+## Acceptance
+- Download button in Extension tab pulls `ayn-extension.zip` and saves locally
+- Loaded extension opens side panel, lists 6 tabs, signs in with device token, autofills a LinkedIn application, scores against the detected JD
+- After clicking "Improve My Resume", user sees side-by-side diff, can accept/reject each change, sees live count, and confirms to save as a new resume version
