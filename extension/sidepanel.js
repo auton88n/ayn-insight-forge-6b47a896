@@ -22,6 +22,7 @@ function show(id) {
   const li = id !== 'v-login';
   $('user-email').classList.toggle('hidden', !li);
   $('sign-out-btn').classList.toggle('hidden', !li);
+  $('switch-acct-btn')?.classList.toggle('hidden', !li);
   $('tabs').classList.toggle('hidden', !li);
   const inTailor = ['v-t1','v-t2','v-t3'].includes(id);
   $('stepper').classList.toggle('hidden', !inTailor);
@@ -136,16 +137,28 @@ function syncRemoteResume(resp) {
   if (text) chrome.storage.local.set({ savedResume: text });
 }
 
+function displayEmail(resp) {
+  const email = resp?.user?.email || resp?.profile?.email || '';
+  const device = resp?.user?.device || '';
+  const el = $('user-email');
+  el.textContent = email || device || 'Connected';
+  el.title = email ? `${email}\nDevice: ${device}` : device;
+}
+
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
-      $('login-err').textContent = resp?.error || 'Sign-in failed';
-      $('login-err').classList.remove('hidden');
-      resetSignInBtn();
+      // Stale or invalid token — clear and force fresh sign-in
+      chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
+        $('login-err').textContent = resp?.error || 'Sign-in failed';
+        $('login-err').classList.remove('hidden');
+        resetSignInBtn();
+        show('v-login');
+      });
       return;
     }
     S.user = resp.user;
-    $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    displayEmail(resp);
     syncRemoteResume(resp);
     switchTab('fill');
     loadSavedResume();
@@ -157,9 +170,13 @@ async function restoreSession() {
   const stored = await chrome.storage.local.get(['ayn_token']);
   if (!stored.ayn_token) { show('v-login'); return; }
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
-    if (resp?.error || !resp?.user) { show('v-login'); return; }
+    if (resp?.error || !resp?.user) {
+      // Token is stale/invalid — wipe so user can sign in again cleanly
+      chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => show('v-login'));
+      return;
+    }
     S.user = resp.user;
-    $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    displayEmail(resp);
     syncRemoteResume(resp);
     switchTab('fill');
     loadSavedResume();
@@ -174,6 +191,17 @@ $('sign-out-btn').addEventListener('click', () => {
     resetSignInBtn();
     show('v-login');
     toast('Signed out');
+  });
+});
+$('switch-acct-btn').addEventListener('click', () => {
+  // Sign out then immediately start a fresh sign-in so user re-approves as the right account
+  chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => {
+    S.user = null;
+    clearPoll();
+    resetSignInBtn();
+    show('v-login');
+    toast('Sign in as the account you want to use');
+    setTimeout(startSignIn, 250);
   });
 });
 

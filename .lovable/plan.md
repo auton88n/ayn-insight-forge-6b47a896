@@ -1,59 +1,40 @@
-## What I found
+## Problem
 
-The screenshot shows Fill is working for normal text fields, but Resume/CV upload is not handled because browser extensions cannot safely attach local files to website file inputs. The extension currently fills text inputs only and skips file fields. That is why Greenhouse still asks you to attach the resume.
+1. **Wrong account shown (ghazi vs crossmint7)** — The extension stores a single `ayn_token`. When you re-approve from a *different* AYN account, a new token is minted on the server, but the extension never receives it because polling only runs during an active "Sign in with AYN" flow inside the side panel. The old ghazi token stays in `chrome.storage.local` and `ext_bootstrap` keeps returning ghazi's profile.
+2. **Email source is misleading** — `ext_bootstrap` returns `profile.email` from `user_profile_data`, not the real `auth.users.email`. If a user changed their profile email or it was never set, the display can drift from the actual logged-in account.
+3. **"Other functions not working"** — Score / Contacts / Cover / Tailor / Tracker all gate on an active job page. Your current tab is `aynn.io/extension/approve`, which is detected as `kind: "ayn"`, so they correctly show the empty state. They are not broken, but the empty-state copy and the lack of a one-click "Switch account" hides the real issue.
 
-Several other tabs are only partially wired:
-- Score can overlay cards, but there is no clear state when the current page is not a supported job board.
-- Contacts and Cover depend on job text extraction and can fail if company/title detection is weak.
-- Cover only uses resume text saved inside the extension Tailor tab, not automatically the primary resume saved in AYN.
-- Tailor uses the same action name as a dashboard action, which can break through extension auth.
-- Upload parsing in Resume Hub needs better fallback and error messaging for PDFs/DOCX files that the AI/file path cannot parse.
+## Fix
 
-## Build plan
+### 1. Extension auth — force token to match the approving account
+- **`extension/sidepanel.js`**: replace silent `restoreSession()` with a check that calls `ext_bootstrap` and surfaces the real email. Add a visible **"Switch account"** button next to the current email that:
+  1. Calls `SIGN_OUT` (clears `ayn_token` + `savedResume`).
+  2. Immediately triggers `startSignIn()` so a fresh approval is required.
+- **Auto-recovery**: on every BOOTSTRAP failure (401 / invalid token), clear local token and show the sign-in screen — currently it only clears on 401s inside `callFunction`, not on stale-token startup.
+- **Display**: show the email from `auth.users` (see §2) and the device label underneath it, so you can confirm which account this browser is linked to.
 
-### 1. Fix Resume Hub resume upload
-- Harden `parse_file` in `supabase/functions/resume-hub/index.ts`.
-- Add safer AI output limits and better JSON/tool response handling so uploads do not fail silently when responses are truncated.
-- Improve PDF/DOCX fallback messaging so the user knows if the file is image based, corrupted, too large, or unsupported.
-- Update `ResumeUpload.tsx` to show the real failure reason and offer paste text as the fallback.
+### 2. Edge function — return real auth email
+- **`supabase/functions/resume-hub/index.ts` → `ext_bootstrap`**: also fetch `auth.admin.getUserById(userId)` and return `{ user: { id, email, device } }`. The side panel uses this email as the source of truth, not the profile row.
 
-### 2. Make resume attachment work in application forms
-- Keep secure browser behavior: do not fake a file upload or bypass Chrome restrictions.
-- Add a dedicated Resume/CV detection result in Fill when the page has file inputs.
-- If AYN cannot attach automatically, show an exact prompt: “Click Attach and select your downloaded AYN resume.”
-- Add a “Download AYN Resume” button in the extension Fill tab when a primary resume exists, so the user can immediately upload it to Greenhouse/Workday/LinkedIn.
-- Generate the download from the user’s saved primary resume as ATS plain text for now, with a stable filename.
+### 3. Approve page — show which AYN account is about to be linked + "use a different account"
+- **`src/pages/ExtensionApprove.tsx`**: above the Approve button, show the currently signed-in AYN email in bold with a small **"Not you? Sign in as a different account"** link that signs out and reloads the approve flow with the same `code`. This prevents the exact mistake of approving as the wrong user.
 
-### 3. Make Fill stronger on ATS forms
-- Improve field scanning for Greenhouse, Workday, Lever, iCIMS, Cornerstone, and LinkedIn dialogs.
-- Detect file, dropdown, radio, checkbox, and custom combobox fields more clearly.
-- Report skipped fields separately, including “file upload requires manual attach,” instead of claiming 100% if only text fields were counted.
-- Keep partial profile support, filling whatever saved info exists.
+### 4. Verify the other tabs actually work on a real job page
+After the auth fix, I'll drive Playwright to:
+- Open a public Greenhouse / Lever job posting in a tab.
+- Confirm `DETECT_PAGE` returns `kind: "application"` and `hasForm: true`.
+- Trigger Fill, Cover Letter, and Tailor flows end-to-end against the live edge function with a valid token.
 
-### 4. Fix Cover Letter, Contacts, Tracker, and Tailor tabs
-- Cover Letter: load the primary resume from AYN during bootstrap, not only extension local storage.
-- Contacts: improve company/domain detection and allow generation from the current job title plus URL even if the page has short JD text.
-- Tracker: make “Save current job” work from any detected posting, and show a helpful error only when no title/company/url can be found.
-- Tailor: add a dedicated extension action for smart tailoring so it no longer conflicts with dashboard auth actions.
+If a tab fails, I'll fix the specific code path — but the architecture (background.js → resume-hub) is already wired, so this is verification, not a rewrite.
 
-### 5. Fix Score tab behavior
-- Add a page detector for supported job board result pages.
-- Show “Open LinkedIn/Indeed/job board search results first” when not on a supported page.
-- Keep the “Get My Best Job Titles” button working from the primary AYN resume.
-- Improve score badge injection and hover reasons so it behaves like Jobright-style browsing.
-
-### 6. Repack and version the extension
-- Bump the extension to v1.2.3.
+### 5. Repack
+- Bump `extension/manifest.json` and `ExtensionTab.tsx` to **v1.2.4**.
 - Repack `public/ayn-extension.zip`.
-- Update `ExtensionTab.tsx` so the downloadable zip label matches the real version.
 
-## Acceptance checks
+## Out of scope
+- No UI redesign of the side panel beyond the "Switch account" button and email line.
+- No changes to Resume Hub dashboard tabs.
+- No new tables; the `extension_tokens` and `extension_link_codes` schemas are unchanged.
 
-- Uploading a resume in Resume Hub either saves it as primary or shows a clear reason with paste fallback.
-- On the Greenhouse page in your screenshot, Fill shows text fields filled and separately says Resume/CV must be manually attached, with a Download AYN Resume button.
-- Cover Letter works without pasting resume into the Tailor tab first.
-- Contacts works on Greenhouse/LinkedIn/Indeed postings with title/company detected.
-- Tracker saves the current job with title, company, and URL.
-- Tailor analyzes keywords and rewrites without action name conflicts.
-- Score shows clear guidance on unsupported pages and overlays badges on supported job board result cards.
-- The downloaded extension zip is v1.2.3.
+## What you'll do after
+Reinstall v1.2.4, click **"Switch account"** in the side panel header, and approve as **crossmint7**. The header should then show `crossmint7@…` and all tabs will work on real job pages.

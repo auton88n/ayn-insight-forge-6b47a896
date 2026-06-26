@@ -87,6 +87,23 @@ export default function ExtensionApprove() {
 
         {(state === "ready" || state === "approving") && (
           <div className="space-y-4">
+            {email && (
+              <div className="rounded-lg border border-orange-500/30 bg-orange-500/5 p-3 space-y-1">
+                <p className="text-xs text-muted-foreground">This browser will be linked to:</p>
+                <p className="text-sm font-semibold font-mono break-all">{email}</p>
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    const here = window.location.href;
+                    sessionStorage.setItem("post_login_redirect", here);
+                    window.location.href = "/?signin=1";
+                  }}
+                  className="text-xs text-orange-600 hover:underline"
+                >
+                  Not you? Sign in as a different account →
+                </button>
+              </div>
+            )}
             <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
               <div className="flex items-start gap-2 text-sm">
                 <ShieldCheck className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
@@ -101,11 +118,6 @@ export default function ExtensionApprove() {
                 <span>You can revoke this browser anytime in Resume Hub &rarr; Extension.</span>
               </div>
             </div>
-            {email && (
-              <p className="text-xs text-muted-foreground">
-                Signed in as <span className="font-mono text-foreground">{email}</span>
-              </p>
-            )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={cancel} className="flex-1" disabled={state === "approving"}>
                 <X className="w-4 h-4 mr-1.5" /> Cancel
