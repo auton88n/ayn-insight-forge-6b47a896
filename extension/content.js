@@ -9,8 +9,14 @@
   // 1. JOB TEXT EXTRACTION
   // ══════════════════════════════════════════════════════════════════
 
+  function cleanTitle(t) {
+    return String(t || '').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
+  }
+
   function extractJobText() {
     const url = window.location.href;
+    const docTitle = cleanTitle(document.title);
+
 
     const map = {
       'linkedin.com/jobs/view': {
