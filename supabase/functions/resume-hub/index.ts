@@ -455,37 +455,83 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
     }
 
     // ---------------- parse_file ----------------
-    // Accepts a base64-encoded PDF or DOCX and returns structured ResumeContent.
-    // The file is sent directly to Gemini as an inline document so no server-side
-    // PDF library is needed — Gemini reads the bytes natively.
     if (action === "parse_file") {
       const { fileBase64, mimeType } = payload as { fileBase64: string; mimeType: string };
       if (!fileBase64) return json({ error: "fileBase64 required" }, 400);
 
-      const supportedTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
-      const effectiveMime = supportedTypes.includes(mimeType) ? mimeType : "application/pdf";
+      const isDocx = mimeType.includes("wordprocessingml") || mimeType.includes("docx");
+      const isPdf = mimeType.includes("pdf");
+      const apiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-      // Gemini can read PDF natively as an inline document part
+      let resumeText = "";
+
+      if (isDocx) {
+        // Extract plain text from DOCX by unzipping and reading word/document.xml
+        try {
+          const bytes = Uint8Array.from(atob(fileBase64), c => c.charCodeAt(0));
+          // Find word/document.xml in the ZIP
+          // DOCX is a ZIP — find PK entries and extract document.xml text
+          const decoder = new TextDecoder("utf-8");
+          const raw = decoder.decode(bytes);
+          
+          // Find document.xml content between its markers
+          const xmlStart = raw.indexOf("word/document.xml");
+          if (xmlStart !== -1) {
+            // Extract a large chunk after the filename marker
+            const chunk = raw.slice(xmlStart, xmlStart + 500000);
+            // Extract all text from XML <w:t> tags
+            const textMatches = chunk.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+            const extracted = textMatches
+              .map(m => m.replace(/<w:t[^>]*>/g, "").replace(/<\/w:t>/g, ""))
+              .join(" ")
+              .replace(/\s+/g, " ")
+              .trim();
+            if (extracted.length > 100) {
+              resumeText = extracted;
+            }
+          }
+        } catch (e) {
+          console.warn("DOCX extraction failed, falling back to AI direct read", e);
+        }
+      }
+
+      // If we extracted text from DOCX, use the faster text-parse path
+      if (resumeText.length > 100) {
+        const r = await callAI({
+          system: `You are extracting a resume from raw text. The text was extracted from a DOCX file and may have formatting artifacts.
+Extract every fact: full name, contact details, all job titles and companies with dates, all bullet points, education, skills.
+Be completely faithful — extract exactly what is written, do not invent, summarize, or skip anything.
+The person's real information is in this text. Names, companies, and dates are real.`,
+          user: `RESUME TEXT:\n${resumeText.slice(0, 15000)}`,
+          toolName: "emit_resume",
+          toolSchema: RESUME_SCHEMA,
+        });
+        const resume = r.structured;
+        const plainText = [
+          (resume as Record<string, unknown>)?.basics,
+          ...(((resume as Record<string, unknown>)?.work as unknown[]) ?? []),
+          ...(((resume as Record<string, unknown>)?.education as unknown[]) ?? []),
+        ].map(s => JSON.stringify(s)).join("\n");
+        return json({ resume, plainText });
+      }
+
+      // For PDF or DOCX fallback — send directly to Gemini
       const userContent = [
         {
           type: "text",
-          text: "Extract ALL information from this resume document. Return every name, company, date, bullet point, skill, and education entry you can find. Be exhaustive and faithful — do not invent or omit anything.",
+          text: "Extract ALL information from this resume. Every name, company, date, bullet point, skill, and education entry. Be exhaustive and faithful — extract exactly what is written, never invent.",
         },
         {
           type: "document",
           source: {
             type: "base64",
-            media_type: effectiveMime,
+            media_type: isPdf ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             data: fileBase64,
           },
         },
       ];
 
-      const apiKey = Deno.env.get("LOVABLE_API_KEY");
-      if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
-
-      // For DOCX we first ask Gemini to extract plain text, then parse that.
-      // For PDF Gemini reads it directly.
       const r = await fetch(GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -494,14 +540,11 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
           messages: [
             {
               role: "system",
-              content: "You convert resume documents into structured JSON. Extract every fact faithfully. Do not invent or omit data. Return only the tool call.",
+              content: "Convert this resume document into structured JSON. Extract every fact faithfully. The name, companies, and contact details are real — extract exactly what is written. Return only the tool call.",
             },
             { role: "user", content: userContent },
           ],
-          tools: [{
-            type: "function",
-            function: { name: "emit_resume", description: "emit_resume", parameters: RESUME_SCHEMA },
-          }],
+          tools: [{ type: "function", function: { name: "emit_resume", description: "emit_resume", parameters: RESUME_SCHEMA } }],
           tool_choice: { type: "function", function: { name: "emit_resume" } },
         }),
       });
@@ -511,14 +554,12 @@ CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?
       if (!r.ok) { const t = await r.text(); return json({ error: `AI error ${r.status}: ${t.slice(0, 200)}` }, 500); }
 
       const data = await r.json();
-      const choice = data?.choices?.[0];
-      const tc = choice?.message?.tool_calls?.[0]?.function?.arguments;
+      const tc = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       if (!tc) return json({ error: "AI did not return structured data" }, 500);
 
       let resume: unknown;
       try { resume = JSON.parse(tc); } catch { return json({ error: "Failed to parse AI response" }, 500); }
 
-      // Also produce a plain-text version for the ResumeMatch textarea
       const plainText = [
         (resume as Record<string, unknown>)?.basics,
         ...(((resume as Record<string, unknown>)?.work as unknown[]) ?? []),
