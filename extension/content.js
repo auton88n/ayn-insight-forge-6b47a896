@@ -197,15 +197,19 @@
     return 'unknown';
   }
 
-  // Walk up the DOM and harvest the nearest visible question text near the input
+  // Walk up the DOM and harvest the nearest visible question text near the input.
+  // Tightened: only accept text that actually looks like a question/prompt,
+  // not any capitalized blob — stops autofill from mislabeling fields.
+  const QUESTION_RE = /\?\s*$|^(what|how|are|do|did|have|has|why|when|where|which|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
   function nearestQuestionText(el) {
     let node = el.parentElement;
     for (let i = 0; i < 5 && node; i++) {
-      // Look for sibling text that looks like a question/label
-      const text = (node.innerText || '').slice(0, 300).trim();
-      if (text && text.length < 240 && /\?$|:$|^[A-Z]/.test(text)) {
-        // Strip the input's own value out
-        return text.replace(el.value || '', '').replace(/\s+/g, ' ').trim();
+      const raw = safeText(node).slice(0, 400).trim();
+      if (!raw) { node = node.parentElement; continue; }
+      // Try the first non-empty line — that's usually the actual question
+      const firstLine = raw.split(/\n+/).map(s => s.trim()).find(s => s.length >= 3 && s.length <= 240);
+      if (firstLine && QUESTION_RE.test(firstLine)) {
+        return firstLine.replace(el.value || '', '').replace(/\s+/g, ' ').trim();
       }
       node = node.parentElement;
     }
