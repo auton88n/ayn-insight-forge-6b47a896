@@ -78,7 +78,7 @@
         const company = document.querySelector(sel.company);
         return {
           text: desc?.innerText?.trim() || '',
-          title: title?.innerText?.trim() || document.title,
+          title: cleanTitle(title?.innerText?.trim() || docTitle),
           company: company?.innerText?.trim() || '',
         };
       }
@@ -89,8 +89,9 @@
       'article, main, [class*="description"], [class*="job"], [id*="description"]'
     ));
     const best = candidates.reduce((p, el) => el.innerText.length > (p?.innerText?.length || 0) ? el : p, null);
-    return { text: best?.innerText?.trim() || '', title: document.title, company: '' };
+    return { text: best?.innerText?.trim() || '', title: docTitle, company: '' };
   }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 2. FORM SCANNING
