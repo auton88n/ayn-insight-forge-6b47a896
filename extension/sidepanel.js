@@ -754,7 +754,14 @@ $('analyze-btn').addEventListener('click', async () => {
 
 function renderKw(kws) {
   const m = kws.filter(k=>k.inResume).length;
+  const total = kws.length || 1;
+  const pct = Math.round(m / total * 100);
   $('kw-count').textContent = `${m}/${kws.length} matched`;
+  const tier = pct >= 80 ? 's-strong' : pct >= 60 ? 's-good' : pct >= 35 ? 's-fair' : 's-poor';
+  const ring = $('ats-ring');
+  if (ring) { ring.textContent = pct + '%'; ring.className = 'ats-ring ' + tier; }
+  const sub = $('ats-sub');
+  if (sub) sub.textContent = `${m} of ${kws.length} key terms already in your resume. Tailor to lift this above 80%.`;
   const wrap = $('kw-chips'); wrap.innerHTML = '';
   kws.forEach(kw => {
     const s = document.createElement('span');
