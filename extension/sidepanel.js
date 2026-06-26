@@ -387,6 +387,58 @@ function toggleScoring() {
 }
 window.toggleScoring = toggleScoring;
 
+// ── Score THIS job (any job page, panel result) ─────────────────
+const SJ = { jobTitle: '', company: '', jobText: '' };
+function detectForScore() {
+  $('score-job-banner').classList.add('hidden');
+  $('score-no-job').classList.add('hidden');
+  $('score-result').classList.add('hidden');
+  $('err-score-job').classList.add('hidden');
+  getTab(tab => {
+    if (!tab) { $('score-no-job').classList.remove('hidden'); return; }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
+        $('score-no-job').classList.remove('hidden'); return;
+      }
+      SJ.jobTitle = r.title || '';
+      SJ.company = r.company || extractCompanyFromTitle(r.title || '');
+      SJ.jobText = r.text;
+      $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
+      $('score-job-company').textContent = SJ.company || tab.url;
+      $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
+      $('score-job-banner').classList.remove('hidden');
+    });
+  });
+}
+
+function scoreTier(n) {
+  if (n >= 9) return 's-strong'; if (n >= 7) return 's-good';
+  if (n >= 4) return 's-fair';   return 's-poor';
+}
+
+$('score-this-job-btn')?.addEventListener('click', async () => {
+  const btn = $('score-this-job-btn'), err = $('err-score-job');
+  err.classList.add('hidden');
+  $('score-result').classList.add('hidden');
+  if (!SJ.jobText) { err.textContent = 'Open a job posting first, then click Score This Job.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Scoring...';
+  try {
+    const d = await bgFunc('ext_job_score', { jobTitle: SJ.jobTitle, company: SJ.company, jobSnippet: SJ.jobText.slice(0, 2000) });
+    const score = d.score || 0;
+    const tier = scoreTier(score);
+    $('score-num').innerHTML = `${score}<small>/10</small>`;
+    $('score-num').className = 'score-num ' + tier;
+    $('score-label').textContent = d.matchLabel || '';
+    $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
+    const sal = $('score-salary');
+    if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
+    const ul = $('score-reasons'); ul.innerHTML = '';
+    (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
+    $('score-result').classList.remove('hidden');
+  } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
+});
+
 $('suggest-roles-btn').addEventListener('click', async () => {
   const btn = $('suggest-roles-btn'), err = $('err-jobs');
   err.classList.add('hidden');
