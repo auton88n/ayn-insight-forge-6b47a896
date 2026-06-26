@@ -329,6 +329,7 @@ document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async
     btn.disabled = false;
     btn.innerHTML = orig;
   }
+});
 
 $('fill-rescan-btn')?.addEventListener('click', detectForFill);
 
