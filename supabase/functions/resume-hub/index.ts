@@ -271,18 +271,42 @@ Deno.serve(async (req) => {
         };
 
         const r = await callAI({
-          system: `You are filling out a job application form for a real candidate. Use ONLY the candidate's profile, resume basics, and the job description provided.
+          system: `You are filling a real job application form. READ EACH FIELD LABEL CAREFULLY before deciding the value. Match the answer to what the question is actually asking — never paste a name into a "work authorization" field or a summary into a "years of experience" dropdown.
 
-IT IS COMPLETELY FINE IF THE PROFILE IS PARTIAL. Fill every field you can from the available data — including basic identity fields (name, email, phone) which are almost always present in either the profile OR the resume basics. Prefer profile values when present; otherwise fall back to resume basics (basics.name, basics.email, basics.phone, basics.location, basics.links). NEVER refuse to fill the form because the profile is partial — partial answers are far better than no answers.
+DATA SOURCES (in priority order): profile → mergedBasics → resume.basics → resume.work/skills/education.
 
-Rules:
-- Only use real data — never invent names, phone numbers, addresses, eligibility, or experience.
-- Always fill name / first name / last name / email / phone / city / LinkedIn URL when ANY source (profile, mergedBasics, or resume.basics) contains them.
-- Map common application fields from profile (legal_first_name, legal_last_name, email, phone, address, city, province_state, postal_code, country, linkedin_url, portfolio_url, work_authorization, default_answers.salary_expectation, default_answers.about_me, default_answers.why_this_role, default_answers.criminal_record, equity flags).
-- For "Tell us about yourself" / "Why this role" use default_answers.about_me / default_answers.why_this_role (or resume.basics.summary lightly adapted) — if no source, leave empty.
-- For select / radio fields, pick the closest matching option from the provided options list when you have a clear answer; otherwise leave empty.
-- Skip and leave empty: SIN/SSN, full birth date, bank info, passwords, anything not in any source.
-- Return one entry per field id you confidently filled. Omit fields you are leaving empty.`,
+FIELD-TYPE RULES — apply per-field, based on the LABEL:
+
+1. IDENTITY ("Name", "First name", "Last name", "Full name", "Email", "Phone", "Mobile", "Address", "City", "Postal/ZIP code", "Country"):
+   → Fill from profile or mergedBasics. Always fill these when ANY source has them.
+
+2. LINKS ("LinkedIn URL/Profile", "Portfolio", "Website", "GitHub"):
+   → Fill the full URL (include https://). LinkedIn → profile.linkedin_url or resume basics.links where label matches /linkedin/i.
+
+3. YES/NO QUESTIONS (work authorization, sponsorship, criminal record, relocate, remote, age 18+, equity disclosures, etc.):
+   → Look at the field options. Output exactly the option text ("Yes" / "No" / "I do not wish to answer"). Use profile.work_authorization, default_answers.criminal_record, default_answers.willing_to_relocate, etc. If unknown and required, default to the most reasonable answer for that question (e.g. "Yes" for "Are you legally authorized to work?" only if profile says so; otherwise leave empty).
+
+4. YEARS OF EXPERIENCE dropdowns/selects:
+   → CALCULATE from resume.work: sum (end || current year) - start across roles. Pick the closest option from the provided options (e.g. "5-7 years", "3+ years"). Never guess "10+" without evidence.
+
+5. EDUCATION LEVEL ("Highest degree", "Education"):
+   → Pick the option matching the highest entry in resume.education (Bachelor's / Master's / PhD / High School / Associate's). Match by keyword in the options list.
+
+6. SALARY EXPECTATION:
+   → Use profile.default_answers.salary_expectation if present. Otherwise leave empty.
+
+7. OPEN-TEXT QUESTIONS ("Tell us about yourself", "Why this role/company", "What interests you", "Cover letter"):
+   → Compose a SHORT (2-4 sentences max) tailored answer using resume.basics.summary + 1-2 relevant work bullets + the job description context. Never paste the raw summary. Never invent facts.
+
+8. SELECT / RADIO with options:
+   → Match the candidate's real attribute to the closest option TEXT (e.g. gender, ethnicity, pronouns, veteran status from profile.default_answers if present). If no clear match, leave empty.
+
+9. SKIP entirely: SIN/SSN, full date of birth, bank info, passwords, security questions, anything not in any source.
+
+GENERAL:
+- Partial profiles are FINE. Fill what you can; skip what you can't.
+- Output one entry per field id you filled. Omit fields you're leaving empty.
+- For select/radio fields, the "value" MUST match one of the field's option strings exactly (or a clear substring).`,
           user: JSON.stringify({
             fields,
             mergedBasics: merged,
