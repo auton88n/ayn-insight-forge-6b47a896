@@ -449,6 +449,7 @@ GENERAL:
         };
 
         const r = await callAI({
+          model: QUALITY_MODEL,
           system: `You are a senior tech recruiter. Score how well this candidate matches the job. Be honest, calibrated, and concrete.
 
 Return ONLY this JSON (no code fences):
@@ -456,6 +457,8 @@ Return ONLY this JSON (no code fences):
   "score": <integer 1-10>,
   "matchLabel": "Poor|Fair|Good|Strong",
   "reasons": ["<reason 1>","<reason 2>","<reason 3>"],
+  "mustHaves": [{"text":"<requirement>","met":true|false}, ...],
+  "niceToHaves": [{"text":"<nice-to-have>","met":true|false}, ...],
   "matchedSkills": ["<skill>", ...],
   "missingKeywords": ["<keyword>", ...],
   "salaryEstimate": "<$80K-$110K or empty>",
@@ -463,21 +466,23 @@ Return ONLY this JSON (no code fences):
 }
 
 Scoring rubric:
-- 9-10 Strong: candidate clearly meets MUST-HAVES and has 2+ STRONG signals (same domain, same scale, same tech).
-- 7-8 Good: meets most must-haves, 1-2 gaps that are coachable.
-- 4-6 Fair: half the must-haves, meaningful gaps in seniority or core tech.
-- 1-3 Poor: missing the core requirement (role, level, or critical tech).
+- 9-10 Strong: meets ALL must-haves + 2+ strong signals (same domain, scale, tech).
+- 7-8 Good: meets most must-haves, 1-2 coachable gaps.
+- 4-6 Fair: half the must-haves, real gaps in seniority or core tech.
+- 1-3 Poor: missing the core requirement (role, level, critical tech).
 
 Rules:
+- mustHaves: 3-5 things the JD lists as required/must (years, degree, core stack). Mark met=true only if the resume clearly shows it.
+- niceToHaves: 2-4 preferred items. Mark met based on resume evidence.
 - reasons: 3 SHORT phrases (max 6 words each), tied to specific JD requirements.
 - matchedSkills: up to 8 skills/tools present in BOTH resume and JD.
-- missingKeywords: 4-8 important JD keywords NOT in the resume (skills, tools, certs). Single words or short phrases.
-- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market (use $CAD if location is Canada, $USD otherwise). Format $80K-$110K. Empty string if truly unknown.
+- missingKeywords: 4-8 important JD keywords NOT in the resume.
+- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market. Format $80K-$110K. Empty if truly unknown.
 - verdict: one honest sentence.`,
           user: `JOB TITLE: ${jobTitle || ""}\nCOMPANY: ${company || ""}\n\nJOB DESCRIPTION:\n${(jobSnippet || "").slice(0, 3000)}\n\nRESUME:\n${JSON.stringify(resumeDigest).slice(0, 6000)}`,
         });
 
-        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string } = {};
+        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string; mustHaves?: Array<{text:string;met:boolean}>; niceToHaves?: Array<{text:string;met:boolean}> } = {};
         try {
           const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
           const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
@@ -492,6 +497,8 @@ Rules:
         return json({
           score, matchLabel,
           reasons: (parsed.reasons || []).slice(0, 3),
+          mustHaves: (parsed.mustHaves || []).slice(0, 5).map(m => ({ text: String(m.text || ""), met: !!m.met })),
+          niceToHaves: (parsed.niceToHaves || []).slice(0, 4).map(m => ({ text: String(m.text || ""), met: !!m.met })),
           matchedSkills: (parsed.matchedSkills || []).slice(0, 8),
           missingKeywords: (parsed.missingKeywords || []).slice(0, 8),
           salaryEstimate: String(parsed.salaryEstimate || ""),
