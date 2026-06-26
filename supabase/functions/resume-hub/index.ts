@@ -596,12 +596,25 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
       // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
       if (action === "ext_cover_letter_text") {
-        const { resumeText, jdText, tone, company } = payload as {
-          resumeText?: string; jdText?: string; tone?: string; company?: string;
+        const { resumeText, jdText, tone, company, jobTitle } = payload as {
+          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string;
         };
         if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
         const r = await callAI({
-          system: `Write a concise cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés. No em dashes. Pull concrete achievements from the resume only.`,
+          model: QUALITY_MODEL,
+          system: `Write a cover letter under 280 words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
+
+STRUCTURE (4 short paragraphs):
+1) Opening: who you are + the specific role + the ONE thing about ${company || "this team"} that pulled you in (from the JD).
+2) Proof: ONE concrete achievement from the resume that maps to a JD requirement. Include the number/scale if present in the resume.
+3) Skill bridge: 2-3 specific tools/skills from the JD that also appear in the resume. Tie them to outcomes, not lists.
+4) Close: clear ask for a conversation + sign off.
+
+RULES:
+- Use ONLY facts from the resume. Never invent companies, metrics, or dates.
+- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate").
+- No em dashes. Use commas or periods.
+- Plain text, no markdown.`,
           user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 6000)}`,
         });
         return json({ body: r.text });
