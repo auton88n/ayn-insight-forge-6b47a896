@@ -809,6 +809,8 @@ $('analyze-btn').addEventListener('click', async () => {
     const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company });
     if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
+    S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
+    S.scoreReasoning = d.scoreReasoning || '';
     renderKw(S.keywords); show('v-t2');
   } catch(e) { err.textContent = e.message; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = 'See My Keyword Match →'; }
