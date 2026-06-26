@@ -107,6 +107,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Generic edge-function passthrough for the side panel
+  if (message.type === 'BG_FUNC') {
+    (async () => {
+      try {
+        const data = await callFunction(message.action, message.payload || {});
+        sendResponse({ ok: true, data });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
+
   // Store detected job
   if (message.type === 'JOB_DETECTED') {
     chrome.storage.local.set({
