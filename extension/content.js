@@ -152,15 +152,25 @@
     const SKIP_TYPES = new Set(['hidden','submit','button','file','image','reset','search']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
     const fields = [];
+    const fileFields = [];
     const seenNames = new Set();
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
-        if (SKIP_TYPES.has(el.type)) return;
         if (el.disabled) return;
         const rect = el.getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0) return;
+        if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
         const label = getLabelFor(el);
+
+        if (el.type === 'file') {
+          const lbl = (label || el.name || '').toLowerCase();
+          const accept = (el.accept || '').toLowerCase();
+          const isResume = /resume|cv|curriculum/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept);
+          fileFields.push({ label: label || el.name || 'File upload', isResume, accept: el.accept || '' });
+          return;
+        }
+
+        if (SKIP_TYPES.has(el.type)) return;
         const key = prefix + (el.name || '') + '|' + label;
         if (el.type === 'radio' && seenNames.has(key)) return;
         seenNames.add(key);
@@ -180,6 +190,7 @@
         });
       });
     });
+    fields._fileFields = fileFields;
     return fields;
   }
 
