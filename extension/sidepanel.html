@@ -279,10 +279,17 @@
       <div class="banner-sub" id="fill-empty-sub">Open a job's apply page (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, SmartRecruiters…) and click Scan again.</div>
       <button class="btn btn-outline mt8" id="fill-rescan-btn" style="padding:6px 10px;font-size:11px">Scan again</button>
     </div>
-    <div class="card hidden" id="fill-job-banner">
-      <div class="card-title" id="fill-job-title">Job detected</div>
-      <div class="card-sub" id="fill-job-sub">AYN will use this job context to fill the form.</div>
+    <div class="job-hero hidden" id="fill-job-banner">
+      <div class="job-hero-row">
+        <div class="job-hero-logo" id="fill-job-logo">·</div>
+        <div class="job-hero-text">
+          <div class="job-hero-title" id="fill-job-title">Job detected</div>
+          <div class="job-hero-company" id="fill-job-sub"></div>
+          <div class="job-hero-meta"><span id="fill-field-count">0</span> fields ready · partial profile is fine</div>
+        </div>
+      </div>
     </div>
+    <div class="note hidden" id="fill-ready-note"></div>
     <div class="note" id="fill-ready-note" style="display:none">
       Ready to fill <b id="fill-field-count">0</b> fields. AYN uses whatever profile info you've saved — partial profiles are fine.
     </div>
