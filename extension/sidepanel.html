@@ -304,11 +304,11 @@
     </div>
     <div class="err hidden" id="err-fill"></div>
     <div id="fill-result-wrap" class="hidden mt10">
-      <div class="fill-result">
-        <div class="fill-stat" id="fill-stat-n">0/0</div>
-        <div class="fill-stat-lbl" id="fill-stat-lbl">fields filled</div>
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="fill-progress-fill" style="width:0%"></div></div>
+        <div class="progress-meta"><span><b id="fill-stat-n">0/0</b> fields filled</span><span id="fill-stat-lbl">0%</span></div>
       </div>
-      <div class="field-list" id="fill-result-list"></div>
+      <div class="field-list mt8" id="fill-result-list"></div>
       <button class="btn btn-green mt8 hidden" id="fill-save-tracker-btn"><i class="ti ti-bookmark"></i>Save this job to tracker</button>
       <div class="btn-row mt8">
         <button class="btn btn-outline" id="fill-reset-btn">Done</button>
