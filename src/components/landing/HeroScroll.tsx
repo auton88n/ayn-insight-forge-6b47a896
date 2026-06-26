@@ -10,6 +10,7 @@ import { useReducedMotion } from 'framer-motion';
 import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { EmotionalEye } from '@/components/eye/EmotionalEye';
 
 /* ── Frame loading ──────────────────────────────────────────────
  * Frames live in /public/frames as individual JPEGs instead of
@@ -102,7 +103,7 @@ export const HeroScroll = memo(() => {
   );
 
   useEffect(() => {
-    preloadFrames();
+    // Helmet frame sequence retired — EmotionalEye now renders the orb.
     const onResizeMq = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', onResizeMq, { passive: true });
     return () => window.removeEventListener('resize', onResizeMq);
@@ -321,18 +322,23 @@ export const HeroScroll = memo(() => {
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden'
             }}>
-              <canvas
-                ref={canvasRef}
+              <div
                 style={{
-                  /* Frames are 255,255,255 — page is #ffffff — zero visible edge */
                   display: 'block',
                   userSelect: 'none',
                   pointerEvents: 'none',
                   willChange: 'transform',
                   position: 'relative',
                   zIndex: 1,
+                  width: isMobile ? 'min(66vw, 40vh, 460px)' : 'min(42vw, 580px)',
+                  height: isMobile ? 'min(66vw, 40vh, 460px)' : 'min(42vw, 580px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
-              />
+              >
+                <EmotionalEye size="lg" />
+              </div>
             </div>
           </div>
 
