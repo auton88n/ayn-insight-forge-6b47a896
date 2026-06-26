@@ -110,6 +110,32 @@ function pollForApproval(code, deadline) {
   }, 2000);
 }
 
+function syncRemoteResume(resp) {
+  // Convert structured resume to plain text and cache locally so Cover/Tailor work out of the box
+  const c = resp?.resume?.content;
+  if (!c) return;
+  const basics = c.basics || {};
+  const lines = [];
+  if (basics.name) lines.push(basics.name);
+  const contact = [basics.email, basics.phone, basics.location].filter(Boolean).join(' | ');
+  if (contact) lines.push(contact);
+  if (basics.summary) lines.push('\nSUMMARY\n' + basics.summary);
+  if (Array.isArray(c.work) && c.work.length) {
+    lines.push('\nEXPERIENCE');
+    c.work.forEach(w => {
+      lines.push(`\n${w.title || ''} | ${w.company || ''}  ${w.start || ''} - ${w.end || 'Present'}`);
+      (w.bullets || []).forEach(b => lines.push(`- ${b}`));
+    });
+  }
+  if (Array.isArray(c.education) && c.education.length) {
+    lines.push('\nEDUCATION');
+    c.education.forEach(e => lines.push(`${e.degree || ''} | ${e.school || ''}  ${e.end || ''}`));
+  }
+  if (Array.isArray(c.skills) && c.skills.length) lines.push('\nSKILLS\n' + c.skills.join(', '));
+  const text = lines.join('\n').trim();
+  if (text) chrome.storage.local.set({ savedResume: text });
+}
+
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
@@ -120,6 +146,7 @@ async function bootAfterAuth() {
     }
     S.user = resp.user;
     $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    syncRemoteResume(resp);
     switchTab('fill');
     loadSavedResume();
     toast('Signed in ✓', 'ok');
@@ -133,6 +160,7 @@ async function restoreSession() {
     if (resp?.error || !resp?.user) { show('v-login'); return; }
     S.user = resp.user;
     $('user-email').textContent = resp.profile?.email || resp.user?.device || '';
+    syncRemoteResume(resp);
     switchTab('fill');
     loadSavedResume();
   });
