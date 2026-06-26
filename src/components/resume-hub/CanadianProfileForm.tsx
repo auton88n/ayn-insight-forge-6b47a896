@@ -34,7 +34,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Props { userId: string }
+interface ResumeBasics { name?: string; email?: string; phone?: string; title?: string; summary?: string; location?: string; links?: Array<{ label: string; url: string }> }
+interface ResumeWork { company?: string; title?: string; start?: string; end?: string; bullets?: string[] }
+interface ResumeEducation { school?: string; degree?: string; field?: string; end?: string }
+interface ParsedResume { basics?: ResumeBasics; work?: ResumeWork[]; education?: ResumeEducation[]; skills?: string[] }
+interface Props { userId: string; resumeData?: ParsedResume }
 
 // ── Canadian provinces & territories ──────────────────────────────────────────
 const CA_PROVINCES = [
@@ -230,7 +234,7 @@ function ProfileCompletion({ pct }: { pct: number }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function CanadianProfileForm({ userId }: Props) {
+export default function CanadianProfileForm({ userId, resumeData }: Props) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -363,6 +367,65 @@ export default function CanadianProfileForm({ userId }: Props) {
     });
   }, [userId]);
 
+  // ── Auto-fill from parsed resume ─────────────────────────────────────────
+  // Fires when a resume is uploaded — pre-fills personal info fields
+  // without overwriting anything already saved. User can then review & save.
+  useEffect(() => {
+    if (!resumeData) return;
+    const b = resumeData.basics ?? {};
+
+    // Split full name into first / last
+    if (b.name && !firstName && !lastName) {
+      const parts = b.name.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        setFirstName(parts[0]);
+        setLastName(parts.slice(1).join(" "));
+      } else if (parts.length === 1) {
+        setFirstName(parts[0]);
+      }
+    }
+    if (b.email && !email) setEmail(b.email);
+    if (b.phone && !phone) setPhone(b.phone);
+
+    // LinkedIn / Portfolio from links array
+    if (resumeData.basics?.links) {
+      for (const link of resumeData.basics.links) {
+        const url = link.url ?? "";
+        const label = (link.label ?? "").toLowerCase();
+        if (!linkedin && (label.includes("linkedin") || url.includes("linkedin.com"))) setLinkedin(url);
+        if (!portfolio && (label.includes("portfolio") || label.includes("website") || url.includes("github"))) setPortfolio(url);
+        if (!github && url.includes("github.com")) setGithub(url);
+      }
+    }
+
+    // Education — pull highest degree + field
+    if (resumeData.education?.length && !highestEducation) {
+      const edu = resumeData.education[0];
+      if (edu.degree) setHighestEducation(edu.degree);
+      if (edu.field) setFieldOfStudy(edu.field);
+    }
+
+    // Years experience — estimate from work history
+    if (resumeData.work?.length && !yearsExperience) {
+      const firstJob = resumeData.work[resumeData.work.length - 1];
+      const startYear = parseInt(firstJob?.start ?? "0");
+      if (startYear > 2000) {
+        const yrs = new Date().getFullYear() - startYear;
+        if (yrs > 0 && yrs < 50) setYearsExperience(String(yrs));
+      }
+    }
+
+    // Summary → About Me (if not already set)
+    if (b.summary && !aboutMe) setAboutMe(b.summary);
+
+    // Location parsing — "Toronto, ON" or "Toronto, Ontario, Canada"
+    if (b.location && !city) {
+      const parts = b.location.split(",").map((p: string) => p.trim());
+      if (parts[0]) setCity(parts[0]);
+      if (parts[1]) setProvince(parts[1].substring(0, 2).toUpperCase());
+    }
+  }, [resumeData]);
+
   // ── Completion % ─────────────────────────────────────────────────────────
   const fields = [
     firstName, lastName, email, phone, city, province, postalCode,
@@ -445,6 +508,17 @@ export default function CanadianProfileForm({ userId }: Props) {
   return (
     <div className="space-y-4 max-w-3xl">
       <ProfileCompletion pct={completionPct} />
+
+      {/* ── Resume auto-fill notice ── */}
+      {resumeData && (
+        <div className="flex items-start gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm">
+          <span className="text-emerald-600 text-lg leading-none mt-0.5">✓</span>
+          <div>
+            <p className="font-semibold text-emerald-800">Profile pre-filled from your resume</p>
+            <p className="text-emerald-700 text-xs mt-0.5">Name, email, phone, education and other details were auto-populated. Review each section below and click Save Profile when done.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── 1. Personal ── */}
       <Section title="Personal Information" subtitle="Your legal name and contact details exactly as they appear on ID">

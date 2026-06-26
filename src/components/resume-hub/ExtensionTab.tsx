@@ -8,12 +8,17 @@ interface Props { userId: string }
 
 export default function ExtensionTab({ userId }: Props) {
   const [email, setEmail] = useState("");
+  const [primaryResume, setPrimaryResume] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setEmail(data.user.email);
     });
-  }, []);
+    // Load primary resume to auto-fill profile form
+    supabase.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle().then(({ data }) => {
+      if (data?.content) setPrimaryResume(data.content as Record<string, unknown>);
+    });
+  }, [userId]);
 
   return (
     <div className="space-y-6">
@@ -82,7 +87,7 @@ export default function ExtensionTab({ userId }: Props) {
             Fill in your details once. AYN uses this to autofill Canadian job application forms instantly.
           </p>
         </div>
-        <CanadianProfileForm userId={userId} />
+        <CanadianProfileForm userId={userId} resumeData={primaryResume ?? undefined} />
       </div>
 
     </div>

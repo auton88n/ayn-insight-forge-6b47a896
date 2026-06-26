@@ -88,11 +88,35 @@ export default function BuilderTab({ userId }: Props) {
     setContent({ basics: { name: "", summary: "" }, work: [{ company: "", title: "", bullets: [""] }], education: [], skills: [] });
   };
 
-  const handleFileParsed = ({ resume }: { resume: ResumeContent }) => {
+  const handleFileParsed = async ({ resume }: { resume: ResumeContent }) => {
     setContent(resume);
     const name = resume.basics?.name;
-    setTitle(name ? `${name} – Resume` : "Uploaded Resume");
-    toast({ title: "Resume autofilled", description: "All fields populated from your file. Review and save." });
+    const autoTitle = name ? `${name} – Resume` : "Uploaded Resume";
+    setTitle(autoTitle);
+
+    // Auto-save as primary so the profile form and extension can use it immediately
+    try {
+      setBusy(true);
+      // Unset any existing primary
+      await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
+      // Insert new primary resume
+      const { data: inserted } = await supabase.from("resumes").insert({
+        user_id: userId,
+        title: autoTitle,
+        content: resume as unknown as Record<string, unknown>,
+        is_primary: true,
+      }).select("id").single();
+      if (inserted) setActiveId(inserted.id);
+      await load();
+      toast({
+        title: "Resume saved as primary ✓",
+        description: "Your profile form below has been pre-filled. Review each section and click Save Profile.",
+      });
+    } catch {
+      toast({ title: "Resume loaded", description: "Click Save to store it." });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const importFromText = async () => {
