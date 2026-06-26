@@ -341,11 +341,17 @@ $('autofill-now-btn').addEventListener('click', () => {
       const list = $('fill-result-list');
       list.innerHTML = '';
       (details || []).forEach(d => {
+        const conf = typeof d.confidence === 'number' ? Math.round(d.confidence * 100) : null;
+        const confBadge = conf != null
+          ? `<span class="conf-pill ${conf>=80?'hi':conf>=50?'md':'lo'}" title="AI confidence">${conf}%</span>`
+          : '';
+        const reason = d.reasoning ? `<div class="fr">${esc(String(d.reasoning).slice(0,90))}</div>` : '';
         list.innerHTML += `
           <div class="fi">
             <div class="fd ${d.ok ? 'on' : 'off'}"></div>
-            <div class="fl">${esc(d.label || d.id)}</div>
-            <div class="fv">${d.ok ? esc((d.value||'').slice(0,22)) : esc(d.reason||'skipped')}</div>
+            <div class="fl">${esc(d.label || d.id)} ${confBadge}</div>
+            <div class="fv">${d.ok ? esc((d.value||'').slice(0,28)) : esc(d.reason||'skipped')}</div>
+            ${reason}
           </div>`;
       });
 
