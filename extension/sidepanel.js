@@ -160,25 +160,74 @@ function bg(type, payload) {
 // FILL FORM
 // ════════════════════════════════════════════════════════════════
 
+const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
+
 function detectForFill() {
+  // Reset UI
+  $('fill-empty').classList.add('hidden');
+  $('fill-job-banner').classList.add('hidden');
+  $('fill-ready-note').style.display = 'none';
+  $('autofill-now-btn').classList.add('hidden');
+  $('err-fill').classList.add('hidden');
+
   getTab(tab => {
-    if (!tab) return;
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text || r.text.length < 80) {
-        $('fill-job-banner').style.display = 'none';
+    if (!tab) {
+      $('fill-empty-title').textContent = 'No active tab';
+      $('fill-empty-sub').textContent = 'Open a job application page and try again.';
+      $('fill-empty').classList.remove('hidden');
+      return;
+    }
+    F.jobUrl = tab.url || '';
+    chrome.tabs.sendMessage(tab.id, { type: 'DETECT_PAGE' }, r => {
+      if (chrome.runtime.lastError || !r) {
+        $('fill-empty-title').textContent = 'Page not scannable yet';
+        $('fill-empty-sub').textContent = 'Refresh this page (Cmd/Ctrl+R), then click Scan again.';
+        $('fill-empty').classList.remove('hidden');
         return;
       }
-      $('fill-job-banner').style.display = '';
-      $('fill-job-title').textContent = r.title || 'Job detected on this page';
+
+      F.jobTitle = r.title || '';
+      F.company = r.company || extractCompanyFromTitle(r.title || '');
+      F.kind = r.kind;
+
+      if (r.kind === 'ayn') {
+        $('fill-empty-title').textContent = "You're on AYN, not a job page";
+        $('fill-empty-sub').textContent = 'Open a job application form in another tab (LinkedIn Easy Apply, Workday, Greenhouse, Lever…) then come back here.';
+        $('fill-empty').classList.remove('hidden');
+        return;
+      }
+      if (!r.hasForm) {
+        $('fill-empty-title').textContent = r.kind === 'job_listing'
+          ? 'This looks like a job listing, not the application form'
+          : 'No application form detected on this page';
+        $('fill-empty-sub').textContent = r.kind === 'job_listing'
+          ? 'Click "Apply" / "Easy Apply" first, then come back here.'
+          : 'Open the actual apply form (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, SmartRecruiters…) and click Scan again.';
+        $('fill-empty').classList.remove('hidden');
+        return;
+      }
+
+      // Form found — show ready state
+      if (r.title) {
+        $('fill-job-title').textContent = r.title;
+        $('fill-job-sub').textContent = F.company ? `at ${F.company}` : 'AYN will use this page context.';
+        $('fill-job-banner').classList.remove('hidden');
+      }
+      $('fill-field-count').textContent = r.fieldCount;
+      $('fill-ready-note').style.display = '';
+      $('autofill-now-btn').classList.remove('hidden');
     });
   });
 }
+
+$('fill-rescan-btn')?.addEventListener('click', detectForFill);
 
 $('autofill-now-btn').addEventListener('click', () => {
   const btn = $('autofill-now-btn');
   const err = $('err-fill');
   err.classList.add('hidden');
   $('fill-result-wrap').classList.add('hidden');
+  $('fill-save-tracker-btn').classList.add('hidden');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div>Reading form...';
 
@@ -196,8 +245,8 @@ $('autofill-now-btn').addEventListener('click', () => {
         const m = {
           'not_signed_in': 'Sign in first.',
           'no_content_script': 'Refresh this page (Cmd+R / Ctrl+R), then try again.',
-          'no_fields': 'No fillable form fields on this page. Make sure you are on the actual application form, not a job listing. On LinkedIn click Easy Apply first.',
-          'no_values': 'Could not fill any fields. Make sure your profile is completed in AYN under Resume Hub.',
+          'no_fields': 'No fillable fields here. Open an actual apply form (Easy Apply, Workday, Greenhouse…) and try again.',
+          'no_values': "AYN couldn't match any of your saved profile data to these fields. Add a few more answers in Resume Hub → Profile and retry. (Partial profiles still work — these specific fields just didn't match.)",
         };
         err.textContent = m[response.error] || response.error || 'Fill failed. Try again.';
         err.classList.remove('hidden'); return;
@@ -221,9 +270,16 @@ $('autofill-now-btn').addEventListener('click', () => {
       });
 
       $('fill-result-wrap').classList.remove('hidden');
+      if (F.jobTitle && F.company) $('fill-save-tracker-btn').classList.remove('hidden');
       toast(`${filled} fields filled ✓`, 'ok');
     });
   });
+});
+
+$('fill-save-tracker-btn').addEventListener('click', () => {
+  if (!F.jobTitle) { toast('No job detected', 'err'); return; }
+  saveApplication({ jobTitle: F.jobTitle, company: F.company || 'Unknown', jobUrl: F.jobUrl, status: 'applied' });
+  $('fill-save-tracker-btn').classList.add('hidden');
 });
 
 $('fill-retry-btn').addEventListener('click', () => $('autofill-now-btn').click());
