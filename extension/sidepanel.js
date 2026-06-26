@@ -503,6 +503,31 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; vWrap.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:12px;color:#374151;line-height:1.45;'; $('score-result').appendChild(vWrap); }
     vWrap.textContent = d.verdict || '';
     vWrap.style.display = d.verdict ? 'block' : 'none';
+
+    // v1.4.0: Must-have / Nice-to-have requirements breakdown
+    const reqEl = $('score-requirements');
+    if (reqEl) {
+      const mh = Array.isArray(d.mustHaves) ? d.mustHaves : [];
+      const nh = Array.isArray(d.niceToHaves) ? d.niceToHaves : [];
+      if (mh.length || nh.length) {
+        const renderList = (items, title) => {
+          if (!items.length) return '';
+          const rows = items.map(it => {
+            const met = !!it.met;
+            return `<div class="req-row ${met?'met':'miss'}">
+              <div class="req-icon ${met?'met':'miss'}">${met?'<i class="ti ti-check" style="font-size:12px"></i>':'—'}</div>
+              <div class="req-text">${(it.text || '').replace(/</g,'&lt;')}</div>
+            </div>`;
+          }).join('');
+          return `<div class="req-card"><div class="req-title">${title}</div>${rows}</div>`;
+        };
+        reqEl.innerHTML = renderList(mh, 'Must-have requirements') + renderList(nh, 'Nice to have');
+        reqEl.classList.remove('hidden');
+      } else {
+        reqEl.classList.add('hidden');
+      }
+    }
+
     $('score-result').classList.remove('hidden');
   } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
