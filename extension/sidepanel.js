@@ -254,11 +254,11 @@ function detectForFill() {
       // Form found — show ready state
       if (r.title) {
         $('fill-job-title').textContent = r.title;
-        $('fill-job-sub').textContent = F.company ? `at ${F.company}` : 'AYN will use this page context.';
+        $('fill-job-sub').textContent = F.company || '';
+        $('fill-job-logo').textContent = (F.company || r.title || '·').trim().charAt(0) || '·';
         $('fill-job-banner').classList.remove('hidden');
       }
       $('fill-field-count').textContent = r.fieldCount;
-      $('fill-ready-note').style.display = '';
       $('autofill-now-btn').classList.remove('hidden');
 
       // Show resume-attach hint + download button if page asks for a resume file
