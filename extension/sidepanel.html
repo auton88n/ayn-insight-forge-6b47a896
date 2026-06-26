@@ -319,12 +319,36 @@
 
   <!-- JOBS -->
   <div class="view" id="v-jobs">
+    <div class="sl">Score this job</div>
+    <div class="job-hero hidden" id="score-job-banner">
+      <div class="job-hero-row">
+        <div class="job-hero-logo" id="score-job-logo">·</div>
+        <div class="job-hero-text">
+          <div class="job-hero-title" id="score-job-title">Job detected</div>
+          <div class="job-hero-company" id="score-job-company"></div>
+        </div>
+      </div>
+    </div>
+    <div id="score-no-job" class="banner b-blue hidden">
+      <div class="banner-title">Open a job posting</div>
+      <div class="banner-sub">Navigate to a job page (LinkedIn, Indeed, Greenhouse, Lever, Workday…) then click Score This Job.</div>
+    </div>
+    <button class="btn btn-primary" id="score-this-job-btn"><i class="ti ti-target-arrow"></i>Score This Job</button>
+    <div class="err hidden" id="err-score-job"></div>
+    <div id="score-result" class="score-hero hidden mt10">
+      <div class="score-num" id="score-num">—<small>/10</small></div>
+      <div class="score-label" id="score-label"></div>
+      <div class="score-salary hidden" id="score-salary"></div>
+      <ul class="score-reasons" id="score-reasons"></ul>
+    </div>
+
+    <div class="divider"></div>
     <div class="score-toggle" onclick="toggleScoring()">
       <div class="score-toggle-info">
-        <div class="score-toggle-icon"><i class="ti ti-target-arrow"></i></div>
+        <div class="score-toggle-icon"><i class="ti ti-eye"></i></div>
         <div class="score-toggle-text">
-          <div class="title">Show match scores</div>
-          <div class="sub" id="score-status-note">Turn on to see a 1-10 match score on every job card.</div>
+          <div class="title">Auto-score job cards</div>
+          <div class="sub" id="score-status-note">Turn on to see a 1-10 match score on every job card as you browse.</div>
         </div>
       </div>
       <div class="toggle-pill" id="score-switch"><div class="toggle-knob"></div></div>
