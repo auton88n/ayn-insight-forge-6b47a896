@@ -216,9 +216,38 @@ function detectForFill() {
       $('fill-field-count').textContent = r.fieldCount;
       $('fill-ready-note').style.display = '';
       $('autofill-now-btn').classList.remove('hidden');
+
+      // Show resume-attach hint + download button if page asks for a resume file
+      const dlWrap = $('fill-resume-dl-wrap');
+      if (dlWrap) {
+        if (r.needsResume) dlWrap.classList.remove('hidden');
+        else dlWrap.classList.add('hidden');
+      }
     });
   });
 }
+
+// Download AYN resume as ATS plain text (.txt) so the user can attach it manually
+document.getElementById('fill-download-resume-btn')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<div class="spinner"></div>Preparing...';
+  try {
+    const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'BG_FUNC', action: 'ext_download_resume_text', payload: {} }, res));
+    if (!r || !r.ok) throw new Error(r?.error || 'Failed');
+    const blob = new Blob([r.data.text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = r.data.filename || 'Resume_AYN.txt'; a.click();
+    URL.revokeObjectURL(url);
+    toast('Resume downloaded — now click "Attach" on the form', 'ok');
+  } catch (err) {
+    toast(err.message || 'Download failed', 'err');
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+});
 
 $('fill-rescan-btn')?.addEventListener('click', detectForFill);
 
