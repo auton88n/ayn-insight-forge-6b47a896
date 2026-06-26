@@ -260,28 +260,31 @@
   }
 
   function injectScoreBadge(card, score, matchLabel, reasons, salaryEstimate) {
-    // Remove existing badge
     card.querySelector(`.${AYN_BADGE_CLASS}`)?.remove();
 
-    const color = score >= 8 ? '#22c55e' : score >= 6 ? '#f59e0b' : score >= 4 ? '#94a3b8' : '#ef4444';
-    const bg = score >= 8 ? 'rgba(34,197,94,0.12)' : score >= 6 ? 'rgba(245,158,11,0.12)' : score >= 4 ? 'rgba(148,163,184,0.10)' : 'rgba(239,68,68,0.10)';
+    const isGood = score >= 8, isFair = score >= 6, isOk = score >= 4;
+    const color = isGood ? '#15803d' : isFair ? '#92400e' : isOk ? '#6b7280' : '#991b1b';
+    const bg    = isGood ? '#f0fdf4' : isFair ? '#fffbeb' : isOk ? '#f9fafb' : '#fef2f2';
+    const border= isGood ? '#86efac' : isFair ? '#fde68a' : isOk ? '#e5e7eb' : '#fecaca';
 
     const badge = document.createElement('div');
     badge.className = AYN_BADGE_CLASS;
     badge.style.cssText = `
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 3px 8px; border-radius: 999px;
-      background: ${bg}; border: 1px solid ${color}40;
-      font-size: 11px; font-family: -apple-system, system-ui, sans-serif;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      background: ${bg}; border: 1px solid ${border};
+      font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
       font-weight: 600; color: ${color}; line-height: 1.4;
       cursor: pointer; margin: 4px 0; white-space: nowrap;
       user-select: none; z-index: 100; position: relative;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     `;
-    const salaryStr = salaryEstimate ? ` · ${salaryEstimate}` : '';
+    const salaryStr = salaryEstimate ? `<span style="font-weight:400;color:#888;margin-left:2px">· ${salaryEstimate}</span>` : '';
     badge.innerHTML = `
-      <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
-      <span>AYN ${score}/10</span>
-      <span style="font-weight:400;opacity:0.8">${matchLabel}${salaryStr}</span>
+      <span style="font-size:9px;font-weight:700;letter-spacing:.02em">AYN</span>
+      <span style="font-size:12px;font-weight:700">${score}/10</span>
+      <span style="font-weight:500">${matchLabel}</span>
+      ${salaryStr}
     `;
 
     // Tooltip with reasons
@@ -289,12 +292,12 @@
       const tip = document.createElement('div');
       tip.style.cssText = `
         position: absolute; top: 100%; left: 0; z-index: 9999;
-        background: #0a0a0f; border: 1px solid #272730;
-        border-radius: 6px; padding: 7px 10px;
-        font-size: 11px; color: #eeeef5; min-width: 160px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-        display: none; margin-top: 4px;
-        font-weight: 400;
+        background: #fff; border: 1px solid #e8e8e8;
+        border-radius: 8px; padding: 8px 11px;
+        font-size: 11px; color: #333; min-width: 170px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+        display: none; margin-top: 5px;
+        font-weight: 400; line-height: 1.5;
       `;
       tip.innerHTML = reasons.map(r => `<div style="padding:2px 0">· ${r}</div>`).join('');
       badge.appendChild(tip);
@@ -333,12 +336,13 @@
     const loadBadge = document.createElement('div');
     loadBadge.className = AYN_BADGE_CLASS;
     loadBadge.style.cssText = `
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 8px; border-radius: 999px;
-      background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3);
-      font-size: 11px; color: #818cf8; margin: 4px 0;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 999px;
+      background: #f8f8f8; border: 1px solid #e5e7eb;
+      font-size: 11px; color: #888; margin: 4px 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     `;
-    loadBadge.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#6366f1;display:inline-block"></span> AYN...`;
+    loadBadge.innerHTML = '<span style="font-size:9px;font-weight:700;letter-spacing:.02em">AYN</span> <span>...</span>';
     const sel = getJobCardSelectors();
     const target = sel ? (card.querySelector(sel.inject) || card) : card;
     target.insertAdjacentElement('afterend', loadBadge);
