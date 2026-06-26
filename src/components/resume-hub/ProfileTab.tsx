@@ -128,6 +128,29 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
+      {/* Completeness meter */}
+      {(() => {
+        const { pct, checks } = computeCompleteness(profile);
+        return (
+          <Card className="p-4 sm:p-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Profile completeness</h3>
+              <span className="text-sm font-mono tabular-nums">{pct}%</span>
+            </div>
+            <Progress value={pct} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+              {checks.map((c, i) => (
+                <div key={i} className={`text-xs flex items-center gap-2 ${c.done ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${c.done ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                  {c.label}
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">A higher score means Autofill, Score, Tailor, and Cover Letter have more accurate facts to work with.</p>
+          </Card>
+        );
+      })()}
+
       {/* Derived snapshot */}
       <Card className="p-4 sm:p-6 space-y-4">
         <h3 className="text-sm font-semibold">Snapshot</h3>
