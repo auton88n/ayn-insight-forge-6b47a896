@@ -508,10 +508,12 @@ Deno.serve(async (req) => {
         };
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
-        const [{ data: profile }, { data: resume }] = await Promise.all([
+        const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
         ]);
+        const canonicalText = canonicalDigest(canonical);
 
         const profileFieldsAvailable = profile
           ? Object.entries(profile).filter(([_, v]) => v != null && v !== "" && (Array.isArray(v) ? v.length : true)).map(([k]) => k)
