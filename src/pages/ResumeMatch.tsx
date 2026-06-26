@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Loader2, Copy, CheckCheck, Sparkles, CheckCircle2, XCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle2, XCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,7 @@ import { SEO } from '@/components/shared/SEO';
 import { Header } from '@/components/shared/Header';
 import { Footer } from '@/components/shared/Footer';
 import { ResumeUpload } from '@/components/resume-hub/ResumeUpload';
+import { ResumeDiffViewer } from '@/components/resume-hub/ResumeDiffViewer';
 
 interface ComparisonRow {
   label: string;
