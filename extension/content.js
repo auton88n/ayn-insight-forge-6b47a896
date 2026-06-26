@@ -11,7 +11,16 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.4.2';
+  const AYN_BUILD = '1.4.3';
+
+  // Quiet message sender — swallows chrome.runtime.lastError when no receiver
+  function sendQuiet(message) {
+    try {
+      chrome.runtime.sendMessage(message, () => {
+        void chrome.runtime.lastError; // read & discard
+      });
+    } catch { /* extension context invalidated, ignore */ }
+  }
 
   // Safe text helper — never throws on weird/SVG/null nodes
   function safeText(el) {
@@ -32,27 +41,74 @@
     return String(t || '').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
   }
 
+  // Concatenate text from ALL matching nodes, dropping nodes nested inside another match.
+  function combinedText(selector) {
+    if (!selector) return '';
+    let nodes;
+    try { nodes = Array.from(document.querySelectorAll(selector)); } catch { return ''; }
+    if (!nodes.length) return '';
+    // Drop nodes nested inside another match
+    const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
+    const seen = new Set();
+    const parts = [];
+    for (const n of top) {
+      const t = safeText(n).trim();
+      if (!t) continue;
+      const key = t.slice(0, 80);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      parts.push(t);
+    }
+    return parts.join('\n\n').trim();
+  }
+
+  // Click "See more / Show more / Read more" controls so the full JD is in the DOM
+  // before we extract. Idempotent per URL. Hard-skip dangerous controls.
+  const _expandedFor = new Set();
+  function expandSeeMore() {
+    try {
+      const key = location.href;
+      if (_expandedFor.has(key)) return 0;
+      _expandedFor.add(key);
+      const POS_RE = /^\s*(see|show|read|view)\s+(more|full|all|details?|description)\b/i;
+      const NEG_RE = /\b(apply|submit|sign\s*in|sign\s*up|save|follow|message|connect|easy\s*apply|share|report)\b/i;
+      const ctrls = Array.from(document.querySelectorAll(
+        'button, a[role="button"], [role="button"], .show-more-less-html__button, [aria-label*="more" i]'
+      ));
+      let clicked = 0;
+      for (const b of ctrls) {
+        const txt = (safeText(b) || b.getAttribute('aria-label') || '').trim();
+        if (!txt || txt.length > 40) continue;
+        if (NEG_RE.test(txt)) continue;
+        if (!POS_RE.test(txt) && !/^(more|show more)$/i.test(txt)) continue;
+        try { b.click(); clicked++; } catch {}
+        if (clicked >= 4) break;
+      }
+      return clicked;
+    } catch { return 0; }
+  }
+
   function extractJobText() {
     try {
     const url = window.location.href;
     const docTitle = cleanTitle(document.title);
 
-
     const map = {
       'linkedin.com/jobs/view': {
-        desc: '.jobs-description__content, .jobs-box__html-content, [class*="description__content"]',
+        desc: '.jobs-description__content, .jobs-box__html-content, [class*="description__content"], [class*="jobs-description"]',
         title: '.job-details-jobs-unified-top-card__job-title, h1',
         company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]',
+      },
+      // ca.indeed BEFORE indeed so the more-specific pattern wins
+      'ca.indeed.com/viewjob': {
+        desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
+        title: '[class*="jobsearch-JobInfoHeader-title"], h1',
+        company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]',
       },
       'indeed.com/viewjob': {
         desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
         title: '[class*="jobsearch-JobInfoHeader-title"], h1',
         company: '[class*="jobsearch-CompanyInfoContainer"], [data-testid="inlineHeader-companyName"]',
-      },
-      'ca.indeed.com/viewjob': {
-        desc: '#jobDescriptionText',
-        title: 'h1',
-        company: '[data-testid="inlineHeader-companyName"]',
       },
       'jobright.ai/jobs': {
         desc: '[class*="description"], [class*="job-desc"], main article',
@@ -91,15 +147,17 @@
       },
     };
 
-    for (const [pattern, sel] of Object.entries(map)) {
+    // Iterate longest-pattern-first so ca.indeed.com isn't shadowed by indeed.com.
+    const entries = Object.entries(map).sort((a, b) => b[0].length - a[0].length);
+    for (const [pattern, sel] of entries) {
       if (url.includes(pattern)) {
-        const desc = document.querySelector(sel.desc);
-        const title = document.querySelector(sel.title);
-        const company = document.querySelector(sel.company);
+        const desc = combinedText(sel.desc);
+        const titleEl = document.querySelector(sel.title);
+        const companyEl = document.querySelector(sel.company);
         return {
-          text: safeText(desc).trim(),
-          title: cleanTitle(safeText(title).trim() || docTitle),
-          company: safeText(company).trim(),
+          text: desc,
+          title: cleanTitle(safeText(titleEl).trim() || docTitle),
+          company: safeText(companyEl).trim(),
         };
       }
     }
