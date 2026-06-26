@@ -324,7 +324,6 @@ export const HeroScroll = memo(() => {
             }}>
               <div
                 style={{
-                  display: 'block',
                   userSelect: 'none',
                   pointerEvents: 'none',
                   willChange: 'transform',
