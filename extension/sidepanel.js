@@ -434,6 +434,19 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
+    // Show missing keywords if returned
+    let mkWrap = $('score-missing-kw');
+    if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(mkWrap); }
+    mkWrap.innerHTML = '';
+    if (d.missingKeywords && d.missingKeywords.length) {
+      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your resume</div>';
+      d.missingKeywords.forEach(kw => {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;margin:2px;';
+        chip.textContent = kw;
+        mkWrap.appendChild(chip);
+      });
+    }
     $('score-result').classList.remove('hidden');
   } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
@@ -444,15 +457,21 @@ $('suggest-roles-btn').addEventListener('click', async () => {
   err.classList.add('hidden');
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner dk"></div>Analysing...';
-  chrome.runtime.sendMessage({ type: 'SUGGEST_ROLES' }, resp => {
+  try {
+    const resp = await bgFunc('ext_suggest_roles', {});
     btn.disabled = false;
     btn.innerHTML = 'Get My Best Job Titles →';
     if (!resp?.roles?.length) {
-      err.textContent = 'Could not get suggestions. Make sure your primary resume is saved in AYN.';
+      err.textContent = resp?.summary || 'No resume found. Upload your resume at aynn.io first.';
       err.classList.remove('hidden'); return;
     }
     renderRoles(resp);
-  });
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = 'Get My Best Job Titles →';
+    err.textContent = e.message || 'Failed. Make sure you are signed in.';
+    err.classList.remove('hidden');
+  }
 });
 
 function renderRoles({ roles, keywords, summary }) {
@@ -522,9 +541,9 @@ $('find-contacts-btn').addEventListener('click', async () => {
     renderContacts(data);
     $('contact-results').classList.remove('hidden');
   } catch (e) {
-    err.textContent = e.message || 'Could not find contacts. Try again.';
+    err.textContent = e.message || 'Could not find contacts. Make sure you are on a job posting page.';
     err.classList.remove('hidden');
-  } finally { btn.disabled = false; btn.innerHTML = 'Find Who to Contact →'; }
+  } finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-search"></i>Find Who to Contact'; }
 });
 
 function renderContacts({ contacts = [], emailFormats = [], companyDomain = '', coldOutreach = '', subjectLine = '' }) {
@@ -607,7 +626,8 @@ async function generateCoverLetter() {
     $('cover-out').textContent = data.body || '';
     $('cover-result').classList.remove('hidden');
   } catch (e) {
-    err.textContent = e.message || 'Failed to generate.'; err.classList.remove('hidden');
+    err.textContent = e.message || 'Failed to generate. Make sure your resume is saved at aynn.io.';
+    err.classList.remove('hidden');
   } finally { btn.disabled = false; btn.innerHTML = 'Generate Cover Letter →'; }
 }
 
@@ -640,8 +660,18 @@ function loadTracker() {
   $('tracker-loading').classList.remove('hidden');
   $('tracker-empty').classList.add('hidden');
   $('tracker-list').innerHTML = '';
+  const errEl = $('err-tracker');
+  if (errEl) errEl.classList.add('hidden');
   chrome.runtime.sendMessage({ type: 'GET_APPLICATIONS', payload: {} }, r => {
     $('tracker-loading').classList.add('hidden');
+    if (chrome.runtime.lastError) {
+      if (errEl) { errEl.textContent = 'Could not load tracker. Reload the extension.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+    if (r?.error) {
+      if (errEl) { errEl.textContent = r.error; errEl.classList.remove('hidden'); }
+      $('tracker-empty').classList.remove('hidden'); return;
+    }
     if (!r?.applications) { $('tracker-empty').classList.remove('hidden'); return; }
     trackerApps = r.applications;
     if (trackerApps.length === 0) { $('tracker-empty').classList.remove('hidden'); return; }
