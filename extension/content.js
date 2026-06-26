@@ -443,6 +443,27 @@
       return true;
     }
 
+    if (message.type === 'DETECT_PAGE') {
+      const job = extractJobText();
+      const fields = scanFormFields();
+      const url = window.location.href;
+      const isJobHost = JOB_PAGE_RE.test(url);
+      const isAynHost = /aynn\.io|lovableproject\.com|lovable\.app|localhost/i.test(url);
+      const hasJD = (job.text || '').length > 120;
+      const hasForm = fields.length >= 2;
+      let kind = 'other';
+      if (isAynHost) kind = 'ayn';
+      else if (hasForm && (hasJD || isJobHost)) kind = 'application';
+      else if (hasJD) kind = 'job_listing';
+      else if (isJobHost) kind = 'job_board';
+      sendResponse({
+        kind, hasForm, hasJD, fieldCount: fields.length,
+        title: job.title, company: job.company,
+        jdLength: (job.text || '').length, url,
+      });
+      return true;
+    }
+
     if (message.type === 'SCAN_FORM') {
       const fields = scanFormFields();
       const jobText = extractJobText();
