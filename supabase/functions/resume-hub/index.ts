@@ -665,15 +665,16 @@ GENERAL:
       if (action === "ext_tailor") {
         const jobId = (payload as { job_id?: string }).job_id;
         if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }] = await Promise.all([
+        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
           admin.from("jobs").select("id, jd_text, company, title").eq("user_id", userId).eq("id", jobId).maybeSingle(),
           admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Return same schema.",
-          user: JSON.stringify({ resume: resume.content, jdText: job.jd_text }).slice(0, 40000),
+          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema.",
+          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text }).slice(0, 45000),
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
         });
@@ -685,14 +686,15 @@ GENERAL:
         const jobId = (payload as { job_id?: string }).job_id;
         const tone = (payload as { tone?: string }).tone || "professional, warm";
         if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }] = await Promise.all([
+        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
           admin.from("jobs").select("id, jd_text, company").eq("user_id", userId).eq("id", jobId).maybeSingle(),
           admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
-          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés.`,
-          user: JSON.stringify({ resume: resume.content, jdText: job.jd_text }).slice(0, 30000),
+          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés. Ground every claim in the canonicalProfile or resume.`,
+          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
         });
         await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
         return json({ body: r.text });
