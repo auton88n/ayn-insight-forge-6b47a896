@@ -40,6 +40,21 @@ type Canonical = {
 
 const EMPTY: Canonical = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
+function computeCompleteness(p: Canonical): { pct: number; checks: { label: string; done: boolean }[] } {
+  const checks = [
+    { label: "Current title", done: !!p.derived?.current_title },
+    { label: "Total years of experience", done: typeof p.derived?.total_yoe === "number" },
+    { label: "5+ skills", done: (p.skills?.length || 0) >= 5 },
+    { label: "1+ experience", done: (p.experiences?.length || 0) >= 1 },
+    { label: "1+ education", done: (p.education?.length || 0) >= 1 },
+    { label: "Work authorization set", done: !!(p.work_auth?.citizenship || p.work_auth?.work_authorized_us || p.work_auth?.work_authorized_ca) },
+    { label: "Salary preference", done: typeof p.preferences?.salary_min_usd === "number" },
+    { label: "Desired titles", done: (p.preferences?.desired_titles?.length || 0) >= 1 },
+  ];
+  const pct = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
+  return { pct, checks };
+}
+
 export default function ProfileTab({ userId }: { userId: string }) {
   const { toast } = useToast();
   const [profile, setProfile] = useState<Canonical>(EMPTY);
