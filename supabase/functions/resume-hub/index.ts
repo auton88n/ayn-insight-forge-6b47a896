@@ -541,38 +541,41 @@ Return ONLY valid JSON, no code fences:
         const userName = [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || "the candidate";
         const aboutMe = (profile?.default_answers as Record<string,unknown>)?.about_me as string || "";
 
-        const r = await callAI({
-          system: `You are a job search assistant helping a candidate find the right person to contact at a company about a job opening.
+        const candidateBackground = aboutMe.slice(0, 400) || JSON.stringify({
+          basics: resume?.content?.basics,
+          recent: ((resume?.content?.work as Array<Record<string, unknown>>) || []).slice(0, 2),
+        }).slice(0, 700);
 
-Return ONLY valid JSON, no code fences:
+        const r = await callAI({
+          system: `You help a candidate find the right humans to contact at a company about a specific role. Be CONCRETE — no generic recruiter copy.
+
+Return ONLY this JSON (no code fences):
 {
   "contacts": [
-    {
-      "role": "<likely role title e.g. 'Talent Acquisition Manager', 'HR Business Partner', 'Technical Recruiter'>",
-      "why": "<one sentence: why contact this person for this job>",
-      "linkedinSearchUrl": "<LinkedIn people search URL for this type of person at the company>",
-      "titles": ["<title variant 1>", "<title variant 2>"]
-    }
+    { "role": "<persona title>", "why": "<one sentence>", "linkedinSearchUrl": "<URL>", "titles": ["<variant>", "<variant>"] }
   ],
-  "emailFormats": ["<format e.g. firstname.lastname@company.com>", "<format e.g. f.lastname@company.com>"],
-  "companyDomain": "<best guess at company email domain e.g. shopify.com>",
-  "coldOutreach": "<a 3-sentence LinkedIn connection message or cold email from the candidate to a recruiter at this company. Professional, specific to the role, not generic. First person. No em dashes.>",
-  "subjectLine": "<email subject line for cold outreach>"
+  "emailFormats": ["firstname.lastname@<domain>", "f.lastname@<domain>"],
+  "companyDomain": "<domain.com>",
+  "coldOutreach": "<personalized message under 80 words>",
+  "subjectLine": "<email subject>"
 }
 
-LinkedIn search URL format:
-https://www.linkedin.com/search/results/people/?keywords=ENCODED_TITLE&currentCompany=["COMPANY_NAME"]&origin=FACETED_SEARCH
+LinkedIn search URL pattern:
+https://www.linkedin.com/search/results/people/?keywords=<URL-ENCODED ROLE TITLE>&currentCompany=%5B%22<URL-ENCODED COMPANY>%22%5D&origin=FACETED_SEARCH
 
 Rules:
-- Suggest 2-3 different contact types (Recruiter, HR Manager, Hiring Manager)  
-- Email formats: suggest 2-3 most common formats for this company size/type
-- Cold outreach: use the candidate name and their background. Make it specific to the role. Under 80 words. No "I hope this message finds you well".`,
+- Exactly 3 contact personas: (1) Technical/Hiring Recruiter for the role's function, (2) Hiring Manager (use the actual role's likely manager title — e.g. "Engineering Manager" for SWE, "Director of Marketing" for marketing), (3) Team Lead / Senior peer (e.g. "Staff Engineer", "Senior Product Designer").
+- For each: 2 title variants real people use at companies of this size.
+- emailFormats: 2-3 most likely formats for THIS company size (startups use firstname@, large enterprises use firstname.lastname@).
+- companyDomain: best guess from the company name (lowercase, no spaces). If well-known company, use the known domain.
+- coldOutreach: written FROM the candidate, addressed to the recruiter. First name reference, the specific role title, ONE concrete reason from candidate's background that maps to the JD, a clear ask (15-min chat). Under 80 words. No "hope this finds you well". No em dashes. Plain text.
+- subjectLine: short ("<Role> @ <Company> - <one-line angle>"). Use a dash, not em dash.`,
           user: `COMPANY: ${company}
 JOB TITLE: ${jobTitle || "Not specified"}
 JOB URL: ${jobUrl || ""}
-JOB SNIPPET: ${(jobSnippet || "").slice(0, 800)}
+JOB SNIPPET: ${(jobSnippet || "").slice(0, 1200)}
 CANDIDATE NAME: ${userName}
-CANDIDATE BACKGROUND: ${aboutMe.slice(0, 400) || JSON.stringify(resume?.content?.basics || {}).slice(0, 400)}`,
+CANDIDATE BACKGROUND: ${candidateBackground}`,
         });
 
         let parsed: Record<string, unknown> = {};
