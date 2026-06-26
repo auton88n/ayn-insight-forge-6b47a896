@@ -7,7 +7,6 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id }));
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
-// Get stored session
 async function getSession() {
   const data = await chrome.storage.local.get(['session']);
   return data.session || null;
@@ -46,6 +45,23 @@ async function callFunction(action, body, session) {
   return res.json();
 }
 
+// Safe wrapper for tabs.sendMessage — returns null instead of throwing
+function safeSendMessage(tabId, message) {
+  return new Promise(resolve => {
+    try {
+      chrome.tabs.sendMessage(tabId, message, response => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+        } else {
+          resolve(response);
+        }
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Store detected job text
@@ -66,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Score a job card — called from content script, needs auth
+  // Score a job card — needs auth
   if (message.type === 'SCORE_JOB_CARD') {
     (async () => {
       try {
@@ -99,7 +115,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!session) { sendResponse({ error: 'Not signed in' }); return; }
         session = await refreshIfNeeded(session);
         if (!session) { sendResponse({ error: 'Session expired' }); return; }
-        const actionMap = { SAVE_APPLICATION: 'ext_save_application', GET_APPLICATIONS: 'ext_get_applications', UPDATE_APPLICATION: 'ext_update_application' };
+        const actionMap = {
+          SAVE_APPLICATION: 'ext_save_application',
+          GET_APPLICATIONS: 'ext_get_applications',
+          UPDATE_APPLICATION: 'ext_update_application',
+        };
         const data = await callFunction(actionMap[message.type], message.payload || {}, session);
         sendResponse(data);
       } catch (e) { sendResponse({ error: e.message }); }
@@ -107,11 +127,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // Auto-autofill: scan + fill in one shot, no preview
+  // Suggest roles
+  if (message.type === 'SUGGEST_ROLES') {
+    (async () => {
+      try {
+        let session = await getSession();
+        if (!session) { sendResponse(null); return; }
+        session = await refreshIfNeeded(session);
+        if (!session) { sendResponse(null); return; }
+        const data = await callFunction('ext_suggest_roles', {}, session);
+        sendResponse(data);
+      } catch { sendResponse(null); }
+    })();
+    return true;
+  }
+
+  // Auto-autofill: scan + AI + inject in one shot
   if (message.type === 'AUTO_AUTOFILL') {
     (async () => {
       try {
-        // tabId comes from the message — sidepanel has no sender.tab
         const tabId = message.tabId;
         if (!tabId) { sendResponse({ ok: false, error: 'No tab ID provided' }); return; }
 
@@ -120,28 +154,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         session = await refreshIfNeeded(session);
         if (!session) { sendResponse({ ok: false, error: 'Session expired' }); return; }
 
-        // 1. Scan the form
-        const scan = await chrome.tabs.sendMessage(tabId, { type: 'SCAN_FORM' });
-        const { fields = [], jobText = {} } = scan || {};
-        if (fields.length === 0) { sendResponse({ ok: false, error: 'No fields found' }); return; }
+        // 1. Scan the form — safe, won't throw
+        const scan = await safeSendMessage(tabId, { type: 'SCAN_FORM' });
+
+        // Content script not loaded on this page
+        if (!scan) {
+          sendResponse({ ok: false, error: 'no_content_script' });
+          return;
+        }
+
+        const fields = scan.fields || [];
+        const jobText = scan.jobText || {};
+
+        if (fields.length === 0) {
+          sendResponse({ ok: false, error: 'no_fields' });
+          return;
+        }
 
         // 2. Get AI values
         const fillData = await callFunction('ext_autofill', {
-          fields: fields.map(f => ({ id: f.id, label: f.label, type: f.type, options: f.options, required: f.required, currentValue: f.currentValue })),
+          fields: fields.map(f => ({
+            id: f.id, label: f.label, type: f.type,
+            options: f.options, required: f.required, currentValue: f.currentValue,
+          })),
           jobText: jobText?.text || '',
         }, session);
 
         const values = (fillData.values || []).filter(v => v.value && v.value.trim());
-        if (values.length === 0) { sendResponse({ ok: false, error: 'No values to fill' }); return; }
+        if (values.length === 0) {
+          sendResponse({ ok: false, error: 'no_values' });
+          return;
+        }
 
         // 3. Highlight briefly
-        await chrome.tabs.sendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
+        await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
         await new Promise(r => setTimeout(r, 400));
 
         // 4. Inject values
-        const fillResult = await chrome.tabs.sendMessage(tabId, { type: 'INJECT_VALUES', values });
+        const fillResult = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values });
 
-        // Build details list for the sidepanel
+        // Build details
         const resultMap = {};
         (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
         const details = values.map(v => ({
@@ -156,21 +208,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } catch (e) {
         sendResponse({ ok: false, error: e.message });
       }
-    })();
-    return true;
-  }
-
-  // Suggest roles: call edge function and return
-  if (message.type === 'SUGGEST_ROLES') {
-    (async () => {
-      try {
-        let session = await getSession();
-        if (!session) { sendResponse(null); return; }
-        session = await refreshIfNeeded(session);
-        if (!session) { sendResponse(null); return; }
-        const data = await callFunction('ext_suggest_roles', {}, session);
-        sendResponse(data);
-      } catch { sendResponse(null); }
     })();
     return true;
   }

@@ -166,12 +166,17 @@ $('autofill-now-btn').addEventListener('click', () => {
       btn.innerHTML = '✦ Fill This Form Now';
 
       if (chrome.runtime.lastError || !response) {
-        err.textContent = 'Could not fill the form. Try refreshing the page first.';
+        err.textContent = 'Refresh this page first, then try again. The AYN script needs to load on the page.';
         err.classList.remove('hidden');
         return;
       }
       if (!response.ok) {
-        err.textContent = response.error || 'Fill failed. Try again.';
+        const errorMessages = {
+          'no_content_script': 'Refresh this page first — AYN needs to load on the page before it can fill the form.',
+          'no_fields': 'No application form found on this page. Navigate to the actual application form (not the job listing), then try again.',
+          'no_values': 'AYN could not fill any fields. Make sure your Canadian profile is filled in at aynn.io first.',
+        };
+        err.textContent = errorMessages[response.error] || response.error || 'Fill failed. Try again.';
         err.classList.remove('hidden');
         return;
       }
