@@ -1,62 +1,59 @@
-## Goal
-Make the Chrome extension actually work end-to-end (not just on real job sites), give clearer feedback when something is off, and stop blocking features on a "100% complete" profile.
+## What I found
 
-## What's broken / missing today
+The screenshot shows Fill is working for normal text fields, but Resume/CV upload is not handled because browser extensions cannot safely attach local files to website file inputs. The extension currently fills text inputs only and skips file fields. That is why Greenhouse still asks you to attach the resume.
 
-1. **Misleading error on non-job pages.** When you click "Fill This Form Now" on a page that isn't an application (like the AYN dashboard), it returns `no_values` and shows "Could not fill any fields. Make sure your profile is completed…" — blames your profile when the real reason is "no real form here."
-2. **Stale zip.** The downloadable `public/ayn-extension.zip` is v1.2.0 with old wording. Repo code is newer (v1.2.1) and recent edits never got repacked.
-3. **Score / Contacts / Cover Letter / Tailor** all silently fail on pages without a job description, with no friendly empty state.
-4. **Profile-completion gate.** A few flows behave like the profile must be ~100% complete. Should work with whatever fields are filled.
-5. **Tracker** has no "Save this application" entry point from the Fill view after a successful fill.
-6. **Cover Letter** tab in the extension calls `ext_cover_letter` which requires a `job_id` in DB — the side panel only has scraped page text, so it errors. Needs a text-only path.
+Several other tabs are only partially wired:
+- Score can overlay cards, but there is no clear state when the current page is not a supported job board.
+- Contacts and Cover depend on job text extraction and can fail if company/title detection is weak.
+- Cover only uses resume text saved inside the extension Tailor tab, not automatically the primary resume saved in AYN.
+- Tailor uses the same action name as a dashboard action, which can break through extension auth.
+- Upload parsing in Resume Hub needs better fallback and error messaging for PDFs/DOCX files that the AI/file path cannot parse.
 
-## Fix plan
+## Build plan
 
-### A. Extension UX — clear, page-aware states
-- Add a page-type detector in `content.js`: returns `{ kind: 'application' | 'job_listing' | 'job_board' | 'other', hasForm, hasJD, fieldCount }`.
-- In `sidepanel.js`, when user opens any tab, show the right empty state:
-  - Fill: "No application form detected on this page. Open a job's apply form (LinkedIn Easy Apply, Workday, Greenhouse, Lever, etc.) and try again." + a small "Scan again" button.
-  - Score / Contacts / Cover Letter / Tailor: "Open a job posting first" with a one-line example.
-- After a successful Fill, show a "Save to Tracker" button that calls `ext_save_application` with the detected title/company/url.
+### 1. Fix Resume Hub resume upload
+- Harden `parse_file` in `supabase/functions/resume-hub/index.ts`.
+- Add safer AI output limits and better JSON/tool response handling so uploads do not fail silently when responses are truncated.
+- Improve PDF/DOCX fallback messaging so the user knows if the file is image based, corrupted, too large, or unsupported.
+- Update `ResumeUpload.tsx` to show the real failure reason and offer paste text as the fallback.
 
-### B. Edge function — better error taxonomy + partial profile
-In `supabase/functions/resume-hub/index.ts` `ext_autofill`:
-- If `fields.length === 0` → return `{ error: 'no_form_fields' }` (already handled client-side, just make it explicit server-side too for direct calls).
-- Tell the AI: "It is fine if the profile is partial. Fill whatever you can from available data. Leave others empty. Never refuse just because some fields are missing." Currently the prompt is strict and the model returns empty for everything when it senses gaps.
-- Return `meta: { profileFieldsUsed: [...], jobDetected: bool }` so the panel can show "Filled 7/12 — added phone, email, name; skipped salary (not set)."
+### 2. Make resume attachment work in application forms
+- Keep secure browser behavior: do not fake a file upload or bypass Chrome restrictions.
+- Add a dedicated Resume/CV detection result in Fill when the page has file inputs.
+- If AYN cannot attach automatically, show an exact prompt: “Click Attach and select your downloaded AYN resume.”
+- Add a “Download AYN Resume” button in the extension Fill tab when a primary resume exists, so the user can immediately upload it to Greenhouse/Workday/LinkedIn.
+- Generate the download from the user’s saved primary resume as ATS plain text for now, with a stable filename.
 
-Add a new action `ext_cover_letter_text` (text-only, no job_id needed) — wraps current logic but takes `jdText` + `company` + `title` directly so the side panel works without first ingesting the job.
+### 3. Make Fill stronger on ATS forms
+- Improve field scanning for Greenhouse, Workday, Lever, iCIMS, Cornerstone, and LinkedIn dialogs.
+- Detect file, dropdown, radio, checkbox, and custom combobox fields more clearly.
+- Report skipped fields separately, including “file upload requires manual attach,” instead of claiming 100% if only text fields were counted.
+- Keep partial profile support, filling whatever saved info exists.
 
-### C. Repack + version bump
-- Bump `manifest.json` to **v1.2.2**.
-- Rebuild `public/ayn-extension.zip` from `extension/` after all changes.
-- Update the version label in `ExtensionTab.tsx` to v1.2.2.
+### 4. Fix Cover Letter, Contacts, Tracker, and Tailor tabs
+- Cover Letter: load the primary resume from AYN during bootstrap, not only extension local storage.
+- Contacts: improve company/domain detection and allow generation from the current job title plus URL even if the page has short JD text.
+- Tracker: make “Save current job” work from any detected posting, and show a helpful error only when no title/company/url can be found.
+- Tailor: add a dedicated extension action for smart tailoring so it no longer conflicts with dashboard auth actions.
 
-### D. Profile-completion messaging in app
-- In `CanadianProfileForm`, change the "ready" copy from a hard 94% gate to: "Profile saved. AYN will use whatever fields are filled to autofill applications. The more you add, the more fields it can fill."
-- Remove any UI that blocks Save / extension features when completion < 100%.
+### 5. Fix Score tab behavior
+- Add a page detector for supported job board result pages.
+- Show “Open LinkedIn/Indeed/job board search results first” when not on a supported page.
+- Keep the “Get My Best Job Titles” button working from the primary AYN resume.
+- Improve score badge injection and hover reasons so it behaves like Jobright-style browsing.
 
-### E. Console error noise (out of scope of this request but flagged)
-`SubscriptionContext` shows "Failed to fetch" against the check-subscription edge function inside the Lovable preview iframe. Not related to the extension. Will leave untouched unless you want it addressed.
+### 6. Repack and version the extension
+- Bump the extension to v1.2.3.
+- Repack `public/ayn-extension.zip`.
+- Update `ExtensionTab.tsx` so the downloadable zip label matches the real version.
 
-## Files touched
+## Acceptance checks
 
-```text
-extension/content.js              # page-type detector + iframe scan stays
-extension/sidepanel.js            # empty states, save-to-tracker button, cover letter text path
-extension/sidepanel.html          # small UI for new states
-extension/manifest.json           # version bump
-public/ayn-extension.zip          # repacked
-supabase/functions/resume-hub/index.ts  # softer prompt, partial-profile, ext_cover_letter_text
-src/components/resume-hub/CanadianProfileForm.tsx  # gentler completion copy
-src/components/resume-hub/ExtensionTab.tsx         # v1.2.2 label
-```
-
-No database migration required.
-
-## Acceptance check
-- On AYN dashboard: extension shows "Open a job application form" message, no scary error.
-- On a real LinkedIn Easy Apply with profile at ~60% complete: Fill returns N filled / total + list of what it filled and what it skipped, no "complete your profile" message.
-- Score, Contacts, Cover Letter, Tailor each show a friendly empty state on non-job pages.
-- After Fill, "Save to Tracker" appears and adds the row.
-- Downloaded zip says v1.2.2 in the manifest.
+- Uploading a resume in Resume Hub either saves it as primary or shows a clear reason with paste fallback.
+- On the Greenhouse page in your screenshot, Fill shows text fields filled and separately says Resume/CV must be manually attached, with a Download AYN Resume button.
+- Cover Letter works without pasting resume into the Tailor tab first.
+- Contacts works on Greenhouse/LinkedIn/Indeed postings with title/company detected.
+- Tracker saves the current job with title, company, and URL.
+- Tailor analyzes keywords and rewrites without action name conflicts.
+- Score shows clear guidance on unsupported pages and overlays badges on supported job board result cards.
+- The downloaded extension zip is v1.2.3.
