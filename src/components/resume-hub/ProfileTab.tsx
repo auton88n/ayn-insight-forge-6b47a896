@@ -64,6 +64,18 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const loadPrimary = useCallback(async () => {
+    const { data } = await supabase
+      .from("resumes")
+      .select("id, title")
+      .eq("user_id", userId)
+      .eq("is_primary", true)
+      .maybeSingle();
+    setPrimaryResume(data ?? null);
+  }, [userId]);
 
   const load = useCallback(async () => {
     setLoading(true);
