@@ -25,8 +25,9 @@ function humanize(s: unknown): unknown {
     .replace(/(\$?\d[\d,.]*\s*[KkMm]?)\s*[\u2014\u2013\-]\s*(\$?\d)/g, "$1 to $2")
     // any em or en dash (with or without spaces) → comma
     .replace(/\s*[\u2014\u2013]\s*/g, ", ")
-    // " - " spaced hyphen connector → comma
-    .replace(/\s+-\s+/g, ", ")
+    // " - " spaced hyphen connector → comma (spaces/tabs only,
+    // so newline + "- bullet" markdown stays intact)
+    .replace(/[ \t]+-[ \t]+/g, ", ")
     .replace(/ ,/g, ",")
     .replace(/,\s*,/g, ", ")
     .trim();
