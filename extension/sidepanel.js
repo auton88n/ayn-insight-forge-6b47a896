@@ -532,15 +532,8 @@ async function runScoreFlow({ auto = false } = {}) {
   btn.disabled = true;
   btn.innerHTML = auto ? '<div class="spinner"></div>Scoring…' : '<div class="spinner"></div>Scoring...';
   try {
-    // Phase 2: ingest full JD on the backend, then score against it.
+    // Phase 2: single AI call — ext_job_score inline-ingests fullJd when no cache hit.
     const urlHash = await sha256Hex(normalizeUrlForHash(SJ.jobUrl || ''));
-    try {
-      await bgFunc('ext_job_ingest', {
-        url: SJ.jobUrl, urlHash,
-        title: SJ.jobTitle, company: SJ.company,
-        fullJd: SJ.jobText.slice(0, 20000),
-      }, { silent: auto });
-    } catch (_) { /* non-fatal — score handler will inline-ingest */ }
 
     const d = await bgFunc('ext_job_score', {
       urlHash, url: SJ.jobUrl,

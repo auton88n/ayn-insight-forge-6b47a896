@@ -758,7 +758,7 @@ Deno.serve(async (req) => {
         };
 
         const r = await callAI({
-          model: QUALITY_MODEL,
+          model: DEFAULT_MODEL,
           system: `You are a senior career coach filling a real job application. The user gave you their profile and resume; do NOT invent anything that isn't there.
 
 For EACH field, READ THE LABEL AND THE "group" HINT before deciding. Output one object per field you choose to fill:
