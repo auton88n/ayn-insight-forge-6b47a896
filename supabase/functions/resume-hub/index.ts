@@ -1592,7 +1592,7 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
         // Use mammoth for real DOCX text extraction
         try {
           const mammoth = await import("npm:mammoth@1.8.0");
-          const { value } = await mammoth.extractRawText({ buffer: b64ToBytes(fileBase64) });
+          const { value } = await mammoth.extractRawText({ buffer: b64ToBytes(fileBase64) as any });
           resumeText = (value || "").replace(/\s+\n/g, "\n").trim();
         } catch (e) {
           console.warn("mammoth DOCX extraction failed", e);
