@@ -459,6 +459,7 @@ function detectForScore() {
       SJ.jobTitle = r.title || '';
       SJ.company = r.company || extractCompanyFromTitle(r.title || '');
       SJ.jobText = r.text;
+      SJ.jobUrl = tab.url || '';
       $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
       $('score-job-company').textContent = SJ.company || tab.url;
       $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
