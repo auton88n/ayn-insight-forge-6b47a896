@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.4.5';
+  const AYN_BUILD = '1.5.2';
   const MAX_JD_CHARS = 20000;
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
@@ -124,6 +124,25 @@
         };
       }
       // fall through to legacy/generic if pane hasn't hydrated yet
+    }
+
+    if (/indeed\.com/i.test(url)) {
+      const inSel = {
+        desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
+        title: '[class*="jobsearch-JobInfoHeader-title"], h1',
+        company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]',
+      };
+      const inDesc = combinedText(inSel.desc);
+      if (inDesc && inDesc.length >= 50) {
+        const titleEl = document.querySelector(inSel.title);
+        const companyEl = document.querySelector(inSel.company);
+        return {
+          text: inDesc,
+          title: cleanTitle(safeText(titleEl).trim() || docTitle),
+          company: safeText(companyEl).trim(),
+        };
+      }
+      // fall through if the detail pane has not hydrated yet
     }
 
     const map = {
