@@ -234,7 +234,7 @@ function ProfileCompletion({ pct }: { pct: number }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function CanadianProfileForm({ userId, resumeData }: Props) {
+const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(function CanadianProfileForm({ userId, resumeData, hideSaveButton }, ref) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
