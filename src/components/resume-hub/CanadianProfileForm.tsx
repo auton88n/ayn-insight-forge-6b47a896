@@ -912,23 +912,28 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
       </Section>
 
       {/* ── Save button ── */}
-      <div className="pt-2 flex items-center gap-4">
-        <Button
-          size="lg"
-          onClick={save}
-          disabled={busy}
-          className="h-12 px-10 rounded-none font-mono uppercase tracking-wider hover:shadow-xl transition-all"
-        >
-          {busy
-            ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-            : saved
-            ? <><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" />Saved</>
-            : "Save Profile"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Your data is private and encrypted. Only you and AYN can access it.
-        </p>
-      </div>
+      {!hideSaveButton && (
+        <div className="pt-2 flex items-center gap-4">
+          <Button
+            size="lg"
+            onClick={save}
+            disabled={busy}
+            className="h-12 px-10 rounded-none font-mono uppercase tracking-wider hover:shadow-xl transition-all"
+          >
+            {busy
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+              : saved
+              ? <><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" />Saved</>
+              : "Save Profile"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Your data is private and encrypted. Only you and AYN can access it.
+          </p>
+        </div>
+      )}
     </div>
   );
-}
+});
+
+export default CanadianProfileForm;
+
