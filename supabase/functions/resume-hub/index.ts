@@ -883,7 +883,7 @@ GENERAL:
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
-          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés. Ground every claim in the canonicalProfile or resume.`,
+          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés ("I am excited to", "leverage", "passionate"). Ground every claim in the canonicalProfile or resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
           user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
         });
         await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
