@@ -103,12 +103,30 @@
     const url = window.location.href;
     const docTitle = cleanTitle(document.title);
 
-    const map = {
-      'linkedin.com/jobs/view': {
+    // v1.4.6: LinkedIn unified extraction — the right-hand job detail pane uses the
+    // SAME DOM across /jobs/view, /jobs/collections/recommended, /jobs/search,
+    // /jobs/collections/*, etc. Use unified selectors for ANY linkedin.com/jobs URL
+    // that has a detectable job detail pane. SPA hooks already re-fire on URL change.
+    if (/linkedin\.com\/jobs/i.test(url)) {
+      const liSel = {
         desc: '.jobs-description__content, .jobs-box__html-content, [class*="description__content"], [class*="jobs-description"]',
         title: '.job-details-jobs-unified-top-card__job-title, h1',
         company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]',
-      },
+      };
+      const liDesc = combinedText(liSel.desc);
+      if (liDesc && liDesc.length >= 50) {
+        const titleEl = document.querySelector(liSel.title);
+        const companyEl = document.querySelector(liSel.company);
+        return {
+          text: liDesc,
+          title: cleanTitle(safeText(titleEl).trim() || docTitle),
+          company: safeText(companyEl).trim(),
+        };
+      }
+      // fall through to legacy/generic if pane hasn't hydrated yet
+    }
+
+    const map = {
       // ca.indeed BEFORE indeed so the more-specific pattern wins
       'ca.indeed.com/viewjob': {
         desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
