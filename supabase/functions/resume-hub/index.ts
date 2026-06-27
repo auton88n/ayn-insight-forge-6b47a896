@@ -1745,7 +1745,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     if (action === "cover_letter") {
       const { resume, jdText, tone, company } = payload as { resume: unknown; jdText: string; tone?: string; company?: string };
       const r = await callAI({
-        system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés. Pull concrete achievements from the resume.`,
+        system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés ("I am excited to", "leverage", "passionate"). Pull concrete achievements from the resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
         user: JSON.stringify({ resume, jdText }).slice(0, 30000),
       });
       return json({ body: r.text });
