@@ -480,7 +480,22 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
   if (!SJ.jobText) { err.textContent = 'Open a job posting first, then click Score This Job.'; err.classList.remove('hidden'); return; }
   btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Scoring...';
   try {
-    const d = await bgFunc('ext_job_score', { jobTitle: SJ.jobTitle, company: SJ.company, jobSnippet: SJ.jobText.slice(0, 2000) });
+    // Phase 2: ingest full JD on the backend, then score against it.
+    const urlHash = await sha256Hex(normalizeUrlForHash(SJ.jobUrl || ''));
+    try {
+      await bgFunc('ext_job_ingest', {
+        url: SJ.jobUrl, urlHash,
+        title: SJ.jobTitle, company: SJ.company,
+        fullJd: SJ.jobText.slice(0, 20000),
+      });
+    } catch (_) { /* non-fatal — score handler will inline-ingest */ }
+
+    const d = await bgFunc('ext_job_score', {
+      urlHash, url: SJ.jobUrl,
+      jobTitle: SJ.jobTitle, company: SJ.company,
+      fullJd: SJ.jobText.slice(0, 20000),
+      jobSnippet: SJ.jobText.slice(0, 2000), // card-badge fallback
+    });
     const score = d.score || 0;
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
