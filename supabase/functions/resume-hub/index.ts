@@ -408,7 +408,7 @@ const EMPTY_CANONICAL: CanonicalProfile = {
   work_auth: {}, preferences: {}, derived: {},
 };
 
-async function loadCanonical(admin: ReturnType<typeof createClient>, userId: string): Promise<CanonicalProfile | null> {
+async function loadCanonical(admin: SupabaseClient<any, any, any>, userId: string): Promise<CanonicalProfile | null> {
   const { data } = await admin.from("user_profile_canonical")
     .select("skills, experiences, education, certifications, work_auth, preferences, derived")
     .eq("user_id", userId).maybeSingle();
