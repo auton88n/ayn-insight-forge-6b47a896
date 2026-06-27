@@ -69,6 +69,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [primaryResumeContent, setPrimaryResumeContent] = useState<ResumeContent | null>(null);
   const [parsedResume, setParsedResume] = useState<ResumeContent | null>(null);
   const [uploading, setUploading] = useState(false);
+  const canadianRef = useRef<CanadianProfileFormHandle>(null);
 
   const loadPrimary = useCallback(async () => {
     const { data } = await supabase
