@@ -332,15 +332,43 @@
   }
 
 
-  function getOptions(el) {
+  // Return options as {label, value} pairs for select/radio/checkbox groups.
+  function getOptionPairs(el) {
     if (el.tagName === 'SELECT') {
-      return Array.from(el.options).filter(o => o.value).map(o => o.text.trim()).slice(0, 20);
+      return Array.from(el.options)
+        .filter(o => o.value || o.text)
+        .map(o => ({ label: (o.text || '').trim(), value: o.value || (o.text || '').trim() }))
+        .slice(0, 40);
     }
     if ((el.type === 'radio' || el.type === 'checkbox') && el.name) {
-      return Array.from(document.querySelectorAll(`input[name="${CSS.escape(el.name)}"]`))
-        .map(s => getLabelFor(s) || s.value).filter(Boolean).slice(0, 15);
+      const root = el.ownerDocument || document;
+      return Array.from(root.querySelectorAll(`input[type="${el.type}"][name="${CSS.escape(el.name)}"]`))
+        .map(s => ({ label: (getLabelFor(s) || s.value || '').trim(), value: s.value || (getLabelFor(s) || '').trim() }))
+        .filter(o => o.label || o.value)
+        .slice(0, 30);
     }
     return [];
+  }
+
+  // Heuristic: is this text input acting like a typeahead/combobox?
+  function isTypeahead(el) {
+    if (el.tagName !== 'INPUT') return false;
+    if ((el.type || 'text') !== 'text' && el.type !== 'search') return false;
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    if (role === 'combobox' || role === 'searchbox') return true;
+    if (el.getAttribute('aria-autocomplete')) return true;
+    if (el.getAttribute('aria-haspopup') === 'listbox') return true;
+    if (el.getAttribute('aria-controls') || el.getAttribute('aria-owns')) {
+      const id = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
+      const tgt = id && document.getElementById(id);
+      if (tgt && /listbox|menu|option/i.test(tgt.getAttribute('role') || tgt.className || '')) return true;
+    }
+    if (el.getAttribute('list')) return true;
+    const cls = (el.className || '') + ' ' + (el.parentElement?.className || '');
+    if (/combobox|typeahead|autocomplete|select__input|react-select|downshift/i.test(cls)) return true;
+    const ph = (el.placeholder || '').toLowerCase();
+    if (/start typing|search\.\.\.|begin typing/.test(ph)) return true;
+    return false;
   }
 
   function isFilled(el) {
@@ -363,48 +391,97 @@
   }
 
   function scanFormFields() {
-    const SKIP_TYPES = new Set(['hidden','submit','button','file','image','reset','search']);
+    const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
     const fields = [];
     const fileFields = [];
-    const seenNames = new Set();
+    const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
-      doc.querySelectorAll('input, textarea, select').forEach((el, idx) => {
+      const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
+      elements.forEach((el, idx) => {
         try {
-        if (el.disabled) return;
-        const rect = el.getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
-        const label = getLabelFor(el);
+          if (el.disabled) return;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
 
-        if (el.type === 'file') {
-          const lbl = (label || el.name || '').toLowerCase();
-          const accept = (el.accept || '').toLowerCase();
-          const isResume = /resume|cv|curriculum/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept);
-          fileFields.push({ label: label || el.name || 'File upload', isResume, accept: el.accept || '' });
-          return;
-        }
+          if (el.type === 'file') {
+            const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
+            const accept = (el.accept || '').toLowerCase();
+            const isResume = /resume|cv|curriculum/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept);
+            fileFields.push({ label: getLabelFor(el) || el.name || 'File upload', isResume, accept: el.accept || '' });
+            return;
+          }
 
-        if (SKIP_TYPES.has(el.type)) return;
-        const key = prefix + (el.name || '') + '|' + label;
-        if (el.type === 'radio' && seenNames.has(key)) return;
-        seenNames.add(key);
-        if (SKIP_RE.test(label + (el.name||'') + (el.id||''))) return;
-        if (!label && (!el.name || el.name.length < 2)) return;
+          if (SKIP_TYPES.has(el.type)) return;
+          if (el.type === 'search' && !el.name && !el.id) return;
+          if (SKIP_RE.test((el.name||'') + (el.id||''))) return;
 
-        const ftype = el.tagName === 'SELECT' ? 'select' : el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text');
-        fields.push({
-          id: prefix + (el.id || el.name || `f${idx}`),
-          label: label || `Field ${idx}`,
-          type: ftype,
-          name: el.name || '',
-          currentValue: isFilled(el) ? (el.value || '') : '',
-          options: getOptions(el),
-          required: el.required || el.getAttribute('aria-required') === 'true',
-          group: classifyField(label, el.name || '', ftype),
-          _idx: idx,
-          _frame: prefix,
-        });
+          // Radio/checkbox: one descriptor per group (by name)
+          if ((el.type === 'radio' || el.type === 'checkbox') && el.name) {
+            const groupKey = `${prefix}${el.type}:${el.name}`;
+            if (seenGroupKeys.has(groupKey)) return;
+            seenGroupKeys.add(groupKey);
+            // Question label = nearest fieldset legend / label group; fall back to this input's label.
+            let qLabel = '';
+            const fs = el.closest('fieldset');
+            if (fs) {
+              const lg = fs.querySelector('legend, [class*="label"], [class*="question"]');
+              if (lg) qLabel = safeText(lg).trim();
+            }
+            if (!qLabel) {
+              const wrap = el.closest('[role="radiogroup"], [role="group"], [class*="question"], [class*="field"], [class*="form-group"]');
+              if (wrap) {
+                const h = wrap.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4, strong');
+                if (h && !h.contains(el)) qLabel = safeText(h).trim();
+              }
+            }
+            if (!qLabel) qLabel = getLabelFor(el) || el.name;
+            qLabel = (qLabel || '').slice(0, 240);
+            const options = getOptionPairs(el);
+            const checkedOpt = options.find(o => {
+              const match = Array.from(doc.querySelectorAll(`input[type="${el.type}"][name="${CSS.escape(el.name)}"]`))
+                .find(r => r.checked && ((getLabelFor(r) || r.value).trim() === o.label || r.value === o.value));
+              return !!match;
+            });
+            fields.push({
+              id: `${prefix}__${el.type}__:${el.name}`,
+              kind: el.type, // 'radio' | 'checkbox'
+              label: qLabel,
+              type: el.type,
+              name: el.name,
+              currentValue: checkedOpt ? checkedOpt.label : '',
+              options,
+              required: el.required || el.getAttribute('aria-required') === 'true',
+              group: classifyField(qLabel, el.name || '', el.type),
+              _frame: prefix,
+            });
+            return;
+          }
+
+          const label = getLabelFor(el);
+          if (!label && (!el.name || el.name.length < 2)) return;
+          if (SKIP_RE.test(label)) return;
+
+          let kind;
+          if (el.tagName === 'SELECT') kind = 'select';
+          else if (el.tagName === 'TEXTAREA') kind = 'textarea';
+          else if (isTypeahead(el)) kind = 'typeahead';
+          else kind = 'text';
+
+          fields.push({
+            id: prefix + (el.id || el.name || `f${idx}`),
+            kind,
+            label: label || `Field ${idx}`,
+            type: kind === 'select' ? 'select' : (el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text')),
+            name: el.name || '',
+            currentValue: isFilled(el) ? (el.value || '') : '',
+            options: getOptionPairs(el),
+            required: el.required || el.getAttribute('aria-required') === 'true',
+            group: classifyField(label, el.name || '', kind),
+            _idx: idx,
+            _frame: prefix,
+          });
         } catch { /* skip a single bad node, keep scanning */ }
       });
     });
@@ -417,60 +494,140 @@
   // 3. VALUE INJECTION
   // ══════════════════════════════════════════════════════════════════
 
+  function resolveDoc(id, _frame) {
+    let doc = document;
+    let rawId = id;
+    const m = /^frame(\d+):(.*)$/.exec(id || '');
+    if (m) {
+      const frame = document.querySelectorAll('iframe')[parseInt(m[1],10)];
+      try { if (frame?.contentDocument) doc = frame.contentDocument; } catch {}
+      rawId = m[2];
+    } else if (_frame) {
+      const fm = /^frame(\d+):$/.exec(_frame);
+      if (fm) {
+        const frame = document.querySelectorAll('iframe')[parseInt(fm[1],10)];
+        try { if (frame?.contentDocument) doc = frame.contentDocument; } catch {}
+      }
+    }
+    return { doc, rawId };
+  }
+
+  function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+  function setNativeValue(el, value) {
+    const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(el, value); else el.value = value;
+  }
+
   function injectValues(values) {
     let filled = 0;
     const results = [];
 
-    values.forEach(({ id, value, _idx, _frame }) => {
-      if (!value || !value.trim()) return;
+    values.forEach((v) => {
+      const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
+      if (skip) { results.push({ id, ok: false, reason: 'skipped' }); return; }
 
-      // Resolve doc: top-level or iframe
-      let doc = document;
-      let rawId = id;
-      const m = /^frame(\d+):(.*)$/.exec(id);
-      if (m) {
-        const frame = document.querySelectorAll('iframe')[parseInt(m[1],10)];
-        try { if (frame?.contentDocument) doc = frame.contentDocument; } catch { /* ignore */ }
-        rawId = m[2];
-      } else if (_frame) {
-        const fm = /^frame(\d+):$/.exec(_frame);
-        if (fm) {
-          const frame = document.querySelectorAll('iframe')[parseInt(fm[1],10)];
-          try { if (frame?.contentDocument) doc = frame.contentDocument; } catch { /* ignore */ }
-        }
+      const { doc, rawId } = resolveDoc(id, _frame);
+
+      // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
+      const groupMatch = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(id);
+      if (groupMatch) {
+        const kind = groupMatch[1];
+        const name = groupMatch[2];
+        const radios = Array.from(doc.querySelectorAll(`input[type="${kind}"][name="${CSS.escape(name)}"]`));
+        if (!radios.length) { results.push({ id, ok: false, reason: 'group not found' }); return; }
+
+        const targets = (kind === 'checkbox' && Array.isArray(optionLabels))
+          ? optionLabels
+          : (kind === 'checkbox' && Array.isArray(optionValues))
+            ? optionValues
+            : [optionLabel || optionValue || value].filter(Boolean);
+        if (!targets.length) { results.push({ id, ok: false, reason: 'no option' }); return; }
+
+        let any = false;
+        targets.forEach(tRaw => {
+          const t = norm(tRaw);
+          if (!t) return;
+          const m = radios.find(r => {
+            const lbl = norm(getLabelFor(r) || r.value);
+            const val = norm(r.value);
+            return lbl === t || val === t || lbl.includes(t) || t.includes(lbl);
+          });
+          if (m && !m.disabled) {
+            try {
+              if (!m.checked) { m.checked = true; m.click(); }
+              m.dispatchEvent(new Event('change', { bubbles: true }));
+              any = true;
+            } catch {}
+          }
+        });
+        if (any) { filled++; results.push({ id, ok: true }); }
+        else results.push({ id, ok: false, reason: `${kind} option not matched` });
+        return;
       }
 
+      // Resolve a single element
       let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
       if (!el && _idx != null) {
         const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
       }
-
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); return; }
       if (isFilled(el) && el.type !== 'radio' && el.type !== 'checkbox') { results.push({ id, ok: false, reason: 'already filled' }); return; }
 
+      const chosen = optionValue || optionLabel || value;
+      if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); return; }
+
       try {
         if (el.tagName === 'SELECT') {
-          const opt = Array.from(el.options).find(o =>
-            o.text.toLowerCase().includes(value.toLowerCase()) || o.value.toLowerCase() === value.toLowerCase()
-          );
-          if (opt) { el.value = opt.value; el.dispatchEvent(new Event('change', { bubbles: true })); filled++; results.push({ id, ok: true }); }
-          else results.push({ id, ok: false, reason: 'option not found' });
+          const want = norm(chosen);
+          const opt = Array.from(el.options).find(o => norm(o.value) === want || norm(o.text) === want)
+                   || Array.from(el.options).find(o => norm(o.text).includes(want) || norm(o.value).includes(want));
+          if (opt) {
+            el.value = opt.value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            filled++; results.push({ id, ok: true });
+          } else results.push({ id, ok: false, reason: 'option not found' });
         } else if (el.type === 'radio') {
-          const match = Array.from(document.querySelectorAll(`input[name="${CSS.escape(el.name)}"]`)).find(r =>
-            (getLabelFor(r) || r.value).toLowerCase().includes(value.toLowerCase())
-          );
-          if (match) { match.checked = true; match.dispatchEvent(new Event('change', { bubbles: true })); filled++; results.push({ id, ok: true }); }
-          else results.push({ id, ok: false, reason: 'radio option not matched' });
+          const want = norm(chosen);
+          const match = Array.from(doc.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`))
+            .find(r => { const lbl = norm(getLabelFor(r) || r.value); return lbl === want || lbl.includes(want); });
+          if (match) {
+            match.checked = true; try { match.click(); } catch {}
+            match.dispatchEvent(new Event('change', { bubbles: true }));
+            filled++; results.push({ id, ok: true });
+          } else results.push({ id, ok: false, reason: 'radio option not matched' });
         } else if (el.type === 'checkbox') {
-          el.checked = /yes|true|1|agree|consent/i.test(value);
-          el.dispatchEvent(new Event('change', { bubbles: true })); filled++; results.push({ id, ok: true });
+          const wantTrue = /^(yes|true|1|agree|consent|i agree|checked)$/i.test(String(chosen).trim());
+          el.checked = wantTrue;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          filled++; results.push({ id, ok: true });
         } else {
-          const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-          const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-          if (setter) setter.call(el, value); else el.value = value;
+          const isTA = isTypeahead(el);
+          el.focus();
+          setNativeValue(el, String(chosen));
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
+          if (isTA) {
+            // Try to commit a suggestion from an open listbox
+            try {
+              el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+              setTimeout(() => {
+                try {
+                  const want = norm(chosen);
+                  const lbId = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
+                  const root = (lbId && doc.getElementById(lbId)) || doc;
+                  const opts = root.querySelectorAll('[role="option"], li[role="option"], [class*="option"]');
+                  let pick = null;
+                  opts.forEach(o => { if (pick) return; if (norm(safeText(o)).includes(want)) pick = o; });
+                  if (pick) pick.click();
+                  else el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+                } catch {}
+              }, 250);
+            } catch {}
+          }
           el.dispatchEvent(new Event('blur', { bubbles: true }));
           filled++; results.push({ id, ok: true });
         }
