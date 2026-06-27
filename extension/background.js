@@ -287,7 +287,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: scan.ats || 'unknown', url: scan.url || '',
             });
-            const newValues = (fill2.values || []).filter(v => v.value && v.value.trim());
+            const newValues = (fill2.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
             if (newValues.length > 0) {
               const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: newValues });
               secondPassFilled = fr2?.filled || 0;
