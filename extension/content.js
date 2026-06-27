@@ -48,19 +48,23 @@
     let nodes;
     try { nodes = Array.from(document.querySelectorAll(selector)); } catch { return ''; }
     if (!nodes.length) return '';
-    // Drop nodes nested inside another match
+    // Drop nodes nested inside another match so we don't duplicate text
     const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
     const seen = new Set();
     const parts = [];
+    let total = 0;
     for (const n of top) {
       const t = safeText(n).trim();
       if (!t) continue;
-      const key = t.slice(0, 80);
+      const key = t.slice(0, 120).toLowerCase().replace(/\s+/g, ' ');
       if (seen.has(key)) continue;
       seen.add(key);
       parts.push(t);
+      total += t.length + 2;
+      if (total >= MAX_JD_CHARS) break;
     }
-    return parts.join('\n\n').trim();
+    const joined = parts.join('\n\n').trim();
+    return joined.length > MAX_JD_CHARS ? joined.slice(0, MAX_JD_CHARS) : joined;
   }
 
   // Click "See more / Show more / Read more" controls so the full JD is in the DOM
