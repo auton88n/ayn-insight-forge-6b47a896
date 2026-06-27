@@ -427,7 +427,24 @@ function toggleScoring() {
 window.toggleScoring = toggleScoring;
 
 // ── Score THIS job (any job page, panel result) ─────────────────
-const SJ = { jobTitle: '', company: '', jobText: '' };
+const SJ = { jobTitle: '', company: '', jobText: '', jobUrl: '' };
+
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function normalizeUrlForHash(raw) {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const path = u.pathname.replace(/\/+$/, '');
+    const keep = ['jk','currentJobId','gh_jid','lever-source','jobId','job_id'];
+    const qs = [];
+    u.searchParams.forEach((v, k) => { if (keep.includes(k)) qs.push(`${k}=${v}`); });
+    qs.sort();
+    return `${host}${path}${qs.length ? '?' + qs.join('&') : ''}`;
+  } catch { return (raw || '').slice(0, 400); }
+}
 function detectForScore() {
   $('score-job-banner').classList.add('hidden');
   $('score-no-job').classList.add('hidden');
@@ -442,6 +459,7 @@ function detectForScore() {
       SJ.jobTitle = r.title || '';
       SJ.company = r.company || extractCompanyFromTitle(r.title || '');
       SJ.jobText = r.text;
+      SJ.jobUrl = tab.url || '';
       $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
       $('score-job-company').textContent = SJ.company || tab.url;
       $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
@@ -462,7 +480,22 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
   if (!SJ.jobText) { err.textContent = 'Open a job posting first, then click Score This Job.'; err.classList.remove('hidden'); return; }
   btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Scoring...';
   try {
-    const d = await bgFunc('ext_job_score', { jobTitle: SJ.jobTitle, company: SJ.company, jobSnippet: SJ.jobText.slice(0, 2000) });
+    // Phase 2: ingest full JD on the backend, then score against it.
+    const urlHash = await sha256Hex(normalizeUrlForHash(SJ.jobUrl || ''));
+    try {
+      await bgFunc('ext_job_ingest', {
+        url: SJ.jobUrl, urlHash,
+        title: SJ.jobTitle, company: SJ.company,
+        fullJd: SJ.jobText.slice(0, 20000),
+      });
+    } catch (_) { /* non-fatal — score handler will inline-ingest */ }
+
+    const d = await bgFunc('ext_job_score', {
+      urlHash, url: SJ.jobUrl,
+      jobTitle: SJ.jobTitle, company: SJ.company,
+      fullJd: SJ.jobText.slice(0, 20000),
+      jobSnippet: SJ.jobText.slice(0, 2000), // card-badge fallback
+    });
     const score = d.score || 0;
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
@@ -473,13 +506,14 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
-    // Show missing keywords if returned
+    // Missing skills (prefer Phase-2 field, fall back to legacy keywords)
+    const missing = (d.missingSkills && d.missingSkills.length) ? d.missingSkills : (d.missingKeywords || []);
     let mkWrap = $('score-missing-kw');
     if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(mkWrap); }
     mkWrap.innerHTML = '';
-    if (d.missingKeywords && d.missingKeywords.length) {
-      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your resume</div>';
-      d.missingKeywords.forEach(kw => {
+    if (missing.length) {
+      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your profile</div>';
+      missing.forEach(kw => {
         const chip = document.createElement('span');
         chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;margin:2px;';
         chip.textContent = kw;
@@ -504,6 +538,30 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; vWrap.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:12px;color:#374151;line-height:1.45;'; $('score-result').appendChild(vWrap); }
     vWrap.textContent = d.verdict || '';
     vWrap.style.display = d.verdict ? 'block' : 'none';
+
+    // Phase 2: seniority fit + scoring source badge
+    let metaWrap = $('score-meta-row');
+    if (!metaWrap) { metaWrap = document.createElement('div'); metaWrap.id = 'score-meta-row'; metaWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;'; $('score-result').appendChild(metaWrap); }
+    metaWrap.innerHTML = '';
+    const senFit = d.seniorityFit && d.seniorityFit !== 'unknown' ? d.seniorityFit : '';
+    if (senFit) {
+      const sLabel = { under:'Under-leveled', match:'Seniority match', over:'Over-qualified' }[senFit] || senFit;
+      const sBg = { under:'#fef3c7', match:'#dcfce7', over:'#e0e7ff' }[senFit] || '#f1f5f9';
+      const sFg = { under:'#92400e', match:'#166534', over:'#3730a3' }[senFit] || '#334155';
+      const b = document.createElement('span');
+      b.style.cssText = `display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:${sBg};color:${sFg};`;
+      b.textContent = sLabel;
+      metaWrap.appendChild(b);
+    }
+    if (d.source) {
+      const sourceLabel = { full:'Scored vs. full JD', snippet:'Scored vs. snippet only', approximate_keyword_overlap:'Approximate (AI offline)' }[d.source] || d.source;
+      const sourceFg = d.source === 'full' ? '#0f766e' : d.source === 'snippet' ? '#92400e' : '#7c2d12';
+      const sourceBg = d.source === 'full' ? '#ccfbf1' : d.source === 'snippet' ? '#fef3c7' : '#fee2e2';
+      const sb = document.createElement('span');
+      sb.style.cssText = `display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:${sourceBg};color:${sourceFg};`;
+      sb.textContent = sourceLabel;
+      metaWrap.appendChild(sb);
+    }
 
     // v1.4.0: Must-have / Nice-to-have requirements breakdown
     const reqEl = $('score-requirements');
