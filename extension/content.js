@@ -11,7 +11,8 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.4.3';
+  const AYN_BUILD = '1.4.4';
+  const MAX_JD_CHARS = 20000;
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
   function sendQuiet(message) {
@@ -47,19 +48,23 @@
     let nodes;
     try { nodes = Array.from(document.querySelectorAll(selector)); } catch { return ''; }
     if (!nodes.length) return '';
-    // Drop nodes nested inside another match
+    // Drop nodes nested inside another match so we don't duplicate text
     const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
     const seen = new Set();
     const parts = [];
+    let total = 0;
     for (const n of top) {
       const t = safeText(n).trim();
       if (!t) continue;
-      const key = t.slice(0, 80);
+      const key = t.slice(0, 120).toLowerCase().replace(/\s+/g, ' ');
       if (seen.has(key)) continue;
       seen.add(key);
       parts.push(t);
+      total += t.length + 2;
+      if (total >= MAX_JD_CHARS) break;
     }
-    return parts.join('\n\n').trim();
+    const joined = parts.join('\n\n').trim();
+    return joined.length > MAX_JD_CHARS ? joined.slice(0, MAX_JD_CHARS) : joined;
   }
 
   // Click "See more / Show more / Read more" controls so the full JD is in the DOM
@@ -70,19 +75,22 @@
       const key = location.href;
       if (_expandedFor.has(key)) return 0;
       _expandedFor.add(key);
-      const POS_RE = /^\s*(see|show|read|view)\s+(more|full|all|details?|description)\b/i;
-      const NEG_RE = /\b(apply|submit|sign\s*in|sign\s*up|save|follow|message|connect|easy\s*apply|share|report)\b/i;
+      // Click only descriptive "show more" controls
+      const POS_RE = /^\s*(\+\s*)?(see|show|read|view)\s+(more|full|all|details?|description|the\s+(full|complete))\b/i;
+      // Hard-skip anything destructive, navigational, or action-y
+      const NEG_RE = /\b(apply|submit|sign\s*in|sign\s*up|log\s*in|register|save|saved|follow|message|connect|easy\s*apply|share|report|comment|review|reviews|rating|see\s+all\s+jobs|see\s+more\s+jobs|view\s+all\s+jobs|view\s+more\s+jobs|similar\s+jobs|next|previous|cancel|close|delete|remove|upload|attach|edit)\b/i;
       const ctrls = Array.from(document.querySelectorAll(
-        'button, a[role="button"], [role="button"], .show-more-less-html__button, [aria-label*="more" i]'
+        'button, a[role="button"], [role="button"], .show-more-less-html__button, [aria-label*="more" i], [aria-expanded="false"]'
       ));
       let clicked = 0;
       for (const b of ctrls) {
+        if (b.disabled) continue;
         const txt = (safeText(b) || b.getAttribute('aria-label') || '').trim();
         if (!txt || txt.length > 40) continue;
         if (NEG_RE.test(txt)) continue;
-        if (!POS_RE.test(txt) && !/^(more|show more)$/i.test(txt)) continue;
+        if (!POS_RE.test(txt) && !/^(more|show more|read more|see more|view more)$/i.test(txt)) continue;
         try { b.click(); clicked++; } catch {}
-        if (clicked >= 4) break;
+        if (clicked >= 3) break;
       }
       return clicked;
     } catch { return 0; }
@@ -90,6 +98,8 @@
 
   function extractJobText() {
     try {
+    // Best-effort: open any truncated description before we read.
+    try { expandSeeMore(); } catch {}
     const url = window.location.href;
     const docTitle = cleanTitle(document.title);
 
@@ -171,7 +181,8 @@
       const len = safeLen(el);
       if (len > bestLen) { bestLen = len; best = el; }
     });
-    return { text: safeText(best).trim(), title: docTitle, company: '' };
+    const fallbackText = safeText(best).trim();
+    return { text: fallbackText.length > MAX_JD_CHARS ? fallbackText.slice(0, MAX_JD_CHARS) : fallbackText, title: docTitle, company: '' };
     } catch (err) {
       try { console.warn('[AYN] extractJobText failed:', err?.message); } catch {}
       return { text: '', title: cleanTitle(document.title || ''), company: '' };
@@ -854,16 +865,22 @@
     }
   }
 
-  // First-load detection
-  setTimeout(() => detectAndReport(0), 1200);
+  // First-load detection — kick off immediately; detectAndReport retries
+  // with backoff (up to 5x) until the JD actually renders.
+  detectAndReport(0);
 
   // SPA navigation hooks — patch history + listen popstate so we re-detect
   // when LinkedIn / Indeed / Workday change job without a full reload.
+  let _routeDebounce = null;
   function onRouteChange() {
-    _lastDetectedUrl = ''; // reset so the new URL gets a fresh report
-    _expandedFor.clear(); // allow re-expanding "See more" on the new page
-    submitNotified = false;
-    setTimeout(() => detectAndReport(0), 600);
+    if (_routeDebounce) { clearTimeout(_routeDebounce); }
+    _routeDebounce = setTimeout(() => {
+      _routeDebounce = null;
+      _lastDetectedUrl = '';   // new URL gets a fresh report
+      _expandedFor.clear();    // allow re-expanding "See more" on the new page
+      submitNotified = false;
+      detectAndReport(0);
+    }, 250);
   }
   try {
     const _push = history.pushState;
