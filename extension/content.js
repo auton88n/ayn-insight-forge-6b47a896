@@ -570,45 +570,47 @@
     return { title, company, snippet: snippet.slice(0, 500) };
   }
 
-  async function scoreCard(card) {
+  function scoreCard(card) {
     const data = extractCardData(card);
     if (!data || !data.title) return;
 
     const key = `${data.title}|${data.company}`;
     if (scoreCache.has(key)) {
       const cached = scoreCache.get(key);
-      injectScoreBadge(card, cached.score, cached.matchLabel, cached.reasons, cached.salaryEstimate);
+      injectScoreBadge(card, cached.score, cached.matchLabel, cached.reasons);
       return;
     }
 
-    // Show loading badge
-    const loadBadge = document.createElement('div');
-    loadBadge.className = AYN_BADGE_CLASS;
-    loadBadge.style.cssText = `
-      display: inline-flex; align-items: center; gap: 5px;
-      padding: 4px 10px; border-radius: 999px;
-      background: #f8f8f8; border: 1px solid #e5e7eb;
-      font-size: 11px; color: #888; margin: 4px 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    `;
-    loadBadge.innerHTML = '<span style="font-size:9px;font-weight:700;letter-spacing:.02em">AYN</span> <span>...</span>';
-    const sel = getJobCardSelectors();
-    const target = sel ? (card.querySelector(sel.inject) || card) : card;
-    target.insertAdjacentElement('afterend', loadBadge);
+    if (userCardSkills.length === 0 && userCardRoleTerms.length === 0) return;
 
-    // Ask sidepanel to score (it has auth)
-    chrome.runtime.sendMessage({
-      type: 'SCORE_JOB_CARD',
-      jobTitle: data.title,
-      company: data.company,
-      jobSnippet: data.snippet,
-      key,
-    }, response => {
-      loadBadge.remove();
-      if (chrome.runtime.lastError || !response?.score) return;
-      scoreCache.set(key, response);
-      injectScoreBadge(card, response.score, response.matchLabel, response.reasons, response.salaryEstimate);
-    });
+    const title = data.title.toLowerCase();
+    const text = (data.title + ' ' + data.company + ' ' + data.snippet).toLowerCase();
+
+    let titleHits = 0;
+    const seenRole = new Set();
+    for (const term of userCardRoleTerms) {
+      if (!term || seenRole.has(term)) continue;
+      if (title.includes(term)) { titleHits++; seenRole.add(term); }
+    }
+
+    const matched = [];
+    const seenSkill = new Set();
+    for (const skill of userCardSkills) {
+      if (!skill || seenSkill.has(skill)) continue;
+      if (text.includes(skill)) { seenSkill.add(skill); if (matched.length < 4) matched.push(skill); }
+    }
+    const skillHits = seenSkill.size;
+
+    let score = Math.round(2 + Math.min(titleHits * 2.5, 5) + Math.min(skillHits * 0.8, 3));
+    score = Math.max(1, Math.min(10, score));
+    const label = score >= 8 ? 'Strong' : score >= 6 ? 'Good' : score >= 4 ? 'Fair' : 'Low';
+    const reasons = matched.length
+      ? ['Matches: ' + matched.join(', '), 'Open job for full AI score']
+      : ['Quick keyword match', 'Open job for full AI score'];
+
+    const cached = { score, matchLabel: label, reasons };
+    scoreCache.set(key, cached);
+    injectScoreBadge(card, score, label, reasons);
   }
 
   function scoreSiblingCards() {
