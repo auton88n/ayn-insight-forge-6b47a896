@@ -427,7 +427,24 @@ function toggleScoring() {
 window.toggleScoring = toggleScoring;
 
 // ── Score THIS job (any job page, panel result) ─────────────────
-const SJ = { jobTitle: '', company: '', jobText: '' };
+const SJ = { jobTitle: '', company: '', jobText: '', jobUrl: '' };
+
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function normalizeUrlForHash(raw) {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const path = u.pathname.replace(/\/+$/, '');
+    const keep = ['jk','currentJobId','gh_jid','lever-source','jobId','job_id'];
+    const qs = [];
+    u.searchParams.forEach((v, k) => { if (keep.includes(k)) qs.push(`${k}=${v}`); });
+    qs.sort();
+    return `${host}${path}${qs.length ? '?' + qs.join('&') : ''}`;
+  } catch { return (raw || '').slice(0, 400); }
+}
 function detectForScore() {
   $('score-job-banner').classList.add('hidden');
   $('score-no-job').classList.add('hidden');
