@@ -126,6 +126,25 @@
       // fall through to legacy/generic if pane hasn't hydrated yet
     }
 
+    if (/indeed\.com/i.test(url)) {
+      const inSel = {
+        desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]',
+        title: '[class*="jobsearch-JobInfoHeader-title"], h1',
+        company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]',
+      };
+      const inDesc = combinedText(inSel.desc);
+      if (inDesc && inDesc.length >= 50) {
+        const titleEl = document.querySelector(inSel.title);
+        const companyEl = document.querySelector(inSel.company);
+        return {
+          text: inDesc,
+          title: cleanTitle(safeText(titleEl).trim() || docTitle),
+          company: safeText(companyEl).trim(),
+        };
+      }
+      // fall through if the detail pane has not hydrated yet
+    }
+
     const map = {
       // ca.indeed BEFORE indeed so the more-specific pattern wins
       'ca.indeed.com/viewjob': {
