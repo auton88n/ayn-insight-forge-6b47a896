@@ -539,6 +539,30 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     vWrap.textContent = d.verdict || '';
     vWrap.style.display = d.verdict ? 'block' : 'none';
 
+    // Phase 2: seniority fit + scoring source badge
+    let metaWrap = $('score-meta-row');
+    if (!metaWrap) { metaWrap = document.createElement('div'); metaWrap.id = 'score-meta-row'; metaWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;'; $('score-result').appendChild(metaWrap); }
+    metaWrap.innerHTML = '';
+    const senFit = d.seniorityFit && d.seniorityFit !== 'unknown' ? d.seniorityFit : '';
+    if (senFit) {
+      const sLabel = { under:'Under-leveled', match:'Seniority match', over:'Over-qualified' }[senFit] || senFit;
+      const sBg = { under:'#fef3c7', match:'#dcfce7', over:'#e0e7ff' }[senFit] || '#f1f5f9';
+      const sFg = { under:'#92400e', match:'#166534', over:'#3730a3' }[senFit] || '#334155';
+      const b = document.createElement('span');
+      b.style.cssText = `display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:${sBg};color:${sFg};`;
+      b.textContent = sLabel;
+      metaWrap.appendChild(b);
+    }
+    if (d.source) {
+      const sourceLabel = { full:'Scored vs. full JD', snippet:'Scored vs. snippet only', approximate_keyword_overlap:'Approximate (AI offline)' }[d.source] || d.source;
+      const sourceFg = d.source === 'full' ? '#0f766e' : d.source === 'snippet' ? '#92400e' : '#7c2d12';
+      const sourceBg = d.source === 'full' ? '#ccfbf1' : d.source === 'snippet' ? '#fef3c7' : '#fee2e2';
+      const sb = document.createElement('span');
+      sb.style.cssText = `display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:${sourceBg};color:${sourceFg};`;
+      sb.textContent = sourceLabel;
+      metaWrap.appendChild(sb);
+    }
+
     // v1.4.0: Must-have / Nice-to-have requirements breakdown
     const reqEl = $('score-requirements');
     if (reqEl) {
