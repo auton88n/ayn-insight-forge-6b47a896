@@ -1040,19 +1040,21 @@ Return ONLY this JSON (no code fences):
   "matchedSkills": ["<skill exactly as it appears in CANONICAL_SKILLS>"],
   "missingSkills": ["<JD skill not in CANONICAL_SKILLS>"],
   "seniorityFit": "under|match|over|unknown",
-  "salaryEstimate": "<e.g. $90K-$120K CAD, follow JD currency>",
+  "salaryEstimate": "<e.g. $90K to $120K CAD, follow JD currency>",
   "verdict": "<one sentence>"
 }
 
 HONESTY RULE (HARD): Only put a skill in matchedSkills if it appears in CANONICAL_SKILLS (case-insensitive). Anything in JD_SKILLS that is NOT in CANONICAL_SKILLS goes to missingSkills. Never fabricate a matched skill the candidate doesn't have. If unsure, mark it missing.
 
-CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format e.g. "$90K-$120K CAD" or "£55K-£70K".
+CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format ranges with the word "to": "$90K to $120K CAD" or "£55K to £70K". Never use dashes for ranges.
+
+VOICE: write reasons and verdict the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.
 
 SCORING RUBRIC:
-- 9-10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
-- 7-8 Good: meets most must-haves, 1-2 coachable gaps.
-- 4-6 Fair: half the must-haves, real gaps in seniority or core tech.
-- 1-3 Poor: missing the core requirement.
+- 9 to 10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
+- 7 to 8 Good: meets most must-haves, 1 to 2 coachable gaps.
+- 4 to 6 Fair: half the must-haves, real gaps in seniority or core tech.
+- 1 to 3 Poor: missing the core requirement.
 
 SENIORITY_FIT: compare canonical.derived.seniority to JOB_PARSED.seniority. "under"/"match"/"over"/"unknown".
 
