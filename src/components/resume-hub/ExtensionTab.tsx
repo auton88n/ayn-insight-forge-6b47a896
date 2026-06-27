@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Chrome, Download, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { resumeHubApi } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
-import CanadianProfileForm from "./CanadianProfileForm";
 import manifest from "../../../extension/manifest.json";
 
 
@@ -20,19 +19,15 @@ interface TokenRow {
   created_at: string;
 }
 
-export default function ExtensionTab({ userId }: Props) {
+export default function ExtensionTab({ userId: _userId }: Props) {
   const { toast } = useToast();
-  const [primaryResume, setPrimaryResume] = useState<Record<string, unknown> | null>(null);
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
 
   useEffect(() => {
-    supabase.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle().then(({ data }) => {
-      if (data?.content) setPrimaryResume(data.content as Record<string, unknown>);
-    });
     void loadTokens();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, []);
 
   async function loadTokens() {
     setLoadingTokens(true);
