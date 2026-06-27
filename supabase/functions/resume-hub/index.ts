@@ -1739,10 +1739,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     const userId = user.id;
     const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // ext_job_score: see EXT_ACTIONS handler above (single source of truth).
 
-
-    // ext_suggest_roles: see EXT_ACTIONS handler above (single source of truth).
 
 
     if (action === "ext_find_contacts") {
