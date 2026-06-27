@@ -863,7 +863,7 @@ GENERAL:
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema.",
+          system: `Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema. Voice: write bullets the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
           user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text }).slice(0, 45000),
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
