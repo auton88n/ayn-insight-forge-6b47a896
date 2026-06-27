@@ -132,7 +132,10 @@ function syncRemoteResume(resp) {
     lines.push('\nEDUCATION');
     c.education.forEach(e => lines.push(`${e.degree || ''} | ${e.school || ''}  ${e.end || ''}`));
   }
-  if (Array.isArray(c.skills) && c.skills.length) lines.push('\nSKILLS\n' + c.skills.join(', '));
+  if (Array.isArray(c.skills) && c.skills.length) {
+    lines.push('\nSKILLS\n' + c.skills.join(', '));
+    window.__aynResumeSkills = c.skills.slice();
+  }
   const text = lines.join('\n').trim();
   if (text) chrome.storage.local.set({ savedResume: text });
 }
