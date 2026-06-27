@@ -6,6 +6,8 @@ import { Chrome, Download, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { resumeHubApi } from "@/lib/resumeHub";
 import { useToast } from "@/hooks/use-toast";
 import CanadianProfileForm from "./CanadianProfileForm";
+import manifest from "../../../extension/manifest.json";
+
 
 interface Props { userId: string }
 
