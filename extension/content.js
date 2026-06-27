@@ -1262,6 +1262,7 @@
       _routeDebounce = null;
       _lastDetectedUrl = '';   // new URL gets a fresh report
       _expandedFor.clear();    // allow re-expanding "See more" on the new page
+      _lastFormReportKey = '';
       submitNotified = false;
       detectAndReport(0);
     }, 120);
