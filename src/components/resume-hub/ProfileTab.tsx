@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-re
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import type { ResumeContent } from "@/lib/resumeHub";
-import CanadianProfileForm from "./CanadianProfileForm";
+import CanadianProfileForm, { type CanadianProfileFormHandle } from "./CanadianProfileForm";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
 type Skill = { name: string; years?: number; last_used?: string; level?: string };
