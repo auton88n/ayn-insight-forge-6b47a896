@@ -812,6 +812,8 @@
     }
 
     if (message.type === 'START_CARD_SCORING') {
+      userCardSkills = Array.isArray(message.skills) ? message.skills : [];
+      userCardRoleTerms = Array.isArray(message.roleTerms) ? message.roleTerms : [];
       startCardScoring();
       sendResponse({ ok: true });
       return true;
