@@ -471,7 +471,7 @@
     const url = window.location.href;
     if (url.includes('linkedin.com')) {
       return {
-        cards: '.job-card-container, .jobs-search-results__list-item, [class*="job-card"]',
+        cards: '[data-occludable-job-id], [data-job-id], .job-card-container, .jobs-search-results__list-item, [class*="job-card"]',
         title: '.job-card-list__title, .job-card-container__link, h3',
         company: '.job-card-container__company-name, .job-card-list__company-name',
         snippet: '.job-card-container__job-insight, .job-card-list__footer-wrapper',
