@@ -91,7 +91,8 @@ async function callAI(opts: {
       // 429 / 5xx = transient — backoff then retry same model.
       if (r.status === 429 || (r.status >= 500 && r.status < 600)) {
         lastErr = `AI ${r.status}`;
-        await new Promise(res => setTimeout(res, 500 * Math.pow(2, attempt)));
+        // 1s, 2s, 4s
+        await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt)));
         continue;
       }
       // 4xx other = terminal, stop everything.
