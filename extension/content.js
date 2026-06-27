@@ -75,19 +75,22 @@
       const key = location.href;
       if (_expandedFor.has(key)) return 0;
       _expandedFor.add(key);
-      const POS_RE = /^\s*(see|show|read|view)\s+(more|full|all|details?|description)\b/i;
-      const NEG_RE = /\b(apply|submit|sign\s*in|sign\s*up|save|follow|message|connect|easy\s*apply|share|report)\b/i;
+      // Click only descriptive "show more" controls
+      const POS_RE = /^\s*(\+\s*)?(see|show|read|view)\s+(more|full|all|details?|description|the\s+(full|complete))\b/i;
+      // Hard-skip anything destructive, navigational, or action-y
+      const NEG_RE = /\b(apply|submit|sign\s*in|sign\s*up|log\s*in|register|save|saved|follow|message|connect|easy\s*apply|share|report|comment|review|reviews|rating|see\s+all\s+jobs|see\s+more\s+jobs|view\s+all\s+jobs|view\s+more\s+jobs|similar\s+jobs|next|previous|cancel|close|delete|remove|upload|attach|edit)\b/i;
       const ctrls = Array.from(document.querySelectorAll(
-        'button, a[role="button"], [role="button"], .show-more-less-html__button, [aria-label*="more" i]'
+        'button, a[role="button"], [role="button"], .show-more-less-html__button, [aria-label*="more" i], [aria-expanded="false"]'
       ));
       let clicked = 0;
       for (const b of ctrls) {
+        if (b.disabled) continue;
         const txt = (safeText(b) || b.getAttribute('aria-label') || '').trim();
         if (!txt || txt.length > 40) continue;
         if (NEG_RE.test(txt)) continue;
-        if (!POS_RE.test(txt) && !/^(more|show more)$/i.test(txt)) continue;
+        if (!POS_RE.test(txt) && !/^(more|show more|read more|see more|view more)$/i.test(txt)) continue;
         try { b.click(); clicked++; } catch {}
-        if (clicked >= 4) break;
+        if (clicked >= 3) break;
       }
       return clicked;
     } catch { return 0; }
