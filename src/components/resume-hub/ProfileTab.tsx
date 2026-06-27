@@ -146,11 +146,17 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_save", canonical: profile } });
-    setSaving(false);
-    if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
-    setHasProfile(true);
-    toast({ title: "Profile saved", description: "Used by Autofill, Score, Tailor, and Cover Letter." });
+    try {
+      const { error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_save", canonical: profile } });
+      if (error) throw new Error(error.message);
+      await canadianRef.current?.save();
+      setHasProfile(true);
+      toast({ title: "Profile saved", description: "Career profile and application details updated." });
+    } catch (e) {
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const extract = async () => {
