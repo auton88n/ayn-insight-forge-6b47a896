@@ -629,13 +629,13 @@
 </div>
 
 <div class="tabs hidden" id="tabs">
-  <button class="tab active" id="tab-fill"    onclick="switchTab('fill')"><i class="ti ti-bolt"></i>Fill</button>
-  <button class="tab"        id="tab-jobs"    onclick="switchTab('jobs')"><i class="ti ti-target-arrow"></i>Score</button>
-  <button class="tab"        id="tab-ask"     onclick="switchTab('ask')"><i class="ti ti-sparkles"></i>Ask AYN</button>
-  <button class="tab"        id="tab-contact" onclick="switchTab('contact')"><i class="ti ti-users"></i>Contacts</button>
-  <button class="tab"        id="tab-cover"   onclick="switchTab('cover')"><i class="ti ti-mail"></i>Cover</button>
-  <button class="tab"        id="tab-tracker" onclick="switchTab('tracker')"><i class="ti ti-checkbox"></i>Tracker</button>
-  <button class="tab"        id="tab-tailor"  onclick="switchTab('tailor')"><i class="ti ti-wand"></i>Resume</button>
+  <button class="tab active" id="tab-fill"    data-tab="fill"><i class="ti ti-bolt"></i>Fill</button>
+  <button class="tab"        id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
+  <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask AYN</button>
+  <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
+  <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
+  <button class="tab"        id="tab-tracker" data-tab="tracker"><i class="ti ti-checkbox"></i>Tracker</button>
+  <button class="tab"        id="tab-tailor"  data-tab="tailor"><i class="ti ti-wand"></i>Resume</button>
 </div>
 
 <div class="stepper hidden" id="stepper">
@@ -779,7 +779,7 @@
     <div class="divider"></div>
 
     <div class="sl">Browse smarter</div>
-    <div class="score-toggle" onclick="toggleScoring()">
+    <div class="score-toggle" id="score-toggle">
       <div class="score-toggle-info">
         <div class="score-toggle-icon"><i class="ti ti-eye"></i></div>
         <div class="score-toggle-text">
@@ -873,8 +873,8 @@
       <div class="note" id="subject-line" style="font-weight:700;color:var(--ayn-ink);margin-bottom:8px;font-size:13px"></div>
       <div class="outreach-box" id="outreach-text"></div>
       <div class="btn-row">
-        <button class="btn btn-outline" onclick="window.copySubject()"><i class="ti ti-copy"></i>Copy subject</button>
-        <button class="btn btn-primary" onclick="window.copyOutreach()"><i class="ti ti-copy"></i>Copy message</button>
+        <button class="btn btn-outline" id="copy-subject-btn"><i class="ti ti-copy"></i>Copy subject</button>
+        <button class="btn btn-primary" id="copy-outreach-btn"><i class="ti ti-copy"></i>Copy message</button>
       </div>
     </div>
   </div>

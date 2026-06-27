@@ -1201,3 +1201,11 @@ $('ask-input')?.addEventListener('input', (e) => {
   e.target.style.height = '38px';
   e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px';
 });
+
+// Wire inline-handler replacements (MV3 CSP blocks inline on* attributes)
+document.querySelectorAll('.tabs [data-tab]').forEach((btn) => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+$('score-toggle')?.addEventListener('click', () => toggleScoring());
+$('copy-subject-btn')?.addEventListener('click', () => window.copySubject());
+$('copy-outreach-btn')?.addEventListener('click', () => window.copyOutreach());
