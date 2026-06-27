@@ -262,7 +262,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           url: scan.url || '',
         });
 
-        const values = (fillData.values || []).filter(v => v.value && v.value.trim());
+        const values = (fillData.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
