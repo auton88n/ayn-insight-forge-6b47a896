@@ -506,13 +506,14 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
-    // Show missing keywords if returned
+    // Missing skills (prefer Phase-2 field, fall back to legacy keywords)
+    const missing = (d.missingSkills && d.missingSkills.length) ? d.missingSkills : (d.missingKeywords || []);
     let mkWrap = $('score-missing-kw');
     if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(mkWrap); }
     mkWrap.innerHTML = '';
-    if (d.missingKeywords && d.missingKeywords.length) {
-      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your resume</div>';
-      d.missingKeywords.forEach(kw => {
+    if (missing.length) {
+      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your profile</div>';
+      missing.forEach(kw => {
         const chip = document.createElement('span');
         chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;margin:2px;';
         chip.textContent = kw;
