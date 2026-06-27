@@ -120,7 +120,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
         .maybeSingle();
       if (error) throw error;
       if (data) {
-        setProfile({ ...EMPTY, ...(data as Partial<Canonical>) });
+        setProfile({ ...EMPTY, ...((data ?? {}) as unknown as Partial<Canonical>) });
         setHasProfile(true);
       } else {
         setProfile(EMPTY);
@@ -165,7 +165,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const save = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.from("user_profile_canonical").upsert({
+      const payload = {
         user_id: userId,
         skills: profile.skills ?? [],
         experiences: profile.experiences ?? [],
@@ -175,7 +175,8 @@ export default function ProfileTab({ userId }: { userId: string }) {
         preferences: profile.preferences ?? {},
         derived: profile.derived ?? {},
         updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id" });
+      } as unknown as never;
+      const { error } = await supabase.from("user_profile_canonical").upsert(payload, { onConflict: "user_id" });
       if (error) throw new Error(error.message);
       await canadianRef.current?.save();
       setHasProfile(true);
