@@ -98,6 +98,8 @@
 
   function extractJobText() {
     try {
+    // Best-effort: open any truncated description before we read.
+    try { expandSeeMore(); } catch {}
     const url = window.location.href;
     const docTitle = cleanTitle(document.title);
 
