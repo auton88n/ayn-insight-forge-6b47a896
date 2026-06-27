@@ -24,7 +24,7 @@
  *   demographics (jsonb), default_answers (jsonb)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,7 +38,9 @@ interface ResumeBasics { name?: string; email?: string; phone?: string; title?: 
 interface ResumeWork { company?: string; title?: string; start?: string; end?: string; bullets?: string[] }
 interface ResumeEducation { school?: string; degree?: string; field?: string; end?: string }
 interface ParsedResume { basics?: ResumeBasics; work?: ResumeWork[]; education?: ResumeEducation[]; skills?: string[] }
-interface Props { userId: string; resumeData?: ParsedResume }
+interface Props { userId: string; resumeData?: ParsedResume; hideSaveButton?: boolean }
+
+export interface CanadianProfileFormHandle { save: () => Promise<void> }
 
 // ── Canadian provinces & territories ──────────────────────────────────────────
 const CA_PROVINCES = [
