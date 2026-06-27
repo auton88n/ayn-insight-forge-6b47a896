@@ -655,8 +655,35 @@ async function runScoreFlow({ auto = false } = {}) {
 }
 
 $('score-this-job-btn')?.addEventListener('click', () => {
-  // Manual click — bypass the once-per-session guard so users can force a re-score.
-  runScoreFlow({ auto: false });
+  // v1.5.1: manual click ALWAYS targets the currently visible job. Re-extract
+  // from the active tab first so SJ never holds stale data from a prior job,
+  // then force a fresh score (bypasses the once-per-session auto guard).
+  const err = $('err-score-job');
+  err.classList.add('hidden');
+  getTab(tab => {
+    if (!tab) {
+      err.textContent = 'Open a job posting first, then click Score This Job.';
+      err.classList.remove('hidden');
+      return;
+    }
+    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
+      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
+        err.textContent = 'Open a job posting first, then click Score This Job.';
+        err.classList.remove('hidden');
+        return;
+      }
+      SJ.jobTitle = r.title || '';
+      SJ.company = r.company || extractCompanyFromTitle(r.title || '');
+      SJ.jobText = r.text;
+      SJ.jobUrl = tab.url || '';
+      $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
+      $('score-job-company').textContent = SJ.company || tab.url;
+      $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
+      $('score-job-banner').classList.remove('hidden');
+      $('score-no-job').classList.add('hidden');
+      runScoreFlow({ auto: false });
+    });
+  });
 });
 
 
