@@ -303,7 +303,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const details = values.map(v => ({
           id: v.id,
           label: fields.find(f => f.id === v.id)?.label || v.id,
-          value: v.value,
+          value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
           confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
           reasoning: v.reasoning || '',
           source: v.source || '',
