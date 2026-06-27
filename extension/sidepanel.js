@@ -210,6 +210,20 @@ function bg(type, payload) {
 
 const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
+function applyFormReady(r) {
+  // PART B: instant UI reflection from a lightweight FORM_DETECTED probe
+  if (!r || !r.hasForm) return false;
+  $('fill-empty').classList.add('hidden');
+  $('fill-field-count').textContent = r.fieldCount || '?';
+  $('autofill-now-btn').classList.remove('hidden');
+  const dlWrap = $('fill-resume-dl-wrap');
+  if (dlWrap) {
+    if (r.hasResumeUpload) dlWrap.classList.remove('hidden');
+    else dlWrap.classList.add('hidden');
+  }
+  return true;
+}
+
 function detectForFill() {
   // Reset UI
   $('fill-empty').classList.add('hidden');
@@ -226,6 +240,11 @@ function detectForFill() {
       return;
     }
     F.jobUrl = tab.url || '';
+    // PART B: fast path — show ready state immediately from cached probe
+    chrome.runtime.sendMessage({ type: 'GET_FORM_DETECTED', tabId: tab.id }, cached => {
+      void chrome.runtime.lastError;
+      if (cached) applyFormReady(cached);
+    });
     chrome.tabs.sendMessage(tab.id, { type: 'DETECT_PAGE' }, r => {
       if (chrome.runtime.lastError || !r) {
         $('fill-empty-title').textContent = 'Page not scannable yet';
