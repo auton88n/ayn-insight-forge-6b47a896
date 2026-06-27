@@ -28,8 +28,12 @@ async function callFunction(action, body) {
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || data.error) {
-    if (r.status === 401) { await chrome.storage.local.remove('ayn_token'); }
-    throw new Error(data.error || `HTTP ${r.status}`);
+    // Do NOT wipe ayn_token on 401. A single spurious 401 must never
+    // destroy the stored session; sidepanel verifies via ext_bootstrap
+    // before deciding to sign out.
+    const err = new Error(data.error || `HTTP ${r.status}`);
+    if (r.status === 401) err.status = 401;
+    throw err;
   }
   return data;
 }
