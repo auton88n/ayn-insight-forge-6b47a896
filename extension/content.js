@@ -865,16 +865,22 @@
     }
   }
 
-  // First-load detection
-  setTimeout(() => detectAndReport(0), 1200);
+  // First-load detection — kick off immediately; detectAndReport retries
+  // with backoff (up to 5x) until the JD actually renders.
+  detectAndReport(0);
 
   // SPA navigation hooks — patch history + listen popstate so we re-detect
   // when LinkedIn / Indeed / Workday change job without a full reload.
+  let _routeDebounce = null;
   function onRouteChange() {
-    _lastDetectedUrl = ''; // reset so the new URL gets a fresh report
-    _expandedFor.clear(); // allow re-expanding "See more" on the new page
-    submitNotified = false;
-    setTimeout(() => detectAndReport(0), 600);
+    if (_routeDebounce) { clearTimeout(_routeDebounce); }
+    _routeDebounce = setTimeout(() => {
+      _routeDebounce = null;
+      _lastDetectedUrl = '';   // new URL gets a fresh report
+      _expandedFor.clear();    // allow re-expanding "See more" on the new page
+      submitNotified = false;
+      detectAndReport(0);
+    }, 250);
   }
   try {
     const _push = history.pushState;
