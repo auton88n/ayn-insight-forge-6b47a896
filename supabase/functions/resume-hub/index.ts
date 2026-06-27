@@ -790,8 +790,10 @@ WORK AUTHORIZATION & SPONSORSHIP (logic.work_auth, logic.sponsorship, and simila
 3. If the role is in Canada (or explicitly allows Canada / remote-Canada): "Are you authorized to work?" → Yes; "Do you require sponsorship?" → No.
 4. If the role is solely in a country where the user has no stated authorization (e.g. United States only, UK only) and canonical/profile does NOT confirm authorization there: "Are you authorized?" → choose the option meaning "No, I will require sponsorship". Never claim authorization the user does not have.
 5. If country is genuinely unclear, set skip:true on these questions.
-6. "Do you currently reside in one of these locations?" → Yes ONLY if the user's city (canonical/profile location, e.g. Toronto) is in the option list. Otherwise No, or skip if uncertain.
+6. "Do you currently reside in one of these locations?" → Yes if any option mentions the user's city, province, or country (e.g. an option listing "Ontario" or "Canada" when the user lives in Ontario). Otherwise No, or skip if uncertain.
 7. "Do you have a degree?" → Yes if mergedBasics.computed_education_level is set; match the closest option.
+8. COMBINED-COUNTRY phrasing: "Are you legally authorized to work in the U.S. or Canada?" (or "in Canada or the United States", or any "X or Y" list that includes Canada) → Yes, because the user has Canadian authorization. Same for any "authorized in one of these countries" list that includes Canada.
+9. SPONSORSHIP with multi-location roles: "Will you (now or in the future) require visa sponsorship?" → No if the role's eligible locations include Canada (e.g. an option list or JD that mentions Ontario, Toronto, Canada, or remote-Canada), because the user can work from Canada without sponsorship. Only answer Yes (or skip) if the role is solely in a country where the user lacks authorization.
 
 DEMOGRAPHIC / EEO / VOLUNTARY SELF-IDENTIFICATION (eeo.*: race, ethnicity, gender, gender identity, pronouns, sexual orientation, disability status, veteran status):
 - NEVER guess or infer from the name, resume, or anything else.
