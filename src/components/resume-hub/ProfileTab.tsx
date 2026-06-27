@@ -219,10 +219,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
             {extracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
             {hasProfile ? "Re-extract from resume" : "Draft from my resume"}
           </Button>
-          <Button size="sm" onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Save
-          </Button>
         </div>
       </Card>
 
