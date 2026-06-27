@@ -24,7 +24,7 @@
  *   demographics (jsonb), default_answers (jsonb)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,7 +38,9 @@ interface ResumeBasics { name?: string; email?: string; phone?: string; title?: 
 interface ResumeWork { company?: string; title?: string; start?: string; end?: string; bullets?: string[] }
 interface ResumeEducation { school?: string; degree?: string; field?: string; end?: string }
 interface ParsedResume { basics?: ResumeBasics; work?: ResumeWork[]; education?: ResumeEducation[]; skills?: string[] }
-interface Props { userId: string; resumeData?: ParsedResume }
+interface Props { userId: string; resumeData?: ParsedResume; hideSaveButton?: boolean }
+
+export interface CanadianProfileFormHandle { save: () => Promise<void> }
 
 // ── Canadian provinces & territories ──────────────────────────────────────────
 const CA_PROVINCES = [
@@ -232,7 +234,7 @@ function ProfileCompletion({ pct }: { pct: number }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function CanadianProfileForm({ userId, resumeData }: Props) {
+const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(function CanadianProfileForm({ userId, resumeData, hideSaveButton }, ref) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -496,11 +498,15 @@ export default function CanadianProfileForm({ userId, resumeData }: Props) {
       if (error) throw error;
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      toast({ title: "Profile saved", description: "Your autofill profile is up to date." });
+      if (!hideSaveButton) toast({ title: "Profile saved", description: "Your autofill profile is up to date." });
     } catch (e: unknown) {
-      toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      if (!hideSaveButton) toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      throw e instanceof Error ? e : new Error("Save failed");
     } finally { setBusy(false); }
   };
+
+  useImperativeHandle(ref, () => ({ save }), [save]);
+
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -906,23 +912,28 @@ export default function CanadianProfileForm({ userId, resumeData }: Props) {
       </Section>
 
       {/* ── Save button ── */}
-      <div className="pt-2 flex items-center gap-4">
-        <Button
-          size="lg"
-          onClick={save}
-          disabled={busy}
-          className="h-12 px-10 rounded-none font-mono uppercase tracking-wider hover:shadow-xl transition-all"
-        >
-          {busy
-            ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-            : saved
-            ? <><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" />Saved</>
-            : "Save Profile"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Your data is private and encrypted. Only you and AYN can access it.
-        </p>
-      </div>
+      {!hideSaveButton && (
+        <div className="pt-2 flex items-center gap-4">
+          <Button
+            size="lg"
+            onClick={save}
+            disabled={busy}
+            className="h-12 px-10 rounded-none font-mono uppercase tracking-wider hover:shadow-xl transition-all"
+          >
+            {busy
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+              : saved
+              ? <><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" />Saved</>
+              : "Save Profile"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Your data is private and encrypted. Only you and AYN can access it.
+          </p>
+        </div>
+      )}
     </div>
   );
-}
+});
+
+export default CanadianProfileForm;
+

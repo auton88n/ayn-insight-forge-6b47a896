@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-re
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import type { ResumeContent } from "@/lib/resumeHub";
-import CanadianProfileForm from "./CanadianProfileForm";
+import CanadianProfileForm, { type CanadianProfileFormHandle } from "./CanadianProfileForm";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
 type Skill = { name: string; years?: number; last_used?: string; level?: string };
@@ -69,6 +69,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [primaryResumeContent, setPrimaryResumeContent] = useState<ResumeContent | null>(null);
   const [parsedResume, setParsedResume] = useState<ResumeContent | null>(null);
   const [uploading, setUploading] = useState(false);
+  const canadianRef = useRef<CanadianProfileFormHandle>(null);
 
   const loadPrimary = useCallback(async () => {
     const { data } = await supabase
@@ -88,11 +89,24 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_get" } });
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_get" } });
+        if (error) { lastErr = error; }
+        else if (!data) { lastErr = new Error("Empty response"); }
+        else {
+          setProfile((data?.canonical as Canonical) || EMPTY);
+          setHasProfile(!!data?.hasProfile);
+          setLoading(false);
+          return;
+        }
+      } catch (e) { lastErr = e; }
+      if (attempt < 2) await new Promise(r => setTimeout(r, 700));
+    }
     setLoading(false);
-    if (error) { toast({ title: "Couldn't load profile", description: error.message, variant: "destructive" }); return; }
-    setProfile((data?.canonical as Canonical) || EMPTY);
-    setHasProfile(!!data?.hasProfile);
+    const msg = lastErr instanceof Error ? lastErr.message : "Network error";
+    toast({ title: "Couldn't load profile", description: msg, variant: "destructive" });
   }, [toast]);
 
   useEffect(() => { load(); loadPrimary(); }, [load, loadPrimary]);
@@ -132,11 +146,17 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_save", canonical: profile } });
-    setSaving(false);
-    if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
-    setHasProfile(true);
-    toast({ title: "Profile saved", description: "Used by Autofill, Score, Tailor, and Cover Letter." });
+    try {
+      const { error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_save", canonical: profile } });
+      if (error) throw new Error(error.message);
+      await canadianRef.current?.save();
+      setHasProfile(true);
+      toast({ title: "Profile saved", description: "Career profile and application details updated." });
+    } catch (e) {
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const extract = async () => {
@@ -198,10 +218,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
           <Button variant="outline" size="sm" onClick={extract} disabled={extracting}>
             {extracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
             {hasProfile ? "Re-extract from resume" : "Draft from my resume"}
-          </Button>
-          <Button size="sm" onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Save
           </Button>
         </div>
       </Card>
@@ -360,13 +376,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save profile
-        </Button>
-      </div>
-
       {/* Application details — powers Autofill */}
       <div className="pt-4">
         <div className="mb-4">
@@ -376,9 +385,19 @@ export default function ProfileTab({ userId }: { userId: string }) {
           </p>
         </div>
         <CanadianProfileForm
+          ref={canadianRef}
           userId={userId}
           resumeData={parsedResume ?? primaryResumeContent ?? undefined}
+          hideSaveButton
         />
+      </div>
+
+      {/* Single Save all — saves both canonical career profile and application details */}
+      <div className="sticky bottom-4 z-10 flex justify-end pt-2">
+        <Button size="lg" onClick={save} disabled={saving} className="shadow-lg">
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Save all
+        </Button>
       </div>
     </div>
   );
