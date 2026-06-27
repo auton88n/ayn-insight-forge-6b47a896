@@ -1360,7 +1360,7 @@ ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority ma
         });
       }
 
-      // ext_ask: see earlier handler in this block (single source of truth).
+
 
 
       // ──────────────────────────────────────────────────────────────
