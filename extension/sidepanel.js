@@ -275,34 +275,52 @@ function detectForFill() {
   });
 }
 
-// Download AYN resume as ATS plain text (.txt) so the user can attach it manually
-document.getElementById('fill-download-resume-btn')?.addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  btn.disabled = true;
+// Helpers to fetch the AYN resume text + base filename and save a Blob
+async function fetchAynResume() {
+  const r = await new Promise(res => chrome.runtime.sendMessage(
+    { type: 'BG_FUNC', action: 'ext_download_resume_text', payload: {} }, res));
+  if (!r || !r.ok) throw new Error(r?.error || 'Failed to load resume');
+  const filename = r.data?.filename || 'Resume_AYN.txt';
+  const fileBase = filename.replace(/\.[a-z0-9]+$/i, '') || 'Resume_AYN';
+  return { text: r.data?.text || '', fileBase };
+}
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function markDownloadDone() {
+  document.getElementById('dl-step-1')?.classList.add('done');
+  document.getElementById('dl-step-2')?.classList.add('now');
+  document.getElementById('fill-dl-success')?.classList.remove('hidden');
+}
+
+async function downloadResumeAs(kind, btn) {
   const orig = btn.innerHTML;
-  btn.innerHTML = '<div class="spinner"></div>Preparing...';
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner dk"></div>Preparing...';
   try {
-    const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'BG_FUNC', action: 'ext_download_resume_text', payload: {} }, res));
-    if (!r || !r.ok) throw new Error(r?.error || 'Failed');
-    const blob = new Blob([r.data.text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = r.data.filename || 'Resume_AYN.txt'; a.click();
-    URL.revokeObjectURL(url);
-    // Walk the stepper forward
-    document.getElementById('dl-step-1')?.classList.add('done');
-    document.getElementById('dl-step-2')?.classList.add('now');
-    document.getElementById('fill-dl-success')?.classList.remove('hidden');
-    toast('Downloaded ✓ — now attach it on the form', 'ok');
+    const { text, fileBase } = await fetchAynResume();
+    if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
+    const blob = kind === 'pdf'
+      ? window.AYNResumeFormat.buildResumePdfBlob(text, fileBase)
+      : await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
+    saveBlob(blob, `${fileBase}.${kind === 'pdf' ? 'pdf' : 'docx'}`);
+    markDownloadDone();
+    toast(`${kind === 'pdf' ? 'PDF' : 'Word'} downloaded ✓ — attach it on the form`, 'ok');
   } catch (err) {
     toast(err.message || 'Download failed', 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-check"></i>Re-download';
+    btn.innerHTML = orig;
   }
-});
+}
 
-// v1.4.0: One-click auto-attach (best-effort — Chrome blocks this on many sites)
+document.getElementById('fill-download-pdf-btn')?.addEventListener('click', (e) => downloadResumeAs('pdf', e.currentTarget));
+document.getElementById('fill-download-docx-btn')?.addEventListener('click', (e) => downloadResumeAs('docx', e.currentTarget));
+
+// v1.4.0: One-click auto-attach — now ships a real PDF, not text.
 document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   const status = document.getElementById('fill-attach-status');
@@ -312,14 +330,23 @@ document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async
   status.classList.add('hidden');
   try {
     const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
-    const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'ATTACH_RESUME', tabId: tab?.id }, res));
+    if (!tab?.id) throw new Error('No active tab');
+    if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
+    const { text, fileBase } = await fetchAynResume();
+    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
+    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
+    const filename = `${fileBase}.pdf`;
+    const r = await new Promise(res => chrome.runtime.sendMessage({
+      type: 'ATTACH_RESUME_FILE',
+      tabId: tab.id,
+      payload: { base64, filename, mime: 'application/pdf' },
+    }, res));
     if (r?.ok) {
-      status.innerHTML = `<i class="ti ti-check" style="color:var(--ayn-green)"></i><span style="color:var(--ayn-green)">Attached ${r.filename} to ${r.count} field${r.count>1?'s':''} ✓ Now click Submit.</span>`;
+      status.innerHTML = `<i class="ti ti-check" style="color:var(--ayn-green)"></i><span style="color:var(--ayn-green)">PDF attached (${r.filename}) to ${r.count} field${r.count>1?'s':''} ✓ Now click Submit.</span>`;
       status.classList.remove('hidden');
-      toast('Resume attached ✓', 'ok');
+      toast('PDF resume attached ✓', 'ok');
     } else {
-      const reason = r?.error === 'blocked' ? 'This site blocks programmatic upload — use the manual download below.'
-                    : r?.error === 'no_resume' ? 'No resume on file. Upload one in the AYN dashboard.'
+      const reason = r?.error === 'blocked' || r?.error === 'blocked_by_site' ? 'This site blocks programmatic upload — use the PDF download below.'
                     : r?.error === 'no_file_input' ? 'No file upload field detected on this page.'
                     : r?.error || 'Could not auto-attach. Use the manual download below.';
       status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-muted)">${reason}</span>`;
