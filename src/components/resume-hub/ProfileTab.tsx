@@ -43,6 +43,29 @@ type Canonical = {
 
 const EMPTY: Canonical = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
+function mapResumeToCanonical(resume: ResumeContent, prev: Canonical): Canonical {
+  const work = resume.work || [];
+  const edu = resume.education || [];
+  const skills = (resume.skills || []).filter(Boolean);
+  const startYears = work.map(w => parseInt(String(w.start || "").slice(0, 4))).filter(y => y > 1950 && y < 2100);
+  const earliest = startYears.length ? Math.min(...startYears) : undefined;
+  const total_yoe = earliest ? Math.max(0, new Date().getFullYear() - earliest) : prev.derived?.total_yoe;
+  return {
+    ...prev,
+    skills: skills.length ? skills.map(name => ({ name })) : prev.skills,
+    experiences: work.length ? work.map(w => ({ company: w.company || "", title: w.title || "", location: w.location, start: w.start, end: w.end, current: !w.end, bullets: w.bullets || [] })) : prev.experiences,
+    education: edu.length ? edu.map(e => ({ school: e.school || "", degree: e.degree, field: e.field, start: e.start, end: e.end })) : prev.education,
+    derived: {
+      ...prev.derived,
+      current_title: resume.basics?.title || work[0]?.title || prev.derived?.current_title,
+      current_company: work[0]?.company || prev.derived?.current_company,
+      education_level: edu[0]?.degree || prev.derived?.education_level,
+      total_yoe,
+      top_skills: skills.length ? skills.slice(0, 8) : prev.derived?.top_skills,
+    },
+  };
+}
+
 function computeCompleteness(p: Canonical): { pct: number; checks: { label: string; done: boolean }[] } {
   const checks = [
     { label: "Current title", done: !!p.derived?.current_title },
@@ -126,22 +149,14 @@ export default function ProfileTab({ userId }: { userId: string }) {
       if (insErr) throw insErr;
       setParsedResume(resume);
       await loadPrimary();
-      toast({ title: "Resume saved as primary", description: "Extracting your canonical profile…" });
-
-      // Auto-run canonical extraction
-      setExtracting(true);
-      const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_extract" } });
-      setExtracting(false);
-      if (error) throw error;
-      if (data?.canonical) {
-        setProfile(data.canonical as Canonical);
-        toast({ title: "Profile drafted", description: "Review the fields below, then click Save." });
-      }
     } catch (e) {
       toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally {
       setUploading(false);
+      return;
     }
+    setUploading(false);
+    setProfile(prev => mapResumeToCanonical(resume, prev));
+    toast({ title: "Profile drafted from your resume", description: "Review the fields, then click Save all." });
   };
 
   const save = async () => {
@@ -159,15 +174,13 @@ export default function ProfileTab({ userId }: { userId: string }) {
     }
   };
 
-  const extract = async () => {
-    setExtracting(true);
-    const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_extract" } });
-    setExtracting(false);
-    if (error) { toast({ title: "Extraction failed", description: error.message, variant: "destructive" }); return; }
-    if (data?.canonical) {
-      setProfile(data.canonical as Canonical);
-      toast({ title: "Drafted from your resume", description: "Review, edit, then click Save." });
+  const extract = () => {
+    if (!primaryResumeContent) {
+      toast({ title: "Upload a resume first", variant: "destructive" });
+      return;
     }
+    setProfile(prev => mapResumeToCanonical(primaryResumeContent, prev));
+    toast({ title: "Filled from your resume", description: "Review, then Save all." });
   };
 
   if (loading) {
@@ -192,7 +205,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
           </div>
           {uploading && (
             <span className="text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving & extracting…
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
             </span>
           )}
         </div>
