@@ -181,7 +181,8 @@
       const len = safeLen(el);
       if (len > bestLen) { bestLen = len; best = el; }
     });
-    return { text: safeText(best).trim(), title: docTitle, company: '' };
+    const fallbackText = safeText(best).trim();
+    return { text: fallbackText.length > MAX_JD_CHARS ? fallbackText.slice(0, MAX_JD_CHARS) : fallbackText, title: docTitle, company: '' };
     } catch (err) {
       try { console.warn('[AYN] extractJobText failed:', err?.message); } catch {}
       return { text: '', title: cleanTitle(document.title || ''), company: '' };
