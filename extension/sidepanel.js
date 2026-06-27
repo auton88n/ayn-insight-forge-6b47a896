@@ -445,17 +445,24 @@ function normalizeUrlForHash(raw) {
     return `${host}${path}${qs.length ? '?' + qs.join('&') : ''}`;
   } catch { return (raw || '').slice(0, 400); }
 }
+// v1.4.6: track which job URLs we've auto-scored this panel session (no loops, no spam).
+const _autoScoredUrls = new Set();
+
 function detectForScore() {
   $('score-job-banner').classList.add('hidden');
   $('score-no-job').classList.add('hidden');
-  $('score-result').classList.add('hidden');
+  // do NOT hide score-result here — if we already have a fresh score for this URL,
+  // we keep it visible; runScoreFlow will overwrite when it runs.
   $('err-score-job').classList.add('hidden');
   getTab(tab => {
     if (!tab) { $('score-no-job').classList.remove('hidden'); return; }
     chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
       if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
-        $('score-no-job').classList.remove('hidden'); return;
+        $('score-no-job').classList.remove('hidden');
+        $('score-result').classList.add('hidden');
+        return;
       }
+      const prevUrl = SJ.jobUrl;
       SJ.jobTitle = r.title || '';
       SJ.company = r.company || extractCompanyFromTitle(r.title || '');
       SJ.jobText = r.text;
@@ -464,6 +471,19 @@ function detectForScore() {
       $('score-job-company').textContent = SJ.company || tab.url;
       $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
       $('score-job-banner').classList.remove('hidden');
+
+      // If the URL changed since last detection, clear the old result.
+      if (prevUrl && prevUrl !== SJ.jobUrl) {
+        $('score-result').classList.add('hidden');
+      }
+
+      // v1.4.6: AUTO-SCORE — fire the same flow as the manual button, but only
+      // once per URL per panel session. job_cache (24h) makes repeats free.
+      const key = SJ.jobUrl || (SJ.jobTitle + '|' + SJ.company);
+      if (key && !_autoScoredUrls.has(key)) {
+        _autoScoredUrls.add(key);
+        runScoreFlow({ auto: true }).catch(() => { /* surfaced via err element */ });
+      }
     });
   });
 }
@@ -473,12 +493,16 @@ function scoreTier(n) {
   if (n >= 4) return 's-fair';   return 's-poor';
 }
 
-$('score-this-job-btn')?.addEventListener('click', async () => {
+async function runScoreFlow({ auto = false } = {}) {
   const btn = $('score-this-job-btn'), err = $('err-score-job');
   err.classList.add('hidden');
-  $('score-result').classList.add('hidden');
-  if (!SJ.jobText) { err.textContent = 'Open a job posting first, then click Score This Job.'; err.classList.remove('hidden'); return; }
-  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Scoring...';
+  if (!SJ.jobText) {
+    if (!auto) { err.textContent = 'Open a job posting first, then click Score This Job.'; err.classList.remove('hidden'); }
+    return;
+  }
+  if (!auto) $('score-result').classList.add('hidden');
+  btn.disabled = true;
+  btn.innerHTML = auto ? '<div class="spinner"></div>Scoring…' : '<div class="spinner"></div>Scoring...';
   try {
     // Phase 2: ingest full JD on the backend, then score against it.
     const urlHash = await sha256Hex(normalizeUrlForHash(SJ.jobUrl || ''));
@@ -506,42 +530,18 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
-    // Missing skills (prefer Phase-2 field, fall back to legacy keywords)
-    const missing = (d.missingSkills && d.missingSkills.length) ? d.missingSkills : (d.missingKeywords || []);
-    let mkWrap = $('score-missing-kw');
-    if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(mkWrap); }
-    mkWrap.innerHTML = '';
-    if (missing.length) {
-      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your profile</div>';
-      missing.forEach(kw => {
-        const chip = document.createElement('span');
-        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;margin:2px;';
-        chip.textContent = kw;
-        mkWrap.appendChild(chip);
-      });
-    }
-    // Matched skills (green chips)
-    let msWrap = $('score-matched-kw');
-    if (!msWrap) { msWrap = document.createElement('div'); msWrap.id = 'score-matched-kw'; msWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(msWrap); }
-    msWrap.innerHTML = '';
-    if (d.matchedSkills && d.matchedSkills.length) {
-      msWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Skills you match</div>';
-      d.matchedSkills.forEach(kw => {
-        const chip = document.createElement('span');
-        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;margin:2px;';
-        chip.textContent = kw;
-        msWrap.appendChild(chip);
-      });
-    }
-    // Verdict line
+
+    // v1.4.6: VERDICT FIRST — render the one-sentence fit verdict prominently right under the score.
     let vWrap = $('score-verdict');
-    if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; vWrap.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:12px;color:#374151;line-height:1.45;'; $('score-result').appendChild(vWrap); }
+    if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; $('score-result').appendChild(vWrap); }
+    vWrap.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:13px;font-weight:600;color:#111827;line-height:1.45;';
     vWrap.textContent = d.verdict || '';
     vWrap.style.display = d.verdict ? 'block' : 'none';
 
-    // Phase 2: seniority fit + scoring source badge
+    // Phase 2: seniority fit + scoring source badge (placed right after verdict)
     let metaWrap = $('score-meta-row');
-    if (!metaWrap) { metaWrap = document.createElement('div'); metaWrap.id = 'score-meta-row'; metaWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;'; $('score-result').appendChild(metaWrap); }
+    if (!metaWrap) { metaWrap = document.createElement('div'); metaWrap.id = 'score-meta-row'; $('score-result').appendChild(metaWrap); }
+    metaWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;';
     metaWrap.innerHTML = '';
     const senFit = d.seniorityFit && d.seniorityFit !== 'unknown' ? d.seniorityFit : '';
     if (senFit) {
@@ -561,6 +561,35 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
       sb.style.cssText = `display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:${sourceBg};color:${sourceFg};`;
       sb.textContent = sourceLabel;
       metaWrap.appendChild(sb);
+    }
+
+    // Matched skills (green chips)
+    let msWrap = $('score-matched-kw');
+    if (!msWrap) { msWrap = document.createElement('div'); msWrap.id = 'score-matched-kw'; msWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(msWrap); }
+    msWrap.innerHTML = '';
+    if (d.matchedSkills && d.matchedSkills.length) {
+      msWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Skills you match</div>';
+      d.matchedSkills.forEach(kw => {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;margin:2px;';
+        chip.textContent = kw;
+        msWrap.appendChild(chip);
+      });
+    }
+
+    // Missing skills (amber chips)
+    const missing = (d.missingSkills && d.missingSkills.length) ? d.missingSkills : (d.missingKeywords || []);
+    let mkWrap = $('score-missing-kw');
+    if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(mkWrap); }
+    mkWrap.innerHTML = '';
+    if (missing.length) {
+      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your profile</div>';
+      missing.forEach(kw => {
+        const chip = document.createElement('span');
+        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;margin:2px;';
+        chip.textContent = kw;
+        mkWrap.appendChild(chip);
+      });
     }
 
     // v1.4.0: Must-have / Nice-to-have requirements breakdown
@@ -588,9 +617,20 @@ $('score-this-job-btn')?.addEventListener('click', async () => {
     }
 
     $('score-result').classList.remove('hidden');
-  } catch (e) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
-  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-target-arrow"></i>Score This Job'; }
+  } catch (e) {
+    if (!auto) { err.textContent = e.message || 'Score failed.'; err.classList.remove('hidden'); }
+    else { try { console.warn('[AYN] auto-score failed:', e?.message); } catch {} }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-target-arrow"></i>Re-score This Job';
+  }
+}
+
+$('score-this-job-btn')?.addEventListener('click', () => {
+  // Manual click — bypass the once-per-session guard so users can force a re-score.
+  runScoreFlow({ auto: false });
 });
+
 
 $('suggest-roles-btn').addEventListener('click', async () => {
   const btn = $('suggest-roles-btn'), err = $('err-jobs');
