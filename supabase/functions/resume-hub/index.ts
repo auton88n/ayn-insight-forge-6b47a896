@@ -4,6 +4,7 @@
 // All DB writes use the caller's JWT so RLS enforces per-user isolation.
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,15 +22,18 @@ const corsHeaders = {
 function humanize(s: unknown): unknown {
   if (typeof s !== "string" || !s) return s;
   return s
-    // 110K–140K / $90K-$120K / 5–7 years  →  "X to Y"
-    .replace(/(\$?\d[\d,.]*[ \t]*[KkMm]?)[ \t]*[\u2014\u2013\-][ \t]*(\$?\d)/g, "$1 to $2")
-    // any em or en dash (with or without spaces) → comma
+    // money ranges with $ on the left: $90K-$120K, $110K – $140K  -> "to"
+    .replace(/(\$[ \t]?\d[\d,.]*[ \t]?[KkMm]?)[ \t]*[\u2014\u2013-][ \t]*(\$?[ \t]?\d[\d,.]*[ \t]?[KkMm]?)/g, "$1 to $2")
+    // magnitude ranges where BOTH sides carry a K/M suffix: 90K-120K, 1.2M–1.5M -> "to"
+    .replace(/(\d[\d,.]*[KkMm])[ \t]*[\u2014\u2013-][ \t]*(\d[\d,.]*[KkMm])/g, "$1 to $2")
+    // any em or en dash anywhere -> comma (safe: never appears in dates, phones, ids, urls)
     .replace(/[ \t]*[\u2014\u2013][ \t]*/g, ", ")
-    // " - " spaced hyphen connector → comma (spaces/tabs only,
-    // so newline + "- bullet" markdown stays intact)
+    // " - " spaced ASCII hyphen used as a connector -> comma
+    // (bare hyphens with no surrounding spaces are LEFT ALONE on purpose:
+    //  protects 2023-2025, 416-660-9926, Saudi-Korean, ISO dates, UUIDs, URLs)
     .replace(/[ \t]+-[ \t]+/g, ", ")
     .replace(/ ,/g, ",")
-    .replace(/,\s*,/g, ", ")
+    .replace(/,[ \t]*,/g, ", ")
     .trim();
 }
 function humanizeAny<T>(v: T): T {
@@ -404,7 +408,7 @@ const EMPTY_CANONICAL: CanonicalProfile = {
   work_auth: {}, preferences: {}, derived: {},
 };
 
-async function loadCanonical(admin: ReturnType<typeof createClient>, userId: string): Promise<CanonicalProfile | null> {
+async function loadCanonical(admin: SupabaseClient<any, any, any>, userId: string): Promise<CanonicalProfile | null> {
   const { data } = await admin.from("user_profile_canonical")
     .select("skills, experiences, education, certifications, work_auth, preferences, derived")
     .eq("user_id", userId).maybeSingle();
@@ -1588,7 +1592,7 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
         // Use mammoth for real DOCX text extraction
         try {
           const mammoth = await import("npm:mammoth@1.8.0");
-          const { value } = await mammoth.extractRawText({ buffer: b64ToBytes(fileBase64) });
+          const { value } = await mammoth.extractRawText({ buffer: b64ToBytes(fileBase64) as any });
           resumeText = (value || "").replace(/\s+\n/g, "\n").trim();
         } catch (e) {
           console.warn("mammoth DOCX extraction failed", e);
@@ -1803,56 +1807,6 @@ BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).
       let parsed: Record<string,unknown> = {};
       try { const raw=r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
       return json({ contacts:(parsed.contacts as unknown[]||[]).slice(0,3), emailFormats:(parsed.emailFormats as string[]||[]).slice(0,3), companyDomain:parsed.companyDomain||"", coldOutreach:parsed.coldOutreach||"", subjectLine:parsed.subjectLine||"" });
-    }
-
-    // ext_save_application: save a job application to the tracker
-    if (action === "ext_save_application") {
-      const { jobTitle, company, jobUrl, status, score, salaryEstimate, notes } = payload as {
-        jobTitle?: string; company?: string; jobUrl?: string;
-        status?: string; score?: number; salaryEstimate?: string; notes?: string;
-      };
-      if (!company || !jobTitle) return json({ error: "company and jobTitle required" }, 400);
-      const { data, error } = await admin.from("job_applications").upsert({
-        user_id: userId,
-        job_title: jobTitle,
-        company,
-        job_url: jobUrl || "",
-        status: status || "saved",
-        match_score: score || null,
-        salary_estimate: salaryEstimate || "",
-        notes: notes || "",
-        applied_at: status === "applied" ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
-      if (error) {
-        // Table may not exist yet — return graceful error
-        console.error("save_application error", error);
-        return json({ error: "Could not save application: " + error.message }, 500);
-      }
-      return json({ ok: true, id: data.id });
-    }
-
-    // ext_get_applications: get all tracked applications for this user
-    if (action === "ext_get_applications") {
-      const { data, error } = await admin.from("job_applications")
-        .select("id,job_title,company,job_url,status,match_score,salary_estimate,notes,applied_at,updated_at,created_at")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
-        .limit(100);
-      if (error) return json({ error: error.message }, 500);
-      return json({ applications: data || [] });
-    }
-
-    // ext_update_application: update status or notes
-    if (action === "ext_update_application") {
-      const { id, status, notes } = payload as { id?: string; status?: string; notes?: string };
-      if (!id) return json({ error: "id required" }, 400);
-      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (status) { updates.status = status; if (status === "applied") updates.applied_at = new Date().toISOString(); }
-      if (notes !== undefined) updates.notes = notes;
-      const { error } = await admin.from("job_applications").update(updates).eq("id", id).eq("user_id", userId);
-      if (error) return json({ error: error.message }, 500);
-      return json({ ok: true });
     }
 
     // ---------------- Canonical Profile (Phase 1) ----------------
