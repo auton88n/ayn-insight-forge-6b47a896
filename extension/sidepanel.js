@@ -736,6 +736,7 @@ function renderRoles({ roles, keywords, summary }) {
 // ════════════════════════════════════════════════════════════════
 
 const C = { jobTitle: '', company: '', jobUrl: '', jobSnippet: '' };
+let _lastContactUrl = '';
 
 function detectForContacts() {
   $('contact-no-job').classList.add('hidden');
@@ -751,6 +752,14 @@ function detectForContacts() {
       $('contact-job-info').classList.remove('hidden');
       $('contact-job-title').textContent = C.jobTitle || 'Job detected';
       $('contact-company-name').textContent = C.company ? `at ${C.company}` : tab.url;
+      // v1.5.1: when the active job URL changes, clear previously rendered
+      // contacts so the prior job's people never linger. User re-clicks
+      // "Find Who to Contact" for the new job.
+      if (_lastContactUrl && _lastContactUrl !== C.jobUrl) {
+        const cr = $('contact-results'); if (cr) cr.classList.add('hidden');
+        const cards = $('contact-cards'); if (cards) cards.innerHTML = '';
+      }
+      _lastContactUrl = C.jobUrl;
     });
   });
 }
