@@ -21,15 +21,18 @@ const corsHeaders = {
 function humanize(s: unknown): unknown {
   if (typeof s !== "string" || !s) return s;
   return s
-    // 110K–140K / $90K-$120K / 5–7 years  →  "X to Y"
-    .replace(/(\$?\d[\d,.]*[ \t]*[KkMm]?)[ \t]*[\u2014\u2013\-][ \t]*(\$?\d)/g, "$1 to $2")
-    // any em or en dash (with or without spaces) → comma
+    // money ranges with $ on the left: $90K-$120K, $110K – $140K  -> "to"
+    .replace(/(\$[ \t]?\d[\d,.]*[ \t]?[KkMm]?)[ \t]*[\u2014\u2013-][ \t]*(\$?[ \t]?\d[\d,.]*[ \t]?[KkMm]?)/g, "$1 to $2")
+    // magnitude ranges where BOTH sides carry a K/M suffix: 90K-120K, 1.2M–1.5M -> "to"
+    .replace(/(\d[\d,.]*[KkMm])[ \t]*[\u2014\u2013-][ \t]*(\d[\d,.]*[KkMm])/g, "$1 to $2")
+    // any em or en dash anywhere -> comma (safe: never appears in dates, phones, ids, urls)
     .replace(/[ \t]*[\u2014\u2013][ \t]*/g, ", ")
-    // " - " spaced hyphen connector → comma (spaces/tabs only,
-    // so newline + "- bullet" markdown stays intact)
+    // " - " spaced ASCII hyphen used as a connector -> comma
+    // (bare hyphens with no surrounding spaces are LEFT ALONE on purpose:
+    //  protects 2023-2025, 416-660-9926, Saudi-Korean, ISO dates, UUIDs, URLs)
     .replace(/[ \t]+-[ \t]+/g, ", ")
     .replace(/ ,/g, ",")
-    .replace(/,\s*,/g, ", ")
+    .replace(/,[ \t]*,/g, ", ")
     .trim();
 }
 function humanizeAny<T>(v: T): T {
