@@ -149,22 +149,14 @@ export default function ProfileTab({ userId }: { userId: string }) {
       if (insErr) throw insErr;
       setParsedResume(resume);
       await loadPrimary();
-      toast({ title: "Resume saved as primary", description: "Extracting your canonical profile…" });
-
-      // Auto-run canonical extraction
-      setExtracting(true);
-      const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_extract" } });
-      setExtracting(false);
-      if (error) throw error;
-      if (data?.canonical) {
-        setProfile(data.canonical as Canonical);
-        toast({ title: "Profile drafted", description: "Review the fields below, then click Save." });
-      }
     } catch (e) {
       toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
-    } finally {
       setUploading(false);
+      return;
     }
+    setUploading(false);
+    setProfile(prev => mapResumeToCanonical(resume, prev));
+    toast({ title: "Profile drafted from your resume", description: "Review the fields, then click Save all." });
   };
 
   const save = async () => {
