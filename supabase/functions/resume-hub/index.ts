@@ -1699,7 +1699,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ resume: r.structured });
     }
 
-    // smart_tailor: see EXT_ACTIONS handler above (single source of truth).
+
 
 
     // ---------------- cover_letter ----------------
