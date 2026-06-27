@@ -464,6 +464,8 @@
   const AYN_BADGE_CLASS = 'ayn-score-badge';
   let scoringEnabled = false;
   let scoreCache = new Map(); // jobKey → { score, matchLabel, reasons }
+  let userCardSkills = [];
+  let userCardRoleTerms = [];
 
   function getJobCardSelectors() {
     const url = window.location.href;
