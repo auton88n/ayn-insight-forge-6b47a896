@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.7.0';
+  const AYN_BUILD = '1.8.0';
   const MAX_JD_CHARS = 20000;
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
@@ -403,7 +403,9 @@
         try {
           if (el.disabled) return;
           const rect = el.getBoundingClientRect();
-          if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
+          // PART A: never skip zero-size radio/checkbox — they're often hidden behind styled labels.
+          const isCheckable = (el.type === 'radio' || el.type === 'checkbox');
+          if (rect.width === 0 && rect.height === 0 && el.type !== 'file' && !isCheckable) return;
 
           if (el.type === 'file') {
             const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
@@ -485,9 +487,106 @@
         } catch { /* skip a single bad node, keep scanning */ }
       });
     });
+
+    // ── PART A: Detect custom button-style single-choice toggles (Ashby/Jerry/etc.) ──
+    try {
+      const buttonGroups = scanButtonGroups();
+      buttonGroups.forEach(g => fields.push(g));
+    } catch { /* never fail the scan */ }
+
     fields._fileFields = fileFields;
     return fields;
   }
+
+  // Find groups of 2-6 sibling clickable choices (button / role=radio|button|option / a)
+  // that share a parent container with a question label. Conservative.
+  function scanButtonGroups() {
+    const out = [];
+    const SKIP_BTN_RE = /^(submit|next|back|continue|apply|cancel|close|save|edit|delete|remove|upload|attach|sign\s*in|log\s*in|register)$/i;
+    const QUESTION_HINT = /[?]\s*$|^\s*(are|do|did|have|has|will|would|can|could|is|may|should|what|how|why|when|where|which|please)\b/i;
+
+    const CHOICE_SEL = 'button, [role="radio"], [role="option"], [role="button"], a[role="button"]';
+    const all = Array.from(document.querySelectorAll(CHOICE_SEL));
+    // Group by parent (the direct parent that holds siblings)
+    const byParent = new Map();
+    for (const el of all) {
+      try {
+        if (el.disabled) continue;
+        // Skip if it's actually wrapping a native input (those are handled as radio/checkbox already)
+        if (el.querySelector('input[type="radio"], input[type="checkbox"]')) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) continue;
+        const txt = (safeText(el) || el.getAttribute('aria-label') || '').trim();
+        if (!txt) continue;
+        const wc = txt.split(/\s+/).length;
+        if (wc < 1 || wc > 4 || txt.length > 32) continue;
+        if (SKIP_BTN_RE.test(txt)) continue;
+        // Skip submit-like buttons by type/role attribute
+        if (el.tagName === 'BUTTON' && (el.type || '').toLowerCase() === 'submit') continue;
+        const parent = el.parentElement;
+        if (!parent) continue;
+        if (!byParent.has(parent)) byParent.set(parent, []);
+        byParent.get(parent).push({ el, text: txt });
+      } catch { /* skip */ }
+    }
+
+    const usedQuestions = new Set();
+    for (const [parent, items] of byParent) {
+      if (items.length < 2 || items.length > 6) continue;
+      // Dedupe by text
+      const seen = new Set();
+      const uniq = items.filter(i => {
+        const k = i.text.toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+      if (uniq.length < 2 || uniq.length > 6) continue;
+
+      // Skip nav-bar / pagination / submit-row containers
+      const parentCls = ((parent.className || '') + ' ' + (parent.getAttribute('role') || '')).toLowerCase();
+      if (/\b(nav|navigation|toolbar|pagination|breadcrumb|footer|header|menubar)\b/.test(parentCls)) continue;
+
+      // Find the nearest question label by walking ancestors
+      let qLabel = '';
+      let node = parent;
+      for (let i = 0; i < 4 && node; i++) {
+        const h = node.querySelector('legend, label, [class*="label"], [class*="question"], h2, h3, h4, strong, p');
+        if (h && !h.contains(items[0].el)) {
+          const t = safeText(h).trim().split(/\n+/)[0].trim();
+          if (t && t.length >= 3 && t.length <= 240) {
+            const required = /\*|required/i.test(safeText(node).slice(0, 280));
+            if (QUESTION_HINT.test(t) || required) { qLabel = t; break; }
+          }
+        }
+        node = node.parentElement;
+      }
+      if (!qLabel) continue;
+      if (usedQuestions.has(qLabel)) continue;
+      usedQuestions.add(qLabel);
+
+      const id = `__buttongroup__:${out.length}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
+      const options = uniq.map(i => ({ label: i.text, value: i.text }));
+      // Track elements via window for later lookup in injectValues
+      window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+      window.__AYN_BG_MAP__.set(id, uniq.map(i => i.el));
+
+      out.push({
+        id,
+        kind: 'buttongroup',
+        label: qLabel,
+        type: 'buttongroup',
+        name: '',
+        currentValue: '',
+        options,
+        required: /\*|required/i.test(safeText(parent).slice(0, 280)),
+        group: classifyField(qLabel, '', 'buttongroup'),
+      });
+    }
+    return out;
+  }
+
+
+
 
 
   // ══════════════════════════════════════════════════════════════════
@@ -564,6 +663,48 @@
         });
         if (any) { filled++; results.push({ id, ok: true }); }
         else results.push({ id, ok: false, reason: `${kind} option not matched` });
+        return;
+      }
+
+      // PART A: buttongroup (custom Yes/No toggles)
+      if (/^__buttongroup__:/.test(id)) {
+        const els = (window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id)) || [];
+        if (!els.length) { results.push({ id, ok: false, reason: 'buttongroup elements missing' }); return; }
+        const wantRaw = optionLabel || optionValue || value;
+        const want = norm(wantRaw);
+        if (!want) { results.push({ id, ok: false, reason: 'no option' }); return; }
+        const match = els.find(el => {
+          const t = norm(safeText(el) || el.getAttribute('aria-label') || '');
+          return t === want || t.includes(want) || want.includes(t);
+        });
+        if (!match) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); return; }
+        try {
+          const fire = (type, EventCtor) => {
+            try {
+              const ev = EventCtor === MouseEvent
+                ? new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: 0 })
+                : new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse' });
+              match.dispatchEvent(ev);
+            } catch { try { match.dispatchEvent(new Event(type, { bubbles: true })); } catch {} }
+          };
+          fire('pointerdown', PointerEvent);
+          fire('mousedown', MouseEvent);
+          fire('pointerup', PointerEvent);
+          fire('mouseup', MouseEvent);
+          try { match.click(); } catch {}
+          if ((match.getAttribute('role') || '').toLowerCase() === 'radio') {
+            try { match.setAttribute('aria-checked', 'true'); } catch {}
+            // Unset siblings
+            els.forEach(e => { if (e !== match && (e.getAttribute('role') || '').toLowerCase() === 'radio') {
+              try { e.setAttribute('aria-checked', 'false'); } catch {}
+            }});
+          }
+          // Verify
+          const checked = match.getAttribute('aria-checked') === 'true'
+            || match.getAttribute('aria-pressed') === 'true'
+            || /(\bselected\b|\bactive\b|\bchecked\b)/i.test(match.className || '');
+          filled++; results.push({ id, ok: true, verified: checked });
+        } catch (e) { results.push({ id, ok: false, reason: e.message }); }
         return;
       }
 
@@ -1044,11 +1185,54 @@
   // ══════════════════════════════════════════════════════════════════
 
   const JOB_PAGE_RE = /linkedin\.com\/jobs|indeed\.com|ca\.indeed\.com|greenhouse\.io|boards\.greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs|csod\.com|icims\.com|bamboohr\.com|taleo\.net|workable\.com|dover\.com|recruitee\.com|jazz\.co|pinpointhq\.com|loxo\.co/;
+  const ATS_APPLY_RE = /ashbyhq\.com|greenhouse\.io|boards\.greenhouse|jobs\.lever\.co|myworkdayjobs\.com|smartrecruiters\.com|jobs\.ashbyhq\.com|workable\.com|icims\.com|bamboohr\.com|recruitee\.com|jazz\.co|pinpointhq\.com|jobright\.ai|taleo\.net|csod\.com/;
+
+  // PART B: lightweight form probe so the sidepanel knows instantly when a form exists.
+  let _lastFormReportKey = '';
+  function probeFormOnce() {
+    try {
+      const url = location.href;
+      const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]), textarea, select');
+      let fieldCount = 0;
+      let hasResumeUpload = false;
+      inputs.forEach(el => {
+        try {
+          if (el.disabled) return;
+          if (el.type === 'file') {
+            const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
+            const accept = (el.accept || '').toLowerCase();
+            if (/resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept) || !el.accept) hasResumeUpload = true;
+            return;
+          }
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0 && el.type !== 'radio' && el.type !== 'checkbox') return;
+          fieldCount++;
+        } catch {}
+      });
+      // Cheap buttongroup count (just role=radio so we don't pay the full scan cost)
+      try { fieldCount += document.querySelectorAll('[role="radio"]').length; } catch {}
+      const isApplyHost = ATS_APPLY_RE.test(url);
+      const hasForm = fieldCount >= 2 || hasResumeUpload || (isApplyHost && !!document.querySelector('form, [role="form"]'));
+      if (!hasForm) return false;
+      const key = `${url}|${fieldCount}|${hasResumeUpload}`;
+      if (key === _lastFormReportKey) return true;
+      _lastFormReportKey = key;
+      sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
+      return true;
+    } catch { return false; }
+  }
+
+  function probeFormWithBackoff(attempt = 0) {
+    if (probeFormOnce()) return;
+    if (attempt < 4) setTimeout(() => probeFormWithBackoff(attempt + 1), 250 * (attempt + 1));
+  }
 
   // Try to detect & report the current job with retry, because SPA content
   // typically renders AFTER the URL changes.
   let _lastDetectedUrl = '';
   function detectAndReport(attempt = 0) {
+    // PART B: probe for a form regardless of job-page status (Ashby apply pages aren't matched by JOB_PAGE_RE)
+    if (attempt === 0) probeFormWithBackoff(0);
     if (!JOB_PAGE_RE.test(location.href)) return;
     expandSeeMore();
     const result = extractJobText();
@@ -1082,6 +1266,7 @@
       _routeDebounce = null;
       _lastDetectedUrl = '';   // new URL gets a fresh report
       _expandedFor.clear();    // allow re-expanding "See more" on the new page
+      _lastFormReportKey = '';
       submitNotified = false;
       detectAndReport(0);
     }, 120);

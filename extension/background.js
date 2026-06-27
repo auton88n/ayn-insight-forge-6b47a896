@@ -9,6 +9,11 @@ const AYN_WEB = 'https://aynn.io';
 chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id }));
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+// PART B: per-tab form-detection cache (tabId → { hasForm, fieldCount, hasResumeUpload, url, ts })
+const FORM_CACHE = new Map();
+chrome.tabs.onRemoved.addListener(tabId => FORM_CACHE.delete(tabId));
+chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) FORM_CACHE.delete(tabId); });
+
 async function getToken() {
   const d = await chrome.storage.local.get(['ayn_token']);
   return d.ayn_token || null;
@@ -130,6 +135,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       lastJobUrl: sender.tab?.url || '', lastJobCompany: message.company || '',
       detectedAt: Date.now(),
     }, () => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // PART B: cache form-detected events per tab so the sidepanel reads them instantly
+  if (message.type === 'FORM_DETECTED') {
+    const tabId = sender.tab?.id;
+    if (tabId != null) {
+      FORM_CACHE.set(tabId, {
+        hasForm: !!message.hasForm,
+        fieldCount: message.fieldCount || 0,
+        hasResumeUpload: !!message.hasResumeUpload,
+        url: message.url || sender.tab?.url || '',
+        ts: Date.now(),
+      });
+      // Notify any open sidepanel
+      try { chrome.runtime.sendMessage({ type: 'FORM_DETECTED_PUSH', tabId, ...FORM_CACHE.get(tabId) }, () => void chrome.runtime.lastError); } catch {}
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+
+  if (message.type === 'GET_FORM_DETECTED') {
+    const tabId = message.tabId;
+    const v = tabId != null ? FORM_CACHE.get(tabId) : null;
+    sendResponse(v || null);
     return true;
   }
 
