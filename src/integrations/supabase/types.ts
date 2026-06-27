@@ -2400,6 +2400,39 @@ export type Database = {
         }
         Relationships: []
       }
+      job_cache: {
+        Row: {
+          company: string | null
+          created_at: string
+          expires_at: string
+          full_jd: string
+          parsed: Json
+          title: string | null
+          url: string | null
+          url_hash: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          expires_at?: string
+          full_jd: string
+          parsed?: Json
+          title?: string | null
+          url?: string | null
+          url_hash: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          expires_at?: string
+          full_jd?: string
+          parsed?: Json
+          title?: string | null
+          url?: string | null
+          url_hash?: string
+        }
+        Relationships: []
+      }
       job_matches: {
         Row: {
           breakdown: Json
