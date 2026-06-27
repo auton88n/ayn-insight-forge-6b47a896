@@ -11,8 +11,43 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ──────────────────────────────────────────────────────────────
+// humanize(): strip em/en dashes and " - " connectors from every
+// user-facing string AYN generates. Ranges become "X to Y", any
+// other dash becomes a comma. Phone numbers and hyphenated words
+// (Saudi-Korean, ATS-friendly) keep their hyphens because they
+// have no surrounding spaces.
+// ──────────────────────────────────────────────────────────────
+function humanize(s: unknown): unknown {
+  if (typeof s !== "string" || !s) return s;
+  return s
+    // 110K–140K / $90K-$120K / 5–7 years  →  "X to Y"
+    .replace(/(\$?\d[\d,.]*[ \t]*[KkMm]?)[ \t]*[\u2014\u2013\-][ \t]*(\$?\d)/g, "$1 to $2")
+    // any em or en dash (with or without spaces) → comma
+    .replace(/[ \t]*[\u2014\u2013][ \t]*/g, ", ")
+    // " - " spaced hyphen connector → comma (spaces/tabs only,
+    // so newline + "- bullet" markdown stays intact)
+    .replace(/[ \t]+-[ \t]+/g, ", ")
+    .replace(/ ,/g, ",")
+    .replace(/,\s*,/g, ", ")
+    .trim();
+}
+function humanizeAny<T>(v: T): T {
+  if (v == null) return v;
+  if (typeof v === "string") return humanize(v) as unknown as T;
+  if (Array.isArray(v)) return v.map((x) => humanizeAny(x)) as unknown as T;
+  if (typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      out[k] = humanizeAny(val);
+    }
+    return out as unknown as T;
+  }
+  return v;
+}
+
 const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
+  new Response(JSON.stringify(humanizeAny(data)), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
@@ -828,7 +863,7 @@ GENERAL:
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: "Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema.",
+          system: `Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema. Voice: write bullets the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
           user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text }).slice(0, 45000),
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
@@ -848,7 +883,7 @@ GENERAL:
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
         const r = await callAI({
-          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés. Ground every claim in the canonicalProfile or resume.`,
+          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés ("I am excited to", "leverage", "passionate"). Ground every claim in the canonicalProfile or resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
           user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
         });
         await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
@@ -1005,19 +1040,21 @@ Return ONLY this JSON (no code fences):
   "matchedSkills": ["<skill exactly as it appears in CANONICAL_SKILLS>"],
   "missingSkills": ["<JD skill not in CANONICAL_SKILLS>"],
   "seniorityFit": "under|match|over|unknown",
-  "salaryEstimate": "<e.g. $90K-$120K CAD, follow JD currency>",
+  "salaryEstimate": "<e.g. $90K to $120K CAD, follow JD currency>",
   "verdict": "<one sentence>"
 }
 
 HONESTY RULE (HARD): Only put a skill in matchedSkills if it appears in CANONICAL_SKILLS (case-insensitive). Anything in JD_SKILLS that is NOT in CANONICAL_SKILLS goes to missingSkills. Never fabricate a matched skill the candidate doesn't have. If unsure, mark it missing.
 
-CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format e.g. "$90K-$120K CAD" or "£55K-£70K".
+CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format ranges with the word "to": "$90K to $120K CAD" or "£55K to £70K". Never use dashes for ranges.
+
+VOICE: write reasons and verdict the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.
 
 SCORING RUBRIC:
-- 9-10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
-- 7-8 Good: meets most must-haves, 1-2 coachable gaps.
-- 4-6 Fair: half the must-haves, real gaps in seniority or core tech.
-- 1-3 Poor: missing the core requirement.
+- 9 to 10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
+- 7 to 8 Good: meets most must-haves, 1 to 2 coachable gaps.
+- 4 to 6 Fair: half the must-haves, real gaps in seniority or core tech.
+- 1 to 3 Poor: missing the core requirement.
 
 SENIORITY_FIT: compare canonical.derived.seniority to JOB_PARSED.seniority. "under"/"match"/"over"/"unknown".
 
@@ -1177,8 +1214,8 @@ Rules:
 - For each: 2 title variants real people use at companies of this size.
 - emailFormats: 2-3 most likely formats for THIS company size (startups use firstname@, large enterprises use firstname.lastname@).
 - companyDomain: best guess from the company name (lowercase, no spaces). If well-known company, use the known domain.
-- coldOutreach: written FROM the candidate, addressed to the recruiter. First name reference, the specific role title, ONE concrete reason from candidate's background that maps to the JD, a clear ask (15-min chat). Under 80 words. No "hope this finds you well". No em dashes. Plain text.
-- subjectLine: short ("<Role> @ <Company> - <one-line angle>"). Use a dash, not em dash.`,
+- coldOutreach: written FROM the candidate, addressed to the recruiter. First name reference, the specific role title, ONE concrete reason from candidate's background that maps to the JD, a clear ask (15-min chat). Under 80 words. No "hope this finds you well", no "I am excited to", no "passionate", no "leverage". Write the way a thoughtful person writes: vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector, and write ranges with the word 'to'. Plain text.
+- subjectLine: short, formatted as "Role at Company" or "Role at Company: one-line angle". Use a colon if you need a separator. Never use a dash, em dash, or en dash.`,
           user: `COMPANY: ${company}
 JOB TITLE: ${jobTitle || "Not specified"}
 JOB URL: ${jobUrl || ""}
@@ -1221,8 +1258,8 @@ STRUCTURE (4 short paragraphs):
 
 RULES:
 - Use ONLY facts from the resume. Never invent companies, metrics, or dates.
-- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate").
-- No em dashes. Use commas or periods.
+- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
+- Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to' (for example $90K to $120K CAD).
 - Plain text, no markdown.`,
           user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 6000)}`,
         });
@@ -1308,7 +1345,7 @@ RULES:
         const skills=((rb?.skills||[]) as string[]);
         const resumeCtx=bas.name?`CANDIDATE: ${bas.name}\nTITLE: ${works[0]?.title||""}\nSKILLS: ${skills.slice(0,15).join(", ")}\nSUMMARY: ${(bas.summary||"").slice(0,300)}`:"No resume loaded.";
         const r = await callAI({
-          system:`You are AYN, a smart career assistant in a Chrome extension. See the job page and candidate resume below.\nBe direct and specific — max 4 sentences unless more is needed. Never be vague.\nYou help with: fit analysis, salary ranges, interview prep, cold outreach, application question answers, resume gaps.\nFor salary: ALWAYS give a real number range (e.g. $90K-$130K CAD) based on role + location.\nFor fit: give a clear verdict (Strong/Good/Fair/Poor) + top 2 gaps.\nFor interview prep: give 3 specific questions + brief answer frameworks.\nFor outreach: write the actual message.\n\n${resumeCtx}\n\n${jobText?`JOB: ${jobTitle||""} at ${company||""}\n${jobText.slice(0,2500)}`:"No job page — general career advice."}`,
+          system:`You are AYN, a smart career assistant in a Chrome extension. See the job page and candidate resume below.\nBe direct and specific (max 4 sentences unless more is needed). Never be vague.\nYou help with: fit analysis, salary ranges, interview prep, cold outreach, application question answers, resume gaps.\nFor salary: ALWAYS give a real number range using the word 'to' (e.g. $90K to $130K CAD) based on role + location. Never write the range with a dash.\nFor fit: give a clear verdict (Strong/Good/Fair/Poor) + top 2 gaps.\nFor interview prep: give 3 specific questions + brief answer frameworks.\nFor outreach: write the actual message.\nVoice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.\n\n${resumeCtx}\n\n${jobText?`JOB: ${jobTitle||""} at ${company||""}\n${jobText.slice(0,2500)}`:"No job page, general career advice."}`,
           user:question,
         });
         return json({answer:r.text,sessionId:sessionId||crypto.randomUUID()});
@@ -1342,7 +1379,9 @@ TAILORED RESUME:
 
 CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme — already implied by 'container orchestration'.").
 
-ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.`,
+ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
+
+VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
           user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0,6000)}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
@@ -1706,7 +1745,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     if (action === "cover_letter") {
       const { resume, jdText, tone, company } = payload as { resume: unknown; jdText: string; tone?: string; company?: string };
       const r = await callAI({
-        system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés. Pull concrete achievements from the resume.`,
+        system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés ("I am excited to", "leverage", "passionate"). Pull concrete achievements from the resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
         user: JSON.stringify({ resume, jdText }).slice(0, 30000),
       });
       return json({ body: r.text });
