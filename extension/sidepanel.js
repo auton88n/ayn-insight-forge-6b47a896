@@ -1325,3 +1325,13 @@ document.querySelectorAll('.tabs [data-tab]').forEach((btn) => {
 $('score-toggle')?.addEventListener('click', () => toggleScoring());
 $('copy-subject-btn')?.addEventListener('click', () => window.copySubject());
 $('copy-outreach-btn')?.addEventListener('click', () => window.copyOutreach());
+
+// PART B: react instantly when content.js reports a form on the active tab
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === 'FORM_DETECTED_PUSH' && S.tab === 'fill') {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      const t = tabs && tabs[0];
+      if (t && t.id === msg.tabId) applyFormReady(msg);
+    });
+  }
+});
