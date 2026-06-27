@@ -662,6 +662,48 @@
         return;
       }
 
+      // PART A: buttongroup (custom Yes/No toggles)
+      if (/^__buttongroup__:/.test(id)) {
+        const els = (window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id)) || [];
+        if (!els.length) { results.push({ id, ok: false, reason: 'buttongroup elements missing' }); return; }
+        const wantRaw = optionLabel || optionValue || value;
+        const want = norm(wantRaw);
+        if (!want) { results.push({ id, ok: false, reason: 'no option' }); return; }
+        const match = els.find(el => {
+          const t = norm(safeText(el) || el.getAttribute('aria-label') || '');
+          return t === want || t.includes(want) || want.includes(t);
+        });
+        if (!match) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); return; }
+        try {
+          const fire = (type, EventCtor) => {
+            try {
+              const ev = EventCtor === MouseEvent
+                ? new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: 0 })
+                : new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse' });
+              match.dispatchEvent(ev);
+            } catch { try { match.dispatchEvent(new Event(type, { bubbles: true })); } catch {} }
+          };
+          fire('pointerdown', PointerEvent);
+          fire('mousedown', MouseEvent);
+          fire('pointerup', PointerEvent);
+          fire('mouseup', MouseEvent);
+          try { match.click(); } catch {}
+          if ((match.getAttribute('role') || '').toLowerCase() === 'radio') {
+            try { match.setAttribute('aria-checked', 'true'); } catch {}
+            // Unset siblings
+            els.forEach(e => { if (e !== match && (e.getAttribute('role') || '').toLowerCase() === 'radio') {
+              try { e.setAttribute('aria-checked', 'false'); } catch {}
+            }});
+          }
+          // Verify
+          const checked = match.getAttribute('aria-checked') === 'true'
+            || match.getAttribute('aria-pressed') === 'true'
+            || /(\bselected\b|\bactive\b|\bchecked\b)/i.test(match.className || '');
+          filled++; results.push({ id, ok: true, verified: checked });
+        } catch (e) { results.push({ id, ok: false, reason: e.message }); }
+        return;
+      }
+
       // Resolve a single element
       let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
       if (!el && _idx != null) {
