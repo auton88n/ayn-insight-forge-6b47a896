@@ -213,6 +213,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Sidepanel builds the PDF/DOCX locally and asks us to forward it to the page.
+  if (message.type === 'ATTACH_RESUME_FILE') {
+    (async () => {
+      try {
+        const tabId = message.tabId;
+        const payload = message.payload || {};
+        if (!tabId) { sendResponse({ ok: false, error: 'no_tab' }); return; }
+        if (!payload.base64) { sendResponse({ ok: false, error: 'no_resume' }); return; }
+        const r = await safeSendMessage(tabId, { type: 'TRY_ATTACH_RESUME', payload });
+        if (!r) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
+        if (!r.attached) { sendResponse({ ok: false, error: r.reason || 'blocked', filename: payload.filename }); return; }
+        sendResponse({ ok: true, count: r.count || 1, filename: payload.filename });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
   // Auto-autofill: scan + AI + inject (with v1.4.0 multi-pass for revealed fields)
   if (message.type === 'AUTO_AUTOFILL') {
     (async () => {
