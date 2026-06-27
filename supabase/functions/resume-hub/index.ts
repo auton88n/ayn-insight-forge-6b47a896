@@ -855,31 +855,145 @@ GENERAL:
         return json({ body: r.text });
       }
 
-      // ext_job_score: score a job snippet against the user's resume
-      // Returns score 1-10, label, reasons, missingKeywords, matchedSkills, salary
+      // ──────────────────────────────────────────────────────────────
+      // Phase 2: ext_job_ingest — cache the FULL JD per URL hash and
+      // parse it once into skills/seniority/salary/location/work_mode.
+      // ──────────────────────────────────────────────────────────────
+      if (action === "ext_job_ingest") {
+        const { url, urlHash, title, company, fullJd } = payload as {
+          url?: string; urlHash?: string; title?: string; company?: string; fullJd?: string;
+        };
+        if (!fullJd || fullJd.trim().length < 40) return json({ error: "fullJd required" }, 400);
+        const normalized = normalizeUrlForHash(url || "");
+        const hash = (urlHash && urlHash.length >= 16) ? urlHash : await sha256Hex(normalized || fullJd.slice(0, 400));
+
+        // Cache hit + still fresh? Return as-is.
+        const { data: cached } = await admin.from("job_cache")
+          .select("url_hash, url, title, company, full_jd, parsed, created_at, expires_at")
+          .eq("url_hash", hash).maybeSingle();
+        if (cached && new Date(cached.expires_at).getTime() > Date.now()) {
+          return json({ cached: true, urlHash: hash, title: cached.title, company: cached.company, parsed: cached.parsed });
+        }
+
+        const parsed = await parseJobMeta(fullJd, url || "", title || "", company || "");
+        const row = {
+          url_hash: hash,
+          url: normalized || url || null,
+          title: title || cached?.title || null,
+          company: company || cached?.company || null,
+          full_jd: fullJd.slice(0, 30000),
+          parsed,
+          created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        };
+        const { error } = await admin.from("job_cache").upsert(row, { onConflict: "url_hash" });
+        if (error) console.warn("job_cache upsert failed", error.message);
+        return json({ cached: false, urlHash: hash, title: row.title, company: row.company, parsed });
+      }
+
+      // ext_job_score: full-JD scoring with HONESTY rule + AI-failure fallback.
+      // Inputs: { urlHash?, url?, jobTitle?, company?, fullJd?, jobSnippet? }
+      // Lookup order: cache by urlHash → ingest inline using fullJd → snippet-only fallback.
       if (action === "ext_job_score") {
-        const { jobTitle, company, jobSnippet } = payload as { jobTitle?: string; company?: string; jobSnippet?: string };
-        if (!jobSnippet) return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
+        const { urlHash, url, jobTitle, company, fullJd, jobSnippet } = payload as {
+          urlHash?: string; url?: string; jobTitle?: string; company?: string;
+          fullJd?: string; jobSnippet?: string;
+        };
+
         const [{ data: resume }, canonical] = await Promise.all([
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
           loadCanonical(admin, userId),
         ]);
-        if (!resume?.content && !canonical) return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingKeywords: [], matchedSkills: [] });
+        if (!resume?.content && !canonical) {
+          return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingSkills: [], missingKeywords: [], matchedSkills: [], source: "no_profile" });
+        }
 
+        // 1. Resolve full JD: cache → inline ingest → snippet-only fallback.
+        const normalized = normalizeUrlForHash(url || "");
+        const hash = (urlHash && urlHash.length >= 16) ? urlHash
+          : normalized ? await sha256Hex(normalized)
+          : (fullJd || jobSnippet) ? await sha256Hex((fullJd || jobSnippet || "").slice(0, 400))
+          : "";
+
+        let cachedRow: { full_jd: string; parsed: JobParsed; title?: string; company?: string } | null = null;
+        if (hash) {
+          const { data: c } = await admin.from("job_cache")
+            .select("full_jd, parsed, title, company, expires_at")
+            .eq("url_hash", hash).maybeSingle();
+          if (c && new Date(c.expires_at).getTime() > Date.now()) {
+            cachedRow = { full_jd: c.full_jd, parsed: (c.parsed || EMPTY_PARSED) as JobParsed, title: c.title, company: c.company };
+          }
+        }
+
+        let fullJdResolved = cachedRow?.full_jd || "";
+        let parsedJob: JobParsed = cachedRow?.parsed || EMPTY_PARSED;
+        let source: "full" | "snippet" | "approximate_keyword_overlap" = "full";
+
+        if (!cachedRow && fullJd && fullJd.length >= 40) {
+          // Inline ingest on miss.
+          parsedJob = await parseJobMeta(fullJd, url || "", jobTitle || "", company || "");
+          fullJdResolved = fullJd.slice(0, 30000);
+          const row = {
+            url_hash: hash || await sha256Hex(fullJd.slice(0, 400)),
+            url: normalized || url || null,
+            title: jobTitle || null, company: company || null,
+            full_jd: fullJdResolved, parsed: parsedJob,
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          };
+          admin.from("job_cache").upsert(row, { onConflict: "url_hash" }).then(({ error }) => {
+            if (error) console.warn("job_cache inline-ingest upsert failed", error.message);
+          });
+        } else if (!cachedRow) {
+          // No full JD available — fall back to the snippet (card-badge path).
+          fullJdResolved = (jobSnippet || "").slice(0, 4000);
+          source = "snippet";
+          if (!fullJdResolved) {
+            return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingSkills: [], missingKeywords: [], matchedSkills: [], source: "no_jd" });
+          }
+        }
+
+        // 2. Build honest user-skill index for the HONESTY rule.
+        const userSkillIndex = new Map<string, string>();
+        if (canonical) {
+          for (const s of canonical.skills) {
+            const k = s.name.toLowerCase().trim();
+            if (k) userSkillIndex.set(k, s.name);
+          }
+          for (const t of (canonical.derived.top_skills || [])) {
+            const k = String(t).toLowerCase().trim();
+            if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(t));
+          }
+        }
+        // Resume skills as secondary signal.
         const rc = (resume?.content || {}) as Record<string, unknown>;
+        for (const s of ((rc.skills as string[]) || [])) {
+          const k = String(s).toLowerCase().trim();
+          if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(s));
+        }
+
+        // 3. Try AI scoring against the full JD.
         const resumeDigest = {
           basics: rc.basics,
-          skills: rc.skills,
           work: ((rc.work as Array<Record<string, unknown>>) || []).slice(0, 6).map(w => ({
             title: w.title, company: w.company, start: w.start, end: w.end,
             bullets: ((w.bullets as string[]) || []).slice(0, 4),
           })),
-          canonical: canonicalDigest(canonical),
         };
+        const canonText = canonicalDigest(canonical);
 
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `You are a senior tech recruiter. Score how well this candidate matches the job. Be honest, calibrated, and concrete.
+        let parsedAI: {
+          score?: number; matchLabel?: string; reasons?: string[];
+          salaryEstimate?: string; missingKeywords?: string[]; missingSkills?: string[];
+          matchedSkills?: string[]; verdict?: string; seniorityFit?: string;
+          mustHaves?: Array<{text:string;met:boolean}>;
+          niceToHaves?: Array<{text:string;met:boolean}>;
+        } = {};
+        let aiOk = false;
+        try {
+          const r = await callAI({
+            model: QUALITY_MODEL,
+            system: `You are a senior recruiter. Score the candidate against the FULL job description below.
 
 Return ONLY this JSON (no code fences):
 {
@@ -888,52 +1002,109 @@ Return ONLY this JSON (no code fences):
   "reasons": ["<reason 1>","<reason 2>","<reason 3>"],
   "mustHaves": [{"text":"<requirement>","met":true|false}, ...],
   "niceToHaves": [{"text":"<nice-to-have>","met":true|false}, ...],
-  "matchedSkills": ["<skill>", ...],
-  "missingKeywords": ["<keyword>", ...],
-  "salaryEstimate": "<$80K-$110K or empty>",
-  "verdict": "<one sentence verdict>"
+  "matchedSkills": ["<skill exactly as it appears in CANONICAL_SKILLS>"],
+  "missingSkills": ["<JD skill not in CANONICAL_SKILLS>"],
+  "seniorityFit": "under|match|over|unknown",
+  "salaryEstimate": "<e.g. $90K-$120K CAD, follow JD currency>",
+  "verdict": "<one sentence>"
 }
 
-Scoring rubric:
-- 9-10 Strong: meets ALL must-haves + 2+ strong signals (same domain, scale, tech).
+HONESTY RULE (HARD): Only put a skill in matchedSkills if it appears in CANONICAL_SKILLS (case-insensitive). Anything in JD_SKILLS that is NOT in CANONICAL_SKILLS goes to missingSkills. Never fabricate a matched skill the candidate doesn't have. If unsure, mark it missing.
+
+CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format e.g. "$90K-$120K CAD" or "£55K-£70K".
+
+SCORING RUBRIC:
+- 9-10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
 - 7-8 Good: meets most must-haves, 1-2 coachable gaps.
 - 4-6 Fair: half the must-haves, real gaps in seniority or core tech.
-- 1-3 Poor: missing the core requirement (role, level, critical tech).
+- 1-3 Poor: missing the core requirement.
 
-Rules:
-- mustHaves: 3-5 things the JD lists as required/must (years, degree, core stack). Mark met=true only if the resume clearly shows it.
-- niceToHaves: 2-4 preferred items. Mark met based on resume evidence.
-- reasons: 3 SHORT phrases (max 6 words each), tied to specific JD requirements.
-- matchedSkills: up to 8 skills/tools present in BOTH resume and JD.
-- missingKeywords: 4-8 important JD keywords NOT in the resume.
-- salaryEstimate: extract from snippet if present; else estimate for the role + seniority + US/Canada market. Format $80K-$110K. Empty if truly unknown.
-- verdict: one honest sentence.`,
-          user: `JOB TITLE: ${jobTitle || ""}\nCOMPANY: ${company || ""}\n\nJOB DESCRIPTION:\n${(jobSnippet || "").slice(0, 3000)}\n\nRESUME:\n${JSON.stringify(resumeDigest).slice(0, 6000)}`,
-        });
+SENIORITY_FIT: compare canonical.derived.seniority to JOB_PARSED.seniority. "under"/"match"/"over"/"unknown".
 
-        let parsed: { score?: number; matchLabel?: string; reasons?: string[]; salaryEstimate?: string; missingKeywords?: string[]; matchedSkills?: string[]; verdict?: string; mustHaves?: Array<{text:string;met:boolean}>; niceToHaves?: Array<{text:string;met:boolean}> } = {};
-        try {
-          const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
-          const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
-          parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
-        } catch { /* keep defaults */ }
+OUTPUT RULES: reasons = 3 phrases max 6 words. mustHaves 3-5. niceToHaves 2-4. matchedSkills up to 8. missingSkills up to 8.`,
+            user: `CANONICAL_SKILLS: ${Array.from(userSkillIndex.values()).slice(0, 60).join(", ")}
+CANONICAL_PROFILE_SUMMARY:
+${canonText}
 
-        const score = Math.max(1, Math.min(10, Math.round(Number(parsed.score) || 5)));
+RESUME_DIGEST:
+${JSON.stringify(resumeDigest).slice(0, 5000)}
+
+JOB_TITLE: ${jobTitle || cachedRow?.title || ""}
+COMPANY: ${company || cachedRow?.company || ""}
+URL: ${url || ""}
+JOB_PARSED: ${JSON.stringify(parsedJob).slice(0, 2500)}
+
+FULL_JD:
+${fullJdResolved.slice(0, 15000)}`,
+          });
+          try {
+            const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+            const s = raw.indexOf("{"); const e = raw.lastIndexOf("}");
+            parsedAI = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
+            aiOk = true;
+          } catch { aiOk = false; }
+        } catch (e) {
+          console.warn("ext_job_score AI failed; using keyword fallback:", (e as Error).message);
+          aiOk = false;
+        }
+
+        if (!aiOk) {
+          const fb = keywordFallbackScore(canonical, fullJdResolved, parsedJob);
+          return json(fb);
+        }
+
+        // 4. HONESTY enforcement (server-side, never trust the model alone).
+        const cleanedMatched: string[] = [];
+        const seenMatch = new Set<string>();
+        for (const m of (parsedAI.matchedSkills || [])) {
+          const k = String(m || "").toLowerCase().trim();
+          if (!k || seenMatch.has(k)) continue;
+          if (userSkillIndex.has(k)) {
+            cleanedMatched.push(userSkillIndex.get(k)!); // canonical casing
+            seenMatch.add(k);
+          }
+        }
+        // Anything in matched that didn't pass = move to missing.
+        const droppedMatches = (parsedAI.matchedSkills || [])
+          .filter(m => !seenMatch.has(String(m || "").toLowerCase().trim()))
+          .map(String);
+        const missingFromAI = (parsedAI.missingSkills || parsedAI.missingKeywords || []).map(String);
+        const missingMerged = Array.from(new Set([...droppedMatches, ...missingFromAI]
+          .map(s => s.trim()).filter(Boolean)));
+        // Also add JD skills not in user skills (safety net).
+        for (const sk of (parsedJob.skills || [])) {
+          const k = sk.toLowerCase().trim();
+          if (!userSkillIndex.has(k) && !missingMerged.some(x => x.toLowerCase().trim() === k)) {
+            missingMerged.push(sk);
+          }
+        }
+
+        // Salary: prefer the JD-printed currency from parsedJob.salary; else AI; never default USD.
+        const salaryDisplay = parsedJob.salary?.display
+          || String(parsedAI.salaryEstimate || "").trim();
+
+        const score = Math.max(1, Math.min(10, Math.round(Number(parsedAI.score) || 5)));
         const validLabels = ["Poor", "Fair", "Good", "Strong"];
-        const matchLabel = validLabels.includes(parsed.matchLabel || "") ? parsed.matchLabel!
+        const matchLabel = validLabels.includes(parsedAI.matchLabel || "") ? parsedAI.matchLabel!
           : score >= 9 ? "Strong" : score >= 7 ? "Good" : score >= 4 ? "Fair" : "Poor";
+        const seniorityFit = ["under","match","over","unknown"].includes(parsedAI.seniorityFit || "")
+          ? parsedAI.seniorityFit! : "unknown";
 
         return json({
           score, matchLabel,
-          reasons: (parsed.reasons || []).slice(0, 3),
-          mustHaves: (parsed.mustHaves || []).slice(0, 5).map(m => ({ text: String(m.text || ""), met: !!m.met })),
-          niceToHaves: (parsed.niceToHaves || []).slice(0, 4).map(m => ({ text: String(m.text || ""), met: !!m.met })),
-          matchedSkills: (parsed.matchedSkills || []).slice(0, 8),
-          missingKeywords: (parsed.missingKeywords || []).slice(0, 8),
-          salaryEstimate: String(parsed.salaryEstimate || ""),
-          verdict: String(parsed.verdict || ""),
+          reasons: (parsedAI.reasons || []).slice(0, 3),
+          mustHaves: (parsedAI.mustHaves || []).slice(0, 5).map(m => ({ text: String(m.text || ""), met: !!m.met })),
+          niceToHaves: (parsedAI.niceToHaves || []).slice(0, 4).map(m => ({ text: String(m.text || ""), met: !!m.met })),
+          matchedSkills: cleanedMatched.slice(0, 8),
+          missingSkills: missingMerged.slice(0, 8),
+          missingKeywords: missingMerged.slice(0, 8), // back-compat alias for the side panel
+          seniorityFit,
+          salaryEstimate: salaryDisplay,
+          verdict: String(parsedAI.verdict || ""),
+          source,
         });
       }
+
 
       // ext_suggest_roles: suggest best job titles to search for based on resume
       if (action === "ext_suggest_roles") {
