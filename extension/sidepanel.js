@@ -1159,6 +1159,7 @@ function refreshForActiveTab() {
   $('fill-result-wrap')?.classList.add('hidden');
 
   if (S.tab === 'fill')    detectForFill();
+  if (S.tab === 'jobs')    detectForScore();
   if (S.tab === 'contact') detectForContacts();
   if (S.tab === 'cover')   detectForCover();
   if (S.tab === 'tailor' && typeof detectForTailor === 'function') detectForTailor();
