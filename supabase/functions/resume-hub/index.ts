@@ -4,6 +4,7 @@
 // All DB writes use the caller's JWT so RLS enforces per-user isolation.
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
