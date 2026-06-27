@@ -1031,7 +1031,7 @@ GENERAL:
         let aiOk = false;
         try {
           const r = await callAI({
-            model: QUALITY_MODEL,
+            model: DEFAULT_MODEL,
             system: `You are a senior recruiter. Score the candidate against the FULL job description below.
 
 Return ONLY this JSON (no code fences):

@@ -879,7 +879,7 @@
       return;
     }
     if (attempt < 5) {
-      setTimeout(() => detectAndReport(attempt + 1), 700 * (attempt + 1));
+      setTimeout(() => detectAndReport(attempt + 1), 350 * (attempt + 1));
     }
   }
 
@@ -898,7 +898,7 @@
       _expandedFor.clear();    // allow re-expanding "See more" on the new page
       submitNotified = false;
       detectAndReport(0);
-    }, 250);
+    }, 120);
   }
   try {
     const _push = history.pushState;
