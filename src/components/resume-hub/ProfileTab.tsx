@@ -174,15 +174,13 @@ export default function ProfileTab({ userId }: { userId: string }) {
     }
   };
 
-  const extract = async () => {
-    setExtracting(true);
-    const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_extract" } });
-    setExtracting(false);
-    if (error) { toast({ title: "Extraction failed", description: error.message, variant: "destructive" }); return; }
-    if (data?.canonical) {
-      setProfile(data.canonical as Canonical);
-      toast({ title: "Drafted from your resume", description: "Review, edit, then click Save." });
+  const extract = () => {
+    if (!primaryResumeContent) {
+      toast({ title: "Upload a resume first", variant: "destructive" });
+      return;
     }
+    setProfile(prev => mapResumeToCanonical(primaryResumeContent, prev));
+    toast({ title: "Filled from your resume", description: "Review, then Save all." });
   };
 
   if (loading) {
