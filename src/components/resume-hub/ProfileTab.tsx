@@ -120,7 +120,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
         .maybeSingle();
       if (error) throw error;
       if (data) {
-        setProfile({ ...EMPTY, ...(data as Partial<Canonical>) });
+        setProfile({ ...EMPTY, ...((data ?? {}) as unknown as Partial<Canonical>) });
         setHasProfile(true);
       } else {
         setProfile(EMPTY);
