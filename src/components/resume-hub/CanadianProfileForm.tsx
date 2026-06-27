@@ -498,11 +498,15 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
       if (error) throw error;
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      toast({ title: "Profile saved", description: "Your autofill profile is up to date." });
+      if (!hideSaveButton) toast({ title: "Profile saved", description: "Your autofill profile is up to date." });
     } catch (e: unknown) {
-      toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      if (!hideSaveButton) toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      throw e instanceof Error ? e : new Error("Save failed");
     } finally { setBusy(false); }
   };
+
+  useImperativeHandle(ref, () => ({ save }), [save]);
+
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
