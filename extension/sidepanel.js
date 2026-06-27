@@ -415,17 +415,42 @@ $('fill-reset-btn').addEventListener('click', () => {
 // ════════════════════════════════════════════════════════════════
 
 let scoringOn = false;
-function toggleScoring() {
+const CARD_STOPWORDS = new Set(['senior','junior','lead','staff','the','of','and','for','an','to','in']);
+function tokenizeRole(s) {
+  return String(s || '').toLowerCase().split(/[^a-z0-9+#.]+/).filter(w => w.length >= 3 && !CARD_STOPWORDS.has(w));
+}
+async function toggleScoring() {
   scoringOn = !scoringOn;
   $('score-switch').classList.toggle('on', scoringOn);
   $('score-status-note').textContent = scoringOn
     ? 'ON — AYN scores every job card as you scroll.'
     : 'Turn on to see a 1-10 match score on every job card.';
+  if (!scoringOn) {
+    getTab(tab => { if (tab) chrome.tabs.sendMessage(tab.id, { type: 'STOP_CARD_SCORING' }); });
+    toast('Job scoring OFF', 'ok');
+    return;
+  }
+  let skills = [], roleTerms = [];
+  try {
+    const r = await bgFunc('ext_profile_canonical_get', {}, { silent: true });
+    const canonical = r?.canonical || r?.profile || r || {};
+    const skillNames = Array.isArray(canonical.skills) ? canonical.skills.map(s => s?.name).filter(Boolean) : [];
+    const derived = canonical.derived || {};
+    const topSkills = Array.isArray(derived.top_skills) ? derived.top_skills : [];
+    skills = Array.from(new Set([...skillNames, ...topSkills].map(s => String(s).toLowerCase().trim()).filter(Boolean)));
+    const prefs = canonical.preferences || {};
+    const desired = Array.isArray(prefs.desired_titles) ? prefs.desired_titles : [];
+    const roleSrc = [derived.current_title, derived.primary_function, ...desired].filter(Boolean).join(' ');
+    roleTerms = Array.from(new Set(tokenizeRole(roleSrc)));
+  } catch (_e) {}
+  if (!skills.length && Array.isArray(window.__aynResumeSkills)) {
+    skills = Array.from(new Set(window.__aynResumeSkills.map(s => String(s).toLowerCase().trim()).filter(Boolean)));
+  }
   getTab(tab => {
     if (!tab) return;
-    chrome.tabs.sendMessage(tab.id, { type: scoringOn ? 'START_CARD_SCORING' : 'STOP_CARD_SCORING' });
+    chrome.tabs.sendMessage(tab.id, { type: 'START_CARD_SCORING', skills, roleTerms });
   });
-  toast(scoringOn ? 'Job scoring ON' : 'Job scoring OFF', 'ok');
+  toast('Job scoring ON', 'ok');
 }
 window.toggleScoring = toggleScoring;
 
