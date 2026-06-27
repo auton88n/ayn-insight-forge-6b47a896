@@ -148,16 +148,10 @@ export default function ExtensionTab({ userId: _userId }: Props) {
         )}
       </Card>
 
-      {/* Canadian profile form */}
-      <div>
-        <div className="mb-4">
-          <h3 className="font-semibold text-base">Canadian Job Application Profile</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Fill in your details once. AYN uses these to autofill Canadian job applications instantly.
-          </p>
-        </div>
-        <CanadianProfileForm userId={userId} resumeData={primaryResume ?? undefined} />
-      </div>
+      <p className="text-xs text-muted-foreground text-center">
+        Your application profile now lives under the Profile tab.
+      </p>
+
 
     </div>
   );
