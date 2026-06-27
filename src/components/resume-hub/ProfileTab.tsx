@@ -12,6 +12,7 @@ import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-re
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import type { ResumeContent } from "@/lib/resumeHub";
+import CanadianProfileForm from "./CanadianProfileForm";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
 type Skill = { name: string; years?: number; last_used?: string; level?: string };
@@ -65,16 +66,24 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [extracting, setExtracting] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
+  const [primaryResumeContent, setPrimaryResumeContent] = useState<ResumeContent | null>(null);
+  const [parsedResume, setParsedResume] = useState<ResumeContent | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const loadPrimary = useCallback(async () => {
     const { data } = await supabase
       .from("resumes")
-      .select("id, title")
+      .select("id, title, content")
       .eq("user_id", userId)
       .eq("is_primary", true)
       .maybeSingle();
-    setPrimaryResume(data ?? null);
+    if (data) {
+      setPrimaryResume({ id: data.id, title: data.title });
+      setPrimaryResumeContent((data.content as ResumeContent) ?? null);
+    } else {
+      setPrimaryResume(null);
+      setPrimaryResumeContent(null);
+    }
   }, [userId]);
 
   const load = useCallback(async () => {
@@ -101,6 +110,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
         is_primary: true,
       });
       if (insErr) throw insErr;
+      setParsedResume(resume);
       await loadPrimary();
       toast({ title: "Resume saved as primary", description: "Extracting your canonical profile…" });
 
@@ -355,6 +365,20 @@ export default function ProfileTab({ userId }: { userId: string }) {
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Save profile
         </Button>
+      </div>
+
+      {/* Application details — powers Autofill */}
+      <div className="pt-4">
+        <div className="mb-4">
+          <h3 className="font-semibold text-base">Application details</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Used by Autofill to complete job application forms. Your resume upload above fills these in too.
+          </p>
+        </div>
+        <CanadianProfileForm
+          userId={userId}
+          resumeData={parsedResume ?? primaryResumeContent ?? undefined}
+        />
       </div>
     </div>
   );
