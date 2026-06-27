@@ -511,7 +511,7 @@ async function runScoreFlow({ auto = false } = {}) {
         url: SJ.jobUrl, urlHash,
         title: SJ.jobTitle, company: SJ.company,
         fullJd: SJ.jobText.slice(0, 20000),
-      });
+      }, { silent: auto });
     } catch (_) { /* non-fatal — score handler will inline-ingest */ }
 
     const d = await bgFunc('ext_job_score', {
@@ -519,7 +519,7 @@ async function runScoreFlow({ auto = false } = {}) {
       jobTitle: SJ.jobTitle, company: SJ.company,
       fullJd: SJ.jobText.slice(0, 20000),
       jobSnippet: SJ.jobText.slice(0, 2000), // card-badge fallback
-    });
+    }, { silent: auto });
     const score = d.score || 0;
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
