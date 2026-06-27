@@ -487,9 +487,102 @@
         } catch { /* skip a single bad node, keep scanning */ }
       });
     });
+
+    // ── PART A: Detect custom button-style single-choice toggles (Ashby/Jerry/etc.) ──
+    try {
+      const buttonGroups = scanButtonGroups();
+      buttonGroups.forEach(g => fields.push(g));
+    } catch { /* never fail the scan */ }
+
     fields._fileFields = fileFields;
     return fields;
   }
+
+  // Find groups of 2-6 sibling clickable choices (button / role=radio|button|option / a)
+  // that share a parent container with a question label. Conservative.
+  function scanButtonGroups() {
+    const out = [];
+    const SKIP_BTN_RE = /^(submit|next|back|continue|apply|cancel|close|save|edit|delete|remove|upload|attach|sign\s*in|log\s*in|register)$/i;
+    const QUESTION_HINT = /[?]\s*$|^\s*(are|do|did|have|has|will|would|can|could|is|may|should|what|how|why|when|where|which|please)\b/i;
+
+    const CHOICE_SEL = 'button, [role="radio"], [role="option"], [role="button"], a[role="button"]';
+    const all = Array.from(document.querySelectorAll(CHOICE_SEL));
+    // Group by parent (the direct parent that holds siblings)
+    const byParent = new Map();
+    for (const el of all) {
+      try {
+        if (el.disabled) continue;
+        // Skip if it's actually wrapping a native input (those are handled as radio/checkbox already)
+        if (el.querySelector('input[type="radio"], input[type="checkbox"]')) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) continue;
+        const txt = (safeText(el) || el.getAttribute('aria-label') || '').trim();
+        if (!txt) continue;
+        const wc = txt.split(/\s+/).length;
+        if (wc < 1 || wc > 4 || txt.length > 32) continue;
+        if (SKIP_BTN_RE.test(txt)) continue;
+        // Skip submit-like buttons by type/role attribute
+        if (el.tagName === 'BUTTON' && (el.type || '').toLowerCase() === 'submit') continue;
+        const parent = el.parentElement;
+        if (!parent) continue;
+        if (!byParent.has(parent)) byParent.set(parent, []);
+        byParent.get(parent).push({ el, text: txt });
+      } catch { /* skip */ }
+    }
+
+    const usedQuestions = new Set();
+    for (const [parent, items] of byParent) {
+      if (items.length < 2 || items.length > 6) continue;
+      // Dedupe by text
+      const seen = new Set();
+      const uniq = items.filter(i => {
+        const k = i.text.toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+      if (uniq.length < 2 || uniq.length > 6) continue;
+
+      // Skip nav-bar / pagination / submit-row containers
+      const parentCls = ((parent.className || '') + ' ' + (parent.getAttribute('role') || '')).toLowerCase();
+      if (/\b(nav|navigation|toolbar|pagination|breadcrumb|footer|header|menubar)\b/.test(parentCls)) continue;
+
+      // Find the nearest question label by walking ancestors
+      let qLabel = '';
+      let node = parent;
+      for (let i = 0; i < 4 && node; i++) {
+        const h = node.querySelector('legend, label, [class*="label"], [class*="question"], h2, h3, h4, strong, p');
+        if (h && !h.contains(items[0].el)) {
+          const t = safeText(h).trim().split(/\n+/)[0].trim();
+          if (t && t.length >= 3 && t.length <= 240) {
+            const required = /\*|required/i.test(safeText(node).slice(0, 280));
+            if (QUESTION_HINT.test(t) || required) { qLabel = t; break; }
+          }
+        }
+        node = node.parentElement;
+      }
+      if (!qLabel) continue;
+      if (usedQuestions.has(qLabel)) continue;
+      usedQuestions.add(qLabel);
+
+      const id = `__buttongroup__:${out.length}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
+      const options = uniq.map(i => ({ label: i.text, value: i.text }));
+      // Track elements via window for later lookup in injectValues
+      window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+      window.__AYN_BG_MAP__.set(id, uniq.map(i => i.el));
+
+      out.push({
+        id,
+        kind: 'buttongroup',
+        label: qLabel,
+        type: 'buttongroup',
+        name: '',
+        currentValue: '',
+        options,
+        required: /\*|required/i.test(safeText(parent).slice(0, 280)),
+        group: classifyField(qLabel, '', 'buttongroup'),
+      });
+    }
+    return out;
 
 
   // ══════════════════════════════════════════════════════════════════
