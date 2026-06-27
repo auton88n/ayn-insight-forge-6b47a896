@@ -1212,8 +1212,8 @@ Rules:
 - For each: 2 title variants real people use at companies of this size.
 - emailFormats: 2-3 most likely formats for THIS company size (startups use firstname@, large enterprises use firstname.lastname@).
 - companyDomain: best guess from the company name (lowercase, no spaces). If well-known company, use the known domain.
-- coldOutreach: written FROM the candidate, addressed to the recruiter. First name reference, the specific role title, ONE concrete reason from candidate's background that maps to the JD, a clear ask (15-min chat). Under 80 words. No "hope this finds you well". No em dashes. Plain text.
-- subjectLine: short ("<Role> @ <Company> - <one-line angle>"). Use a dash, not em dash.`,
+- coldOutreach: written FROM the candidate, addressed to the recruiter. First name reference, the specific role title, ONE concrete reason from candidate's background that maps to the JD, a clear ask (15-min chat). Under 80 words. No "hope this finds you well", no "I am excited to", no "passionate", no "leverage". Write the way a thoughtful person writes: vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector, and write ranges with the word 'to'. Plain text.
+- subjectLine: short, formatted as "Role at Company" or "Role at Company: one-line angle". Use a colon if you need a separator. Never use a dash, em dash, or en dash.`,
           user: `COMPANY: ${company}
 JOB TITLE: ${jobTitle || "Not specified"}
 JOB URL: ${jobUrl || ""}
