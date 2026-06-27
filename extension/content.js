@@ -403,7 +403,9 @@
         try {
           if (el.disabled) return;
           const rect = el.getBoundingClientRect();
-          if (rect.width === 0 && rect.height === 0 && el.type !== 'file') return;
+          // PART A: never skip zero-size radio/checkbox — they're often hidden behind styled labels.
+          const isCheckable = (el.type === 'radio' || el.type === 'checkbox');
+          if (rect.width === 0 && rect.height === 0 && el.type !== 'file' && !isCheckable) return;
 
           if (el.type === 'file') {
             const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
