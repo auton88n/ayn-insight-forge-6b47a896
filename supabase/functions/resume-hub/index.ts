@@ -1809,56 +1809,6 @@ BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).
       return json({ contacts:(parsed.contacts as unknown[]||[]).slice(0,3), emailFormats:(parsed.emailFormats as string[]||[]).slice(0,3), companyDomain:parsed.companyDomain||"", coldOutreach:parsed.coldOutreach||"", subjectLine:parsed.subjectLine||"" });
     }
 
-    // ext_save_application: save a job application to the tracker
-    if (action === "ext_save_application") {
-      const { jobTitle, company, jobUrl, status, score, salaryEstimate, notes } = payload as {
-        jobTitle?: string; company?: string; jobUrl?: string;
-        status?: string; score?: number; salaryEstimate?: string; notes?: string;
-      };
-      if (!company || !jobTitle) return json({ error: "company and jobTitle required" }, 400);
-      const { data, error } = await admin.from("job_applications").upsert({
-        user_id: userId,
-        job_title: jobTitle,
-        company,
-        job_url: jobUrl || "",
-        status: status || "saved",
-        match_score: score || null,
-        salary_estimate: salaryEstimate || "",
-        notes: notes || "",
-        applied_at: status === "applied" ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
-      if (error) {
-        // Table may not exist yet — return graceful error
-        console.error("save_application error", error);
-        return json({ error: "Could not save application: " + error.message }, 500);
-      }
-      return json({ ok: true, id: data.id });
-    }
-
-    // ext_get_applications: get all tracked applications for this user
-    if (action === "ext_get_applications") {
-      const { data, error } = await admin.from("job_applications")
-        .select("id,job_title,company,job_url,status,match_score,salary_estimate,notes,applied_at,updated_at,created_at")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
-        .limit(100);
-      if (error) return json({ error: error.message }, 500);
-      return json({ applications: data || [] });
-    }
-
-    // ext_update_application: update status or notes
-    if (action === "ext_update_application") {
-      const { id, status, notes } = payload as { id?: string; status?: string; notes?: string };
-      if (!id) return json({ error: "id required" }, 400);
-      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (status) { updates.status = status; if (status === "applied") updates.applied_at = new Date().toISOString(); }
-      if (notes !== undefined) updates.notes = notes;
-      const { error } = await admin.from("job_applications").update(updates).eq("id", id).eq("user_id", userId);
-      if (error) return json({ error: error.message }, 500);
-      return json({ ok: true });
-    }
-
     // ---------------- Canonical Profile (Phase 1) ----------------
     // profile_canonical_get: load the saved canonical profile (empty shell if none)
     if (action === "profile_canonical_get") {
