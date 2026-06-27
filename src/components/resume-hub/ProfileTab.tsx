@@ -43,6 +43,29 @@ type Canonical = {
 
 const EMPTY: Canonical = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
+function mapResumeToCanonical(resume: ResumeContent, prev: Canonical): Canonical {
+  const work = resume.work || [];
+  const edu = resume.education || [];
+  const skills = (resume.skills || []).filter(Boolean);
+  const startYears = work.map(w => parseInt(String(w.start || "").slice(0, 4))).filter(y => y > 1950 && y < 2100);
+  const earliest = startYears.length ? Math.min(...startYears) : undefined;
+  const total_yoe = earliest ? Math.max(0, new Date().getFullYear() - earliest) : prev.derived?.total_yoe;
+  return {
+    ...prev,
+    skills: skills.length ? skills.map(name => ({ name })) : prev.skills,
+    experiences: work.length ? work.map(w => ({ company: w.company || "", title: w.title || "", location: w.location, start: w.start, end: w.end, current: !w.end, bullets: w.bullets || [] })) : prev.experiences,
+    education: edu.length ? edu.map(e => ({ school: e.school || "", degree: e.degree, field: e.field, start: e.start, end: e.end })) : prev.education,
+    derived: {
+      ...prev.derived,
+      current_title: resume.basics?.title || work[0]?.title || prev.derived?.current_title,
+      current_company: work[0]?.company || prev.derived?.current_company,
+      education_level: edu[0]?.degree || prev.derived?.education_level,
+      total_yoe,
+      top_skills: skills.length ? skills.slice(0, 8) : prev.derived?.top_skills,
+    },
+  };
+}
+
 function computeCompleteness(p: Canonical): { pct: number; checks: { label: string; done: boolean }[] } {
   const checks = [
     { label: "Current title", done: !!p.derived?.current_title },
