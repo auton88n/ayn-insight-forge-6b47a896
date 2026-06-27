@@ -1181,11 +1181,54 @@
   // ══════════════════════════════════════════════════════════════════
 
   const JOB_PAGE_RE = /linkedin\.com\/jobs|indeed\.com|ca\.indeed\.com|greenhouse\.io|boards\.greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs|csod\.com|icims\.com|bamboohr\.com|taleo\.net|workable\.com|dover\.com|recruitee\.com|jazz\.co|pinpointhq\.com|loxo\.co/;
+  const ATS_APPLY_RE = /ashbyhq\.com|greenhouse\.io|boards\.greenhouse|jobs\.lever\.co|myworkdayjobs\.com|smartrecruiters\.com|jobs\.ashbyhq\.com|workable\.com|icims\.com|bamboohr\.com|recruitee\.com|jazz\.co|pinpointhq\.com|jobright\.ai|taleo\.net|csod\.com/;
+
+  // PART B: lightweight form probe so the sidepanel knows instantly when a form exists.
+  let _lastFormReportKey = '';
+  function probeFormOnce() {
+    try {
+      const url = location.href;
+      const inputs = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]), textarea, select');
+      let fieldCount = 0;
+      let hasResumeUpload = false;
+      inputs.forEach(el => {
+        try {
+          if (el.disabled) return;
+          if (el.type === 'file') {
+            const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
+            const accept = (el.accept || '').toLowerCase();
+            if (/resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept) || !el.accept) hasResumeUpload = true;
+            return;
+          }
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0 && el.type !== 'radio' && el.type !== 'checkbox') return;
+          fieldCount++;
+        } catch {}
+      });
+      // Cheap buttongroup count (just role=radio so we don't pay the full scan cost)
+      try { fieldCount += document.querySelectorAll('[role="radio"]').length; } catch {}
+      const isApplyHost = ATS_APPLY_RE.test(url);
+      const hasForm = fieldCount >= 2 || hasResumeUpload || (isApplyHost && !!document.querySelector('form, [role="form"]'));
+      if (!hasForm) return false;
+      const key = `${url}|${fieldCount}|${hasResumeUpload}`;
+      if (key === _lastFormReportKey) return true;
+      _lastFormReportKey = key;
+      sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
+      return true;
+    } catch { return false; }
+  }
+
+  function probeFormWithBackoff(attempt = 0) {
+    if (probeFormOnce()) return;
+    if (attempt < 4) setTimeout(() => probeFormWithBackoff(attempt + 1), 250 * (attempt + 1));
+  }
 
   // Try to detect & report the current job with retry, because SPA content
   // typically renders AFTER the URL changes.
   let _lastDetectedUrl = '';
   function detectAndReport(attempt = 0) {
+    // PART B: probe for a form regardless of job-page status (Ashby apply pages aren't matched by JOB_PAGE_RE)
+    if (attempt === 0) probeFormWithBackoff(0);
     if (!JOB_PAGE_RE.test(location.href)) return;
     expandSeeMore();
     const result = extractJobText();
