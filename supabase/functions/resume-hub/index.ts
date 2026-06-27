@@ -22,9 +22,9 @@ function humanize(s: unknown): unknown {
   if (typeof s !== "string" || !s) return s;
   return s
     // 110K–140K / $90K-$120K / 5–7 years  →  "X to Y"
-    .replace(/(\$?\d[\d,.]*\s*[KkMm]?)\s*[\u2014\u2013\-]\s*(\$?\d)/g, "$1 to $2")
+    .replace(/(\$?\d[\d,.]*[ \t]*[KkMm]?)[ \t]*[\u2014\u2013\-][ \t]*(\$?\d)/g, "$1 to $2")
     // any em or en dash (with or without spaces) → comma
-    .replace(/\s*[\u2014\u2013]\s*/g, ", ")
+    .replace(/[ \t]*[\u2014\u2013][ \t]*/g, ", ")
     // " - " spaced hyphen connector → comma (spaces/tabs only,
     // so newline + "- bullet" markdown stays intact)
     .replace(/[ \t]+-[ \t]+/g, ", ")
