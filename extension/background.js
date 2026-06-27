@@ -262,7 +262,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           url: scan.url || '',
         });
 
-        const values = (fillData.values || []).filter(v => v.value && v.value.trim());
+        const values = (fillData.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
@@ -287,7 +287,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: scan.ats || 'unknown', url: scan.url || '',
             });
-            const newValues = (fill2.values || []).filter(v => v.value && v.value.trim());
+            const newValues = (fill2.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
             if (newValues.length > 0) {
               const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: newValues });
               secondPassFilled = fr2?.filled || 0;
@@ -303,7 +303,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const details = values.map(v => ({
           id: v.id,
           label: fields.find(f => f.id === v.id)?.label || v.id,
-          value: v.value,
+          value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
           confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
           reasoning: v.reasoning || '',
           source: v.source || '',

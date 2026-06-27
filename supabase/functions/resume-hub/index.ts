@@ -759,56 +759,53 @@ Deno.serve(async (req) => {
 
         const r = await callAI({
           model: DEFAULT_MODEL,
-          system: `You are a senior career coach filling a real job application. The user gave you their profile and resume; do NOT invent anything that isn't there.
+          system: `You are a senior career coach filling a real job application. Use ONLY the user's profile, resume, and canonical data. Never invent personal facts.
 
-For EACH field, READ THE LABEL AND THE "group" HINT before deciding. Output one object per field you choose to fill:
-{ "id":"<field id>", "value":"<exact value>", "confidence":<0..1>, "reasoning":"<one short sentence>", "source":"<profile|resume|computed|inferred>" }
+You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|typeahead), label, name, group, required, currentValue, options[{label,value}].
 
-DATA PRIORITY: profile -> mergedBasics (incl. computed_years_experience, computed_education_level) -> resume.basics -> resume.work/skills/education.
+OUTPUT one object per field you choose to answer:
+{ "id":"<field id>", "value":"<for text/textarea/typeahead>", "optionValue":"<exact option.value for select/radio>", "optionLabel":"<exact option.label>", "optionLabels":["..."] (only for checkbox multi-select), "skip":false, "confidence":0..1, "reasoning":"one short sentence", "source":"profile|resume|canonical|computed|inferred" }
 
-FIELD-GROUP RULES (use "group", then fall back to LABEL):
+CRITICAL RULES:
+- For select/radio: optionValue AND optionLabel MUST be copied verbatim from the field's options array. If none of the offered options fits with high confidence, set skip:true.
+- For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no".
+- For typeahead: put a plain string in value (e.g. a city) the page can match against its suggestion list.
+- For text/textarea: put the answer in value. No dashes of any kind ("-", "–", "—"). Use "to" for ranges and a comma for connectors.
+- Skip silently (skip:true) anything not derivable from the data, especially: SIN/SSN, full DOB, bank info, passwords, security questions.
 
-identity.first_name / last_name / full_name / email / phone / address / city / state / postal_code / country
-  -> Fill from profile + mergedBasics. ALWAYS fill if any source has it.
+DATA PRIORITY: canonical -> profile -> mergedBasics (with computed_years_experience, computed_education_level) -> resume.basics/work/skills/education.
 
-link.linkedin / link.portfolio / link.github
-  -> Full URL with https://. From profile or basics.links.
+FIELD-GROUP GUIDANCE:
+identity.*  → Fill from profile + mergedBasics whenever available.
+link.*      → Full URL with https://.
+logic.years_experience → Use mergedBasics.computed_years_experience and match the closest option ("5-7 years" etc.). Never inflate.
+logic.education_level  → Use mergedBasics.computed_education_level and match the closest option.
+logic.salary           → Only if canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation exists; otherwise skip.
+logic.start_date       → Only if canonical.preferences.start_date_availability or profile.default_answers.notice_period exists; otherwise skip.
+logic.relocate / logic.work_mode → Only from profile.default_answers; otherwise skip.
 
-logic.work_auth
-  -> Yes/No from profile.work_authorization or profile.default_answers. Unknown -> skip.
+WORK AUTHORIZATION & SPONSORSHIP (logic.work_auth, logic.sponsorship, and similar) — STRICT:
+1. FIRST determine the role's country from context.url, context.jobTitle, context.company, jobDescription text, and any eligible-locations option list in the field.
+2. The user is a CANADIAN CITIZEN authorized to work in Canada with NO sponsorship required there. The user is NOT automatically authorized in other countries.
+3. If the role is in Canada (or explicitly allows Canada / remote-Canada): "Are you authorized to work?" → Yes; "Do you require sponsorship?" → No.
+4. If the role is solely in a country where the user has no stated authorization (e.g. United States only, UK only) and canonical/profile does NOT confirm authorization there: "Are you authorized?" → choose the option meaning "No, I will require sponsorship". Never claim authorization the user does not have.
+5. If country is genuinely unclear, set skip:true on these questions.
+6. "Do you currently reside in one of these locations?" → Yes ONLY if the user's city (canonical/profile location, e.g. Toronto) is in the option list. Otherwise No, or skip if uncertain.
+7. "Do you have a degree?" → Yes if mergedBasics.computed_education_level is set; match the closest option.
 
-logic.sponsorship
-  -> Yes/No from profile.default_answers.requires_sponsorship. Authorized + no flag -> "No".
+DEMOGRAPHIC / EEO / VOLUNTARY SELF-IDENTIFICATION (eeo.*: race, ethnicity, gender, gender identity, pronouns, sexual orientation, disability status, veteran status):
+- NEVER guess or infer from the name, resume, or anything else.
+- If an option exists meaning "Decline to self-identify" / "Prefer not to answer" / "I do not wish to disclose" / "Choose not to disclose", pick that (return its exact optionLabel/optionValue).
+- Otherwise set skip:true. Do not pick any specific demographic option.
 
-logic.relocate / logic.work_mode -> Yes/No / mode from profile.default_answers.
+OPEN-ENDED (open.*):
+open.about  → 2-3 sentences. Current role + years, then ONE concrete resume achievement that maps to the JD. Plain natural language.
+open.why    → 2-3 sentences tying ONE JD requirement to ONE resume bullet. Name the company once.
+open.cover  → 4-5 sentences, same rules.
+open.source → "LinkedIn" by default; check context.url for indeed/glassdoor/jobright hints.
 
-logic.years_experience
-  -> Use mergedBasics.computed_years_experience. Match closest option text (e.g. "5-7 years"). Never inflate.
-
-logic.education_level
-  -> Use mergedBasics.computed_education_level. Match closest option text.
-
-logic.salary -> canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation. Else skip.
-
-logic.start_date -> canonical.preferences.start_date_availability or profile.default_answers.notice_period; else "2 weeks" if employed, "Immediately" otherwise. Match option.
-
-CANONICAL OVERRIDES (Phase 1): canonical.work_auth and canonical.preferences are the user-confirmed source of truth. If canonical says needs_sponsorship_now=true, answer Yes on sponsorship questions. If canonical says work_authorized_us=true, answer Yes on US work auth. If canonical.skills lists a skill with years=N, use N for "How many years of <skill>" questions verbatim. Never override these with guesses.
-
-eeo.* -> profile.default_answers only. Else "Decline to self-identify" / "Prefer not to say" when offered, else skip.
-
-open.about -> 2-3 sentences. Lead with current role + years. ONE concrete achievement from resume.work bullets that maps to the JD. No clichés. No em dashes.
-
-open.why -> 2-3 sentences tying ONE specific JD requirement to ONE concrete resume bullet. Name the company once.
-
-open.cover -> 4-5 sentences, same rules as open.why but longer. Grounded in resume only.
-
-open.source -> "LinkedIn" by default; check url for indeed/glassdoor/jobright hints.
-
-GENERAL:
-- For select/radio: "value" must be a substring of one option text. No clear match -> skip.
-- Skip silently: SIN/SSN, full DOB, bank info, passwords, anything not in any source.
-- confidence: 1.0 exact data match, 0.7-0.9 strong inference, 0.4-0.6 best guess, <0.4 skip.
-- reasoning: ONE short sentence ("From profile.email", "Computed from 5 roles since 2019", "Matched PM bullet to JD").`,
+CONFIDENCE: 1.0 exact data; 0.7-0.9 strong inference; 0.4-0.6 weak; <0.4 → set skip:true instead.
+REASONING: one short sentence ("From profile.email", "Canada role; Canadian citizen, no sponsorship", "EEO question; declined per policy").`,
           user: JSON.stringify({
             context: { jobTitle, company, ats, url },
             fields,
@@ -830,19 +827,29 @@ GENERAL:
                   properties: {
                     id: { type: "string" },
                     value: { type: "string" },
+                    optionValue: { type: "string" },
+                    optionLabel: { type: "string" },
+                    optionLabels: { type: "array", items: { type: "string" } },
+                    skip: { type: "boolean" },
                     confidence: { type: "number" },
                     reasoning: { type: "string" },
                     source: { type: "string" },
                   },
-                  required: ["id", "value"],
+                  required: ["id"],
                 },
               },
             },
             required: ["values"],
           },
         });
-        const out = (r.structured as { values?: Array<{ id: string; value: string; confidence?: number; reasoning?: string; source?: string }> }) || { values: [] };
-        const filtered = (out.values || []).filter(v => v.value && (typeof v.confidence !== 'number' || v.confidence >= 0.4));
+        const out = (r.structured as { values?: Array<{ id: string; value?: string; optionValue?: string; optionLabel?: string; optionLabels?: string[]; skip?: boolean; confidence?: number; reasoning?: string; source?: string }> }) || { values: [] };
+        const filtered = (out.values || []).filter(v => {
+          if (v.skip) return false;
+          const hasAny = (v.value && v.value.trim()) || (v.optionValue && v.optionValue.trim()) || (v.optionLabel && v.optionLabel.trim()) || (Array.isArray(v.optionLabels) && v.optionLabels.length);
+          if (!hasAny) return false;
+          if (typeof v.confidence === 'number' && v.confidence < 0.4) return false;
+          return true;
+        });
         return json({
           values: filtered,
           meta: {
