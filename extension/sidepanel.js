@@ -1036,10 +1036,11 @@ $('new-job-btn').addEventListener('click', () => {
 // Backend call helper — routes through background.js (handles 401)
 // Returns the function payload directly, throws on auth/network errors.
 // ════════════════════════════════════════════════════════════════
-function bgFunc(action, payload) {
-  console.log('[AYN] →', action, payload);
+function bgFunc(action, payload, opts = {}) {
+  const { silent = false } = opts;
+  console.log('[AYN] →', action, payload, silent ? '(silent)' : '');
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: 'BG_FUNC', action, payload: payload || {} }, resp => {
+    chrome.runtime.sendMessage({ type: 'BG_FUNC', action, payload: payload || {} }, async resp => {
       if (chrome.runtime.lastError) {
         console.warn('[AYN] runtime err', action, chrome.runtime.lastError.message);
         return reject(new Error(chrome.runtime.lastError.message));
@@ -1050,8 +1051,19 @@ function bgFunc(action, payload) {
       }
       if (!resp.ok) {
         console.warn('[AYN] err', action, resp.error);
-        if (/Not signed in|Invalid token|Token revoked/i.test(resp.error || '')) {
-          show('v-login');
+        const isAuthErr = /Not signed in|Invalid token|Token revoked|HTTP 401/i.test(resp.error || '');
+        if (isAuthErr) {
+          // Silent/background calls never bounce to login.
+          if (silent) return reject(new Error(resp.error || 'auth_error'));
+          // Single silent re-verify before logging the user out.
+          try {
+            const verify = await new Promise(r => chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, r));
+            if (verify && !verify.error && verify.user) {
+              // Token still valid — keep session, just reject this call.
+              return reject(new Error(resp.error || 'Request failed'));
+            }
+          } catch { /* fallthrough to logout */ }
+          chrome.runtime.sendMessage({ type: 'SIGN_OUT' }, () => show('v-login'));
           return reject(new Error('Session expired. Please sign in again.'));
         }
         return reject(new Error(resp.error || 'Request failed'));
