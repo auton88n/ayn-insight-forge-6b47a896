@@ -376,13 +376,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save profile
-        </Button>
-      </div>
-
       {/* Application details — powers Autofill */}
       <div className="pt-4">
         <div className="mb-4">
@@ -392,9 +385,19 @@ export default function ProfileTab({ userId }: { userId: string }) {
           </p>
         </div>
         <CanadianProfileForm
+          ref={canadianRef}
           userId={userId}
           resumeData={parsedResume ?? primaryResumeContent ?? undefined}
+          hideSaveButton
         />
+      </div>
+
+      {/* Single Save all — saves both canonical career profile and application details */}
+      <div className="sticky bottom-4 z-10 flex justify-end pt-2">
+        <Button size="lg" onClick={save} disabled={saving} className="shadow-lg">
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Save all
+        </Button>
       </div>
     </div>
   );
