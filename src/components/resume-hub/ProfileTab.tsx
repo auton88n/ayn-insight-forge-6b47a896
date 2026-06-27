@@ -165,7 +165,17 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const save = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_save", canonical: profile } });
+      const { error } = await supabase.from("user_profile_canonical").upsert({
+        user_id: userId,
+        skills: profile.skills ?? [],
+        experiences: profile.experiences ?? [],
+        education: profile.education ?? [],
+        certifications: profile.certifications ?? [],
+        work_auth: profile.work_auth ?? {},
+        preferences: profile.preferences ?? {},
+        derived: profile.derived ?? {},
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
       if (error) throw new Error(error.message);
       await canadianRef.current?.save();
       setHasProfile(true);
@@ -176,6 +186,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
       setSaving(false);
     }
   };
+
 
   const extract = () => {
     if (!primaryResumeContent) {
