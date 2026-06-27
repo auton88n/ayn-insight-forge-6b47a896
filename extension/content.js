@@ -109,11 +109,15 @@
     // that has a detectable job detail pane. SPA hooks already re-fire on URL change.
     if (/linkedin\.com\/jobs/i.test(url)) {
       const liSel = {
-        desc: '.jobs-description__content, .jobs-box__html-content, [class*="description__content"], [class*="jobs-description"]',
+        desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, .jobs-details__main-content, [class*="jobs-description"]',
         title: '.job-details-jobs-unified-top-card__job-title, h1',
         company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]',
       };
-      const liDesc = combinedText(liSel.desc);
+      let liDesc = combinedText(liSel.desc);
+      if (!liDesc || liDesc.length < 50) {
+        const paneDesc = combinedText('.scaffold-layout__detail, .jobs-details, .jobs-search__job-details');
+        if (paneDesc && paneDesc.length >= 50) liDesc = paneDesc;
+      }
       if (liDesc && liDesc.length >= 50) {
         const titleEl = document.querySelector(liSel.title);
         const companyEl = document.querySelector(liSel.company);
