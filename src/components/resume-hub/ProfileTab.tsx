@@ -205,7 +205,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
           </div>
           {uploading && (
             <span className="text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving & extracting…
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
             </span>
           )}
         </div>
