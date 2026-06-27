@@ -9,6 +9,11 @@ const AYN_WEB = 'https://aynn.io';
 chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id }));
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+// PART B: per-tab form-detection cache (tabId → { hasForm, fieldCount, hasResumeUpload, url, ts })
+const FORM_CACHE = new Map();
+chrome.tabs.onRemoved.addListener(tabId => FORM_CACHE.delete(tabId));
+chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) FORM_CACHE.delete(tabId); });
+
 async function getToken() {
   const d = await chrome.storage.local.get(['ayn_token']);
   return d.ayn_token || null;
