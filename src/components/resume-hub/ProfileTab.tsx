@@ -112,25 +112,28 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    let lastErr: unknown = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const { data, error } = await supabase.functions.invoke("resume-hub", { body: { action: "profile_canonical_get" } });
-        if (error) { lastErr = error; }
-        else if (!data) { lastErr = new Error("Empty response"); }
-        else {
-          setProfile((data?.canonical as Canonical) || EMPTY);
-          setHasProfile(!!data?.hasProfile);
-          setLoading(false);
-          return;
-        }
-      } catch (e) { lastErr = e; }
-      if (attempt < 2) await new Promise(r => setTimeout(r, 700));
+    try {
+      const { data, error } = await supabase
+        .from("user_profile_canonical")
+        .select("skills, experiences, education, certifications, work_auth, preferences, derived")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setProfile({ ...EMPTY, ...(data as Partial<Canonical>) });
+        setHasProfile(true);
+      } else {
+        setProfile(EMPTY);
+        setHasProfile(false);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      toast({ title: "Couldn't load profile", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    const msg = lastErr instanceof Error ? lastErr.message : "Network error";
-    toast({ title: "Couldn't load profile", description: msg, variant: "destructive" });
-  }, [toast]);
+  }, [toast, userId]);
+
 
   useEffect(() => { load(); loadPrimary(); }, [load, loadPrimary]);
 
