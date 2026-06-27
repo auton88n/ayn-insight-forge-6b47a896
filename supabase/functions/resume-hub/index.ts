@@ -11,8 +11,42 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ──────────────────────────────────────────────────────────────
+// humanize(): strip em/en dashes and " - " connectors from every
+// user-facing string AYN generates. Ranges become "X to Y", any
+// other dash becomes a comma. Phone numbers and hyphenated words
+// (Saudi-Korean, ATS-friendly) keep their hyphens because they
+// have no surrounding spaces.
+// ──────────────────────────────────────────────────────────────
+function humanize(s: unknown): unknown {
+  if (typeof s !== "string" || !s) return s;
+  return s
+    // 110K–140K / $90K-$120K / 5–7 years  →  "X to Y"
+    .replace(/(\$?\d[\d,.]*\s*[KkMm]?)\s*[\u2014\u2013\-]\s*(\$?\d)/g, "$1 to $2")
+    // any em or en dash (with or without spaces) → comma
+    .replace(/\s*[\u2014\u2013]\s*/g, ", ")
+    // " - " spaced hyphen connector → comma
+    .replace(/\s+-\s+/g, ", ")
+    .replace(/ ,/g, ",")
+    .replace(/,\s*,/g, ", ")
+    .trim();
+}
+function humanizeAny<T>(v: T): T {
+  if (v == null) return v;
+  if (typeof v === "string") return humanize(v) as unknown as T;
+  if (Array.isArray(v)) return v.map((x) => humanizeAny(x)) as unknown as T;
+  if (typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      out[k] = humanizeAny(val);
+    }
+    return out as unknown as T;
+  }
+  return v;
+}
+
 const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
+  new Response(JSON.stringify(humanizeAny(data)), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
