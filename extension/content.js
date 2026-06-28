@@ -827,7 +827,7 @@
           else { results.push({ id, ok: false, reason: 'not verified after click' }); }
         } catch (e) { results.push({ id, ok: false, reason: e.message }); }
 
-        } catch (e) { results.push({ id, ok: false, reason: e.message }); }
+
         continue;
       }
 
