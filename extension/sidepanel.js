@@ -161,6 +161,58 @@ function cleanLabel(s) {
   return (s || '').replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim();
 }
 
+// v1.9.7: derive a human company name from a URL when DOM extraction fails.
+// Examples:
+//   boards.greenhouse.io/acme/jobs/123     → "Acme"
+//   jobs.lever.co/acme/uuid                → "Acme"
+//   acme.bamboohr.com/careers/12           → "Acme"
+//   jobs.ashbyhq.com/Acme/uuid             → "Acme"
+//   acme.wd1.myworkdayjobs.com/...         → "Acme"
+//   acme.com/careers/...                   → "Acme"
+function hostToCompany(urlOrHost) {
+  let host = '', path = '';
+  try {
+    const u = new URL(urlOrHost.startsWith('http') ? urlOrHost : 'https://' + urlOrHost);
+    host = u.hostname.replace(/^www\./, '');
+    path = u.pathname || '';
+  } catch { host = String(urlOrHost || '').replace(/^www\./, ''); }
+  const titleize = s => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+  // Path-based ATS slugs
+  const segs = path.split('/').filter(Boolean);
+  if (/greenhouse\.io$/.test(host) && segs[0])  return titleize(segs[0]);
+  if (/lever\.co$/.test(host) && segs[0])       return titleize(segs[0]);
+  if (/ashbyhq\.com$/.test(host) && segs[0])    return titleize(segs[0]);
+  if (/smartrecruiters\.com$/.test(host) && segs[0] === 'jobs' && segs[1]) return titleize(segs[1]);
+  if (/workable\.com$/.test(host) && segs[0])   return titleize(segs[0]);
+  if (/recruitee\.com$/.test(host) && segs[0])  return titleize(segs[0]);
+  // Subdomain-based
+  const sub = host.split('.')[0];
+  if (/bamboohr\.com$/.test(host) && sub)       return titleize(sub);
+  if (/myworkdayjobs\.com$/.test(host)) {
+    const parts = host.split('.');
+    if (parts[0]) return titleize(parts[0]);
+  }
+  if (/icims\.com$/.test(host) && sub)          return titleize(sub);
+  if (/jobvite\.com$/.test(host) && sub && sub !== 'jobs') return titleize(sub);
+  // LinkedIn / Indeed → use page-detected company only; fall back to host
+  if (/linkedin\.com$/.test(host)) return '';
+  if (/indeed\.com$/.test(host))   return '';
+  // Generic: strip 'careers.' / 'jobs.' / 'apply.' and use the registrable part
+  const stripped = host.replace(/^(careers|jobs|apply|join|hire|work)\./, '');
+  const base = stripped.split('.')[0];
+  return base ? titleize(base) : '';
+}
+
+// v1.9.7: best-effort company resolver — tries DOM value, then URL.
+function deriveCompany(company, url, fallbackTitle) {
+  const c = cleanLabel(company);
+  if (c) return c;
+  const fromUrl = hostToCompany(url || '');
+  if (fromUrl) return fromUrl;
+  return cleanLabel(extractCompanyFromTitle(fallbackTitle || '')) || '';
+}
+
+
 // Render a company logo into the .job-hero-logo slot. Falls back to initial on error.
 function setCompanyLogo(elId, companyName, fallbackTitle) {
   const el = $(elId);
