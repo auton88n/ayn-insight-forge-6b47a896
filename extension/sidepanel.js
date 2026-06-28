@@ -269,10 +269,12 @@ function renderFillHero({ title, company, fieldCount, host } = {}) {
   const t = cleanLabel(title) || 'Job application detected';
   const c = cleanLabel(company) || host || 'This page';
   $('fill-job-title').textContent = t;
-  $('fill-job-sub').textContent = c;
+  $('fill-job-sub').textContent = (c || '').toString();
   setCompanyLogo('fill-job-logo', company, title);
   if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
-  $('fill-job-banner').classList.remove('hidden');
+  const banner = $('fill-job-banner');
+  banner.classList.remove('hidden');
+  banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
 }
 
 function applyFormReady(r, tab) {
@@ -1263,7 +1265,7 @@ window.cleanTitle = cleanTitle;
 function refreshForActiveTab() {
   if (!S.user) return;
   // Clear stale banners before re-detect so previous tab's data never lingers
-  const fb = $('fill-job-banner'); if (fb) fb.style.display = 'none';
+  const fb = $('fill-job-banner'); if (fb) { fb.classList.add('hidden'); fb.style.display = ''; }
   $('contact-no-job')?.classList.add('hidden');
   $('contact-job-info')?.classList.add('hidden');
   $('cover-no-job')?.classList.add('hidden');
