@@ -782,6 +782,39 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  function isElHidden(el) {
+    try {
+      if (!el) return false;
+      if (el.tabIndex === -1) return true;
+      if (!el.offsetParent && (el.style && el.style.position !== 'fixed')) return true;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return true;
+      const cs = (el.ownerDocument && el.ownerDocument.defaultView || window).getComputedStyle(el);
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return true;
+      return false;
+    } catch { return false; }
+  }
+
+  async function clickOptionButton(btn, qLabel, wantText) {
+    try { btn.scrollIntoView({ block: 'center' }); } catch {}
+    try { btn.focus && btn.focus(); } catch {}
+    btn.click();
+    await sleep(60);
+    let ok = bgIsSelected(btn);
+    if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+    if (!ok) {
+      fireFullClick(btn);
+      await sleep(60); ok = bgIsSelected(btn);
+      if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+    }
+    if (!ok) {
+      mainWorldClickByText(qLabel, wantText);
+      await sleep(150); ok = bgIsSelected(btn);
+    }
+    try { console.log('[AYN-BG] proxyClick', wantText, 'verified=', ok); } catch {}
+    return ok;
+  }
+
   async function injectValues(values) {
     let filled = 0;
     const results = [];
