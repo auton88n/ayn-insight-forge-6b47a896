@@ -768,6 +768,20 @@ Deno.serve(async (req) => {
         if (portfolioSafe) merged.portfolio_url = portfolioSafe;
         if (plinks.github) merged.github_url = plinks.github;
 
+        const cwa = (canonical?.work_auth || {}) as Record<string, any>;
+        const pwa = (profile?.work_auth || {}) as Record<string, any>;
+        const CA_PROV: Record<string,string> = { ON:"Ontario", BC:"British Columbia", AB:"Alberta", QC:"Quebec", MB:"Manitoba", SK:"Saskatchewan", NS:"Nova Scotia", NB:"New Brunswick", NL:"Newfoundland and Labrador", PE:"Prince Edward Island", NT:"Northwest Territories", YT:"Yukon", NU:"Nunavut" };
+        const regionRaw = (addr.state || addr.province || "") as string;
+        merged.region_full = CA_PROV[regionRaw.toUpperCase()] || regionRaw;
+        merged.work_auth = {
+          citizenship: cwa.citizenship || (String(pwa.type||"").toLowerCase()==="citizen" ? (addr.country||"") : "") || "",
+          authorized_us: (typeof cwa.work_authorized_us === "boolean") ? cwa.work_authorized_us : undefined,
+          authorized_ca: (typeof cwa.work_authorized_ca === "boolean") ? cwa.work_authorized_ca : undefined,
+          needs_sponsorship: (typeof cwa.needs_sponsorship_now === "boolean") ? cwa.needs_sponsorship_now
+                            : (typeof cwa.needs_sponsorship_future === "boolean") ? cwa.needs_sponsorship_future
+                            : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined,
+        };
+
 
         const r = await callAI({
           model: DEFAULT_MODEL,
@@ -780,7 +794,7 @@ OUTPUT one object per field you choose to answer:
 
 CRITICAL RULES:
 - For select/radio/buttongroup: SINGLE CHOICE. optionValue AND optionLabel MUST be copied verbatim from the field's options array. NEVER put a "value" string for these. If none of the offered options fits with high confidence, set skip:true. NEVER default to "No" just because you are unsure — skip instead.
-- For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no".
+- For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no". If a single checkbox's label is actually a Yes/No question (work authorization, sponsorship, residence, or any "Are you…", "Do you…", "Will you…", "Have you…" question), DO NOT treat it as a passive tick. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION rules below to decide, then return value "yes" or "no" accordingly. NEVER default to "no" out of caution — if the rule yields Yes, return "yes".
 - For typeahead: put a plain string in value (e.g. a city) the page can match against its suggestion list.
 - For text/textarea: put the answer in value. No dashes of any kind ("-", "–", "—"). Use "to" for ranges and a comma for connectors.
 - Skip silently (skip:true) anything not derivable from the data, especially: SIN/SSN, full DOB, bank info, passwords, security questions.
@@ -803,25 +817,15 @@ BUTTONGROUP YES/NO ROUTING:
 A buttongroup whose options reduce to Yes/No (case-insensitive) is a real single-choice question — NOT a "should I tick this checkbox" decision. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION, and EEO rules below to decide Yes vs No, then return the exact optionLabel/optionValue from the field's options[]. If the rule says skip, return skip:true. Never default to "No" out of caution.
 
 WORK AUTHORIZATION & SPONSORSHIP (logic.work_auth, logic.sponsorship, and similar) — DRIVEN BY THIS USER'S DATA, NEVER HARDCODED:
-Read these fields from the input:
-  - canonical.work_auth.citizenship (e.g. "Canadian", "American", "Indian", may be empty)
-  - canonical.work_auth.work_authorized_us  (true | false | undefined)
-  - canonical.work_auth.work_authorized_ca  (true | false | undefined)
-  - canonical.work_auth.needs_sponsorship_now / needs_sponsorship_future
-  - canonical.work_auth.visa_type
-  - mergedBasics.city, mergedBasics.region, mergedBasics.country (where the user actually lives)
+Read work authorization ONLY from mergedBasics.work_auth: { citizenship, authorized_us (true|false|undefined), authorized_ca (true|false|undefined), needs_sponsorship (true|false|undefined) }. Read where the user lives ONLY from mergedBasics.city, mergedBasics.region, mergedBasics.region_full, mergedBasics.country. IGNORE any other work_auth object on canonical or profile — mergedBasics.work_auth is the single source of truth.
 
 Generic decision rules (apply to ANY user, no country baked in):
 1. Determine the role's eligible countries from context.url, context.company, jobDescription text, and any locations listed in the field's own options[] or label (e.g. "US or Canada", "United States only", "Ontario, Toronto, Remote-Canada").
-2. "Are you legally authorized to work in COUNTRY(s)?" → Yes if the user has authorization in ANY ONE of the role's eligible countries, judged by:
-   - work_authorized_us === true  ⇒ authorized in the United States
-   - work_authorized_ca === true  ⇒ authorized in Canada
-   - citizenship clearly matches a listed country (e.g. citizenship "Canadian" and Canada is listed; "American"/"US citizen" and US is listed; same for any other country named in citizenship)
-   Otherwise No. If none of the relevant work_authorized_* fields are set AND citizenship does not clearly cover any listed country → skip:true. Do NOT guess from the resume location, name, or language.
-3. Combined-country phrasing ("X or Y", "one of: …", "U.S. or Canada", "Canada or the United States") → Yes if rule #2 returns Yes for ANY listed country.
-4. "Will you (now or in the future) require visa sponsorship?" → No if the user is authorized in at least one of the role's eligible countries by rule #2 (they can work there without sponsorship). Yes only if the user lacks authorization in every eligible country AND needs_sponsorship_now or needs_sponsorship_future is true. Otherwise skip.
+2. "Are you legally authorized to work in COUNTRY(s)?" → Yes if the user has authorization in ANY ONE of the role's eligible countries: authorized_us === true ⇒ authorized in the United States; authorized_ca === true ⇒ authorized in Canada; citizenship clearly names a listed country. Otherwise No. If none of the relevant authorized_* fields are set AND citizenship does not clearly cover any listed country → skip:true. Do NOT guess from the resume location, name, or language.
+3. Combined-country phrasing ("X or Y", "one of: …", "U.S. or Canada", "Canada or the United States") → Yes if rule #2 returns Yes for ANY listed country. Example: question "authorized to work in the U.S. or Canada?" with authorized_ca true OR authorized_us true ⇒ Yes. Do NOT answer No when authorized_us or authorized_ca is true.
+4. SPONSORSHIP — "Will you (now or in the future) require visa sponsorship?" → No if authorized_us or authorized_ca is true for any eligible country, OR needs_sponsorship === false. Yes only if not authorized in any eligible country AND needs_sponsorship === true. Else skip.
 5. If the role's country is genuinely unclear, skip these questions.
-6. RESIDENCE — "Do you currently reside in / live in [list of places]?" or "Do you live in [places]? If not, are you open to relocating?" → Yes if mergedBasics.city, mergedBasics.region, or mergedBasics.country matches any listed place (e.g. options include "Ontario" and mergedBasics.region is "ON" or "Ontario", or mergedBasics.country is "Canada"; options include "California" and region is "CA"). If the question is the combined "live there OR open to relocating" form, answer Yes when EITHER the residence matches OR relocation is allowed. Otherwise No. Only skip if mergedBasics has no city/region/country at all.
+6. RESIDENCE — "Do you currently reside in / live in [list of places]?" or combined "live there OR open to relocating" → Yes if mergedBasics.region_full or mergedBasics.region or mergedBasics.country matches a listed place (e.g. option "Ontario" matches region_full "Ontario" or region "ON" or country "Canada"; option "California" matches region "CA"). Combined "live there OR open to relocating" → Yes if residence matches OR relocation allowed. Else No; skip only if no location at all.
 7. "Open to relocating?" → Yes if canonical.preferences.open_to_relocation === true OR profile.default_answers.willing_to_relocate is "yes"/true; No if either is explicitly false/"no"; else skip.
 8. "Do you have a degree?" → Yes if mergedBasics.computed_education_level is set; match the closest option.
 
