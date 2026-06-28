@@ -325,7 +325,7 @@
     if (/disab(ility|led)/.test(l)) return 'eeo.disability';
     if (/pronoun/.test(l)) return 'eeo.pronouns';
     if (/tell\s+(us|me)\s+about|about\s+yourself|introduce\s+yourself/.test(l)) return 'open.about';
-    if (/why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)/.test(l)) return 'open.why';
+    if (/motivat|why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)|why\s+(does|do)\s+\w+|explore\s+a\s+new/.test(l)) return 'open.why';
     if (/cover\s+letter|message\s+to\s+(hiring|recruiter)/.test(l)) return 'open.cover';
     if (/heard.*about|where.*find|how.*hear|source/.test(l)) return 'open.source';
     return 'other';
