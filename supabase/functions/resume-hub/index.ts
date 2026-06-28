@@ -739,8 +739,10 @@ Deno.serve(async (req) => {
         else if (/associate|diploma/.test(eduStr)) educationLevel = "Associate's";
         else if (eduStr.trim()) educationLevel = "High School";
 
-        const rawLinkedin = profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
-        const rawPortfolio = profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const addr = (profile?.address || {}) as Record<string, string>;
+        const plinks = (profile?.links || {}) as Record<string, string>;
+        const rawLinkedin = plinks.linkedin || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const rawPortfolio = plinks.portfolio || plinks.website || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
         const linkedinSafe = /linkedin\.com\//i.test(rawLinkedin) ? rawLinkedin : "";
         const portfolioSafe = rawPortfolio && !/linkedin\.com/i.test(rawPortfolio) ? rawPortfolio : "";
 
@@ -750,7 +752,10 @@ Deno.serve(async (req) => {
           full_name: [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || basics.name || "",
           email: profile?.email || basics.email || "",
           phone: profile?.phone || basics.phone || "",
-          location: profile?.city || basics.location || "",
+          location: [addr.city, addr.state || addr.province, addr.country].filter(Boolean).join(", ") || basics.location || "",
+          city: addr.city || "",
+          region: addr.state || addr.province || "",
+          country: addr.country || "",
           summary: basics.summary || "",
           computed_years_experience: canonical?.derived?.total_yoe ?? yoe,
           computed_education_level: canonical?.derived?.education_level || educationLevel,
@@ -761,6 +766,8 @@ Deno.serve(async (req) => {
         };
         if (linkedinSafe) merged.linkedin_url = linkedinSafe;
         if (portfolioSafe) merged.portfolio_url = portfolioSafe;
+        if (plinks.github) merged.github_url = plinks.github;
+
 
         const r = await callAI({
           model: DEFAULT_MODEL,
