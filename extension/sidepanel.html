@@ -5,41 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AYN Resume Tailor</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"/>
   <style>
     /* ═══════════════════════════════════════════════════════════
-       Design tokens
+       Design tokens — Warm Off-white (v1.9.0)
        ═══════════════════════════════════════════════════════════ */
     :root {
-      --ayn-orange: #F97316;
-      --ayn-orange-2: #EA580C;
-      --ayn-orange-soft: #FFF4EC;
-      --ayn-orange-border: #FED7AA;
-      --ayn-green: #16A34A;
-      --ayn-green-soft: #F0FDF4;
-      --ayn-amber: #D97706;
-      --ayn-red: #DC2626;
-      --ayn-red-soft: #FEF2F2;
-      --ayn-blue: #2563EB;
-      --ayn-blue-soft: #EFF6FF;
-      --ayn-ink: #0F172A;
-      --ayn-text: #1E293B;
-      --ayn-muted: #64748B;
-      --ayn-faint: #94A3B8;
-      --ayn-border: #E2E8F0;
-      --ayn-border-2: #F1F5F9;
-      --ayn-card: #FFFFFF;
-      --ayn-bg: #F8FAFC;
-      --shadow-sm: 0 1px 2px rgba(15, 23, 42, .04);
-      --shadow-md: 0 4px 12px rgba(15, 23, 42, .06);
-      --shadow-lg: 0 8px 24px rgba(249, 115, 22, .18);
+      --ayn-orange: #ea580c;
+      --ayn-orange-2: #c2410c;
+      --ayn-orange-soft: #fff1e6;
+      --ayn-orange-border: #f6c9a4;
+      --ayn-green: #15803d;
+      --ayn-green-soft: #ecfdf3;
+      --ayn-amber: #b45309;
+      --ayn-red: #b91c1c;
+      --ayn-red-soft: #fdecec;
+      --ayn-blue: #1d4ed8;
+      --ayn-blue-soft: #eef2ff;
+      --ayn-ink: #1a1a1a;
+      --ayn-text: #2a2723;
+      --ayn-muted: #5b5751;
+      --ayn-faint: #8a8377;
+      --ayn-border: #e6e1d8;
+      --ayn-border-2: #efece6;
+      --ayn-card: #ffffff;
+      --ayn-bg: #faf8f5;
+      --shadow-sm: 0 1px 2px rgba(20, 18, 15, .04);
+      --shadow-md: 0 4px 14px rgba(20, 18, 15, .06);
+      --shadow-lg: 0 8px 24px -12px rgba(20, 18, 15, .14);
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       height: 100%; overflow: hidden;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      font-feature-settings: "cv11", "ss01";
+      font-family: var(--font-body);
       -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    h1, h2, h3, h4,
+    .logo, .login-title, .card-title, .job-hero-title,
+    .empty-title, .banner-title, .score-num, .fill-stat,
+    .app-card-title, .contact-card-title {
+      font-family: var(--font-display);
+      letter-spacing: -.012em;
+    }
+    .score-num, .fill-stat, .progress-meta b,
+    .email-fmt, .score-salary, .resume-out,
+    #fill-resume-steps li::before {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
     }
     body {
       background: var(--ayn-bg); color: var(--ayn-text);
