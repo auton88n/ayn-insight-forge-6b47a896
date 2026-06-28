@@ -140,12 +140,44 @@ function syncRemoteResume(resp) {
   if (text) chrome.storage.local.set({ savedResume: text });
 }
 
-function displayEmail(resp) {
-  const email = resp?.user?.email || resp?.profile?.email || '';
+function displayUser(resp) {
+  const p = resp?.profile || {};
+  const email = resp?.user?.email || p.email || '';
   const device = resp?.user?.device || '';
+  let name = p.full_name || p.name || p.display_name || p.first_name || '';
+  if (!name && email) {
+    const local = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
+    name = local.split(/\s+/).map(s => s ? s[0].toUpperCase() + s.slice(1) : '').join(' ');
+  }
   const el = $('user-email');
-  el.textContent = email || device || 'Connected';
-  el.title = email ? `${email}\nDevice: ${device}` : device;
+  el.textContent = name || 'Signed in';
+  el.title = email ? `${email}${device ? `\nDevice: ${device}` : ''}` : (device || '');
+}
+// Alias kept for any callers referencing the old name.
+const displayEmail = displayUser;
+
+// Strip raw URLs from any string before showing as a label.
+function cleanLabel(s) {
+  return (s || '').replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+// Render a company logo into the .job-hero-logo slot. Falls back to initial on error.
+function setCompanyLogo(elId, companyName, fallbackTitle) {
+  const el = $(elId);
+  if (!el) return;
+  const name = cleanLabel(companyName);
+  const initial = (name || fallbackTitle || '·').trim().charAt(0).toUpperCase() || '·';
+  if (!name) { el.textContent = initial; return; }
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!slug) { el.textContent = initial; return; }
+  el.innerHTML = '';
+  const img = document.createElement('img');
+  img.alt = name;
+  img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:inherit;';
+  img.referrerPolicy = 'no-referrer';
+  img.onerror = () => { el.textContent = initial; };
+  img.src = `https://logo.clearbit.com/${slug}.com`;
+  el.appendChild(img);
 }
 
 async function bootAfterAuth() {
