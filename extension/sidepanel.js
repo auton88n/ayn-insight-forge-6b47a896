@@ -515,6 +515,8 @@ document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async
 });
 
 $('fill-rescan-btn')?.addEventListener('click', detectForFill);
+$('score-rescan-btn')?.addEventListener('click', detectForScore);
+
 
 $('autofill-now-btn').addEventListener('click', () => {
   const btn = $('autofill-now-btn');
