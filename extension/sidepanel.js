@@ -574,8 +574,8 @@ function detectForScore() {
       SJ.jobText = r.text;
       SJ.jobUrl = tab.url || '';
       $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
-      $('score-job-company').textContent = SJ.company || tab.url;
-      $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
+      $('score-job-company').textContent = cleanLabel(SJ.company) || 'Unknown company';
+      setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
       $('score-job-banner').classList.remove('hidden');
 
       // If the URL changed since last detection, clear the old result.
