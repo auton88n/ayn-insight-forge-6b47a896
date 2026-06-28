@@ -396,6 +396,7 @@
     const fields = [];
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
+    let bgCounter = 0;
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
@@ -424,6 +425,45 @@
             const groupKey = `${prefix}${el.type}:${el.name}`;
             if (seenGroupKeys.has(groupKey)) return;
             seenGroupKeys.add(groupKey);
+
+            // Ashby/custom: hidden checkbox proxied by visible option buttons (Yes/No). Emit as a buttongroup
+            // so the AI answers a single-choice question (its work-auth/sponsorship logic applies), not a checkbox.
+            if (el.type === 'checkbox' && isElHidden(el)) {
+              const container = el.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || el.parentElement;
+              if (container) {
+                const optBtns = Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => {
+                  if (b.disabled) return false;
+                  if ((b.type || '').toLowerCase() === 'submit') return false;
+                  const r = b.getBoundingClientRect();
+                  if (r.width === 0 && r.height === 0) return false;
+                  const t = (safeText(b) || b.getAttribute('aria-label') || '').trim();
+                  if (!t || t.length > 24 || t.split(/\s+/).length > 4) return false;
+                  if (/^(submit|next|back|continue|apply|cancel|close|save|upload|attach)$/i.test(t)) return false;
+                  return true;
+                });
+                const seenT = new Set();
+                const uniqBtns = optBtns.filter(b => { const k = (safeText(b) || '').trim().toLowerCase(); if (seenT.has(k)) return false; seenT.add(k); return true; });
+                if (uniqBtns.length >= 2 && uniqBtns.length <= 6) {
+                  let qLabel = '';
+                  const lblEl = container.querySelector('label, [class*="question"], [class*="label"], legend, h3, h4, strong');
+                  if (lblEl && !lblEl.contains(el)) qLabel = safeText(lblEl).trim();
+                  if (!qLabel) qLabel = getLabelFor(el) || el.name;
+                  qLabel = (qLabel || '').slice(0, 240);
+                  const optionTexts = uniqBtns.map(b => (safeText(b) || '').trim());
+                  const bgId = `${prefix}__buttongroup__:bcx${bgCounter++}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
+                  window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+                  window.__AYN_BG_MAP__.set(bgId, { qLabel, optionTexts });
+                  fields.push({
+                    id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: el.name,
+                    currentValue: '', options: optionTexts.map(t => ({ label: t, value: t })),
+                    required: el.required || el.getAttribute('aria-required') === 'true',
+                    group: classifyField(qLabel, el.name || '', 'buttongroup'), _frame: prefix,
+                  });
+                  return;
+                }
+              }
+            }
+
             // Question label = nearest fieldset legend / label group; fall back to this input's label.
             let qLabel = '';
             const fs = el.closest('fieldset');
