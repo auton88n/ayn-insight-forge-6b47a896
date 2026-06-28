@@ -800,15 +800,17 @@
             });
           }
 
-          await sleep(70);
+          await sleep(60);
           let verified = bgIsSelected(target);
+          if (!verified) { await sleep(140); verified = bgIsSelected(target); }
           if (!verified) {
             // Fallback: try clicking parent / label
             const fallback = target.closest('label') || target.parentElement;
             if (fallback && fallback !== target) {
               fireFullClick(fallback);
-              await sleep(70);
+              await sleep(60);
               verified = bgIsSelected(target) || bgIsSelected(fallback);
+              if (!verified) { await sleep(140); verified = bgIsSelected(target) || bgIsSelected(fallback); }
             }
           }
           if (verified) { filled++; results.push({ id, ok: true, verified: true }); }
