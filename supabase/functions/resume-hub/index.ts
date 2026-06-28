@@ -739,8 +739,10 @@ Deno.serve(async (req) => {
         else if (/associate|diploma/.test(eduStr)) educationLevel = "Associate's";
         else if (eduStr.trim()) educationLevel = "High School";
 
-        const rawLinkedin = profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
-        const rawPortfolio = profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const addr = (profile?.address || {}) as Record<string, string>;
+        const plinks = (profile?.links || {}) as Record<string, string>;
+        const rawLinkedin = plinks.linkedin || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const rawPortfolio = plinks.portfolio || plinks.website || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
         const linkedinSafe = /linkedin\.com\//i.test(rawLinkedin) ? rawLinkedin : "";
         const portfolioSafe = rawPortfolio && !/linkedin\.com/i.test(rawPortfolio) ? rawPortfolio : "";
 
@@ -750,7 +752,10 @@ Deno.serve(async (req) => {
           full_name: [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || basics.name || "",
           email: profile?.email || basics.email || "",
           phone: profile?.phone || basics.phone || "",
-          location: profile?.city || basics.location || "",
+          location: [addr.city, addr.state || addr.province, addr.country].filter(Boolean).join(", ") || basics.location || "",
+          city: addr.city || "",
+          region: addr.state || addr.province || "",
+          country: addr.country || "",
           summary: basics.summary || "",
           computed_years_experience: canonical?.derived?.total_yoe ?? yoe,
           computed_education_level: canonical?.derived?.education_level || educationLevel,
@@ -761,6 +766,8 @@ Deno.serve(async (req) => {
         };
         if (linkedinSafe) merged.linkedin_url = linkedinSafe;
         if (portfolioSafe) merged.portfolio_url = portfolioSafe;
+        if (plinks.github) merged.github_url = plinks.github;
+
 
         const r = await callAI({
           model: DEFAULT_MODEL,
@@ -802,7 +809,7 @@ Read these fields from the input:
   - canonical.work_auth.work_authorized_ca  (true | false | undefined)
   - canonical.work_auth.needs_sponsorship_now / needs_sponsorship_future
   - canonical.work_auth.visa_type
-  - profile.country, profile.city (where the user actually lives)
+  - mergedBasics.city, mergedBasics.region, mergedBasics.country (where the user actually lives)
 
 Generic decision rules (apply to ANY user, no country baked in):
 1. Determine the role's eligible countries from context.url, context.company, jobDescription text, and any locations listed in the field's own options[] or label (e.g. "US or Canada", "United States only", "Ontario, Toronto, Remote-Canada").
@@ -814,8 +821,8 @@ Generic decision rules (apply to ANY user, no country baked in):
 3. Combined-country phrasing ("X or Y", "one of: …", "U.S. or Canada", "Canada or the United States") → Yes if rule #2 returns Yes for ANY listed country.
 4. "Will you (now or in the future) require visa sponsorship?" → No if the user is authorized in at least one of the role's eligible countries by rule #2 (they can work there without sponsorship). Yes only if the user lacks authorization in every eligible country AND needs_sponsorship_now or needs_sponsorship_future is true. Otherwise skip.
 5. If the role's country is genuinely unclear, skip these questions.
-6. RESIDENCE — "Do you currently reside in / live in [list of places]?" → Yes ONLY if profile.country or profile.city clearly matches one of the listed places (e.g. option list includes "Ontario" and profile.city/region/country indicates Ontario or Canada; or list includes "California" and profile says California). Otherwise No. If you cannot tell from profile, skip — never guess.
-7. "Open to relocating?" → Use profile.default_answers.open_to_relocate only; else skip.
+6. RESIDENCE — "Do you currently reside in / live in [list of places]?" or "Do you live in [places]? If not, are you open to relocating?" → Yes if mergedBasics.city, mergedBasics.region, or mergedBasics.country matches any listed place (e.g. options include "Ontario" and mergedBasics.region is "ON" or "Ontario", or mergedBasics.country is "Canada"; options include "California" and region is "CA"). If the question is the combined "live there OR open to relocating" form, answer Yes when EITHER the residence matches OR relocation is allowed. Otherwise No. Only skip if mergedBasics has no city/region/country at all.
+7. "Open to relocating?" → Yes if canonical.preferences.open_to_relocation === true OR profile.default_answers.willing_to_relocate is "yes"/true; No if either is explicitly false/"no"; else skip.
 8. "Do you have a degree?" → Yes if mergedBasics.computed_education_level is set; match the closest option.
 
 DEMOGRAPHIC / EEO / VOLUNTARY SELF-IDENTIFICATION (eeo.*: race, ethnicity, gender, gender identity, pronouns, sexual orientation, disability status, veteran status):
