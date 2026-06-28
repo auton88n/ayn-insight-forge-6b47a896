@@ -355,10 +355,10 @@ export const HeroScroll = memo(() => {
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
                 <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,8vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
+                  {isAr ? <>بحثك عن عمل<br />مدعوم بالذكاء الاصطناعي.</> : language === 'fr' ? <>Votre recherche<br />d'emploi. Propulsée par l'IA.</> : <>Your job search.<br />Powered by AI.</>}
                 </h1>
                 <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? 'AYN يربط تقاريرك وملفاتك وقراراتك في طبقة ذكاء واحدة يمكن لشركتك التحدث إليها.' : language === 'fr' ? "AYN connecte vos rapports, fichiers et décisions en une couche d'intelligence à laquelle votre entreprise peut parler." : 'AYN connects your reports, files, and decisions into one intelligence layer your business can talk to.'}
+                  {isAr ? 'يربط AYN سيرتك بالوظائف، ويملأ طلباتك، ويكتب رسائل التقديم، ويتتبع كل فرصة في مكان واحد.' : language === 'fr' ? "AYN fait correspondre votre CV aux offres, remplit vos candidatures, rédige vos lettres de motivation et suit chaque opportunité en un seul endroit." : 'AYN matches your resume to jobs, fills your applications, writes your cover letters, and tracks every opportunity in one place.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Link to="/contact"
@@ -367,13 +367,13 @@ export const HeroScroll = memo(() => {
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
                     onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-                    {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
+                    {isAr ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Start Free'} <ArrowRight size={13} />
                   </Link>
                   <Link to="/contact"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'عرض تقرير عينة' : language === 'fr' ? 'Voir un exemple de rapport' : 'View Sample Report'}
+                    {isAr ? 'احجز عرضاً' : language === 'fr' ? 'Réserver une démo' : 'Book a Demo'}
                   </Link>
                 </div>
               </div>
