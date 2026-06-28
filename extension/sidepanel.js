@@ -1265,7 +1265,7 @@ window.cleanTitle = cleanTitle;
 function refreshForActiveTab() {
   if (!S.user) return;
   // Clear stale banners before re-detect so previous tab's data never lingers
-  const fb = $('fill-job-banner'); if (fb) fb.style.display = 'none';
+  const fb = $('fill-job-banner'); if (fb) { fb.classList.add('hidden'); fb.style.display = ''; }
   $('contact-no-job')?.classList.add('hidden');
   $('contact-job-info')?.classList.add('hidden');
   $('cover-no-job')?.classList.add('hidden');
