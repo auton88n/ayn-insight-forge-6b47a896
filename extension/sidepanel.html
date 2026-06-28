@@ -256,16 +256,18 @@
        ═══════════════════════════════════════════════════════════ */
     .card {
       background: var(--ayn-card); border: 1px solid var(--ayn-border);
-      border-radius: 12px; padding: 14px;
+      border-radius: 14px; padding: 16px;
       margin-bottom: 12px; box-shadow: var(--shadow-sm);
+      transition: border-color .15s, box-shadow .15s;
     }
-    .card-title { font-size: 13.5px; font-weight: 700; color: var(--ayn-ink); margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+    .card:hover { box-shadow: var(--shadow-md); }
+    .card-title { font-size: 13.5px; font-weight: 700; color: var(--ayn-ink); margin-bottom: 4px; display: flex; align-items: center; gap: 7px; letter-spacing: -.005em; }
     .card-title i { color: var(--ayn-orange); font-size: 16px; }
-    .card-sub { font-size: 12px; color: var(--ayn-muted); line-height: 1.5; }
+    .card-sub { font-size: 12px; color: var(--ayn-muted); line-height: 1.55; }
 
     /* Banners (empty/info states) */
     .banner {
-      border-radius: 11px; padding: 12px 14px; font-size: 12.5px;
+      border-radius: 12px; padding: 12px 14px; font-size: 12.5px;
       margin-bottom: 12px; border: 1px solid; line-height: 1.5;
     }
     .b-green { background: var(--ayn-green-soft); border-color: #BBF7D0; color: #15803D; }
@@ -275,21 +277,24 @@
     .banner-title { font-weight: 700; margin-bottom: 3px; font-size: 13px; }
     .banner-sub { font-size: 12px; opacity: .9; }
 
-    /* Empty state with icon (refined version) */
+    /* Empty state — modern, branded */
     .empty-state {
-      text-align: center; padding: 28px 18px;
-      background: var(--ayn-card); border: 1px dashed var(--ayn-border);
-      border-radius: 12px; margin-bottom: 12px;
+      text-align: center; padding: 36px 22px;
+      background: linear-gradient(180deg, var(--ayn-card) 0%, var(--ayn-bg) 100%);
+      border: 1px solid var(--ayn-border);
+      border-radius: 16px; margin-bottom: 12px;
+      box-shadow: var(--shadow-sm);
     }
     .empty-icon {
-      width: 48px; height: 48px; border-radius: 12px;
-      background: var(--ayn-bg); color: var(--ayn-faint);
+      width: 56px; height: 56px; border-radius: 16px;
+      background: var(--ayn-orange-soft); color: var(--ayn-orange-2);
       display: inline-flex; align-items: center; justify-content: center;
-      margin-bottom: 12px;
+      margin-bottom: 14px; border: 1px solid var(--ayn-orange-border);
+      box-shadow: 0 6px 18px -8px rgba(249,115,22,.4);
     }
-    .empty-icon i { font-size: 24px; }
-    .empty-title { font-size: 14px; font-weight: 700; color: var(--ayn-ink); margin-bottom: 4px; }
-    .empty-sub { font-size: 12.5px; color: var(--ayn-muted); line-height: 1.5; max-width: 260px; margin: 0 auto; }
+    .empty-icon i { font-size: 26px; }
+    .empty-title { font-size: 15px; font-weight: 700; color: var(--ayn-ink); margin-bottom: 6px; letter-spacing: -.012em; }
+    .empty-sub { font-size: 12.5px; color: var(--ayn-muted); line-height: 1.6; max-width: 280px; margin: 0 auto; }
 
     /* Keyword chips */
     .kw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
