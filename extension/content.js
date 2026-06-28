@@ -1204,7 +1204,7 @@
     }
 
     if (message.type === 'INJECT_VALUES') {
-      sendResponse(injectValues(message.values));
+      injectValues(message.values).then(sendResponse).catch(e => sendResponse({ filled: 0, total: 0, results: [], error: e.message }));
       return true;
     }
 
