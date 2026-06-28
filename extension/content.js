@@ -566,9 +566,9 @@
 
       const id = `__buttongroup__:${out.length}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
       const options = uniq.map(i => ({ label: i.text, value: i.text }));
-      // Track elements via window for later lookup in injectValues
+      // PART 1: Store DATA (qLabel + option texts), not live element refs
       window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
-      window.__AYN_BG_MAP__.set(id, uniq.map(i => i.el));
+      window.__AYN_BG_MAP__.set(id, { qLabel, optionTexts: uniq.map(i => i.text) });
 
       out.push({
         id,
