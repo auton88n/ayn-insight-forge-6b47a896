@@ -1,45 +1,52 @@
-# Fill tab: Jobright-style job hero + cleaner Autofill CTA (v1.9.5)
+## Why your Fill tab doesn't show the job title card
 
-## Problem
-Today our Fill tab opens with a bare orange "Autofill This Application" button and no job context. Jobright shows a rich job card first (logo, company, role, posted/applicants, match %), then a single Autofill button below. Ours feels generic; theirs feels grounded in the actual job.
+Looking at the screenshot, the Autofill button is shown but the job hero card above it (logo + company + title + field count) never appears. I traced the bug:
 
-## Goal
-Reuse the job context we already extract (title, company, logo, posted date, applicant count, match score, score ring) and surface it as a polished hero card at the top of the Fill tab. The orange Autofill CTA becomes the clear next action under that card. No logic changes — pure UI restructure inside the Fill tab of `extension/sidepanel.html` + `sidepanel.js`.
+- `renderFillHero()` removes the `hidden` CSS class on `#fill-job-banner`
+- but `refreshForActiveTab()` (runs on every tab change / SPA navigation) hides it with `fb.style.display = 'none'`
+- Inline style beats the class, so the banner stays invisible forever after the first navigation
 
-## What changes (extension only — no edge function or backend work)
+So v1.9.5 shipped the hero card but a stale line of code keeps killing it.
 
-### 1. New "Job Hero Card" at the top of Fill tab
-Layout, top to bottom inside one rounded white card with soft shadow:
-- Row 1: square company logo (Clearbit, with letter fallback) on the left; company name (bold) + industry/subtitle (muted) in the middle; circular match-score ring on the right (reuses `setHeroRing` from v1.9.4, tier-tinted stroke green/orange/amber/red).
-- Row 2: job title in larger semibold ink.
-- Row 3: muted meta line — "{postedRelative} · {applicants} applicants" when known, falls back to host/location.
-- Hairline divider.
-- Row 4: optional "Insider Connections" placeholder hidden by default (we don't have contacts data wired into Fill yet, so it stays out for v1.9.5).
+## Fix plan (Chrome extension only)
 
-### 2. Autofill CTA placement
-- Move the existing orange "Autofill This Application" button directly underneath the hero card.
-- Keep it full-width, taller (52px), bold label, lightning icon, lifted orange shadow. No copy change.
-- Keep current click handler, progress bar, and result list rendering below it untouched.
+### 1. Fix the hero card never showing — `extension/sidepanel.js`
+- In `refreshForActiveTab()` replace `fb.style.display = 'none'` with `fb.classList.add('hidden')` so `renderFillHero` can re-show it
+- In `renderFillHero()` also clear any leftover inline `display` style as a safety net
+- In `detectForFill()` reset hero text to neutral placeholders before re-detect so the previous job never flashes
 
-### 3. Resume attachment card
-- Keep the existing "Resume file attachment" panel as-is below the CTA. Only nudge spacing so it sits as a clear secondary block, not competing with the hero.
+### 2. Make the Fill hero look like Jobright (better than now) — `extension/sidepanel.html` + `extension/sidepanel.css`
+Redesign the `#fill-job-banner` card so the Fill tab leads with a clean job context block, then the orange CTA, mirroring Jobright's layout:
 
-### 4. Empty / loading states
-- Before a job is detected: hero card shows skeleton (gray logo square, two gray bars, dimmed ring at "--"). CTA stays enabled and falls back to current behavior.
-- After detection: populated with real data; ring animates from 0 to the local score (already computed by v1.5.x local scorer; no AI call added).
+```text
+┌──────────────────────────────────────────┐
+│ [logo]  Company name                     │
+│         Product Owner, Agentic AI        │
+│         12 fields ready · partial ok     │
+└──────────────────────────────────────────┘
+       ⚡ Autofill This Application
+```
 
-## Files touched
-- `extension/sidepanel.html` — add `.job-hero` styles + new markup block at the top of `#tab-fill`. Restructure the existing Fill section so the CTA sits below the hero.
-- `extension/sidepanel.js` — small `renderFillHero(job)` helper that populates logo, company, title, meta, and calls `setHeroRing('fill-hero-ring', 'fill-hero-ring-num', pct)`. Call it from the same place that already updates Fill state on job detection / SPA navigation.
-- `extension/manifest.json` — bump version to `1.9.5`.
-- `src/pages/ResumeHub.tsx` — bump download label to v1.9.5.
-- Rebuild `public/ayn-extension.zip`.
+Visual upgrades:
+- 56px rounded company logo (Clearbit) with subtle border + soft shadow, fallback initial chip in AYN orange
+- Company name as small uppercase muted label, job title as the prominent line (16–17px, semibold, 2-line clamp)
+- Meta row with a small bolt icon + "N fields ready" pill
+- Card uses the same white surface + soft border + shadow tier used on the rest of the panel (no gradient stripe)
+- Tighter top spacing so the CTA sits directly under the card
+- Keep the hidden match-ring slot untouched (Score tab still owns scoring)
 
-## Non-goals
-- No changes to autofill logic, scoring math, edge functions, or any other tab.
-- No "Insider Connections" data wiring in this pass (placeholder only, hidden).
-- No color system changes — orange CTA + tier-tinted ring stay the v1.9.4 palette.
+### 3. Polish the Autofill CTA
+- Full-width 44px orange button, bolt icon, label "Autofill This Application"
+- Subtle press state + 8px gap from the hero card
+- Remove the leftover empty-state padding when the hero is active
 
-## Verification
-- `node --check` on all extension JS.
-- Manually confirm in the side panel: hero renders with logo/title/meta/ring, CTA sits below, resume card sits below CTA, autofill click still runs and progress + result list still populate.
+### 4. Versioning & packaging
+- Bump `extension/manifest.json` to `1.9.6`
+- Update the download label in `src/pages/ResumeHub.tsx` to v1.9.6
+- `node --check` all touched extension JS
+- Rebuild `public/ayn-extension.zip` from `extension/`
+
+### Out of scope
+- No backend / edge function changes
+- No other tabs touched (Score, Ask, Contacts, Cover, Tracker, Resume)
+- No dashboard styling beyond the version label
