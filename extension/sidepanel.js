@@ -415,7 +415,7 @@ function detectForFill() {
       // Form found — show hero (always) + ready state
       let host = '';
       try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host });
+      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
       $('autofill-now-btn').classList.remove('hidden');
 
       // Show resume-attach hint + download button if page asks for a resume file
