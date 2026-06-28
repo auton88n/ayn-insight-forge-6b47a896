@@ -661,20 +661,25 @@ function detectForScore() {
   $('err-score-job').classList.add('hidden');
   getTab(tab => {
     if (!tab) { $('score-no-job').classList.remove('hidden'); return; }
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
-        $('score-no-job').classList.remove('hidden');
-        $('score-result').classList.add('hidden');
-        return;
-      }
-      const prevUrl = SJ.jobUrl;
-      SJ.jobTitle = r.title || '';
-      SJ.company = r.company || extractCompanyFromTitle(r.title || '');
-      SJ.jobText = r.text;
-      SJ.jobUrl = tab.url || '';
-      $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
-      $('score-job-company').textContent = cleanLabel(SJ.company) || 'Unknown company';
-      setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
+    // v1.9.7: route via background so content.js auto-injects on rescan
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId: tab.id, payload: { type: 'EXTRACT_JOB_TEXT' } },
+      r => {
+        void chrome.runtime.lastError;
+        if (!r?.text || r.text.length < 50) {
+          $('score-no-job').classList.remove('hidden');
+          $('score-result').classList.add('hidden');
+          return;
+        }
+        const prevUrl = SJ.jobUrl;
+        SJ.jobTitle = r.title || '';
+        SJ.company = deriveCompany(r.company, tab.url, r.title);
+        SJ.jobText = r.text;
+        SJ.jobUrl = tab.url || '';
+        $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
+        $('score-job-company').textContent = SJ.company || 'Unknown company';
+        setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
+
       $('score-job-banner').classList.remove('hidden');
 
       // If the URL changed since last detection, clear the old result.
