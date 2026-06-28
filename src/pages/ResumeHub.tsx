@@ -88,9 +88,6 @@ export default function ResumeHub() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rh-btn" onClick={downloadExtension}>
-              <Download className="w-4 h-4" /> Install extension
-            </button>
             <button className="rh-btn rh-btn-primary" onClick={() => setTab("builder")}>
               New resume
             </button>
@@ -99,9 +96,10 @@ export default function ResumeHub() {
 
         {/* Three-column workspace */}
         <div className="rh-grid">
-          {/* Left nav */}
-          <aside className="rh-aside-left">
-            <div className="rh-aside-label">Workspace</div>
+          {/* Left icon rail */}
+          <aside className="rh-aside-left" aria-label="Workspace navigation">
+            <div className="rh-rail-mark" aria-hidden>A</div>
+            <div className="rh-rail-sep" aria-hidden />
             <nav className="rh-navlist">
               {NAV.map((item) => {
                 const Icon = item.icon;
@@ -111,9 +109,11 @@ export default function ResumeHub() {
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
+                    aria-label={item.label}
+                    title={item.label}
                   >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
+                    <Icon className="w-[18px] h-[18px] shrink-0" />
+                    <span className="rh-tip">{item.label}</span>
                   </button>
                 );
               })}
@@ -149,7 +149,7 @@ export default function ResumeHub() {
                 Score, autofill, and tailor on any job board.
               </p>
               <button className="rh-btn w-full justify-center" onClick={downloadExtension}>
-                <Download className="w-4 h-4" /> Download v1.9.0
+                <Download className="w-4 h-4" /> Download v1.9.1
               </button>
             </div>
           </aside>

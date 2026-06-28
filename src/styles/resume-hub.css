@@ -1,34 +1,34 @@
-/* Resume Hub — Warm Off-white theme (scoped) */
+/* Resume Hub — White + Orange (scoped) */
 .resume-hub-theme {
-  --rh-canvas: #faf8f5;
+  --rh-canvas: #ffffff;
   --rh-surface: #ffffff;
-  --rh-raised: #efece6;
-  --rh-ink: #1a1a1a;
-  --rh-muted: #5b5751;
-  --rh-faint: #8a8377;
-  --rh-hair: #e6e1d8;
-  --rh-accent: #ea580c;
-  --rh-accent-2: #c2410c;
-  --rh-tint: #fff1e6;
+  --rh-raised: #f5f5f5;
+  --rh-ink: #0a0a0a;
+  --rh-muted: #6b7280;
+  --rh-faint: #9ca3af;
+  --rh-hair: #ececec;
+  --rh-accent: #f97316;
+  --rh-accent-2: #ea580c;
+  --rh-tint: #fff4ea;
 
   background: var(--rh-canvas);
   color: var(--rh-ink);
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
 .resume-hub-theme .rh-display {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  letter-spacing: -0.012em;
+  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.014em;
 }
 .resume-hub-theme .rh-mono {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 .resume-hub-theme .rh-shell {
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 24px clamp(16px, 4vw, 40px) 64px;
+  padding: 20px clamp(12px, 3vw, 32px) 56px;
 }
 .resume-hub-theme .rh-topbar {
   display: flex;
@@ -39,93 +39,149 @@
   background: var(--rh-surface);
   border: 1px solid var(--rh-hair);
   border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(20, 18, 15, .04);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .resume-hub-theme .rh-title {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  font-size: clamp(20px, 2.4vw, 26px);
+  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  font-size: clamp(18px, 2.2vw, 24px);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 .resume-hub-theme .rh-eyebrow {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 10.5px;
+  font-size: 10px;
   letter-spacing: .14em;
   text-transform: uppercase;
   color: var(--rh-muted);
 }
+
+/* ────────────────── Grid: icon rail · main · right rail ────────────────── */
 .resume-hub-theme .rh-grid {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 280px;
-  gap: 20px;
+  grid-template-columns: 64px minmax(0, 1fr) 280px;
+  gap: 16px;
   align-items: start;
 }
 @media (max-width: 1100px) {
-  .resume-hub-theme .rh-grid { grid-template-columns: 200px minmax(0, 1fr); }
+  .resume-hub-theme .rh-grid { grid-template-columns: 64px minmax(0, 1fr); }
   .resume-hub-theme .rh-aside-right { display: none; }
 }
 @media (max-width: 760px) {
-  .resume-hub-theme .rh-grid { grid-template-columns: 1fr; }
+  .resume-hub-theme .rh-grid { grid-template-columns: 1fr; gap: 12px; }
   .resume-hub-theme .rh-aside-left { position: static; }
 }
-.resume-hub-theme .rh-aside-left,
-.resume-hub-theme .rh-aside-right {
+
+/* ────────────────── Vertical icon rail ────────────────── */
+.resume-hub-theme .rh-aside-left {
   position: sticky;
-  top: 20px;
+  top: 16px;
   background: var(--rh-surface);
   border: 1px solid var(--rh-hair);
   border-radius: 14px;
-  padding: 14px;
-  box-shadow: 0 1px 2px rgba(20, 18, 15, .03);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.resume-hub-theme .rh-rail-mark {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--rh-accent), var(--rh-accent-2));
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.resume-hub-theme .rh-rail-sep {
+  width: 28px; height: 1px; background: var(--rh-hair); margin: 4px 0;
 }
 .resume-hub-theme .rh-navlist {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-@media (max-width: 760px) {
-  .resume-hub-theme .rh-navlist {
-    flex-direction: row;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 4px;
-  }
-  .resume-hub-theme .rh-navlist::-webkit-scrollbar { display: none; }
+  gap: 4px;
+  width: 100%;
+  align-items: center;
 }
 .resume-hub-theme .rh-navitem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
+  position: relative;
+  width: 40px; height: 40px;
   border-radius: 10px;
-  font-size: 13.5px;
-  font-weight: 500;
+  display: inline-flex; align-items: center; justify-content: center;
   color: var(--rh-muted);
   background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  white-space: nowrap;
+  border: none; cursor: pointer;
   transition: background .15s, color .15s;
 }
 .resume-hub-theme .rh-navitem:hover { background: var(--rh-raised); color: var(--rh-ink); }
 .resume-hub-theme .rh-navitem.active {
   background: var(--rh-tint);
   color: var(--rh-accent-2);
-  font-weight: 600;
+}
+.resume-hub-theme .rh-navitem.active::before {
+  content: "";
+  position: absolute;
+  left: -8px; top: 8px; bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--rh-accent);
+}
+.resume-hub-theme .rh-navitem .rh-tip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #0a0a0a;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity .15s;
+  z-index: 30;
+}
+.resume-hub-theme .rh-navitem:hover .rh-tip { opacity: 1; }
+
+/* Mobile horizontal icon row */
+@media (max-width: 760px) {
+  .resume-hub-theme .rh-aside-left {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .resume-hub-theme .rh-aside-left::-webkit-scrollbar { display: none; }
+  .resume-hub-theme .rh-rail-mark { margin-bottom: 0; margin-right: 4px; }
+  .resume-hub-theme .rh-rail-sep { display: none; }
+  .resume-hub-theme .rh-navlist { flex-direction: row; }
+  .resume-hub-theme .rh-navitem.active::before {
+    left: 8px; right: 8px; top: auto; bottom: -2px; width: auto; height: 2px;
+  }
+  .resume-hub-theme .rh-navitem .rh-tip { display: none; }
+}
+
+/* ────────────────── Right rail ────────────────── */
+.resume-hub-theme .rh-aside-right {
+  position: sticky;
+  top: 16px;
+  background: var(--rh-surface);
+  border: 1px solid var(--rh-hair);
+  border-radius: 14px;
+  padding: 14px;
 }
 .resume-hub-theme .rh-main {
   background: var(--rh-surface);
   border: 1px solid var(--rh-hair);
   border-radius: 16px;
-  padding: clamp(16px, 2.4vw, 28px);
-  box-shadow: 0 1px 2px rgba(20, 18, 15, .03), 0 12px 32px -20px rgba(20, 18, 15, .12);
+  padding: clamp(14px, 2.2vw, 24px);
   min-height: 480px;
 }
-.resume-hub-theme .rh-aside-section {
-  margin-bottom: 14px;
-}
+.resume-hub-theme .rh-aside-section { margin-bottom: 14px; }
 .resume-hub-theme .rh-aside-section:last-child { margin-bottom: 0; }
 .resume-hub-theme .rh-aside-label {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -158,7 +214,7 @@
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   border: 1px solid var(--rh-hair);
   background: var(--rh-surface);
   color: var(--rh-ink);
