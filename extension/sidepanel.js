@@ -919,8 +919,9 @@ function detectForCover() {
       CL.jobTitle = r.title || ''; CL.company = r.company || extractCompanyFromTitle(r.title || '');
       CL.jobText = r.text;
       $('cover-job-banner').classList.remove('hidden');
-      $('cover-job-title').textContent = CL.jobTitle || 'Job detected';
-      $('cover-job-sub').textContent = CL.company ? `at ${CL.company}` : '';
+      $('cover-job-title').textContent = cleanLabel(CL.jobTitle) || 'Job detected';
+      $('cover-job-sub').textContent = cleanLabel(CL.company) ? `at ${cleanLabel(CL.company)}` : 'Unknown company';
+      setCompanyLogo('cover-job-logo', CL.company, CL.jobTitle);
     });
   });
   chrome.storage.local.get(['savedResume'], d => { CL.resumeText = d.savedResume || ''; });
