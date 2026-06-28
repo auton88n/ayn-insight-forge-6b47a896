@@ -782,6 +782,39 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  function isElHidden(el) {
+    try {
+      if (!el) return false;
+      if (el.tabIndex === -1) return true;
+      if (!el.offsetParent && (el.style && el.style.position !== 'fixed')) return true;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return true;
+      const cs = (el.ownerDocument && el.ownerDocument.defaultView || window).getComputedStyle(el);
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return true;
+      return false;
+    } catch { return false; }
+  }
+
+  async function clickOptionButton(btn, qLabel, wantText) {
+    try { btn.scrollIntoView({ block: 'center' }); } catch {}
+    try { btn.focus && btn.focus(); } catch {}
+    btn.click();
+    await sleep(60);
+    let ok = bgIsSelected(btn);
+    if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+    if (!ok) {
+      fireFullClick(btn);
+      await sleep(60); ok = bgIsSelected(btn);
+      if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+    }
+    if (!ok) {
+      mainWorldClickByText(qLabel, wantText);
+      await sleep(150); ok = bgIsSelected(btn);
+    }
+    try { console.log('[AYN-BG] proxyClick', wantText, 'verified=', ok); } catch {}
+    return ok;
+  }
+
   async function injectValues(values) {
     let filled = 0;
     const results = [];
@@ -812,6 +845,24 @@
             ? optionValues
             : [optionLabel || optionValue || value].filter(Boolean);
         if (!targets.length) { results.push({ id, ok: false, reason: 'no option' }); continue; }
+
+        // Hidden-checkbox proxy: Ashby renders hidden <input type=checkbox> with visible Yes/No buttons
+        const firstInput = radios[0];
+        if (kind === 'checkbox' && isElHidden(firstInput)) {
+          const wantRaw = String(optionLabel || optionValue || value || '').trim();
+          const wantTrue = /^(yes|true|1|agree|consent|checked|on)$/i.test(wantRaw);
+          const container = firstInput.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || firstInput.parentElement;
+          const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
+          const tries = [norm(wantRaw), wantTrue ? 'yes' : 'no'].filter(Boolean);
+          let btn = null;
+          for (const tnorm of tries) { btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === tnorm); if (btn) break; }
+          const qLabel = getLabelFor(firstInput) || name;
+          try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
+          if (btn) {
+            const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
+            if (okv) { filled++; results.push({ id, ok: true, verified: true }); continue; }
+          }
+        }
 
         let any = false;
         targets.forEach(tRaw => {
