@@ -455,10 +455,10 @@ export const HeroScroll = memo(() => {
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ textAlign: 'center', marginBottom: 80, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'center' }}>
-              {isAr ? 'بُني لكل جزء من العمل.' : language === 'fr' ? 'Conçu pour chaque partie de l\'entreprise.' : 'Built for every part of the business.'}
+              {isAr ? 'بُني لكل خطوة في بحثك عن عمل.' : language === 'fr' ? 'Conçu pour chaque étape de votre recherche d\'emploi.' : 'Built for every step of your job search.'}
             </h2>
             <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              {isAr ? 'تساعد AYN القادة على طرح الأسئلة، وقراءة سياق الشركة، وتحويل النشاط اليومي إلى قرارات.' : language === 'fr' ? "AYN aide les dirigeants à poser des questions, à lire le contexte de l'entreprise et à transformer l'activité quotidienne en décisions." : 'AYN helps leaders ask questions, read company context, and turn daily activity into decisions.'}
+              {isAr ? 'يجمع AYN سيرتك وصفحات الوظائف وطلباتك والمتابعات في مكان واحد حتى تتمكن من التركيز على الحصول على الدور المناسب.' : language === 'fr' ? 'AYN regroupe votre CV, les offres d\'emploi, les candidatures et les relances en un seul endroit pour que vous puissiez vous concentrer sur le bon poste.' : 'AYN brings your resume, job pages, applications, and follow ups into one place so you can focus on landing the right role.'}
             </p>
           </div>
 
@@ -469,34 +469,34 @@ export const HeroScroll = memo(() => {
           }}>
             {[
               {
-                title: isAr ? 'اسأل عملك' : 'Ask Your Business',
-                desc: isAr ? 'اطرح أسئلة عبر التقارير وجداول البيانات والتحديثات والمستندات ونشاط الفريق.' : 'Ask questions across reports, spreadsheets, updates, documents, and team activity.',
-                icon: Search
-              },
-              {
-                title: isAr ? 'ذاكرة الشركة' : 'Company Memory',
-                desc: isAr ? 'حول الملفات والتقارير والتحديثات والقرارات إلى ذاكرة واحدة حية يمكن لشركتك استخدامها.' : 'Turn files, reports, updates, and decisions into one living memory your company can use.',
-                icon: Database
-              },
-              {
-                title: isAr ? 'تحديثات الفريق' : 'Team Updates',
-                desc: isAr ? 'اسمح للموظفين والمديرين بإضافة التحديثات والمعوقات والملاحظات والتقدم في AYN.' : 'Let employees and managers add updates, blockers, notes, and progress into AYN.',
-                icon: Users
-              },
-              {
-                title: isAr ? 'تقارير القيادة' : 'Leadership Reports',
-                desc: isAr ? 'أنشئ تقارير للمديرين وملخصات للرئيس التنفيذي والأولويات وخطط العمل من نشاط الشركة.' : 'Generate manager reports, CEO summaries, priorities, and action plans from company activity.',
+                title: isAr ? 'بناء السيرة الذاتية بالذكاء الاصطناعي' : language === 'fr' ? 'CV alimenté par l\'IA' : 'AI Resume Builder',
+                desc: isAr ? 'ابنِ سيرة ذاتية تتحدث إلى المجندين. يقرأ AYN خبرتك ويرتبها لتطابق ما تبحث عنه أنظمة التوظيف.' : language === 'fr' ? 'Créez un CV qui parle aux recruteurs. AYN lit votre expérience et la met en forme pour correspondre à ce que les systèmes de recrutement recherchent.' : 'Build a resume that speaks to recruiters. AYN reads your experience and formats it to match what hiring systems look for.',
                 icon: FileText
               },
               {
-                title: isAr ? 'إجابات قائمة على الأدلة' : 'Evidence-Based Answers',
-                desc: isAr ? 'شاهد من أين أتت الإجابات، مع سياق من بيانات شركتك.' : 'See where answers came from, with context from your company data.',
-                icon: CheckCircle
+                title: isAr ? 'درجة توافق الوظيفة' : language === 'fr' ? 'Score de correspondance' : 'Job Match Score',
+                desc: isAr ? 'اعرف مدى تناسب كل وظيفة مع ملفك. يقيم AYN الأدوار مقابل مهاراتك وخبرتك وتفضيلاتك لتقدم بطريقة أذكى.' : language === 'fr' ? 'Voyez à quel point chaque offre correspond à votre profil. AYN évalue les postes par rapport à vos compétences, votre expérience et vos préférences pour postuler plus intelligemment.' : 'See how well each job fits your profile. AYN scores roles against your skills, experience, and preferences so you apply smarter.',
+                icon: Target
               },
               {
-                title: isAr ? 'قوة عاملة من وكلاء الذكاء الاصطناعي' : 'AI Agent Workforce',
-                desc: isAr ? 'وكلاء متخصصون يدعمون المبيعات والعمليات والتمويل والمستندات والدعم والقيادة.' : 'Specialized agents support sales, operations, finance, documents, support, and leadership.',
-                icon: Cpu
+                title: isAr ? 'التعبئة بنقرة واحدة' : language === 'fr' ? 'Remplissage en un clic' : 'One Click Autofill',
+                desc: isAr ? 'توقف عن النسخ واللصق في كل طلب. يقرأ AYN النموذج ويملأ تفاصيلك في LinkedIn وIndeed وGreenhouse والمزيد.' : language === 'fr' ? 'Arrêtez de copier-coller dans chaque candidature. AYN lit le formulaire et remplit vos coordonnées sur LinkedIn, Indeed, Greenhouse et plus encore.' : 'Stop copying and pasting into every application. AYN reads the form and fills your details into LinkedIn, Indeed, Greenhouse, and more.',
+                icon: MousePointerClick
+              },
+              {
+                title: isAr ? 'متتبع الوظائف الذكي' : language === 'fr' ? 'Suivi intelligent des emplois' : 'Smart Job Tracker',
+                desc: isAr ? 'احتفظ بكل طلب وموعد نهائي ومتابعة في جدول زمني واحد. اعرف بالضبط مكانك مع كل فرصة.' : language === 'fr' ? 'Gardez chaque candidature, date limite et relance dans un seul calendrier. Sachez exactement où vous en êtes avec chaque opportunité.' : 'Keep every application, deadline, and follow up in one timeline. Know exactly where you stand with each opportunity.',
+                icon: LayoutGrid
+              },
+              {
+                title: isAr ? 'رسائل تغطية مناسبة' : language === 'fr' ? 'Lettres de motivation adaptées' : 'Cover Letters That Fit',
+                desc: isAr ? 'أنشئ رسالة تغطية مخصصة لأي وظيفة في ثوانٍ. يستخدم AYN الإعلان وملفك الشخصي ليكتب شيئاً يبدو وكأنه منك.' : language === 'fr' ? 'Générez une lettre de motivation sur mesure pour n\'importe quel emploi en quelques secondes. AYN utilise l\'offre et votre profil pour écrire quelque chose qui vous ressemble.' : 'Generate a tailored cover letter for any job in seconds. AYN uses the posting and your profile to write something that sounds like you.',
+                icon: Mail
+              },
+              {
+                title: isAr ? 'التحضير للمقابلة' : language === 'fr' ? 'Préparation à l\'entretien' : 'Interview Prep',
+                desc: isAr ? 'تدرب على الأسئلة بناءً على الوظيفة وخلفيتك. يساعدك AYN على إعداد إجابات تبدو طبيعية وواثقة.' : language === 'fr' ? 'Pratiquez des questions basées sur le poste et votre parcours. AYN vous aide à préparer des réponses naturelles et confiantes.' : 'Practice questions based on the job and your background. AYN helps you prepare answers that feel natural and confident.',
+                icon: MessageCircle
               }
             ].map((card, i) => (
               <div key={i}
