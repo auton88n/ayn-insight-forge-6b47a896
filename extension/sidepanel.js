@@ -469,6 +469,7 @@ $('autofill-now-btn').addEventListener('click', () => {
       const fillBar = $('fill-progress-fill');
       fillBar.style.width = pct + '%';
       fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
+      setHeroRing('fill-hero-ring', 'fill-hero-ring-num', pct);
 
       const list = $('fill-result-list');
       list.innerHTML = '';
