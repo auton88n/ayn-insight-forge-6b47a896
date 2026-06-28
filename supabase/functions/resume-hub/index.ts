@@ -739,15 +739,18 @@ Deno.serve(async (req) => {
         else if (/associate|diploma/.test(eduStr)) educationLevel = "Associate's";
         else if (eduStr.trim()) educationLevel = "High School";
 
-        const merged = {
+        const rawLinkedin = profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const rawPortfolio = profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const linkedinSafe = /linkedin\.com\//i.test(rawLinkedin) ? rawLinkedin : "";
+        const portfolioSafe = rawPortfolio && !/linkedin\.com/i.test(rawPortfolio) ? rawPortfolio : "";
+
+        const merged: Record<string, unknown> = {
           first_name: profile?.legal_first_name || firstFromResume || "",
           last_name: profile?.legal_last_name || restFromResume.join(" ") || "",
           full_name: [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || basics.name || "",
           email: profile?.email || basics.email || "",
           phone: profile?.phone || basics.phone || "",
           location: profile?.city || basics.location || "",
-          linkedin_url: profile?.linkedin_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin/i.test(l?.label || l?.url || ""))?.url || "",
-          portfolio_url: profile?.portfolio_url || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin/i.test(l?.label || l?.url || ""))?.url || "",
           summary: basics.summary || "",
           computed_years_experience: canonical?.derived?.total_yoe ?? yoe,
           computed_education_level: canonical?.derived?.education_level || educationLevel,
@@ -756,6 +759,8 @@ Deno.serve(async (req) => {
           seniority: canonical?.derived?.seniority || "",
           primary_function: canonical?.derived?.primary_function || "",
         };
+        if (linkedinSafe) merged.linkedin_url = linkedinSafe;
+        if (portfolioSafe) merged.portfolio_url = portfolioSafe;
 
         const r = await callAI({
           model: DEFAULT_MODEL,
