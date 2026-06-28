@@ -308,9 +308,9 @@ function detectForFill() {
 
       // Form found — show ready state
       if (r.title) {
-        $('fill-job-title').textContent = r.title;
-        $('fill-job-sub').textContent = F.company || '';
-        $('fill-job-logo').textContent = (F.company || r.title || '·').trim().charAt(0) || '·';
+        $('fill-job-title').textContent = cleanLabel(r.title);
+        $('fill-job-sub').textContent = cleanLabel(F.company) || 'Unknown company';
+        setCompanyLogo('fill-job-logo', F.company, r.title);
         $('fill-job-banner').classList.remove('hidden');
       }
       $('fill-field-count').textContent = r.fieldCount;
