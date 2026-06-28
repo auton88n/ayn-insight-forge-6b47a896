@@ -110,10 +110,9 @@ export default function ResumeHub() {
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
                     aria-label={item.label}
-                    title={item.label}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    <span className="rh-tip">{item.label}</span>
+                    <span className="rh-tip" role="tooltip">{item.label}</span>
                   </button>
                 );
               })}
