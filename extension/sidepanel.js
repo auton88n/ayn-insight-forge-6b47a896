@@ -345,7 +345,8 @@ function applyFormReady(r, tab) {
     title: F.jobTitle || cleanLabel(tab && tab.title),
     company: F.company,
     fieldCount: r.fieldCount,
-    host,
+    host, url: tab && tab.url,
+
   });
   const dlWrap = $('fill-resume-dl-wrap');
   if (dlWrap) {
