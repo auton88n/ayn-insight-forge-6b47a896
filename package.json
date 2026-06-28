@@ -12,11 +12,13 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@fontsource/dm-sans": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/inter-tight": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/noto-sans-arabic": "^5.2.10",
     "@fontsource/playfair-display": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
     "@fontsource/syne": "^5.2.7",
     "@hookform/resolvers": "^3.10.0",
     "@playwright/test": "^1.57.0",
