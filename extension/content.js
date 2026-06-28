@@ -625,7 +625,10 @@
     if (el.getAttribute('aria-pressed') === 'true') return true;
     if (el.getAttribute('aria-selected') === 'true') return true;
     const cls = (el.className && typeof el.className === 'string') ? el.className : (el.getAttribute('class') || '');
-    if (/(\bselected\b|\bactive\b|\bchecked\b|bg-|--selected)/i.test(cls)) return true;
+    // Match active/selected/checked/on bounded by start, whitespace, underscore, or dash
+    // (so Ashby's "_active_1svni_57" matches but "inactive" does not).
+    if (/(?:^|[\s_-])(?:active|selected|checked|on)(?:[\s_-]|\d|$)/i.test(cls)) return true;
+    if (/(?:^|[\s-])(?:bg-[a-z]|--selected)/i.test(cls)) return true;
     try {
       const inp = el.querySelector && el.querySelector('input[type="radio"], input[type="checkbox"]');
       if (inp && inp.checked) return true;
