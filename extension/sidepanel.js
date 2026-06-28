@@ -374,17 +374,22 @@ function detectForFill() {
       void chrome.runtime.lastError;
       if (cached) applyFormReady(cached, tab);
     });
-    chrome.tabs.sendMessage(tab.id, { type: 'DETECT_PAGE' }, r => {
-      if (chrome.runtime.lastError || !r) {
-        $('fill-empty-title').textContent = 'Page not scannable yet';
-        $('fill-empty-sub').textContent = 'Refresh this page (Cmd/Ctrl+R), then click Scan again.';
-        $('fill-empty').classList.remove('hidden');
-        return;
-      }
+    // v1.9.7: route through background so content.js auto-injects on rescan
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId: tab.id, payload: { type: 'DETECT_PAGE' } },
+      r => {
+        void chrome.runtime.lastError;
+        if (!r) {
+          $('fill-empty-title').textContent = 'Page not scannable yet';
+          $('fill-empty-sub').textContent = 'Refresh this page (Cmd/Ctrl+R), then click Scan again.';
+          $('fill-empty').classList.remove('hidden');
+          return;
+        }
 
-      F.jobTitle = r.title || '';
-      F.company = r.company || extractCompanyFromTitle(r.title || '');
-      F.kind = r.kind;
+        F.jobTitle = r.title || '';
+        F.company = deriveCompany(r.company, tab.url, r.title);
+        F.kind = r.kind;
+
 
       if (r.kind === 'ayn') {
         $('fill-empty-title').textContent = "You're on AYN, not a job page";
