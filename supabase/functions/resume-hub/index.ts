@@ -768,6 +768,20 @@ Deno.serve(async (req) => {
         if (portfolioSafe) merged.portfolio_url = portfolioSafe;
         if (plinks.github) merged.github_url = plinks.github;
 
+        const cwa = (canonical?.work_auth || {}) as Record<string, any>;
+        const pwa = (profile?.work_auth || {}) as Record<string, any>;
+        const CA_PROV: Record<string,string> = { ON:"Ontario", BC:"British Columbia", AB:"Alberta", QC:"Quebec", MB:"Manitoba", SK:"Saskatchewan", NS:"Nova Scotia", NB:"New Brunswick", NL:"Newfoundland and Labrador", PE:"Prince Edward Island", NT:"Northwest Territories", YT:"Yukon", NU:"Nunavut" };
+        const regionRaw = (addr.state || addr.province || "") as string;
+        merged.region_full = CA_PROV[regionRaw.toUpperCase()] || regionRaw;
+        merged.work_auth = {
+          citizenship: cwa.citizenship || (String(pwa.type||"").toLowerCase()==="citizen" ? (addr.country||"") : "") || "",
+          authorized_us: (typeof cwa.work_authorized_us === "boolean") ? cwa.work_authorized_us : undefined,
+          authorized_ca: (typeof cwa.work_authorized_ca === "boolean") ? cwa.work_authorized_ca : undefined,
+          needs_sponsorship: (typeof cwa.needs_sponsorship_now === "boolean") ? cwa.needs_sponsorship_now
+                            : (typeof cwa.needs_sponsorship_future === "boolean") ? cwa.needs_sponsorship_future
+                            : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined,
+        };
+
 
         const r = await callAI({
           model: DEFAULT_MODEL,
