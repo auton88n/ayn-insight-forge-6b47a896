@@ -1,45 +1,95 @@
-# Extension polish: company info, user identity, design pass
+# Extension Side Panel Redesign (v1.9.4)
 
-Three focused changes inside `extension/` only. Keep all logic, tabs, and frame structure intact.
+Match the Jobright reference structure while keeping AYN's white + orange identity. Scope is `extension/sidepanel.html`, `extension/sidepanel.js`, and `extension/manifest.json` only. No logic changes — pure visual/structural polish.
 
-## 1. Job hero cards (Fill, Score, Cover, Resume tabs)
+## Layout structure (top → bottom)
 
-Today: `fill-job-sub`, `score-job-company`, and `cover-job-sub` fall back to `tab.url` (the long Ashby URL the user screenshot-ed). The logo slot shows a single character (e.g. "P").
+```text
+┌─────────────────────────────────────────┐
+│ [AYN logo]  AYN          [⚙]  [→ out]   │  ← clean header, 56px
+├─────────────────────────────────────────┤
+│ ╭─ Job Hero Card ───────────────────╮   │
+│ │ [logo] Company                58% │   │  ← big circular score ring (right)
+│ │        Company subtitle           │   │
+│ │ Product Owner, Agentic AI         │   │  ← bold job title
+│ │ 5 days ago · 25 applicants        │   │
+│ │ ─────────────────────────────     │   │
+│ │ Your Insider Connections  L R L > │   │  ← contacts row (chips)
+│ ╰───────────────────────────────────╯   │
+│                                         │
+│ ╭─ Primary CTA ─────────────────────╮   │
+│ │          ✨  Autofill              │   │  ← full-width orange pill button
+│ ╰───────────────────────────────────╯   │
+│   🍃 AI-powered · Smart fields           │  ← subtle helper banner
+│                                         │
+│ ╭─ Row item ────────────────────► ╮     │
+│ │ 📇  Your Autofill Information     │   │
+│ ╰───────────────────────────────────╯   │
+│ ╭─ Row item ────────────────────► ╮     │
+│ │ 📄  Upload Resume                 │   │
+│ │     GhaziAldhyaei_Resume.docx     │   │
+│ │     [ ✨ Generate Custom Resume ] │   │
+│ ╰───────────────────────────────────╯   │
+│ ╭─ Row item ────────────────────► ╮     │
+│ │ ✉️  Cover Letter                  │   │
+│ │     [ ✨ Generate Cover Letter ]  │   │
+│ ╰───────────────────────────────────╯   │
+│                                         │
+│       Autofill for Another Job          │  ← muted underlined link
+└─────────────────────────────────────────┘
+```
 
-Change in `extension/sidepanel.js`:
-- Replace every `tab.url` fallback in those subtitle assignments with the company name only. If no company name is detected, show "Unknown company" instead of the raw URL.
-- Strip URLs from any subtitle string before render (defensive `.replace(/https?:\/\/\S+/g, '').trim()`).
-- Add a small helper `setCompanyLogo(elId, companyName)` that:
-  - Sets the element to `<img src="https://logo.clearbit.com/{slug}.com" onerror="..."/>` where slug = company name lowercased, spaces removed, non-alphanum stripped.
-  - On image error, falls back to the current single-letter initial inside the same square (keeps current `.job-hero-logo` styling so the frame doesn't move).
-- Call `setCompanyLogo` wherever `$('fill-job-logo').textContent = ...`, `$('score-job-logo').textContent = ...`, and the Cover/Resume hero logos are set.
+Bottom tab bar stays (Fill / Score / Resume / Cover / Contacts / Tracker / Profile) but restyled as icon+label pills, sticky bottom.
 
-No edge function or backend changes; Clearbit's logo endpoint is keyless and CORS-open for `<img>`.
+## Visual tokens
 
-## 2. Header shows the user's name, not their email
+- Background: `#ffffff`, card surface `#ffffff` with `border: 1px solid #f1eee8`, radius `16px`, shadow `0 1px 2px rgba(15,15,15,.04), 0 4px 16px rgba(15,15,15,.04)`.
+- Primary CTA: solid orange `#F97316`, hover `#EA580C`, text white, radius `14px`, height `52px`, font-weight `600`, subtle drop shadow `0 8px 20px rgba(249,115,22,.25)`.
+- Secondary action buttons (Generate Resume / Cover Letter): light surface `#FAF7F2` with orange icon + dark text, radius `12px`, height `44px`.
+- Score ring: 56px circular SVG, stroke `#F97316`, track `#FDE8D4`, bold number inside.
+- Typography: Inter; sizes — header 14/600, job title 18/700, body 13/500, helper 12/500 muted `#6B7280`.
+- Row items: 56px tall, left icon in soft orange tinted square (32px, bg `#FFF4E8`, icon `#F97316`), chevron right.
+- Bottom tabs: pill background `#F8F5F0`, active pill `#FFFFFF` with orange dot indicator + label.
 
-In `extension/sidepanel.js` `displayEmail(resp)`:
-- Prefer, in order: `resp.profile.full_name` → `resp.profile.first_name` → derive from email local-part (before `@`, replace `.`/`_` with space, title-case) → `"Signed in"`.
-- Rename the function to `displayUser` for clarity. The element id `user-email` stays (no HTML id churn) but its visible text becomes the user's name. Keep the email in the `title` attribute for hover tooltip.
+## Component-level changes
 
-## 3. Visual refresh of the side panel (no frame/motion changes)
+**Header (`sidepanel.html`)**
+- Slim to single row: logo + "AYN" wordmark left, name pill removed from top — moved into a small profile chip inside the settings menu (keeps identity, declutters).
+- Two icon buttons right: settings (gear) + sign-out (arrow-right-from-bracket).
 
-In `extension/sidepanel.html` `<style>` only:
-- Header pill: tighter padding, 999px radius, subtle border `rgba(0,0,0,.06)`, name in 12px/600, no underline.
-- Job hero card: increase logo box to 44x44, white background with 1px border, 10px radius, subtle shadow; title 15px/700; company line 13px/500 muted; remove orange link styling from the company line entirely.
-- Tabs: keep current pill row but raise contrast of active pill (white bg, soft shadow) and reduce inactive opacity.
-- Cards: unify radius to 14px, border `rgba(0,0,0,.06)`, shadow `0 1px 2px rgba(15,23,42,.04), 0 8px 24px -16px rgba(15,23,42,.08)`.
-- Empty states: smaller icon box (40px), tighter copy block, single muted CTA.
-- Buttons: primary stays orange `#F97316` with hover `#EA580C`; add a quieter ghost variant for secondary actions in headers.
+**Job hero card**
+- Restructure: logo (40px rounded) + company stack left, big score ring right.
+- New job title row (bold, 18px), meta row (posted date · applicants when available).
+- Divider, then "Your Insider Connections" row with up to 5 avatar chips + chevron → opens Contacts tab.
 
-All token tweaks are CSS-only inside `sidepanel.html`. No new fonts. Inter stays.
+**Primary CTA block**
+- Single full-width Autofill button (currently this is buried). Tapping triggers existing `runAutofill()`.
+- Helper strip beneath: "AI-powered field detection" with leaf/spark icon.
 
-## 4. Packaging
+**Action rows**
+- Convert the Fill tab body to a vertical list of 3 elevated rows: Autofill Info, Resume, Cover Letter.
+- Each row uses the icon tile pattern; Resume row shows current filename + inline "Generate Custom Resume" secondary button; Cover Letter row has inline "Generate Cover Letter".
 
-- Bump `extension/manifest.json` version to `1.9.3`.
-- Update label in `src/components/resume-hub/ExtensionTab.tsx` (auto via `manifest.version` import — already wired).
-- Rebuild `public/ayn-extension.zip` from `extension/` using the nix zip command.
+**Bottom tab bar**
+- Replace the horizontal pill row at top with a sticky bottom nav (Jobright pattern). 7 tabs → group as 5 visible (Fill, Score, Resume, Contacts, Tracker) + "More" overflow holding Cover Letter & Profile. Or keep all 7 if width allows with icon-only + label-on-active.
+
+**Empty / loading states**
+- Keep orange icon squares; tighten copy; use the same 16px radius + soft shadow language.
+
+## Files touched
+
+1. `extension/sidepanel.html` — new markup for header, hero card, CTA, action rows, bottom nav. Inline `<style>` overhaul using tokens above.
+2. `extension/sidepanel.js` — wire new DOM ids (`#aynHeroScore`, `#aynHeroTitle`, `#aynHeroMeta`, `#aynHeroConnections`, `#aynPrimaryAutofill`, `#aynRowResume`, `#aynRowCover`); reuse existing handlers (`runAutofill`, `runScore`, `generateResume`, `generateCoverLetter`). No behavior changes.
+3. `extension/manifest.json` — bump `version` to `1.9.4`.
+4. Rebuild `public/ayn-extension.zip` (overwrite).
+5. `src/pages/ResumeHub.tsx` — update download label to `v1.9.4` and short "What's new" line.
 
 ## Out of scope
+- No edge-function changes.
+- No tab logic / autofill behavior changes.
+- No dashboard layout changes beyond version label.
 
-No changes to backend, edge functions, tab logic, autofill, scoring, or any motion/animation. Frames stay as-is.
+## Acceptance check
+- Side panel visually mirrors the reference: hero card with score ring, prominent orange CTA, clean action rows, sticky bottom nav.
+- All existing buttons still trigger the same handlers (verified by id mapping).
+- `node --check` passes on `sidepanel.js`; zip rebuilt and downloadable from Resume Hub.

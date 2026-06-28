@@ -112,30 +112,36 @@
     .sign-out:hover { color: var(--ayn-red); background: var(--ayn-red-soft); border-color: #FECACA; }
 
     /* ═══════════════════════════════════════════════════════════
-       Tabs — modern pill row, less cramped
+       Tabs — sticky bottom nav, Jobright-style (v1.9.4)
        ═══════════════════════════════════════════════════════════ */
     .tabs {
-      display: flex; gap: 2px; background: var(--ayn-card);
-      border-bottom: 1px solid var(--ayn-border);
+      display: flex; gap: 2px;
+      background: rgba(255,255,255,.94);
+      backdrop-filter: saturate(140%) blur(10px);
+      -webkit-backdrop-filter: saturate(140%) blur(10px);
+      border-top: 1px solid var(--ayn-border);
       flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
-      padding: 8px 10px;
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
     }
     .tabs::-webkit-scrollbar { display: none; }
     .tab {
-      flex-shrink: 0;
-      padding: 8px 12px; font-size: 12.5px; font-weight: 600; color: var(--ayn-muted);
-      background: transparent; border: 1px solid transparent; border-radius: 9px;
+      flex: 1 0 auto; min-width: 56px;
+      padding: 8px 6px 8px;
+      font-size: 10.5px; font-weight: 600; color: var(--ayn-muted);
+      background: transparent; border: none; border-radius: 12px;
       cursor: pointer; white-space: nowrap;
-      transition: color .15s, background .15s, border-color .15s;
-      display: inline-flex; align-items: center; gap: 6px;
+      transition: color .15s, background .15s;
+      display: inline-flex; flex-direction: column; align-items: center; gap: 4px;
+      position: relative;
     }
-    .tab.active {
-      color: var(--ayn-orange-2);
-      background: var(--ayn-orange-soft);
-      border-color: var(--ayn-orange-border);
+    .tab i { font-size: 18px; line-height: 1; }
+    .tab.active { color: var(--ayn-orange-2); background: var(--ayn-orange-soft); }
+    .tab.active::after {
+      content: ''; position: absolute; bottom: 3px; left: 50%;
+      transform: translateX(-50%);
+      width: 14px; height: 2px; border-radius: 2px; background: var(--ayn-orange);
     }
-    .tab:hover:not(.active) { color: var(--ayn-ink); background: var(--ayn-bg); }
-    .tab i { font-size: 15px; }
+    .tab:hover:not(.active) { color: var(--ayn-ink); }
 
     /* ═══════════════════════════════════════════════════════════
        Stepper
@@ -220,8 +226,8 @@
        Buttons (primary CTA is the star)
        ═══════════════════════════════════════════════════════════ */
     .btn {
-      width: 100%; padding: 12px 14px; border-radius: 10px; border: none;
-      font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+      width: 100%; padding: 13px 14px; border-radius: 12px; border: none;
+      font-size: 14.5px; font-weight: 700; font-family: inherit; cursor: pointer;
       transition: background .15s, transform .1s, box-shadow .15s;
       display: flex; align-items: center; justify-content: center; gap: 8px;
       letter-spacing: -.005em;
@@ -229,9 +235,9 @@
     .btn:active:not(:disabled) { transform: scale(.985); }
     .btn-primary {
       background: var(--ayn-orange); color: #fff;
-      box-shadow: 0 2px 8px rgba(249,115,22,.25);
+      box-shadow: 0 6px 18px -6px rgba(249,115,22,.45), 0 2px 6px rgba(249,115,22,.2);
     }
-    .btn-primary:hover:not(:disabled) { background: var(--ayn-orange-2); box-shadow: 0 4px 14px rgba(249,115,22,.32); }
+    .btn-primary:hover:not(:disabled) { background: var(--ayn-orange-2); box-shadow: 0 8px 22px -6px rgba(249,115,22,.55), 0 3px 8px rgba(249,115,22,.25); }
     .btn-green { background: var(--ayn-green); color: #fff; box-shadow: 0 2px 6px rgba(22,163,74,.2); }
     .btn-green:hover:not(:disabled) { background: #15803D; }
     .btn-amber { background: var(--ayn-amber); color: #fff; }
@@ -476,32 +482,50 @@
     #fill-resume-steps li.now { color: var(--ayn-orange-2); font-weight: 700; }
 
     /* ═══════════════════════════════════════════════════════════
-       Job Hero card (top of Fill / Score / Contacts / Cover)
+       Job Hero card — Jobright-style, polished (v1.9.4)
        ═══════════════════════════════════════════════════════════ */
     .job-hero {
       background: var(--ayn-card);
       border: 1px solid var(--ayn-border);
-      border-radius: 14px; padding: 14px;
-      margin-bottom: 12px; box-shadow: var(--shadow-sm);
+      border-radius: 18px; padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 2px rgba(15,15,15,.04), 0 6px 20px -10px rgba(15,15,15,.08);
     }
-    .job-hero-row { display: flex; align-items: center; gap: 12px; }
+    .job-hero-row { display: flex; align-items: flex-start; gap: 12px; }
     .job-hero-logo {
-      width: 46px; height: 46px; border-radius: 11px;
-      background: var(--ayn-card); border: 1px solid var(--ayn-orange-border);
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--ayn-orange-soft); border: 1px solid var(--ayn-orange-border);
       display: flex; align-items: center; justify-content: center;
       color: var(--ayn-orange-2); font-weight: 800; font-size: 18px;
-      flex-shrink: 0; text-transform: uppercase;
-      box-shadow: var(--shadow-sm);
+      flex-shrink: 0; text-transform: uppercase; overflow: hidden;
     }
+    .job-hero-logo img { width: 100%; height: 100%; object-fit: contain; }
     .job-hero-text { flex: 1; min-width: 0; }
+    .job-hero-company {
+      font-size: 13px; color: var(--ayn-ink); font-weight: 700;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      letter-spacing: -.005em;
+    }
     .job-hero-title {
-      font-size: 14px; font-weight: 700; color: var(--ayn-ink);
-      line-height: 1.3; letter-spacing: -.01em;
+      font-size: 17px; font-weight: 800; color: var(--ayn-ink);
+      line-height: 1.25; letter-spacing: -.018em; margin-top: 4px;
       overflow: hidden; text-overflow: ellipsis;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .job-hero-company { font-size: 12.5px; color: var(--ayn-muted); font-weight: 600; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .job-hero-meta { font-size: 11.5px; color: var(--ayn-muted); margin-top: 3px; font-weight: 500; }
+    .job-hero-meta { font-size: 12px; color: var(--ayn-muted); margin-top: 6px; font-weight: 500; }
+    /* Circular match-score ring on hero */
+    .hero-ring {
+      position: relative; width: 56px; height: 56px; flex-shrink: 0;
+    }
+    .hero-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .hero-ring .hr-track { fill: none; stroke: var(--ayn-border-2); stroke-width: 5; }
+    .hero-ring .hr-bar   { fill: none; stroke: var(--ayn-orange); stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+    .hero-ring .hr-num {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 800; font-size: 13px;
+      color: var(--ayn-ink); letter-spacing: -.02em;
+    }
+    .hero-ring .hr-num small { font-size: 9px; color: var(--ayn-muted); font-weight: 700; margin-left: 1px; }
 
     /* Progress bar */
     .progress-wrap { margin: 12px 0 4px; }
@@ -668,16 +692,6 @@
   </div>
 </div>
 
-<div class="tabs hidden" id="tabs">
-  <button class="tab active" id="tab-fill"    data-tab="fill"><i class="ti ti-bolt"></i>Fill</button>
-  <button class="tab"        id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
-  <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask AYN</button>
-  <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
-  <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
-  <button class="tab"        id="tab-tracker" data-tab="tracker"><i class="ti ti-checkbox"></i>Tracker</button>
-  <button class="tab"        id="tab-tailor"  data-tab="tailor"><i class="ti ti-wand"></i>Resume</button>
-</div>
-
 <div class="stepper hidden" id="stepper">
   <div class="si active" id="s1"><div class="sn">1</div><span>Resume</span></div>
   <div class="sa">›</div>
@@ -722,9 +736,13 @@
       <div class="job-hero-row">
         <div class="job-hero-logo" id="fill-job-logo">·</div>
         <div class="job-hero-text">
-          <div class="job-hero-title" id="fill-job-title">Job detected</div>
           <div class="job-hero-company" id="fill-job-sub"></div>
+          <div class="job-hero-title" id="fill-job-title">Job detected</div>
           <div class="job-hero-meta"><span id="fill-field-count">0</span> fields ready · partial profile is fine</div>
+        </div>
+        <div class="hero-ring hidden" id="fill-hero-ring">
+          <svg viewBox="0 0 40 40"><circle class="hr-track" cx="20" cy="20" r="17"/><circle class="hr-bar" cx="20" cy="20" r="17" stroke-dasharray="106.8" stroke-dashoffset="106.8"/></svg>
+          <div class="hr-num"><span id="fill-hero-ring-num">0</span><small>%</small></div>
         </div>
       </div>
     </div>
@@ -791,8 +809,12 @@
       <div class="job-hero-row">
         <div class="job-hero-logo" id="score-job-logo">·</div>
         <div class="job-hero-text">
-          <div class="job-hero-title" id="score-job-title">Job detected</div>
           <div class="job-hero-company" id="score-job-company"></div>
+          <div class="job-hero-title" id="score-job-title">Job detected</div>
+        </div>
+        <div class="hero-ring hidden" id="score-hero-ring">
+          <svg viewBox="0 0 40 40"><circle class="hr-track" cx="20" cy="20" r="17"/><circle class="hr-bar" cx="20" cy="20" r="17" stroke-dasharray="106.8" stroke-dashoffset="106.8"/></svg>
+          <div class="hr-num"><span id="score-hero-ring-num">0</span><small>%</small></div>
         </div>
       </div>
     </div>
@@ -1059,6 +1081,16 @@
     <button class="small-link" id="new-job-btn">Try a different job →</button>
   </div>
 
+</div>
+
+<div class="tabs hidden" id="tabs">
+  <button class="tab active" id="tab-fill"    data-tab="fill"><i class="ti ti-bolt"></i>Fill</button>
+  <button class="tab"        id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
+  <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask</button>
+  <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
+  <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
+  <button class="tab"        id="tab-tracker" data-tab="tracker"><i class="ti ti-checkbox"></i>Tracker</button>
+  <button class="tab"        id="tab-tailor"  data-tab="tailor"><i class="ti ti-wand"></i>Resume</button>
 </div>
 
 <div class="toast" id="toast"></div>

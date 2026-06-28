@@ -180,6 +180,27 @@ function setCompanyLogo(elId, companyName, fallbackTitle) {
   el.appendChild(img);
 }
 
+// v1.9.4: animate a circular match ring (0-100). Pass null to hide.
+function setHeroRing(wrapId, numId, pct) {
+  const wrap = $(wrapId);
+  if (!wrap) return;
+  if (pct == null || isNaN(pct)) { wrap.classList.add('hidden'); return; }
+  const v = Math.max(0, Math.min(100, Math.round(pct)));
+  const bar = wrap.querySelector('.hr-bar');
+  const circ = 2 * Math.PI * 17; // 106.81
+  if (bar) {
+    bar.setAttribute('stroke-dasharray', circ.toFixed(2));
+    bar.setAttribute('stroke-dashoffset', (circ * (1 - v / 100)).toFixed(2));
+    // tier-tinted stroke
+    const stroke = v >= 75 ? '#16a34a' : v >= 50 ? '#f97316' : v >= 30 ? '#d97706' : '#b91c1c';
+    bar.setAttribute('stroke', stroke);
+  }
+  const n = $(numId); if (n) n.textContent = v;
+  wrap.classList.remove('hidden');
+}
+
+
+
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
@@ -451,6 +472,7 @@ $('autofill-now-btn').addEventListener('click', () => {
       const fillBar = $('fill-progress-fill');
       fillBar.style.width = pct + '%';
       fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
+      setHeroRing('fill-hero-ring', 'fill-hero-ring-num', pct);
 
       const list = $('fill-result-list');
       list.innerHTML = '';
@@ -623,6 +645,7 @@ async function runScoreFlow({ auto = false } = {}) {
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
     $('score-num').className = 'score-num ' + tier;
+    setHeroRing('score-hero-ring', 'score-hero-ring-num', score * 10);
     $('score-label').textContent = d.matchLabel || '';
     $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
     const sal = $('score-salary');
