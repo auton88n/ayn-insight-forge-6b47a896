@@ -21,18 +21,18 @@ const LandingPage = memo(() => {
   }, []);
 
   const faqSchema = createFAQSchema([
-    { question: 'What is AYN AI?', answer: 'AYN (عين) is a business intelligence AI that monitors global markets, analyzes geopolitical risks, and delivers real-time insights.' },
-    { question: 'Does AYN support Arabic?', answer: 'Yes. AYN is fully bilingual in Arabic and English, built for the MENA market and beyond.' },
+    { question: 'What is AYN AI?', answer: 'AYN is an AI career assistant that helps you find jobs, match your resume, fill applications, and track your search in one place.' },
+    { question: 'Does AYN work with LinkedIn and Indeed?', answer: 'Yes. AYN scans job pages on LinkedIn, Indeed, Greenhouse, Lever, Ashby, and other boards so you can save roles and autofill faster.' },
     { question: 'Is AYN free to try?', answer: 'Absolutely. AYN has a free tier with no credit card required.' },
   ]);
 
   return (
     <>
       <SEO
-        title="AYN AI | Business Intelligence & Market Analysis | Real-Time AI"
-        description="AYN monitors global markets, analyzes geopolitical risks, and delivers instant business intelligence."
+        title="AYN AI | Job Search Assistant | Land Your Next Role"
+        description="AYN helps you find jobs, match your resume, autofill applications, write cover letters, and track every opportunity in one place."
         canonical="/"
-        keywords="AYN AI, business intelligence AI, market analysis AI, geopolitical risk"
+        keywords="AYN AI, job search AI, resume assistant, AI job application, LinkedIn job assistant"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
       <div dir={direction} className="landing-white-page" style={{ background: '#ffffff', minHeight: '100vh', fontFamily: "'Inter', system-ui, sans-serif", fontFeatureSettings: "'cv11','ss01','ss03'" }}>
