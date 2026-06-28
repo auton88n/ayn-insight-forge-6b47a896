@@ -349,14 +349,10 @@ function detectForFill() {
         return;
       }
 
-      // Form found — show ready state
-      if (r.title) {
-        $('fill-job-title').textContent = cleanLabel(r.title);
-        $('fill-job-sub').textContent = cleanLabel(F.company) || 'Unknown company';
-        setCompanyLogo('fill-job-logo', F.company, r.title);
-        $('fill-job-banner').classList.remove('hidden');
-      }
-      $('fill-field-count').textContent = r.fieldCount;
+      // Form found — show hero (always) + ready state
+      let host = '';
+      try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
+      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host });
       $('autofill-now-btn').classList.remove('hidden');
 
       // Show resume-attach hint + download button if page asks for a resume file
