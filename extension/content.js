@@ -725,9 +725,59 @@
       }
       if (matches.length === 1) target = matches[0];
     }
-    if (!target) return { target: null, scope };
-    const interactive = target.closest('button, [role="radio"], [role="button"], [role="option"], a, label') || target;
+    const interactive = target ? (target.closest('button, [role="radio"], [role="button"], [role="option"], a, label') || target) : null;
+    try {
+      console.log('[AYN-BG] resolve', JSON.stringify({
+        qLabel: (meta && meta.qLabel) || '',
+        want: wantN,
+        labelElFound: !!labelEl,
+        scopeFound: !!scope,
+        targetFound: !!interactive,
+        targetTag: interactive && interactive.tagName,
+        targetText: interactive && (interactive.textContent || '').trim().slice(0, 20),
+        targetClass: interactive && (typeof interactive.className === 'string' ? interactive.className : '')
+      }));
+    } catch {}
+    if (!interactive) return { target: null, scope };
     return { target: interactive, scope };
+  }
+
+  // Main-world click fallback — injects a <script> into the page to run the click
+  // outside the extension's isolated world (so React listeners on the page can react).
+  function mainWorldClickByText(qLabel, optionText) {
+    try {
+      const q = JSON.stringify(String(qLabel || '').slice(0, 40));
+      const o = JSON.stringify(String(optionText || '').trim());
+      const code = `(function(){try{
+        var qKey=${q}.trim().toLowerCase();
+        var want=${o}.trim().toLowerCase();
+        if(!qKey||!want)return;
+        var all=document.querySelectorAll('label,legend,p,h2,h3,h4,strong,div,span');
+        var labelEl=null;
+        for(var i=0;i<all.length;i++){
+          var c=all[i];var t=(c.textContent||'').trim().toLowerCase();
+          if(!t||t.length>=260)continue;
+          if(t.indexOf(qKey)!==-1){labelEl=c;break;}
+        }
+        if(!labelEl)return;
+        var node=labelEl.parentElement;
+        for(var j=0;j<7&&node;j++,node=node.parentElement){
+          var btns=node.querySelectorAll('button,[role="radio"],[role="button"],[role="option"]');
+          for(var k=0;k<btns.length;k++){
+            var b=btns[k];var bt=(b.textContent||'').trim().toLowerCase();
+            if(bt===want){b.click();return;}
+          }
+        }
+      }catch(e){}})();`;
+      const s = document.createElement('script');
+      s.textContent = code;
+      (document.head || document.documentElement).appendChild(s);
+      s.remove();
+      return true;
+    } catch (e) {
+      console.log('[AYN-BG] mainWorld blocked', e && e.message);
+      return false;
+    }
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -736,11 +786,17 @@
     let filled = 0;
     const results = [];
 
+    try {
+      console.log('[AYN-BG] injecting', values.length, 'values; buttongroups=',
+        values.filter(v => /^__buttongroup__:/.test(v.id || '')).length);
+    } catch {}
+
     for (const v of values) {
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
 
       const { doc, rawId } = resolveDoc(id, _frame);
+
 
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
       const groupMatch = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(id);
@@ -790,6 +846,7 @@
         if (!target) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); continue; }
 
         try {
+          console.log('[AYN-BG] click', id, 'target?', !!target);
           // PRIMARY: single plain click (proven to work on Ashby; full mouse sequence double-toggles)
           try { target.scrollIntoView({ block: 'center' }); } catch {}
           try { target.focus && target.focus(); } catch {}
@@ -806,12 +863,17 @@
           await sleep(60);
           let verified = bgIsSelected(target);
           if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+          try {
+            console.log('[AYN-BG] afterPlainClick verified=', verified, 'class=',
+              (target && typeof target.className === 'string' ? target.className : ''));
+          } catch {}
           if (!verified) {
             // Fallback 1: full pointer/mouse sequence
             fireFullClick(target);
             await sleep(60);
             verified = bgIsSelected(target);
             if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+            try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
           }
           if (!verified) {
             // Fallback 2: click parent / label
@@ -821,8 +883,17 @@
               await sleep(60);
               verified = bgIsSelected(target) || bgIsSelected(fallback);
               if (!verified) { await sleep(140); verified = bgIsSelected(target) || bgIsSelected(fallback); }
+              try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
             }
           }
+          if (!verified) {
+            // Fallback 3: main-world click (isolated-world click may not reach React)
+            mainWorldClickByText(meta.qLabel, optionLabel || optionValue || value);
+            await sleep(150);
+            verified = bgIsSelected(target);
+            try { console.log('[AYN-BG] afterMainWorld verified=', verified); } catch {}
+          }
+          try { console.log('[AYN-BG] result', id, 'verified=', verified); } catch {}
           if (verified) { filled++; results.push({ id, ok: true, verified: true }); }
           else { results.push({ id, ok: false, reason: 'not verified after click' }); }
         } catch (e) { results.push({ id, ok: false, reason: e.message }); }
