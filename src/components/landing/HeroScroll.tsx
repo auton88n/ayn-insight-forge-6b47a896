@@ -415,7 +415,7 @@ export const HeroScroll = memo(() => {
       <section id="about" style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
         <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 32px', textAlign: 'center' }}>
-            {isAr ? <>عن <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>À propos de <span style={{ color: C.inkMid }}>AYN</span></> : <>About <span style={{ color: C.inkMid }}>AYN</span></>}
+            {isAr ? <>ما هو <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>Qu'est-ce que <span style={{ color: C.inkMid }}>AYN</span></> : <>What is <span style={{ color: C.inkMid }}>AYN</span></>}
           </h2>
           <p dir={isAr ? 'rtl' : 'ltr'} style={{ 
             fontFamily: C.body, 
@@ -429,10 +429,10 @@ export const HeroScroll = memo(() => {
             textAlign: 'center'
           }}>
             {isAr
-              ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والتحرك قبل ضياع الفرص. يساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء أكبر، والمضي قدمًا بثقة.'
+              ? 'تم بناء AYN للأشخاص الذين يريدون مزيداً من التحكم في بحثهم عن عمل. يقرأ إعلانات الوظائف، ويقيسها مقابل سيرتك، ويملأ نماذج التقديم، ويكتب رسائل تغطية تناسب الدور، ويحافظ على تنظيم كل بحثك في جدول زمني واحد. بدلاً من التنقل بين علامات التبويب والمستندات وجداول البيانات، تحصل على مساعد واحد يساعدك على التحرك بسرعة والتقديم بثقة.'
               : language === 'fr'
-              ? "AYN a été conçu pour les propriétaires d'entreprises qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA. Il connecte les rapports, les tâches, les décisions et les données commerciales approuvées en une seule couche d'intelligence, aidant les dirigeants à comprendre ce qui a changé, à voir ce qui compte et à agir avant que les opportunités ne soient manquées. AYN aide les entreprises à s'adapter plus rapidement, à diriger plus intelligemment et à aller de l'avant avec confiance."
-              : 'AYN was built for company owners who need clarity, speed, and control in a world being reshaped by AI. It connects reports, tasks, decisions, and approved business data into one intelligence layer, helping leaders understand what changed, see what matters, and act before opportunities are missed. AYN helps companies adapt faster, lead smarter, and move forward with confidence.'}
+              ? "AYN est conçu pour les personnes qui veulent plus de contrôle sur leur recherche d'emploi. Il lit les offres d'emploi, les évalue par rapport à votre CV, remplit les formulaires de candidature, rédige des lettres de motivation adaptées au poste et garde l'ensemble de votre recherche organisé dans un seul calendrier. Au lieu de jongler entre onglets, documents et feuilles de calcul, vous obtenez un seul assistant qui vous aide à avancer plus vite et à postuler avec confiance."
+              : 'AYN is built for people who want more control over their job search. It reads job postings, scores them against your resume, fills out application forms, writes cover letters that match the role, and keeps your entire search organized in one timeline. Instead of juggling tabs, documents, and spreadsheets, you get a single assistant that helps you move faster and apply with confidence.'}
           </p>
         </div>
       </section>
