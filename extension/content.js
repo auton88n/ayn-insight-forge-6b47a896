@@ -846,6 +846,7 @@
         if (!target) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); continue; }
 
         try {
+          console.log('[AYN-BG] click', id, 'target?', !!target);
           // PRIMARY: single plain click (proven to work on Ashby; full mouse sequence double-toggles)
           try { target.scrollIntoView({ block: 'center' }); } catch {}
           try { target.focus && target.focus(); } catch {}
@@ -862,12 +863,17 @@
           await sleep(60);
           let verified = bgIsSelected(target);
           if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+          try {
+            console.log('[AYN-BG] afterPlainClick verified=', verified, 'class=',
+              (target && typeof target.className === 'string' ? target.className : ''));
+          } catch {}
           if (!verified) {
             // Fallback 1: full pointer/mouse sequence
             fireFullClick(target);
             await sleep(60);
             verified = bgIsSelected(target);
             if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+            try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
           }
           if (!verified) {
             // Fallback 2: click parent / label
@@ -877,8 +883,17 @@
               await sleep(60);
               verified = bgIsSelected(target) || bgIsSelected(fallback);
               if (!verified) { await sleep(140); verified = bgIsSelected(target) || bgIsSelected(fallback); }
+              try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
             }
           }
+          if (!verified) {
+            // Fallback 3: main-world click (isolated-world click may not reach React)
+            mainWorldClickByText(meta.qLabel, optionLabel || optionValue || value);
+            await sleep(150);
+            verified = bgIsSelected(target);
+            try { console.log('[AYN-BG] afterMainWorld verified=', verified); } catch {}
+          }
+          try { console.log('[AYN-BG] result', id, 'verified=', verified); } catch {}
           if (verified) { filled++; results.push({ id, ok: true, verified: true }); }
           else { results.push({ id, ok: false, reason: 'not verified after click' }); }
         } catch (e) { results.push({ id, ok: false, reason: e.message }); }
