@@ -180,6 +180,24 @@ function setCompanyLogo(elId, companyName, fallbackTitle) {
   el.appendChild(img);
 }
 
+// v1.9.4: animate a circular match ring (0-100). Pass null to hide.
+function setHeroRing(wrapId, numId, pct) {
+  const wrap = $(wrapId);
+  if (!wrap) return;
+  if (pct == null || isNaN(pct)) { wrap.classList.add('hidden'); return; }
+  const v = Math.max(0, Math.min(100, Math.round(pct)));
+  const bar = wrap.querySelector('.hr-bar');
+  const circ = 2 * Math.PI * 17; // 106.81
+  if (bar) {
+    bar.setAttribute('stroke-dasharray', circ.toFixed(2));
+    bar.setAttribute('stroke-dashoffset', (circ * (1 - v / 100)).toFixed(2));
+    // tier-tinted stroke
+    const stroke = v >= 75 ? '#16a34a' : v >= 50 ? '#f97316' : v >= 30 ? '#d97706' : '#b91c1c';
+    bar.setAttribute('stroke', stroke);
+  }
+  const n = $(numId); if (n) n.textContent = v;
+  wrap.classList.remove('hidden');
+
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
     if (resp?.error || !resp?.user) {
