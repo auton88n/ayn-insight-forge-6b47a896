@@ -777,7 +777,7 @@ DATA PRIORITY: canonical -> profile -> mergedBasics (with computed_years_experie
 
 FIELD-GROUP GUIDANCE:
 identity.*  → Fill from profile + mergedBasics whenever available.
-link.*      → Full URL with https://.
+link.*      → Full URL with https://. STRICT URL MATCHING: link.linkedin → output ONLY the profile's LinkedIn URL (must contain "linkedin.com"); if no LinkedIn URL exists in profile/canonical/resume, set skip:true. NEVER substitute the portfolio/personal website (e.g. ghazi.today) into a LinkedIn field. Portfolio/website fields → output ONLY a portfolio/personal-site URL, never the LinkedIn URL. GitHub fields → only a github.com URL.
 logic.years_experience → Use mergedBasics.computed_years_experience and match the closest option ("5-7 years" etc.). Never inflate.
 logic.education_level  → Use mergedBasics.computed_education_level and match the closest option.
 logic.salary           → Only if canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation exists; otherwise skip.
