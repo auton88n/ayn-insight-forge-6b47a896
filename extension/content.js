@@ -786,11 +786,17 @@
     let filled = 0;
     const results = [];
 
+    try {
+      console.log('[AYN-BG] injecting', values.length, 'values; buttongroups=',
+        values.filter(v => /^__buttongroup__:/.test(v.id || '')).length);
+    } catch {}
+
     for (const v of values) {
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
 
       const { doc, rawId } = resolveDoc(id, _frame);
+
 
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
       const groupMatch = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(id);
