@@ -140,12 +140,44 @@ function syncRemoteResume(resp) {
   if (text) chrome.storage.local.set({ savedResume: text });
 }
 
-function displayEmail(resp) {
-  const email = resp?.user?.email || resp?.profile?.email || '';
+function displayUser(resp) {
+  const p = resp?.profile || {};
+  const email = resp?.user?.email || p.email || '';
   const device = resp?.user?.device || '';
+  let name = p.full_name || p.name || p.display_name || p.first_name || '';
+  if (!name && email) {
+    const local = email.split('@')[0].replace(/[._-]+/g, ' ').trim();
+    name = local.split(/\s+/).map(s => s ? s[0].toUpperCase() + s.slice(1) : '').join(' ');
+  }
   const el = $('user-email');
-  el.textContent = email || device || 'Connected';
-  el.title = email ? `${email}\nDevice: ${device}` : device;
+  el.textContent = name || 'Signed in';
+  el.title = email ? `${email}${device ? `\nDevice: ${device}` : ''}` : (device || '');
+}
+// Alias kept for any callers referencing the old name.
+const displayEmail = displayUser;
+
+// Strip raw URLs from any string before showing as a label.
+function cleanLabel(s) {
+  return (s || '').replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+// Render a company logo into the .job-hero-logo slot. Falls back to initial on error.
+function setCompanyLogo(elId, companyName, fallbackTitle) {
+  const el = $(elId);
+  if (!el) return;
+  const name = cleanLabel(companyName);
+  const initial = (name || fallbackTitle || '·').trim().charAt(0).toUpperCase() || '·';
+  if (!name) { el.textContent = initial; return; }
+  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!slug) { el.textContent = initial; return; }
+  el.innerHTML = '';
+  const img = document.createElement('img');
+  img.alt = name;
+  img.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:inherit;';
+  img.referrerPolicy = 'no-referrer';
+  img.onerror = () => { el.textContent = initial; };
+  img.src = `https://logo.clearbit.com/${slug}.com`;
+  el.appendChild(img);
 }
 
 async function bootAfterAuth() {
@@ -276,9 +308,9 @@ function detectForFill() {
 
       // Form found — show ready state
       if (r.title) {
-        $('fill-job-title').textContent = r.title;
-        $('fill-job-sub').textContent = F.company || '';
-        $('fill-job-logo').textContent = (F.company || r.title || '·').trim().charAt(0) || '·';
+        $('fill-job-title').textContent = cleanLabel(r.title);
+        $('fill-job-sub').textContent = cleanLabel(F.company) || 'Unknown company';
+        setCompanyLogo('fill-job-logo', F.company, r.title);
         $('fill-job-banner').classList.remove('hidden');
       }
       $('fill-field-count').textContent = r.fieldCount;
@@ -542,8 +574,8 @@ function detectForScore() {
       SJ.jobText = r.text;
       SJ.jobUrl = tab.url || '';
       $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
-      $('score-job-company').textContent = SJ.company || tab.url;
-      $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
+      $('score-job-company').textContent = cleanLabel(SJ.company) || 'Unknown company';
+      setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
       $('score-job-banner').classList.remove('hidden');
 
       // If the URL changed since last detection, clear the old result.
@@ -716,8 +748,8 @@ $('score-this-job-btn')?.addEventListener('click', () => {
       SJ.jobText = r.text;
       SJ.jobUrl = tab.url || '';
       $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
-      $('score-job-company').textContent = SJ.company || tab.url;
-      $('score-job-logo').textContent = (SJ.company || SJ.jobTitle || '·').trim().charAt(0) || '·';
+      $('score-job-company').textContent = cleanLabel(SJ.company) || 'Unknown company';
+      setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
       $('score-job-banner').classList.remove('hidden');
       $('score-no-job').classList.add('hidden');
       runScoreFlow({ auto: false });
@@ -887,8 +919,9 @@ function detectForCover() {
       CL.jobTitle = r.title || ''; CL.company = r.company || extractCompanyFromTitle(r.title || '');
       CL.jobText = r.text;
       $('cover-job-banner').classList.remove('hidden');
-      $('cover-job-title').textContent = CL.jobTitle || 'Job detected';
-      $('cover-job-sub').textContent = CL.company ? `at ${CL.company}` : '';
+      $('cover-job-title').textContent = cleanLabel(CL.jobTitle) || 'Job detected';
+      $('cover-job-sub').textContent = cleanLabel(CL.company) ? `at ${cleanLabel(CL.company)}` : 'Unknown company';
+      setCompanyLogo('cover-job-logo', CL.company, CL.jobTitle);
     });
   });
   chrome.storage.local.get(['savedResume'], d => { CL.resumeText = d.savedResume || ''; });
