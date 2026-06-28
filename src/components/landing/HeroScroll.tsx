@@ -567,10 +567,10 @@ export const HeroScroll = memo(() => {
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ textAlign: 'center', marginBottom: 80, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', lineHeight: 1.04, textAlign: 'center' }}>
-              {isAr ? 'بُني للشركات التي تحتاج إلى الوضوح للنمو.' : language === 'fr' ? 'Conçu pour les entreprises qui ont besoin de clarté pour croître.' : 'Built for the companies that need clarity to grow.'}
+              {isAr ? 'بُني لكل نوع من الباحثين عن عمل.' : language === 'fr' ? 'Conçu pour tous les types de chercheurs d\'emploi.' : 'Built for every kind of job seeker.'}
             </h2>
             <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 820, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              {isAr ? 'تتكيف AYN مع مختلف الصناعات من خلال ربط شعوبها وبياناتها وتقاريرها وعملياتها اليومية في طبقة استخبارات واحدة تعمل بالذكاء الاصطناعي.' : language === 'fr' ? "AYN s'adapte à différents secteurs en connectant leurs collaborateurs, leurs données, leurs rapports et leurs opérations quotidiennes en une seule couche d'intelligence artificielle." : 'AYN adapts to different industries by connecting their people, data, reports, and daily operations into one AI intelligence layer.'}
+              {isAr ? 'يتكيف AYN مع المكان الذي توجد فيه في مسيرتك المهنية. من أول وظيفة إلى خطوتك الكبيرة التالية، يساعدك على البقاء منظماً والتقديم بثقة.' : language === 'fr' ? "AYN s'adapte à l'étape où vous en êtes dans votre carrière. Du premier emploi à la prochaine grande étape, il vous aide à rester organisé et à postuler avec confiance." : 'AYN adapts to where you are in your career. From your first job to your next big move, it helps you stay organized and apply with confidence.'}
             </p>
           </div>
           
@@ -581,34 +581,34 @@ export const HeroScroll = memo(() => {
           }}>
             {[
               { 
-                title: isAr ? 'الشركات العائلية' : 'Family Businesses',
-                desc: isAr ? 'ساعد المالكين على رؤية ما يحدث عبر الفرق والفروع والمديرين والعمليات اليومية دون الاعتماد على تحديثات متفرقة.' : 'Help owners see what is happening across teams, branches, managers, and daily operations without depending on scattered updates.',
-                icon: Home 
+                title: isAr ? 'الخريجون الجدد' : language === 'fr' ? 'Jeunes diplômés' : 'New Graduates',
+                desc: isAr ? 'حول التدريبات والمواد الدراسية والمشاريع الجانبية إلى سيرة ذاتية تفتح الأبواب.' : language === 'fr' ? 'Transformez stages, cours et projets personnels en un CV qui ouvre des portes.' : 'Turn internships, coursework, and side projects into a resume that opens doors.',
+                icon: GraduationCap 
               },
               { 
-                title: isAr ? 'السياحة والضيافة' : 'Tourism & Hospitality',
-                desc: isAr ? 'اربط الحجوزات وطلبات العملاء والموردين والعمليات والتمويل وتعليقات الضيوف في تقارير قيادة واضحة.' : 'Connect bookings, customer requests, suppliers, operations, finance, and guest feedback into clear leadership reports.',
+                title: isAr ? 'مغيرو المسار المهني' : language === 'fr' ? 'Changements de carrière' : 'Career Switchers',
+                desc: isAr ? 'اعرض مهاراتك القابلة للنقل بوضوح. يساعدك AYN على سرد قصتك بطريقة يفهمها مديرو التوظيف.' : language === 'fr' ? 'Montrez clairement vos compétences transférables. AYN vous aide à raconter votre histoire de manière compréhensible pour les recruteurs.' : 'Show your transferable skills clearly. AYN helps you tell your story in a way hiring managers understand.',
+                icon: Briefcase 
+              },
+              { 
+                title: isAr ? 'المحترفون ذوو الخبرة' : language === 'fr' ? 'Professionnels expérimentés' : 'Experienced Professionals',
+                desc: isAr ? 'حافظ على تركيز بحثك. تتبع الأدوار الرئيسية ونطاقات الرواتب والمتابعات المهمة دون فقدان التفاصيل.' : language === 'fr' ? 'Gardez votre recherche ciblée. Suivez les postes seniors, les fourchettes de salaire et les relances importantes sans perdre de détails.' : 'Keep your search focused. Track senior roles, salary ranges, and important follow ups without losing details.',
+                icon: BarChart3 
+              },
+              { 
+                title: isAr ? 'العاملون عن بُعد' : language === 'fr' ? 'Travailleurs à distance' : 'Remote Workers',
+                desc: isAr ? 'ابحث عن أدوار بعيدة من أي مكان واجعل طلباتك منظمة عبر المناطق الزمنية.' : language === 'fr' ? 'Trouvez des postes en télétravail partout et gardez vos candidatures organisées entre les fuseaux horaires.' : 'Find remote roles from anywhere and keep your applications organized across time zones.',
+                icon: Globe 
+              },
+              { 
+                title: isAr ? 'المتقدمون دولياً' : language === 'fr' ? 'Candidats internationaux' : 'International Applicants',
+                desc: isAr ? 'قدم على وظائف في بلدان جديدة مع سيرة ذاتية ورسالة تغطية معدة وفقاً للتوقعات المحلية.' : language === 'fr' ? 'Postulez à des emplois dans de nouveaux pays avec un CV et une lettre de motivation adaptés aux attentes locales.' : 'Apply to jobs in new countries with a resume and cover letter adapted to local expectations.',
                 icon: Plane 
               },
               { 
-                title: isAr ? 'العقارات وإدارة الممتلكات' : 'Real Estate & Property Management',
-                desc: isAr ? 'تتبع العملاء المحتملين والمستأجرين والصيانة والعقود والمدفوعات والمستندات وتحديثات المدير في عرض واحد متصل.' : 'Track leads, tenants, maintenance, contracts, payments, documents, and manager updates in one connected view.',
-                icon: Building2 
-              },
-              { 
-                title: isAr ? 'البناء والمقاولات' : 'Construction & Contracting',
-                desc: isAr ? 'اتبع تقدم المشروع وتأخيرات الموردين وتقارير الموقع والموافقات والفواتير والمعوقات التشغيلية قبل أن تؤثر على التسليم.' : 'Follow project progress, supplier delays, site reports, approvals, invoices, and operational blockers before they affect delivery.',
-                icon: HardHat 
-              },
-              { 
-                title: isAr ? 'التجزئة والفرانشايز' : 'Retail & Franchises',
-                desc: isAr ? 'امنح القيادة رؤية عبر الفروع والمبيعات ومشكلات المخزون وشكاوى العملاء وتحديثات الموظفين وإشارات الأداء.' : 'Give leadership visibility across branches, sales, inventory issues, customer complaints, staff updates, and performance signals.',
-                icon: ShoppingBag 
-              },
-              { 
-                title: isAr ? 'العيادات والشركات الخدمية' : 'Clinics & Service Businesses',
-                desc: isAr ? 'اربط المواعيد ودعم العملاء والمدفوعات وتحديثات الموظفين والمستندات والقضايا التشغيلية في قرارات يومية أكثر وضوحاً.' : 'Connect appointments, customer support, payments, staff updates, documents, and operational issues into clearer daily decisions.',
-                icon: Stethoscope 
+                title: isAr ? 'العودة إلى العمل' : language === 'fr' ? 'Retour au travail' : 'Returning to Work',
+                desc: isAr ? 'عد إلى سوق العمل بثقة. يساعدك AYN على تحديث سيرتك وتقديم خبرتك.' : language === 'fr' ? 'Revenez sur le marché du travail avec confiance. AYN vous aide à actualiser votre CV et à présenter votre expérience.' : 'Get back into the job market with confidence. AYN helps you refresh your resume and present your experience.',
+                icon: Users 
               }
             ].map((item, i) => (
               <div key={i} style={{ 
