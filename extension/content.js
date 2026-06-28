@@ -396,6 +396,7 @@
     const fields = [];
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
+    let bgCounter = 0;
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
