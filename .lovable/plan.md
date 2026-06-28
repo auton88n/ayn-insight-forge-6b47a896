@@ -1,121 +1,50 @@
-## Goal
-Make Resume Hub and the Chrome Extension fully working, end-to-end, with no broken tabs. Ship in small, verifiable steps so you can confirm each one before moving on.
+## Root cause (two bugs, one prompt file)
 
-## Guiding rules
-- One step = one shippable change you can test.
-- Every step has a clear "how you verify it works".
-- Per-user privacy enforced at DB (RLS) and edge function (JWT) on every call.
-- Single source of truth: `user_profile_canonical` (already created).
-- Single backend: `resume-hub` edge function (delete dead handlers as we go).
-- Extension version bumps on every step so you know you have the new build.
+1. **Yes/No questions are answered as checkbox ticks.** v1.8.6 already gets the scanner to emit these Ashby fields as `kind: "buttongroup"` with explicit `Yes`/`No` options. But the `ext_autofill` system prompt in `supabase/functions/resume-hub/index.ts` lists kinds as `text|textarea|select|radio|checkbox|typeahead` — `buttongroup` isn't there, so the model degrades to checkbox-style "should I tick this?" guessing and never runs the work-auth reasoning.
+2. **Work-auth rules are hardcoded to one user (Canadian citizen).** That's wrong: every other user has different citizenship/authorization. The model must derive the answer from THIS user's own `canonical.work_auth` and profile location, not a baked-in fact.
+3. **LinkedIn field gets the portfolio URL.** The merged payload passes `linkedin_url` even when the only available URL is a portfolio/personal site, so the model fills it.
 
----
+## Fix — `supabase/functions/resume-hub/index.ts`, ext_autofill branch only
 
-## PART A — Resume Hub (dashboard)
+No scanner or extension JS changes. Edit only the prompt + the merged payload.
 
-### Step 1. Profile tab is the foundation
-- Confirm `ProfileTab.tsx` loads, extracts from resume, and saves to `user_profile_canonical`.
-- Add a visible "Profile completeness" meter (skills, experience, education, work auth, preferences).
-- Verify: upload resume, click "Extract", edit fields, save, reload page, data persists.
+### A. Add buttongroup as a first-class single-choice kind
+- Add `buttongroup` to the kind enum in the prompt and instruct: treat exactly like `radio` — pick from `options[]` and return `optionValue` + `optionLabel` verbatim, never `value`.
 
-### Step 2. Resume upload + storage
-- One private bucket `resumes/<user_id>/...`, RLS owner-only.
-- On upload: store file, parse to text, run canonical extraction, save both.
-- Verify: upload PDF/DOCX, see parsed text + canonical profile filled.
+### B. Replace the hardcoded Canadian-citizen block with profile-driven rules
+Rewrite the "WORK AUTHORIZATION & SPONSORSHIP" section to read everything from the data the model already has:
 
-### Step 3. Resume list + versions
-- List user's resumes, set "primary", delete, rename.
-- Verify: two resumes uploaded, switch primary, extension picks the primary one.
+- Inputs the model uses: `canonical.work_auth.{citizenship, work_authorized_us, work_authorized_ca, needs_sponsorship_now, needs_sponsorship_future, visa_type}`, `profile.country`, `profile.city`, `profile.default_answers.open_to_relocate`, plus the role's country inferred from `context.url`, `context.company`, JD text, and any locations listed in the field's own `options[]`.
+- Generic decision rules (no country hardcoded):
+  1. Determine the role's eligible countries.
+  2. "Are you authorized to work in COUNTRY(s)?" → Yes only if `work_authorized_<country>` is true for any listed country, OR `citizenship` matches any listed country. Otherwise No. If neither field is set → `skip:true`.
+  3. Combined-country phrasing ("X or Y", "one of: …") → Yes if the user is authorized in ANY listed country by the same logic above.
+  4. "Will you require visa sponsorship?" → No if the user is authorized in at least one of the role's eligible countries (by the same fields). Yes if the user is not authorized in any of them and `needs_sponsorship_*` is true. Skip if unknown.
+  5. "Do you currently reside in [list]?" → Yes only if `profile.country` or `profile.city` matches any option in the list. Otherwise No, or skip if the option list is unclear. Never guess.
+  6. "Open to relocating?" → Use `profile.default_answers.open_to_relocate` only; else skip.
+- Forbid inferring citizenship or authorization from name, language, or resume location alone.
 
-### Step 4. AI Improve resume (with diff)
-- Show before/after side-by-side with accept / reject per section.
-- Save accepted version as a new `resume_versions` row.
-- Verify: run improve, see diff, accept some, reject others, new version saved.
+### C. Add a BUTTONGROUP YES/NO routing note
+Right above the work-auth block: when a buttongroup's options reduce to Yes/No (case-insensitive), apply the rules in this section (work-auth, sponsorship, residence, education, EEO) and return the exact `optionLabel`/`optionValue` from `options[]`. If the rule says skip, return `skip:true` — do NOT default to No.
 
-### Step 5. Cover letter generator
-- Inputs: job title, company, JD paste, tone. Uses canonical profile.
-- Save to `cover_letters`, list + copy + download.
-- Verify: generate, edit, save, reopen later.
+### D. Lock down LinkedIn vs portfolio in the payload AND the prompt
+- Payload: build `merged.linkedin_url` only if the candidate string contains `linkedin.com/`; otherwise omit the key entirely. Build `merged.portfolio_url` only if the candidate does NOT contain `linkedin.com`. This removes the easy wrong shortcut.
+- Prompt: restate that `link.linkedin` requires a URL containing `linkedin.com/`. If `merged.linkedin_url` is absent, `skip:true`. Never substitute portfolio/personal site into a LinkedIn field. `link.portfolio` / `link.website` must never contain `linkedin.com`.
 
-### Step 6. Job tracker
-- Table of saved jobs from extension + manual add. Status pipeline (Saved → Applied → Interview → Offer → Rejected).
-- Verify: save from extension, appears in tracker; status change persists.
+### E. Packaging
+- Bump `extension/manifest.json` to `1.8.7` (keeps installed users in sync after reload; no extension code change).
+- `node --check` extension/*.js.
+- Rebuild `public/ayn-extension.zip` from `extension/`.
+- Deploy `resume-hub`.
 
-### Step 7. Download Extension card
-- Always points to latest `public/ayn-extension.zip` with visible version + changelog.
-- Verify: version on card matches `manifest.json` version.
+## Verification
 
----
+For the current user (whose canonical has Canadian citizenship + Canada auth):
+- "Are you legally authorized to work in the U.S. or Canada?" → Yes (Canada is in the list, user authorized in Canada).
+- "Will you require visa sponsorship?" → No (Canada is in the list, user authorized there).
+- "Do you live in [US states list]… or Ontario?" → Yes if `profile.country = Canada` and `profile.city/region` matches Ontario; otherwise rely on `open_to_relocate`; otherwise skip.
+- "LinkedIn Profile URL" → skipped (left empty) since no `linkedin.com` URL exists in profile/canonical/resume.
 
-## PART B — Chrome Extension
+For a different user (e.g. US citizen, US-only authorized): the same prompt produces No on Canada-only roles, Yes on US roles, sponsorship handled from their own `needs_sponsorship_*`. Nothing is hardcoded.
 
-### Step 8. Auth via "Sign in with AYN" (one-click)
-- Side panel shows signed-in user email pulled from server, not local cache.
-- Sign out wipes all extension storage.
-- Verify: sign in as user A, see A everywhere; sign out, sign in as B, see only B.
-
-### Step 9. Page reader (reliable JD extraction)
-- Full JD with "See more" auto-expand, SPA navigation re-read, iframe-safe.
-- Cache JD server-side keyed by URL hash so Score/Tailor/Cover Letter share the same text.
-- Verify: on LinkedIn + Greenhouse + Lever + Workday, JD length > 1000 chars and matches page.
-
-### Step 10. Fill tab
-- Reads form labels, maps to canonical profile, fills text + selects + radios + checkboxes.
-- Shows list of filled fields with field name + value + "undo".
-- Resume file: clear message "Chrome blocks auto-attach, click here to open file picker with AYN resume preselected".
-- Verify: on a Greenhouse form, 10+ fields filled, list shown, undo works.
-
-### Step 11. Score tab
-- Calls `ext_job_score` with canonical profile + cached JD.
-- Returns: match %, matched skills, missing skills, salary estimate, seniority fit.
-- Circular ring UI + chips.
-- Verify: same JD scored twice returns same score; different JD returns different score.
-
-### Step 12. Contacts tab
-- Returns recruiter / hiring manager personas for the company with suggested outreach message.
-- Verify: company name detected, 3+ personas with titles, copyable message.
-
-### Step 13. Cover Letter tab
-- Uses canonical + cached JD, fact-grounded (no hallucinated employers).
-- Edit + copy + "save to Resume Hub".
-- Verify: generated letter only references real experiences from profile.
-
-### Step 14. Resume (Tailor) tab
-- ATS score ring, missing keywords, "Apply suggestions" produces a tailored version saved to Resume Hub.
-- Verify: tailored resume increases ATS score on re-check.
-
-### Step 15. Tracker tab
-- "Save this job" writes to job tracker (Part A Step 6) with company, title, url, JD.
-- Auto-detect "Application submitted" pages and mark as Applied.
-- Verify: save job, appears in dashboard tracker instantly.
-
-### Step 16. Ask AYN chat
-- Sidebar chat with context = current JD + canonical profile.
-- Verify: ask "Am I a fit?", "What salary should I ask?", answers reference profile + JD.
-
-### Step 17. Answer memory
-- Custom answers (work auth, sponsorship, salary expectation, notice period) saved once, reused across sites.
-- Verify: answer once on Greenhouse, same answer auto-fills on Lever.
-
----
-
-## PART C — Cleanup + reliability
-
-### Step 18. Delete dead code
-- Remove duplicate handlers, old endpoints, unused tabs.
-- Verify: grep returns zero references; build passes.
-
-### Step 19. Diagnostics panel (hidden behind shift-click on version)
-- Shows: signed-in user, JD chars detected, last AI call latency, last error.
-- Verify: trigger an error on purpose, see it in panel.
-
-### Step 20. Final QA pass on 3 ATS
-- LinkedIn Easy Apply, Greenhouse, Workday. All 6 tabs must work end-to-end.
-- Bump to `v1.5.0`, update changelog, rebuild zip.
-
----
-
-## Where I will start
-Step 1 (Profile tab verification + completeness meter), then Step 2 (upload + storage wired to canonical extraction). Those two unblock every extension tab because they fill the canonical profile that everything else reads from.
-
-Approve and I will start with Step 1.
+Console check after Fill: `[AYN-BG] injecting … buttongroups= 3` and `[AYN-BG] proxyClick yes verified= true` for the questions the rules say Yes to.
