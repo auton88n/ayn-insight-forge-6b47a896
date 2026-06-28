@@ -127,6 +127,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // v1.9.7: relay a message to a tab and auto-inject content.js if missing.
+  if (message.type === 'TAB_SEND') {
+    (async () => {
+      const tabId = message.tabId;
+      const payload = message.payload || {};
+      if (tabId == null) { sendResponse(null); return; }
+      const r = await safeSendMessage(tabId, payload);
+      sendResponse(r);
+    })();
+    return true;
+  }
+
+
 
   // Store detected job
   if (message.type === 'JOB_DETECTED') {

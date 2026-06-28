@@ -112,16 +112,16 @@
     .sign-out:hover { color: var(--ayn-red); background: var(--ayn-red-soft); border-color: #FECACA; }
 
     /* ═══════════════════════════════════════════════════════════
-       Tabs — sticky bottom nav, Jobright-style (v1.9.4)
+       Tabs — sticky TOP nav (v1.9.7)
        ═══════════════════════════════════════════════════════════ */
     .tabs {
       display: flex; gap: 2px;
       background: rgba(255,255,255,.94);
       backdrop-filter: saturate(140%) blur(10px);
       -webkit-backdrop-filter: saturate(140%) blur(10px);
-      border-top: 1px solid var(--ayn-border);
+      border-bottom: 1px solid var(--ayn-border);
       flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
-      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+      padding: 8px 8px 10px;
     }
     .tabs::-webkit-scrollbar { display: none; }
     .tab {
@@ -137,11 +137,12 @@
     .tab i { font-size: 18px; line-height: 1; }
     .tab.active { color: var(--ayn-orange-2); background: var(--ayn-orange-soft); }
     .tab.active::after {
-      content: ''; position: absolute; bottom: 3px; left: 50%;
+      content: ''; position: absolute; bottom: 2px; left: 50%;
       transform: translateX(-50%);
       width: 14px; height: 2px; border-radius: 2px; background: var(--ayn-orange);
     }
     .tab:hover:not(.active) { color: var(--ayn-ink); }
+
 
     /* ═══════════════════════════════════════════════════════════
        Stepper
@@ -703,6 +704,18 @@
   </div>
 </div>
 
+
+
+<div class="tabs hidden" id="tabs">
+  <button class="tab active" id="tab-fill"    data-tab="fill"><i class="ti ti-bolt"></i>Fill</button>
+  <button class="tab"        id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
+  <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask</button>
+  <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
+  <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
+  <button class="tab"        id="tab-tracker" data-tab="tracker"><i class="ti ti-checkbox"></i>Tracker</button>
+  <button class="tab"        id="tab-tailor"  data-tab="tailor"><i class="ti ti-wand"></i>Resume</button>
+</div>
+
 <div class="stepper hidden" id="stepper">
   <div class="si active" id="s1"><div class="sn">1</div><span>Resume</span></div>
   <div class="sa">›</div>
@@ -712,6 +725,7 @@
 </div>
 
 <div class="main">
+
 
   <!-- ════════════ LOGIN ════════════ -->
   <div class="view active" id="v-login">
@@ -834,7 +848,11 @@
       <div class="empty-icon"><i class="ti ti-target-arrow"></i></div>
       <div class="empty-title">Open a job posting</div>
       <div class="empty-sub">Navigate to a job page (LinkedIn, Indeed, Greenhouse, Lever, Workday…) then come back here to score it.</div>
+      <button class="btn btn-outline mt12" id="score-rescan-btn" style="max-width:200px;margin-left:auto;margin-right:auto;padding:8px 14px;font-size:12px">
+        <i class="ti ti-refresh"></i>Scan this page again
+      </button>
     </div>
+
 
     <button class="btn btn-primary" id="score-this-job-btn">
       <i class="ti ti-target-arrow"></i>Score This Job
@@ -1094,15 +1112,6 @@
 
 </div>
 
-<div class="tabs hidden" id="tabs">
-  <button class="tab active" id="tab-fill"    data-tab="fill"><i class="ti ti-bolt"></i>Fill</button>
-  <button class="tab"        id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
-  <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask</button>
-  <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
-  <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
-  <button class="tab"        id="tab-tracker" data-tab="tracker"><i class="ti ti-checkbox"></i>Tracker</button>
-  <button class="tab"        id="tab-tailor"  data-tab="tailor"><i class="ti ti-wand"></i>Resume</button>
-</div>
 
 <div class="toast" id="toast"></div>
 

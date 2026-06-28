@@ -161,6 +161,58 @@ function cleanLabel(s) {
   return (s || '').replace(/https?:\/\/\S+/g, '').replace(/\s{2,}/g, ' ').trim();
 }
 
+// v1.9.7: derive a human company name from a URL when DOM extraction fails.
+// Examples:
+//   boards.greenhouse.io/acme/jobs/123     → "Acme"
+//   jobs.lever.co/acme/uuid                → "Acme"
+//   acme.bamboohr.com/careers/12           → "Acme"
+//   jobs.ashbyhq.com/Acme/uuid             → "Acme"
+//   acme.wd1.myworkdayjobs.com/...         → "Acme"
+//   acme.com/careers/...                   → "Acme"
+function hostToCompany(urlOrHost) {
+  let host = '', path = '';
+  try {
+    const u = new URL(urlOrHost.startsWith('http') ? urlOrHost : 'https://' + urlOrHost);
+    host = u.hostname.replace(/^www\./, '');
+    path = u.pathname || '';
+  } catch { host = String(urlOrHost || '').replace(/^www\./, ''); }
+  const titleize = s => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+  // Path-based ATS slugs
+  const segs = path.split('/').filter(Boolean);
+  if (/greenhouse\.io$/.test(host) && segs[0])  return titleize(segs[0]);
+  if (/lever\.co$/.test(host) && segs[0])       return titleize(segs[0]);
+  if (/ashbyhq\.com$/.test(host) && segs[0])    return titleize(segs[0]);
+  if (/smartrecruiters\.com$/.test(host) && segs[0] === 'jobs' && segs[1]) return titleize(segs[1]);
+  if (/workable\.com$/.test(host) && segs[0])   return titleize(segs[0]);
+  if (/recruitee\.com$/.test(host) && segs[0])  return titleize(segs[0]);
+  // Subdomain-based
+  const sub = host.split('.')[0];
+  if (/bamboohr\.com$/.test(host) && sub)       return titleize(sub);
+  if (/myworkdayjobs\.com$/.test(host)) {
+    const parts = host.split('.');
+    if (parts[0]) return titleize(parts[0]);
+  }
+  if (/icims\.com$/.test(host) && sub)          return titleize(sub);
+  if (/jobvite\.com$/.test(host) && sub && sub !== 'jobs') return titleize(sub);
+  // LinkedIn / Indeed → use page-detected company only; fall back to host
+  if (/linkedin\.com$/.test(host)) return '';
+  if (/indeed\.com$/.test(host))   return '';
+  // Generic: strip 'careers.' / 'jobs.' / 'apply.' and use the registrable part
+  const stripped = host.replace(/^(careers|jobs|apply|join|hire|work)\./, '');
+  const base = stripped.split('.')[0];
+  return base ? titleize(base) : '';
+}
+
+// v1.9.7: best-effort company resolver — tries DOM value, then URL.
+function deriveCompany(company, url, fallbackTitle) {
+  const c = cleanLabel(company);
+  if (c) return c;
+  const fromUrl = hostToCompany(url || '');
+  if (fromUrl) return fromUrl;
+  return cleanLabel(extractCompanyFromTitle(fallbackTitle || '')) || '';
+}
+
+
 // Render a company logo into the .job-hero-logo slot. Falls back to initial on error.
 function setCompanyLogo(elId, companyName, fallbackTitle) {
   const el = $(elId);
@@ -265,17 +317,20 @@ const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
 // v1.9.5: always show the Fill hero card the moment a form is detected,
 // using whatever job context we have (or tab fallbacks).
-function renderFillHero({ title, company, fieldCount, host } = {}) {
+function renderFillHero({ title, company, fieldCount, host, url } = {}) {
   const t = cleanLabel(title) || 'Job application detected';
-  const c = cleanLabel(company) || host || 'This page';
+  // v1.9.7: never fall back to a raw host like "boards.greenhouse.io" — derive a real name.
+  const derived = deriveCompany(company, url || host, title);
+  const c = derived || cleanLabel(company) || 'Company';
   $('fill-job-title').textContent = t;
-  $('fill-job-sub').textContent = (c || '').toString();
-  setCompanyLogo('fill-job-logo', company, title);
+  $('fill-job-sub').textContent = c;
+  setCompanyLogo('fill-job-logo', c, title);
   if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
   const banner = $('fill-job-banner');
   banner.classList.remove('hidden');
   banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
 }
+
 
 function applyFormReady(r, tab) {
   // PART B: instant UI reflection from a lightweight FORM_DETECTED probe
@@ -290,7 +345,8 @@ function applyFormReady(r, tab) {
     title: F.jobTitle || cleanLabel(tab && tab.title),
     company: F.company,
     fieldCount: r.fieldCount,
-    host,
+    host, url: tab && tab.url,
+
   });
   const dlWrap = $('fill-resume-dl-wrap');
   if (dlWrap) {
@@ -322,17 +378,22 @@ function detectForFill() {
       void chrome.runtime.lastError;
       if (cached) applyFormReady(cached, tab);
     });
-    chrome.tabs.sendMessage(tab.id, { type: 'DETECT_PAGE' }, r => {
-      if (chrome.runtime.lastError || !r) {
-        $('fill-empty-title').textContent = 'Page not scannable yet';
-        $('fill-empty-sub').textContent = 'Refresh this page (Cmd/Ctrl+R), then click Scan again.';
-        $('fill-empty').classList.remove('hidden');
-        return;
-      }
+    // v1.9.7: route through background so content.js auto-injects on rescan
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId: tab.id, payload: { type: 'DETECT_PAGE' } },
+      r => {
+        void chrome.runtime.lastError;
+        if (!r) {
+          $('fill-empty-title').textContent = 'Page not scannable yet';
+          $('fill-empty-sub').textContent = 'Refresh this page (Cmd/Ctrl+R), then click Scan again.';
+          $('fill-empty').classList.remove('hidden');
+          return;
+        }
 
-      F.jobTitle = r.title || '';
-      F.company = r.company || extractCompanyFromTitle(r.title || '');
-      F.kind = r.kind;
+        F.jobTitle = r.title || '';
+        F.company = deriveCompany(r.company, tab.url, r.title);
+        F.kind = r.kind;
+
 
       if (r.kind === 'ayn') {
         $('fill-empty-title').textContent = "You're on AYN, not a job page";
@@ -354,7 +415,7 @@ function detectForFill() {
       // Form found — show hero (always) + ready state
       let host = '';
       try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host });
+      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
       $('autofill-now-btn').classList.remove('hidden');
 
       // Show resume-attach hint + download button if page asks for a resume file
@@ -454,6 +515,8 @@ document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async
 });
 
 $('fill-rescan-btn')?.addEventListener('click', detectForFill);
+$('score-rescan-btn')?.addEventListener('click', detectForScore);
+
 
 $('autofill-now-btn').addEventListener('click', () => {
   const btn = $('autofill-now-btn');
@@ -604,20 +667,25 @@ function detectForScore() {
   $('err-score-job').classList.add('hidden');
   getTab(tab => {
     if (!tab) { $('score-no-job').classList.remove('hidden'); return; }
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
-        $('score-no-job').classList.remove('hidden');
-        $('score-result').classList.add('hidden');
-        return;
-      }
-      const prevUrl = SJ.jobUrl;
-      SJ.jobTitle = r.title || '';
-      SJ.company = r.company || extractCompanyFromTitle(r.title || '');
-      SJ.jobText = r.text;
-      SJ.jobUrl = tab.url || '';
-      $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
-      $('score-job-company').textContent = cleanLabel(SJ.company) || 'Unknown company';
-      setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
+    // v1.9.7: route via background so content.js auto-injects on rescan
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId: tab.id, payload: { type: 'EXTRACT_JOB_TEXT' } },
+      r => {
+        void chrome.runtime.lastError;
+        if (!r?.text || r.text.length < 50) {
+          $('score-no-job').classList.remove('hidden');
+          $('score-result').classList.add('hidden');
+          return;
+        }
+        const prevUrl = SJ.jobUrl;
+        SJ.jobTitle = r.title || '';
+        SJ.company = deriveCompany(r.company, tab.url, r.title);
+        SJ.jobText = r.text;
+        SJ.jobUrl = tab.url || '';
+        $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
+        $('score-job-company').textContent = SJ.company || 'Unknown company';
+        setCompanyLogo('score-job-logo', SJ.company, SJ.jobTitle);
+
       $('score-job-banner').classList.remove('hidden');
 
       // If the URL changed since last detection, clear the old result.
