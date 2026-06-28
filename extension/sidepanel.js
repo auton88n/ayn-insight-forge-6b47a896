@@ -318,7 +318,7 @@ function detectForFill() {
     // PART B: fast path — show ready state immediately from cached probe
     chrome.runtime.sendMessage({ type: 'GET_FORM_DETECTED', tabId: tab.id }, cached => {
       void chrome.runtime.lastError;
-      if (cached) applyFormReady(cached);
+      if (cached) applyFormReady(cached, tab);
     });
     chrome.tabs.sendMessage(tab.id, { type: 'DETECT_PAGE' }, r => {
       if (chrome.runtime.lastError || !r) {
