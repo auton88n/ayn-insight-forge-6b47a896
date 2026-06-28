@@ -7,10 +7,9 @@
 import { useEffect, useRef, useState, memo, useCallback } from 'react';
 import type React from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope, GraduationCap, Briefcase, Globe, MousePointerClick, Mail, MessageCircle } from 'lucide-react';
+import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { EmotionalEye } from '@/components/eye/EmotionalEye';
 
 /* ── Frame loading ──────────────────────────────────────────────
  * Frames live in /public/frames as individual JPEGs instead of
@@ -103,7 +102,7 @@ export const HeroScroll = memo(() => {
   );
 
   useEffect(() => {
-    // Helmet frame sequence retired — EmotionalEye now renders the orb.
+    preloadFrames();
     const onResizeMq = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', onResizeMq, { passive: true });
     return () => window.removeEventListener('resize', onResizeMq);
@@ -111,27 +110,27 @@ export const HeroScroll = memo(() => {
 
   const CHAPTERS = [
     {
-      headline: isAr ? 'ابحث عن فرص قبل أن تفوتك.\nطابق سيرتك في ثوانٍ.\nقدم بطاقة.' : language === 'fr' ? 'Trouvez les offres avant de les manquer.\nFaites correspondre votre CV en secondes.\nPostulez avec confiance.' : 'Find jobs before you miss them.\nMatch your resume in seconds.\nApply with confidence.',
+      headline: isAr ? 'يعمل وأنت نائم.\nيتعلم وأنت تنمو.\nيبلغك عندما يهم الأمر.' : language === 'fr' ? 'Travaille pendant que vous dormez.\nApprend pendant que vous grandissez.\nSignale quand cela compte.' : 'Works while you sleep.\nLearns while you grow.\nReports when it matters.',
       body: '',
-      stat: '01', unit: isAr ? 'البحث' : language === 'fr' ? 'Recherche' : 'Search',
+      stat: '01', unit: isAr ? 'اليقظة' : language === 'fr' ? 'Vigilance' : 'Vigilance',
       in: 0.15, out: 0.31
     },
     {
-      headline: isAr ? 'اقرأ كل وظيفة كخبير.\nاعرف سبب تناسبك.\nاعرف مكانك.' : language === 'fr' ? 'Lisez chaque offre comme un expert.\nVoyez pourquoi vous correspondez.\nSachez où vous en êtes.' : 'Read every job like an expert.\nSee why you fit.\nKnow where you stand.',
+      headline: isAr ? 'التقارير تصبح محادثات.\nالبيانات تصبح توجهاً.\nالفرق تصبح متسقة.' : language === 'fr' ? 'Les rapports deviennent des conversations.\nLes données deviennent une direction.\nLes équipes s\'alignent.' : 'Reports become conversations.\nData becomes direction.\nTeams become aligned.',
       body: '',
-      stat: '02', unit: isAr ? 'التوافق' : language === 'fr' ? 'Adéquation' : 'Match',
+      stat: '02', unit: isAr ? 'التوجيه' : language === 'fr' ? 'Direction' : 'Direction',
       in: 0.34, out: 0.49
     },
     {
-      headline: isAr ? 'تتبع كل طلب.\nكل متابعة.\nجدول زمني واحد نظيف.' : language === 'fr' ? 'Suivez chaque candidature.\nChaque relance.\nUn seul calendrier clair.' : 'Track every application.\nEvery follow up.\nOne clean timeline.',
+      headline: isAr ? 'كل تحديث.\nكل ملف.\nذاكرة واحدة حية.' : language === 'fr' ? 'Chaque mise à jour.\nChaque fichier.\nUne mémoire vivante.' : 'Every update.\nEvery file.\nOne living memory.',
       body: '',
-      stat: '03', unit: isAr ? 'التنظيم' : language === 'fr' ? 'Organisation' : 'Organize',
+      stat: '03', unit: isAr ? 'الذاكرة' : language === 'fr' ? 'Mémoire' : 'Memory',
       in: 0.52, out: 0.67
     },
     {
-      headline: isAr ? 'املأ النماذج بنقرة واحدة.\nاكتب رسائل تحقق النتائج.\nتقدم بسرعة أكبر من الآخرين.' : language === 'fr' ? 'Remplissez les formulaires en un clic.\nRédigez des lettres qui fonctionnent.\nAvancez plus vite que les autres.' : 'Fill forms in one tap.\nWrite letters that land.\nMove faster than the rest.',
+      headline: isAr ? 'قوة عاملة واحدة للذكاء الاصطناعي.\nدائماً قيد العمل.\nتحركك للأمام.' : language === 'fr' ? 'Une main-d\'œuvre IA.\nToujours active.\nVous fait avancer.' : 'One AI workforce.\nAlways on.\nMoving you forward.',
       body: '',
-      stat: '04', unit: isAr ? 'السرعة' : language === 'fr' ? 'Vitesse' : 'Speed',
+      stat: '04', unit: isAr ? 'التقدم' : language === 'fr' ? 'Progrès' : 'Progress',
       in: 0.70, out: 0.85
     },
   ];
@@ -322,22 +321,18 @@ export const HeroScroll = memo(() => {
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden'
             }}>
-              <div
+              <canvas
+                ref={canvasRef}
                 style={{
+                  /* Frames are 255,255,255 — page is #ffffff — zero visible edge */
+                  display: 'block',
                   userSelect: 'none',
                   pointerEvents: 'none',
                   willChange: 'transform',
                   position: 'relative',
                   zIndex: 1,
-                  width: isMobile ? 'min(66vw, 40vh, 460px)' : 'min(42vw, 580px)',
-                  height: isMobile ? 'min(66vw, 40vh, 460px)' : 'min(42vw, 580px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                 }}
-              >
-                <EmotionalEye size="lg" />
-              </div>
+              />
             </div>
           </div>
 
@@ -355,10 +350,10 @@ export const HeroScroll = memo(() => {
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
                 <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,8vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? <>بحثك عن عمل<br />مدعوم بالذكاء الاصطناعي.</> : language === 'fr' ? <>Votre recherche<br />d'emploi. Propulsée par l'IA.</> : <>Your job search.<br />Powered by AI.</>}
+                  {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
                 </h1>
                 <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? 'يربط AYN سيرتك بالوظائف، ويملأ طلباتك، ويكتب رسائل التقديم، ويتتبع كل فرصة في مكان واحد.' : language === 'fr' ? "AYN fait correspondre votre CV aux offres, remplit vos candidatures, rédige vos lettres de motivation et suit chaque opportunité en un seul endroit." : 'AYN matches your resume to jobs, fills your applications, writes your cover letters, and tracks every opportunity in one place.'}
+                  {isAr ? 'AYN يربط تقاريرك وملفاتك وقراراتك في طبقة ذكاء واحدة يمكن لشركتك التحدث إليها.' : language === 'fr' ? "AYN connecte vos rapports, fichiers et décisions en une couche d'intelligence à laquelle votre entreprise peut parler." : 'AYN connects your reports, files, and decisions into one intelligence layer your business can talk to.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Link to="/contact"
@@ -367,13 +362,13 @@ export const HeroScroll = memo(() => {
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
                     onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-                    {isAr ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Start Free'} <ArrowRight size={13} />
+                    {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
                   </Link>
                   <Link to="/contact"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'احجز عرضاً' : language === 'fr' ? 'Réserver une démo' : 'Book a Demo'}
+                    {isAr ? 'عرض تقرير عينة' : language === 'fr' ? 'Voir un exemple de rapport' : 'View Sample Report'}
                   </Link>
                 </div>
               </div>
@@ -389,18 +384,18 @@ export const HeroScroll = memo(() => {
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
                 <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,7vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? <span>وظيفتك القادمة.<br />تبدأ من هنا.</span> : language === 'fr' ? <span>Votre prochain emploi.<br />Commence ici.</span> : <span>Your next job.<br />Starts here.</span>}
+                  {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <Link to="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
-                    {isAr ? 'اطلب وصولاً مبكراً' : language === 'fr' ? 'Demander un accès anticipé' : 'Request Early Access'} <ArrowRight size={13} />
+                    {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
                   </Link>
                   <a href="#features" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'استكشف المميزات' : language === 'fr' ? 'Explorer les fonctionnalités' : 'Explore Features'}
+                    {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
                   </a>
                 </div>
               </div>
@@ -415,7 +410,7 @@ export const HeroScroll = memo(() => {
       <section id="about" style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
         <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 32px', textAlign: 'center' }}>
-            {isAr ? <>ما هو <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>Qu'est-ce que <span style={{ color: C.inkMid }}>AYN</span></> : <>What is <span style={{ color: C.inkMid }}>AYN</span></>}
+            {isAr ? <>عن <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>À propos de <span style={{ color: C.inkMid }}>AYN</span></> : <>About <span style={{ color: C.inkMid }}>AYN</span></>}
           </h2>
           <p dir={isAr ? 'rtl' : 'ltr'} style={{ 
             fontFamily: C.body, 
@@ -429,10 +424,10 @@ export const HeroScroll = memo(() => {
             textAlign: 'center'
           }}>
             {isAr
-              ? 'تم بناء AYN للأشخاص الذين يريدون مزيداً من التحكم في بحثهم عن عمل. يقرأ إعلانات الوظائف، ويقيسها مقابل سيرتك، ويملأ نماذج التقديم، ويكتب رسائل تغطية تناسب الدور، ويحافظ على تنظيم كل بحثك في جدول زمني واحد. بدلاً من التنقل بين علامات التبويب والمستندات وجداول البيانات، تحصل على مساعد واحد يساعدك على التحرك بسرعة والتقديم بثقة.'
+              ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والتحرك قبل ضياع الفرص. يساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء أكبر، والمضي قدمًا بثقة.'
               : language === 'fr'
-              ? "AYN est conçu pour les personnes qui veulent plus de contrôle sur leur recherche d'emploi. Il lit les offres d'emploi, les évalue par rapport à votre CV, remplit les formulaires de candidature, rédige des lettres de motivation adaptées au poste et garde l'ensemble de votre recherche organisé dans un seul calendrier. Au lieu de jongler entre onglets, documents et feuilles de calcul, vous obtenez un seul assistant qui vous aide à avancer plus vite et à postuler avec confiance."
-              : 'AYN is built for people who want more control over their job search. It reads job postings, scores them against your resume, fills out application forms, writes cover letters that match the role, and keeps your entire search organized in one timeline. Instead of juggling tabs, documents, and spreadsheets, you get a single assistant that helps you move faster and apply with confidence.'}
+              ? "AYN a été conçu pour les propriétaires d'entreprises qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA. Il connecte les rapports, les tâches, les décisions et les données commerciales approuvées en une seule couche d'intelligence, aidant les dirigeants à comprendre ce qui a changé, à voir ce qui compte et à agir avant que les opportunités ne soient manquées. AYN aide les entreprises à s'adapter plus rapidement, à diriger plus intelligemment et à aller de l'avant avec confiance."
+              : 'AYN was built for company owners who need clarity, speed, and control in a world being reshaped by AI. It connects reports, tasks, decisions, and approved business data into one intelligence layer, helping leaders understand what changed, see what matters, and act before opportunities are missed. AYN helps companies adapt faster, lead smarter, and move forward with confidence.'}
           </p>
         </div>
       </section>
@@ -455,10 +450,10 @@ export const HeroScroll = memo(() => {
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ textAlign: 'center', marginBottom: 80, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'center' }}>
-              {isAr ? 'بُني لكل خطوة في بحثك عن عمل.' : language === 'fr' ? 'Conçu pour chaque étape de votre recherche d\'emploi.' : 'Built for every step of your job search.'}
+              {isAr ? 'بُني لكل جزء من العمل.' : language === 'fr' ? 'Conçu pour chaque partie de l\'entreprise.' : 'Built for every part of the business.'}
             </h2>
             <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              {isAr ? 'يجمع AYN سيرتك وصفحات الوظائف وطلباتك والمتابعات في مكان واحد حتى تتمكن من التركيز على الحصول على الدور المناسب.' : language === 'fr' ? 'AYN regroupe votre CV, les offres d\'emploi, les candidatures et les relances en un seul endroit pour que vous puissiez vous concentrer sur le bon poste.' : 'AYN brings your resume, job pages, applications, and follow ups into one place so you can focus on landing the right role.'}
+              {isAr ? 'تساعد AYN القادة على طرح الأسئلة، وقراءة سياق الشركة، وتحويل النشاط اليومي إلى قرارات.' : language === 'fr' ? "AYN aide les dirigeants à poser des questions, à lire le contexte de l'entreprise et à transformer l'activité quotidienne en décisions." : 'AYN helps leaders ask questions, read company context, and turn daily activity into decisions.'}
             </p>
           </div>
 
@@ -469,34 +464,34 @@ export const HeroScroll = memo(() => {
           }}>
             {[
               {
-                title: isAr ? 'بناء السيرة الذاتية بالذكاء الاصطناعي' : language === 'fr' ? 'CV alimenté par l\'IA' : 'AI Resume Builder',
-                desc: isAr ? 'ابنِ سيرة ذاتية تتحدث إلى المجندين. يقرأ AYN خبرتك ويرتبها لتطابق ما تبحث عنه أنظمة التوظيف.' : language === 'fr' ? 'Créez un CV qui parle aux recruteurs. AYN lit votre expérience et la met en forme pour correspondre à ce que les systèmes de recrutement recherchent.' : 'Build a resume that speaks to recruiters. AYN reads your experience and formats it to match what hiring systems look for.',
+                title: isAr ? 'اسأل عملك' : 'Ask Your Business',
+                desc: isAr ? 'اطرح أسئلة عبر التقارير وجداول البيانات والتحديثات والمستندات ونشاط الفريق.' : 'Ask questions across reports, spreadsheets, updates, documents, and team activity.',
+                icon: Search
+              },
+              {
+                title: isAr ? 'ذاكرة الشركة' : 'Company Memory',
+                desc: isAr ? 'حول الملفات والتقارير والتحديثات والقرارات إلى ذاكرة واحدة حية يمكن لشركتك استخدامها.' : 'Turn files, reports, updates, and decisions into one living memory your company can use.',
+                icon: Database
+              },
+              {
+                title: isAr ? 'تحديثات الفريق' : 'Team Updates',
+                desc: isAr ? 'اسمح للموظفين والمديرين بإضافة التحديثات والمعوقات والملاحظات والتقدم في AYN.' : 'Let employees and managers add updates, blockers, notes, and progress into AYN.',
+                icon: Users
+              },
+              {
+                title: isAr ? 'تقارير القيادة' : 'Leadership Reports',
+                desc: isAr ? 'أنشئ تقارير للمديرين وملخصات للرئيس التنفيذي والأولويات وخطط العمل من نشاط الشركة.' : 'Generate manager reports, CEO summaries, priorities, and action plans from company activity.',
                 icon: FileText
               },
               {
-                title: isAr ? 'درجة توافق الوظيفة' : language === 'fr' ? 'Score de correspondance' : 'Job Match Score',
-                desc: isAr ? 'اعرف مدى تناسب كل وظيفة مع ملفك. يقيم AYN الأدوار مقابل مهاراتك وخبرتك وتفضيلاتك لتقدم بطريقة أذكى.' : language === 'fr' ? 'Voyez à quel point chaque offre correspond à votre profil. AYN évalue les postes par rapport à vos compétences, votre expérience et vos préférences pour postuler plus intelligemment.' : 'See how well each job fits your profile. AYN scores roles against your skills, experience, and preferences so you apply smarter.',
-                icon: Target
+                title: isAr ? 'إجابات قائمة على الأدلة' : 'Evidence-Based Answers',
+                desc: isAr ? 'شاهد من أين أتت الإجابات، مع سياق من بيانات شركتك.' : 'See where answers came from, with context from your company data.',
+                icon: CheckCircle
               },
               {
-                title: isAr ? 'التعبئة بنقرة واحدة' : language === 'fr' ? 'Remplissage en un clic' : 'One Click Autofill',
-                desc: isAr ? 'توقف عن النسخ واللصق في كل طلب. يقرأ AYN النموذج ويملأ تفاصيلك في LinkedIn وIndeed وGreenhouse والمزيد.' : language === 'fr' ? 'Arrêtez de copier-coller dans chaque candidature. AYN lit le formulaire et remplit vos coordonnées sur LinkedIn, Indeed, Greenhouse et plus encore.' : 'Stop copying and pasting into every application. AYN reads the form and fills your details into LinkedIn, Indeed, Greenhouse, and more.',
-                icon: MousePointerClick
-              },
-              {
-                title: isAr ? 'متتبع الوظائف الذكي' : language === 'fr' ? 'Suivi intelligent des emplois' : 'Smart Job Tracker',
-                desc: isAr ? 'احتفظ بكل طلب وموعد نهائي ومتابعة في جدول زمني واحد. اعرف بالضبط مكانك مع كل فرصة.' : language === 'fr' ? 'Gardez chaque candidature, date limite et relance dans un seul calendrier. Sachez exactement où vous en êtes avec chaque opportunité.' : 'Keep every application, deadline, and follow up in one timeline. Know exactly where you stand with each opportunity.',
-                icon: LayoutGrid
-              },
-              {
-                title: isAr ? 'رسائل تغطية مناسبة' : language === 'fr' ? 'Lettres de motivation adaptées' : 'Cover Letters That Fit',
-                desc: isAr ? 'أنشئ رسالة تغطية مخصصة لأي وظيفة في ثوانٍ. يستخدم AYN الإعلان وملفك الشخصي ليكتب شيئاً يبدو وكأنه منك.' : language === 'fr' ? 'Générez une lettre de motivation sur mesure pour n\'importe quel emploi en quelques secondes. AYN utilise l\'offre et votre profil pour écrire quelque chose qui vous ressemble.' : 'Generate a tailored cover letter for any job in seconds. AYN uses the posting and your profile to write something that sounds like you.',
-                icon: Mail
-              },
-              {
-                title: isAr ? 'التحضير للمقابلة' : language === 'fr' ? 'Préparation à l\'entretien' : 'Interview Prep',
-                desc: isAr ? 'تدرب على الأسئلة بناءً على الوظيفة وخلفيتك. يساعدك AYN على إعداد إجابات تبدو طبيعية وواثقة.' : language === 'fr' ? 'Pratiquez des questions basées sur le poste et votre parcours. AYN vous aide à préparer des réponses naturelles et confiantes.' : 'Practice questions based on the job and your background. AYN helps you prepare answers that feel natural and confident.',
-                icon: MessageCircle
+                title: isAr ? 'قوة عاملة من وكلاء الذكاء الاصطناعي' : 'AI Agent Workforce',
+                desc: isAr ? 'وكلاء متخصصون يدعمون المبيعات والعمليات والتمويل والمستندات والدعم والقيادة.' : 'Specialized agents support sales, operations, finance, documents, support, and leadership.',
+                icon: Cpu
               }
             ].map((card, i) => (
               <div key={i}
@@ -567,10 +562,10 @@ export const HeroScroll = memo(() => {
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ textAlign: 'center', marginBottom: 80, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', lineHeight: 1.04, textAlign: 'center' }}>
-              {isAr ? 'بُني لكل نوع من الباحثين عن عمل.' : language === 'fr' ? 'Conçu pour tous les types de chercheurs d\'emploi.' : 'Built for every kind of job seeker.'}
+              {isAr ? 'بُني للشركات التي تحتاج إلى الوضوح للنمو.' : language === 'fr' ? 'Conçu pour les entreprises qui ont besoin de clarté pour croître.' : 'Built for the companies that need clarity to grow.'}
             </h2>
             <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 820, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              {isAr ? 'يتكيف AYN مع المكان الذي توجد فيه في مسيرتك المهنية. من أول وظيفة إلى خطوتك الكبيرة التالية، يساعدك على البقاء منظماً والتقديم بثقة.' : language === 'fr' ? "AYN s'adapte à l'étape où vous en êtes dans votre carrière. Du premier emploi à la prochaine grande étape, il vous aide à rester organisé et à postuler avec confiance." : 'AYN adapts to where you are in your career. From your first job to your next big move, it helps you stay organized and apply with confidence.'}
+              {isAr ? 'تتكيف AYN مع مختلف الصناعات من خلال ربط شعوبها وبياناتها وتقاريرها وعملياتها اليومية في طبقة استخبارات واحدة تعمل بالذكاء الاصطناعي.' : language === 'fr' ? "AYN s'adapte à différents secteurs en connectant leurs collaborateurs, leurs données, leurs rapports et leurs opérations quotidiennes en une seule couche d'intelligence artificielle." : 'AYN adapts to different industries by connecting their people, data, reports, and daily operations into one AI intelligence layer.'}
             </p>
           </div>
           
@@ -581,34 +576,34 @@ export const HeroScroll = memo(() => {
           }}>
             {[
               { 
-                title: isAr ? 'الخريجون الجدد' : language === 'fr' ? 'Jeunes diplômés' : 'New Graduates',
-                desc: isAr ? 'حول التدريبات والمواد الدراسية والمشاريع الجانبية إلى سيرة ذاتية تفتح الأبواب.' : language === 'fr' ? 'Transformez stages, cours et projets personnels en un CV qui ouvre des portes.' : 'Turn internships, coursework, and side projects into a resume that opens doors.',
-                icon: GraduationCap 
+                title: isAr ? 'الشركات العائلية' : 'Family Businesses',
+                desc: isAr ? 'ساعد المالكين على رؤية ما يحدث عبر الفرق والفروع والمديرين والعمليات اليومية دون الاعتماد على تحديثات متفرقة.' : 'Help owners see what is happening across teams, branches, managers, and daily operations without depending on scattered updates.',
+                icon: Home 
               },
               { 
-                title: isAr ? 'مغيرو المسار المهني' : language === 'fr' ? 'Changements de carrière' : 'Career Switchers',
-                desc: isAr ? 'اعرض مهاراتك القابلة للنقل بوضوح. يساعدك AYN على سرد قصتك بطريقة يفهمها مديرو التوظيف.' : language === 'fr' ? 'Montrez clairement vos compétences transférables. AYN vous aide à raconter votre histoire de manière compréhensible pour les recruteurs.' : 'Show your transferable skills clearly. AYN helps you tell your story in a way hiring managers understand.',
-                icon: Briefcase 
-              },
-              { 
-                title: isAr ? 'المحترفون ذوو الخبرة' : language === 'fr' ? 'Professionnels expérimentés' : 'Experienced Professionals',
-                desc: isAr ? 'حافظ على تركيز بحثك. تتبع الأدوار الرئيسية ونطاقات الرواتب والمتابعات المهمة دون فقدان التفاصيل.' : language === 'fr' ? 'Gardez votre recherche ciblée. Suivez les postes seniors, les fourchettes de salaire et les relances importantes sans perdre de détails.' : 'Keep your search focused. Track senior roles, salary ranges, and important follow ups without losing details.',
-                icon: BarChart3 
-              },
-              { 
-                title: isAr ? 'العاملون عن بُعد' : language === 'fr' ? 'Travailleurs à distance' : 'Remote Workers',
-                desc: isAr ? 'ابحث عن أدوار بعيدة من أي مكان واجعل طلباتك منظمة عبر المناطق الزمنية.' : language === 'fr' ? 'Trouvez des postes en télétravail partout et gardez vos candidatures organisées entre les fuseaux horaires.' : 'Find remote roles from anywhere and keep your applications organized across time zones.',
-                icon: Globe 
-              },
-              { 
-                title: isAr ? 'المتقدمون دولياً' : language === 'fr' ? 'Candidats internationaux' : 'International Applicants',
-                desc: isAr ? 'قدم على وظائف في بلدان جديدة مع سيرة ذاتية ورسالة تغطية معدة وفقاً للتوقعات المحلية.' : language === 'fr' ? 'Postulez à des emplois dans de nouveaux pays avec un CV et une lettre de motivation adaptés aux attentes locales.' : 'Apply to jobs in new countries with a resume and cover letter adapted to local expectations.',
+                title: isAr ? 'السياحة والضيافة' : 'Tourism & Hospitality',
+                desc: isAr ? 'اربط الحجوزات وطلبات العملاء والموردين والعمليات والتمويل وتعليقات الضيوف في تقارير قيادة واضحة.' : 'Connect bookings, customer requests, suppliers, operations, finance, and guest feedback into clear leadership reports.',
                 icon: Plane 
               },
               { 
-                title: isAr ? 'العودة إلى العمل' : language === 'fr' ? 'Retour au travail' : 'Returning to Work',
-                desc: isAr ? 'عد إلى سوق العمل بثقة. يساعدك AYN على تحديث سيرتك وتقديم خبرتك.' : language === 'fr' ? 'Revenez sur le marché du travail avec confiance. AYN vous aide à actualiser votre CV et à présenter votre expérience.' : 'Get back into the job market with confidence. AYN helps you refresh your resume and present your experience.',
-                icon: Users 
+                title: isAr ? 'العقارات وإدارة الممتلكات' : 'Real Estate & Property Management',
+                desc: isAr ? 'تتبع العملاء المحتملين والمستأجرين والصيانة والعقود والمدفوعات والمستندات وتحديثات المدير في عرض واحد متصل.' : 'Track leads, tenants, maintenance, contracts, payments, documents, and manager updates in one connected view.',
+                icon: Building2 
+              },
+              { 
+                title: isAr ? 'البناء والمقاولات' : 'Construction & Contracting',
+                desc: isAr ? 'اتبع تقدم المشروع وتأخيرات الموردين وتقارير الموقع والموافقات والفواتير والمعوقات التشغيلية قبل أن تؤثر على التسليم.' : 'Follow project progress, supplier delays, site reports, approvals, invoices, and operational blockers before they affect delivery.',
+                icon: HardHat 
+              },
+              { 
+                title: isAr ? 'التجزئة والفرانشايز' : 'Retail & Franchises',
+                desc: isAr ? 'امنح القيادة رؤية عبر الفروع والمبيعات ومشكلات المخزون وشكاوى العملاء وتحديثات الموظفين وإشارات الأداء.' : 'Give leadership visibility across branches, sales, inventory issues, customer complaints, staff updates, and performance signals.',
+                icon: ShoppingBag 
+              },
+              { 
+                title: isAr ? 'العيادات والشركات الخدمية' : 'Clinics & Service Businesses',
+                desc: isAr ? 'اربط المواعيد ودعم العملاء والمدفوعات وتحديثات الموظفين والمستندات والقضايا التشغيلية في قرارات يومية أكثر وضوحاً.' : 'Connect appointments, customer support, payments, staff updates, documents, and operational issues into clearer daily decisions.',
+                icon: Stethoscope 
               }
             ].map((item, i) => (
               <div key={i} style={{ 
@@ -680,7 +675,7 @@ export const HeroScroll = memo(() => {
         ))}
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 640, width: '100%', paddingBottom: 100, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(36px,7vw,92px)', fontWeight: 700, lineHeight: 1.02, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px', textAlign: 'center' }}>
-            {isAr ? <span>وظيفتك القادمة<br />أقرب مما تظن.</span> : language === 'fr' ? <span>Votre prochain emploi<br />est plus proche que vous ne le pensez.</span> : <span>Your next job<br />is closer than you think.</span>}
+            {isAr ? <span>أذكى عين<br />في الغرفة<br />هي عينك.</span> : language === 'fr' ? <span>L'intelligence<br />la plus puissante<br />est la vôtre.</span> : <span>The most intelligent<br />eye in the room<br />is yours.</span>}
           </h2>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/contact"
@@ -689,7 +684,7 @@ export const HeroScroll = memo(() => {
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
               onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
               onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-              {isAr ? 'احصل على وصول مبكر' : language === 'fr' ? 'Obtenir un accès anticipé' : 'Get Early Access'} <ArrowRight size={13} />
+              {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
             </Link>
             <a href="#features"
               style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: 'rgba(255,255,255,0.65)', fontFamily: C.body, fontSize: 14, borderRadius: 100, border: '1px solid rgba(255,255,255,0.20)', textDecoration: 'none', transition: 'border-color 0.2s, color 0.2s' }}
@@ -709,7 +704,7 @@ export const HeroScroll = memo(() => {
               </Link>
             ))}
           </div>
-          <span style={{ fontFamily: C.body, fontSize: 11, color: 'rgba(255,255,255,0.16)' }}>© 2026 AYN</span>
+          <span style={{ fontFamily: C.body, fontSize: 11, color: 'rgba(255,255,255,0.16)' }}>© 2026 AYN Intelligence</span>
         </div>
       </section>
     </div>
