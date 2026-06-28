@@ -725,9 +725,59 @@
       }
       if (matches.length === 1) target = matches[0];
     }
-    if (!target) return { target: null, scope };
-    const interactive = target.closest('button, [role="radio"], [role="button"], [role="option"], a, label') || target;
+    const interactive = target ? (target.closest('button, [role="radio"], [role="button"], [role="option"], a, label') || target) : null;
+    try {
+      console.log('[AYN-BG] resolve', JSON.stringify({
+        qLabel: (meta && meta.qLabel) || '',
+        want: wantN,
+        labelElFound: !!labelEl,
+        scopeFound: !!scope,
+        targetFound: !!interactive,
+        targetTag: interactive && interactive.tagName,
+        targetText: interactive && (interactive.textContent || '').trim().slice(0, 20),
+        targetClass: interactive && (typeof interactive.className === 'string' ? interactive.className : '')
+      }));
+    } catch {}
+    if (!interactive) return { target: null, scope };
     return { target: interactive, scope };
+  }
+
+  // Main-world click fallback — injects a <script> into the page to run the click
+  // outside the extension's isolated world (so React listeners on the page can react).
+  function mainWorldClickByText(qLabel, optionText) {
+    try {
+      const q = JSON.stringify(String(qLabel || '').slice(0, 40));
+      const o = JSON.stringify(String(optionText || '').trim());
+      const code = `(function(){try{
+        var qKey=${q}.trim().toLowerCase();
+        var want=${o}.trim().toLowerCase();
+        if(!qKey||!want)return;
+        var all=document.querySelectorAll('label,legend,p,h2,h3,h4,strong,div,span');
+        var labelEl=null;
+        for(var i=0;i<all.length;i++){
+          var c=all[i];var t=(c.textContent||'').trim().toLowerCase();
+          if(!t||t.length>=260)continue;
+          if(t.indexOf(qKey)!==-1){labelEl=c;break;}
+        }
+        if(!labelEl)return;
+        var node=labelEl.parentElement;
+        for(var j=0;j<7&&node;j++,node=node.parentElement){
+          var btns=node.querySelectorAll('button,[role="radio"],[role="button"],[role="option"]');
+          for(var k=0;k<btns.length;k++){
+            var b=btns[k];var bt=(b.textContent||'').trim().toLowerCase();
+            if(bt===want){b.click();return;}
+          }
+        }
+      }catch(e){}})();`;
+      const s = document.createElement('script');
+      s.textContent = code;
+      (document.head || document.documentElement).appendChild(s);
+      s.remove();
+      return true;
+    } catch (e) {
+      console.log('[AYN-BG] mainWorld blocked', e && e.message);
+      return false;
+    }
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
