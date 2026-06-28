@@ -790,7 +790,10 @@
         if (!target) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); continue; }
 
         try {
-          fireFullClick(target);
+          // PRIMARY: single plain click (proven to work on Ashby; full mouse sequence double-toggles)
+          try { target.scrollIntoView({ block: 'center' }); } catch {}
+          try { target.focus && target.focus(); } catch {}
+          target.click();
           // role=radio: set aria-checked manually & unset siblings within scope
           if ((target.getAttribute('role') || '').toLowerCase() === 'radio') {
             try { target.setAttribute('aria-checked', 'true'); } catch {}
@@ -804,7 +807,14 @@
           let verified = bgIsSelected(target);
           if (!verified) { await sleep(140); verified = bgIsSelected(target); }
           if (!verified) {
-            // Fallback: try clicking parent / label
+            // Fallback 1: full pointer/mouse sequence
+            fireFullClick(target);
+            await sleep(60);
+            verified = bgIsSelected(target);
+            if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+          }
+          if (!verified) {
+            // Fallback 2: click parent / label
             const fallback = target.closest('label') || target.parentElement;
             if (fallback && fallback !== target) {
               fireFullClick(fallback);
@@ -816,6 +826,8 @@
           if (verified) { filled++; results.push({ id, ok: true, verified: true }); }
           else { results.push({ id, ok: false, reason: 'not verified after click' }); }
         } catch (e) { results.push({ id, ok: false, reason: e.message }); }
+
+
         continue;
       }
 
