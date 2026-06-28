@@ -794,7 +794,7 @@ OUTPUT one object per field you choose to answer:
 
 CRITICAL RULES:
 - For select/radio/buttongroup: SINGLE CHOICE. optionValue AND optionLabel MUST be copied verbatim from the field's options array. NEVER put a "value" string for these. If none of the offered options fits with high confidence, set skip:true. NEVER default to "No" just because you are unsure — skip instead.
-- For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no".
+- For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no". If a single checkbox's label is actually a Yes/No question (work authorization, sponsorship, residence, or any "Are you…", "Do you…", "Will you…", "Have you…" question), DO NOT treat it as a passive tick. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION rules below to decide, then return value "yes" or "no" accordingly. NEVER default to "no" out of caution — if the rule yields Yes, return "yes".
 - For typeahead: put a plain string in value (e.g. a city) the page can match against its suggestion list.
 - For text/textarea: put the answer in value. No dashes of any kind ("-", "–", "—"). Use "to" for ranges and a comma for connectors.
 - Skip silently (skip:true) anything not derivable from the data, especially: SIN/SSN, full DOB, bank info, passwords, security questions.
