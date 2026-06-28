@@ -317,17 +317,20 @@ const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
 // v1.9.5: always show the Fill hero card the moment a form is detected,
 // using whatever job context we have (or tab fallbacks).
-function renderFillHero({ title, company, fieldCount, host } = {}) {
+function renderFillHero({ title, company, fieldCount, host, url } = {}) {
   const t = cleanLabel(title) || 'Job application detected';
-  const c = cleanLabel(company) || host || 'This page';
+  // v1.9.7: never fall back to a raw host like "boards.greenhouse.io" — derive a real name.
+  const derived = deriveCompany(company, url || host, title);
+  const c = derived || cleanLabel(company) || 'Company';
   $('fill-job-title').textContent = t;
-  $('fill-job-sub').textContent = (c || '').toString();
-  setCompanyLogo('fill-job-logo', company, title);
+  $('fill-job-sub').textContent = c;
+  setCompanyLogo('fill-job-logo', c, title);
   if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
   const banner = $('fill-job-banner');
   banner.classList.remove('hidden');
   banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
 }
+
 
 function applyFormReady(r, tab) {
   // PART B: instant UI reflection from a lightweight FORM_DETECTED probe
