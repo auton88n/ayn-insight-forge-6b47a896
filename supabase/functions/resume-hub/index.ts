@@ -809,7 +809,7 @@ Read these fields from the input:
   - canonical.work_auth.work_authorized_ca  (true | false | undefined)
   - canonical.work_auth.needs_sponsorship_now / needs_sponsorship_future
   - canonical.work_auth.visa_type
-  - profile.country, profile.city (where the user actually lives)
+  - mergedBasics.city, mergedBasics.region, mergedBasics.country (where the user actually lives)
 
 Generic decision rules (apply to ANY user, no country baked in):
 1. Determine the role's eligible countries from context.url, context.company, jobDescription text, and any locations listed in the field's own options[] or label (e.g. "US or Canada", "United States only", "Ontario, Toronto, Remote-Canada").
