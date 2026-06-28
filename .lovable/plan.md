@@ -1,50 +1,98 @@
-## Root cause (two bugs, one prompt file)
+# Redesign Plan — Extension Side Panel + Resume Hub
 
-1. **Yes/No questions are answered as checkbox ticks.** v1.8.6 already gets the scanner to emit these Ashby fields as `kind: "buttongroup"` with explicit `Yes`/`No` options. But the `ext_autofill` system prompt in `supabase/functions/resume-hub/index.ts` lists kinds as `text|textarea|select|radio|checkbox|typeahead` — `buttongroup` isn't there, so the model degrades to checkbox-style "should I tick this?" guessing and never runs the work-auth reasoning.
-2. **Work-auth rules are hardcoded to one user (Canadian citizen).** That's wrong: every other user has different citizenship/authorization. The model must derive the answer from THIS user's own `canonical.work_auth` and profile location, not a baked-in fact.
-3. **LinkedIn field gets the portfolio URL.** The merged payload passes `linkedin_url` even when the only available URL is a portfolio/personal site, so the model fills it.
+Goal: ship a UI that beats Jobright on clarity, density, and craft. Keep every existing feature and ID/selector wired the same — this is presentation only, no logic or backend changes.
 
-## Fix — `supabase/functions/resume-hub/index.ts`, ext_autofill branch only
+## Design system (locked)
 
-No scanner or extension JS changes. Edit only the prompt + the merged payload.
+- **Palette**
+  - Canvas `#faf8f5`, surface `#ffffff`, raised `#efece6`
+  - Ink `#1a1a1a`, muted ink `#5b5751`, hairline `#e6e1d8`
+  - Accent orange `#ea580c`, hover `#c2410c`, tint `#fff1e6`
+  - Success `#15803d`, warning `#b45309`, danger `#b91c1c`
+- **Type**: Space Grotesk (display/headings, tight tracking), DM Sans (body/UI), JetBrains Mono (numbers, scores, micro-labels). Load via `@fontsource/*`.
+- **Radii**: 14px cards, 10px controls, 999px pills. **Shadow**: single soft elevation `0 1px 2px rgba(20,18,15,.04), 0 8px 24px -12px rgba(20,18,15,.10)`. **Borders** instead of heavy shadows.
+- **Density**: 12px gutter, 16px card padding, 1.45 line-height. No gradients, no glassmorphism, no emojis.
 
-### A. Add buttongroup as a first-class single-choice kind
-- Add `buttongroup` to the kind enum in the prompt and instruct: treat exactly like `radio` — pick from `options[]` and return `optionValue` + `optionLabel` verbatim, never `value`.
+## Extension side panel
 
-### B. Replace the hardcoded Canadian-citizen block with profile-driven rules
-Rewrite the "WORK AUTHORIZATION & SPONSORSHIP" section to read everything from the data the model already has:
+Layout becomes a sticky **Job Hero** + segmented tabs + scroll body + sticky primary action.
 
-- Inputs the model uses: `canonical.work_auth.{citizenship, work_authorized_us, work_authorized_ca, needs_sponsorship_now, needs_sponsorship_future, visa_type}`, `profile.country`, `profile.city`, `profile.default_answers.open_to_relocate`, plus the role's country inferred from `context.url`, `context.company`, JD text, and any locations listed in the field's own `options[]`.
-- Generic decision rules (no country hardcoded):
-  1. Determine the role's eligible countries.
-  2. "Are you authorized to work in COUNTRY(s)?" → Yes only if `work_authorized_<country>` is true for any listed country, OR `citizenship` matches any listed country. Otherwise No. If neither field is set → `skip:true`.
-  3. Combined-country phrasing ("X or Y", "one of: …") → Yes if the user is authorized in ANY listed country by the same logic above.
-  4. "Will you require visa sponsorship?" → No if the user is authorized in at least one of the role's eligible countries (by the same fields). Yes if the user is not authorized in any of them and `needs_sponsorship_*` is true. Skip if unknown.
-  5. "Do you currently reside in [list]?" → Yes only if `profile.country` or `profile.city` matches any option in the list. Otherwise No, or skip if the option list is unclear. Never guess.
-  6. "Open to relocating?" → Use `profile.default_answers.open_to_relocate` only; else skip.
-- Forbid inferring citizenship or authorization from name, language, or resume location alone.
+```text
+┌───────────────────────────────────────┐
+│  AYN  ·  user pill           ⌃ pin × │  ← compact header, 44px
+├───────────────────────────────────────┤
+│  [logo] Company · 2d · 25 applicants │
+│  Product Owner, Agentic AI           │  ← Job Hero card
+│  Toronto · Remote · $140–$170k CAD   │
+│  ┌──────┐  Match 86                  │
+│  │ ring │  Skills 9/11 · Seniority ✓ │
+│  └──────┘  [ View breakdown ]        │
+├───────────────────────────────────────┤
+│  Fill · Score · Ask · Contacts · Resume · Cover · Tracker │ ← scrollable segmented
+├───────────────────────────────────────┤
+│  (tab content, generous spacing)     │
+├───────────────────────────────────────┤
+│  ⚡ Fill This Form Now      ●●●○○    │ ← sticky CTA + progress
+└───────────────────────────────────────┘
+```
 
-### C. Add a BUTTONGROUP YES/NO routing note
-Right above the work-auth block: when a buttongroup's options reduce to Yes/No (case-insensitive), apply the rules in this section (work-auth, sponsorship, residence, education, EEO) and return the exact `optionLabel`/`optionValue` from `options[]`. If the rule says skip, return `skip:true` — do NOT default to No.
+Per-tab refinements:
 
-### D. Lock down LinkedIn vs portfolio in the payload AND the prompt
-- Payload: build `merged.linkedin_url` only if the candidate string contains `linkedin.com/`; otherwise omit the key entirely. Build `merged.portfolio_url` only if the candidate does NOT contain `linkedin.com`. This removes the easy wrong shortcut.
-- Prompt: restate that `link.linkedin` requires a URL containing `linkedin.com/`. If `merged.linkedin_url` is absent, `skip:true`. Never substitute portfolio/personal site into a LinkedIn field. `link.portfolio` / `link.website` must never contain `linkedin.com`.
+- **Fill**: replace the giant orange block with a single primary CTA + a calm "Resume attachment" card. Inline progress ring (mono numerals) instead of full-width green bar. "What AYN filled" becomes a checklist with field name, value preview, and an "undo" affordance per row.
+- **Score**: hero number 0–100 with ring, then three rubric rows (Skills, Experience, Seniority) using bar + matched/missing chips. "Missing keywords" as removable chips.
+- **Ask AYN**: clean chat surface (AI Elements style), suggested prompts as chips, message bubbles use ink-on-paper for assistant, accent pill for user.
+- **Contacts**: cards with avatar monogram, name, title, mutual-signal line, LinkedIn icon button. Persona filter chips on top.
+- **Resume (Tailor)**: side-by-side diff with additions in accent, deletions struck. ATS ring at top. Action row: Regenerate · Download PDF · Download DOCX · Copy.
+- **Cover Letter**: editable card with tone chips (Direct / Warm / Technical), word count in mono.
+- **Tracker**: status kanban-as-list (Saved · Applied · Interview · Offer · Closed) with quick status menu.
+- **Profile** (entry from header pill): one-screen canonical profile + resume upload area.
 
-### E. Packaging
-- Bump `extension/manifest.json` to `1.8.7` (keeps installed users in sync after reload; no extension code change).
-- `node --check` extension/*.js.
-- Rebuild `public/ayn-extension.zip` from `extension/`.
-- Deploy `resume-hub`.
+Empty/loading: shimmer skeletons matching final shape, never spinners alone. Error: inline neutral card, never red toast for expected states.
 
-## Verification
+## Resume Hub (/resume-hub)
 
-For the current user (whose canonical has Canadian citizenship + Canada auth):
-- "Are you legally authorized to work in the U.S. or Canada?" → Yes (Canada is in the list, user authorized in Canada).
-- "Will you require visa sponsorship?" → No (Canada is in the list, user authorized there).
-- "Do you live in [US states list]… or Ontario?" → Yes if `profile.country = Canada` and `profile.city/region` matches Ontario; otherwise rely on `open_to_relocate`; otherwise skip.
-- "LinkedIn Profile URL" → skipped (left empty) since no `linkedin.com` URL exists in profile/canonical/resume.
+Same tokens, desktop-first three-column structure:
 
-For a different user (e.g. US citizen, US-only authorized): the same prompt produces No on Canada-only roles, Yes on US roles, sponsorship handled from their own `needs_sponsorship_*`. Nothing is hardcoded.
+```text
+┌───────────────────────────────────────────────┐
+│ Resume Hub          [Install extension] [↑]  │
+├──────────────┬─────────────────┬──────────────┤
+│ Sidebar       │  Active resume  │  Right rail │
+│ • Resumes     │  ── preview ──  │ Match stats │
+│ • Tracker     │  edit / tailor  │ Activity    │
+│ • Saved jobs  │                 │ Tips        │
+│ • Profile     │                 │             │
+└──────────────┴─────────────────┴──────────────┘
+```
 
-Console check after Fill: `[AYN-BG] injecting … buttongroups= 3` and `[AYN-BG] proxyClick yes verified= true` for the questions the rules say Yes to.
+- Header: product mark, page title in Space Grotesk, ghost actions.
+- Resumes list: cards with name, last edited, ATS score chip, default badge.
+- Editor: paper-like canvas, max-width 760px, section anchors on the left rail.
+- Tracker: dense table with status pill, salary in `$X to $Y CAD` mono, source icon.
+- Extension download card: replace neon block with a quiet "Install AYN for Chrome" card showing version, size, last updated, and `Download .zip` + `View setup steps`.
+- Mobile: collapses to single column, sidebar becomes top scroll-chip nav.
+
+## Files touched (presentation only)
+
+- `extension/sidepanel.html` — new shell (header, hero slot, tabs, sticky CTA), link new stylesheet.
+- `extension/sidepanel.css` *(new)* — full token system, components, tab styles, skeletons.
+- `extension/sidepanel.js` — only DOM template strings updated to new class names; no behavior changes. Keep all element IDs the same.
+- `extension/manifest.json` — version bump to `1.9.0`.
+- `public/ayn-extension.zip` — rebuilt.
+- `src/index.css` — add Warm Off-white tokens scoped to `.resume-hub-theme` so the rest of the dashboard is untouched.
+- `src/pages/ResumeHub.tsx` + `src/components/resume-hub/*` — restructure into the three-column layout; reuse existing data hooks and components (`ResumeDiffViewer`, `ProfileTab`, Tracker, etc.).
+- `tailwind.config.ts` — register `display` (Space Grotesk), `sans` (DM Sans), `mono` (JetBrains Mono) for the Resume Hub scope.
+- `src/main.tsx` — `@fontsource/space-grotesk`, `@fontsource/dm-sans`, `@fontsource/jetbrains-mono` imports.
+
+## Out of scope (explicit)
+
+- No changes to edge functions, DB, autofill logic, scoring, content.js scanners, or auth.
+- No changes to dashboard pages outside `/resume-hub`.
+- No animation libraries added; CSS transitions only (150–200ms ease-out).
+
+## Acceptance
+
+- Side panel renders new shell on every tab; all existing buttons/inputs keep their IDs and continue to work.
+- `/resume-hub` matches the three-column layout on desktop and stacks cleanly on tablet/mobile.
+- Lighthouse contrast AA on ink/paper and accent/paper pairings.
+- Extension zip rebuilt at `public/ayn-extension.zip` with `1.9.0`.
