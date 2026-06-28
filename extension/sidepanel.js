@@ -263,12 +263,33 @@ function bg(type, payload) {
 
 const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
-function applyFormReady(r) {
+// v1.9.5: always show the Fill hero card the moment a form is detected,
+// using whatever job context we have (or tab fallbacks).
+function renderFillHero({ title, company, fieldCount, host } = {}) {
+  const t = cleanLabel(title) || 'Job application detected';
+  const c = cleanLabel(company) || host || 'This page';
+  $('fill-job-title').textContent = t;
+  $('fill-job-sub').textContent = c;
+  setCompanyLogo('fill-job-logo', company, title);
+  if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
+  $('fill-job-banner').classList.remove('hidden');
+}
+
+function applyFormReady(r, tab) {
   // PART B: instant UI reflection from a lightweight FORM_DETECTED probe
   if (!r || !r.hasForm) return false;
   $('fill-empty').classList.add('hidden');
   $('fill-field-count').textContent = r.fieldCount || '?';
   $('autofill-now-btn').classList.remove('hidden');
+  // v1.9.5: surface the hero card immediately, even before DETECT_PAGE returns
+  let host = '';
+  try { host = tab && tab.url ? new URL(tab.url).hostname.replace(/^www\./, '') : ''; } catch {}
+  renderFillHero({
+    title: F.jobTitle || cleanLabel(tab && tab.title),
+    company: F.company,
+    fieldCount: r.fieldCount,
+    host,
+  });
   const dlWrap = $('fill-resume-dl-wrap');
   if (dlWrap) {
     if (r.hasResumeUpload) dlWrap.classList.remove('hidden');
@@ -276,6 +297,7 @@ function applyFormReady(r) {
   }
   return true;
 }
+
 
 function detectForFill() {
   // Reset UI
@@ -296,7 +318,7 @@ function detectForFill() {
     // PART B: fast path — show ready state immediately from cached probe
     chrome.runtime.sendMessage({ type: 'GET_FORM_DETECTED', tabId: tab.id }, cached => {
       void chrome.runtime.lastError;
-      if (cached) applyFormReady(cached);
+      if (cached) applyFormReady(cached, tab);
     });
     chrome.tabs.sendMessage(tab.id, { type: 'DETECT_PAGE' }, r => {
       if (chrome.runtime.lastError || !r) {
@@ -327,14 +349,10 @@ function detectForFill() {
         return;
       }
 
-      // Form found — show ready state
-      if (r.title) {
-        $('fill-job-title').textContent = cleanLabel(r.title);
-        $('fill-job-sub').textContent = cleanLabel(F.company) || 'Unknown company';
-        setCompanyLogo('fill-job-logo', F.company, r.title);
-        $('fill-job-banner').classList.remove('hidden');
-      }
-      $('fill-field-count').textContent = r.fieldCount;
+      // Form found — show hero (always) + ready state
+      let host = '';
+      try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
+      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host });
       $('autofill-now-btn').classList.remove('hidden');
 
       // Show resume-attach hint + download button if page asks for a resume file
