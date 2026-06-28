@@ -269,10 +269,12 @@ function renderFillHero({ title, company, fieldCount, host } = {}) {
   const t = cleanLabel(title) || 'Job application detected';
   const c = cleanLabel(company) || host || 'This page';
   $('fill-job-title').textContent = t;
-  $('fill-job-sub').textContent = c;
+  $('fill-job-sub').textContent = (c || '').toString();
   setCompanyLogo('fill-job-logo', company, title);
   if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
-  $('fill-job-banner').classList.remove('hidden');
+  const banner = $('fill-job-banner');
+  banner.classList.remove('hidden');
+  banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
 }
 
 function applyFormReady(r, tab) {
