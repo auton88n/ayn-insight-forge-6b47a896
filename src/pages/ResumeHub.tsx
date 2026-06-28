@@ -148,7 +148,7 @@ export default function ResumeHub() {
                 Score, autofill, and tailor on any job board.
               </p>
               <button className="rh-btn w-full justify-center" onClick={downloadExtension}>
-                <Download className="w-4 h-4" /> Download v1.9.4
+                <Download className="w-4 h-4" /> Download v1.9.5
               </button>
             </div>
           </aside>
