@@ -846,6 +846,24 @@
             : [optionLabel || optionValue || value].filter(Boolean);
         if (!targets.length) { results.push({ id, ok: false, reason: 'no option' }); continue; }
 
+        // Hidden-checkbox proxy: Ashby renders hidden <input type=checkbox> with visible Yes/No buttons
+        const firstInput = radios[0];
+        if (kind === 'checkbox' && isElHidden(firstInput)) {
+          const wantRaw = String(optionLabel || optionValue || value || '').trim();
+          const wantTrue = /^(yes|true|1|agree|consent|checked|on)$/i.test(wantRaw);
+          const container = firstInput.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || firstInput.parentElement;
+          const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
+          const tries = [norm(wantRaw), wantTrue ? 'yes' : 'no'].filter(Boolean);
+          let btn = null;
+          for (const tnorm of tries) { btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === tnorm); if (btn) break; }
+          const qLabel = getLabelFor(firstInput) || name;
+          try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
+          if (btn) {
+            const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
+            if (okv) { filled++; results.push({ id, ok: true, verified: true }); continue; }
+          }
+        }
+
         let any = false;
         targets.forEach(tRaw => {
           const t = norm(tRaw);
