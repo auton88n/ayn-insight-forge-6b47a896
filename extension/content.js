@@ -625,7 +625,10 @@
     if (el.getAttribute('aria-pressed') === 'true') return true;
     if (el.getAttribute('aria-selected') === 'true') return true;
     const cls = (el.className && typeof el.className === 'string') ? el.className : (el.getAttribute('class') || '');
-    if (/(\bselected\b|\bactive\b|\bchecked\b|bg-|--selected)/i.test(cls)) return true;
+    // Match active/selected/checked/on bounded by start, whitespace, underscore, or dash
+    // (so Ashby's "_active_1svni_57" matches but "inactive" does not).
+    if (/(?:^|[\s_-])(?:active|selected|checked|on)(?:[\s_-]|\d|$)/i.test(cls)) return true;
+    if (/(?:^|[\s-])(?:bg-[a-z]|--selected)/i.test(cls)) return true;
     try {
       const inp = el.querySelector && el.querySelector('input[type="radio"], input[type="checkbox"]');
       if (inp && inp.checked) return true;
@@ -660,28 +663,25 @@
     const optionTexts = (meta && meta.optionTexts) || [];
     const qKey = norm(qLabel).slice(0, 40);
 
-    // 1. Locate the question container
-    let scope = null;
+    // 1. Locate the question label element (must look like a question line, not a giant wrapper)
+    let labelEl = null;
     if (qKey) {
-      const candidates = document.querySelectorAll('label, legend, h2, h3, h4, p, strong, div, span');
+      const candidates = document.querySelectorAll('label, legend, p, h2, h3, h4, strong, div, span');
       for (const c of candidates) {
-        const t = norm(safeText(c)).slice(0, 240);
+        const t = norm(safeText(c));
         if (!t) continue;
-        if (t === qKey || t.startsWith(qKey) || t.includes(qKey)) {
-          scope = c.closest('fieldset, [role="radiogroup"], [class*="question"], [class*="field"], [class*="form-group"], section') || c.parentElement;
-          if (scope) break;
-        }
+        if (t.length >= qKey.length + 220) continue;
+        if (t === qKey || t.includes(qKey)) { labelEl = c; break; }
       }
     }
 
-    // Helper: pick the best matching choice inside a root
+    // Helper: pick best matching choice inside a root, restricted to known optionTexts
     const pickIn = (root) => {
       const choices = root.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"], label');
       let exact = null, contains = null;
       for (const el of choices) {
         const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
         if (!txt) continue;
-        // Must be one of the known option texts, else risk hitting Submit etc.
         const isOption = optionTexts.length === 0
           || optionTexts.some(o => { const on = norm(o); return on === txt || on.includes(txt) || txt.includes(on); });
         if (!isOption) continue;
@@ -690,6 +690,25 @@
       }
       return exact || contains;
     };
+
+    // 2. Walk UP from the label (up to 7 ancestors). The first ancestor that contains
+    // a clickable option whose text matches one of meta.optionTexts is the scope.
+    // This works regardless of CSS-module hashed class names.
+    let scope = null;
+    if (labelEl && optionTexts.length) {
+      const wantedSet = optionTexts.map(o => norm(o)).filter(Boolean);
+      let node = labelEl.parentElement;
+      for (let i = 0; i < 7 && node; i++, node = node.parentElement) {
+        const choices = node.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a, label');
+        let found = false;
+        for (const b of choices) {
+          const txt = norm(safeText(b) || b.getAttribute('aria-label') || '');
+          if (!txt) continue;
+          if (wantedSet.some(w => w === txt)) { found = true; break; }
+        }
+        if (found) { scope = node; break; }
+      }
+    }
 
     let target = scope ? pickIn(scope) : null;
     if (!target) {
@@ -781,15 +800,17 @@
             });
           }
 
-          await sleep(70);
+          await sleep(60);
           let verified = bgIsSelected(target);
+          if (!verified) { await sleep(140); verified = bgIsSelected(target); }
           if (!verified) {
             // Fallback: try clicking parent / label
             const fallback = target.closest('label') || target.parentElement;
             if (fallback && fallback !== target) {
               fireFullClick(fallback);
-              await sleep(70);
+              await sleep(60);
               verified = bgIsSelected(target) || bgIsSelected(fallback);
+              if (!verified) { await sleep(140); verified = bgIsSelected(target) || bgIsSelected(fallback); }
             }
           }
           if (verified) { filled++; results.push({ id, ok: true, verified: true }); }
