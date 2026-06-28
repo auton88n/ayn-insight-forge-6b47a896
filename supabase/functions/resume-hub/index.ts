@@ -805,6 +805,7 @@ open.about  → 2-3 sentences. Current role + years, then ONE concrete resume ac
 open.why    → 2-3 sentences tying ONE JD requirement to ONE resume bullet. Name the company once.
 open.cover  → 4-5 sentences, same rules.
 open.source → "LinkedIn" by default; check context.url for indeed/glassdoor/jobright hints.
+ALWAYS answer motivation / "why" / "tell us about" free-text questions with 2-3 sentences grounded in the user's profile and the job. NEVER skip an open free-text question that has a clear prompt — produce a real answer.
 
 CONFIDENCE: 1.0 exact data; 0.7-0.9 strong inference; 0.4-0.6 weak; <0.4 → set skip:true instead.
 REASONING: one short sentence ("From profile.email", "Canada role; Canadian citizen, no sponsorship", "EEO question; declined per policy").`,

@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.8.0';
+  const AYN_BUILD = '1.8.1';
   const MAX_JD_CHARS = 20000;
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
@@ -325,7 +325,7 @@
     if (/disab(ility|led)/.test(l)) return 'eeo.disability';
     if (/pronoun/.test(l)) return 'eeo.pronouns';
     if (/tell\s+(us|me)\s+about|about\s+yourself|introduce\s+yourself/.test(l)) return 'open.about';
-    if (/why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)/.test(l)) return 'open.why';
+    if (/motivat|why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)|why\s+(does|do)\s+\w+|explore\s+a\s+new/.test(l)) return 'open.why';
     if (/cover\s+letter|message\s+to\s+(hiring|recruiter)/.test(l)) return 'open.cover';
     if (/heard.*about|where.*find|how.*hear|source/.test(l)) return 'open.source';
     return 'other';
@@ -566,9 +566,9 @@
 
       const id = `__buttongroup__:${out.length}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
       const options = uniq.map(i => ({ label: i.text, value: i.text }));
-      // Track elements via window for later lookup in injectValues
+      // PART 1: Store DATA (qLabel + option texts), not live element refs
       window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
-      window.__AYN_BG_MAP__.set(id, uniq.map(i => i.el));
+      window.__AYN_BG_MAP__.set(id, { qLabel, optionTexts: uniq.map(i => i.text) });
 
       out.push({
         id,
@@ -619,13 +619,107 @@
     if (setter) setter.call(el, value); else el.value = value;
   }
 
-  function injectValues(values) {
+  function bgIsSelected(el) {
+    if (!el) return false;
+    if (el.getAttribute('aria-checked') === 'true') return true;
+    if (el.getAttribute('aria-pressed') === 'true') return true;
+    if (el.getAttribute('aria-selected') === 'true') return true;
+    const cls = (el.className && typeof el.className === 'string') ? el.className : (el.getAttribute('class') || '');
+    if (/(\bselected\b|\bactive\b|\bchecked\b|bg-|--selected)/i.test(cls)) return true;
+    try {
+      const inp = el.querySelector && el.querySelector('input[type="radio"], input[type="checkbox"]');
+      if (inp && inp.checked) return true;
+    } catch {}
+    return false;
+  }
+
+  function fireFullClick(target) {
+    try { target.scrollIntoView({ block: 'center' }); } catch {}
+    try { target.focus && target.focus(); } catch {}
+    const fire = (type, Ctor) => {
+      try {
+        const ev = Ctor === MouseEvent
+          ? new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: 0 })
+          : new PointerEvent(type, { bubbles: true, cancelable: true, view: window, button: 0, pointerType: 'mouse' });
+        target.dispatchEvent(ev);
+      } catch { try { target.dispatchEvent(new Event(type, { bubbles: true })); } catch {} }
+    };
+    fire('pointerdown', PointerEvent);
+    fire('mousedown', MouseEvent);
+    fire('pointerup', PointerEvent);
+    fire('mouseup', MouseEvent);
+    try { target.click(); } catch {}
+  }
+
+  // Re-resolve the question container and option button live from the DOM at click time.
+  // PART 2: never trust stored element refs (React re-renders detach them).
+  function findButtongroupOption(meta, want) {
+    const wantN = norm(want);
+    if (!wantN) return { target: null, scope: null };
+    const qLabel = (meta && meta.qLabel) || '';
+    const optionTexts = (meta && meta.optionTexts) || [];
+    const qKey = norm(qLabel).slice(0, 40);
+
+    // 1. Locate the question container
+    let scope = null;
+    if (qKey) {
+      const candidates = document.querySelectorAll('label, legend, h2, h3, h4, p, strong, div, span');
+      for (const c of candidates) {
+        const t = norm(safeText(c)).slice(0, 240);
+        if (!t) continue;
+        if (t === qKey || t.startsWith(qKey) || t.includes(qKey)) {
+          scope = c.closest('fieldset, [role="radiogroup"], [class*="question"], [class*="field"], [class*="form-group"], section') || c.parentElement;
+          if (scope) break;
+        }
+      }
+    }
+
+    // Helper: pick the best matching choice inside a root
+    const pickIn = (root) => {
+      const choices = root.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"], label');
+      let exact = null, contains = null;
+      for (const el of choices) {
+        const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
+        if (!txt) continue;
+        // Must be one of the known option texts, else risk hitting Submit etc.
+        const isOption = optionTexts.length === 0
+          || optionTexts.some(o => { const on = norm(o); return on === txt || on.includes(txt) || txt.includes(on); });
+        if (!isOption) continue;
+        if (txt === wantN) { exact = el; break; }
+        if (!contains && (txt.includes(wantN) || wantN.includes(txt))) contains = el;
+      }
+      return exact || contains;
+    };
+
+    let target = scope ? pickIn(scope) : null;
+    if (!target) {
+      // Fallback: search whole document but only if a SINGLE match exists (avoid wrong question)
+      const all = document.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"]');
+      const matches = [];
+      for (const el of all) {
+        const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
+        if (!txt) continue;
+        if (txt === wantN || (txt.includes(wantN) && wantN.length >= 2) || (wantN.includes(txt) && txt.length >= 2)) {
+          matches.push(el);
+          if (matches.length > 1) break;
+        }
+      }
+      if (matches.length === 1) target = matches[0];
+    }
+    if (!target) return { target: null, scope };
+    const interactive = target.closest('button, [role="radio"], [role="button"], [role="option"], a, label') || target;
+    return { target: interactive, scope };
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function injectValues(values) {
     let filled = 0;
     const results = [];
 
-    values.forEach((v) => {
+    for (const v of values) {
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
-      if (skip) { results.push({ id, ok: false, reason: 'skipped' }); return; }
+      if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
 
       const { doc, rawId } = resolveDoc(id, _frame);
 
@@ -635,14 +729,14 @@
         const kind = groupMatch[1];
         const name = groupMatch[2];
         const radios = Array.from(doc.querySelectorAll(`input[type="${kind}"][name="${CSS.escape(name)}"]`));
-        if (!radios.length) { results.push({ id, ok: false, reason: 'group not found' }); return; }
+        if (!radios.length) { results.push({ id, ok: false, reason: 'group not found' }); continue; }
 
         const targets = (kind === 'checkbox' && Array.isArray(optionLabels))
           ? optionLabels
           : (kind === 'checkbox' && Array.isArray(optionValues))
             ? optionValues
             : [optionLabel || optionValue || value].filter(Boolean);
-        if (!targets.length) { results.push({ id, ok: false, reason: 'no option' }); return; }
+        if (!targets.length) { results.push({ id, ok: false, reason: 'no option' }); continue; }
 
         let any = false;
         targets.forEach(tRaw => {
@@ -663,49 +757,45 @@
         });
         if (any) { filled++; results.push({ id, ok: true }); }
         else results.push({ id, ok: false, reason: `${kind} option not matched` });
-        return;
+        continue;
       }
 
-      // PART A: buttongroup (custom Yes/No toggles)
+      // PART 2: buttongroup (custom Yes/No toggles) — re-resolve LIVE at click time
       if (/^__buttongroup__:/.test(id)) {
-        const els = (window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id)) || [];
-        if (!els.length) { results.push({ id, ok: false, reason: 'buttongroup elements missing' }); return; }
+        const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id);
+        if (!meta || !meta.qLabel) { results.push({ id, ok: false, reason: 'buttongroup meta missing' }); continue; }
         const wantRaw = optionLabel || optionValue || value;
-        const want = norm(wantRaw);
-        if (!want) { results.push({ id, ok: false, reason: 'no option' }); return; }
-        const match = els.find(el => {
-          const t = norm(safeText(el) || el.getAttribute('aria-label') || '');
-          return t === want || t.includes(want) || want.includes(t);
-        });
-        if (!match) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); return; }
+        if (!wantRaw) { results.push({ id, ok: false, reason: 'no option' }); continue; }
+
+        const { target, scope } = findButtongroupOption(meta, wantRaw);
+        if (!target) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); continue; }
+
         try {
-          const fire = (type, EventCtor) => {
-            try {
-              const ev = EventCtor === MouseEvent
-                ? new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: 0 })
-                : new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse' });
-              match.dispatchEvent(ev);
-            } catch { try { match.dispatchEvent(new Event(type, { bubbles: true })); } catch {} }
-          };
-          fire('pointerdown', PointerEvent);
-          fire('mousedown', MouseEvent);
-          fire('pointerup', PointerEvent);
-          fire('mouseup', MouseEvent);
-          try { match.click(); } catch {}
-          if ((match.getAttribute('role') || '').toLowerCase() === 'radio') {
-            try { match.setAttribute('aria-checked', 'true'); } catch {}
-            // Unset siblings
-            els.forEach(e => { if (e !== match && (e.getAttribute('role') || '').toLowerCase() === 'radio') {
-              try { e.setAttribute('aria-checked', 'false'); } catch {}
-            }});
+          fireFullClick(target);
+          // role=radio: set aria-checked manually & unset siblings within scope
+          if ((target.getAttribute('role') || '').toLowerCase() === 'radio') {
+            try { target.setAttribute('aria-checked', 'true'); } catch {}
+            const root = scope || document;
+            root.querySelectorAll('[role="radio"]').forEach(r => {
+              if (r !== target) { try { r.setAttribute('aria-checked', 'false'); } catch {} }
+            });
           }
-          // Verify
-          const checked = match.getAttribute('aria-checked') === 'true'
-            || match.getAttribute('aria-pressed') === 'true'
-            || /(\bselected\b|\bactive\b|\bchecked\b)/i.test(match.className || '');
-          filled++; results.push({ id, ok: true, verified: checked });
+
+          await sleep(70);
+          let verified = bgIsSelected(target);
+          if (!verified) {
+            // Fallback: try clicking parent / label
+            const fallback = target.closest('label') || target.parentElement;
+            if (fallback && fallback !== target) {
+              fireFullClick(fallback);
+              await sleep(70);
+              verified = bgIsSelected(target) || bgIsSelected(fallback);
+            }
+          }
+          if (verified) { filled++; results.push({ id, ok: true, verified: true }); }
+          else { results.push({ id, ok: false, reason: 'not verified after click' }); }
         } catch (e) { results.push({ id, ok: false, reason: e.message }); }
-        return;
+        continue;
       }
 
       // Resolve a single element
@@ -714,11 +804,11 @@
         const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
       }
-      if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); return; }
-      if (isFilled(el) && el.type !== 'radio' && el.type !== 'checkbox') { results.push({ id, ok: false, reason: 'already filled' }); return; }
+      if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); continue; }
+      if (isFilled(el) && el.type !== 'radio' && el.type !== 'checkbox') { results.push({ id, ok: false, reason: 'already filled' }); continue; }
 
       const chosen = optionValue || optionLabel || value;
-      if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); return; }
+      if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
 
       try {
         if (el.tagName === 'SELECT') {
@@ -773,7 +863,7 @@
           filled++; results.push({ id, ok: true });
         }
       } catch (e) { results.push({ id, ok: false, reason: e.message }); }
-    });
+    }
 
     return { filled, total: values.length, results };
   }
@@ -1114,7 +1204,7 @@
     }
 
     if (message.type === 'INJECT_VALUES') {
-      sendResponse(injectValues(message.values));
+      injectValues(message.values).then(sendResponse).catch(e => sendResponse({ filled: 0, total: 0, results: [], error: e.message }));
       return true;
     }
 
