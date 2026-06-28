@@ -197,6 +197,9 @@ function setHeroRing(wrapId, numId, pct) {
   }
   const n = $(numId); if (n) n.textContent = v;
   wrap.classList.remove('hidden');
+}
+
+
 
 async function bootAfterAuth() {
   chrome.runtime.sendMessage({ type: 'BOOTSTRAP' }, resp => {
