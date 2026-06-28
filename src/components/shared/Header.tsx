@@ -191,7 +191,7 @@ export const Header = () => {
                     <div className="px-3">
                       <Button className="w-full" onClick={() => setShowAuthModal(true)}>
                         <LogIn className="h-4 w-4 mr-2" />
-                        {language === 'ar' ? 'طلب عرض' : 'Request Demo'}
+                        {language === 'ar' ? 'ابدأ مجاناً' : 'Start Free'}
                       </Button>
                     </div>
                   )}
