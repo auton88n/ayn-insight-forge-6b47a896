@@ -641,6 +641,7 @@ async function runScoreFlow({ auto = false } = {}) {
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
     $('score-num').className = 'score-num ' + tier;
+    setHeroRing('score-hero-ring', 'score-hero-ring-num', score * 10);
     $('score-label').textContent = d.matchLabel || '';
     $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
     const sal = $('score-salary');
