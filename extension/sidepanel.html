@@ -112,16 +112,16 @@
     .sign-out:hover { color: var(--ayn-red); background: var(--ayn-red-soft); border-color: #FECACA; }
 
     /* ═══════════════════════════════════════════════════════════
-       Tabs — sticky bottom nav, Jobright-style (v1.9.4)
+       Tabs — sticky TOP nav (v1.9.7)
        ═══════════════════════════════════════════════════════════ */
     .tabs {
       display: flex; gap: 2px;
       background: rgba(255,255,255,.94);
       backdrop-filter: saturate(140%) blur(10px);
       -webkit-backdrop-filter: saturate(140%) blur(10px);
-      border-top: 1px solid var(--ayn-border);
+      border-bottom: 1px solid var(--ayn-border);
       flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
-      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+      padding: 8px 8px 10px;
     }
     .tabs::-webkit-scrollbar { display: none; }
     .tab {
@@ -137,11 +137,12 @@
     .tab i { font-size: 18px; line-height: 1; }
     .tab.active { color: var(--ayn-orange-2); background: var(--ayn-orange-soft); }
     .tab.active::after {
-      content: ''; position: absolute; bottom: 3px; left: 50%;
+      content: ''; position: absolute; bottom: 2px; left: 50%;
       transform: translateX(-50%);
       width: 14px; height: 2px; border-radius: 2px; background: var(--ayn-orange);
     }
     .tab:hover:not(.active) { color: var(--ayn-ink); }
+
 
     /* ═══════════════════════════════════════════════════════════
        Stepper
