@@ -263,12 +263,33 @@ function bg(type, payload) {
 
 const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
-function applyFormReady(r) {
+// v1.9.5: always show the Fill hero card the moment a form is detected,
+// using whatever job context we have (or tab fallbacks).
+function renderFillHero({ title, company, fieldCount, host } = {}) {
+  const t = cleanLabel(title) || 'Job application detected';
+  const c = cleanLabel(company) || host || 'This page';
+  $('fill-job-title').textContent = t;
+  $('fill-job-sub').textContent = c;
+  setCompanyLogo('fill-job-logo', company, title);
+  if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
+  $('fill-job-banner').classList.remove('hidden');
+}
+
+function applyFormReady(r, tab) {
   // PART B: instant UI reflection from a lightweight FORM_DETECTED probe
   if (!r || !r.hasForm) return false;
   $('fill-empty').classList.add('hidden');
   $('fill-field-count').textContent = r.fieldCount || '?';
   $('autofill-now-btn').classList.remove('hidden');
+  // v1.9.5: surface the hero card immediately, even before DETECT_PAGE returns
+  let host = '';
+  try { host = tab && tab.url ? new URL(tab.url).hostname.replace(/^www\./, '') : ''; } catch {}
+  renderFillHero({
+    title: F.jobTitle || cleanLabel(tab && tab.title),
+    company: F.company,
+    fieldCount: r.fieldCount,
+    host,
+  });
   const dlWrap = $('fill-resume-dl-wrap');
   if (dlWrap) {
     if (r.hasResumeUpload) dlWrap.classList.remove('hidden');
@@ -276,6 +297,7 @@ function applyFormReady(r) {
   }
   return true;
 }
+
 
 function detectForFill() {
   // Reset UI
