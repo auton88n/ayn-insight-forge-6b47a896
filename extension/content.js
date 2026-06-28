@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.8.0';
+  const AYN_BUILD = '1.8.1';
   const MAX_JD_CHARS = 20000;
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
