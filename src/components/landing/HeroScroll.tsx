@@ -111,27 +111,27 @@ export const HeroScroll = memo(() => {
 
   const CHAPTERS = [
     {
-      headline: isAr ? 'يعمل وأنت نائم.\nيتعلم وأنت تنمو.\nيبلغك عندما يهم الأمر.' : language === 'fr' ? 'Travaille pendant que vous dormez.\nApprend pendant que vous grandissez.\nSignale quand cela compte.' : 'Works while you sleep.\nLearns while you grow.\nReports when it matters.',
+      headline: isAr ? 'ابحث عن فرص قبل أن تفوتك.\nطابق سيرتك في ثوانٍ.\nقدم بطاقة.' : language === 'fr' ? 'Trouvez les offres avant de les manquer.\nFaites correspondre votre CV en secondes.\nPostulez avec confiance.' : 'Find jobs before you miss them.\nMatch your resume in seconds.\nApply with confidence.',
       body: '',
-      stat: '01', unit: isAr ? 'اليقظة' : language === 'fr' ? 'Vigilance' : 'Vigilance',
+      stat: '01', unit: isAr ? 'البحث' : language === 'fr' ? 'Recherche' : 'Search',
       in: 0.15, out: 0.31
     },
     {
-      headline: isAr ? 'التقارير تصبح محادثات.\nالبيانات تصبح توجهاً.\nالفرق تصبح متسقة.' : language === 'fr' ? 'Les rapports deviennent des conversations.\nLes données deviennent une direction.\nLes équipes s\'alignent.' : 'Reports become conversations.\nData becomes direction.\nTeams become aligned.',
+      headline: isAr ? 'اقرأ كل وظيفة كخبير.\nاعرف سبب تناسبك.\nاعرف مكانك.' : language === 'fr' ? 'Lisez chaque offre comme un expert.\nVoyez pourquoi vous correspondez.\nSachez où vous en êtes.' : 'Read every job like an expert.\nSee why you fit.\nKnow where you stand.',
       body: '',
-      stat: '02', unit: isAr ? 'التوجيه' : language === 'fr' ? 'Direction' : 'Direction',
+      stat: '02', unit: isAr ? 'التوافق' : language === 'fr' ? 'Adéquation' : 'Match',
       in: 0.34, out: 0.49
     },
     {
-      headline: isAr ? 'كل تحديث.\nكل ملف.\nذاكرة واحدة حية.' : language === 'fr' ? 'Chaque mise à jour.\nChaque fichier.\nUne mémoire vivante.' : 'Every update.\nEvery file.\nOne living memory.',
+      headline: isAr ? 'تتبع كل طلب.\nكل متابعة.\nجدول زمني واحد نظيف.' : language === 'fr' ? 'Suivez chaque candidature.\nChaque relance.\nUn seul calendrier clair.' : 'Track every application.\nEvery follow up.\nOne clean timeline.',
       body: '',
-      stat: '03', unit: isAr ? 'الذاكرة' : language === 'fr' ? 'Mémoire' : 'Memory',
+      stat: '03', unit: isAr ? 'التنظيم' : language === 'fr' ? 'Organisation' : 'Organize',
       in: 0.52, out: 0.67
     },
     {
-      headline: isAr ? 'قوة عاملة واحدة للذكاء الاصطناعي.\nدائماً قيد العمل.\nتحركك للأمام.' : language === 'fr' ? 'Une main-d\'œuvre IA.\nToujours active.\nVous fait avancer.' : 'One AI workforce.\nAlways on.\nMoving you forward.',
+      headline: isAr ? 'املأ النماذج بنقرة واحدة.\nاكتب رسائل تحقق النتائج.\nتقدم بسرعة أكبر من الآخرين.' : language === 'fr' ? 'Remplissez les formulaires en un clic.\nRédigez des lettres qui fonctionnent.\nAvancez plus vite que les autres.' : 'Fill forms in one tap.\nWrite letters that land.\nMove faster than the rest.',
       body: '',
-      stat: '04', unit: isAr ? 'التقدم' : language === 'fr' ? 'Progrès' : 'Progress',
+      stat: '04', unit: isAr ? 'السرعة' : language === 'fr' ? 'Vitesse' : 'Speed',
       in: 0.70, out: 0.85
     },
   ];
