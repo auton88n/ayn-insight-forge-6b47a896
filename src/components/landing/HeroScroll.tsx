@@ -389,18 +389,18 @@ export const HeroScroll = memo(() => {
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
                 <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,7vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
+                  {isAr ? <span>وظيفتك القادمة.<br />تبدأ من هنا.</span> : language === 'fr' ? <span>Votre prochain emploi.<br />Commence ici.</span> : <span>Your next job.<br />Starts here.</span>}
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <Link to="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
-                    {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
+                    {isAr ? 'اطلب وصولاً مبكراً' : language === 'fr' ? 'Demander un accès anticipé' : 'Request Early Access'} <ArrowRight size={13} />
                   </Link>
                   <a href="#features" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
+                    {isAr ? 'استكشف المميزات' : language === 'fr' ? 'Explorer les fonctionnalités' : 'Explore Features'}
                   </a>
                 </div>
               </div>
