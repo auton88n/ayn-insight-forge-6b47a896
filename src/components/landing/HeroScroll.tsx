@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState, memo, useCallback } from 'react';
 import type React from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
+import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope, GraduationCap, Briefcase, Globe, MousePointerClick, Mail, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { EmotionalEye } from '@/components/eye/EmotionalEye';
