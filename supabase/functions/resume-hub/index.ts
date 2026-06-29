@@ -1309,10 +1309,11 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
       // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
       if (action === "ext_cover_letter_text") {
-        const { resumeText, jdText, tone, company, jobTitle } = payload as {
-          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string;
+        const { resumeText, jdText, tone, company, jobTitle, url } = payload as {
+          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string; url?: string;
         };
-        if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+        const jd = await resolveJobJd(admin, url, jdText);
+        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `Write a cover letter under 280 words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
