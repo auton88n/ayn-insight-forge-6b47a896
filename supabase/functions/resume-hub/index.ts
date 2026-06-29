@@ -1452,7 +1452,7 @@ CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bulle
 ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
 VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0,6000)}`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {
