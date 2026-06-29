@@ -229,11 +229,28 @@ function normalizeUrlForHash(raw: string): string {
       if (KEEP.has(k)) sp.append(k, v);
     }
     const qs = sp.toString();
-    const path = u.pathname.replace(/\/+$/, "");
+    const path = u.pathname.replace(/\/+$/, "").replace(/\/(application|apply)$/i, "");
     return `${u.protocol}//${u.hostname.toLowerCase()}${path}${qs ? "?" + qs : ""}`;
   } catch {
     return (raw || "").trim().toLowerCase();
   }
+}
+
+async function resolveJobJd(admin: any, url: string | undefined, jdText: string | undefined): Promise<string> {
+  const jd = (jdText || "").trim();
+  try {
+    if (!url) return jd;
+    const hash = await sha256Hex(normalizeUrlForHash(url));
+    const { data: c } = await admin.from("job_cache").select("full_jd, expires_at").eq("url_hash", hash).maybeSingle();
+    const fresh = c && new Date(c.expires_at).getTime() > Date.now();
+    const cached = (fresh && c?.full_jd) ? String(c.full_jd) : "";
+    if (cached && cached.length > jd.length) return cached;
+    if (!cached && jd.length >= 400) {
+      const row = { url_hash: hash, url, title: "", company: "", full_jd: jd.slice(0, 30000), parsed: {}, expires_at: new Date(Date.now() + 24*60*60*1000).toISOString() };
+      admin.from("job_cache").upsert(row, { onConflict: "url_hash" }).then(() => {}, () => {});
+    }
+    return jd;
+  } catch { return jd; }
 }
 
 const JOB_META_SCHEMA = {
