@@ -1312,7 +1312,7 @@ $('analyze-btn').addEventListener('click', async () => {
   S.resume = resume; S.job = job;
   const btn = $('analyze-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Analysing...';
   try {
-    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company });
+    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl });
     if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
