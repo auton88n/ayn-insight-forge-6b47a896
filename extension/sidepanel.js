@@ -3,7 +3,7 @@
 const S = {
   user: null,
   tab: 'fill',
-  resume: '', job: '', jobTitle: '', company: '',
+  resume: '', job: '', jobTitle: '', company: '', jobUrl: '',
   keywords: [], tailoredText: '', changes: [],
 };
 
