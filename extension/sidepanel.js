@@ -1280,6 +1280,7 @@ function detectForTailor() {
       const parts = r.title?.split(/\bat\b|\s[-|]\s/i) || [];
       S.jobTitle = parts[0]?.trim() || '';
       S.company = parts[1]?.replace(/linkedin|indeed|glassdoor|jobright/gi,'').trim() || '';
+      S.jobUrl = tab.url || '';
       $('t-job-banner').style.display = '';
       $('t-job-title').textContent = r.title || 'Job detected';
       $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars · click to load`;
