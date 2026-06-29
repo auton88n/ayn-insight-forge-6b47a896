@@ -539,165 +539,24 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         </div>
       </Section>
 
-      {/* ── 4. Availability & Preferences ── */}
-      <Section title="Availability & Job Preferences" subtitle="Commonly asked on every Canadian online application form">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel label="Earliest Start Date" tip="When can you start? Most forms ask for a specific date." />
-            <Input type="date" value={availableFrom} onChange={e => setAvailableFrom(e.target.value)} />
-          </div>
-          <div>
-            <FieldLabel label="Salary Expectation" tip="You can leave this blank — AYN will skip fields it doesn't have data for" />
-            <div className="flex gap-2">
-              <Input
-                value={salaryExpectation}
-                onChange={e => setSalaryExpectation(e.target.value)}
-                placeholder="e.g. 95000"
-                className="flex-1"
-              />
-              <Select value={salaryType} onValueChange={setSalaryType}>
-                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yearly">/ year</SelectItem>
-                  <SelectItem value="hourly">/ hour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <MultiSelect
-          label="Employment Types You Are Interested In"
-          options={JOB_TYPES}
-          selected={jobTypes}
-          onChange={setJobTypes}
-        />
-
-        <RadioGroup
-          label="Willing to relocate within Canada?"
-          options={[
-            { value: "yes", label: "Yes" },
-            { value: "no", label: "No" },
-            { value: "maybe", label: "Open to discussion" },
-          ]}
-          value={willingToRelocate}
-          onChange={setWillingToRelocate}
-        />
-
-        <RadioGroup
-          label="Willing to travel for work?"
-          options={[
-            { value: "none", label: "No travel" },
-            { value: "occasional", label: "Up to 25%" },
-            { value: "frequent", label: "Up to 50%" },
-            { value: "extensive", label: "50%+" },
-          ]}
-          value={willingToTravel}
-          onChange={setWillingToTravel}
-        />
-
-        <RadioGroup
-          label="Work location preference"
-          options={[
-            { value: "onsite", label: "On-site" },
-            { value: "hybrid", label: "Hybrid" },
-            { value: "remote", label: "Remote" },
-            { value: "flexible", label: "Flexible" },
-          ]}
-          value={remotePreference}
-          onChange={setRemotePreference}
-        />
-      </Section>
-
-      {/* ── 5. Education & Language ── */}
-      <Section title="Education, Languages & Certifications" subtitle="Standard education questions on Canadian applications" defaultOpen={false}>
+      {/* ── Languages ── */}
+      <Section title="Languages" subtitle="Languages you speak — often asked on applications" defaultOpen={false}>
         <div>
-          <FieldLabel label="Highest Level of Education Completed" />
-          <Select value={highestEducation} onValueChange={setHighestEducation}>
-            <SelectTrigger><SelectValue placeholder="Select education level" /></SelectTrigger>
+          <FieldLabel label="English Proficiency" tip="Canada's primary language" />
+          <Select value={englishLevel} onValueChange={setEnglishLevel}>
+            <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
             <SelectContent>
-              {EDUCATION_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-        <div>
-          <FieldLabel label="Field of Study / Major" />
-          <Input value={fieldOfStudy} onChange={e => setFieldOfStudy(e.target.value)} placeholder="e.g. Computer Science, Business Administration" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel label="English Proficiency" tip="Canada's primary language" />
-            <Select value={englishLevel} onValueChange={setEnglishLevel}>
-              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
-              <SelectContent>
-                {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <FieldLabel label="French Proficiency" tip="Required for federal jobs and Quebec roles" />
-            <Select value={frenchLevel} onValueChange={setFrenchLevel}>
-              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
-              <SelectContent>
-                {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <div>
           <FieldLabel label="Other Languages (optional)" />
           <Input value={otherLanguages} onChange={e => setOtherLanguages(e.target.value)} placeholder="e.g. Arabic (Native), Spanish (Conversational)" />
         </div>
-
-        <div>
-          <FieldLabel label="Professional Certifications / Designations" tip="e.g. PMP, CPA, P.Eng, AWS Certified, LEED" />
-          <Textarea
-            value={certifications}
-            onChange={e => setCertifications(e.target.value)}
-            placeholder="List your certifications, one per line"
-            rows={3}
-          />
-        </div>
       </Section>
 
-      {/* ── 6. Experience ── */}
-      <Section title="Experience & Industry" subtitle="Lets AYN match you to jobs and calibrate your resume score" defaultOpen={false}>
-        <RadioGroup
-          label="Total Years of Professional Work Experience"
-          options={[
-            { value: "0-1", label: "0–1 years" },
-            { value: "2-4", label: "2–4 years" },
-            { value: "5-7", label: "5–7 years" },
-            { value: "8-12", label: "8–12 years" },
-            { value: "13+", label: "13+ years" },
-          ]}
-          value={yearsExperience}
-          onChange={setYearsExperience}
-        />
-
-        <RadioGroup
-          label="People Management Experience"
-          options={[
-            { value: "none", label: "None" },
-            { value: "indirect", label: "Indirect / mentoring" },
-            { value: "1-5", label: "1–5 direct reports" },
-            { value: "6-15", label: "6–15 direct reports" },
-            { value: "16+", label: "16+ direct reports" },
-          ]}
-          value={managementExperience}
-          onChange={setManagementExperience}
-        />
-
-        <MultiSelect
-          label="Industries You Have Worked In"
-          options={INDUSTRIES}
-          selected={industries}
-          onChange={setIndustries}
-          tip="Select all that apply"
-        />
-      </Section>
 
       {/* ── 7. Pre-Screening ── */}
       <Section title="Pre-Screening Questions" subtitle="Questions Canadian employers legally ask at the application stage" defaultOpen={false}>
