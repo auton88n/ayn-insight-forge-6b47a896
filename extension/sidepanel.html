@@ -679,6 +679,34 @@
     }
     .ask-sugg:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); background: var(--ayn-orange-soft); }
 
+    /* v1.9.12: Ask AYN — fixed cards instead of free text */
+    .ask-intro { margin: 12px 0 10px; }
+    .ask-intro-title { font-size: 15px; font-weight: 800; color: var(--ayn-text); letter-spacing: -.01em; }
+    .ask-intro-sub { font-size: 12px; color: var(--ayn-muted); margin-top: 3px; line-height: 1.5; }
+    .ask-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .ask-card {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+      padding: 11px 12px; border-radius: 12px; border: 1px solid var(--ayn-border);
+      background: var(--ayn-card); cursor: pointer; text-align: left; transition: all .15s;
+    }
+    .ask-card:hover { border-color: var(--ayn-orange); background: var(--ayn-orange-soft); transform: translateY(-1px); }
+    .ask-card:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .ask-card-icon {
+      width: 26px; height: 26px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; margin-bottom: 2px;
+    }
+    .ask-card-title { font-size: 12.5px; font-weight: 700; color: var(--ayn-text); line-height: 1.25; }
+    .ask-card-sub { font-size: 10.5px; color: var(--ayn-muted); line-height: 1.35; }
+    .ask-reset-row { display: flex; justify-content: center; padding: 8px 0 4px; }
+    .ask-reset-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 13px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+      background: var(--ayn-card); border: 1px solid var(--ayn-border);
+      color: var(--ayn-text); cursor: pointer;
+    }
+    .ask-reset-btn:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); }
+
     /* Must-have requirements list */
     .req-card { background: var(--ayn-card); border: 1px solid var(--ayn-border); border-radius: 12px; padding: 13px; margin-bottom: 10px; }
     .req-card .req-title { font-size: 11px; font-weight: 800; color: var(--ayn-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 9px; }
