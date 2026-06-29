@@ -272,6 +272,39 @@
     }
   }
 
+  function extractJobText() {
+    const base = extractJobTextRaw();
+    try {
+      if (!base.text || base.text.length < 200) {
+        const j = extractJsonLdJob();
+        if (j && j.text && j.text.length > (base.text || '').length) {
+          return { text: j.text.slice(0, MAX_JD_CHARS), title: base.title || j.title || '', company: base.company || j.company || '' };
+        }
+      }
+    } catch {}
+    return base;
+  }
+
+  async function extractJobTextDeep() {
+    const base = extractJobText();
+    if (base.text && base.text.length >= 200) return base;
+    if (!aynIsApplyPage(window.location.href)) return base;
+    const listing = aynListingUrlFromApply(window.location.href);
+    if (!listing) return base;
+    try {
+      const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'FETCH_URL_TEXT', url: listing }, res));
+      if (r && r.ok && r.text) {
+        const j = parseJsonLdFromHtml(r.text);
+        if (j && j.text && j.text.length > (base.text || '').length) {
+          return { text: j.text.slice(0, MAX_JD_CHARS), title: base.title || j.title || '', company: base.company || j.company || '' };
+        }
+      }
+    } catch {}
+    return base;
+  }
+
+
+
 
   // ══════════════════════════════════════════════════════════════════
   // 2. FORM SCANNING
