@@ -36,7 +36,7 @@ interface ResumeBasics { name?: string; email?: string; phone?: string; title?: 
 interface ResumeWork { company?: string; title?: string; start?: string; end?: string; bullets?: string[] }
 interface ResumeEducation { school?: string; degree?: string; field?: string; end?: string }
 interface ParsedResume { basics?: ResumeBasics; work?: ResumeWork[]; education?: ResumeEducation[]; skills?: string[] }
-interface Props { userId: string; resumeData?: ParsedResume; hideSaveButton?: boolean }
+interface Props { userId: string; resumeData?: ParsedResume; hideSaveButton?: boolean; middle?: React.ReactNode }
 
 export interface CanadianProfileFormHandle { save: () => Promise<void> }
 
@@ -201,7 +201,7 @@ function MultiSelect({
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════════════
-const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(function CanadianProfileForm({ userId, resumeData, hideSaveButton }, ref) {
+const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(function CanadianProfileForm({ userId, resumeData, hideSaveButton, middle }, ref) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -448,19 +448,8 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
 
-
-      {/* ── Resume auto-fill notice ── */}
-      {resumeData && (
-        <div className="flex items-start gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm">
-          <span className="text-emerald-600 text-lg leading-none mt-0.5">✓</span>
-          <div>
-            <p className="font-semibold text-emerald-800">Profile pre-filled from your resume</p>
-            <p className="text-emerald-700 text-xs mt-0.5">Name, email, phone, education and other details were auto-populated. Review each section below and click Save Profile when done.</p>
-          </div>
-        </div>
-      )}
 
       {/* ── 1. Personal ── */}
       <Section title="Personal Information" subtitle="Your legal name and contact details exactly as they appear on ID">
@@ -538,6 +527,8 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           </div>
         </div>
       </Section>
+
+      {middle}
 
       {/* ── Languages ── */}
       <Section title="Languages" subtitle="Languages you speak — often asked on applications" defaultOpen={false}>

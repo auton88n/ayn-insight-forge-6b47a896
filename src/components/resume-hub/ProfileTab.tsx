@@ -273,146 +273,147 @@ export default function ProfileTab({ userId }: { userId: string }) {
         );
       })()}
 
-      {/* Derived snapshot */}
-      <Card className="p-4 sm:p-6 space-y-4">
-        <h3 className="text-sm font-semibold">Snapshot</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Field label="Current title" value={profile.derived.current_title || ""} onChange={v => setDerived("current_title", v)} />
-          <Field label="Current company" value={profile.derived.current_company || ""} onChange={v => setDerived("current_company", v)} />
-          <Field label="Primary function" value={profile.derived.primary_function || ""} onChange={v => setDerived("primary_function", v)} placeholder="e.g. Product, Backend, Design" />
-          <Field label="Total YoE" value={String(profile.derived.total_yoe ?? "")} onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))} placeholder="0" />
-          <Field label="Seniority" value={profile.derived.seniority || ""} onChange={v => setDerived("seniority", v)} placeholder="entry | mid | senior | staff | manager" />
-          <Field label="Education level" value={profile.derived.education_level || ""} onChange={v => setDerived("education_level", v)} placeholder="Bachelor's | Master's" />
-        </div>
-      </Card>
-
-      {/* Work Auth */}
-      <Card className="p-4 sm:p-6 space-y-4">
-        <h3 className="text-sm font-semibold">Work authorization</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Field label="Citizenship" value={profile.work_auth.citizenship || ""} onChange={v => setWA("citizenship", v)} placeholder="e.g. Canada" />
-          <Field label="Visa type (if any)" value={profile.work_auth.visa_type || ""} onChange={v => setWA("visa_type", v)} placeholder="e.g. H-1B, OPT, PR" />
-          <Toggle label="Authorized to work in US" value={!!profile.work_auth.work_authorized_us} onChange={v => setWA("work_authorized_us", v)} />
-          <Toggle label="Authorized to work in Canada" value={!!profile.work_auth.work_authorized_ca} onChange={v => setWA("work_authorized_ca", v)} />
-          <Toggle label="Need sponsorship now" value={!!profile.work_auth.needs_sponsorship_now} onChange={v => setWA("needs_sponsorship_now", v)} />
-          <Toggle label="Need sponsorship in future" value={!!profile.work_auth.needs_sponsorship_future} onChange={v => setWA("needs_sponsorship_future", v)} />
-        </div>
-        <Textarea
-          placeholder="Notes (optional). Anything recruiters should know."
-          value={profile.work_auth.notes || ""}
-          onChange={e => setWA("notes", e.target.value)}
-        />
-      </Card>
-
-      {/* Preferences */}
-      <Card className="p-4 sm:p-6 space-y-4">
-        <h3 className="text-sm font-semibold">Preferences</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Toggle label="Open to remote" value={!!profile.preferences.open_to_remote} onChange={v => setPref("open_to_remote", v)} />
-          <Toggle label="Open to relocation" value={!!profile.preferences.open_to_relocation} onChange={v => setPref("open_to_relocation", v)} />
-          <Toggle label="Open to travel" value={!!profile.preferences.open_to_travel} onChange={v => setPref("open_to_travel", v)} />
-          <Field label="Minimum salary" type="number" value={String(profile.preferences.salary_min_usd ?? "")} onChange={v => setPref("salary_min_usd", v === "" ? undefined : Number(v))} placeholder="80000" />
-          <Field label="Currency" value={profile.preferences.salary_currency || ""} onChange={v => setPref("salary_currency", v)} placeholder="USD | CAD | EUR" />
-          <Field label="Start date availability" value={profile.preferences.start_date_availability || ""} onChange={v => setPref("start_date_availability", v)} placeholder="Immediately | 2 weeks | 1 month" />
-        </div>
-        <ChipList
-          label="Desired titles"
-          values={profile.preferences.desired_titles || []}
-          onChange={values => setPref("desired_titles", values)}
-          placeholder="Add a title"
-        />
-        <ChipList
-          label="Desired locations"
-          values={profile.preferences.desired_locations || []}
-          onChange={values => setPref("desired_locations", values)}
-          placeholder="Add a city / region"
-        />
-      </Card>
-
-      {/* Skills */}
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Skills ({profile.skills.length})</h3>
-          <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, skills: [...p.skills, { name: "" }] }))}>
-            <Plus className="w-4 h-4 mr-1" /> Add skill
-          </Button>
-        </div>
-        <div className="space-y-2">
-          {profile.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Use "Draft from my resume" to auto-fill.</p>}
-          {profile.skills.map((s, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2">
-              <Input className="col-span-7" placeholder="Skill name" value={s.name} onChange={e => updateAt(setProfile, "skills", i, { ...s, name: e.target.value })} />
-              <Input className="col-span-2" type="number" placeholder="Years" value={s.years ?? ""} onChange={e => updateAt(setProfile, "skills", i, { ...s, years: e.target.value === "" ? undefined : Number(e.target.value) })} />
-              <Input className="col-span-2" placeholder="Level" value={s.level || ""} onChange={e => updateAt(setProfile, "skills", i, { ...s, level: e.target.value })} />
-              <Button variant="ghost" size="icon" className="col-span-1" onClick={() => removeAt(setProfile, "skills", i)}><X className="w-4 h-4" /></Button>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Experiences */}
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Experience ({profile.experiences.length})</h3>
-          <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, experiences: [...p.experiences, { company: "", title: "" }] }))}>
-            <Plus className="w-4 h-4 mr-1" /> Add role
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {profile.experiences.map((e, i) => (
-            <div key={i} className="rounded-lg border p-3 space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Input placeholder="Title" value={e.title} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, title: ev.target.value })} />
-                <Input placeholder="Company" value={e.company} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, company: ev.target.value })} />
-                <Input placeholder="Start (e.g. Jan 2021)" value={e.start || ""} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, start: ev.target.value })} />
-                <Input placeholder="End (or Present)" value={e.end || ""} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, end: ev.target.value })} />
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch checked={!!e.current} onCheckedChange={v => updateAt(setProfile, "experiences", i, { ...e, current: v })} />
-                  Current role
-                </label>
-                <Button variant="ghost" size="sm" onClick={() => removeAt(setProfile, "experiences", i)}>Remove</Button>
-              </div>
-            </div>
-          ))}
-          {profile.experiences.length === 0 && <p className="text-xs text-muted-foreground">No experience yet.</p>}
-        </div>
-      </Card>
-
-      {/* Education */}
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Education ({profile.education.length})</h3>
-          <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, education: [...p.education, { school: "" }] }))}>
-            <Plus className="w-4 h-4 mr-1" /> Add school
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {profile.education.map((e, i) => (
-            <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3">
-              <Input placeholder="School" value={e.school} onChange={ev => updateAt(setProfile, "education", i, { ...e, school: ev.target.value })} />
-              <Input placeholder="Degree" value={e.degree || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, degree: ev.target.value })} />
-              <Input placeholder="Field" value={e.field || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, field: ev.target.value })} />
-              <Input placeholder="End year" value={e.end || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, end: ev.target.value })} />
-              <div className="sm:col-span-2 flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => removeAt(setProfile, "education", i)}>Remove</Button>
-              </div>
-            </div>
-          ))}
-          {profile.education.length === 0 && <p className="text-xs text-muted-foreground">No education entries yet.</p>}
-        </div>
-      </Card>
-
       {/* Additional application fields — part of the one profile, powers Autofill */}
-      <div className="pt-4">
-        <CanadianProfileForm
-          ref={canadianRef}
-          userId={userId}
-          resumeData={parsedResume ?? primaryResumeContent ?? undefined}
-          hideSaveButton
-        />
-      </div>
+      <CanadianProfileForm
+        ref={canadianRef}
+        userId={userId}
+        resumeData={parsedResume ?? primaryResumeContent ?? undefined}
+        hideSaveButton
+        middle={
+          <>
+            {/* Derived snapshot */}
+            <Card className="p-4 sm:p-6 space-y-4">
+              <h3 className="text-sm font-semibold">Snapshot</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <Field label="Current title" value={profile.derived.current_title || ""} onChange={v => setDerived("current_title", v)} />
+                <Field label="Current company" value={profile.derived.current_company || ""} onChange={v => setDerived("current_company", v)} />
+                <Field label="Primary function" value={profile.derived.primary_function || ""} onChange={v => setDerived("primary_function", v)} placeholder="e.g. Product, Backend, Design" />
+                <Field label="Total YoE" value={String(profile.derived.total_yoe ?? "")} onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))} placeholder="0" />
+                <Field label="Seniority" value={profile.derived.seniority || ""} onChange={v => setDerived("seniority", v)} placeholder="entry | mid | senior | staff | manager" />
+                <Field label="Education level" value={profile.derived.education_level || ""} onChange={v => setDerived("education_level", v)} placeholder="Bachelor's | Master's" />
+              </div>
+            </Card>
+
+            {/* Work Auth */}
+            <Card className="p-4 sm:p-6 space-y-4">
+              <h3 className="text-sm font-semibold">Work authorization</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <Field label="Citizenship" value={profile.work_auth.citizenship || ""} onChange={v => setWA("citizenship", v)} placeholder="e.g. Canada" />
+                <Field label="Visa type (if any)" value={profile.work_auth.visa_type || ""} onChange={v => setWA("visa_type", v)} placeholder="e.g. H-1B, OPT, PR" />
+                <Toggle label="Authorized to work in US" value={!!profile.work_auth.work_authorized_us} onChange={v => setWA("work_authorized_us", v)} />
+                <Toggle label="Authorized to work in Canada" value={!!profile.work_auth.work_authorized_ca} onChange={v => setWA("work_authorized_ca", v)} />
+                <Toggle label="Need sponsorship now" value={!!profile.work_auth.needs_sponsorship_now} onChange={v => setWA("needs_sponsorship_now", v)} />
+                <Toggle label="Need sponsorship in future" value={!!profile.work_auth.needs_sponsorship_future} onChange={v => setWA("needs_sponsorship_future", v)} />
+              </div>
+              <Textarea
+                placeholder="Notes (optional). Anything recruiters should know."
+                value={profile.work_auth.notes || ""}
+                onChange={e => setWA("notes", e.target.value)}
+              />
+            </Card>
+
+            {/* Preferences */}
+            <Card className="p-4 sm:p-6 space-y-4">
+              <h3 className="text-sm font-semibold">Preferences</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <Toggle label="Open to remote" value={!!profile.preferences.open_to_remote} onChange={v => setPref("open_to_remote", v)} />
+                <Toggle label="Open to relocation" value={!!profile.preferences.open_to_relocation} onChange={v => setPref("open_to_relocation", v)} />
+                <Toggle label="Open to travel" value={!!profile.preferences.open_to_travel} onChange={v => setPref("open_to_travel", v)} />
+                <Field label="Minimum salary" type="number" value={String(profile.preferences.salary_min_usd ?? "")} onChange={v => setPref("salary_min_usd", v === "" ? undefined : Number(v))} placeholder="80000" />
+                <Field label="Currency" value={profile.preferences.salary_currency || ""} onChange={v => setPref("salary_currency", v)} placeholder="USD | CAD | EUR" />
+                <Field label="Start date availability" value={profile.preferences.start_date_availability || ""} onChange={v => setPref("start_date_availability", v)} placeholder="Immediately | 2 weeks | 1 month" />
+              </div>
+              <ChipList
+                label="Desired titles"
+                values={profile.preferences.desired_titles || []}
+                onChange={values => setPref("desired_titles", values)}
+                placeholder="Add a title"
+              />
+              <ChipList
+                label="Desired locations"
+                values={profile.preferences.desired_locations || []}
+                onChange={values => setPref("desired_locations", values)}
+                placeholder="Add a city / region"
+              />
+            </Card>
+
+            {/* Skills */}
+            <Card className="p-4 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Skills ({profile.skills.length})</h3>
+                <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, skills: [...p.skills, { name: "" }] }))}>
+                  <Plus className="w-4 h-4 mr-1" /> Add skill
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {profile.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Use "Draft from my resume" to auto-fill.</p>}
+                {profile.skills.map((s, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2">
+                    <Input className="col-span-7" placeholder="Skill name" value={s.name} onChange={e => updateAt(setProfile, "skills", i, { ...s, name: e.target.value })} />
+                    <Input className="col-span-2" type="number" placeholder="Years" value={s.years ?? ""} onChange={e => updateAt(setProfile, "skills", i, { ...s, years: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                    <Input className="col-span-2" placeholder="Level" value={s.level || ""} onChange={e => updateAt(setProfile, "skills", i, { ...s, level: e.target.value })} />
+                    <Button variant="ghost" size="icon" className="col-span-1" onClick={() => removeAt(setProfile, "skills", i)}><X className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Experiences */}
+            <Card className="p-4 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Experience ({profile.experiences.length})</h3>
+                <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, experiences: [...p.experiences, { company: "", title: "" }] }))}>
+                  <Plus className="w-4 h-4 mr-1" /> Add role
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {profile.experiences.map((e, i) => (
+                  <div key={i} className="rounded-lg border p-3 space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input placeholder="Title" value={e.title} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, title: ev.target.value })} />
+                      <Input placeholder="Company" value={e.company} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, company: ev.target.value })} />
+                      <Input placeholder="Start (e.g. Jan 2021)" value={e.start || ""} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, start: ev.target.value })} />
+                      <Input placeholder="End (or Present)" value={e.end || ""} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, end: ev.target.value })} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Switch checked={!!e.current} onCheckedChange={v => updateAt(setProfile, "experiences", i, { ...e, current: v })} />
+                        Current role
+                      </label>
+                      <Button variant="ghost" size="sm" onClick={() => removeAt(setProfile, "experiences", i)}>Remove</Button>
+                    </div>
+                  </div>
+                ))}
+                {profile.experiences.length === 0 && <p className="text-xs text-muted-foreground">No experience yet.</p>}
+              </div>
+            </Card>
+
+            {/* Education */}
+            <Card className="p-4 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Education ({profile.education.length})</h3>
+                <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, education: [...p.education, { school: "" }] }))}>
+                  <Plus className="w-4 h-4 mr-1" /> Add school
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {profile.education.map((e, i) => (
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3">
+                    <Input placeholder="School" value={e.school} onChange={ev => updateAt(setProfile, "education", i, { ...e, school: ev.target.value })} />
+                    <Input placeholder="Degree" value={e.degree || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, degree: ev.target.value })} />
+                    <Input placeholder="Field" value={e.field || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, field: ev.target.value })} />
+                    <Input placeholder="End year" value={e.end || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, end: ev.target.value })} />
+                    <div className="sm:col-span-2 flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => removeAt(setProfile, "education", i)}>Remove</Button>
+                    </div>
+                  </div>
+                ))}
+                {profile.education.length === 0 && <p className="text-xs text-muted-foreground">No education entries yet.</p>}
+              </div>
+            </Card>
+          </>
+        }
+      />
 
       {/* Single Save all — saves both canonical career profile and application details */}
       <div className="sticky bottom-4 z-10 flex justify-end pt-2">
