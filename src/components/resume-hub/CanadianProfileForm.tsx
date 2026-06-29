@@ -383,18 +383,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
     }
   }, [resumeData]);
 
-  // ── Completion % ─────────────────────────────────────────────────────────
-  const fields = [
-    firstName, lastName, email, phone, city, province, postalCode,
-    linkedin,
-    availableFrom, jobTypes.length > 0 ? "ok" : "",
-    highestEducation,
-    englishLevel,
-    yearsExperience,
-    criminalRecord,
-    aboutMe,
-  ];
-  const completionPct = Math.round((fields.filter(Boolean).length / fields.length) * 100);
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const save = async () => {
