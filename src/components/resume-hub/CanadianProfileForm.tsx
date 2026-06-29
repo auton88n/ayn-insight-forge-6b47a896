@@ -106,7 +106,7 @@ function Section({
 // ── Field label with optional tooltip ────────────────────────────────────────
 function FieldLabel({ label, tip }: { label: string; tip?: string }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">
+    <label className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
       {label}
       {tip && (
         <span className="group relative cursor-help">
@@ -155,7 +155,7 @@ function RadioGroup({
             type="button"
             onClick={() => onChange(opt.value)}
             className={cn(
-              "px-3 py-1.5 text-xs border rounded-none font-mono transition-all",
+              "px-3 py-1.5 text-xs border transition-all",
               value === opt.value
                 ? "bg-foreground text-background border-foreground"
                 : "bg-transparent border-border text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -185,7 +185,7 @@ function MultiSelect({
             type="button"
             onClick={() => toggle(opt)}
             className={cn(
-              "px-3 py-1.5 text-xs border rounded-none font-mono transition-all",
+              "px-3 py-1.5 text-xs border transition-all",
               selected.includes(opt)
                 ? "bg-foreground text-background border-foreground"
                 : "bg-transparent border-border text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -205,8 +205,8 @@ function ProfileCompletion({ pct }: { pct: number }) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Profile completion</span>
-        <span className={cn("text-xs font-bold font-mono", pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500")}>
+        <span className="text-xs uppercase tracking-widest text-muted-foreground">Profile completion</span>
+        <span className={cn("text-xs font-bold", pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500")}>
           {pct}%
         </span>
       </div>
@@ -537,7 +537,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           <div className="col-span-1">
             <FieldLabel label="Province / Territory" />
             <Select value={province} onValueChange={setProvince}>
-              <SelectTrigger className="rounded-none"><SelectValue placeholder="Select province" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select province" /></SelectTrigger>
               <SelectContent>
                 {CA_PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
@@ -590,7 +590,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
                 className="flex-1"
               />
               <Select value={salaryType} onValueChange={setSalaryType}>
-                <SelectTrigger className="w-28 rounded-none"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="yearly">/ year</SelectItem>
                   <SelectItem value="hourly">/ hour</SelectItem>
@@ -648,7 +648,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         <div>
           <FieldLabel label="Highest Level of Education Completed" />
           <Select value={highestEducation} onValueChange={setHighestEducation}>
-            <SelectTrigger className="rounded-none"><SelectValue placeholder="Select education level" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select education level" /></SelectTrigger>
             <SelectContent>
               {EDUCATION_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
@@ -663,7 +663,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           <div>
             <FieldLabel label="English Proficiency" tip="Canada's primary language" />
             <Select value={englishLevel} onValueChange={setEnglishLevel}>
-              <SelectTrigger className="rounded-none"><SelectValue placeholder="Select level" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
               <SelectContent>
                 {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
@@ -672,7 +672,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           <div>
             <FieldLabel label="French Proficiency" tip="Required for federal jobs and Quebec roles" />
             <Select value={frenchLevel} onValueChange={setFrenchLevel}>
-              <SelectTrigger className="rounded-none"><SelectValue placeholder="Select level" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
               <SelectContent>
                 {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
@@ -852,7 +852,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
             size="lg"
             onClick={save}
             disabled={busy}
-            className="h-12 px-10 rounded-none font-mono uppercase tracking-wider hover:shadow-xl transition-all"
+            className="h-12 px-10 uppercase tracking-wider hover:shadow-xl transition-all"
           >
             {busy
               ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
