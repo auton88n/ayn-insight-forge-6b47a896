@@ -717,6 +717,7 @@ Deno.serve(async (req) => {
         const { fields, jobText, jobTitle, company, ats, url } = payload as {
           fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string;
         };
+        const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
         const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
