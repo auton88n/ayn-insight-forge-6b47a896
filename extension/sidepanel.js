@@ -349,10 +349,7 @@ function applyFormReady(r, tab) {
 
   });
   const dlWrap = $('fill-resume-dl-wrap');
-  if (dlWrap) {
-    if (r.hasResumeUpload) dlWrap.classList.remove('hidden');
-    else dlWrap.classList.add('hidden');
-  }
+  if (dlWrap) dlWrap.classList.add('hidden');
   return true;
 }
 
@@ -418,12 +415,9 @@ function detectForFill() {
       renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
       $('autofill-now-btn').classList.remove('hidden');
 
-      // Show resume-attach hint + download button if page asks for a resume file
+      // v1.9.8: default hidden; only revealed as a fallback after Fill fails to auto-attach
       const dlWrap = $('fill-resume-dl-wrap');
-      if (dlWrap) {
-        if (r.needsResume) dlWrap.classList.remove('hidden');
-        else dlWrap.classList.add('hidden');
-      }
+      if (dlWrap) dlWrap.classList.add('hidden');
     });
   });
 }
@@ -473,7 +467,26 @@ async function downloadResumeAs(kind, btn) {
 document.getElementById('fill-download-pdf-btn')?.addEventListener('click', (e) => downloadResumeAs('pdf', e.currentTarget));
 document.getElementById('fill-download-docx-btn')?.addEventListener('click', (e) => downloadResumeAs('docx', e.currentTarget));
 
-// v1.4.0: One-click auto-attach — now ships a real PDF, not text.
+// v1.9.8: reusable resume attach — builds PDF + sends to background. UI-free.
+async function aynAttachResume(tabId) {
+  try {
+    if (!window.AYNResumeFormat) return { ok: false, error: 'formatter_not_loaded' };
+    const { text, fileBase } = await fetchAynResume();
+    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
+    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
+    const filename = `${fileBase}.pdf`;
+    const r = await new Promise(res => chrome.runtime.sendMessage({
+      type: 'ATTACH_RESUME_FILE',
+      tabId,
+      payload: { base64, filename, mime: 'application/pdf' },
+    }, res));
+    return r || { ok: false, error: 'no_response' };
+  } catch (err) {
+    return { ok: false, error: err?.message || 'attach_failed' };
+  }
+}
+
+// Manual retry — same as before, just delegates to aynAttachResume + renders status.
 document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   const status = document.getElementById('fill-attach-status');
@@ -484,16 +497,7 @@ document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async
   try {
     const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
     if (!tab?.id) throw new Error('No active tab');
-    if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
-    const { text, fileBase } = await fetchAynResume();
-    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
-    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
-    const filename = `${fileBase}.pdf`;
-    const r = await new Promise(res => chrome.runtime.sendMessage({
-      type: 'ATTACH_RESUME_FILE',
-      tabId: tab.id,
-      payload: { base64, filename, mime: 'application/pdf' },
-    }, res));
+    const r = await aynAttachResume(tab.id);
     if (r?.ok) {
       status.innerHTML = `<i class="ti ti-check" style="color:var(--ayn-green)"></i><span style="color:var(--ayn-green)">PDF attached (${r.filename}) to ${r.count} field${r.count>1?'s':''} ✓ Now click Submit.</span>`;
       status.classList.remove('hidden');
@@ -529,15 +533,16 @@ $('autofill-now-btn').addEventListener('click', () => {
 
   getTab(tab => {
     if (!tab) { err.textContent = 'No active tab.'; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; return; }
-    chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, response => {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now';
+    chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, async response => {
+      const reenable = () => { btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; };
 
       if (!response) {
+        reenable();
         err.textContent = 'Refresh this page (Cmd+R / Ctrl+R) and try again.';
         err.classList.remove('hidden'); return;
       }
       if (!response.ok) {
+        reenable();
         const m = {
           'not_signed_in': 'Sign in first.',
           'no_content_script': 'Refresh this page (Cmd+R / Ctrl+R), then try again.',
@@ -576,7 +581,36 @@ $('autofill-now-btn').addEventListener('click', () => {
 
       $('fill-result-wrap').classList.remove('hidden');
       if (F.jobTitle && F.company) $('fill-save-tracker-btn').classList.remove('hidden');
-      toast(`${filled} fields filled ✓`, 'ok');
+
+      // v1.9.8: auto-attach resume right after fill, reveal manual fallback only on failure
+      btn.innerHTML = '<div class="spinner"></div>Attaching resume…';
+      const dlWrap = $('fill-resume-dl-wrap');
+      const status = $('fill-attach-status');
+      const a = await aynAttachResume(tab.id).catch(() => ({ ok: false, error: 'attach_failed' }));
+      if (a?.ok) {
+        toast(`${filled} fields filled and resume attached ✓`, 'ok');
+        if (dlWrap) dlWrap.classList.add('hidden');
+        if (status) status.classList.add('hidden');
+      } else if (a?.error === 'no_file_input') {
+        toast(`${filled} fields filled ✓`, 'ok');
+        if (dlWrap) dlWrap.classList.add('hidden');
+        if (status) status.classList.add('hidden');
+      } else if (a?.error === 'blocked' || a?.error === 'blocked_by_site') {
+        toast(`${filled} fields filled. This site blocks the file upload — download below and drop it in.`, 'ok');
+        if (dlWrap) dlWrap.classList.remove('hidden');
+        if (status) {
+          status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-orange-2)">This site blocked the one-click upload. Use the download below and attach it manually.</span>`;
+          status.classList.remove('hidden');
+        }
+      } else {
+        toast(`${filled} fields filled. Could not attach the resume automatically — use the download below.`, 'ok');
+        if (dlWrap) dlWrap.classList.remove('hidden');
+        if (status) {
+          status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-orange-2)">Could not attach the resume automatically. Use the download below and attach it manually.</span>`;
+          status.classList.remove('hidden');
+        }
+      }
+      reenable();
     });
   });
 });
