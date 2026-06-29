@@ -533,15 +533,16 @@ $('autofill-now-btn').addEventListener('click', () => {
 
   getTab(tab => {
     if (!tab) { err.textContent = 'No active tab.'; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; return; }
-    chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, response => {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now';
+    chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, async response => {
+      const reenable = () => { btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; };
 
       if (!response) {
+        reenable();
         err.textContent = 'Refresh this page (Cmd+R / Ctrl+R) and try again.';
         err.classList.remove('hidden'); return;
       }
       if (!response.ok) {
+        reenable();
         const m = {
           'not_signed_in': 'Sign in first.',
           'no_content_script': 'Refresh this page (Cmd+R / Ctrl+R), then try again.',
@@ -580,7 +581,36 @@ $('autofill-now-btn').addEventListener('click', () => {
 
       $('fill-result-wrap').classList.remove('hidden');
       if (F.jobTitle && F.company) $('fill-save-tracker-btn').classList.remove('hidden');
-      toast(`${filled} fields filled ✓`, 'ok');
+
+      // v1.9.8: auto-attach resume right after fill, reveal manual fallback only on failure
+      btn.innerHTML = '<div class="spinner"></div>Attaching resume…';
+      const dlWrap = $('fill-resume-dl-wrap');
+      const status = $('fill-attach-status');
+      const a = await aynAttachResume(tab.id).catch(() => ({ ok: false, error: 'attach_failed' }));
+      if (a?.ok) {
+        toast(`${filled} fields filled and resume attached ✓`, 'ok');
+        if (dlWrap) dlWrap.classList.add('hidden');
+        if (status) status.classList.add('hidden');
+      } else if (a?.error === 'no_file_input') {
+        toast(`${filled} fields filled ✓`, 'ok');
+        if (dlWrap) dlWrap.classList.add('hidden');
+        if (status) status.classList.add('hidden');
+      } else if (a?.error === 'blocked' || a?.error === 'blocked_by_site') {
+        toast(`${filled} fields filled. This site blocks the file upload — download below and drop it in.`, 'ok');
+        if (dlWrap) dlWrap.classList.remove('hidden');
+        if (status) {
+          status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-orange-2)">This site blocked the one-click upload. Use the download below and attach it manually.</span>`;
+          status.classList.remove('hidden');
+        }
+      } else {
+        toast(`${filled} fields filled. Could not attach the resume automatically — use the download below.`, 'ok');
+        if (dlWrap) dlWrap.classList.remove('hidden');
+        if (status) {
+          status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-orange-2)">Could not attach the resume automatically. Use the download below and attach it manually.</span>`;
+          status.classList.remove('hidden');
+        }
+      }
+      reenable();
     });
   });
 });
