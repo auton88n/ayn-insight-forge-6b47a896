@@ -51,10 +51,8 @@ const BetaProgramSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await supabase.from('system_config').upsert([
-        { key: 'beta_mode', value: betaMode },
-        { key: 'beta_feedback_reward', value: feedbackReward }
-      ], { onConflict: 'key' });
+      await supabase.rpc('admin_upsert_system_config', { p_key: 'beta_mode', p_value: betaMode as any });
+      await supabase.rpc('admin_upsert_system_config', { p_key: 'beta_feedback_reward', p_value: feedbackReward as any });
       toast.success('Beta settings saved');
     } catch (err) {
       toast.error('Failed to save beta settings');
