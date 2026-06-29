@@ -855,18 +855,26 @@
 
     let target = scope ? pickIn(scope) : null;
     if (!target) {
-      // Fallback: search whole document but only if a SINGLE match exists (avoid wrong question)
       const all = document.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"]');
       const matches = [];
       for (const el of all) {
         const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
         if (!txt) continue;
-        if (txt === wantN || (txt.includes(wantN) && wantN.length >= 2) || (wantN.includes(txt) && txt.length >= 2)) {
-          matches.push(el);
-          if (matches.length > 1) break;
-        }
+        if (txt === wantN || (txt.includes(wantN) && wantN.length >= 2) || (wantN.includes(txt) && txt.length >= 2)) matches.push(el);
       }
       if (matches.length === 1) target = matches[0];
+      else if (matches.length > 1 && qKey) {
+        const scored = matches.map(el => {
+          let node = el, hit = -1;
+          for (let i = 0; i < 8 && node; i++, node = node.parentElement) {
+            const t = norm(safeText(node));
+            if (t && t.includes(qKey)) { hit = i; break; }
+          }
+          return { el, hit };
+        }).filter(s => s.hit >= 0).sort((a, b) => a.hit - b.hit);
+        if (scored.length === 1) target = scored[0].el;
+        else if (scored.length > 1 && scored[0].hit < scored[1].hit) target = scored[0].el;
+      }
     }
     const interactive = target ? (target.closest('button, [role="radio"], [role="button"], [role="option"], a, label') || target) : null;
     try {
