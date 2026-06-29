@@ -7,21 +7,19 @@
  *
  * Sections:
  *  1. Personal Information       — name, contact, address (with province)
- *  2. Work Authorization         — legally eligible, work permit type
- *  3. Professional Links         — LinkedIn, GitHub, portfolio, Indeed
- *  4. Availability & Preferences — start date, job type, salary, relocation
- *  5. Education & Credentials    — highest education, certifications, languages
- *  6. Skills & Experience        — years of experience, management, industries
- *  7. Pre-Screening Questions    — criminal record, background check consent,
+ *  2. Professional Links         — LinkedIn, GitHub, portfolio, Indeed
+ *  3. Availability & Preferences — start date, job type, salary, relocation
+ *  4. Education & Credentials    — highest education, certifications, languages
+ *  5. Skills & Experience        — years of experience, management, industries
+ *  6. Pre-Screening Questions    — criminal record, background check consent,
  *                                  driver's licence (if job requires driving),
  *                                  equity self-ID (voluntary)
- *  8. Default Short Answers      — "Tell me about yourself", "Why do you want
+ *  7. Default Short Answers      — "Tell me about yourself", "Why do you want
  *                                  this role?", salary expectation, references
  *
  * All data maps directly to the user_profile_data table columns:
  *   legal_first_name, legal_last_name, preferred_name, email, phone,
- *   address (jsonb), work_auth (jsonb), links (jsonb),
- *   demographics (jsonb), default_answers (jsonb)
+ *   address (jsonb), links (jsonb), default_answers (jsonb)
  */
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
@@ -50,17 +48,6 @@ const CA_PROVINCES = [
   "Yukon",
 ];
 
-// ── Work authorization options (what Canadian ATS systems show) ───────────────
-const WORK_AUTH_OPTIONS = [
-  { value: "citizen", label: "Canadian Citizen" },
-  { value: "permanent_resident", label: "Permanent Resident (PR)" },
-  { value: "open_work_permit", label: "Open Work Permit" },
-  { value: "closed_work_permit", label: "Employer-Specific Work Permit" },
-  { value: "pgwp", label: "Post-Graduation Work Permit (PGWP)" },
-  { value: "study_permit_coop", label: "Study Permit (Co-op / Intern)" },
-  { value: "iec", label: "International Experience Canada (IEC)" },
-  { value: "not_eligible", label: "Not currently authorized to work in Canada" },
-];
 
 // ── Employment type preferences ───────────────────────────────────────────────
 const JOB_TYPES = ["Full-time", "Part-time", "Contract / Fixed-term", "Casual / Temporary", "Internship / Co-op", "Volunteer"];
@@ -117,7 +104,7 @@ function Section({
 // ── Field label with optional tooltip ────────────────────────────────────────
 function FieldLabel({ label, tip }: { label: string; tip?: string }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1.5">
+    <label className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
       {label}
       {tip && (
         <span className="group relative cursor-help">
@@ -166,7 +153,7 @@ function RadioGroup({
             type="button"
             onClick={() => onChange(opt.value)}
             className={cn(
-              "px-3 py-1.5 text-xs border rounded-none font-mono transition-all",
+              "px-3 py-1.5 text-xs border transition-all",
               value === opt.value
                 ? "bg-foreground text-background border-foreground"
                 : "bg-transparent border-border text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -196,7 +183,7 @@ function MultiSelect({
             type="button"
             onClick={() => toggle(opt)}
             className={cn(
-              "px-3 py-1.5 text-xs border rounded-none font-mono transition-all",
+              "px-3 py-1.5 text-xs border transition-all",
               selected.includes(opt)
                 ? "bg-foreground text-background border-foreground"
                 : "bg-transparent border-border text-muted-foreground hover:border-foreground hover:text-foreground"
@@ -216,8 +203,8 @@ function ProfileCompletion({ pct }: { pct: number }) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Profile completion</span>
-        <span className={cn("text-xs font-bold font-mono", pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500")}>
+        <span className="text-xs uppercase tracking-widest text-muted-foreground">Profile completion</span>
+        <span className={cn("text-xs font-bold", pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500")}>
           {pct}%
         </span>
       </div>
@@ -251,11 +238,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // ── Section 2: Work Auth ─────────────────────────────────────────────────
-  const [legallyEligible, setLegallyEligible] = useState("");   // yes | no
-  const [workAuthType, setWorkAuthType] = useState("");
-  const [workPermitExpiry, setWorkPermitExpiry] = useState("");
-  const [requiresSponsorship, setRequiresSponsorship] = useState(false);
 
   // ── Section 3: Links ─────────────────────────────────────────────────────
   const [linkedin, setLinkedin] = useState("");
@@ -321,11 +303,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
       setProvince(addr.province ?? addr.state ?? "");
       setPostalCode(addr.postal_code ?? "");
 
-      const wa = (data.work_auth ?? {}) as Record<string, unknown>;
-      setLegallyEligible(String(wa.legally_eligible ?? ""));
-      setWorkAuthType(String(wa.type ?? ""));
-      setWorkPermitExpiry(String(wa.permit_expiry ?? ""));
-      setRequiresSponsorship(Boolean(wa.requires_sponsorship));
 
       const lk = (data.links ?? {}) as Record<string, string>;
       setLinkedin(lk.linkedin ?? "");
@@ -429,7 +406,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
   // ── Completion % ─────────────────────────────────────────────────────────
   const fields = [
     firstName, lastName, email, phone, city, province, postalCode,
-    legallyEligible, workAuthType,
     linkedin,
     availableFrom, jobTypes.length > 0 ? "ok" : "",
     highestEducation,
@@ -454,12 +430,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         address: {
           line1: addressLine1, line2: addressLine2,
           city, province, state: province, postal_code: postalCode, country: "Canada",
-        },
-        work_auth: {
-          legally_eligible: legallyEligible,
-          type: workAuthType,
-          permit_expiry: workPermitExpiry,
-          requires_sponsorship: requiresSponsorship,
         },
         links: { linkedin, github, portfolio, indeed },
         default_answers: {
@@ -565,7 +535,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           <div className="col-span-1">
             <FieldLabel label="Province / Territory" />
             <Select value={province} onValueChange={setProvince}>
-              <SelectTrigger className="rounded-none"><SelectValue placeholder="Select province" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select province" /></SelectTrigger>
               <SelectContent>
                 {CA_PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
@@ -578,44 +548,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         </div>
       </Section>
 
-      {/* ── 2. Work Authorization ── */}
-      <Section title="Work Authorization" subtitle="Canadian employers are legally allowed to ask if you can work in Canada">
-        <RadioGroup
-          label="Are you legally eligible to work in Canada?"
-          tip="Employers may legally ask this. They cannot ask about citizenship, PR status, or immigration type."
-          options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]}
-          value={legallyEligible}
-          onChange={setLegallyEligible}
-        />
-
-        {legallyEligible === "yes" && (
-          <>
-            <div>
-              <FieldLabel label="Work Authorization Type" tip="Select the best description of your current status" />
-              <Select value={workAuthType} onValueChange={setWorkAuthType}>
-                <SelectTrigger className="rounded-none"><SelectValue placeholder="Select your status" /></SelectTrigger>
-                <SelectContent>
-                  {WORK_AUTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {!["citizen", "permanent_resident"].includes(workAuthType) && workAuthType && (
-              <div>
-                <FieldLabel label="Work Permit Expiry Date" tip="AYN will warn you when jobs require long-term availability beyond this date" />
-                <Input type="date" value={workPermitExpiry} onChange={e => setWorkPermitExpiry(e.target.value)} />
-              </div>
-            )}
-
-            <CheckRow
-              label="I require employer sponsorship to maintain work authorization"
-              checked={requiresSponsorship}
-              onChange={setRequiresSponsorship}
-              tip="Many Canadian employers filter out candidates who require LMIA sponsorship"
-            />
-          </>
-        )}
-      </Section>
 
       {/* ── 3. Professional Links ── */}
       <Section title="Professional Links" subtitle="URLs that go directly into online application forms">
@@ -656,7 +588,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
                 className="flex-1"
               />
               <Select value={salaryType} onValueChange={setSalaryType}>
-                <SelectTrigger className="w-28 rounded-none"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="yearly">/ year</SelectItem>
                   <SelectItem value="hourly">/ hour</SelectItem>
@@ -714,7 +646,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         <div>
           <FieldLabel label="Highest Level of Education Completed" />
           <Select value={highestEducation} onValueChange={setHighestEducation}>
-            <SelectTrigger className="rounded-none"><SelectValue placeholder="Select education level" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select education level" /></SelectTrigger>
             <SelectContent>
               {EDUCATION_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
@@ -729,7 +661,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           <div>
             <FieldLabel label="English Proficiency" tip="Canada's primary language" />
             <Select value={englishLevel} onValueChange={setEnglishLevel}>
-              <SelectTrigger className="rounded-none"><SelectValue placeholder="Select level" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
               <SelectContent>
                 {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
@@ -738,7 +670,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           <div>
             <FieldLabel label="French Proficiency" tip="Required for federal jobs and Quebec roles" />
             <Select value={frenchLevel} onValueChange={setFrenchLevel}>
-              <SelectTrigger className="rounded-none"><SelectValue placeholder="Select level" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
               <SelectContent>
                 {LANGUAGE_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
               </SelectContent>
@@ -918,7 +850,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
             size="lg"
             onClick={save}
             disabled={busy}
-            className="h-12 px-10 rounded-none font-mono uppercase tracking-wider hover:shadow-xl transition-all"
+            className="h-12 px-10 uppercase tracking-wider hover:shadow-xl transition-all"
           >
             {busy
               ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
