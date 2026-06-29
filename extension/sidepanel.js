@@ -1123,7 +1123,7 @@ async function generateCoverLetter() {
   try {
     const tone = $('cover-tone').value;
     const data = await bgFunc('ext_cover_letter_text', {
-      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company,
+      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl,
     });
     if (data.error) throw new Error(data.error);
     $('cover-out').textContent = data.body || '';
