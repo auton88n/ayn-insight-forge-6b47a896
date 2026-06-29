@@ -123,32 +123,32 @@ export default function NDASign() {
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
 
-  const fetchNDA = useCallback(async () => {
-    if (!token || token.length < 10) return; // strict token validation
-    const { data, error } = await supabase.from('nda_agreements').select('*').eq('signing_token', token).single();
-    if (error || !data) { setLoading(false); return; }
-    setNda(data);
-    if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
-    if (data.status === 'sent') await supabase.from('nda_agreements').update({ client_viewed_at: new Date().toISOString(), status: 'viewed' }).eq('signing_token', token);
-    setLoading(false);
+  const invokeSign = useCallback(async (payload: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke('sign-document', {
+      body: { doc: 'nda', token, ...payload },
+    });
+    if (error) throw new Error(error.message || 'Request failed');
+    if ((data as any)?.error) throw new Error((data as any).error);
+    return (data as any).row as NDA;
   }, [token]);
+
+  const fetchNDA = useCallback(async () => {
+    if (!token || token.length < 10) return;
+    try {
+      const row = await invokeSign({ action: 'view' });
+      setNda(row);
+      if (row.admin_signature_url && row.client_signature_url) setCompleted(true);
+    } catch { /* invalid token */ }
+    setLoading(false);
+  }, [token, invokeSign]);
 
   useEffect(() => { fetchNDA(); }, [fetchNDA]);
 
   const saveSignature = async (dataUrl: string, party: 'admin' | 'client') => {
     if (!nda) return;
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const path = `signatures/nda_${nda.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
-    if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
-    const sigUrl = urlData.publicUrl;
-    const now = new Date().toISOString();
-    const updates: any = party === 'admin' ? { admin_signature_url: sigUrl, admin_signed_at: now } : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    await supabase.from('nda_agreements').update(updates).eq('signing_token', token!);
-    const updated = { ...nda, ...updates };
-    setNda(updated);
-    if (updated.admin_signature_url && updated.client_signature_url) {
+    const row = await invokeSign({ action: 'sign', party, signatureBase64: dataUrl });
+    setNda(row);
+    if (row.admin_signature_url && row.client_signature_url) {
       setCompleted(true);
     }
   };
