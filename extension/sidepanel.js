@@ -472,13 +472,13 @@ async function aynAttachResume(tabId) {
   try {
     if (!window.AYNResumeFormat) return { ok: false, error: 'formatter_not_loaded' };
     const { text, fileBase } = await fetchAynResume();
-    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
-    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
-    const filename = `${fileBase}.pdf`;
+    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
+    const base64 = await window.AYNResumeFormat.blobToBase64(blob);
+    const filename = `${fileBase}.docx`;
     const r = await new Promise(res => chrome.runtime.sendMessage({
       type: 'ATTACH_RESUME_FILE',
       tabId,
-      payload: { base64, filename, mime: 'application/pdf' },
+      payload: { base64, filename, mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
     }, res));
     return r || { ok: false, error: 'no_response' };
   } catch (err) {
@@ -1374,6 +1374,20 @@ $('back-t2').addEventListener('click', () => show('v-t2'));
 $('copy-btn').addEventListener('click', () => {
   if (!S.tailoredText) return;
   navigator.clipboard.writeText(S.tailoredText).then(() => { $('copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('copy-btn').textContent='Copy Resume',1800); });
+});
+$('tailor-download-docx-btn')?.addEventListener('click', async (e) => {
+  if (!S.tailoredText) { toast('Tailor a resume first', 'err'); return; }
+  const btn = e.currentTarget; const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>DOCX...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumeDocxBlob) throw new Error('Formatter not loaded');
+    const co = (S.company || 'AYN').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'AYN';
+    const fileBase = `Tailored_Resume_${co}`;
+    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(S.tailoredText, fileBase);
+    saveBlob(blob, `${fileBase}.docx`);
+    toast('Tailored resume downloaded ✓', 'ok');
+  } catch (err) { toast(err.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
 });
 $('new-job-btn').addEventListener('click', () => {
   S.keywords=[]; S.tailoredText=''; S.changes=[]; S.jobTitle=''; S.company='';
