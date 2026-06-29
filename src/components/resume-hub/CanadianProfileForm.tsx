@@ -578,44 +578,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         </div>
       </Section>
 
-      {/* ── 2. Work Authorization ── */}
-      <Section title="Work Authorization" subtitle="Canadian employers are legally allowed to ask if you can work in Canada">
-        <RadioGroup
-          label="Are you legally eligible to work in Canada?"
-          tip="Employers may legally ask this. They cannot ask about citizenship, PR status, or immigration type."
-          options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]}
-          value={legallyEligible}
-          onChange={setLegallyEligible}
-        />
-
-        {legallyEligible === "yes" && (
-          <>
-            <div>
-              <FieldLabel label="Work Authorization Type" tip="Select the best description of your current status" />
-              <Select value={workAuthType} onValueChange={setWorkAuthType}>
-                <SelectTrigger className="rounded-none"><SelectValue placeholder="Select your status" /></SelectTrigger>
-                <SelectContent>
-                  {WORK_AUTH_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {!["citizen", "permanent_resident"].includes(workAuthType) && workAuthType && (
-              <div>
-                <FieldLabel label="Work Permit Expiry Date" tip="AYN will warn you when jobs require long-term availability beyond this date" />
-                <Input type="date" value={workPermitExpiry} onChange={e => setWorkPermitExpiry(e.target.value)} />
-              </div>
-            )}
-
-            <CheckRow
-              label="I require employer sponsorship to maintain work authorization"
-              checked={requiresSponsorship}
-              onChange={setRequiresSponsorship}
-              tip="Many Canadian employers filter out candidates who require LMIA sponsorship"
-            />
-          </>
-        )}
-      </Section>
 
       {/* ── 3. Professional Links ── */}
       <Section title="Professional Links" subtitle="URLs that go directly into online application forms">
