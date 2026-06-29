@@ -197,26 +197,6 @@ function MultiSelect({
   );
 }
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
-function ProfileCompletion({ pct }: { pct: number }) {
-  const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">Profile completion</span>
-        <span className={cn("text-xs font-bold", pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500")}>
-          {pct}%
-        </span>
-      </div>
-      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-        <div className={cn("h-full transition-all duration-700 rounded-full", color)} style={{ width: `${pct}%` }} />
-      </div>
-      <p className="text-xs text-muted-foreground mt-1.5">
-        AYN autofills using whatever fields are saved. The more you add, the more application questions it can answer for you.
-      </p>
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main component
@@ -403,18 +383,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
     }
   }, [resumeData]);
 
-  // ── Completion % ─────────────────────────────────────────────────────────
-  const fields = [
-    firstName, lastName, email, phone, city, province, postalCode,
-    linkedin,
-    availableFrom, jobTypes.length > 0 ? "ok" : "",
-    highestEducation,
-    englishLevel,
-    yearsExperience,
-    criminalRecord,
-    aboutMe,
-  ];
-  const completionPct = Math.round((fields.filter(Boolean).length / fields.length) * 100);
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const save = async () => {
@@ -481,7 +449,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4 max-w-3xl">
-      <ProfileCompletion pct={completionPct} />
+
 
       {/* ── Resume auto-fill notice ── */}
       {resumeData && (
