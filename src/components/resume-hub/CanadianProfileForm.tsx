@@ -197,26 +197,6 @@ function MultiSelect({
   );
 }
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
-function ProfileCompletion({ pct }: { pct: number }) {
-  const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">Profile completion</span>
-        <span className={cn("text-xs font-bold", pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500")}>
-          {pct}%
-        </span>
-      </div>
-      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-        <div className={cn("h-full transition-all duration-700 rounded-full", color)} style={{ width: `${pct}%` }} />
-      </div>
-      <p className="text-xs text-muted-foreground mt-1.5">
-        AYN autofills using whatever fields are saved. The more you add, the more application questions it can answer for you.
-      </p>
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main component
