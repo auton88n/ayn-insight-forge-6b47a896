@@ -772,6 +772,29 @@ async function runScoreFlow({ auto = false } = {}) {
     $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
     const sal = $('score-salary');
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
+
+    // v1.9.11: Score legend — spell out what the number means
+    let legend = $('score-legend');
+    if (!legend) { legend = document.createElement('div'); legend.id = 'score-legend'; $('score-result').appendChild(legend); }
+    const tierCopy = {
+      's-strong': { title: 'Strong match — apply with confidence', body: 'Your profile covers most must-haves. You are competitive for this role.' },
+      's-good':   { title: 'Good match — worth applying',          body: 'You hit the core requirements. Tailoring your resume will lift this further.' },
+      's-fair':   { title: 'Fair match — apply if interested',     body: 'You meet some requirements but a few key skills are missing or weak.' },
+      's-poor':   { title: 'Low match — likely a stretch',         body: 'Several must-haves are missing. Consider tailoring heavily or skipping.' },
+    }[tier] || { title: '', body: '' };
+    legend.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:12px;line-height:1.5;color:#374151;';
+    legend.innerHTML = `
+      <div style="font-weight:700;color:#111827;margin-bottom:4px;">${tierCopy.title}</div>
+      <div style="color:#4b5563;margin-bottom:6px;">${tierCopy.body}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;color:#6b7280;">
+        <span><b style="color:#15803d">8–10</b> Strong</span>
+        <span>·</span>
+        <span><b style="color:#65a30d">6–7</b> Good</span>
+        <span>·</span>
+        <span><b style="color:#d97706">4–5</b> Fair</span>
+        <span>·</span>
+        <span><b style="color:#b91c1c">0–3</b> Low</span>
+      </div>`;
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
 
