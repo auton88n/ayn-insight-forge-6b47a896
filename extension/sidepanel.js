@@ -1104,6 +1104,7 @@ function detectForCover() {
       }
       CL.jobTitle = r.title || ''; CL.company = deriveCompany(r.company, tab.url, r.title);
       CL.jobText = r.text;
+      CL.jobUrl = tab.url || '';
       $('cover-job-banner').classList.remove('hidden');
       $('cover-job-title').textContent = cleanLabel(CL.jobTitle) || 'Job detected';
       $('cover-job-sub').textContent = cleanLabel(CL.company) ? `at ${cleanLabel(CL.company)}` : 'Unknown company';
