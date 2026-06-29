@@ -229,11 +229,28 @@ function normalizeUrlForHash(raw: string): string {
       if (KEEP.has(k)) sp.append(k, v);
     }
     const qs = sp.toString();
-    const path = u.pathname.replace(/\/+$/, "");
+    const path = u.pathname.replace(/\/+$/, "").replace(/\/(application|apply)$/i, "");
     return `${u.protocol}//${u.hostname.toLowerCase()}${path}${qs ? "?" + qs : ""}`;
   } catch {
     return (raw || "").trim().toLowerCase();
   }
+}
+
+async function resolveJobJd(admin: any, url: string | undefined, jdText: string | undefined): Promise<string> {
+  const jd = (jdText || "").trim();
+  try {
+    if (!url) return jd;
+    const hash = await sha256Hex(normalizeUrlForHash(url));
+    const { data: c } = await admin.from("job_cache").select("full_jd, expires_at").eq("url_hash", hash).maybeSingle();
+    const fresh = c && new Date(c.expires_at).getTime() > Date.now();
+    const cached = (fresh && c?.full_jd) ? String(c.full_jd) : "";
+    if (cached && cached.length > jd.length) return cached;
+    if (!cached && jd.length >= 400) {
+      const row = { url_hash: hash, url, title: "", company: "", full_jd: jd.slice(0, 30000), parsed: {}, expires_at: new Date(Date.now() + 24*60*60*1000).toISOString() };
+      admin.from("job_cache").upsert(row, { onConflict: "url_hash" }).then(() => {}, () => {});
+    }
+    return jd;
+  } catch { return jd; }
 }
 
 const JOB_META_SCHEMA = {
@@ -1292,10 +1309,11 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
       // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
       if (action === "ext_cover_letter_text") {
-        const { resumeText, jdText, tone, company, jobTitle } = payload as {
-          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string;
+        const { resumeText, jdText, tone, company, jobTitle, url } = payload as {
+          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string; url?: string;
         };
-        if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+        const jd = await resolveJobJd(admin, url, jdText);
+        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `Write a cover letter under 280 words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
@@ -1311,7 +1329,7 @@ RULES:
 - No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
 - Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to' (for example $90K to $120K CAD).
 - Plain text, no markdown.`,
-          user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 6000)}`,
+          user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0, 6000)}`,
         });
         return json({ body: r.text });
       }
@@ -1394,8 +1412,9 @@ RULES:
         const works=((rb?.work||[]) as Array<Record<string,unknown>>);
         const skills=((rb?.skills||[]) as string[]);
         const resumeCtx=bas.name?`CANDIDATE: ${bas.name}\nTITLE: ${works[0]?.title||""}\nSKILLS: ${skills.slice(0,15).join(", ")}\nSUMMARY: ${(bas.summary||"").slice(0,300)}`:"No resume loaded.";
+        const jd = await resolveJobJd(admin, url, jobText);
         const r = await callAI({
-          system:`You are AYN, a smart career assistant in a Chrome extension. See the job page and candidate resume below.\nBe direct and specific (max 4 sentences unless more is needed). Never be vague.\nYou help with: fit analysis, salary ranges, interview prep, cold outreach, application question answers, resume gaps.\nFor salary: ALWAYS give a real number range using the word 'to' (e.g. $90K to $130K CAD) based on role + location. Never write the range with a dash.\nFor fit: give a clear verdict (Strong/Good/Fair/Poor) + top 2 gaps.\nFor interview prep: give 3 specific questions + brief answer frameworks.\nFor outreach: write the actual message.\nVoice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.\n\n${resumeCtx}\n\n${jobText?`JOB: ${jobTitle||""} at ${company||""}\n${jobText.slice(0,2500)}`:"No job page, general career advice."}`,
+          system:`You are AYN, a smart career assistant in a Chrome extension. See the job page and candidate resume below.\nBe direct and specific (max 4 sentences unless more is needed). Never be vague.\nYou help with: fit analysis, salary ranges, interview prep, cold outreach, application question answers, resume gaps.\nFor salary: ALWAYS give a real number range using the word 'to' (e.g. $90K to $130K CAD) based on role + location. Never write the range with a dash.\nFor fit: give a clear verdict (Strong/Good/Fair/Poor) + top 2 gaps.\nFor interview prep: give 3 specific questions + brief answer frameworks.\nFor outreach: write the actual message.\nVoice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("I am excited to", "leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.\n\n${resumeCtx}\n\n${jd?`JOB: ${jobTitle||""} at ${company||""}\n${jd.slice(0,2500)}`:"No job page, general career advice."}`,
           user:question,
         });
         return json({answer:r.text,sessionId:sessionId||crypto.randomUUID()});
@@ -1403,8 +1422,9 @@ RULES:
 
       // smart_tailor (extension path) — same as JWT smart_tailor below
       if (action === "smart_tailor") {
-        const { resumeText, jdText, jobTitle, company } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string };
-        if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+        const { resumeText, jdText, jobTitle, company, url } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string; url?: string };
+        const jd = await resolveJobJd(admin, url, jdText);
+        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
@@ -1432,7 +1452,7 @@ CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bulle
 ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
 VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jdText.slice(0,6000)}`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {

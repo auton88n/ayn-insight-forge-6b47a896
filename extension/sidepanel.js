@@ -3,7 +3,7 @@
 const S = {
   user: null,
   tab: 'fill',
-  resume: '', job: '', jobTitle: '', company: '',
+  resume: '', job: '', jobTitle: '', company: '', jobUrl: '',
   keywords: [], tailoredText: '', changes: [],
 };
 
@@ -1091,7 +1091,7 @@ window.copyOutreach = () => { const t = $('outreach-text').textContent; if (t) c
 // COVER LETTER
 // ════════════════════════════════════════════════════════════════
 
-const CL = { jobTitle: '', company: '', jobText: '', resumeText: '' };
+const CL = { jobTitle: '', company: '', jobText: '', resumeText: '', jobUrl: '' };
 
 function detectForCover() {
   $('cover-no-job').classList.add('hidden');
@@ -1104,6 +1104,7 @@ function detectForCover() {
       }
       CL.jobTitle = r.title || ''; CL.company = deriveCompany(r.company, tab.url, r.title);
       CL.jobText = r.text;
+      CL.jobUrl = tab.url || '';
       $('cover-job-banner').classList.remove('hidden');
       $('cover-job-title').textContent = cleanLabel(CL.jobTitle) || 'Job detected';
       $('cover-job-sub').textContent = cleanLabel(CL.company) ? `at ${cleanLabel(CL.company)}` : 'Unknown company';
@@ -1122,7 +1123,7 @@ async function generateCoverLetter() {
   try {
     const tone = $('cover-tone').value;
     const data = await bgFunc('ext_cover_letter_text', {
-      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company,
+      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl,
     });
     if (data.error) throw new Error(data.error);
     $('cover-out').textContent = data.body || '';
@@ -1280,6 +1281,7 @@ function detectForTailor() {
       const parts = r.title?.split(/\bat\b|\s[-|]\s/i) || [];
       S.jobTitle = parts[0]?.trim() || '';
       S.company = parts[1]?.replace(/linkedin|indeed|glassdoor|jobright/gi,'').trim() || '';
+      S.jobUrl = tab.url || '';
       $('t-job-banner').style.display = '';
       $('t-job-title').textContent = r.title || 'Job detected';
       $('t-job-sub').textContent = `${r.text.length.toLocaleString()} chars · click to load`;
@@ -1310,7 +1312,7 @@ $('analyze-btn').addEventListener('click', async () => {
   S.resume = resume; S.job = job;
   const btn = $('analyze-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Analysing...';
   try {
-    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company });
+    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl });
     if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
@@ -1351,7 +1353,7 @@ $('tailor-btn').addEventListener('click', async () => {
   if (S.tailoredText) { renderResult(S.tailoredText, S.changes); show('v-t3'); return; }
   const btn = $('tailor-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Tailoring...';
   try {
-    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company });
+    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl });
     if (d.error) throw new Error(d.error);
     S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     renderResult(S.tailoredText, S.changes); show('v-t3');
