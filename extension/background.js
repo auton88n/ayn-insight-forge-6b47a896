@@ -73,6 +73,18 @@ async function safeSendMessage(tabId, message) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
+  if (message.type === 'FETCH_URL_TEXT') {
+    (async () => {
+      try {
+        const resp = await fetch(message.url, { credentials: 'omit' });
+        const text = await resp.text();
+        sendResponse({ ok: true, text: text.slice(0, 200000) });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
+
   // ── Link flow: start ────────────────────────────────────────────
   if (message.type === 'LINK_START') {
     (async () => {

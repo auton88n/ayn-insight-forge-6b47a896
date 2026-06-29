@@ -96,7 +96,49 @@
     } catch { return 0; }
   }
 
-  function extractJobText() {
+  function aynHtmlToText(html) {
+    if (!html) return '';
+    try {
+      const doc = new DOMParser().parseFromString(String(html), 'text/html');
+      return (doc.body.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    } catch { return String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+  }
+  function aynJobFromLdNode(node) {
+    const t = node && node['@type'];
+    const isJob = Array.isArray(t) ? t.includes('JobPosting') : t === 'JobPosting';
+    if (!isJob) return null;
+    const company = (node.hiringOrganization && (node.hiringOrganization.name || node.hiringOrganization)) || '';
+    return { text: aynHtmlToText(node.description || ''), title: String(node.title || '').trim(), company: String(company || '').trim() };
+  }
+  function extractJsonLdJob() {
+    try {
+      const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const s of scripts) {
+        let data; try { data = JSON.parse(s.textContent); } catch { continue; }
+        const arr = Array.isArray(data) ? data : (data['@graph'] || [data]);
+        for (const node of arr) { const j = aynJobFromLdNode(node); if (j && j.text) return j; }
+      }
+    } catch {}
+    return null;
+  }
+  function parseJsonLdFromHtml(html) {
+    try {
+      const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      let m;
+      while ((m = re.exec(html))) {
+        let data; try { data = JSON.parse(m[1].trim()); } catch { continue; }
+        const arr = Array.isArray(data) ? data : (data['@graph'] || [data]);
+        for (const node of arr) { const j = aynJobFromLdNode(node); if (j && j.text) return j; }
+      }
+    } catch {}
+    return null;
+  }
+  function aynIsApplyPage(u) { return /\/(application|apply)\/?($|\?)/i.test(u || ''); }
+  function aynListingUrlFromApply(u) {
+    try { const url = new URL(u); url.search=''; url.hash=''; url.pathname = url.pathname.replace(/\/(application|apply)\/?$/i, ''); const out = url.toString(); return out === u ? null : out; } catch { return null; }
+  }
+
+  function extractJobTextRaw() {
     try {
     // Best-effort: open any truncated description before we read.
     try { expandSeeMore(); } catch {}
@@ -229,6 +271,39 @@
       return { text: '', title: cleanTitle(document.title || ''), company: '' };
     }
   }
+
+  function extractJobText() {
+    const base = extractJobTextRaw();
+    try {
+      if (!base.text || base.text.length < 200) {
+        const j = extractJsonLdJob();
+        if (j && j.text && j.text.length > (base.text || '').length) {
+          return { text: j.text.slice(0, MAX_JD_CHARS), title: base.title || j.title || '', company: base.company || j.company || '' };
+        }
+      }
+    } catch {}
+    return base;
+  }
+
+  async function extractJobTextDeep() {
+    const base = extractJobText();
+    if (base.text && base.text.length >= 200) return base;
+    if (!aynIsApplyPage(window.location.href)) return base;
+    const listing = aynListingUrlFromApply(window.location.href);
+    if (!listing) return base;
+    try {
+      const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'FETCH_URL_TEXT', url: listing }, res));
+      if (r && r.ok && r.text) {
+        const j = parseJsonLdFromHtml(r.text);
+        if (j && j.text && j.text.length > (base.text || '').length) {
+          return { text: j.text.slice(0, MAX_JD_CHARS), title: base.title || j.title || '', company: base.company || j.company || '' };
+        }
+      }
+    } catch {}
+    return base;
+  }
+
+
 
 
   // ══════════════════════════════════════════════════════════════════
@@ -1358,7 +1433,7 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     if (message.type === 'EXTRACT_JOB_TEXT') {
-      sendResponse(extractJobText());
+      extractJobTextDeep().then(res => sendResponse(res)).catch(() => { try { sendResponse(extractJobText()); } catch {} });
       return true;
     }
 
