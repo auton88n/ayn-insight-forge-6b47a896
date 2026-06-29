@@ -349,10 +349,7 @@ function applyFormReady(r, tab) {
 
   });
   const dlWrap = $('fill-resume-dl-wrap');
-  if (dlWrap) {
-    if (r.hasResumeUpload) dlWrap.classList.remove('hidden');
-    else dlWrap.classList.add('hidden');
-  }
+  if (dlWrap) dlWrap.classList.add('hidden');
   return true;
 }
 
@@ -418,12 +415,9 @@ function detectForFill() {
       renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
       $('autofill-now-btn').classList.remove('hidden');
 
-      // Show resume-attach hint + download button if page asks for a resume file
+      // v1.9.8: default hidden; only revealed as a fallback after Fill fails to auto-attach
       const dlWrap = $('fill-resume-dl-wrap');
-      if (dlWrap) {
-        if (r.needsResume) dlWrap.classList.remove('hidden');
-        else dlWrap.classList.add('hidden');
-      }
+      if (dlWrap) dlWrap.classList.add('hidden');
     });
   });
 }
