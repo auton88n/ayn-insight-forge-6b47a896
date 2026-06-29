@@ -1513,16 +1513,29 @@ function askAddBubble(role, text, opts = {}) {
   return b;
 }
 
+// v1.9.12: fixed allowlist of card prompts — no free-text input is accepted.
+const ASK_ALLOWED = new Set();
+function refreshAskAllowed() {
+  ASK_ALLOWED.clear();
+  document.querySelectorAll('#ask-cards .ask-card[data-q]').forEach(c => ASK_ALLOWED.add(c.dataset.q));
+}
+
+function setAskCardsDisabled(disabled) {
+  document.querySelectorAll('#ask-cards .ask-card').forEach(b => { b.disabled = disabled; });
+}
+
 async function askSend(question) {
   if (!question || ASK.busy) return;
+  if (!ASK_ALLOWED.has(question)) return; // hard allowlist — no arbitrary prompts
   ASK.busy = true;
-  const input = $('ask-input');
-  const sendBtn = $('ask-send-btn');
-  input.value = ''; input.style.height = '38px';
-  sendBtn.disabled = true;
-  $('ask-suggestions')?.classList.add('hidden');
+  setAskCardsDisabled(true);
+  $('ask-cards')?.classList.add('hidden');
+  $('ask-intro')?.classList.add('hidden');
 
-  askAddBubble('user', question);
+  // Show the short card label (not the long prompt) as the user bubble
+  const card = Array.from(document.querySelectorAll('#ask-cards .ask-card')).find(c => c.dataset.q === question);
+  const label = card?.querySelector('.ask-card-title')?.textContent?.trim() || 'Question';
+  askAddBubble('user', label);
   const thinking = askAddBubble('assistant', 'Thinking…', { thinking: true });
 
   try {
@@ -1542,24 +1555,24 @@ async function askSend(question) {
     askAddBubble('assistant', `Couldn't reach AYN: ${e.message || 'error'}`);
   } finally {
     ASK.busy = false;
-    sendBtn.disabled = false;
-    input.focus();
+    setAskCardsDisabled(false);
+    $('ask-reset-row')?.classList.remove('hidden');
   }
 }
 
 document.addEventListener('click', (e) => {
-  const s = e.target.closest('.ask-sugg');
-  if (s) askSend(s.dataset.q || s.textContent.trim());
+  const card = e.target.closest('#ask-cards .ask-card');
+  if (card && card.dataset.q) askSend(card.dataset.q);
 });
 
-$('ask-send-btn')?.addEventListener('click', () => askSend(($('ask-input').value || '').trim()));
-$('ask-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askSend(($('ask-input').value || '').trim()); }
+$('ask-reset-btn')?.addEventListener('click', () => {
+  $('ask-msgs').innerHTML = '';
+  $('ask-cards')?.classList.remove('hidden');
+  $('ask-intro')?.classList.remove('hidden');
+  $('ask-reset-row')?.classList.add('hidden');
 });
-$('ask-input')?.addEventListener('input', (e) => {
-  e.target.style.height = '38px';
-  e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px';
-});
+
+refreshAskAllowed();
 
 // Wire inline-handler replacements (MV3 CSP blocks inline on* attributes)
 document.querySelectorAll('.tabs [data-tab]').forEach((btn) => {

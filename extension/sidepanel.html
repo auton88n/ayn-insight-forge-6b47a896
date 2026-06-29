@@ -679,6 +679,34 @@
     }
     .ask-sugg:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); background: var(--ayn-orange-soft); }
 
+    /* v1.9.12: Ask AYN — fixed cards instead of free text */
+    .ask-intro { margin: 12px 0 10px; }
+    .ask-intro-title { font-size: 15px; font-weight: 800; color: var(--ayn-text); letter-spacing: -.01em; }
+    .ask-intro-sub { font-size: 12px; color: var(--ayn-muted); margin-top: 3px; line-height: 1.5; }
+    .ask-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .ask-card {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+      padding: 11px 12px; border-radius: 12px; border: 1px solid var(--ayn-border);
+      background: var(--ayn-card); cursor: pointer; text-align: left; transition: all .15s;
+    }
+    .ask-card:hover { border-color: var(--ayn-orange); background: var(--ayn-orange-soft); transform: translateY(-1px); }
+    .ask-card:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .ask-card-icon {
+      width: 26px; height: 26px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; margin-bottom: 2px;
+    }
+    .ask-card-title { font-size: 12.5px; font-weight: 700; color: var(--ayn-text); line-height: 1.25; }
+    .ask-card-sub { font-size: 10.5px; color: var(--ayn-muted); line-height: 1.35; }
+    .ask-reset-row { display: flex; justify-content: center; padding: 8px 0 4px; }
+    .ask-reset-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 13px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+      background: var(--ayn-card); border: 1px solid var(--ayn-border);
+      color: var(--ayn-text); cursor: pointer;
+    }
+    .ask-reset-btn:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); }
+
     /* Must-have requirements list */
     .req-card { background: var(--ayn-card); border: 1px solid var(--ayn-border); border-radius: 12px; padding: 13px; margin-bottom: 10px; }
     .req-card .req-title { font-size: 11px; font-weight: 800; color: var(--ayn-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 9px; }
@@ -907,27 +935,69 @@
     <div class="ask-shell">
       <div id="ask-context-pill-wrap"></div>
 
-      <div id="ask-suggestions" class="ask-suggestions">
-        <span class="ask-sugg" data-q="Am I qualified for this role? Be honest.">Am I qualified?</span>
-        <span class="ask-sugg" data-q="Write a 3-sentence 'Why this company?' answer for this job.">Why this company?</span>
-        <span class="ask-sugg" data-q="What are my biggest gaps for this role and how do I address them?">My biggest gaps</span>
-        <span class="ask-sugg" data-q="Rewrite my most relevant resume bullet for this job, tighter and more results-oriented.">Improve a bullet</span>
-        <span class="ask-sugg" data-q="What salary should I ask for in this role?">Salary range</span>
-        <span class="ask-sugg" data-q="What questions should I ask the interviewer?">Interview questions</span>
+      <div class="ask-intro" id="ask-intro">
+        <div class="ask-intro-title">What do you want to know?</div>
+        <div class="ask-intro-sub">Pick a card. AYN already has the job, the company, and your resume — no typing needed.</div>
       </div>
 
-      <div class="ask-empty" id="ask-empty">
-        Ask AYN anything about this job, your resume, or the application form. AYN already sees the page you're on.
+      <div class="ask-cards" id="ask-cards">
+        <button class="ask-card" data-q="Am I qualified for this role? Be brutally honest — what matches, what's missing, and should I apply?">
+          <div class="ask-card-icon" style="background:#fef3c7;color:#b45309"><i class="ti ti-target-arrow"></i></div>
+          <div class="ask-card-title">Am I qualified?</div>
+          <div class="ask-card-sub">Honest fit check vs. the job</div>
+        </button>
+        <button class="ask-card" data-q="What are my biggest gaps for this role, and exactly how do I close them (skills to add, courses, or how to reframe what I already have)?">
+          <div class="ask-card-icon" style="background:#fee2e2;color:#b91c1c"><i class="ti ti-alert-triangle"></i></div>
+          <div class="ask-card-title">My biggest gaps</div>
+          <div class="ask-card-sub">Where I'm weak + how to fix it</div>
+        </button>
+        <button class="ask-card" data-q="Write a 3-sentence 'Why this company?' answer tailored to this job using publicly known facts about the company.">
+          <div class="ask-card-icon" style="background:#dbeafe;color:#1d4ed8"><i class="ti ti-building"></i></div>
+          <div class="ask-card-title">Why this company?</div>
+          <div class="ask-card-sub">3-sentence ready-to-paste answer</div>
+        </button>
+        <button class="ask-card" data-q="Write a 3-sentence 'Why are you a good fit for this role?' answer using my real experience from my resume.">
+          <div class="ask-card-icon" style="background:#dcfce7;color:#15803d"><i class="ti ti-user-check"></i></div>
+          <div class="ask-card-title">Why I'm a fit</div>
+          <div class="ask-card-sub">Short pitch from my resume</div>
+        </button>
+        <button class="ask-card" data-q="Rewrite my single most relevant resume bullet for this job — tighter, results-driven, and using language from the JD where truthful.">
+          <div class="ask-card-icon" style="background:#ffedd5;color:#c2410c"><i class="ti ti-wand"></i></div>
+          <div class="ask-card-title">Improve a bullet</div>
+          <div class="ask-card-sub">Rewrite my top bullet for this JD</div>
+        </button>
+        <button class="ask-card" data-q="What salary range should I ask for in this role given the title, location, and seniority? Give a realistic band, not a single number.">
+          <div class="ask-card-icon" style="background:#ecfccb;color:#4d7c0f"><i class="ti ti-currency-dollar"></i></div>
+          <div class="ask-card-title">Salary range</div>
+          <div class="ask-card-sub">Realistic band for this role</div>
+        </button>
+        <button class="ask-card" data-q="Give me 5 sharp questions I should ask the interviewer for this specific role and company.">
+          <div class="ask-card-icon" style="background:#ede9fe;color:#6d28d9"><i class="ti ti-help-circle"></i></div>
+          <div class="ask-card-title">Interview questions</div>
+          <div class="ask-card-sub">5 to ask the interviewer</div>
+        </button>
+        <button class="ask-card" data-q="What are the 3 hardest interview questions I'm likely to get for this job, and give me a strong example answer for each using my background.">
+          <div class="ask-card-icon" style="background:#fce7f3;color:#be185d"><i class="ti ti-message-question"></i></div>
+          <div class="ask-card-title">Likely interview Qs</div>
+          <div class="ask-card-sub">Top 3 + example answers</div>
+        </button>
+        <button class="ask-card" data-q="Give me a 2-week prep plan to be ready for this role: what to study, build, or practice each week.">
+          <div class="ask-card-icon" style="background:#cffafe;color:#0e7490"><i class="ti ti-calendar"></i></div>
+          <div class="ask-card-title">2-week prep plan</div>
+          <div class="ask-card-sub">What to study before applying</div>
+        </button>
       </div>
+
+      <div class="ask-empty hidden" id="ask-empty"></div>
 
       <div class="ask-msgs" id="ask-msgs"></div>
 
-      <div class="ask-input-row">
-        <textarea class="ask-input" id="ask-input" rows="1" placeholder="Ask about this job, your resume, or any form question…"></textarea>
-        <button class="ask-send-btn" id="ask-send-btn" title="Send"><i class="ti ti-arrow-up"></i></button>
+      <div class="ask-reset-row hidden" id="ask-reset-row">
+        <button class="ask-reset-btn" id="ask-reset-btn"><i class="ti ti-arrow-back-up"></i>Ask another</button>
       </div>
     </div>
   </div>
+
 
   <!-- ════════════ CONTACTS ════════════ -->
   <div class="view" id="v-contact">
