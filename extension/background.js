@@ -372,6 +372,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           total: values.length,
           details,
           passes: secondPassFilled > 0 ? 2 : 1,
+          skipped: fillData?.skipped || [],
         });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
