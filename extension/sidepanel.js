@@ -579,6 +579,19 @@ $('autofill-now-btn').addEventListener('click', () => {
           </div>`;
       });
 
+      const skippedFields = response.skipped || [];
+      if (skippedFields.length) {
+        list.innerHTML += `<div class="fi" style="border-top:1px solid var(--ayn-border);margin-top:8px;padding-top:10px;"><div class="fl" style="font-weight:700;color:#92400e;display:flex;align-items:center;gap:6px;"><i class="ti ti-bulb"></i>Couldn't answer ${skippedFields.length} — add to your profile</div></div>`;
+        skippedFields.forEach(s => {
+          list.innerHTML += `
+            <div class="fi">
+              <div class="fd off"></div>
+              <div class="fl">${esc(s.label || '')}</div>
+              <div class="fv" style="color:#b45309">${esc(s.suggestion || s.reason || 'add to your profile')}</div>
+            </div>`;
+        });
+      }
+
       $('fill-result-wrap').classList.remove('hidden');
       if (F.jobTitle && F.company) $('fill-save-tracker-btn').classList.remove('hidden');
 
