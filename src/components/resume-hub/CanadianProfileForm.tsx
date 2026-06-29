@@ -528,6 +528,8 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         </div>
       </Section>
 
+      {middle}
+
       {/* ── Languages ── */}
       <Section title="Languages" subtitle="Languages you speak — often asked on applications" defaultOpen={false}>
         <div>
