@@ -133,6 +133,28 @@
     } catch {}
     return null;
   }
+  function metaJobText() {
+    try {
+      const og = document.querySelector('meta[property="og:description"]')?.content || '';
+      const de = document.querySelector('meta[name="description"]')?.content || '';
+      return (og.length >= de.length ? og : de).trim();
+    } catch { return ''; }
+  }
+
+  function parseMetaFromHtml(html) {
+    try {
+      const pick = (re) => { const m = re.exec(html); return m ? m[1] : ''; };
+      const og = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([\s\S]*?)["']/i)
+              || pick(/<meta[^>]+content=["']([\s\S]*?)["'][^>]+property=["']og:description["']/i);
+      const de = pick(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i)
+              || pick(/<meta[^>]+content=["']([\s\S]*?)["'][^>]+name=["']description["']/i);
+      let t = (og.length >= de.length ? og : de) || '';
+      if (!t) return '';
+      try { const d = new DOMParser().parseFromString(t, 'text/html'); t = d.documentElement.textContent || t; } catch {}
+      return t.trim();
+    } catch { return ''; }
+  }
+
   function aynIsApplyPage(u) { return /\/(application|apply)\/?($|\?)/i.test(u || ''); }
   function aynListingUrlFromApply(u) {
     try { const url = new URL(u); url.search=''; url.hash=''; url.pathname = url.pathname.replace(/\/(application|apply)\/?$/i, ''); const out = url.toString(); return out === u ? null : out; } catch { return null; }
