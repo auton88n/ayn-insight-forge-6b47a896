@@ -539,91 +539,9 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
         </div>
       </Section>
 
-      {/* ── 4. Availability & Preferences ── */}
-      <Section title="Availability & Job Preferences" subtitle="Commonly asked on every Canadian online application form">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel label="Earliest Start Date" tip="When can you start? Most forms ask for a specific date." />
-            <Input type="date" value={availableFrom} onChange={e => setAvailableFrom(e.target.value)} />
-          </div>
-          <div>
-            <FieldLabel label="Salary Expectation" tip="You can leave this blank — AYN will skip fields it doesn't have data for" />
-            <div className="flex gap-2">
-              <Input
-                value={salaryExpectation}
-                onChange={e => setSalaryExpectation(e.target.value)}
-                placeholder="e.g. 95000"
-                className="flex-1"
-              />
-              <Select value={salaryType} onValueChange={setSalaryType}>
-                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yearly">/ year</SelectItem>
-                  <SelectItem value="hourly">/ hour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
+      {/* ── Languages ── */}
+      <Section title="Languages" subtitle="Languages you speak — often asked on applications" defaultOpen={false}>
 
-        <MultiSelect
-          label="Employment Types You Are Interested In"
-          options={JOB_TYPES}
-          selected={jobTypes}
-          onChange={setJobTypes}
-        />
-
-        <RadioGroup
-          label="Willing to relocate within Canada?"
-          options={[
-            { value: "yes", label: "Yes" },
-            { value: "no", label: "No" },
-            { value: "maybe", label: "Open to discussion" },
-          ]}
-          value={willingToRelocate}
-          onChange={setWillingToRelocate}
-        />
-
-        <RadioGroup
-          label="Willing to travel for work?"
-          options={[
-            { value: "none", label: "No travel" },
-            { value: "occasional", label: "Up to 25%" },
-            { value: "frequent", label: "Up to 50%" },
-            { value: "extensive", label: "50%+" },
-          ]}
-          value={willingToTravel}
-          onChange={setWillingToTravel}
-        />
-
-        <RadioGroup
-          label="Work location preference"
-          options={[
-            { value: "onsite", label: "On-site" },
-            { value: "hybrid", label: "Hybrid" },
-            { value: "remote", label: "Remote" },
-            { value: "flexible", label: "Flexible" },
-          ]}
-          value={remotePreference}
-          onChange={setRemotePreference}
-        />
-      </Section>
-
-      {/* ── 5. Education & Language ── */}
-      <Section title="Education, Languages & Certifications" subtitle="Standard education questions on Canadian applications" defaultOpen={false}>
-        <div>
-          <FieldLabel label="Highest Level of Education Completed" />
-          <Select value={highestEducation} onValueChange={setHighestEducation}>
-            <SelectTrigger><SelectValue placeholder="Select education level" /></SelectTrigger>
-            <SelectContent>
-              {EDUCATION_LEVELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <FieldLabel label="Field of Study / Major" />
-          <Input value={fieldOfStudy} onChange={e => setFieldOfStudy(e.target.value)} placeholder="e.g. Computer Science, Business Administration" />
-        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
