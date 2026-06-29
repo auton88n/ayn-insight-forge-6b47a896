@@ -772,6 +772,29 @@ async function runScoreFlow({ auto = false } = {}) {
     $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
     const sal = $('score-salary');
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
+
+    // v1.9.11: Score legend — spell out what the number means
+    let legend = $('score-legend');
+    if (!legend) { legend = document.createElement('div'); legend.id = 'score-legend'; $('score-result').appendChild(legend); }
+    const tierCopy = {
+      's-strong': { title: 'Strong match — apply with confidence', body: 'Your profile covers most must-haves. You are competitive for this role.' },
+      's-good':   { title: 'Good match — worth applying',          body: 'You hit the core requirements. Tailoring your resume will lift this further.' },
+      's-fair':   { title: 'Fair match — apply if interested',     body: 'You meet some requirements but a few key skills are missing or weak.' },
+      's-poor':   { title: 'Low match — likely a stretch',         body: 'Several must-haves are missing. Consider tailoring heavily or skipping.' },
+    }[tier] || { title: '', body: '' };
+    legend.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:12px;line-height:1.5;color:#374151;';
+    legend.innerHTML = `
+      <div style="font-weight:700;color:#111827;margin-bottom:4px;">${tierCopy.title}</div>
+      <div style="color:#4b5563;margin-bottom:6px;">${tierCopy.body}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;color:#6b7280;">
+        <span><b style="color:#15803d">8–10</b> Strong</span>
+        <span>·</span>
+        <span><b style="color:#65a30d">6–7</b> Good</span>
+        <span>·</span>
+        <span><b style="color:#d97706">4–5</b> Fair</span>
+        <span>·</span>
+        <span><b style="color:#b91c1c">0–3</b> Low</span>
+      </div>`;
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
 
@@ -821,19 +844,35 @@ async function runScoreFlow({ auto = false } = {}) {
       });
     }
 
-    // Missing skills (amber chips)
+    // v1.9.11: Missing skills reframed as actionable "add these to score higher"
     const missing = (d.missingSkills && d.missingSkills.length) ? d.missingSkills : (d.missingKeywords || []);
     let mkWrap = $('score-missing-kw');
-    if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:12px'; $('score-result').appendChild(mkWrap); }
+    if (!mkWrap) { mkWrap = document.createElement('div'); mkWrap.id = 'score-missing-kw'; mkWrap.style.cssText = 'margin-top:14px;padding:12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;'; $('score-result').appendChild(mkWrap); }
     mkWrap.innerHTML = '';
     if (missing.length) {
-      mkWrap.innerHTML = '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Missing from your profile</div>';
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+      header.innerHTML = `<i class="ti ti-bulb" style="color:#b45309;font-size:14px"></i><div style="font-size:12px;font-weight:700;color:#92400e">Add these to your resume to score higher</div>`;
+      mkWrap.appendChild(header);
+      const help = document.createElement('div');
+      help.style.cssText = 'font-size:11px;color:#78350f;margin-bottom:8px;line-height:1.45;';
+      help.textContent = 'The job asks for these skills but they are not on your resume. Add the ones you actually have (in Skills, a bullet, or a project). Each one you add can lift your match score.';
+      mkWrap.appendChild(help);
+      const chipRow = document.createElement('div');
       missing.forEach(kw => {
         const chip = document.createElement('span');
-        chip.style.cssText = 'display:inline-flex;padding:3px 9px;border-radius:999px;font-size:11px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;margin:2px;';
-        chip.textContent = kw;
-        mkWrap.appendChild(chip);
+        chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:11px;border:1px solid #fcd34d;background:#fff;color:#92400e;margin:2px;font-weight:600;';
+        chip.innerHTML = `<i class="ti ti-plus" style="font-size:10px"></i>${kw}`;
+        chipRow.appendChild(chip);
       });
+      mkWrap.appendChild(chipRow);
+      const tip = document.createElement('div');
+      tip.style.cssText = 'font-size:10px;color:#78350f;margin-top:8px;font-style:italic;';
+      tip.textContent = 'Tip: open the Resume tab and run “Tailor” — AYN will weave the ones you have into your bullets automatically.';
+      mkWrap.appendChild(tip);
+      mkWrap.style.display = '';
+    } else {
+      mkWrap.style.display = 'none';
     }
 
     // v1.4.0: Must-have / Nice-to-have requirements breakdown
