@@ -1375,6 +1375,20 @@ $('copy-btn').addEventListener('click', () => {
   if (!S.tailoredText) return;
   navigator.clipboard.writeText(S.tailoredText).then(() => { $('copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('copy-btn').textContent='Copy Resume',1800); });
 });
+$('tailor-download-docx-btn')?.addEventListener('click', async (e) => {
+  if (!S.tailoredText) { toast('Tailor a resume first', 'err'); return; }
+  const btn = e.currentTarget; const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>DOCX...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumeDocxBlob) throw new Error('Formatter not loaded');
+    const co = (S.company || 'AYN').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'AYN';
+    const fileBase = `Tailored_Resume_${co}`;
+    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(S.tailoredText, fileBase);
+    saveBlob(blob, `${fileBase}.docx`);
+    toast('Tailored resume downloaded ✓', 'ok');
+  } catch (err) { toast(err.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+});
 $('new-job-btn').addEventListener('click', () => {
   S.keywords=[]; S.tailoredText=''; S.changes=[]; S.jobTitle=''; S.company='';
   $('job-input').value=''; $('job-chars').textContent='0';
