@@ -1104,6 +1104,32 @@ $('cover-save-btn').addEventListener('click', () => {
   saveApplication({ jobTitle: CL.jobTitle, company: CL.company, jobUrl: '', status: 'saved' });
 });
 
+function coverHeaderFromResume(resumeText) {
+  const lines = String(resumeText || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const name = lines[0] || '';
+  let contact = '';
+  for (let i = 1; i < Math.min(lines.length, 5); i++) {
+    if (/@|\d{3}[^\d]*\d{4}|\|/.test(lines[i])) { contact = lines[i]; break; }
+  }
+  return { name, contact };
+}
+
+$('cover-download-pdf-btn').addEventListener('click', async () => {
+  const body = $('cover-out').textContent || '';
+  if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
+  const btn = $('cover-download-pdf-btn'); const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner dk"></div>PDF...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterPdfBlob) throw new Error('Formatter not loaded');
+    const { name, contact } = coverHeaderFromResume(CL.resumeText);
+    const blob = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
+    const co = (cleanLabel(CL.company) || 'Company').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Company';
+    saveBlob(blob, `Cover_Letter_${co}.pdf`);
+    toast('Cover letter PDF downloaded ✓', 'ok');
+  } catch (e) { toast(e.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+});
+
 // ════════════════════════════════════════════════════════════════
 // TRACKER
 // ════════════════════════════════════════════════════════════════
