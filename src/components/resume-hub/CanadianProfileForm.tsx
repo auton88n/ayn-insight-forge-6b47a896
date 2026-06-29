@@ -455,12 +455,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
           line1: addressLine1, line2: addressLine2,
           city, province, state: province, postal_code: postalCode, country: "Canada",
         },
-        work_auth: {
-          legally_eligible: legallyEligible,
-          type: workAuthType,
-          permit_expiry: workPermitExpiry,
-          requires_sponsorship: requiresSponsorship,
-        },
         links: { linkedin, github, portfolio, indeed },
         default_answers: {
           available_from: availableFrom,
