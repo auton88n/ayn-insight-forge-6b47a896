@@ -7,21 +7,19 @@
  *
  * Sections:
  *  1. Personal Information       — name, contact, address (with province)
- *  2. Work Authorization         — legally eligible, work permit type
- *  3. Professional Links         — LinkedIn, GitHub, portfolio, Indeed
- *  4. Availability & Preferences — start date, job type, salary, relocation
- *  5. Education & Credentials    — highest education, certifications, languages
- *  6. Skills & Experience        — years of experience, management, industries
- *  7. Pre-Screening Questions    — criminal record, background check consent,
+ *  2. Professional Links         — LinkedIn, GitHub, portfolio, Indeed
+ *  3. Availability & Preferences — start date, job type, salary, relocation
+ *  4. Education & Credentials    — highest education, certifications, languages
+ *  5. Skills & Experience        — years of experience, management, industries
+ *  6. Pre-Screening Questions    — criminal record, background check consent,
  *                                  driver's licence (if job requires driving),
  *                                  equity self-ID (voluntary)
- *  8. Default Short Answers      — "Tell me about yourself", "Why do you want
+ *  7. Default Short Answers      — "Tell me about yourself", "Why do you want
  *                                  this role?", salary expectation, references
  *
  * All data maps directly to the user_profile_data table columns:
  *   legal_first_name, legal_last_name, preferred_name, email, phone,
- *   address (jsonb), work_auth (jsonb), links (jsonb),
- *   demographics (jsonb), default_answers (jsonb)
+ *   address (jsonb), links (jsonb), default_answers (jsonb)
  */
 
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
