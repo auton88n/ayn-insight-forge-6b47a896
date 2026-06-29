@@ -1433,7 +1433,7 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     if (message.type === 'EXTRACT_JOB_TEXT') {
-      sendResponse(extractJobText());
+      extractJobTextDeep().then(res => sendResponse(res)).catch(() => { try { sendResponse(extractJobText()); } catch {} });
       return true;
     }
 
