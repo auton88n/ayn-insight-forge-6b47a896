@@ -50,17 +50,6 @@ const CA_PROVINCES = [
   "Yukon",
 ];
 
-// ── Work authorization options (what Canadian ATS systems show) ───────────────
-const WORK_AUTH_OPTIONS = [
-  { value: "citizen", label: "Canadian Citizen" },
-  { value: "permanent_resident", label: "Permanent Resident (PR)" },
-  { value: "open_work_permit", label: "Open Work Permit" },
-  { value: "closed_work_permit", label: "Employer-Specific Work Permit" },
-  { value: "pgwp", label: "Post-Graduation Work Permit (PGWP)" },
-  { value: "study_permit_coop", label: "Study Permit (Co-op / Intern)" },
-  { value: "iec", label: "International Experience Canada (IEC)" },
-  { value: "not_eligible", label: "Not currently authorized to work in Canada" },
-];
 
 // ── Employment type preferences ───────────────────────────────────────────────
 const JOB_TYPES = ["Full-time", "Part-time", "Contract / Fixed-term", "Casual / Temporary", "Internship / Co-op", "Volunteer"];
