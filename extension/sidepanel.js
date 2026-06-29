@@ -1091,7 +1091,7 @@ window.copyOutreach = () => { const t = $('outreach-text').textContent; if (t) c
 // COVER LETTER
 // ════════════════════════════════════════════════════════════════
 
-const CL = { jobTitle: '', company: '', jobText: '', resumeText: '' };
+const CL = { jobTitle: '', company: '', jobText: '', resumeText: '', jobUrl: '' };
 
 function detectForCover() {
   $('cover-no-job').classList.add('hidden');
