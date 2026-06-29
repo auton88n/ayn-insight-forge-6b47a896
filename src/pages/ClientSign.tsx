@@ -125,37 +125,31 @@ export default function ClientSign() {
   const [error, setError] = useState('');
   const [completed, setCompleted] = useState(false);
 
+  const invokeSign = useCallback(async (payload: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke('sign-document', {
+      body: { doc: 'order', token, ...payload },
+    });
+    if (error) throw new Error(error.message || 'Request failed');
+    if ((data as any)?.error) throw new Error((data as any).error);
+    return (data as any).row as Order;
+  }, [token]);
+
   const fetchOrder = useCallback(async () => {
     if (!token || token.length < 10) return;
     try {
-      const { data, error } = await supabase.from('custom_orders').select('*').eq('signing_token', token).single();
-      if (error || !data) throw new Error('Contract not found');
-      setOrder(data as unknown as Order);
-      if (data.admin_signature_url && data.client_signature_url) setCompleted(true);
-      if (!data.client_viewed_at) {
-        await supabase.from('custom_orders').update({ client_viewed_at: new Date().toISOString(), status: data.status === 'sent' ? 'viewed' : data.status }).eq('signing_token', token);
-      }
+      const row = await invokeSign({ action: 'view' });
+      setOrder(row);
+      if (row.admin_signature_url && row.client_signature_url) setCompleted(true);
     } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-  }, [token]);
+  }, [token, invokeSign]);
 
   useEffect(() => { fetchOrder(); }, [fetchOrder]);
 
   const saveSignature = async (dataUrl: string, party: 'admin' | 'client') => {
     if (!order) return;
-    const blob = await fetch(dataUrl).then(r => r.blob());
-    const path = `signatures/order_${order.id}_${party}_${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage.from('generated-files').upload(path, blob, { contentType: 'image/png' });
-    if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('generated-files').getPublicUrl(path);
-    const sigUrl = urlData.publicUrl;
-    const now = new Date().toISOString();
-    const updates: any = party === 'admin'
-      ? { admin_signature_url: sigUrl, admin_signed_at: now }
-      : { client_signature_url: sigUrl, client_signed_at: now, status: 'signed' };
-    await supabase.from('custom_orders').update(updates).eq('signing_token', token as string);
-    const updated = { ...order, ...updates };
-    setOrder(updated);
-    if (updated.admin_signature_url && updated.client_signature_url) {
+    const row = await invokeSign({ action: 'sign', party, signatureBase64: dataUrl });
+    setOrder(row);
+    if (row.admin_signature_url && row.client_signature_url) {
       setCompleted(true);
     }
   };
