@@ -404,14 +404,8 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      {/* Application details — powers Autofill */}
+      {/* Additional application fields — part of the one profile, powers Autofill */}
       <div className="pt-4">
-        <div className="mb-4">
-          <h3 className="font-semibold text-base">Application details</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Used by Autofill to complete job application forms. Your resume upload above fills these in too.
-          </p>
-        </div>
         <CanadianProfileForm
           ref={canadianRef}
           userId={userId}
