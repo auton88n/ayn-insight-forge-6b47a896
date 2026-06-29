@@ -467,7 +467,26 @@ async function downloadResumeAs(kind, btn) {
 document.getElementById('fill-download-pdf-btn')?.addEventListener('click', (e) => downloadResumeAs('pdf', e.currentTarget));
 document.getElementById('fill-download-docx-btn')?.addEventListener('click', (e) => downloadResumeAs('docx', e.currentTarget));
 
-// v1.4.0: One-click auto-attach — now ships a real PDF, not text.
+// v1.9.8: reusable resume attach — builds PDF + sends to background. UI-free.
+async function aynAttachResume(tabId) {
+  try {
+    if (!window.AYNResumeFormat) return { ok: false, error: 'formatter_not_loaded' };
+    const { text, fileBase } = await fetchAynResume();
+    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
+    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
+    const filename = `${fileBase}.pdf`;
+    const r = await new Promise(res => chrome.runtime.sendMessage({
+      type: 'ATTACH_RESUME_FILE',
+      tabId,
+      payload: { base64, filename, mime: 'application/pdf' },
+    }, res));
+    return r || { ok: false, error: 'no_response' };
+  } catch (err) {
+    return { ok: false, error: err?.message || 'attach_failed' };
+  }
+}
+
+// Manual retry — same as before, just delegates to aynAttachResume + renders status.
 document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   const status = document.getElementById('fill-attach-status');
@@ -478,16 +497,7 @@ document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async
   try {
     const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
     if (!tab?.id) throw new Error('No active tab');
-    if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
-    const { text, fileBase } = await fetchAynResume();
-    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
-    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
-    const filename = `${fileBase}.pdf`;
-    const r = await new Promise(res => chrome.runtime.sendMessage({
-      type: 'ATTACH_RESUME_FILE',
-      tabId: tab.id,
-      payload: { base64, filename, mime: 'application/pdf' },
-    }, res));
+    const r = await aynAttachResume(tab.id);
     if (r?.ok) {
       status.innerHTML = `<i class="ti ti-check" style="color:var(--ayn-green)"></i><span style="color:var(--ayn-green)">PDF attached (${r.filename}) to ${r.count} field${r.count>1?'s':''} ✓ Now click Submit.</span>`;
       status.classList.remove('hidden');
