@@ -862,7 +862,8 @@ open.source → "LinkedIn" by default; check context.url for indeed/glassdoor/jo
 ALWAYS answer motivation / "why" / "tell us about" free-text questions with 2-3 sentences grounded in the user's profile and the job. NEVER skip an open free-text question that has a clear prompt — produce a real answer.
 
 CONFIDENCE: 1.0 exact data; 0.7-0.9 strong inference; 0.4-0.6 weak; <0.4 → set skip:true instead.
-REASONING: one short sentence citing the actual source ("From profile.email"; "work_authorized_ca=true, Canada in role list"; "no linkedin_url in profile, skipped"; "EEO question; declined per policy").`,
+REASONING: one short sentence citing the actual source ("From profile.email"; "work_authorized_ca=true, Canada in role list"; "no linkedin_url in profile, skipped"; "EEO question; declined per policy").
+SUGGESTION: when skip:true ONLY because the needed info is missing from the profile/resume/canonical, set "suggestion" to a short specific instruction (under 12 words) telling the user what to add to fix it, e.g. "Add your LinkedIn URL in Profile, Professional Links". Leave suggestion empty for sensitive fields (SIN, DOB, bank) and for EEO/demographic questions.`,
           user: JSON.stringify({
             context: { jobTitle, company, ats, url },
             fields,
@@ -891,6 +892,7 @@ REASONING: one short sentence citing the actual source ("From profile.email"; "w
                     confidence: { type: "number" },
                     reasoning: { type: "string" },
                     source: { type: "string" },
+                    suggestion: { type: "string" },
                   },
                   required: ["id"],
                 },
@@ -899,7 +901,7 @@ REASONING: one short sentence citing the actual source ("From profile.email"; "w
             required: ["values"],
           },
         });
-        const out = (r.structured as { values?: Array<{ id: string; value?: string; optionValue?: string; optionLabel?: string; optionLabels?: string[]; skip?: boolean; confidence?: number; reasoning?: string; source?: string }> }) || { values: [] };
+        const out = (r.structured as { values?: Array<{ id: string; value?: string; optionValue?: string; optionLabel?: string; optionLabels?: string[]; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }> }) || { values: [] };
         const filtered = (out.values || []).filter(v => {
           if (v.skip) return false;
           const hasAny = (v.value && v.value.trim()) || (v.optionValue && v.optionValue.trim()) || (v.optionLabel && v.optionLabel.trim()) || (Array.isArray(v.optionLabels) && v.optionLabels.length);
@@ -907,8 +909,21 @@ REASONING: one short sentence citing the actual source ("From profile.email"; "w
           if (typeof v.confidence === 'number' && v.confidence < 0.4) return false;
           return true;
         });
+        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string }>);
+        const fieldMap2 = new Map(fieldArr.map(f => [f.id, f]));
+        const answeredIds = new Set(filtered.map(v => v.id));
+        const skippedFromAI = (out.values || [])
+          .filter(v => v.skip && v.suggestion && v.suggestion.trim())
+          .map(v => ({ id: v.id, label: fieldMap2.get(v.id)?.label || v.id, reason: v.reasoning || "", suggestion: (v.suggestion || "").trim() }));
+        const skippedIds = new Set(skippedFromAI.map(s => s.id));
+        const isSensitive = (s: string) => /eeo|gender|race|ethnic|veteran|disab|sexual|pronoun|salary expectation|ssn|\bsin\b|social security|date of birth|\bdob\b/i.test(s || "");
+        const requiredMissing = fieldArr
+          .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
+          .map(f => ({ id: f.id, label: f.label || f.id, reason: "No matching info in your profile.", suggestion: "Add this answer in your AYN profile." }));
+        const skipped = [...skippedFromAI, ...requiredMissing].slice(0, 12);
         return json({
           values: filtered,
+          skipped,
           meta: {
             jobDetected: !!(jd && jd.length > 80),
             profileFieldsAvailable: profileFieldsAvailable.length,
