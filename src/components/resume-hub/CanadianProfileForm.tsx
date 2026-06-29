@@ -251,11 +251,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // ── Section 2: Work Auth ─────────────────────────────────────────────────
-  const [legallyEligible, setLegallyEligible] = useState("");   // yes | no
-  const [workAuthType, setWorkAuthType] = useState("");
-  const [workPermitExpiry, setWorkPermitExpiry] = useState("");
-  const [requiresSponsorship, setRequiresSponsorship] = useState(false);
 
   // ── Section 3: Links ─────────────────────────────────────────────────────
   const [linkedin, setLinkedin] = useState("");
@@ -321,11 +316,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
       setProvince(addr.province ?? addr.state ?? "");
       setPostalCode(addr.postal_code ?? "");
 
-      const wa = (data.work_auth ?? {}) as Record<string, unknown>;
-      setLegallyEligible(String(wa.legally_eligible ?? ""));
-      setWorkAuthType(String(wa.type ?? ""));
-      setWorkPermitExpiry(String(wa.permit_expiry ?? ""));
-      setRequiresSponsorship(Boolean(wa.requires_sponsorship));
 
       const lk = (data.links ?? {}) as Record<string, string>;
       setLinkedin(lk.linkedin ?? "");
