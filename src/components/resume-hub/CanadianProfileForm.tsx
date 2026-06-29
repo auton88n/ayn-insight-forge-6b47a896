@@ -449,7 +449,7 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4 max-w-3xl">
-      <ProfileCompletion pct={completionPct} />
+
 
       {/* ── Resume auto-fill notice ── */}
       {resumeData && (
