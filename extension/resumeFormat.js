@@ -346,5 +346,42 @@
     return btoa(bin);
   }
 
-  window.AYNResumeFormat = { parseResume, buildResumePdfBlob, buildResumeDocxBlob, blobToBase64 };
+  function buildCoverLetterPdfBlob(bodyText, opts) {
+    opts = opts || {};
+    const { jsPDF } = window.jspdf || {};
+    if (!jsPDF) throw new Error('jsPDF not loaded');
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const PAGE_W = doc.internal.pageSize.getWidth();
+    const PAGE_H = doc.internal.pageSize.getHeight();
+    const M = 72;
+    const MAX_W = PAGE_W - M * 2;
+    let y = M;
+    function ensureSpace(h) { if (y + h > PAGE_H - M) { doc.addPage(); y = M; } }
+    const name = (opts.name || '').trim();
+    const contact = (opts.contact || '').trim();
+    if (name && name.length <= 60) {
+      doc.setFont('times', 'bold'); doc.setFontSize(15);
+      ensureSpace(20); doc.text(name, M, y); y += 20;
+    }
+    if (contact) {
+      doc.setFont('times', 'normal'); doc.setFontSize(10);
+      const cl = doc.splitTextToSize(contact, MAX_W);
+      ensureSpace(cl.length * 13); doc.text(cl, M, y); y += cl.length * 13 + 6;
+    }
+    const date = opts.date || new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+    doc.setFont('times','normal'); doc.setFontSize(11);
+    y += 6; ensureSpace(16); doc.text(date, M, y); y += 22;
+    const rawLines = String(bodyText || '').replace(/\r/g,'').split('\n');
+    doc.setFont('times','normal'); doc.setFontSize(11);
+    const LH = 15;
+    for (const raw of rawLines) {
+      const t = raw.trim();
+      if (!t) { y += 8; continue; }
+      const lines = doc.splitTextToSize(t, MAX_W);
+      for (const ln of lines) { ensureSpace(LH); doc.text(ln, M, y); y += LH; }
+    }
+    return doc.output('blob');
+  }
+
+  window.AYNResumeFormat = { parseResume, buildResumePdfBlob, buildResumeDocxBlob, buildCoverLetterPdfBlob, blobToBase64 };
 })();
