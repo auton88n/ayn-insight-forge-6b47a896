@@ -96,7 +96,49 @@
     } catch { return 0; }
   }
 
-  function extractJobText() {
+  function aynHtmlToText(html) {
+    if (!html) return '';
+    try {
+      const doc = new DOMParser().parseFromString(String(html), 'text/html');
+      return (doc.body.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    } catch { return String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+  }
+  function aynJobFromLdNode(node) {
+    const t = node && node['@type'];
+    const isJob = Array.isArray(t) ? t.includes('JobPosting') : t === 'JobPosting';
+    if (!isJob) return null;
+    const company = (node.hiringOrganization && (node.hiringOrganization.name || node.hiringOrganization)) || '';
+    return { text: aynHtmlToText(node.description || ''), title: String(node.title || '').trim(), company: String(company || '').trim() };
+  }
+  function extractJsonLdJob() {
+    try {
+      const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (const s of scripts) {
+        let data; try { data = JSON.parse(s.textContent); } catch { continue; }
+        const arr = Array.isArray(data) ? data : (data['@graph'] || [data]);
+        for (const node of arr) { const j = aynJobFromLdNode(node); if (j && j.text) return j; }
+      }
+    } catch {}
+    return null;
+  }
+  function parseJsonLdFromHtml(html) {
+    try {
+      const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      let m;
+      while ((m = re.exec(html))) {
+        let data; try { data = JSON.parse(m[1].trim()); } catch { continue; }
+        const arr = Array.isArray(data) ? data : (data['@graph'] || [data]);
+        for (const node of arr) { const j = aynJobFromLdNode(node); if (j && j.text) return j; }
+      }
+    } catch {}
+    return null;
+  }
+  function aynIsApplyPage(u) { return /\/(application|apply)\/?($|\?)/i.test(u || ''); }
+  function aynListingUrlFromApply(u) {
+    try { const url = new URL(u); url.search=''; url.hash=''; url.pathname = url.pathname.replace(/\/(application|apply)\/?$/i, ''); const out = url.toString(); return out === u ? null : out; } catch { return null; }
+  }
+
+  function extractJobTextRaw() {
     try {
     // Best-effort: open any truncated description before we read.
     try { expandSeeMore(); } catch {}
