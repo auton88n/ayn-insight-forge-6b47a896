@@ -717,6 +717,7 @@ Deno.serve(async (req) => {
         const { fields, jobText, jobTitle, company, ats, url } = payload as {
           fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string;
         };
+        const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
         if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
         const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
@@ -870,7 +871,7 @@ REASONING: one short sentence citing the actual source ("From profile.email"; "w
             canonicalSummary: canonicalText,
             profile,
             resume: resume?.content,
-            jobDescription: (jobText || "").slice(0, 3500),
+            jobDescription: (jd || "").slice(0, 3500),
           }).slice(0, 45000),
           toolName: "emit_autofill",
           toolSchema: {
@@ -909,7 +910,7 @@ REASONING: one short sentence citing the actual source ("From profile.email"; "w
         return json({
           values: filtered,
           meta: {
-            jobDetected: !!(jobText && jobText.length > 80),
+            jobDetected: !!(jd && jd.length > 80),
             profileFieldsAvailable: profileFieldsAvailable.length,
             hasResume: !!resume?.content,
             hasAnyData,
