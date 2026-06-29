@@ -930,7 +930,7 @@ $('score-this-job-btn')?.addEventListener('click', () => {
         return;
       }
       SJ.jobTitle = r.title || '';
-      SJ.company = r.company || extractCompanyFromTitle(r.title || '');
+      SJ.company = deriveCompany(r.company, tab.url, r.title);
       SJ.jobText = r.text;
       SJ.jobUrl = tab.url || '';
       $('score-job-title').textContent = SJ.jobTitle || 'Job detected';
@@ -1004,11 +1004,11 @@ function detectForContacts() {
       if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
         $('contact-no-job').classList.remove('hidden'); return;
       }
-      C.jobTitle = r.title || ''; C.company = r.company || extractCompanyFromTitle(r.title || '');
+      C.jobTitle = r.title || ''; C.company = deriveCompany(r.company, tab.url, r.title);
       C.jobUrl = tab.url || ''; C.jobSnippet = r.text.slice(0, 800);
       $('contact-job-info').classList.remove('hidden');
       $('contact-job-title').textContent = C.jobTitle || 'Job detected';
-      $('contact-company-name').textContent = C.company ? `at ${C.company}` : tab.url;
+      $('contact-company-name').textContent = C.company ? `at ${C.company}` : 'this company';
       // v1.5.1: when the active job URL changes, clear previously rendered
       // contacts so the prior job's people never linger. User re-clicks
       // "Find Who to Contact" for the new job.
@@ -1102,7 +1102,7 @@ function detectForCover() {
       if (chrome.runtime.lastError || !r?.text || r.text.length < 50) {
         $('cover-no-job').classList.remove('hidden'); return;
       }
-      CL.jobTitle = r.title || ''; CL.company = r.company || extractCompanyFromTitle(r.title || '');
+      CL.jobTitle = r.title || ''; CL.company = deriveCompany(r.company, tab.url, r.title);
       CL.jobText = r.text;
       $('cover-job-banner').classList.remove('hidden');
       $('cover-job-title').textContent = cleanLabel(CL.jobTitle) || 'Job detected';
@@ -1249,7 +1249,7 @@ $('tracker-save-current-btn').addEventListener('click', () => {
     if (!tab) { toast('No active tab','err'); return; }
     chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
       if (chrome.runtime.lastError || !r?.text) { toast('No job detected','err'); return; }
-      const company = r.company || extractCompanyFromTitle(r.title || '');
+      const company = deriveCompany(r.company, tab.url, r.title);
       const jobTitle = (r.title || '').split(/at|\s[-|]\s/i)[0].trim() || 'Job';
       saveApplication({ jobTitle, company, jobUrl: tab.url, status: 'saved' });
     });

@@ -133,6 +133,28 @@
     } catch {}
     return null;
   }
+  function metaJobText() {
+    try {
+      const og = document.querySelector('meta[property="og:description"]')?.content || '';
+      const de = document.querySelector('meta[name="description"]')?.content || '';
+      return (og.length >= de.length ? og : de).trim();
+    } catch { return ''; }
+  }
+
+  function parseMetaFromHtml(html) {
+    try {
+      const pick = (re) => { const m = re.exec(html); return m ? m[1] : ''; };
+      const og = pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([\s\S]*?)["']/i)
+              || pick(/<meta[^>]+content=["']([\s\S]*?)["'][^>]+property=["']og:description["']/i);
+      const de = pick(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i)
+              || pick(/<meta[^>]+content=["']([\s\S]*?)["'][^>]+name=["']description["']/i);
+      let t = (og.length >= de.length ? og : de) || '';
+      if (!t) return '';
+      try { const d = new DOMParser().parseFromString(t, 'text/html'); t = d.documentElement.textContent || t; } catch {}
+      return t.trim();
+    } catch { return ''; }
+  }
+
   function aynIsApplyPage(u) { return /\/(application|apply)\/?($|\?)/i.test(u || ''); }
   function aynListingUrlFromApply(u) {
     try { const url = new URL(u); url.search=''; url.hash=''; url.pathname = url.pathname.replace(/\/(application|apply)\/?$/i, ''); const out = url.toString(); return out === u ? null : out; } catch { return null; }
@@ -275,11 +297,13 @@
   function extractJobText() {
     const base = extractJobTextRaw();
     try {
-      if (!base.text || base.text.length < 200) {
-        const j = extractJsonLdJob();
-        if (j && j.text && j.text.length > (base.text || '').length) {
-          return { text: j.text.slice(0, MAX_JD_CHARS), title: base.title || j.title || '', company: base.company || j.company || '' };
-        }
+      const j = extractJsonLdJob();
+      const meta = metaJobText();
+      let best = base.text || '';
+      if (j && j.text && j.text.length > best.length) best = j.text;
+      if (meta && meta.length > best.length) best = meta;
+      if (best && best.length > (base.text || '').length) {
+        return { text: best.slice(0, MAX_JD_CHARS), title: base.title || (j && j.title) || '', company: base.company || (j && j.company) || '' };
       }
     } catch {}
     return base;
@@ -295,8 +319,12 @@
       const r = await new Promise(res => chrome.runtime.sendMessage({ type: 'FETCH_URL_TEXT', url: listing }, res));
       if (r && r.ok && r.text) {
         const j = parseJsonLdFromHtml(r.text);
-        if (j && j.text && j.text.length > (base.text || '').length) {
-          return { text: j.text.slice(0, MAX_JD_CHARS), title: base.title || j.title || '', company: base.company || j.company || '' };
+        const meta = parseMetaFromHtml(r.text);
+        let best = base.text || '', title = base.title, company = base.company;
+        if (j && j.text && j.text.length > best.length) { best = j.text; title = title || j.title; company = company || j.company; }
+        if (meta && meta.length > best.length) { best = meta; }
+        if (best && best.length > (base.text || '').length) {
+          return { text: best.slice(0, MAX_JD_CHARS), title: title || '', company: company || '' };
         }
       }
     } catch {}
