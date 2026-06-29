@@ -739,8 +739,10 @@ function detectForScore() {
 }
 
 function scoreTier(n) {
-  if (n >= 9) return 's-strong'; if (n >= 7) return 's-good';
-  if (n >= 4) return 's-fair';   return 's-poor';
+  if (n >= 8) return 's-strong';
+  if (n >= 6) return 's-good';
+  if (n >= 4) return 's-fair';
+  return 's-poor';
 }
 
 async function runScoreFlow({ auto = false } = {}) {
