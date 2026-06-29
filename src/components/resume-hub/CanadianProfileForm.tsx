@@ -429,7 +429,6 @@ const CanadianProfileForm = forwardRef<CanadianProfileFormHandle, Props>(functio
   // ── Completion % ─────────────────────────────────────────────────────────
   const fields = [
     firstName, lastName, email, phone, city, province, postalCode,
-    legallyEligible, workAuthType,
     linkedin,
     availableFrom, jobTypes.length > 0 ? "ok" : "",
     highestEducation,
