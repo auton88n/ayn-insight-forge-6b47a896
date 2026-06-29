@@ -1422,8 +1422,9 @@ RULES:
 
       // smart_tailor (extension path) — same as JWT smart_tailor below
       if (action === "smart_tailor") {
-        const { resumeText, jdText, jobTitle, company } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string };
-        if (!resumeText || !jdText) return json({ error: "resumeText and jdText required" }, 400);
+        const { resumeText, jdText, jobTitle, company, url } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string; url?: string };
+        const jd = await resolveJobJd(admin, url, jdText);
+        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
