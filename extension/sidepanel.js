@@ -472,13 +472,13 @@ async function aynAttachResume(tabId) {
   try {
     if (!window.AYNResumeFormat) return { ok: false, error: 'formatter_not_loaded' };
     const { text, fileBase } = await fetchAynResume();
-    const pdfBlob = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
-    const base64 = await window.AYNResumeFormat.blobToBase64(pdfBlob);
-    const filename = `${fileBase}.pdf`;
+    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
+    const base64 = await window.AYNResumeFormat.blobToBase64(blob);
+    const filename = `${fileBase}.docx`;
     const r = await new Promise(res => chrome.runtime.sendMessage({
       type: 'ATTACH_RESUME_FILE',
       tabId,
-      payload: { base64, filename, mime: 'application/pdf' },
+      payload: { base64, filename, mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
     }, res));
     return r || { ok: false, error: 'no_response' };
   } catch (err) {
