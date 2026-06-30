@@ -371,6 +371,90 @@
     return '';
   }
 
+  // ---- Accessible name + role resolver (W3C accname-style, Playwright-inspired) ----
+  function aynAccRole(el) {
+    const explicit = (el.getAttribute('role') || '').trim().toLowerCase();
+    if (explicit) return explicit;
+    const tag = (el.tagName || '').toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (tag === 'select') return 'combobox';
+    if (tag === 'textarea') return 'textbox';
+    if (tag === 'input') {
+      if (type === 'checkbox') return 'checkbox';
+      if (type === 'radio') return 'radio';
+      if (type === 'range') return 'slider';
+      if (['button','submit','reset','image'].includes(type)) return 'button';
+      if (['email','tel','url','number','search','password','date','datetime-local','month','time','week'].includes(type)) return 'textbox';
+      return 'textbox';
+    }
+    if (tag === 'button') return 'button';
+    if (el.getAttribute('aria-haspopup') === 'listbox' || el.getAttribute('aria-autocomplete')) return 'combobox';
+    return '';
+  }
+
+  function aynVisibleText(node) {
+    if (!node) return '';
+    const t = (node.innerText != null ? node.innerText : node.textContent) || '';
+    return t.replace(/\s+/g, ' ').trim();
+  }
+
+  function aynAccName(el) {
+    const tryText = (s) => { const v = (s || '').replace(/\s+/g,' ').trim(); return v.length ? v : ''; };
+    const labelledby = el.getAttribute('aria-labelledby');
+    if (labelledby) {
+      const parts = labelledby.split(/\s+/).map(id => {
+        const ref = document.getElementById(id);
+        return ref ? aynVisibleText(ref) : '';
+      }).filter(Boolean);
+      const joined = tryText(parts.join(' '));
+      if (joined) return joined;
+    }
+    const al = tryText(el.getAttribute('aria-label'));
+    if (al) return al;
+    if (el.id) {
+      try {
+        const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        const t = lbl ? tryText(aynVisibleText(lbl)) : '';
+        if (t) return t;
+      } catch (_) {}
+    }
+    const wrap = el.closest('label');
+    if (wrap) {
+      const clone = wrap.cloneNode(true);
+      clone.querySelectorAll('input,textarea,select,button').forEach(n => n.remove());
+      const t = tryText(aynVisibleText(clone));
+      if (t) return t;
+    }
+    const title = tryText(el.getAttribute('title'));
+    if (title) return title;
+    const ph = tryText(el.getAttribute('placeholder'));
+    if (ph) return ph;
+    return '';
+  }
+
+  function aynGroupName(el) {
+    const group = el.closest('[role="radiogroup"], [role="group"], fieldset');
+    if (group) {
+      const direct = aynAccName(group);
+      if (direct) return direct;
+      const legend = group.querySelector('legend');
+      if (legend) { const t = aynVisibleText(legend); if (t) return t; }
+      const h = group.querySelector('legend, [class*="label"], [class*="question"], h2, h3, h4, strong, p');
+      if (h && !h.contains(el)) { const t = aynVisibleText(h); if (t && t.length < 400) return t; }
+    }
+    return '';
+  }
+
+  function aynResolveLabel(el) {
+    const role = aynAccRole(el);
+    let name = aynAccName(el);
+    if (role === 'radio' || role === 'checkbox') {
+      const g = aynGroupName(el);
+      if (g) name = g;
+    }
+    return { role, name };
+  }
+
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
