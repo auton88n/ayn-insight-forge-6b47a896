@@ -1366,13 +1366,12 @@
 
         let any = false;
         targets.forEach(tRaw => {
-          const t = norm(tRaw);
-          if (!t) return;
+          const tRawStr = String(tRaw || '').trim();
+          if (!tRawStr) return;
           const m = radios.find(r => {
-            const lbl = norm(getLabelFor(r) || r.value);
-            const val = norm(r.value);
-            return lbl === t || val === t || lbl.includes(t) || t.includes(lbl);
+            return aynOptionMatches(getLabelFor(r) || r.value, tRawStr) || aynOptionMatches(r.value, tRawStr);
           });
+
           if (m && !m.disabled) {
             try {
               if (!m.checked) { m.checked = true; m.click(); }
