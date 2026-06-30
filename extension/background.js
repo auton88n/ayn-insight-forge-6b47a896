@@ -315,7 +315,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           company: jobText?.company || '',
           ats: scan.ats || 'unknown',
           url: scan.url || '',
+          extVersion: chrome.runtime.getManifest().version,
         });
+        const runId = fillData?.run_id || null;
 
         const values = (fillData.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
