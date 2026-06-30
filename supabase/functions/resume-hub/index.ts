@@ -209,6 +209,8 @@ const EXT_ACTIONS = new Set([
   "ext_profile_canonical_get",
   // v1.5.0 Phase 2: server-side full-JD cache + scoring
   "ext_job_ingest",
+  // v1.9.19: autofill telemetry
+  "ext_log_result",
 ]);
 
 // ──────────────────────────────────────────────────────────────
@@ -714,8 +716,8 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText, jobTitle, company, ats, url } = payload as {
-          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string;
+        const { fields, jobText, jobTitle, company, ats, url, extVersion } = payload as {
+          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string;
         };
         const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
@@ -945,18 +947,77 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
           .map(f => ({ id: f.id, label: f.label || f.id, reason: "No matching info in your profile.", suggestion: "Add this answer in your AYN profile." }));
         const skipped = [...skippedFromAI, ...requiredMissing].slice(0, 12);
+        const meta = {
+          jobDetected: !!(jd && jd.length > 80),
+          profileFieldsAvailable: profileFieldsAvailable.length,
+          hasResume: !!resume?.content,
+          hasAnyData,
+          yearsExperience: yoe,
+          educationLevel,
+        };
+        let runId: string | null = null;
+        try {
+          const fieldsScanned = (fieldArr as Array<{ id: string; label?: string; type?: string; kind?: string; group?: string; required?: boolean; options?: Array<{ label?: string; value?: string }> }>).map(f => ({
+            id: f.id,
+            label: String(f.label || "").slice(0, 240),
+            type: f.type || f.kind || "",
+            group: f.group || "",
+            required: !!f.required,
+            options: Array.isArray(f.options) ? f.options.map(o => String(o.label || o.value || "").slice(0, 80)).slice(0, 15) : [],
+          }));
+          const aiValues = (out.values || []).map((v: { id: string; value?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
+            id: v.id,
+            value: String(v.value || "").slice(0, 300),
+            optionLabel: v.optionLabel || "",
+            skip: !!v.skip,
+            confidence: v.confidence,
+            reasoning: String(v.reasoning || "").slice(0, 200),
+            source: v.source || "",
+            suggestion: String(v.suggestion || "").slice(0, 160),
+          }));
+          const { data: runRow } = await admin.from("autofill_runs").insert({
+            user_id: userId || null,
+            url: url || null,
+            ats: ats || null,
+            company: company || null,
+            job_title: jobTitle || null,
+            ext_version: extVersion || "",
+            fields_total: fieldArr.length,
+            ai_answered: filtered.length,
+            fields_scanned: fieldsScanned,
+            ai_values: aiValues,
+            skipped,
+            meta,
+          }).select("id").single();
+          runId = runRow?.id || null;
+        } catch (e) {
+          console.warn("autofill_runs insert failed", e);
+        }
         return json({
           values: filtered,
           skipped,
-          meta: {
-            jobDetected: !!(jd && jd.length > 80),
-            profileFieldsAvailable: profileFieldsAvailable.length,
-            hasResume: !!resume?.content,
-            hasAnyData,
-            yearsExperience: yoe,
-            educationLevel,
-          },
+          run_id: runId,
+          meta,
         });
+      }
+
+      if (action === "ext_log_result") {
+        try {
+          const { run_id, inject_results, filled, total } = payload as { run_id?: string; inject_results?: unknown; filled?: number; total?: number };
+          if (!run_id) return json({ ok: false, error: "run_id required" });
+          const f = Number(filled || 0);
+          const t = Number(total || 0);
+          await admin.from("autofill_runs").update({
+            inject_results: inject_results ?? [],
+            filled: f,
+            failed: Math.max(0, t - f),
+            completed_at: new Date().toISOString(),
+          }).eq("id", run_id);
+          return json({ ok: true });
+        } catch (e) {
+          console.warn("ext_log_result failed", e);
+          return json({ ok: false });
+        }
       }
 
       if (action === "ext_tailor") {

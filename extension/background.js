@@ -315,7 +315,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           company: jobText?.company || '',
           ats: scan.ats || 'unknown',
           url: scan.url || '',
+          extVersion: chrome.runtime.getManifest().version,
         });
+        const runId = fillData?.run_id || null;
 
         const values = (fillData.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
@@ -374,6 +376,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           passes: secondPassFilled > 0 ? 2 : 1,
           skipped: fillData?.skipped || [],
         });
+
+        // v1.9.19: telemetry — fire-and-forget; must never break filling
+        try {
+          if (runId) {
+            callFunction('ext_log_result', {
+              run_id: runId,
+              inject_results: (fillResult?.results || []),
+              filled: (fillResult?.filled || 0) + secondPassFilled,
+              total: values.length,
+            }).catch(() => {});
+          }
+        } catch (_) { /* ignore */ }
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
