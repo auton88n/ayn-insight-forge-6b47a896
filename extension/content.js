@@ -1115,6 +1115,37 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Option-text normalizer: lenient about dashes, punctuation, whitespace
+  function aynNormOpt(s) {
+    return String(s || '')
+      .toLowerCase()
+      .replace(/[\u2010-\u2015\u2212]/g, '-')   // normalize all dash variants to hyphen
+      .replace(/[.,;:!?"()]/g, ' ')            // drop punctuation
+      .replace(/\s+/g, ' ')                      // collapse whitespace
+      .trim();
+  }
+
+  function aynOptionMatches(optionText, wantText) {
+    const a = aynNormOpt(optionText);
+    const b = aynNormOpt(wantText);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    // bidirectional containment for sentence-style options
+    if (a.includes(b) && b.length >= 3) return true;
+    if (b.includes(a) && a.length >= 3) return true;
+    // token-overlap fallback for long sentences: if the shorter string's
+    // significant words are nearly all present in the longer one
+    const wa = a.split(' ').filter(w => w.length > 2);
+    const wb = b.split(' ').filter(w => w.length > 2);
+    const [short, long] = wa.length <= wb.length ? [wa, new Set(wb)] : [wb, new Set(wa)];
+    if (short.length >= 3) {
+      const hits = short.filter(w => long.has(w)).length;
+      if (hits / short.length >= 0.8) return true;
+    }
+    return false;
+  }
+
+
   async function aynTypeKeystrokes(el, value) {
     el.focus();
     // clear existing
