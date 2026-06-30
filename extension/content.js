@@ -1109,6 +1109,29 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  async function aynTypeKeystrokes(el, value) {
+    el.focus();
+    // clear existing
+    aynSetNativeValue(el, '');
+    for (const ch of String(value)) {
+      const opts = { bubbles: true, cancelable: true, key: ch };
+      el.dispatchEvent(new KeyboardEvent('keydown', opts));
+      el.dispatchEvent(new KeyboardEvent('keypress', opts));
+      // append char via native setter so frameworks observe each step
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      const next = (el.value || '') + ch;
+      if (desc && desc.set) desc.set.call(el, next); else el.value = next;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' }));
+      el.dispatchEvent(new KeyboardEvent('keyup', opts));
+      await aynSleep(8);
+    }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.blur();
+    await aynSleep(40);
+    return (el.value || '').trim() === String(value).trim();
+  }
+
   async function aynFillTextbox(el, value) {
     el.focus();
     aynSetNativeValue(el, value);
@@ -1120,8 +1143,9 @@
     el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     el.blur();
     await aynSleep(40);
-    const ok = (el.value || '').trim() === String(value).trim();
-    return { ok, verified: ok, reason: ok ? '' : 'value did not stick' };
+    if ((el.value || '').trim() === String(value).trim()) return { ok: true, verified: true };
+    const typed = await aynTypeKeystrokes(el, value);
+    return { ok: typed, verified: typed, reason: typed ? '' : 'value did not stick (after keystrokes)' };
   }
 
   function aynNativeOptionEls(el) {
