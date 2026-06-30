@@ -959,18 +959,17 @@
     // Helper: pick best matching choice inside a root, restricted to known optionTexts
     const pickIn = (root) => {
       const choices = root.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"], label');
-      let exact = null, contains = null;
       for (const el of choices) {
-        const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
-        if (!txt) continue;
+        const txt = safeText(el) || el.getAttribute('aria-label') || '';
+        if (!txt.trim()) continue;
         const isOption = optionTexts.length === 0
-          || optionTexts.some(o => { const on = norm(o); return on === txt || on.includes(txt) || txt.includes(on); });
+          || optionTexts.some(o => aynOptionMatches(o, txt));
         if (!isOption) continue;
-        if (txt === wantN) { exact = el; break; }
-        if (!contains && (txt.includes(wantN) || wantN.includes(txt))) contains = el;
+        if (aynOptionMatches(txt, want)) return el;
       }
-      return exact || contains;
+      return null;
     };
+
 
     // 2. Walk UP from the label (up to 7 ancestors). The first ancestor that contains
     // a clickable option whose text matches one of meta.optionTexts is the scope.
