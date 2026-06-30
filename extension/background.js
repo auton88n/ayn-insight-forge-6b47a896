@@ -309,6 +309,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           fields: fields.map(f => ({
             id: f.id, label: f.label, type: f.type, group: f.group,
             options: f.options, required: f.required, currentValue: f.currentValue,
+            accRole: f.accRole || '', labelSource: f.labelSource || '',
           })),
           jobText: jobText?.text || '',
           jobTitle: jobText?.title || '',
@@ -340,6 +341,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               fields: newFields.map(f => ({
                 id: f.id, label: f.label, type: f.type, group: f.group,
                 options: f.options, required: f.required, currentValue: f.currentValue,
+                accRole: f.accRole || '', labelSource: f.labelSource || '',
               })),
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: scan.ats || 'unknown', url: scan.url || '',
