@@ -976,19 +976,19 @@
     // This works regardless of CSS-module hashed class names.
     let scope = null;
     if (labelEl && optionTexts.length) {
-      const wantedSet = optionTexts.map(o => norm(o)).filter(Boolean);
       let node = labelEl.parentElement;
       for (let i = 0; i < 7 && node; i++, node = node.parentElement) {
         const choices = node.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a, label');
         let found = false;
         for (const b of choices) {
-          const txt = norm(safeText(b) || b.getAttribute('aria-label') || '');
-          if (!txt) continue;
-          if (wantedSet.some(w => w === txt)) { found = true; break; }
+          const txt = safeText(b) || b.getAttribute('aria-label') || '';
+          if (!txt.trim()) continue;
+          if (optionTexts.some(o => aynOptionMatches(o, txt))) { found = true; break; }
         }
         if (found) { scope = node; break; }
       }
     }
+
 
     let target = scope ? pickIn(scope) : null;
     if (!target) {
