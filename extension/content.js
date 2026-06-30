@@ -609,10 +609,89 @@
 
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
+      // ── PRE-PASS: group native radios by shared name into ONE field per group ──
+      const processedRadios = new WeakSet();
+      try {
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !r.disabled);
+        const byName = new Map();
+        let anonIdx = 0;
+        allRadios.forEach(r => {
+          let key;
+          if (r.name) key = 'name::' + r.name;
+          else {
+            const g = r.closest('[role="radiogroup"], [role="group"], fieldset');
+            if (!g) return;
+            if (!g.__aynGroupKey) g.__aynGroupKey = 'grp::' + (++anonIdx);
+            key = g.__aynGroupKey;
+          }
+          if (!byName.has(key)) byName.set(key, []);
+          byName.get(key).push(r);
+        });
+        byName.forEach((radios, key) => {
+          if (radios.length < 2) return;
+          const first = radios[0];
+          const groupName = first.name || key;
+          const groupKey = `${prefix}radio:${groupName}`;
+          if (seenGroupKeys.has(groupKey)) { radios.forEach(r => processedRadios.add(r)); return; }
+          seenGroupKeys.add(groupKey);
+          radios.forEach(r => processedRadios.add(r));
+
+          // Build options
+          const options = radios.map(r => {
+            const accLbl = aynAccName(r);
+            const lbl = (accLbl || getLabelFor(r) || r.value || '').trim();
+            return { label: lbl, value: r.value || lbl };
+          });
+          const optionLabelsLC = new Set(options.map(o => (o.label || '').toLowerCase()).filter(Boolean));
+
+          // Resolve question (NOT an option label)
+          let qLabel = aynGroupName(first);
+          let labelSrc = qLabel ? 'accname' : '';
+          if (!qLabel) {
+            const container = first.closest('fieldset, [role="radiogroup"], [role="group"], [class*="question"], [class*="field"], [class*="form-group"]')
+              || (first.parentElement && first.parentElement.parentElement) || first.parentElement;
+            if (container) {
+              const cands = Array.from(container.querySelectorAll('legend, [class*="question"], [class*="label"], h2, h3, h4, strong, p, span'));
+              for (const c of cands) {
+                if (radios.some(r => c.contains(r))) continue;
+                const t = (c.innerText || '').trim();
+                if (!t || t.length > 400) continue;
+                if (optionLabelsLC.has(t.toLowerCase())) continue;
+                qLabel = t;
+                labelSrc = 'legacy';
+                break;
+              }
+            }
+          }
+          if (!qLabel) { qLabel = getLabelFor(first) || groupName || 'Question'; labelSrc = labelSrc || 'legacy'; }
+          qLabel = qLabel.slice(0, 240);
+
+          const checked = radios.find(r => r.checked);
+          const required = radios.some(r => r.required || r.getAttribute('aria-required') === 'true')
+            || /\*|required/i.test(aynGroupName(first) || '');
+
+          fields.push({
+            id: `${prefix}__radio__:${groupName}`,
+            kind: 'radio',
+            label: qLabel,
+            type: 'radio',
+            name: first.name || '',
+            currentValue: checked ? ((getLabelFor(checked) || checked.value || '').trim()) : '',
+            options,
+            required,
+            group: classifyField(qLabel, first.name || '', 'radio'),
+            accRole: 'radio',
+            labelSource: labelSrc || 'legacy',
+            _frame: prefix,
+          });
+        });
+      } catch { /* never fail the scan */ }
+
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
         try {
           if (el.disabled) return;
+          if (el.type === 'radio' && processedRadios.has(el)) return;
           const rect = el.getBoundingClientRect();
           // PART A: never skip zero-size radio/checkbox — they're often hidden behind styled labels.
           const isCheckable = (el.type === 'radio' || el.type === 'checkbox');
