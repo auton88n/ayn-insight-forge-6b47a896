@@ -571,6 +571,69 @@ export type Database = {
         }
         Relationships: []
       }
+      autofill_runs: {
+        Row: {
+          ai_answered: number | null
+          ai_values: Json | null
+          ats: string | null
+          company: string | null
+          completed_at: string | null
+          created_at: string
+          ext_version: string | null
+          failed: number | null
+          fields_scanned: Json | null
+          fields_total: number | null
+          filled: number | null
+          id: string
+          inject_results: Json | null
+          job_title: string | null
+          meta: Json | null
+          skipped: Json | null
+          url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_answered?: number | null
+          ai_values?: Json | null
+          ats?: string | null
+          company?: string | null
+          completed_at?: string | null
+          created_at?: string
+          ext_version?: string | null
+          failed?: number | null
+          fields_scanned?: Json | null
+          fields_total?: number | null
+          filled?: number | null
+          id?: string
+          inject_results?: Json | null
+          job_title?: string | null
+          meta?: Json | null
+          skipped?: Json | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_answered?: number | null
+          ai_values?: Json | null
+          ats?: string | null
+          company?: string | null
+          completed_at?: string | null
+          created_at?: string
+          ext_version?: string | null
+          failed?: number | null
+          fields_scanned?: Json | null
+          fields_total?: number | null
+          filled?: number | null
+          id?: string
+          inject_results?: Json | null
+          job_title?: string | null
+          meta?: Json | null
+          skipped?: Json | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ayn_activity_log: {
         Row: {
           action_type: string
