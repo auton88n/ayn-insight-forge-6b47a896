@@ -663,11 +663,15 @@
                   const bgId = `${prefix}__buttongroup__:bcx${bgCounter++}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
                   window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
                   window.__AYN_BG_MAP__.set(bgId, { qLabel, optionTexts });
+                  const __accBG = aynResolveLabel(el);
                   fields.push({
                     id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: el.name,
                     currentValue: '', options: optionTexts.map(t => ({ label: t, value: t })),
                     required: el.required || el.getAttribute('aria-required') === 'true',
-                    group: classifyField(qLabel, el.name || '', 'buttongroup'), _frame: prefix,
+                    group: classifyField(qLabel, el.name || '', 'buttongroup'),
+                    accRole: __accBG.role || 'buttongroup',
+                    labelSource: (__accBG.name && __accBG.name.length >= 2) ? 'accname' : 'legacy',
+                    _frame: prefix,
                   });
                   return;
                 }
