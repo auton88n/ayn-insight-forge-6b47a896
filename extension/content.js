@@ -859,6 +859,8 @@
         options,
         required: /\*|required/i.test(safeText(parent).slice(0, 280)),
         group: classifyField(qLabel, '', 'buttongroup'),
+        accRole: 'buttongroup',
+        labelSource: 'legacy',
       });
     }
     return out;
