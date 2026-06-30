@@ -1386,8 +1386,8 @@
         const aiVal = { value: chosen, optionLabel, optionValue };
         const field = { kind: el.tagName === 'SELECT' ? 'select' : (el.type || '').toLowerCase(), accRole: (el.getAttribute && el.getAttribute('role')) || '' };
         let res = await aynFillField(el, field, aiVal);
-        // Fallback: for radio/checkbox proxies, try buttongroup resolver
-        if (!res.ok && (el.type === 'radio' || el.type === 'checkbox')) {
+        // Fallback: for radio/checkbox proxies (no native group), try buttongroup resolver
+        if (!res.ok && (res.fallthrough || el.type === 'radio' || el.type === 'checkbox')) {
           try {
             if (typeof findButtongroupOption === 'function' && typeof clickOptionButton === 'function') {
               const qLabel = getLabelFor(el) || el.name || '';
