@@ -1223,18 +1223,17 @@
 
 
   async function aynFillSelect(el, wantLabel, wantValue) {
-    const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
-    const want = nrm(wantLabel || wantValue);
-    const opt = Array.from(el.options).find(o => nrm(o.textContent) === want || nrm(o.value) === want)
-             || Array.from(el.options).find(o => nrm(o.textContent).includes(want) && want.length >= 2);
+    const want = wantLabel || wantValue;
+    const opt = Array.from(el.options).find(o => aynOptionMatches(o.textContent, want) || aynOptionMatches(o.value, want));
     if (!opt) return { ok: false, reason: 'no matching select option' };
     el.value = opt.value;
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     await aynSleep(30);
-    const ok = nrm(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent) === nrm(opt.textContent);
+    const ok = aynOptionMatches(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent, opt.textContent);
     return { ok, verified: ok, reason: ok ? '' : 'select did not change' };
   }
+
 
   async function aynFillTypeahead(el, value) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
