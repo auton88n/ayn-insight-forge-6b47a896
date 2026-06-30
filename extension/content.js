@@ -680,9 +680,25 @@
       buttonGroups.forEach(g => fields.push(g));
     } catch { /* never fail the scan */ }
 
+    // ── DEDUPE: option-style fields can be detected through multiple scan paths ──
+    const DEDUP_TYPES = new Set(['checkbox', 'radio', 'buttongroup']);
+    const dedupedFields = [];
+    const seenSigs = new Set();
+    for (const field of fields) {
+      const ftype = field.type || field.kind || '';
+      if (DEDUP_TYPES.has(ftype)) {
+        const sig = `${ftype}|${norm(field.label || '').slice(0, 80)}|${Array.isArray(field.options) ? field.options.length : 0}`;
+        if (seenSigs.has(sig)) continue;
+        seenSigs.add(sig);
+      }
+      dedupedFields.push(field);
+    }
+    fields = dedupedFields;
+
     fields._fileFields = fileFields;
     return fields;
   }
+
 
   // Find groups of 2-6 sibling clickable choices (button / role=radio|button|option / a)
   // that share a parent container with a question label. Conservative.
