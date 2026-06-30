@@ -995,10 +995,11 @@
       const all = document.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"]');
       const matches = [];
       for (const el of all) {
-        const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
-        if (!txt) continue;
-        if (txt === wantN || (txt.includes(wantN) && wantN.length >= 2) || (wantN.includes(txt) && txt.length >= 2)) matches.push(el);
+        const txt = safeText(el) || el.getAttribute('aria-label') || '';
+        if (!txt.trim()) continue;
+        if (aynOptionMatches(txt, want)) matches.push(el);
       }
+
       if (matches.length === 1) target = matches[0];
       else if (matches.length > 1 && qKey) {
         const scored = matches.map(el => {
