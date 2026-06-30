@@ -372,31 +372,53 @@
   }
 
   function getLabelFor(el) {
-    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+    const PLACEHOLDERY = /^(\s*|\.\.\.|—|start typing|begin typing|type here|^type$|select\b|select\.\.\.|choose\b|search\b|enter\b|please select|pick one)/i;
+    const isUsable = (s) => {
+      const t = String(s || '').trim();
+      return t.length > 0 && !PLACEHOLDERY.test(t);
+    };
+    const weak = [];
+    const aria = el.getAttribute('aria-label');
+    if (aria && PLACEHOLDERY.test(aria)) weak.push(aria.trim());
+    if (el.placeholder) weak.push(el.placeholder.trim());
+    if (el.name) weak.push(el.name.replace(/[_\-]/g, ' ').trim());
+
+    // STRONG sources
+    if (isUsable(aria)) return aria.trim();
     if (el.id) {
       const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-      if (lbl) return lbl.innerText.trim();
+      if (lbl && isUsable(lbl.innerText)) return lbl.innerText.trim();
     }
     const wrap = el.closest('label');
-    if (wrap) return wrap.innerText.replace(el.value || '', '').trim();
+    if (wrap) {
+      const t = safeText(wrap).replace(el.value || '', '').trim();
+      if (isUsable(t)) return t;
+    }
     const lblId = el.getAttribute('aria-labelledby');
     if (lblId) {
-      const parts = lblId.split(' ').map(id => document.getElementById(id)?.innerText?.trim()).filter(Boolean);
-      if (parts.length) return parts.join(' ');
+      const parts = lblId.split(' ').map(id => {
+        const e = document.getElementById(id);
+        return e ? safeText(e).trim() : '';
+      }).filter(Boolean);
+      const joined = parts.join(' ').trim();
+      if (isUsable(joined)) return joined;
     }
     const section = el.closest('fieldset, [class*="field"], [class*="question"], [class*="form-group"], [data-automation-id], li, div');
     if (section) {
-      const h = section.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4, strong, [data-automation-id*="label"]');
+      const h = section.querySelector('legend, label, [class*="label"], [class*="question"], h2, h3, h4, strong, [data-automation-id*="label"]');
       if (h && !h.contains(el)) {
-        const t = h.innerText.trim();
-        if (t && t.length < 240) return t;
+        const t = safeText(h).trim();
+        if (t && t.length < 240 && isUsable(t)) return t;
       }
     }
-    // Last resort: walk ancestors for the nearest question-shaped text
     const near = nearestQuestionText(el);
-    if (near) return near;
-    return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
+    if (isUsable(near)) return near;
+
+    // Weak fallback: only if no strong source produced a usable label
+    for (const w of weak) { if (w) return w; }
+    return '';
   }
+
 
   // Classify a field into a semantic group so the AI can reason about it
   function classifyField(label, name, type) {
@@ -516,10 +538,11 @@
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
-    const fields = [];
+    let fields = [];
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
     let bgCounter = 0;
+
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
@@ -657,9 +680,25 @@
       buttonGroups.forEach(g => fields.push(g));
     } catch { /* never fail the scan */ }
 
+    // ── DEDUPE: option-style fields can be detected through multiple scan paths ──
+    const DEDUP_TYPES = new Set(['checkbox', 'radio', 'buttongroup']);
+    const dedupedFields = [];
+    const seenSigs = new Set();
+    for (const field of fields) {
+      const ftype = field.type || field.kind || '';
+      if (DEDUP_TYPES.has(ftype)) {
+        const sig = `${ftype}|${norm(field.label || '').slice(0, 80)}|${Array.isArray(field.options) ? field.options.length : 0}`;
+        if (seenSigs.has(sig)) continue;
+        seenSigs.add(sig);
+      }
+      dedupedFields.push(field);
+    }
+    fields = dedupedFields;
+
     fields._fileFields = fileFields;
     return fields;
   }
+
 
   // Find groups of 2-6 sibling clickable choices (button / role=radio|button|option / a)
   // that share a parent container with a question label. Conservative.
