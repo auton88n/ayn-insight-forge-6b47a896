@@ -1134,11 +1134,21 @@
   async function aynFillOption(el, wantLabel, wantValue) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
     const want = nrm(wantLabel || wantValue);
+    // If this isn't a real native group (no shared name, or only one checkable input),
+    // signal fallthrough so the dispatcher can try the buttongroup resolver.
+    const hasName = !!(el.name && String(el.name).trim());
     const group = aynNativeOptionEls(el);
+    const nativeCheckables = group.filter(r => r && (r.type === 'radio' || r.type === 'checkbox'));
+    if (!hasName || nativeCheckables.length <= 1) {
+      const single = nativeCheckables[0] || el;
+      const singleLabel = nrm(getLabelFor(single) || single.value || '');
+      if (!want || !singleLabel || (singleLabel !== want && !singleLabel.includes(want) && !want.includes(singleLabel))) {
+        return { ok: false, fallthrough: true, reason: 'no native group' };
+      }
+    }
     let target = group.find(r => nrm(getLabelFor(r) || r.value) === want)
-              || group.find(r => nrm(getLabelFor(r) || r.value).includes(want) && want.length >= 2)
-              || (group.length === 1 ? group[0] : null);
-    if (!target) return { ok: false, reason: 'no matching option' };
+              || group.find(r => nrm(getLabelFor(r) || r.value).includes(want) && want.length >= 2);
+    if (!target) return { ok: false, fallthrough: true, reason: 'no native group' };
     target.click();
     await aynSleep(30);
     if (target.checked) return { ok: true, verified: true };
