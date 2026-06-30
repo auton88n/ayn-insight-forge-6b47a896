@@ -716,8 +716,8 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText, jobTitle, company, ats, url } = payload as {
-          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string;
+        const { fields, jobText, jobTitle, company, ats, url, extVersion } = payload as {
+          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string;
         };
         const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
