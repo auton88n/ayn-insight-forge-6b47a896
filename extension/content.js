@@ -372,52 +372,32 @@
   }
 
   function getLabelFor(el) {
-    const PLACEHOLDERY = /^(\s*|\.\.\.|—|start typing|begin typing|type here|^type$|select\b|select\.\.\.|choose\b|search\b|enter\b|please select|pick one)/i;
-    const isUsable = (s) => {
-      const t = String(s || '').trim();
-      return t.length > 0 && !PLACEHOLDERY.test(t);
-    };
-    const weak = [];
-    const aria = el.getAttribute('aria-label');
-    if (aria && PLACEHOLDERY.test(aria)) weak.push(aria.trim());
-    if (el.placeholder) weak.push(el.placeholder.trim());
-    if (el.name) weak.push(el.name.replace(/[_\-]/g, ' ').trim());
-
-    // STRONG sources
-    if (isUsable(aria)) return aria.trim();
+    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
       const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-      if (lbl && isUsable(lbl.innerText)) return lbl.innerText.trim();
+      if (lbl) return lbl.innerText.trim();
     }
     const wrap = el.closest('label');
-    if (wrap) {
-      const t = safeText(wrap).replace(el.value || '', '').trim();
-      if (isUsable(t)) return t;
-    }
+    if (wrap) return wrap.innerText.replace(el.value || '', '').trim();
     const lblId = el.getAttribute('aria-labelledby');
     if (lblId) {
-      const parts = lblId.split(' ').map(id => {
-        const e = document.getElementById(id);
-        return e ? safeText(e).trim() : '';
-      }).filter(Boolean);
-      const joined = parts.join(' ').trim();
-      if (isUsable(joined)) return joined;
+      const parts = lblId.split(' ').map(id => document.getElementById(id)?.innerText?.trim()).filter(Boolean);
+      if (parts.length) return parts.join(' ');
     }
     const section = el.closest('fieldset, [class*="field"], [class*="question"], [class*="form-group"], [data-automation-id], li, div');
     if (section) {
-      const h = section.querySelector('legend, label, [class*="label"], [class*="question"], h2, h3, h4, strong, [data-automation-id*="label"]');
+      const h = section.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4, strong, [data-automation-id*="label"]');
       if (h && !h.contains(el)) {
-        const t = safeText(h).trim();
-        if (t && t.length < 240 && isUsable(t)) return t;
+        const t = h.innerText.trim();
+        if (t && t.length < 240) return t;
       }
     }
+    // Last resort: walk ancestors for the nearest question-shaped text
     const near = nearestQuestionText(el);
-    if (isUsable(near)) return near;
-
-    // Weak fallback: only if no strong source produced a usable label
-    for (const w of weak) { if (w) return w; }
-    return '';
+    if (near) return near;
+    return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
   }
+
 
 
   // Classify a field into a semantic group so the AI can reason about it
