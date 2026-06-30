@@ -376,6 +376,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           passes: secondPassFilled > 0 ? 2 : 1,
           skipped: fillData?.skipped || [],
         });
+
+        // v1.9.19: telemetry — fire-and-forget; must never break filling
+        try {
+          if (runId) {
+            callFunction('ext_log_result', {
+              run_id: runId,
+              inject_results: (fillResult?.results || []),
+              filled: (fillResult?.filled || 0) + secondPassFilled,
+              total: values.length,
+            }).catch(() => {});
+          }
+        } catch (_) { /* ignore */ }
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
