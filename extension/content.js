@@ -663,11 +663,15 @@
                   const bgId = `${prefix}__buttongroup__:bcx${bgCounter++}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
                   window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
                   window.__AYN_BG_MAP__.set(bgId, { qLabel, optionTexts });
+                  const __accBG = aynResolveLabel(el);
                   fields.push({
                     id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: el.name,
                     currentValue: '', options: optionTexts.map(t => ({ label: t, value: t })),
                     required: el.required || el.getAttribute('aria-required') === 'true',
-                    group: classifyField(qLabel, el.name || '', 'buttongroup'), _frame: prefix,
+                    group: classifyField(qLabel, el.name || '', 'buttongroup'),
+                    accRole: __accBG.role || 'buttongroup',
+                    labelSource: (__accBG.name && __accBG.name.length >= 2) ? 'accname' : 'legacy',
+                    _frame: prefix,
                   });
                   return;
                 }
@@ -855,6 +859,8 @@
         options,
         required: /\*|required/i.test(safeText(parent).slice(0, 280)),
         group: classifyField(qLabel, '', 'buttongroup'),
+        accRole: 'buttongroup',
+        labelSource: 'legacy',
       });
     }
     return out;
@@ -1109,6 +1115,29 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  async function aynTypeKeystrokes(el, value) {
+    el.focus();
+    // clear existing
+    aynSetNativeValue(el, '');
+    for (const ch of String(value)) {
+      const opts = { bubbles: true, cancelable: true, key: ch };
+      el.dispatchEvent(new KeyboardEvent('keydown', opts));
+      el.dispatchEvent(new KeyboardEvent('keypress', opts));
+      // append char via native setter so frameworks observe each step
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      const next = (el.value || '') + ch;
+      if (desc && desc.set) desc.set.call(el, next); else el.value = next;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' }));
+      el.dispatchEvent(new KeyboardEvent('keyup', opts));
+      await aynSleep(8);
+    }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.blur();
+    await aynSleep(40);
+    return (el.value || '').trim() === String(value).trim();
+  }
+
   async function aynFillTextbox(el, value) {
     el.focus();
     aynSetNativeValue(el, value);
@@ -1120,8 +1149,9 @@
     el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     el.blur();
     await aynSleep(40);
-    const ok = (el.value || '').trim() === String(value).trim();
-    return { ok, verified: ok, reason: ok ? '' : 'value did not stick' };
+    if ((el.value || '').trim() === String(value).trim()) return { ok: true, verified: true };
+    const typed = await aynTypeKeystrokes(el, value);
+    return { ok: typed, verified: typed, reason: typed ? '' : 'value did not stick (after keystrokes)' };
   }
 
   function aynNativeOptionEls(el) {
