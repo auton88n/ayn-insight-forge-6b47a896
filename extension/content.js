@@ -1476,9 +1476,8 @@
               const container = el.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || el.parentElement;
               const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
               const wantRaw = String(optionLabel || optionValue || chosen || '').trim();
-              const wantN = norm(wantRaw);
-              const btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === wantN)
-                       || btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '').includes(wantN));
+              const btn = btns.find(b => aynOptionMatches(safeText(b) || b.getAttribute('aria-label') || '', wantRaw));
+
               if (btn) {
                 const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
                 if (okv) res = { ok: true, verified: true };
