@@ -1373,59 +1373,36 @@
       if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
 
       try {
-        if (el.tagName === 'SELECT') {
-          const want = norm(chosen);
-          const opt = Array.from(el.options).find(o => norm(o.value) === want || norm(o.text) === want)
-                   || Array.from(el.options).find(o => norm(o.text).includes(want) || norm(o.value).includes(want));
-          if (opt) {
-            el.value = opt.value;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            filled++; results.push({ id, ok: true });
-          } else results.push({ id, ok: false, reason: 'option not found' });
-        } else if (el.type === 'radio') {
-          const want = norm(chosen);
-          const match = Array.from(doc.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`))
-            .find(r => { const lbl = norm(getLabelFor(r) || r.value); return lbl === want || lbl.includes(want); });
-          if (match) {
-            match.checked = true; try { match.click(); } catch {}
-            match.dispatchEvent(new Event('change', { bubbles: true }));
-            filled++; results.push({ id, ok: true });
-          } else results.push({ id, ok: false, reason: 'radio option not matched' });
-        } else if (el.type === 'checkbox') {
-          const wantTrue = /^(yes|true|1|agree|consent|i agree|checked)$/i.test(String(chosen).trim());
-          el.checked = wantTrue;
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          filled++; results.push({ id, ok: true });
-        } else {
-          const isTA = isTypeahead(el);
-          el.focus();
-          setNativeValue(el, String(chosen));
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          if (isTA) {
-            // Try to commit a suggestion from an open listbox
-            try {
-              el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-              setTimeout(() => {
-                try {
-                  const want = norm(chosen);
-                  const lbId = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
-                  const root = (lbId && doc.getElementById(lbId)) || doc;
-                  const opts = root.querySelectorAll('[role="option"], li[role="option"], [class*="option"]');
-                  let pick = null;
-                  opts.forEach(o => { if (pick) return; if (norm(safeText(o)).includes(want)) pick = o; });
-                  if (pick) pick.click();
-                  else el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-                } catch {}
-              }, 250);
-            } catch {}
-          }
-          el.dispatchEvent(new Event('blur', { bubbles: true }));
-          filled++; results.push({ id, ok: true });
+        const aiVal = { value: chosen, optionLabel, optionValue };
+        const field = { kind: el.tagName === 'SELECT' ? 'select' : (el.type || '').toLowerCase(), accRole: (el.getAttribute && el.getAttribute('role')) || '' };
+        let res = await aynFillField(el, field, aiVal);
+        // Fallback: for radio/checkbox proxies, try buttongroup resolver
+        if (!res.ok && (el.type === 'radio' || el.type === 'checkbox')) {
+          try {
+            if (typeof findButtongroupOption === 'function' && typeof clickOptionButton === 'function') {
+              const qLabel = getLabelFor(el) || el.name || '';
+              const container = el.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || el.parentElement;
+              const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
+              const wantRaw = String(optionLabel || optionValue || chosen || '').trim();
+              const wantN = norm(wantRaw);
+              const btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === wantN)
+                       || btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '').includes(wantN));
+              if (btn) {
+                const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
+                if (okv) res = { ok: true, verified: true };
+              }
+            }
+          } catch {}
         }
+        if (res.ok) filled++;
+        const out = { id, ok: !!res.ok };
+        if (res.verified !== undefined) out.verified = !!res.verified;
+        if (res.reason) out.reason = res.reason;
+        if (res.picked) out.picked = res.picked;
+        results.push(out);
       } catch (e) { results.push({ id, ok: false, reason: e.message }); }
     }
+
 
     return { filled, total: values.length, results };
   }
