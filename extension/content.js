@@ -1352,9 +1352,10 @@
           const wantTrue = /^(yes|true|1|agree|consent|checked|on)$/i.test(wantRaw);
           const container = firstInput.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || firstInput.parentElement;
           const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
-          const tries = [norm(wantRaw), wantTrue ? 'yes' : 'no'].filter(Boolean);
+          const tries = [wantRaw, wantTrue ? 'yes' : 'no'].filter(Boolean);
           let btn = null;
-          for (const tnorm of tries) { btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === tnorm); if (btn) break; }
+          for (const tnorm of tries) { btn = btns.find(b => aynOptionMatches(safeText(b) || b.getAttribute('aria-label') || '', tnorm)); if (btn) break; }
+
           const qLabel = getLabelFor(firstInput) || name;
           try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
           if (btn) {
