@@ -209,6 +209,8 @@ const EXT_ACTIONS = new Set([
   "ext_profile_canonical_get",
   // v1.5.0 Phase 2: server-side full-JD cache + scoring
   "ext_job_ingest",
+  // v1.9.19: autofill telemetry
+  "ext_log_result",
 ]);
 
 // ──────────────────────────────────────────────────────────────
