@@ -829,6 +829,25 @@ logic.years_experience → Use mergedBasics.computed_years_experience and match 
 logic.education_level  → Use mergedBasics.computed_education_level and match the closest option.
 logic.salary           → Only if canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation exists; otherwise skip.
 logic.start_date       → Only if canonical.preferences.start_date_availability or profile.default_answers.notice_period exists; otherwise skip.
+logic.citizenship      → Use canonical.work_auth.citizenship / work_authorized_ca / work_authorized_us. For a Yes/No "are you a citizen or permanent resident of {country}", answer from work_auth. If unknown, skip with a suggestion to add citizenship/PR status to the profile.
+logic.legal_age        → "Are you 18 or older / of legal working age?" Answer "yes" (the applicant is a working professional). confidence 0.9.
+logic.travel           → Use profile.default_answers.willing_to_travel or canonical.preferences.open_to_travel. Yes/No: answer accordingly. If it asks a percentage and the user is willing, answer "yes" or the stored value; if unknown, skip with a suggestion.
+logic.languages        → Use profile.default_answers.other_languages plus English. If asked which languages, list them; if nothing beyond English is known, answer "English" and suggest adding languages to the profile.
+logic.background       → Criminal/background/drug questions: use profile.default_answers.criminal_record. If it indicates none, answer "no". If unknown, skip with a suggestion. For "do you consent to a background check" that is required to proceed, answer "yes".
+logic.prior_relationship → "Current/former employee of {company}? Previously worked/applied here?" Default "no" unless the profile says otherwise. confidence 0.7.
+logic.noncompete       → "Do you have an NDA/non-compete preventing this role?" Default "no" unless the profile says otherwise.
+logic.clearance        → Use profile data if present; otherwise skip with a suggestion to add security clearance status.
+logic.drivers_license  → Answer from profile if present; otherwise skip with a suggestion.
+logic.accommodation    → "Do you require accommodation?" Default "no" unless the profile says otherwise. Stay neutral.
+logic.references       → Use profile.default_answers.references_available. "Are references available?" → "yes" if set. If it asks for reference contact details that aren't stored, skip with a suggestion to add references.
+logic.preferred_location → If the role has a single location, mirror it; otherwise use the user's city/region; if neither fits, skip with a suggestion.
+logic.employment_type  → Default to full-time unless canonical.preferences or the profile indicate otherwise.
+identity.middle_name   → Only if present in the profile; never invent. Otherwise skip.
+identity.preferred_name→ Use the profile's preferred name; if absent, use the first name.
+consent.agree          → Consent/terms/privacy/attestation checkboxes that are REQUIRED to submit (including "I certify the information is true"): answer "yes", since the user initiated this application. Do not tick anything that is optional marketing.
+consent.marketing      → Optional marketing/newsletter opt-ins: leave OFF. Return value "no" (or skip). Never opt the user in.
+open.referral          → If the profile names a referral, use it; otherwise skip with a suggestion. Never invent a referrer.
+open.behavioral        → Write a concise STAR-style answer grounded ONLY in the resume's real experience, under 120 words.
 logic.relocate → canonical.preferences.open_to_relocation === true ⇒ Yes; else profile.default_answers.willing_to_relocate ("yes"/true ⇒ Yes); else skip.
 logic.work_mode / remote → canonical.preferences.open_to_remote === true ⇒ remote-friendly/Yes; else profile.default_answers.remote_preference; else skip.
 logic.travel → canonical.preferences.open_to_travel === true ⇒ Yes; else profile.default_answers.willing_to_travel ("yes"/true ⇒ Yes); else skip.
