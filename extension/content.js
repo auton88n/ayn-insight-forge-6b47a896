@@ -959,47 +959,47 @@
     // Helper: pick best matching choice inside a root, restricted to known optionTexts
     const pickIn = (root) => {
       const choices = root.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"], label');
-      let exact = null, contains = null;
       for (const el of choices) {
-        const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
-        if (!txt) continue;
+        const txt = safeText(el) || el.getAttribute('aria-label') || '';
+        if (!txt.trim()) continue;
         const isOption = optionTexts.length === 0
-          || optionTexts.some(o => { const on = norm(o); return on === txt || on.includes(txt) || txt.includes(on); });
+          || optionTexts.some(o => aynOptionMatches(o, txt));
         if (!isOption) continue;
-        if (txt === wantN) { exact = el; break; }
-        if (!contains && (txt.includes(wantN) || wantN.includes(txt))) contains = el;
+        if (aynOptionMatches(txt, want)) return el;
       }
-      return exact || contains;
+      return null;
     };
+
 
     // 2. Walk UP from the label (up to 7 ancestors). The first ancestor that contains
     // a clickable option whose text matches one of meta.optionTexts is the scope.
     // This works regardless of CSS-module hashed class names.
     let scope = null;
     if (labelEl && optionTexts.length) {
-      const wantedSet = optionTexts.map(o => norm(o)).filter(Boolean);
       let node = labelEl.parentElement;
       for (let i = 0; i < 7 && node; i++, node = node.parentElement) {
         const choices = node.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a, label');
         let found = false;
         for (const b of choices) {
-          const txt = norm(safeText(b) || b.getAttribute('aria-label') || '');
-          if (!txt) continue;
-          if (wantedSet.some(w => w === txt)) { found = true; break; }
+          const txt = safeText(b) || b.getAttribute('aria-label') || '';
+          if (!txt.trim()) continue;
+          if (optionTexts.some(o => aynOptionMatches(o, txt))) { found = true; break; }
         }
         if (found) { scope = node; break; }
       }
     }
+
 
     let target = scope ? pickIn(scope) : null;
     if (!target) {
       const all = document.querySelectorAll('button, [role="radio"], [role="button"], [role="option"], a[role="button"]');
       const matches = [];
       for (const el of all) {
-        const txt = norm(safeText(el) || el.getAttribute('aria-label') || '');
-        if (!txt) continue;
-        if (txt === wantN || (txt.includes(wantN) && wantN.length >= 2) || (wantN.includes(txt) && txt.length >= 2)) matches.push(el);
+        const txt = safeText(el) || el.getAttribute('aria-label') || '';
+        if (!txt.trim()) continue;
+        if (aynOptionMatches(txt, want)) matches.push(el);
       }
+
       if (matches.length === 1) target = matches[0];
       else if (matches.length > 1 && qKey) {
         const scored = matches.map(el => {
@@ -1037,27 +1037,50 @@
     try {
       const q = JSON.stringify(String(qLabel || '').slice(0, 40));
       const o = JSON.stringify(String(optionText || '').trim());
-      const code = `(function(){try{
-        var qKey=${q}.trim().toLowerCase();
-        var want=${o}.trim().toLowerCase();
-        if(!qKey||!want)return;
-        var all=document.querySelectorAll('label,legend,p,h2,h3,h4,strong,div,span');
-        var labelEl=null;
-        for(var i=0;i<all.length;i++){
-          var c=all[i];var t=(c.textContent||'').trim().toLowerCase();
-          if(!t||t.length>=260)continue;
-          if(t.indexOf(qKey)!==-1){labelEl=c;break;}
+      const code = `(function(){
+        function normOpt(s){
+          return String(s||'').toLowerCase()
+            .replace(/[\\u2010-\\u2015\\u2212]/g,'-')
+            .replace(/[.,;:!?'"()]/g,' ')
+            .replace(/\\s+/g,' ').trim();
         }
-        if(!labelEl)return;
-        var node=labelEl.parentElement;
-        for(var j=0;j<7&&node;j++,node=node.parentElement){
-          var btns=node.querySelectorAll('button,[role="radio"],[role="button"],[role="option"]');
-          for(var k=0;k<btns.length;k++){
-            var b=btns[k];var bt=(b.textContent||'').trim().toLowerCase();
-            if(bt===want){b.click();return;}
+        function optMatches(a,b){
+          a=normOpt(a);b=normOpt(b);
+          if(!a||!b)return false;
+          if(a===b)return true;
+          if(a.length>=3 && b.length>=3 && (a.indexOf(b)!==-1 || b.indexOf(a)!==-1)) return true;
+          var wa=a.split(' ').filter(function(w){return w.length>2;});
+          var wb=b.split(' ').filter(function(w){return w.length>2;});
+          var short=wa, long=new Set(wb);
+          if(wa.length>wb.length){short=wb;long=new Set(wa);}
+          if(short.length>=3){
+            var hits=short.filter(function(w){return long.has(w);}).length;
+            if(hits/short.length>=0.8)return true;
           }
+          return false;
         }
-      }catch(e){}})();`;
+        try{
+          var qKey=${q}.trim().toLowerCase();
+          var wantRaw=${o};
+          if(!qKey||!wantRaw)return;
+          var all=document.querySelectorAll('label,legend,p,h2,h3,h4,strong,div,span');
+          var labelEl=null;
+          for(var i=0;i<all.length;i++){
+            var c=all[i];var t=(c.textContent||'').trim().toLowerCase();
+            if(!t||t.length>=260)continue;
+            if(t.indexOf(qKey)!==-1){labelEl=c;break;}
+          }
+          if(!labelEl)return;
+          var node=labelEl.parentElement;
+          for(var j=0;j<7&&node;j++,node=node.parentElement){
+            var btns=node.querySelectorAll('button,[role="radio"],[role="button"],[role="option"]');
+            for(var k=0;k<btns.length;k++){
+              var b=btns[k];var bt=(b.textContent||'').trim();
+              if(optMatches(bt,wantRaw)){b.click();return;}
+            }
+          }
+        }catch(e){}
+      })();`;
       const s = document.createElement('script');
       s.textContent = code;
       (document.head || document.documentElement).appendChild(s);
@@ -1068,6 +1091,7 @@
       return false;
     }
   }
+
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -1114,6 +1138,37 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
+
+  // Option-text normalizer: lenient about dashes, punctuation, whitespace
+  function aynNormOpt(s) {
+    return String(s || '')
+      .toLowerCase()
+      .replace(/[\u2010-\u2015\u2212]/g, '-')   // normalize all dash variants to hyphen
+      .replace(/[.,;:!?"()]/g, ' ')            // drop punctuation
+      .replace(/\s+/g, ' ')                      // collapse whitespace
+      .trim();
+  }
+
+  function aynOptionMatches(optionText, wantText) {
+    const a = aynNormOpt(optionText);
+    const b = aynNormOpt(wantText);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    // bidirectional containment for sentence-style options
+    if (a.includes(b) && b.length >= 3) return true;
+    if (b.includes(a) && a.length >= 3) return true;
+    // token-overlap fallback for long sentences: if the shorter string's
+    // significant words are nearly all present in the longer one
+    const wa = a.split(' ').filter(w => w.length > 2);
+    const wb = b.split(' ').filter(w => w.length > 2);
+    const [short, long] = wa.length <= wb.length ? [wa, new Set(wb)] : [wb, new Set(wa)];
+    if (short.length >= 3) {
+      const hits = short.filter(w => long.has(w)).length;
+      if (hits / short.length >= 0.8) return true;
+    }
+    return false;
+  }
+
 
   async function aynTypeKeystrokes(el, value) {
     el.focus();
@@ -1162,8 +1217,7 @@
   }
 
   async function aynFillOption(el, wantLabel, wantValue) {
-    const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
-    const want = nrm(wantLabel || wantValue);
+    const want = wantLabel || wantValue;
     // If this isn't a real native group (no shared name, or only one checkable input),
     // signal fallthrough so the dispatcher can try the buttongroup resolver.
     const hasName = !!(el.name && String(el.name).trim());
@@ -1171,13 +1225,12 @@
     const nativeCheckables = group.filter(r => r && (r.type === 'radio' || r.type === 'checkbox'));
     if (!hasName || nativeCheckables.length <= 1) {
       const single = nativeCheckables[0] || el;
-      const singleLabel = nrm(getLabelFor(single) || single.value || '');
-      if (!want || !singleLabel || (singleLabel !== want && !singleLabel.includes(want) && !want.includes(singleLabel))) {
+      const singleLabel = getLabelFor(single) || single.value || '';
+      if (!want || !singleLabel || !aynOptionMatches(singleLabel, want)) {
         return { ok: false, fallthrough: true, reason: 'no native group' };
       }
     }
-    let target = group.find(r => nrm(getLabelFor(r) || r.value) === want)
-              || group.find(r => nrm(getLabelFor(r) || r.value).includes(want) && want.length >= 2);
+    let target = group.find(r => aynOptionMatches(getLabelFor(r) || r.value, want));
     if (!target) return { ok: false, fallthrough: true, reason: 'no native group' };
     target.click();
     await aynSleep(30);
@@ -1192,19 +1245,19 @@
     return { ok, verified: ok, reason: ok ? '' : 'option would not check' };
   }
 
+
   async function aynFillSelect(el, wantLabel, wantValue) {
-    const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
-    const want = nrm(wantLabel || wantValue);
-    const opt = Array.from(el.options).find(o => nrm(o.textContent) === want || nrm(o.value) === want)
-             || Array.from(el.options).find(o => nrm(o.textContent).includes(want) && want.length >= 2);
+    const want = wantLabel || wantValue;
+    const opt = Array.from(el.options).find(o => aynOptionMatches(o.textContent, want) || aynOptionMatches(o.value, want));
     if (!opt) return { ok: false, reason: 'no matching select option' };
     el.value = opt.value;
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     await aynSleep(30);
-    const ok = nrm(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent) === nrm(opt.textContent);
+    const ok = aynOptionMatches(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent, opt.textContent);
     return { ok, verified: ok, reason: ok ? '' : 'select did not change' };
   }
+
 
   async function aynFillTypeahead(el, value) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -1221,11 +1274,10 @@
       if (optionEls.length) break;
     }
     if (optionEls.length) {
-      const want = nrm(value);
-      const match = optionEls.find(o => nrm(o.textContent) === want)
-                 || optionEls.find(o => nrm(o.textContent).includes(want))
-                 || optionEls.find(o => want.includes(nrm(o.textContent)) && nrm(o.textContent).length >= 2);
+      const want = value;
+      const match = optionEls.find(o => aynOptionMatches(o.textContent, want));
       const pick = match || optionEls[0];
+
       if (pick) {
         try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
         pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -1300,9 +1352,10 @@
           const wantTrue = /^(yes|true|1|agree|consent|checked|on)$/i.test(wantRaw);
           const container = firstInput.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || firstInput.parentElement;
           const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
-          const tries = [norm(wantRaw), wantTrue ? 'yes' : 'no'].filter(Boolean);
+          const tries = [wantRaw, wantTrue ? 'yes' : 'no'].filter(Boolean);
           let btn = null;
-          for (const tnorm of tries) { btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === tnorm); if (btn) break; }
+          for (const tnorm of tries) { btn = btns.find(b => aynOptionMatches(safeText(b) || b.getAttribute('aria-label') || '', tnorm)); if (btn) break; }
+
           const qLabel = getLabelFor(firstInput) || name;
           try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
           if (btn) {
@@ -1313,13 +1366,12 @@
 
         let any = false;
         targets.forEach(tRaw => {
-          const t = norm(tRaw);
-          if (!t) return;
+          const tRawStr = String(tRaw || '').trim();
+          if (!tRawStr) return;
           const m = radios.find(r => {
-            const lbl = norm(getLabelFor(r) || r.value);
-            const val = norm(r.value);
-            return lbl === t || val === t || lbl.includes(t) || t.includes(lbl);
+            return aynOptionMatches(getLabelFor(r) || r.value, tRawStr) || aynOptionMatches(r.value, tRawStr);
           });
+
           if (m && !m.disabled) {
             try {
               if (!m.checked) { m.checked = true; m.click(); }
@@ -1424,9 +1476,8 @@
               const container = el.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || el.parentElement;
               const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
               const wantRaw = String(optionLabel || optionValue || chosen || '').trim();
-              const wantN = norm(wantRaw);
-              const btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === wantN)
-                       || btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '').includes(wantN));
+              const btn = btns.find(b => aynOptionMatches(safeText(b) || b.getAttribute('aria-label') || '', wantRaw));
+
               if (btn) {
                 const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
                 if (okv) res = { ok: true, verified: true };
