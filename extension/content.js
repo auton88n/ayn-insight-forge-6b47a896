@@ -1250,11 +1250,10 @@
       if (optionEls.length) break;
     }
     if (optionEls.length) {
-      const want = nrm(value);
-      const match = optionEls.find(o => nrm(o.textContent) === want)
-                 || optionEls.find(o => nrm(o.textContent).includes(want))
-                 || optionEls.find(o => want.includes(nrm(o.textContent)) && nrm(o.textContent).length >= 2);
+      const want = value;
+      const match = optionEls.find(o => aynOptionMatches(o.textContent, want));
       const pick = match || optionEls[0];
+
       if (pick) {
         try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
         pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
