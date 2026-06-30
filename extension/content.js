@@ -1098,6 +1098,130 @@
     return ok;
   }
 
+  // ───── Phase 2: verify-and-retry executor ─────
+  const aynSleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function aynSetNativeValue(el, value) {
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (desc && desc.set) desc.set.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  async function aynFillTextbox(el, value) {
+    el.focus();
+    aynSetNativeValue(el, value);
+    await aynSleep(40);
+    if ((el.value || '').trim() === String(value).trim()) return { ok: true, verified: true };
+    el.focus();
+    aynSetNativeValue(el, '');
+    aynSetNativeValue(el, value);
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+    el.blur();
+    await aynSleep(40);
+    const ok = (el.value || '').trim() === String(value).trim();
+    return { ok, verified: ok, reason: ok ? '' : 'value did not stick' };
+  }
+
+  function aynNativeOptionEls(el) {
+    if (el.name) {
+      try { return Array.from((el.ownerDocument||document).querySelectorAll(`input[type="${el.type}"][name="${CSS.escape(el.name)}"]`)); } catch(_) {}
+    }
+    return [el];
+  }
+
+  async function aynFillOption(el, wantLabel, wantValue) {
+    const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+    const want = nrm(wantLabel || wantValue);
+    const group = aynNativeOptionEls(el);
+    let target = group.find(r => nrm(getLabelFor(r) || r.value) === want)
+              || group.find(r => nrm(getLabelFor(r) || r.value).includes(want) && want.length >= 2)
+              || (group.length === 1 ? group[0] : null);
+    if (!target) return { ok: false, reason: 'no matching option' };
+    target.click();
+    await aynSleep(30);
+    if (target.checked) return { ok: true, verified: true };
+    const lab = (target.id && (target.ownerDocument||document).querySelector(`label[for="${CSS.escape(target.id)}"]`)) || target.closest('label');
+    if (lab) { lab.click(); await aynSleep(30); if (target.checked) return { ok: true, verified: true }; }
+    target.checked = true;
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+    await aynSleep(30);
+    const ok = !!target.checked;
+    return { ok, verified: ok, reason: ok ? '' : 'option would not check' };
+  }
+
+  async function aynFillSelect(el, wantLabel, wantValue) {
+    const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+    const want = nrm(wantLabel || wantValue);
+    const opt = Array.from(el.options).find(o => nrm(o.textContent) === want || nrm(o.value) === want)
+             || Array.from(el.options).find(o => nrm(o.textContent).includes(want) && want.length >= 2);
+    if (!opt) return { ok: false, reason: 'no matching select option' };
+    el.value = opt.value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    await aynSleep(30);
+    const ok = nrm(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent) === nrm(opt.textContent);
+    return { ok, verified: ok, reason: ok ? '' : 'select did not change' };
+  }
+
+  async function aynFillTypeahead(el, value) {
+    const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+    el.focus();
+    el.click();
+    aynSetNativeValue(el, value);
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: value.slice(-1) }));
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: value.slice(-1) }));
+    let optionEls = [];
+    for (let i = 0; i < 8; i++) {
+      await aynSleep(150);
+      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] li, [class*="option"], [class*="menu"] li, [id*="option"]'))
+        .filter(o => o.offsetParent !== null && nrm(o.textContent).length);
+      if (optionEls.length) break;
+    }
+    if (optionEls.length) {
+      const want = nrm(value);
+      const match = optionEls.find(o => nrm(o.textContent) === want)
+                 || optionEls.find(o => nrm(o.textContent).includes(want))
+                 || optionEls.find(o => want.includes(nrm(o.textContent)) && nrm(o.textContent).length >= 2);
+      const pick = match || optionEls[0];
+      if (pick) {
+        try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
+        pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        pick.click();
+        await aynSleep(60);
+        return { ok: true, verified: true, picked: nrm(pick.textContent) };
+      }
+    }
+    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
+    await aynSleep(40);
+    const ok = (el.value || '').trim().length > 0;
+    return { ok, verified: false, reason: ok ? 'typed, no option list' : 'typeahead found no options' };
+  }
+
+  async function aynFillField(el, field, ai) {
+    try {
+      const kind = ((field && (field.kind || field.type)) || '').toLowerCase();
+      const role = ((field && field.accRole) || '').toLowerCase();
+      const wantText = ai.value != null ? String(ai.value) : '';
+      const wantLabel = ai.optionLabel || ai.value || '';
+      const wantValue = ai.optionValue || '';
+      if (kind === 'radio' || kind === 'checkbox' || role === 'radio' || role === 'checkbox' || el.type === 'radio' || el.type === 'checkbox') {
+        return await aynFillOption(el, wantLabel, wantValue);
+      }
+      if (kind === 'select' || el.tagName === 'SELECT') {
+        return await aynFillSelect(el, wantLabel, wantValue);
+      }
+      if (kind === 'typeahead' || role === 'combobox' || (typeof isTypeahead === 'function' && isTypeahead(el))) {
+        return await aynFillTypeahead(el, wantText || wantLabel);
+      }
+      return await aynFillTextbox(el, wantText);
+    } catch (e) {
+      return { ok: false, reason: 'exception: ' + (e && e.message ? e.message : 'unknown') };
+    }
+  }
+
   async function injectValues(values) {
     let filled = 0;
     const results = [];
@@ -1249,59 +1373,36 @@
       if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
 
       try {
-        if (el.tagName === 'SELECT') {
-          const want = norm(chosen);
-          const opt = Array.from(el.options).find(o => norm(o.value) === want || norm(o.text) === want)
-                   || Array.from(el.options).find(o => norm(o.text).includes(want) || norm(o.value).includes(want));
-          if (opt) {
-            el.value = opt.value;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            filled++; results.push({ id, ok: true });
-          } else results.push({ id, ok: false, reason: 'option not found' });
-        } else if (el.type === 'radio') {
-          const want = norm(chosen);
-          const match = Array.from(doc.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name)}"]`))
-            .find(r => { const lbl = norm(getLabelFor(r) || r.value); return lbl === want || lbl.includes(want); });
-          if (match) {
-            match.checked = true; try { match.click(); } catch {}
-            match.dispatchEvent(new Event('change', { bubbles: true }));
-            filled++; results.push({ id, ok: true });
-          } else results.push({ id, ok: false, reason: 'radio option not matched' });
-        } else if (el.type === 'checkbox') {
-          const wantTrue = /^(yes|true|1|agree|consent|i agree|checked)$/i.test(String(chosen).trim());
-          el.checked = wantTrue;
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          filled++; results.push({ id, ok: true });
-        } else {
-          const isTA = isTypeahead(el);
-          el.focus();
-          setNativeValue(el, String(chosen));
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-          if (isTA) {
-            // Try to commit a suggestion from an open listbox
-            try {
-              el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-              setTimeout(() => {
-                try {
-                  const want = norm(chosen);
-                  const lbId = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
-                  const root = (lbId && doc.getElementById(lbId)) || doc;
-                  const opts = root.querySelectorAll('[role="option"], li[role="option"], [class*="option"]');
-                  let pick = null;
-                  opts.forEach(o => { if (pick) return; if (norm(safeText(o)).includes(want)) pick = o; });
-                  if (pick) pick.click();
-                  else el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-                } catch {}
-              }, 250);
-            } catch {}
-          }
-          el.dispatchEvent(new Event('blur', { bubbles: true }));
-          filled++; results.push({ id, ok: true });
+        const aiVal = { value: chosen, optionLabel, optionValue };
+        const field = { kind: el.tagName === 'SELECT' ? 'select' : (el.type || '').toLowerCase(), accRole: (el.getAttribute && el.getAttribute('role')) || '' };
+        let res = await aynFillField(el, field, aiVal);
+        // Fallback: for radio/checkbox proxies, try buttongroup resolver
+        if (!res.ok && (el.type === 'radio' || el.type === 'checkbox')) {
+          try {
+            if (typeof findButtongroupOption === 'function' && typeof clickOptionButton === 'function') {
+              const qLabel = getLabelFor(el) || el.name || '';
+              const container = el.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || el.parentElement;
+              const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
+              const wantRaw = String(optionLabel || optionValue || chosen || '').trim();
+              const wantN = norm(wantRaw);
+              const btn = btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '') === wantN)
+                       || btns.find(b => norm(safeText(b) || b.getAttribute('aria-label') || '').includes(wantN));
+              if (btn) {
+                const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
+                if (okv) res = { ok: true, verified: true };
+              }
+            }
+          } catch {}
         }
+        if (res.ok) filled++;
+        const out = { id, ok: !!res.ok };
+        if (res.verified !== undefined) out.verified = !!res.verified;
+        if (res.reason) out.reason = res.reason;
+        if (res.picked) out.picked = res.picked;
+        results.push(out);
       } catch (e) { results.push({ id, ok: false, reason: e.message }); }
     }
+
 
     return { filled, total: values.length, results };
   }
