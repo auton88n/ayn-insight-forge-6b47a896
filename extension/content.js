@@ -688,7 +688,10 @@
                 if (h && !h.contains(el)) qLabel = safeText(h).trim();
               }
             }
-            if (!qLabel) qLabel = getLabelFor(el) || el.name;
+            if (!qLabel) {
+              const __acc0 = aynResolveLabel(el);
+              qLabel = (__acc0.name && __acc0.name.length >= 2) ? __acc0.name : (getLabelFor(el) || el.name);
+            }
             qLabel = (qLabel || '').slice(0, 240);
             const options = getOptionPairs(el);
             const checkedOpt = options.find(o => {
@@ -696,9 +699,10 @@
                 .find(r => r.checked && ((getLabelFor(r) || r.value).trim() === o.label || r.value === o.value));
               return !!match;
             });
+            const __accRC = aynResolveLabel(el);
             fields.push({
               id: `${prefix}__${el.type}__:${el.name}`,
-              kind: el.type, // 'radio' | 'checkbox'
+              kind: el.type,
               label: qLabel,
               type: el.type,
               name: el.name,
@@ -706,6 +710,8 @@
               options,
               required: el.required || el.getAttribute('aria-required') === 'true',
               group: classifyField(qLabel, el.name || '', el.type),
+              accRole: __accRC.role || '',
+              labelSource: (__accRC.name && __accRC.name.length >= 2) ? 'accname' : 'legacy',
               _frame: prefix,
             });
             return;
