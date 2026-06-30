@@ -401,6 +401,8 @@
   // Classify a field into a semantic group so the AI can reason about it
   function classifyField(label, name, type) {
     const l = ((label || '') + ' ' + (name || '')).toLowerCase();
+    if (/middle\s*name/.test(l)) return 'identity.middle_name';
+    if (/preferred\s*(first\s*)?name|nick\s*name|name\s+you\s+go\s+by/.test(l)) return 'identity.preferred_name';
     if (/\bfirst\s*name|given\s*name|forename\b/.test(l)) return 'identity.first_name';
     if (/\blast\s*name|surname|family\s*name\b/.test(l)) return 'identity.last_name';
     if (/\bfull\s*name|legal\s*name\b/.test(l) || /^name$/i.test((label||'').trim())) return 'identity.full_name';
@@ -431,6 +433,24 @@
     if (/motivat|why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)|why\s+(does|do)\s+\w+|explore\s+a\s+new/.test(l)) return 'open.why';
     if (/cover\s+letter|message\s+to\s+(hiring|recruiter)/.test(l)) return 'open.cover';
     if (/heard.*about|where.*find|how.*hear|source/.test(l)) return 'open.source';
+    if (/legal(ly)?\s+(eligible|able)\s+to\s+work|eligible\s+to\s+work\b|proof\s+of\s+(eligibility|authorization)/.test(l)) return 'logic.work_auth';
+    if (/citizen|permanent\s+resident|\bpr\b\s+status|immigration\s+status|status\s+in\s+canada/.test(l)) return 'logic.citizenship';
+    if (/\b18\b|over\s+18|at\s+least\s+18|legal\s+working\s+age|age\s+of\s+majority/.test(l)) return 'logic.legal_age';
+    if (/security\s+clearance|clearance\s+level|secret\s+clearance/.test(l)) return 'logic.clearance';
+    if (/driver'?s?\s+licen[cs]e|valid\s+licen[cs]e/.test(l)) return 'logic.drivers_license';
+    if (/willing\s+to\s+travel|able\s+to\s+travel|travel\s+(up\s+to|requirement|percentage|%)/.test(l)) return 'logic.travel';
+    if (/what\s+languages|languages?\s+(do\s+you|you\s+speak|spoken|proficiency|fluency)|fluent\s+in|bilingual/.test(l)) return 'logic.languages';
+    if (/criminal|convicted|felony|background\s+check|drug\s+(test|screen)/.test(l)) return 'logic.background';
+    if (/current(ly)?\s+(employed|employee).*(here|us|company)|former\s+employee|previously\s+(employed|worked|applied)|ever\s+(worked|applied)\s+(at|for|here|with\s+us)/.test(l)) return 'logic.prior_relationship';
+    if (/non[\s-]?compete|non[\s-]?disclosure|\bnda\b|restrictive\s+covenant/.test(l)) return 'logic.noncompete';
+    if (/accommodat/.test(l)) return 'logic.accommodation';
+    if (/referr?ed\s+by|referral\s+(name|source)|who\s+referred/.test(l)) return 'open.referral';
+    if (/reference|referee/.test(l)) return 'logic.references';
+    if (/preferred\s+(location|office)|which\s+(location|office)|work\s+location/.test(l)) return 'logic.preferred_location';
+    if (/employment\s+type|full[\s-]?time|part[\s-]?time|contract|desired\s+(employment|job\s+type)/.test(l) && type !== 'text') return 'logic.employment_type';
+    if (/subscribe|newsletter|marketing|keep\s+me\s+(updated|informed)|opt[\s-]?in/.test(l)) return 'consent.marketing';
+    if (/agree\b|consent|terms|privacy\s+policy|i\s+certify|i\s+acknowledge|i\s+confirm|gdpr|data\s+(processing|protection)/.test(l)) return 'consent.agree';
+    if (/describe\s+a\s+time|tell\s+(us|me)\s+about\s+a\s+time|give\s+(an|us\s+an)\s+example|situation\s+where/.test(l)) return 'open.behavioral';
     return 'other';
   }
 
