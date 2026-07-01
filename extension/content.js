@@ -2071,7 +2071,21 @@
     }
 
     if (message.type === 'INJECT_VALUES') {
-      injectValues(message.values).then(sendResponse).catch(e => sendResponse({ filled: 0, total: 0, results: [], error: e.message }));
+      (async () => {
+        let injectResult;
+        try {
+          injectResult = await injectValues(message.values);
+        } catch (e) {
+          sendResponse({ filled: 0, total: 0, results: [], error: e.message });
+          return;
+        }
+        try {
+          if (AYN_VISION_ENABLED) {
+            await aynRunVisionFallback(injectResult);
+          }
+        } catch (_) { /* swallow — never break normal fill */ }
+        sendResponse(injectResult);
+      })();
       return true;
     }
 
