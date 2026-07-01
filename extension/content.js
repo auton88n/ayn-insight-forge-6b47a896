@@ -1983,6 +1983,23 @@
         continue;
       }
 
+      // Rich editor ids (contenteditable / ProseMirror / TipTap / Slate / Draft / Quill / Lexical / etc.)
+      if (/^(?:frame\d+:)?__richedit__:/.test(id)) {
+        const editable = window.__AYN_RICH_EDITOR_MAP__ && window.__AYN_RICH_EDITOR_MAP__.get(id);
+        if (!editable) { results.push({ id, ok: false, reason: 'rich editor not found' }); continue; }
+        const chosenRE = optionValue || optionLabel || value;
+        if (!chosenRE || !String(chosenRE).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
+        try {
+          const r = await aynFillTextbox(editable, String(chosenRE));
+          if (r.ok) filled++;
+          const out = { id, ok: !!r.ok, richEditor: true };
+          if (r.verified !== undefined) out.verified = !!r.verified;
+          if (r.reason) out.reason = r.reason;
+          results.push(out);
+        } catch (e) { results.push({ id, ok: false, reason: e.message, richEditor: true }); }
+        continue;
+      }
+
       // Resolve a single element
       let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
       if (!el && _idx != null) {
@@ -2021,6 +2038,10 @@
         if (res.verified !== undefined) out.verified = !!res.verified;
         if (res.reason) out.reason = res.reason;
         if (res.picked) out.picked = res.picked;
+        if (res.selectStrategy) out.selectStrategy = res.selectStrategy;
+        if (res.selectVerified !== undefined) out.selectVerified = !!res.selectVerified;
+        if (res.richEditor) out.richEditor = true;
+        if (res.richDetector) out.richDetector = res.richDetector;
         results.push(out);
       } catch (e) { results.push({ id, ok: false, reason: e.message }); }
     }
