@@ -211,6 +211,8 @@ const EXT_ACTIONS = new Set([
   "ext_job_ingest",
   // v1.9.19: autofill telemetry
   "ext_log_result",
+  // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
+  "ext_vision_fill",
 ]);
 
 // ──────────────────────────────────────────────────────────────
