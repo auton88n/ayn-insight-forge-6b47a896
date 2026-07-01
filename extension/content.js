@@ -1969,6 +1969,16 @@
 
 
         let any = false;
+        // Single-choice-by-checkbox: when exactly one label was returned for a checkbox group,
+        // uncheck any already-checked siblings first so the "pick one" contract holds.
+        const singleChoiceCheckbox = (kind === 'checkbox' && targets.length === 1);
+        if (singleChoiceCheckbox) {
+          radios.forEach(r => {
+            if (r.checked && !r.disabled) {
+              try { r.checked = false; r.click(); r.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
+            }
+          });
+        }
         targets.forEach(tRaw => {
           const tRawStr = String(tRaw || '').trim();
           if (!tRawStr) return;
