@@ -1648,9 +1648,34 @@
   function aynSetNativeValue(el, value) {
     const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    const prev = el.value;
     if (desc && desc.set) desc.set.call(el, value); else el.value = value;
+    // React controlled-input fix: reset the internal _valueTracker to the OLD value so React
+    // sees a diff on the input event and commits the new value to state (stops the revert-to-blank).
+    try { if (el._valueTracker && typeof el._valueTracker.setValue === 'function') el._valueTracker.setValue(prev); } catch (_) {}
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function aynShowActivityGlow(on) {
+    try {
+      const ID = 'ayn-activity-glow';
+      let el = document.getElementById(ID);
+      if (on) {
+        if (!document.getElementById('ayn-activity-glow-style')) {
+          const st = document.createElement('style');
+          st.id = 'ayn-activity-glow-style';
+          st.textContent = '@keyframes aynGlowPulse{0%,100%{opacity:.5}50%{opacity:1}}#ayn-activity-glow{position:fixed;inset:0;pointer-events:none;z-index:2147483646;box-shadow:inset 0 0 0 3px rgba(34,197,94,.75), inset 0 0 26px 7px rgba(34,197,94,.32);animation:aynGlowPulse 1.4s ease-in-out infinite;transition:opacity .2s}';
+          (document.head || document.documentElement).appendChild(st);
+        }
+        if (!el) { el = document.createElement('div'); el.id = ID; el.setAttribute('aria-hidden','true'); (document.body || document.documentElement).appendChild(el); }
+        clearTimeout(window.__aynGlowTO);
+        window.__aynGlowTO = setTimeout(() => { try { const e = document.getElementById(ID); if (e) e.remove(); } catch(_){} }, 25000);
+      } else {
+        clearTimeout(window.__aynGlowTO);
+        if (el) el.remove();
+      }
+    } catch (_) {}
   }
 
   // Option-text normalizer: lenient about dashes, punctuation, whitespace
