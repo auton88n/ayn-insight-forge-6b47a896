@@ -1145,6 +1145,67 @@
         } catch { /* skip a single bad node, keep scanning */ }
       });
 
+      // ── SUPPLEMENTAL TEXT-INPUT PASS (v1.9.39): recover phone/salary/masked/wrapped
+      //    inputs and contenteditable textboxes the main pass dropped (missing/short label,
+      //    non-standard wrapping). Never double-emits.
+      try {
+        const emittedIds = new Set(fields.map(f => f.id));
+        const cands = Array.from(doc.querySelectorAll(
+          'input[type="tel"], input[type="number"], input[inputmode], [contenteditable="true"], [contenteditable=""]'
+        ));
+        let sIdx = 0;
+        cands.forEach(el => {
+          try {
+            if (el.disabled) return;
+            const tag = (el.tagName || '').toUpperCase();
+            // Skip inputs already inside a native form control chain we cannot type into.
+            if (tag === 'INPUT' && SKIP_TYPES.has((el.type || '').toLowerCase())) return;
+            // Element already handled by rich-editor pass emits kind:'text' with __richedit__ id;
+            // that pass runs next, so tie-break by tracking DOM identity here.
+            if (el.__aynEmitted) return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) return;
+            const acc = (typeof aynResolveLabel === 'function') ? aynResolveLabel(el) : { name: '', role: '' };
+            let label = (acc.name && acc.name.length >= 2) ? acc.name : (getLabelFor(el) || '');
+            if (!label) {
+              // Fallback: placeholder or aria-label
+              label = (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder'))) || '';
+            }
+            if (!label) return;
+            if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
+            const guessId = prefix + (el.id || el.name || `sup_txt_${sIdx++}`);
+            if (emittedIds.has(guessId)) return;
+            emittedIds.add(guessId);
+            const isCE = el.isContentEditable || /^(true|)$/i.test(el.getAttribute && el.getAttribute('contenteditable') || '');
+            let current = '';
+            try { current = (typeof aynReadValue === 'function') ? aynReadValue(el) : (el.value || el.innerText || ''); } catch {}
+            const __ctx = (typeof aynCaptureContext === 'function') ? aynCaptureContext(el) : { section:'', siblingLabels:[], helperText:'', placeholder:'' };
+            fields.push({
+              id: guessId,
+              kind: 'text',
+              label: label.slice(0, 240),
+              type: 'text',
+              name: el.name || '',
+              currentValue: current || '',
+              options: [],
+              required: (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true')) || false,
+              group: classifyField(label, el.name || '', 'text'),
+              accRole: 'textbox',
+              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : 'legacy',
+              section: __ctx.section,
+              siblingLabels: __ctx.siblingLabels,
+              helperText: __ctx.helperText,
+              placeholder: __ctx.placeholder,
+              _supplemental: true,
+              _frame: prefix,
+            });
+            el.__aynEmitted = true;
+          } catch {}
+        });
+      } catch { /* never fail the scan */ }
+
+
+
       // ── RICH-EDITOR PASS: contenteditable / role=textbox / ProseMirror / TipTap / Slate / Draft / Quill / Lexical / CodeMirror / Monaco ──
       try {
         window.__AYN_RICH_EDITOR_MAP__ = window.__AYN_RICH_EDITOR_MAP__ || new Map();
