@@ -901,6 +901,61 @@
         });
       } catch { /* never fail the scan */ }
 
+      // v1.9.44 — STRUCTURAL grouping for native radios where names are unique/absent (e.g. Gem)
+      try {
+        const usedRadios = window.__AYN_USED_RADIOS__;
+        // mirror shared-name pass results into the window set
+        try { Array.from(doc.querySelectorAll('input[type="radio"]')).forEach(r => { if (processedRadios.has(r)) usedRadios.add(r); }); } catch (_) {}
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
+        const containerOf = (r) => {
+          let node = r.parentElement;
+          for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
+            if (node.querySelectorAll('input[type="radio"]').length >= 2) return node;
+          }
+          return null;
+        };
+        const groups = new Map();
+        allRadios.forEach(r => { const c = containerOf(r); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(r); });
+        let gi = 0;
+        groups.forEach((radios, container) => {
+          if (radios.length < 2) return;
+          const optTexts = new Set(radios.map(r => ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim().toLowerCase()));
+          let q = '', node = container;
+          for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
+            let p = node.previousElementSibling, guard = 0;
+            while (p && guard++ < 5) {
+              const t = (p.innerText || '').replace(/\s+/g,' ').trim();
+              const firstLine = t.split('\n')[0].trim();
+              if (firstLine && firstLine.length >= 3 && firstLine.length < 120 && !optTexts.has(firstLine.toLowerCase()) && !radios.some(r => p.contains(r))) { q = firstLine.slice(0,120); break; }
+              p = p.previousElementSibling;
+            }
+          }
+          if (!q) q = 'Question';
+          const options = radios.map(r => {
+            const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
+            return { label: lbl, value: r.value || lbl };
+          });
+          const gid = `${prefix}__structradio__:${++gi}`;
+          window.__AYN_STRUCTRADIO_MAP__.set(gid, radios);
+          radios.forEach(r => { usedRadios.add(r); processedRadios.add(r); });
+          fields.push({
+            id: gid,
+            kind: 'radio',
+            type: 'radio',
+            name: '',
+            label: q,
+            options,
+            required: /\*|required/i.test((container.innerText||'').slice(0,300)),
+            group: classifyField(q, '', 'radio'),
+            accRole: 'radio',
+            labelSource: 'structradio',
+            _frame: prefix,
+          });
+        });
+      } catch (_) { /* never fail the scan */ }
+
+
+
       // ── PRE-PASS: group CUSTOM (ARIA) radios by enclosing radiogroup/group ──
       const processedCustomRadios = new WeakSet();
       try {
