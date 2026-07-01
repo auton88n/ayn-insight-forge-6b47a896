@@ -799,6 +799,59 @@
         });
       } catch { /* never fail the scan */ }
 
+      // ── PRE-PASS: Gem (jobs.gem.com) label-based custom option groups ──
+      try {
+        if (location.hostname.includes('gem.com')) {
+          if (!window.__AYN_GEM_MAP__) window.__AYN_GEM_MAP__ = new Map();
+          const allLabels = Array.from(doc.querySelectorAll('label')).filter(l => {
+            if (l.querySelector('input, select, textarea, [role="radio"], [role="checkbox"]')) return false;
+            const t = (l.innerText || '').trim();
+            return t && t.length <= 60 && !t.includes('?');
+          });
+          const labelSet = new Set(allLabels);
+          const containerFor = (l) => {
+            let node = l.parentElement;
+            for (let i = 0; i < 6 && node; i++, node = node.parentElement) {
+              const cnt = Array.from(node.querySelectorAll('label')).filter(x => labelSet.has(x)).length;
+              if (cnt >= 2) return node;
+            }
+            return null;
+          };
+          const groups = new Map();
+          allLabels.forEach(l => { const c = containerFor(l); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); });
+          let gemIdx = 0;
+          groups.forEach((labs, container) => {
+            if (labs.length < 2) return;
+            const gemId = `${prefix}__gem__:${++gemIdx}`;
+            const groupKey = `${prefix}gem:${gemIdx}`;
+            if (seenGroupKeys.has(groupKey)) return;
+            seenGroupKeys.add(groupKey);
+            const options = labs.map(l => { const t = (l.innerText || '').trim(); return { label: t, value: t }; });
+            const optLC = new Set(options.map(o => o.label.toLowerCase()));
+            let qLabel = '';
+            let scan = container;
+            for (let up = 0; up < 4 && scan && !qLabel; up++) {
+              let sib = scan.previousElementSibling; let guard = 0;
+              while (sib && guard++ < 6) {
+                const t = (sib.innerText || '').trim();
+                if (t && t.length <= 300 && !optLC.has(t.toLowerCase()) && !labs.some(l => sib.contains(l))) { qLabel = t.split('\n')[0].trim(); break; }
+                sib = sib.previousElementSibling;
+              }
+              scan = scan.parentElement;
+            }
+            if (!qLabel) qLabel = 'Question';
+            qLabel = qLabel.slice(0, 240);
+            window.__AYN_GEM_MAP__.set(gemId, labs);
+            fields.push({
+              id: gemId, kind: 'radio', label: qLabel, type: 'radio', name: '',
+              currentValue: '', options,
+              required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
+              group: classifyField(qLabel, '', 'radio'), accRole: 'radio', labelSource: 'gem', _frame: prefix,
+            });
+          });
+        }
+      } catch { /* never fail the scan */ }
+
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
         try {
@@ -1519,6 +1572,38 @@
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
 
       const { doc, rawId } = resolveDoc(id, _frame);
+
+      // Gem (jobs.gem.com) label-based custom group click
+      if (id.includes('__gem__:')) {
+        const targets = [optionLabel || optionValue || value].filter(Boolean);
+        const labs = (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id)) || null;
+        if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'gem group not found' }); continue; }
+        let landed = false;
+        for (const tRaw of targets) {
+          const want = String(tRaw || '').trim(); if (!want) continue;
+          const target = labs.find(l => aynOptionMatches((l.innerText || '').trim(), want));
+          if (!target) continue;
+          try {
+            try { target.scrollIntoView({ block: 'center' }); } catch {}
+            const sig = (el) => (el ? (String(el.className || '') + '|' + (el.querySelector('*') ? String(el.querySelector('*').className || '') : '')) : '');
+            const before = sig(target);
+            target.click();
+            await sleep(70);
+            const inner = target.querySelector('div, span');
+            if (inner) { try { fireFullClick(inner); } catch {} await sleep(40); }
+            const after = sig(target);
+            const selectedish = /selected|checked|active|-on\b/i;
+            landed = (after !== before) || selectedish.test(after)
+              || target.getAttribute('aria-checked') === 'true'
+              || !!target.querySelector('[aria-checked="true"]');
+          } catch {}
+          break;
+        }
+        results.push({ id, ok: landed, verified: landed, reason: landed ? 'gem-click' : 'gem-click-unverified' });
+        if (landed) filled++;
+        continue;
+      }
+
 
 
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
