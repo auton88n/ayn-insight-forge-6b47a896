@@ -572,6 +572,15 @@
     if (/describe\s+a\s+time|tell\s+(us|me)\s+about\s+a\s+time|give\s+(an|us\s+an)\s+example|situation\s+where/.test(l)) return 'open.behavioral';
     // Dependent follow-up text fields ("Which agency", "Please specify", "If yes, ...")
     if (type === 'text' && /which\s+(agency|bu|department|team)|please\s+specify|if\s+(yes|so)\s*,|if\s+yes\s+which/.test(l)) return 'logic.dependent_followup';
+    // Widened v1.9.37 categories
+    if (/notice\s+period|weeks?\s+of\s+notice|how\s+much\s+notice/.test(l)) return 'logic.notice_period';
+    if (/earliest\s+start|when\s+(can|could)\s+you\s+start|available\s+start|start\s+availability/.test(l)) return 'logic.start_date';
+    if (/hours?\s+per\s+week|weekly\s+hours|availability.*hours/.test(l)) return 'logic.hours_per_week';
+    if (/reference\s*(1|one|#?1)?\s*(name|contact)|first\s+reference/.test(l)) return 'logic.reference_name';
+    if (/reference.*email|referee.*email/.test(l)) return 'logic.reference_email';
+    if (/reference.*(phone|number|tel)/.test(l)) return 'logic.reference_phone';
+    if (/current\s+salary|current\s+compensation|present\s+salary/.test(l)) return 'logic.current_salary';
+    if (/desired\s+salary|expected\s+salary|salary\s+expectation/.test(l)) return 'logic.salary';
     return 'other';
   }
 
