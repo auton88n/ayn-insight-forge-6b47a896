@@ -817,6 +817,9 @@
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
     let bgCounter = 0;
+    // v1.9.44 — reset per-scan used-radio tracker so stale state doesn't persist
+    window.__AYN_USED_RADIOS__ = new WeakSet();
+    window.__AYN_STRUCTRADIO_MAP__ = new Map();
 
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
