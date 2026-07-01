@@ -87,17 +87,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // ── Vision fallback (v1.9.30, Phase 3) ─────────────────────────
   if (message.type === 'AYN_VISION_FILL') {
     (async () => {
-      let dataUrl = null;
+      let dataUrl = (message.image && typeof message.image === 'string' && message.image.startsWith('data:image/')) ? message.image : null;
       let captureError = '';
-      try {
-        dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' });
-      } catch (e) {
-        captureError = String((e && e.message) || 'capture failed');
+      if (!dataUrl) {
+        try { dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' }); }
+        catch (e) { captureError = String((e && e.message) || 'capture failed'); }
       }
       if (!dataUrl) {
-        sendResponse({ ok: false, decisions: [], diag: { captured: false, captureError: captureError || 'capture failed', backendError: '', decisionsCount: 0 } });
+        sendResponse({ ok: false, decisions: [], diag: { captured: false, captureError: captureError || 'no image', backendError: '', decisionsCount: 0 } });
         return;
       }
+
       try {
         const resp = await callFunction('ext_vision_fill', {
           image: dataUrl,
