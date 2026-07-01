@@ -316,6 +316,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           company: jobText?.company || '',
           ats: scan.ats || 'unknown',
           url: scan.url || '',
+          scanDiag: Array.isArray(scan.scanDiag) ? scan.scanDiag : [],
           extVersion: chrome.runtime.getManifest().version,
         });
         const runId = fillData?.run_id || null;

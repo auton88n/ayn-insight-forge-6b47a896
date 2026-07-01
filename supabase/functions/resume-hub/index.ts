@@ -716,8 +716,8 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText, jobTitle, company, ats, url, extVersion } = payload as {
-          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string;
+        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag } = payload as {
+          fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string; scanDiag?: unknown;
         };
         const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
@@ -987,7 +987,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             fields_scanned: fieldsScanned,
             ai_values: aiValues,
             skipped,
-            meta,
+            meta: (() => { try { return { ...(meta || {}), scanDiag: Array.isArray(scanDiag) ? (scanDiag as unknown[]).slice(0, 30) : [] }; } catch { return meta; } })(),
           }).select("id").single();
           runId = runRow?.id || null;
         } catch (e) {
