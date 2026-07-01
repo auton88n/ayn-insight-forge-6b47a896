@@ -1788,7 +1788,9 @@
 
     // real input/textarea
     el.focus();
+    if (!el.isContentEditable) { aynSetNativeValue(el, ''); }
     aynSetNativeValue(el, value);
+
     await aynSleep(40);
     if (matches()) return { ok: true, verified: true };
 
