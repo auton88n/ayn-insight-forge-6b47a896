@@ -993,6 +993,64 @@
           });
         } catch { /* skip a single bad node, keep scanning */ }
       });
+
+      // ── RICH-EDITOR PASS: contenteditable / role=textbox / ProseMirror / TipTap / Slate / Draft / Quill / Lexical / CodeMirror / Monaco ──
+      try {
+        window.__AYN_RICH_EDITOR_MAP__ = window.__AYN_RICH_EDITOR_MAP__ || new Map();
+        const RICH_SEL = [
+          '[contenteditable=""]',
+          '[contenteditable="true"]',
+          '[contenteditable="plaintext-only"]',
+          '[role="textbox"]',
+          '[data-slate-editor="true"]',
+          '[data-lexical-editor="true"]',
+          '[data-editor]',
+          '.ProseMirror',
+          '.tiptap',
+          '.ql-editor',
+          '.DraftEditor-root',
+          '.public-DraftEditor-content',
+          '.cm-content',
+          '.monaco-editor .view-lines',
+        ].join(',');
+        const seenEditables = new WeakSet();
+        let reIdx = 0;
+        Array.from(doc.querySelectorAll(RICH_SEL)).forEach(cand => {
+          try {
+            const info = aynResolveRichEditor(cand);
+            const editable = info.editable;
+            if (!editable || seenEditables.has(editable)) return;
+            if (editable.closest && editable.closest('input,textarea,select')) return;
+            const rect = editable.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) return;
+            seenEditables.add(editable);
+            const __accR = (typeof aynResolveLabel === 'function') ? aynResolveLabel(editable) : { name: '', role: '' };
+            const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || '');
+            if (!label) return;
+            if (SKIP_RE.test(label)) return;
+            const rid = `${prefix}__richedit__:re${reIdx++}`;
+            window.__AYN_RICH_EDITOR_MAP__.set(rid, editable);
+            let current = '';
+            try { current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.innerText || ''); } catch {}
+            fields.push({
+              id: rid,
+              kind: 'text',
+              label: label.slice(0, 240),
+              type: 'text',
+              name: '',
+              currentValue: current || '',
+              options: [],
+              required: editable.getAttribute && editable.getAttribute('aria-required') === 'true',
+              group: classifyField(label, '', 'text'),
+              accRole: 'textbox',
+              labelSource: (__accR.name && __accR.name.length >= 2) ? 'accname' : 'legacy',
+              richEditor: true,
+              richDetector: info.detector,
+              _frame: prefix,
+            });
+          } catch {}
+        });
+      } catch { /* never fail the scan */ }
     });
 
     // ── PART A: Detect custom button-style single-choice toggles (Ashby/Jerry/etc.) ──
