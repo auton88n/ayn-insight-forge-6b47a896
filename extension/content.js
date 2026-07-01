@@ -1673,14 +1673,31 @@
 
   async function aynFillTextbox(el, value) {
     const want = String(value).trim();
-    const matches = () => { const c = aynReadValue(el); return c === want || (want.length > 12 && c.includes(want.slice(0, Math.min(30, want.length)))); };
+    const digits = s => String(s || '').replace(/\D/g, '');
+    const wantD = digits(want);
+    const matches = () => {
+      const c = aynReadValue(el);
+      if (c === want) return true;
+      if (want.length > 12 && c.includes(want.slice(0, Math.min(30, want.length)))) return true;
+      // Masked inputs: "4166609926" → "(416) 660-9926". Accept when digit streams match.
+      if (wantD.length >= 6 && digits(c) === wantD) return true;
+      return false;
+    };
+    const maskedAccept = () => {
+      const c = aynReadValue(el);
+      if (!c) return false;
+      if (wantD.length < 6) return false;
+      return digits(c).includes(wantD);
+    };
 
     // contenteditable: native .value is useless — use execCommand/paste directly
     if (el.isContentEditable) {
       await aynInsertViaExec(el, value);
       if (matches()) return { ok: true, verified: true };
       await aynInsertViaPaste(el, value);
-      return { ok: matches(), verified: matches(), reason: matches() ? '' : 'contenteditable rejected' };
+      if (matches()) return { ok: true, verified: true };
+      if (maskedAccept()) return { ok: true, verified: true, reason: 'masked-accepted' };
+      return { ok: false, verified: false, reason: 'contenteditable rejected' };
     }
 
     // real input/textarea
@@ -1706,8 +1723,12 @@
     await aynInsertViaPaste(el, value);
     if (matches()) return { ok: true, verified: true };
 
+    // Final: masked-input safety net — non-empty and contains the requested digits.
+    if (maskedAccept()) return { ok: true, verified: true, reason: 'masked-accepted' };
+
     return { ok: false, verified: false, reason: 'value did not stick (all methods)' };
   }
+
 
   function aynNativeOptionEls(el) {
     if (el.name) {
