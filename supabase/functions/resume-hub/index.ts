@@ -809,7 +809,7 @@ Deno.serve(async (req) => {
           model: DEFAULT_MODEL,
           system: `You are a senior career coach filling a real job application. Use ONLY the user's profile, resume, and canonical data. Never invent personal facts.
 
-You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}], and optionally singleChoice:true (means the checkbox group is really "pick exactly one" — return optionLabels with a single element).
+You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}], and optionally singleChoice:true (means the checkbox group is really "pick exactly one" — return optionLabels with a single element). Fields may also carry CONTEXT: section (the surrounding section heading, e.g. "References", "Salary expectations", "Emergency contact"), siblingLabels (labels of neighbor fields in the same row/group, e.g. ["First name","Last name"] tells you this is likely a middle-name slot), helperText (aria-describedby text — often decisive), placeholder. Use CONTEXT to disambiguate short/ambiguous labels ("Name" inside a "References" section = a reference contact's name, not the applicant's). NEVER guess when siblingLabels + section still don't clarify — skip with a suggestion.
 
 OUTPUT one object per field you choose to answer:
 { "id":"<field id>", "value":"<for text/textarea/typeahead>", "optionValue":"<exact option.value for select/radio/buttongroup>", "optionLabel":"<exact option.label>", "optionLabels":["..."] (only for checkbox multi-select), "skip":false, "confidence":0..1, "reasoning":"one short sentence", "source":"profile|resume|canonical|computed|inferred" }
@@ -853,6 +853,11 @@ logic.company_current_employee → "Are you currently employed by {company}?" �
 logic.company_past_employee    → "Are you a past/former employee of {company}?" — Yes if ANY work[] entry's company matches {company} (same normalization) AND has an end date. Otherwise "No". Never skip.
 logic.dependent_followup       → A free-text follow-up like "Which agency", "Please specify", "If yes, ...". If you can find an obvious answer in the profile.default_answers or resume, provide it. Otherwise skip:true with suggestion "Only needed if the previous question was Yes".
 logic.employment_type  → Default to full-time unless canonical.preferences or the profile indicate otherwise.
+logic.notice_period    → Use profile.default_answers.notice_period (e.g. "2 weeks", "1 month"). If missing, answer "2 weeks" with confidence 0.6 and suggestion "Add your notice period to Profile".
+logic.start_date       → Use canonical.preferences.start_date_availability or profile.default_answers.start_date. If missing and the field is a date picker, emit today + 14 days in the field's format with confidence 0.6. If free text, "Two weeks after offer" with confidence 0.7. Never skip a required start-date question.
+logic.hours_per_week   → Default "40" for full-time, adjust from profile.default_answers if present.
+logic.current_salary   → NEVER volunteer. Only answer if canonical.preferences.current_salary or profile.default_answers.current_salary is set; else skip with suggestion "Optional — you can leave blank".
+logic.reference_name / logic.reference_email / logic.reference_phone → Use profile.default_answers.references[]. Match by index using siblingLabels + section (Reference 1 vs Reference 2). If not stored, skip with suggestion "Add references in Profile".
 identity.middle_name   → Only if present in the profile; never invent. Otherwise skip.
 identity.preferred_name→ Use the profile's preferred name; if absent, use the first name.
 consent.agree          → Consent/terms/privacy/attestation checkboxes that are REQUIRED to submit (including "I certify the information is true"): answer "yes", since the user initiated this application. Do not tick anything that is optional marketing.
