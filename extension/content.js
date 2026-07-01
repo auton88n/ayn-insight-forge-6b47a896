@@ -709,6 +709,56 @@
     return out;
   }
 
+  // v1.9.37 — capture section heading, sibling labels, helper text and placeholder for each field.
+  // Gives the AI real context so it can answer questions whose meaning depends on neighbors
+  // (e.g. "Address line 2" under "Mailing address"; "Which agency" under a prior Yes/No).
+  function aynCaptureContext(el) {
+    const ctx = { section: '', siblingLabels: [], helperText: '', placeholder: '', labelRaw: '' };
+    try {
+      if (!el) return ctx;
+      ctx.placeholder = (el.placeholder || el.getAttribute?.('placeholder') || '').trim().slice(0, 120);
+      // aria-describedby → helper text
+      const descId = el.getAttribute && el.getAttribute('aria-describedby');
+      if (descId) {
+        const parts = String(descId).split(/\s+/).map(id => {
+          const n = el.ownerDocument && el.ownerDocument.getElementById(id);
+          return n ? (n.innerText || n.textContent || '').trim() : '';
+        }).filter(Boolean);
+        if (parts.length) ctx.helperText = parts.join(' ').slice(0, 240);
+      }
+      // Section heading — walk up to nearest section/fieldset/form-section container, take its heading
+      let node = el.parentElement;
+      for (let i = 0; i < 8 && node; i++, node = node.parentElement) {
+        const isSection = node.tagName === 'FIELDSET' || node.tagName === 'SECTION'
+          || /section|group|card|panel|step|page/i.test(node.className || '')
+          || node.getAttribute?.('role') === 'group';
+        if (!isSection) continue;
+        const h = node.querySelector('legend, h1, h2, h3, h4, [class*="heading"], [class*="section-title"], [class*="sectionTitle"]');
+        if (h && !h.contains(el)) {
+          const t = (h.innerText || h.textContent || '').trim();
+          if (t && t.length < 120) { ctx.section = t; break; }
+        }
+      }
+      // Sibling labels — up to 3 preceding sibling field labels in the same form-row group
+      try {
+        const row = el.closest('fieldset, [class*="field"], [class*="form-group"], [class*="row"]');
+        if (row) {
+          const inputs = Array.from(row.querySelectorAll('input, select, textarea')).filter(i => i !== el && !i.disabled);
+          const seen = new Set();
+          for (const inp of inputs.slice(0, 4)) {
+            const lbl = (typeof aynResolveLabel === 'function' ? (aynResolveLabel(inp).name || getLabelFor(inp)) : getLabelFor(inp)) || '';
+            const clean = String(lbl || '').trim().slice(0, 60);
+            if (!clean || seen.has(clean)) continue;
+            seen.add(clean);
+            ctx.siblingLabels.push(clean);
+            if (ctx.siblingLabels.length >= 3) break;
+          }
+        }
+      } catch {}
+    } catch {}
+    return ctx;
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
