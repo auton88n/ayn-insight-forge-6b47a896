@@ -2063,7 +2063,9 @@
     if (message.type === 'SCAN_FORM') {
       const fields = scanFormFields();
       const jobText = extractJobText();
-      sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href });
+      let scanDiag = [];
+      try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+      sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
       return true;
     }
 
