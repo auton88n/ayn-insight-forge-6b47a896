@@ -599,6 +599,43 @@
     return docs;
   }
 
+  function aynScanDiag() {
+    const out = [];
+    const seen = new Set();
+    const push = (el, note) => {
+      if (!el || seen.has(el) || out.length >= 30) return;
+      seen.add(el);
+      const anc = [];
+      let p = el.parentElement;
+      for (let i = 0; i < 4 && p; i++, p = p.parentElement) {
+        anc.push({ tag: p.tagName, role: p.getAttribute('role') || '', cls: String(p.className || '').slice(0, 50) });
+      }
+      out.push({
+        note,
+        tag: el.tagName,
+        type: el.getAttribute('type') || '',
+        role: el.getAttribute('role') || '',
+        name: el.getAttribute('name') || '',
+        ariaChecked: el.getAttribute('aria-checked') || '',
+        ariaLabel: String(el.getAttribute('aria-label') || '').slice(0, 40),
+        cls: String(el.className || '').slice(0, 60),
+        text: String(el.innerText || el.textContent || '').trim().slice(0, 40),
+        ancestors: anc,
+      });
+    };
+    try {
+      document.querySelectorAll('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"], [role="radiogroup"], [role="group"]').forEach(el => push(el, 'aria-native'));
+      const optionWords = /^(us|canada|ireland|male|female|non-binary|agender|other gender|asian|black|white|hispanic|indigenous|native hawaiian|middle eastern|yes|no|decline to self-identify|prefer not to disclose|i identify as|i am not a|i do not wish)/i;
+      document.querySelectorAll('label, button, div, span, li, a').forEach(el => {
+        if (out.length >= 30) return;
+        if (el.children.length > 2) return;
+        const t = String(el.innerText || '').trim();
+        if (t && t.length < 48 && optionWords.test(t)) push(el, 'option-text');
+      });
+    } catch (_) {}
+    return out;
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
