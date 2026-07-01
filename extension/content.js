@@ -921,58 +921,72 @@
         });
       } catch { /* never fail the scan */ }
 
-      // ── PRE-PASS: Gem (jobs.gem.com) label-based custom option groups ──
+      // ── PRE-PASS: label-based custom option groups (generalized from Gem adapter, v1.9.39) ──
+      // Runs on ALL sites, but only for genuine custom option clusters. Safety guards:
+      //   - LABEL elements only (no native input/select/textarea inside, no role=radio/checkbox)
+      //   - 2..12 options; each <=60 chars, no '?'
+      //   - Container has NO native radio/checkbox and NO role=radio/checkbox (already handled elsewhere)
+      //   - Uses tight nearest-common-ancestor via containerFor
       try {
-        if (location.hostname.includes('gem.com')) {
-          if (!window.__AYN_GEM_MAP__) window.__AYN_GEM_MAP__ = new Map();
-          const allLabels = Array.from(doc.querySelectorAll('label')).filter(l => {
-            if (l.querySelector('input, select, textarea, [role="radio"], [role="checkbox"]')) return false;
-            const t = (l.innerText || '').trim();
-            return t && t.length <= 60 && !t.includes('?');
-          });
-          const labelSet = new Set(allLabels);
-          const containerFor = (l) => {
-            let node = l.parentElement;
-            for (let i = 0; i < 6 && node; i++, node = node.parentElement) {
-              const cnt = Array.from(node.querySelectorAll('label')).filter(x => labelSet.has(x)).length;
-              if (cnt >= 2) return node;
+        if (!window.__AYN_LABELGROUP_MAP__) window.__AYN_LABELGROUP_MAP__ = new Map();
+        // Back-compat alias so any legacy code paths using __AYN_GEM_MAP__ still resolve.
+        if (!window.__AYN_GEM_MAP__) window.__AYN_GEM_MAP__ = window.__AYN_LABELGROUP_MAP__;
+        const allLabels = Array.from(doc.querySelectorAll('label')).filter(l => {
+          if (l.querySelector('input, select, textarea, [role="radio"], [role="checkbox"]')) return false;
+          // If the label points via htmlFor to a native form control, skip (native pass owns it).
+          const forId = l.getAttribute('for');
+          if (forId) {
+            const target = doc.getElementById(forId);
+            if (target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName || '')) return false;
+          }
+          const t = (l.innerText || '').trim();
+          return t && t.length <= 60 && !t.includes('?');
+        });
+        const labelSet = new Set(allLabels);
+        const containerFor = (l) => {
+          let node = l.parentElement;
+          for (let i = 0; i < 6 && node; i++, node = node.parentElement) {
+            const cnt = Array.from(node.querySelectorAll('label')).filter(x => labelSet.has(x)).length;
+            if (cnt >= 2) return node;
+          }
+          return null;
+        };
+        const groups = new Map();
+        allLabels.forEach(l => { const c = containerFor(l); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); });
+        let lgIdx = 0;
+        groups.forEach((labs, container) => {
+          if (labs.length < 2 || labs.length > 12) return;
+          // Skip if container already covered by native/role checkables (owned by earlier passes)
+          if (container.querySelector('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]')) return;
+          const lgId = `${prefix}__labelgroup__:${++lgIdx}`;
+          const groupKey = `${prefix}labelgroup:${lgIdx}`;
+          if (seenGroupKeys.has(groupKey)) return;
+          seenGroupKeys.add(groupKey);
+          const options = labs.map(l => { const t = (l.innerText || '').trim(); return { label: t, value: t }; });
+          const optLC = new Set(options.map(o => o.label.toLowerCase()));
+          let qLabel = '';
+          let scan = container;
+          for (let up = 0; up < 4 && scan && !qLabel; up++) {
+            let sib = scan.previousElementSibling; let guard = 0;
+            while (sib && guard++ < 6) {
+              const t = (sib.innerText || '').trim();
+              if (t && t.length <= 300 && !optLC.has(t.toLowerCase()) && !labs.some(l => sib.contains(l))) { qLabel = t.split('\n')[0].trim(); break; }
+              sib = sib.previousElementSibling;
             }
-            return null;
-          };
-          const groups = new Map();
-          allLabels.forEach(l => { const c = containerFor(l); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); });
-          let gemIdx = 0;
-          groups.forEach((labs, container) => {
-            if (labs.length < 2) return;
-            const gemId = `${prefix}__gem__:${++gemIdx}`;
-            const groupKey = `${prefix}gem:${gemIdx}`;
-            if (seenGroupKeys.has(groupKey)) return;
-            seenGroupKeys.add(groupKey);
-            const options = labs.map(l => { const t = (l.innerText || '').trim(); return { label: t, value: t }; });
-            const optLC = new Set(options.map(o => o.label.toLowerCase()));
-            let qLabel = '';
-            let scan = container;
-            for (let up = 0; up < 4 && scan && !qLabel; up++) {
-              let sib = scan.previousElementSibling; let guard = 0;
-              while (sib && guard++ < 6) {
-                const t = (sib.innerText || '').trim();
-                if (t && t.length <= 300 && !optLC.has(t.toLowerCase()) && !labs.some(l => sib.contains(l))) { qLabel = t.split('\n')[0].trim(); break; }
-                sib = sib.previousElementSibling;
-              }
-              scan = scan.parentElement;
-            }
-            if (!qLabel) qLabel = 'Question';
-            qLabel = qLabel.slice(0, 240);
-            window.__AYN_GEM_MAP__.set(gemId, labs);
-            fields.push({
-              id: gemId, kind: 'radio', label: qLabel, type: 'radio', name: '',
-              currentValue: '', options,
-              required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
-              group: classifyField(qLabel, '', 'radio'), accRole: 'radio', labelSource: 'gem', _frame: prefix,
-            });
+            scan = scan.parentElement;
+          }
+          if (!qLabel) qLabel = 'Question';
+          qLabel = qLabel.slice(0, 240);
+          window.__AYN_LABELGROUP_MAP__.set(lgId, labs);
+          fields.push({
+            id: lgId, kind: 'radio', label: qLabel, type: 'radio', name: '',
+            currentValue: '', options,
+            required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
+            group: classifyField(qLabel, '', 'radio'), accRole: 'radio', labelSource: 'labelgroup', _frame: prefix,
           });
-        }
+        });
       } catch { /* never fail the scan */ }
+
 
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
@@ -1130,6 +1144,67 @@
           });
         } catch { /* skip a single bad node, keep scanning */ }
       });
+
+      // ── SUPPLEMENTAL TEXT-INPUT PASS (v1.9.39): recover phone/salary/masked/wrapped
+      //    inputs and contenteditable textboxes the main pass dropped (missing/short label,
+      //    non-standard wrapping). Never double-emits.
+      try {
+        const emittedIds = new Set(fields.map(f => f.id));
+        const cands = Array.from(doc.querySelectorAll(
+          'input[type="tel"], input[type="number"], input[inputmode], [contenteditable="true"], [contenteditable=""]'
+        ));
+        let sIdx = 0;
+        cands.forEach(el => {
+          try {
+            if (el.disabled) return;
+            const tag = (el.tagName || '').toUpperCase();
+            // Skip inputs already inside a native form control chain we cannot type into.
+            if (tag === 'INPUT' && SKIP_TYPES.has((el.type || '').toLowerCase())) return;
+            // Element already handled by rich-editor pass emits kind:'text' with __richedit__ id;
+            // that pass runs next, so tie-break by tracking DOM identity here.
+            if (el.__aynEmitted) return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) return;
+            const acc = (typeof aynResolveLabel === 'function') ? aynResolveLabel(el) : { name: '', role: '' };
+            let label = (acc.name && acc.name.length >= 2) ? acc.name : (getLabelFor(el) || '');
+            if (!label) {
+              // Fallback: placeholder or aria-label
+              label = (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder'))) || '';
+            }
+            if (!label) return;
+            if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
+            const guessId = prefix + (el.id || el.name || `sup_txt_${sIdx++}`);
+            if (emittedIds.has(guessId)) return;
+            emittedIds.add(guessId);
+            const isCE = el.isContentEditable || /^(true|)$/i.test(el.getAttribute && el.getAttribute('contenteditable') || '');
+            let current = '';
+            try { current = (typeof aynReadValue === 'function') ? aynReadValue(el) : (el.value || el.innerText || ''); } catch {}
+            const __ctx = (typeof aynCaptureContext === 'function') ? aynCaptureContext(el) : { section:'', siblingLabels:[], helperText:'', placeholder:'' };
+            fields.push({
+              id: guessId,
+              kind: 'text',
+              label: label.slice(0, 240),
+              type: 'text',
+              name: el.name || '',
+              currentValue: current || '',
+              options: [],
+              required: (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true')) || false,
+              group: classifyField(label, el.name || '', 'text'),
+              accRole: 'textbox',
+              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : 'legacy',
+              section: __ctx.section,
+              siblingLabels: __ctx.siblingLabels,
+              helperText: __ctx.helperText,
+              placeholder: __ctx.placeholder,
+              _supplemental: true,
+              _frame: prefix,
+            });
+            el.__aynEmitted = true;
+          } catch {}
+        });
+      } catch { /* never fail the scan */ }
+
+
 
       // ── RICH-EDITOR PASS: contenteditable / role=textbox / ProseMirror / TipTap / Slate / Draft / Quill / Lexical / CodeMirror / Monaco ──
       try {
@@ -1659,14 +1734,31 @@
 
   async function aynFillTextbox(el, value) {
     const want = String(value).trim();
-    const matches = () => { const c = aynReadValue(el); return c === want || (want.length > 12 && c.includes(want.slice(0, Math.min(30, want.length)))); };
+    const digits = s => String(s || '').replace(/\D/g, '');
+    const wantD = digits(want);
+    const matches = () => {
+      const c = aynReadValue(el);
+      if (c === want) return true;
+      if (want.length > 12 && c.includes(want.slice(0, Math.min(30, want.length)))) return true;
+      // Masked inputs: "4166609926" → "(416) 660-9926". Accept when digit streams match.
+      if (wantD.length >= 6 && digits(c) === wantD) return true;
+      return false;
+    };
+    const maskedAccept = () => {
+      const c = aynReadValue(el);
+      if (!c) return false;
+      if (wantD.length < 6) return false;
+      return digits(c).includes(wantD);
+    };
 
     // contenteditable: native .value is useless — use execCommand/paste directly
     if (el.isContentEditable) {
       await aynInsertViaExec(el, value);
       if (matches()) return { ok: true, verified: true };
       await aynInsertViaPaste(el, value);
-      return { ok: matches(), verified: matches(), reason: matches() ? '' : 'contenteditable rejected' };
+      if (matches()) return { ok: true, verified: true };
+      if (maskedAccept()) return { ok: true, verified: true, reason: 'masked-accepted' };
+      return { ok: false, verified: false, reason: 'contenteditable rejected' };
     }
 
     // real input/textarea
@@ -1692,8 +1784,12 @@
     await aynInsertViaPaste(el, value);
     if (matches()) return { ok: true, verified: true };
 
+    // Final: masked-input safety net — non-empty and contains the requested digits.
+    if (maskedAccept()) return { ok: true, verified: true, reason: 'masked-accepted' };
+
     return { ok: false, verified: false, reason: 'value did not stick (all methods)' };
   }
+
 
   function aynNativeOptionEls(el) {
     if (el.name) {
@@ -1921,11 +2017,12 @@
 
       const { doc, rawId } = resolveDoc(id, _frame);
 
-      // Gem (jobs.gem.com) label-based custom group click
-      if (id.includes('__gem__:')) {
+      // Label-based custom group click (generalized; matches __labelgroup__: and legacy __gem__:)
+      if (id.includes('__labelgroup__:') || id.includes('__gem__:')) {
         const targets = [optionLabel || optionValue || value].filter(Boolean);
-        const labs = (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id)) || null;
-        if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'gem group not found' }); continue; }
+        const labs = ((window.__AYN_LABELGROUP_MAP__ && window.__AYN_LABELGROUP_MAP__.get(id))
+                   || (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id))) || null;
+        if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'labelgroup not found' }); continue; }
         let landed = false;
         for (const tRaw of targets) {
           const want = String(tRaw || '').trim(); if (!want) continue;
@@ -1947,10 +2044,11 @@
           } catch {}
           break;
         }
-        results.push({ id, ok: landed, verified: landed, reason: landed ? 'gem-click' : 'gem-click-unverified' });
+        results.push({ id, ok: landed, verified: landed, reason: landed ? 'labelgroup-click' : 'labelgroup-click-unverified' });
         if (landed) filled++;
         continue;
       }
+
 
 
 
