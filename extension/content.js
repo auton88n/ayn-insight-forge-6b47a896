@@ -926,7 +926,10 @@
             while (p && guard++ < 5) {
               const t = (p.innerText || '').replace(/\s+/g,' ').trim();
               const firstLine = t.split('\n')[0].trim();
-              if (firstLine && firstLine.length >= 3 && firstLine.length < 120 && !optTexts.has(firstLine.toLowerCase()) && !radios.some(r => p.contains(r))) { q = firstLine.slice(0,120); break; }
+              const looksLikeOptionBlock = p.querySelector && p.querySelector('input[type="radio"]');
+              const hasManyOptions = Array.from(optTexts).filter(o => o && t.toLowerCase().includes(o)).length >= 2;
+              const badFirst = /^(asian|black|hispanic|white|male|female|decline to self|prefer not|yes|no|i identify as|i am not a)/i.test(firstLine);
+              if (firstLine && firstLine.length >= 3 && firstLine.length < 120 && !optTexts.has(firstLine.toLowerCase()) && !badFirst && !looksLikeOptionBlock && !hasManyOptions && !radios.some(r => p.contains(r))) { q = firstLine.slice(0,120); break; }
               p = p.previousElementSibling;
             }
           }
