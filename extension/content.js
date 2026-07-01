@@ -2105,6 +2105,42 @@
         values.filter(v => /^__buttongroup__:/.test(v.id || '')).length);
     } catch {}
 
+    // v1.9.43 — text-candidate cache for question-based matching fallback
+    const __textCandCache = new Map(); // doc -> [{el, q}]
+    const __textUsed = new WeakSet();
+    function __textCandsFor(doc) {
+      if (__textCandCache.has(doc)) return __textCandCache.get(doc);
+      const sel = 'input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], textarea, [contenteditable="true"], [contenteditable=""]';
+      const list = [];
+      try {
+        Array.from(doc.querySelectorAll(sel)).forEach(el => {
+          if (!el || el.disabled || el.readOnly) return;
+          const rect = el.getBoundingClientRect && el.getBoundingClientRect();
+          if (rect && rect.width === 0 && rect.height === 0) return;
+          let q = '';
+          try { q = aynFieldQuestion(el); } catch (_) {}
+          list.push({ el, q });
+        });
+      } catch (_) {}
+      __textCandCache.set(doc, list);
+      return list;
+    }
+    function __resolveByQuestion(doc, aiLabel, preferTag) {
+      if (!aiLabel) return null;
+      const cands = __textCandsFor(doc);
+      let best = null, bestScore = 0;
+      for (const c of cands) {
+        if (__textUsed.has(c.el)) continue;
+        let s = aynQuestionScore(aiLabel, c.q);
+        if (preferTag && c.el.tagName === preferTag) s += 0.01; // tie-break by tag
+        if (s > bestScore) { bestScore = s; best = c; }
+      }
+      if (best && bestScore >= 0.5) return best.el;
+      return null;
+    }
+
+
+
     for (const v of values) {
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
