@@ -1809,11 +1809,27 @@
     await aynInsertViaPaste(el, value);
     if (matches()) return { ok: true, verified: true };
 
+    // last resort: set the value from the page's own JS world (reaches framework-controlled inputs)
+    await aynFillViaPageWorld(el, value);
+    if (matches()) return { ok: true, verified: true, reason: 'page-world' };
+
     // Final: masked-input safety net — non-empty and contains the requested digits.
     if (maskedAccept()) return { ok: true, verified: true, reason: 'masked-accepted' };
 
     return { ok: false, verified: false, reason: 'value did not stick (all methods)' };
   }
+
+  async function aynFillViaPageWorld(el, value) {
+    try {
+      el.setAttribute('data-ayn-fill-target', '1');
+      el.setAttribute('data-ayn-fill-value', String(value));
+      document.dispatchEvent(new CustomEvent('ayn-fill-request'));
+      await aynSleep(130);
+      try { el.removeAttribute('data-ayn-fill-target'); el.removeAttribute('data-ayn-fill-value'); } catch (_) {}
+    } catch (_) {}
+    return aynReadValue(el);
+  }
+
 
 
   function aynNativeOptionEls(el) {
