@@ -485,14 +485,36 @@
 
 
 
+  // Strip bilingual labels (e.g. "Are you authorized?/Êtes-vous autorisé?") and return the
+  // mostly-ASCII half so downstream regex classifiers work on the English text.
+  function aynStripBilingual(label) {
+    const raw = String(label || '').trim();
+    if (!raw) return raw;
+    const parts = raw.split(/\s*[\/|·|\n\r]+\s*/).map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2) return raw;
+    const asciiRatio = (s) => {
+      if (!s) return 0;
+      const m = s.match(/[A-Za-z0-9 ,.'?()\-]/g);
+      return m ? m.length / s.length : 0;
+    };
+    // Prefer the first half if it looks English enough; otherwise scan all halves.
+    let best = parts[0]; let bestScore = asciiRatio(parts[0]);
+    for (const p of parts.slice(1)) {
+      const s = asciiRatio(p);
+      if (s > bestScore + 0.05) { best = p; bestScore = s; }
+    }
+    return bestScore > 0.8 ? best : raw;
+  }
+
   // Classify a field into a semantic group so the AI can reason about it
   function classifyField(label, name, type) {
-    const l = ((label || '') + ' ' + (name || '')).toLowerCase();
+    const stripped = aynStripBilingual(label);
+    const l = ((stripped || '') + ' ' + (name || '')).toLowerCase();
     if (/middle\s*name/.test(l)) return 'identity.middle_name';
     if (/preferred\s*(first\s*)?name|nick\s*name|name\s+you\s+go\s+by/.test(l)) return 'identity.preferred_name';
     if (/\bfirst\s*name|given\s*name|forename\b/.test(l)) return 'identity.first_name';
     if (/\blast\s*name|surname|family\s*name\b/.test(l)) return 'identity.last_name';
-    if (/\bfull\s*name|legal\s*name\b/.test(l) || /^name$/i.test((label||'').trim())) return 'identity.full_name';
+    if (/\bfull\s*name|legal\s*name\b/.test(l) || /^name$/i.test((stripped||'').trim())) return 'identity.full_name';
     if (/\bemail\b/.test(l)) return 'identity.email';
     if (/\bphone|mobile|cell\b/.test(l)) return 'identity.phone';
     if (/\baddress|street\b/.test(l)) return 'identity.address';
@@ -503,12 +525,17 @@
     if (/linkedin/.test(l)) return 'link.linkedin';
     if (/portfolio|website|personal\s*site/.test(l)) return 'link.portfolio';
     if (/github/.test(l)) return 'link.github';
-    if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed)|right\s+to\s+work/.test(l)) return 'logic.work_auth';
+    if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed|entitled)|right\s+to\s+work/.test(l)) return 'logic.work_auth';
     if (/sponsor|visa|require.*sponsorship/.test(l)) return 'logic.sponsorship';
     if (/relocat/.test(l)) return 'logic.relocate';
     if (/remote|hybrid|on[\s-]?site/.test(l) && type !== 'text') return 'logic.work_mode';
     if (/years?\s+of\s+experience|experience\s+(level|years)|how\s+many\s+years/.test(l)) return 'logic.years_experience';
     if (/highest\s+(degree|education|level)|education\s+level|degree/.test(l) && type !== 'text') return 'logic.education_level';
+    // Preferred city (checkbox/radio group of cities) takes precedence over generic preferred_location
+    if (/preferred\s+(office|work)?\s*(city|location)|which\s+city.*(work|office)|preferred\s+office\s+location|city\s+.*(prefer|preferred)/.test(l) && (type === 'checkbox' || type === 'radio' || type === 'buttongroup')) return 'logic.preferred_city';
+    // Salary min/max detection when label/name signals min|max|from|to and the surrounding context has salary/comp/currency
+    if (/(salary|compensation|expectation|\$|€|£|cad|usd)/.test(l) && /\b(min(imum)?|from|à\s*partir|starting|floor|low(er)?)\b/.test(l)) return 'logic.salary_min';
+    if (/(salary|compensation|expectation|\$|€|£|cad|usd)/.test(l) && /\b(max(imum)?|to|jusqu|upper|high(er)?|ceiling|top)\b/.test(l)) return 'logic.salary_max';
     if (/salary\s+(expectation|expected|range|requirement)|expected\s+salary|compensation/.test(l)) return 'logic.salary';
     if (/notice\s+period|when\s+can\s+you\s+start|start\s+date|available/.test(l)) return 'logic.start_date';
     if (/gender|sex\b/.test(l)) return 'eeo.gender';
@@ -520,14 +547,19 @@
     if (/motivat|why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)|why\s+(does|do)\s+\w+|explore\s+a\s+new/.test(l)) return 'open.why';
     if (/cover\s+letter|message\s+to\s+(hiring|recruiter)/.test(l)) return 'open.cover';
     if (/heard.*about|where.*find|how.*hear|source/.test(l)) return 'open.source';
-    if (/legal(ly)?\s+(eligible|able)\s+to\s+work|eligible\s+to\s+work\b|proof\s+of\s+(eligibility|authorization)/.test(l)) return 'logic.work_auth';
+    if (/legal(ly)?\s+(eligible|able|entitled)\s+to\s+work|eligible\s+to\s+work\b|proof\s+of\s+(eligibility|authorization)/.test(l)) return 'logic.work_auth';
     if (/citizen|permanent\s+resident|\bpr\b\s+status|immigration\s+status|status\s+in\s+canada/.test(l)) return 'logic.citizenship';
     if (/\b18\b|over\s+18|at\s+least\s+18|legal\s+working\s+age|age\s+of\s+majority/.test(l)) return 'logic.legal_age';
     if (/security\s+clearance|clearance\s+level|secret\s+clearance/.test(l)) return 'logic.clearance';
     if (/driver'?s?\s+licen[cs]e|valid\s+licen[cs]e/.test(l)) return 'logic.drivers_license';
     if (/willing\s+to\s+travel|able\s+to\s+travel|travel\s+(up\s+to|requirement|percentage|%)/.test(l)) return 'logic.travel';
+    // Multi-checkbox languages field (before generic logic.languages)
+    if ((type === 'checkbox') && /languages?\s+(you\s+)?(are\s+)?(fluent|speak|proficient|spoken)|which\s+languages?|specify.*languages?|fluent\s+in/.test(l)) return 'logic.languages_multi';
     if (/what\s+languages|languages?\s+(do\s+you|you\s+speak|spoken|proficiency|fluency)|fluent\s+in|bilingual/.test(l)) return 'logic.languages';
     if (/criminal|convicted|felony|background\s+check|drug\s+(test|screen)/.test(l)) return 'logic.background';
+    // Company-history specific patterns take precedence over generic prior_relationship
+    if (/currently\s+employed\s+by|current\s+employee\s+of|are\s+you\s+.*current(ly)?\s+.*employee/.test(l)) return 'logic.company_current_employee';
+    if (/(past|former|previous)\s+.*employee|previously\s+worked\s+(at|for)|ever\s+been\s+an\s+employee/.test(l)) return 'logic.company_past_employee';
     if (/current(ly)?\s+(employed|employee).*(here|us|company)|former\s+employee|previously\s+(employed|worked|applied)|ever\s+(worked|applied)\s+(at|for|here|with\s+us)/.test(l)) return 'logic.prior_relationship';
     if (/non[\s-]?compete|non[\s-]?disclosure|\bnda\b|restrictive\s+covenant/.test(l)) return 'logic.noncompete';
     if (/accommodat/.test(l)) return 'logic.accommodation';
@@ -538,7 +570,38 @@
     if (/subscribe|newsletter|marketing|keep\s+me\s+(updated|informed)|opt[\s-]?in/.test(l)) return 'consent.marketing';
     if (/agree\b|consent|terms|privacy\s+policy|i\s+certify|i\s+acknowledge|i\s+confirm|gdpr|data\s+(processing|protection)/.test(l)) return 'consent.agree';
     if (/describe\s+a\s+time|tell\s+(us|me)\s+about\s+a\s+time|give\s+(an|us\s+an)\s+example|situation\s+where/.test(l)) return 'open.behavioral';
+    // Dependent follow-up text fields ("Which agency", "Please specify", "If yes, ...")
+    if (type === 'text' && /which\s+(agency|bu|department|team)|please\s+specify|if\s+(yes|so)\s*,|if\s+yes\s+which/.test(l)) return 'logic.dependent_followup';
     return 'other';
+  }
+
+  // Resolve whether a text/number input is the min or max half of a salary range pair.
+  // Looks at the nearest fieldset/section header for salary/comp keywords, then decides
+  // by aria-label/name/placeholder or by DOM order (first sibling = min, second = max).
+  function resolveSalaryRole(el) {
+    try {
+      if (!el || !(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return null;
+      const t = (el.type || '').toLowerCase();
+      if (t && !/^(text|number|tel|)$/.test(t)) return null;
+      const section = el.closest('fieldset, [class*="field-entry"], [class*="fieldEntry"], [data-automation-id], [class*="question"], [class*="form-group"]');
+      if (!section) return null;
+      const header = section.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4');
+      const headText = header ? aynStripBilingual((header.innerText || '').trim()).toLowerCase() : '';
+      if (!/salary|compensation|expectation|pay\s+range|comp\s+range/.test(headText)) return null;
+      // Direct hint from this input
+      const own = ((el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder') || '')) + ' ' + (el.name || '') + ' ' + (el.id || '')).toLowerCase();
+      if (/\b(min(imum)?|from|starting|floor|low)\b/.test(own)) return 'min';
+      if (/\b(max(imum)?|\bto\b|upper|ceiling|high|top)\b/.test(own)) return 'max';
+      // Fall back to DOM order among sibling numeric/text inputs inside the section
+      const sibs = Array.from(section.querySelectorAll('input')).filter(i => {
+        const it = (i.type || '').toLowerCase();
+        return !it || it === 'text' || it === 'number' || it === 'tel';
+      });
+      if (sibs.length === 2) {
+        return sibs[0] === el ? 'min' : (sibs[1] === el ? 'max' : null);
+      }
+    } catch {}
+    return null;
   }
 
 
