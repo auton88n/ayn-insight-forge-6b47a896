@@ -2226,12 +2226,33 @@
       let job;
       try { job = extractJobText(); } catch { job = {}; }
 
+      let __img = '';
+      try {
+        const __url = chrome.runtime.getURL('vendor/html2canvas.esm.js');
+        const __mod = await import(__url);
+        const __h2c = __mod.default || __mod.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
+        if (__h2c) {
+          const __canvas = await __h2c(document.body, {
+            scale: 0.5, useCORS: true, allowTaint: false, logging: false,
+            backgroundColor: '#ffffff', windowWidth: document.documentElement.clientWidth,
+            height: Math.min(document.body.scrollHeight, 4000),
+          });
+          __img = __canvas.toDataURL('image/jpeg', 0.7);
+          vdiag.captured = 'html2canvas';
+        } else {
+          vdiag.captureError = 'html2canvas not loaded';
+        }
+      } catch (e) {
+        vdiag.captureError = 'html2canvas: ' + String((e && e.message) || 'render failed');
+      }
+
       let vres;
       try {
         vres = await new Promise((resolve) => {
           try {
             chrome.runtime.sendMessage({
               type: 'AYN_VISION_FILL',
+              image: __img,
               candidates,
               url: location.href,
               jobTitle: job?.title || '',
@@ -2240,6 +2261,7 @@
           } catch { resolve(null); }
         });
       } catch { vres = null; }
+
 
       vdiag.sent = true;
       vdiag.resp = vres ? 'got' : 'null';
