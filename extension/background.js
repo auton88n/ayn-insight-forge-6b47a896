@@ -84,6 +84,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // ── Vision fallback (v1.9.30, Phase 3) ─────────────────────────
+  if (message.type === 'AYN_VISION_FILL') {
+    (async () => {
+      try {
+        let dataUrl;
+        try {
+          dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' });
+        } catch (e) {
+          sendResponse({ ok: false, error: 'capture failed' });
+          return;
+        }
+        if (!dataUrl) { sendResponse({ ok: false, error: 'capture failed' }); return; }
+        const resp = await callFunction('ext_vision_fill', {
+          image: dataUrl,
+          candidates: message.candidates || [],
+          url: message.url || '',
+          jobTitle: message.jobTitle || '',
+          company: message.company || '',
+        });
+        sendResponse({ ok: true, decisions: resp?.decisions || [] });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
 
   // ── Link flow: start ────────────────────────────────────────────
   if (message.type === 'LINK_START') {
