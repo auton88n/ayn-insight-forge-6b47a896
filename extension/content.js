@@ -2191,80 +2191,105 @@
   }
 
   async function aynRunVisionFallback(injectResult) {
-    if (!AYN_VISION_ENABLED) return;
-    let fields;
-    try { fields = scanFormFields(); } catch { return; }
-    if (!Array.isArray(fields) || !fields.length) return;
-
     const results = (injectResult && injectResult.results) || [];
-    const resolvedIds = new Set(results.filter(r => r && (r.ok || r.verified)).map(r => r.id));
-
-    const unresolved = fields.filter(f => {
-      if (!f) return false;
-      const isOption = f.kind === 'radio' || f.kind === 'checkbox' || f.kind === 'buttongroup'
-        || (!f.kind && typeof f.label === 'string' && f.label.length < 48 && AYN_OPTION_WORD_RE.test(f.label));
-      if (!isOption) return false;
-      return !resolvedIds.has(f.id);
-    });
-    if (unresolved.length === 0) return;
-
-    const cand = aynCollectVisionCandidates(unresolved);
-    if (!cand.questions.length && !cand.options.length) return;
-    const candidates = { questions: cand.questions, options: cand.options };
-
-    let job;
-    try { job = extractJobText(); } catch { job = {}; }
-
-    let vres;
-    try {
-      vres = await new Promise((resolve) => {
-        try {
-          chrome.runtime.sendMessage({
-            type: 'AYN_VISION_FILL',
-            candidates,
-            url: location.href,
-            jobTitle: job?.title || '',
-            company: job?.company || '',
-          }, (r) => { void chrome.runtime.lastError; resolve(r); });
-        } catch { resolve(null); }
-      });
-    } catch { vres = null; }
-
-    const decisions = (vres && Array.isArray(vres.decisions)) ? vres.decisions : [];
-    if (!decisions.length) return;
-
-    for (const d of decisions) {
-      const chosen = d && d.chosenOptionText;
-      if (!chosen) continue;
-      let landed = false;
+    const vdiag = { enabled: AYN_VISION_ENABLED, scanned: 0, unresolved: 0, candQ: 0, candOpt: 0, sent: false, resp: 'none', captured: '', captureError: '', backendError: '', decisions: 0, clicks: 0 };
+    const pushDiag = () => {
       try {
-        const el = aynFindClickableByText(chosen);
-        if (el) {
-          try { el.scrollIntoView({ block: 'center' }); } catch {}
-          const target = (el.closest && el.closest('label')) || el;
-          try { target.click(); } catch {}
-          await new Promise(r => setTimeout(r, 60));
-          if (!aynLooksSelected(target) && !aynLooksSelected(el)) {
-            try { fireFullClick(target); } catch {}
-            await new Promise(r => setTimeout(r, 60));
-          }
-          landed = aynLooksSelected(target) || aynLooksSelected(el);
-        }
-      } catch (_) { landed = false; }
+        results.push({ id: 'visiondiag', ok: (vdiag.clicks > 0), reason: JSON.stringify(vdiag).slice(0, 300) });
+        if (injectResult) injectResult.results = results;
+      } catch (_) {}
+    };
+    try {
+      if (!AYN_VISION_ENABLED) return;
+      let fields;
+      try { fields = scanFormFields(); } catch { fields = []; }
+      if (!Array.isArray(fields) || !fields.length) return;
+      vdiag.scanned = fields.length;
 
-      const entry = {
-        id: 'vision:' + chosen,
-        ok: !!landed,
-        verified: !!landed,
-        reason: landed ? 'vision-click' : 'vision-click-unverified',
-      };
-      results.push(entry);
-      if (landed && injectResult && typeof injectResult.filled === 'number') {
-        injectResult.filled += 1;
+      const resolvedIds = new Set(results.filter(r => r && (r.ok || r.verified)).map(r => r.id));
+      const unresolved = fields.filter(f => {
+        if (!f) return false;
+        const isOption = f.kind === 'radio' || f.kind === 'checkbox' || f.kind === 'buttongroup'
+          || (!f.kind && typeof f.label === 'string' && f.label.length < 48 && AYN_OPTION_WORD_RE.test(f.label));
+        if (!isOption) return false;
+        return !resolvedIds.has(f.id);
+      });
+      vdiag.unresolved = unresolved.length;
+      if (unresolved.length === 0) return;
+
+      const cand = aynCollectVisionCandidates(unresolved);
+      vdiag.candQ = cand.questions.length;
+      vdiag.candOpt = cand.options.length;
+      if (!cand.questions.length && !cand.options.length) return;
+      const candidates = { questions: cand.questions, options: cand.options };
+
+      let job;
+      try { job = extractJobText(); } catch { job = {}; }
+
+      let vres;
+      try {
+        vres = await new Promise((resolve) => {
+          try {
+            chrome.runtime.sendMessage({
+              type: 'AYN_VISION_FILL',
+              candidates,
+              url: location.href,
+              jobTitle: job?.title || '',
+              company: job?.company || '',
+            }, (r) => { void chrome.runtime.lastError; resolve(r); });
+          } catch { resolve(null); }
+        });
+      } catch { vres = null; }
+
+      vdiag.sent = true;
+      vdiag.resp = vres ? 'got' : 'null';
+      if (vres && vres.diag) {
+        vdiag.captured = String(vres.diag.captured);
+        vdiag.captureError = vres.diag.captureError || '';
+        vdiag.backendError = vres.diag.backendError || '';
       }
+      const decisions = (vres && Array.isArray(vres.decisions)) ? vres.decisions : [];
+      vdiag.decisions = decisions.length;
+      if (!decisions.length) return;
+
+      for (const d of decisions) {
+        const chosen = d && d.chosenOptionText;
+        if (!chosen) continue;
+        vdiag.clicks += 1;
+        let landed = false;
+        try {
+          const el = aynFindClickableByText(chosen);
+          if (el) {
+            try { el.scrollIntoView({ block: 'center' }); } catch {}
+            const target = (el.closest && el.closest('label')) || el;
+            try { target.click(); } catch {}
+            await new Promise(r => setTimeout(r, 60));
+            if (!aynLooksSelected(target) && !aynLooksSelected(el)) {
+              try { fireFullClick(target); } catch {}
+              await new Promise(r => setTimeout(r, 60));
+            }
+            landed = aynLooksSelected(target) || aynLooksSelected(el);
+          }
+        } catch (_) { landed = false; }
+
+        results.push({
+          id: 'vision:' + chosen,
+          ok: !!landed,
+          verified: !!landed,
+          reason: landed ? 'vision-click' : 'vision-click-unverified',
+        });
+        if (landed && injectResult && typeof injectResult.filled === 'number') {
+          injectResult.filled += 1;
+        }
+      }
+      if (injectResult) injectResult.results = results;
+    } catch (_) {
+      /* swallow */
+    } finally {
+      pushDiag();
     }
-    if (injectResult) injectResult.results = results;
   }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 5. MESSAGE LISTENER
