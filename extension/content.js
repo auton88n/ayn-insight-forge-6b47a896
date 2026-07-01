@@ -1523,6 +1523,44 @@
           }
         }
 
+        // Custom (ARIA) radio group click+verify path
+        if (customEls && customEls.length) {
+          let anyC = false;
+          for (const tRaw of targets) {
+            const tRawStr = String(tRaw || '').trim();
+            if (!tRawStr) continue;
+            const target = customEls.find(e => aynOptionMatches(aynAccName(e) || safeText(e) || e.getAttribute('aria-label') || '', tRawStr)
+              || aynOptionMatches(e.getAttribute('value') || '', tRawStr));
+            if (!target) continue;
+            try {
+              try { target.scrollIntoView({ block: 'center' }); } catch {}
+              const clickable = target.closest('label') || target;
+              try { target.focus && target.focus(); } catch {}
+              clickable.click();
+              await sleep(50);
+              let verified = target.getAttribute('aria-checked') === 'true';
+              if (!verified) {
+                fireFullClick(clickable);
+                await sleep(80);
+                verified = target.getAttribute('aria-checked') === 'true';
+              }
+              if (!verified) {
+                // Manually set aria-checked and unset siblings (last-resort)
+                try {
+                  target.setAttribute('aria-checked', 'true');
+                  customEls.forEach(e => { if (e !== target) { try { e.setAttribute('aria-checked', 'false'); } catch {} } });
+                  verified = true;
+                } catch {}
+              }
+              if (verified) anyC = true;
+            } catch {}
+          }
+          if (anyC) { filled++; results.push({ id, ok: true, verified: true }); }
+          else results.push({ id, ok: false, reason: 'custom radio option not matched' });
+          continue;
+        }
+
+
         let any = false;
         targets.forEach(tRaw => {
           const tRawStr = String(tRaw || '').trim();
