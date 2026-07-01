@@ -2377,11 +2377,32 @@
 
       // Resolve a single element
       let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
+
+      // v1.9.43 — for text-like answers, prefer BEST QUESTION-TEXT MATCH over positional _idx.
+      // Rehydrate label from scan cache if the value payload didn't include it.
+      let __aiLabel = (v.label || v.question || '');
+      if (!__aiLabel) {
+        try {
+          const cache = window.__AYN_FIELD_LABELS__;
+          if (cache && cache.get) __aiLabel = cache.get(id) || cache.get(rawId) || '';
+        } catch (_) {}
+      }
+      const __kindHint = String(v.kind || v.type || '').toLowerCase();
+      const __looksText = !/(radio|checkbox|select)/.test(__kindHint)
+        && !(optionValues && optionValues.length)
+        && !(optionLabels && optionLabels.length);
+      if (!el && __looksText && __aiLabel) {
+        const preferTag = /textarea/.test(__kindHint) ? 'TEXTAREA' : '';
+        const matched = __resolveByQuestion(doc, __aiLabel, preferTag);
+        if (matched) { el = matched; try { console.log('[AYN-BG] question-match resolved for', id, '=>', __aiLabel); } catch {} }
+      }
+
       if (!el && _idx != null) {
         const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
       }
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); continue; }
+      if (__looksText) { try { __textUsed.add(el); } catch (_) {} }
       const chosen = optionValue || optionLabel || value;
       if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
 
