@@ -1573,6 +1573,38 @@
 
       const { doc, rawId } = resolveDoc(id, _frame);
 
+      // Gem (jobs.gem.com) label-based custom group click
+      if (id.includes('__gem__:')) {
+        const targets = [optionLabel || optionValue || value].filter(Boolean);
+        const labs = (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id)) || null;
+        if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'gem group not found' }); continue; }
+        let landed = false;
+        for (const tRaw of targets) {
+          const want = String(tRaw || '').trim(); if (!want) continue;
+          const target = labs.find(l => aynOptionMatches((l.innerText || '').trim(), want));
+          if (!target) continue;
+          try {
+            try { target.scrollIntoView({ block: 'center' }); } catch {}
+            const sig = (el) => (el ? (String(el.className || '') + '|' + (el.querySelector('*') ? String(el.querySelector('*').className || '') : '')) : '');
+            const before = sig(target);
+            target.click();
+            await sleep(70);
+            const inner = target.querySelector('div, span');
+            if (inner) { try { fireFullClick(inner); } catch {} await sleep(40); }
+            const after = sig(target);
+            const selectedish = /selected|checked|active|-on\b/i;
+            landed = (after !== before) || selectedish.test(after)
+              || target.getAttribute('aria-checked') === 'true'
+              || !!target.querySelector('[aria-checked="true"]');
+          } catch {}
+          break;
+        }
+        results.push({ id, ok: landed, verified: landed, reason: landed ? 'gem-click' : 'gem-click-unverified' });
+        if (landed) filled++;
+        continue;
+      }
+
+
 
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
       const groupMatch = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(id);
