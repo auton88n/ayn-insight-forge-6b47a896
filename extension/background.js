@@ -87,15 +87,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // ── Vision fallback (v1.9.30, Phase 3) ─────────────────────────
   if (message.type === 'AYN_VISION_FILL') {
     (async () => {
+      let dataUrl = null;
+      let captureError = '';
       try {
-        let dataUrl;
-        try {
-          dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' });
-        } catch (e) {
-          sendResponse({ ok: false, error: 'capture failed' });
-          return;
-        }
-        if (!dataUrl) { sendResponse({ ok: false, error: 'capture failed' }); return; }
+        dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' });
+      } catch (e) {
+        captureError = String((e && e.message) || 'capture failed');
+      }
+      if (!dataUrl) {
+        sendResponse({ ok: false, decisions: [], diag: { captured: false, captureError: captureError || 'capture failed', backendError: '', decisionsCount: 0 } });
+        return;
+      }
+      try {
         const resp = await callFunction('ext_vision_fill', {
           image: dataUrl,
           candidates: message.candidates || [],
@@ -103,13 +106,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           jobTitle: message.jobTitle || '',
           company: message.company || '',
         });
-        sendResponse({ ok: true, decisions: resp?.decisions || [] });
+        const decisions = resp?.decisions || [];
+        sendResponse({ ok: true, decisions, diag: { captured: true, captureError: '', backendError: '', decisionsCount: decisions.length } });
       } catch (e) {
-        sendResponse({ ok: false, error: e.message });
+        sendResponse({ ok: false, decisions: [], diag: { captured: true, captureError: '', backendError: String((e && e.message) || 'backend failed'), decisionsCount: 0 } });
       }
     })();
     return true;
   }
+
 
 
   // ── Link flow: start ────────────────────────────────────────────
