@@ -2938,6 +2938,12 @@
       const jobText = extractJobText();
       let scanDiag = [];
       try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+      // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
+      try {
+        const map = new Map();
+        (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
+        window.__AYN_FIELD_LABELS__ = map;
+      } catch (_) {}
       sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
       return true;
     }
