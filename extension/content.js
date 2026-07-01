@@ -986,7 +986,7 @@
             options: getOptionPairs(el),
             required: el.required || el.getAttribute('aria-required') === 'true',
             group: classifyField(label, el.name || '', kind),
-            accRole: __accT.role || '',
+            accRole: (el.tagName === 'SELECT') ? 'combobox' : (__accT.role || ''),
             labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : 'legacy',
             _idx: idx,
             _frame: prefix,
