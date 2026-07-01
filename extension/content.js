@@ -1595,16 +1595,106 @@
   }
 
 
+  // Detect rich-text editors (ProseMirror, TipTap, Slate, Draft, Quill, Lexical, CodeMirror, Monaco, role=textbox, data-editor, contenteditable).
+  // Returns the true editable descendant node (or null) plus a detector tag for telemetry.
+  function aynResolveRichEditor(el) {
+    if (!el || el.nodeType !== 1) return { editable: null, detector: '' };
+    try {
+      const tag = (el.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return { editable: null, detector: '' };
+      const ce = el.getAttribute && el.getAttribute('contenteditable');
+      if (ce === '' || ce === 'true' || ce === 'plaintext-only' || el.isContentEditable) {
+        return { editable: el, detector: 'contenteditable' };
+      }
+      if ((el.getAttribute && el.getAttribute('role')) === 'textbox') {
+        const inner = el.querySelector('[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"]');
+        return { editable: inner || el, detector: 'role-textbox' };
+      }
+      const selMap = [
+        ['[data-slate-editor="true"]', 'slate'],
+        ['[data-lexical-editor="true"]', 'lexical'],
+        ['[data-editor]', 'data-editor'],
+        ['.ProseMirror', 'prosemirror'],
+        ['.tiptap', 'tiptap'],
+        ['.ql-editor', 'quill'],
+        ['.DraftEditor-root', 'draft'],
+        ['.public-DraftEditor-content', 'draft'],
+        ['.cm-content', 'codemirror'],
+        ['.monaco-editor .view-lines', 'monaco'],
+      ];
+      for (const [sel, det] of selMap) {
+        if (el.matches && el.matches(sel)) {
+          const ed = el.querySelector('[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],.ql-editor,.cm-content,.public-DraftEditor-content') || el;
+          return { editable: ed, detector: det };
+        }
+      }
+      let cur = el.parentElement; let depth = 0;
+      while (cur && depth < 4) {
+        for (const [sel, det] of selMap) {
+          if (cur.matches && cur.matches(sel)) {
+            const ed = cur.querySelector('[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],.ql-editor,.cm-content,.public-DraftEditor-content') || cur;
+            return { editable: ed, detector: det + '-ancestor' };
+          }
+        }
+        cur = cur.parentElement; depth++;
+      }
+    } catch {}
+    return { editable: null, detector: '' };
+  }
+
   async function aynFillSelect(el, wantLabel, wantValue) {
     const want = wantLabel || wantValue;
-    const opt = Array.from(el.options).find(o => aynOptionMatches(o.textContent, want) || aynOptionMatches(o.value, want));
-    if (!opt) return { ok: false, reason: 'no matching select option' };
-    el.value = opt.value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    await aynSleep(30);
-    const ok = aynOptionMatches(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent, opt.textContent);
-    return { ok, verified: ok, reason: ok ? '' : 'select did not change' };
+    const opts = Array.from(el.options || []);
+    const opt = opts.find(o => aynOptionMatches(o.textContent, want) || aynOptionMatches(o.value, want));
+    if (!opt) return { ok: false, verified: false, reason: 'no matching select option', selectStrategy: '', selectVerified: false };
+
+    const verify = () => {
+      const cur = el.options[el.selectedIndex];
+      if (!cur) return false;
+      if (cur.value === opt.value) return true;
+      return aynOptionMatches(cur.textContent, opt.textContent);
+    };
+
+    // Strategy A — native setter + input/change
+    try {
+      el.focus && el.focus();
+      el.value = opt.value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      await aynSleep(40);
+      if (verify()) return { ok: true, verified: true, selectStrategy: 'A', selectVerified: true };
+    } catch {}
+
+    // Strategy B — selectedIndex + full pointer/focus/blur sequence
+    try {
+      el.focus && el.focus();
+      try { el.dispatchEvent(new Event('pointerdown', { bubbles: true })); } catch {}
+      try { el.dispatchEvent(new Event('mousedown', { bubbles: true })); } catch {}
+      try { el.dispatchEvent(new Event('focus', { bubbles: true })); } catch {}
+      el.selectedIndex = opt.index;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      try { el.blur && el.blur(); } catch {}
+      try { el.dispatchEvent(new Event('blur', { bubbles: true })); } catch {}
+      await aynSleep(60);
+      if (verify()) return { ok: true, verified: true, selectStrategy: 'B', selectVerified: true };
+    } catch {}
+
+    // Strategy C — native type-ahead keystrokes
+    try {
+      el.focus && el.focus();
+      const txt = String(opt.textContent || '').trim();
+      for (const ch of txt.slice(0, 40)) {
+        try { el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ch })); } catch {}
+        try { el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ch })); } catch {}
+        await aynSleep(15);
+      }
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      await aynSleep(40);
+      if (verify()) return { ok: true, verified: true, selectStrategy: 'C', selectVerified: true };
+    } catch {}
+
+    return { ok: false, verified: false, reason: 'value did not stick after retries', selectStrategy: 'failed', selectVerified: false };
   }
 
 
