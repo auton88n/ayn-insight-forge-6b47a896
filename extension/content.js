@@ -687,6 +687,80 @@
         });
       } catch { /* never fail the scan */ }
 
+      // ── PRE-PASS: group CUSTOM (ARIA) radios by enclosing radiogroup/group ──
+      const processedCustomRadios = new WeakSet();
+      try {
+        if (!window.__AYN_CUSTOM_RADIO_MAP__) window.__AYN_CUSTOM_RADIO_MAP__ = new Map();
+        const customRadios = Array.from(doc.querySelectorAll('[role="radio"]'))
+          .filter(el => el.tagName !== 'INPUT' && !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
+        const byGroup = new Map();
+        let anonCIdx = 0;
+        customRadios.forEach(el => {
+          const g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
+          if (!g) return;
+          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + (++anonCIdx);
+          const key = g.__aynCustomGroupKey;
+          if (!byGroup.has(key)) byGroup.set(key, { group: g, els: [] });
+          byGroup.get(key).els.push(el);
+        });
+        let cCounter = 0;
+        byGroup.forEach(({ group, els }) => {
+          if (els.length < 2) return;
+          const first = els[0];
+          const localIdx = ++cCounter;
+          const fieldId = `${prefix}__radio__:custom:${localIdx}`;
+          const groupKey = `${prefix}radio:custom:${localIdx}`;
+          if (seenGroupKeys.has(groupKey)) { els.forEach(e => processedCustomRadios.add(e)); return; }
+          seenGroupKeys.add(groupKey);
+          els.forEach(e => processedCustomRadios.add(e));
+
+          const options = els.map(e => {
+            const lbl = (aynAccName(e) || aynResolveLabel(e).name || safeText(e) || e.getAttribute('aria-label') || '').trim();
+            return { label: lbl, value: e.getAttribute('value') || lbl };
+          });
+          const optionLabelsLC = new Set(options.map(o => (o.label || '').toLowerCase()).filter(Boolean));
+
+          let qLabel = aynGroupName(first);
+          let labelSrc = qLabel ? 'accname' : '';
+          if (!qLabel) {
+            const container = group.parentElement || group;
+            const cands = Array.from(container.querySelectorAll('legend, [class*="question"], [class*="label"], h2, h3, h4, strong, p, span'));
+            for (const c of cands) {
+              if (els.some(e => c.contains(e))) continue;
+              const t = (c.innerText || '').trim();
+              if (!t || t.length > 400) continue;
+              if (optionLabelsLC.has(t.toLowerCase())) continue;
+              qLabel = t;
+              labelSrc = 'legacy';
+              break;
+            }
+          }
+          if (!qLabel) { qLabel = 'Question'; labelSrc = labelSrc || 'legacy'; }
+          qLabel = qLabel.slice(0, 240);
+
+          const checked = els.find(e => e.getAttribute('aria-checked') === 'true');
+          const groupTxt = ((group.innerText || '') + ' ' + (aynGroupName(first) || ''));
+          const required = /\*|required/i.test(groupTxt) || els.some(e => e.getAttribute('aria-required') === 'true');
+
+          window.__AYN_CUSTOM_RADIO_MAP__.set(fieldId, els);
+
+          fields.push({
+            id: fieldId,
+            kind: 'radio',
+            label: qLabel,
+            type: 'radio',
+            name: '',
+            currentValue: checked ? ((aynAccName(checked) || safeText(checked) || '').trim()) : '',
+            options,
+            required,
+            group: classifyField(qLabel, '', 'radio'),
+            accRole: 'radio',
+            labelSource: labelSrc || 'legacy',
+            _frame: prefix,
+          });
+        });
+      } catch { /* never fail the scan */ }
+
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
         try {
