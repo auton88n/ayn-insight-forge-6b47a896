@@ -1039,6 +1039,13 @@
           else if (isTypeahead(el)) kind = 'typeahead';
           else kind = 'text';
 
+          let _group = classifyField(label, el.name || '', kind);
+          // Salary-range pair detection via DOM (when label alone didn't classify)
+          if (kind === 'text' && (_group === 'other' || _group === 'logic.salary')) {
+            const salaryRole = resolveSalaryRole(el);
+            if (salaryRole === 'min') _group = 'logic.salary_min';
+            else if (salaryRole === 'max') _group = 'logic.salary_max';
+          }
           fields.push({
             id: prefix + (el.id || el.name || `f${idx}`),
             kind,
@@ -1048,7 +1055,7 @@
             currentValue: isFilled(el) ? (el.value || '') : '',
             options: getOptionPairs(el),
             required: el.required || el.getAttribute('aria-required') === 'true',
-            group: classifyField(label, el.name || '', kind),
+            group: _group,
             accRole: (el.tagName === 'SELECT') ? 'combobox' : (__accT.role || ''),
             labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : 'legacy',
             _idx: idx,
