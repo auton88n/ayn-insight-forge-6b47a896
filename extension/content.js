@@ -2237,7 +2237,30 @@
         continue;
       }
 
-
+      // v1.9.44 — structural native-radio group (unique-name forms like Gem)
+      if (id.includes('__structradio__:')) {
+        const radios = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
+        if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
+        const want = String(optionValue || optionLabel || value || '').trim();
+        let target = null;
+        for (const r of radios) {
+          const lbl = ((r.closest('label')||r.parentElement)?.innerText||'').trim();
+          if (aynOptionMatches(lbl, want)) { target = r; break; }
+        }
+        let ok = false;
+        if (target) {
+          try {
+            const lab = target.closest('label') || (target.id && doc.querySelector(`label[for="${CSS.escape(target.id)}"]`)) || target.parentElement;
+            target.click(); await aynSleep(30);
+            if (!target.checked && lab) { lab.click(); await aynSleep(30); }
+            if (!target.checked) { target.checked = true; target.dispatchEvent(new Event('input',{bubbles:true})); target.dispatchEvent(new Event('change',{bubbles:true})); await aynSleep(20); }
+            ok = !!target.checked;
+          } catch (_) {}
+        }
+        results.push({ id, ok, verified: ok, reason: ok ? 'structradio-click' : 'structradio no match' });
+        if (ok) filled++;
+        continue;
+      }
 
 
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
