@@ -1,78 +1,53 @@
 
-# Broader Autofill Coverage (Workday / Plus Company style forms)
+# Make AYN Autofill Truly Universal
 
-The screenshot is a bilingual EN/FR Workday-style form. Telemetry from these forms typically fails because:
+Goal: AYN understands every form on every ATS and fills every question correctly. Ship in two phases so we can measure the win after each.
 
-1. **Bilingual labels** ("Are you legally entitled to work in Canada?/Êtes-vous légalement autorisé…") break the English-only regex classifiers, so questions come back as `logic.unknown` and the AI has no rule to apply.
-2. **City preference is a checkbox group used as a single-choice picker** ("What city is your preferred office location?"). The current classifier tags this as `logic.preferred_location`, but the injector expects `optionLabels` for checkboxes AND the answer rule doesn't know it should pick exactly one city.
-3. **Salary is two side-by-side number inputs** (min $ – max $). Today each input is scanned as a separate `text` field with a `$` label and no classifier tag, so neither gets filled.
-4. **Languages is a multi-checkbox** ("English/Anglais", "French/Français", "Other/Autre"). Backend has `logic.languages` for text answers, but there's no rule for checkbox-group language selection.
-5. **"Are you currently employed by / a past employee of Plus Company"** are company-history radios with no matching rule — backend leaves them blank.
-6. **Free-text follow-ups** ("Which agency or BU") depend on a prior "Yes" — should be skipped with a clear suggestion when the prior answer is No/unknown.
+## Phase A — Universal DOM understanding (v1.9.37)
 
-All fixes are in two files (`extension/content.js` classifier, `supabase/functions/resume-hub/index.ts` rules) plus a version bump. No changes to Ashby, Gem, or vision paths.
+Rewrite the scanner in `extension/content.js` so the field list AYN sees matches what a human sees.
 
-## 1. Bilingual label normalization (content.js)
+1. **Walk fieldsets, legends, and ARIA trees, not just individual inputs.**
+   - Group by nearest `<fieldset>`, `role="group"`, `role="radiogroup"`, `aria-labelledby`, or a preceding heading (h2/h3/h4/label/legend).
+   - Use each group's accessible name as the question, its children as options.
+   - Works across Workday, Greenhouse, Lever, Ashby, Gem, Taleo, iCIMS, SAP SuccessFactors, BambooHR — no per-site adapters needed beyond the existing Gem one.
 
-Add a helper `aynStripBilingual(label)` that:
-- Splits on `/`, `|`, `·`, or newline, and returns the first non-empty half whose characters are mostly ASCII-Latin (heuristic: >80% chars in `A-Za-z0-9 ,.'?()-`).
-- Falls back to the original label when no clean half is found.
+2. **True control-kind detection.** For every group decide: text, textarea, richEditor, select (native), combobox (typeahead), radioGroup, checkboxGroup (multi vs singleChoice), datePicker, phone-with-country, file. Kind drives the injector; today too many things get miscalled `text`.
 
-Call it once at the top of `classifyLabel(l)` so every downstream regex sees the English half. Also feed the stripped version into the label sent to the backend (`field.label`) while keeping the raw label as `field.labelRaw` for telemetry.
+3. **Sibling context capture.** For each field record: section heading, preceding sibling label, following helper text, `aria-describedby`, placeholder, and up to 3 sibling field labels. This is the context Phase B feeds to the model.
 
-## 2. New / widened classifiers (content.js `classifyLabel`)
+4. **Dedupe + ordering.** Preserve DOM order, dedupe by group id, and drop hidden/decorative controls.
 
-Add these tags — all evaluated against the bilingual-stripped label:
+5. **Diagnostic panel (in the extension).** After Fill, show a collapsible list of every field AYN saw: label, kind, classifier tag, chosen answer, source (profile key or "AI"), and skip reason. This is how we prove Phase A works and drive Phase B fixes.
 
-- `logic.preferred_city` — matches `/preferred\s*(office|work)?\s*(city|location)|which city.*(work|office)|preferred\s+office\s+location/`. Used when the field is a **checkbox or radio group of city names**.
-- `logic.salary_min` / `logic.salary_max` — when the surrounding fieldset label contains `salary|compensation|expectation` AND the field is a number/text input whose visible prefix is `$`, `€`, `£`, `C$`, `CAD`, `USD`, and the adjacent sibling is another number input separated by `–`/`-`/`to`/`à`. Detect the pair in a pre-pass that groups two number inputs sharing a parent row.
-- `logic.languages_multi` — when the field is a `checkbox` group AND the label matches `/languages?\s+(you\s+)?(are\s+)?(fluent|speak|proficient)|which\s+languages?/`.
-- `logic.company_current_employee` — matches `/currently\s+employed\s+by\s+.+|current\s+employee\s+of\s+/`.
-- `logic.company_past_employee` — matches `/(past|former|previous)\s+employee|previously\s+worked\s+(at|for)\s+/`.
-- `logic.dependent_followup` — text field whose label matches `/which agency|which BU|please specify|if (yes|so)/i`. Emit `dependsOn: <id of previous field in same section>` so the backend can decide to skip.
+Deliverables: `extension/content.js` scanner rewrite, `extension/sidepanel.js` diagnostic panel, telemetry writes the new fields to `autofill_runs`. Bump to `1.9.37`, rebuild `public/ayn-extension.zip`.
 
-## 3. Field-shape pre-pass (content.js `scanFormFields`)
+## Phase B — Smarter AI answering + self-check (v1.9.38)
 
-Before dedupe, run:
-- **Currency-pair grouping** — for every `<input type="number|text">` with a `$/€/£` currency prefix, look one sibling to the right (or in the same flex row) for another currency input with `–`, `-`, `to`, `à`, or nothing between them. When found, tag left as `logic.salary_min` and right as `logic.salary_max` and set both fields' `group` to a shared `salaryRange:<sectionHash>`.
-- **Single-choice-by-checkbox heuristic** — for checkbox groups where the question label contains `preferred` or `which one` and the option count is between 3 and 12 short strings that look like place/office names, mark `singleChoice: true` on the field.
+Upgrade `supabase/functions/resume-hub/index.ts` `ext_autofill`.
 
-## 4. Backend answer rules (`supabase/functions/resume-hub/index.ts`, `ext_autofill` system prompt)
+1. **Richer field payload to the model.** Send `{ id, label, kind, options, section, sibling_labels, helper_text, classifier, dependsOn, priorAnswers }` per field. Priors let the model keep dependent answers consistent (e.g. "Which agency" only if prior was Yes).
 
-Add these rules right after the existing residence/location block. Keep the "return exact optionLabel/optionValue" contract.
+2. **Structured answer schema.** Model returns `{ id, value | optionLabel | optionLabels, source, confidence, reasoning, skip?, suggestion? }`. Reject any field that doesn't fit; ask the model to redo just those.
 
-- `logic.preferred_city` — Match user's `mergedBasics.city` (case-insensitive, accent-insensitive) against the option labels. Emit as **optionLabels array of length 1** when the field is a checkbox group with `singleChoice:true` (injector already ticks all labels in `optionLabels`); as `optionLabel/optionValue` when it's a radio. If no match and relocation is allowed (`preferences.open_to_relocation === true`), pick the top listed Canadian office (Toronto → Montréal → Vancouver in that order) and mark `reasoning:"nearest office (relocation enabled)"`. If the user is explicitly "not interested in working in Canada" (needs an option like "I am not interested in working in Canada") only when `authorized_ca === false && open_to_relocation === false`.
-- `logic.salary_min` — If `canonical.preferences.salary_min_usd` exists, emit that number (converted only if the field's currency prefix differs and a rate is on the JD; otherwise use the raw number and let the user adjust). Otherwise skip with `suggestion:"Add a salary expectation to your profile"`.
-- `logic.salary_max` — Emit `salary_min + 20%` rounded to the nearest 5,000 when only min is known; emit the profile's max when available; otherwise skip.
-- `logic.languages_multi` — Emit `optionLabels` = `["English"]` plus any language from `profile.default_answers.other_languages` that matches an option label. If "Other" is an option AND the user has languages beyond the listed ones, include "Other". Never include a language that isn't in the profile.
-- `logic.company_current_employee` / `logic.company_past_employee` — Answer "No" by default (safe legal answer for an outside applicant) UNLESS the user's resume has a work entry whose company name matches the company in the question. This uses the JD company + profile work history. Return exact optionLabel from the Yes/No options.
-- `logic.dependent_followup` — If the referenced parent field's chosen answer was "No" or was skipped, `skip:true` with `suggestion:"Only needed if you answered Yes above"`. Otherwise leave for the AI to fill from profile.
+3. **Self-check pass.** After the first answer set, run a lightweight second call: "Given these answers and the user profile, list any that contradict the profile, misuse an option, or violate a dependency." Replace flagged answers.
 
-Update the top-of-prompt legend to list the new tags so the AI dispatches to the correct rule.
+4. **Second-pass repair for skipped fields.** For everything skipped, retry once with the full JD + siblings included, and label truly unanswerable ones with a clear "add X to your profile" suggestion (already wired to the UI in 1.9.17).
 
-## 5. Injector (content.js `aynFillField`)
+5. **Widened rules.** Add rules for common gaps still missed today: sponsorship (now vs future), start date, notice period, current/expected salary currency, gender/ethnicity self-ID (default "Prefer not to say" unless profile says otherwise), disability/veteran self-ID (same), reference name/email/phone triples, portfolio/GitHub/LinkedIn URLs, availability days/hours, security clearance, driver's license, willingness to travel %.
 
-- Route `logic.salary_min` / `logic.salary_max` values through the existing rich-text/number entry path so React-controlled inputs (Workday's `$` masked inputs) get the native-setter → execCommand → keystroke → paste retry ladder already added in 1.9.34.
-- For checkbox groups flagged `singleChoice:true`, before ticking the chosen label, uncheck any already-checked sibling so the "pick one" contract holds.
+6. **Confidence gating.** Only inject answers with `confidence >= 0.6`; lower-confidence answers become suggestions in the diagnostic panel so the user can approve them.
 
-## 6. Telemetry
-
-On every result, add: `classifier` (the tag string), `labelStripped` (bilingual-stripped), `groupKey` (for salary pairs), and `dependsOn` (for follow-ups). Existing `richEditor` / `selectStrategy` fields remain.
-
-## 7. Version + build
-
-- `extension/manifest.json` → `"version": "1.9.36"`.
-- Rebuild `public/ayn-extension.zip` from `extension/`.
-- Deploy `resume-hub` edge function.
+Deliverables: `supabase/functions/resume-hub/index.ts` updated `ext_autofill`, diagnostic panel shows confidence + reasoning per field, injector honors confidence gate. Bump to `1.9.38`, rebuild zip, redeploy edge function.
 
 ## Out of scope
 
-- No changes to Ashby, Gem, vision fallback, radio matching, or the select verify-and-retry logic.
-- No new profile fields; all data reads from existing `mergedBasics`, `canonical.preferences`, `profile.default_answers`, and resume `work[]`.
+No changes to Ashby, Gem site adapter, vision fallback, or the option-matching normalizer. No new profile fields. No changes to Score/Cover/Contacts/Tailor tabs.
 
 ## Files touched
 
-- `extension/content.js` — bilingual helper, classifiers, salary-pair pre-pass, single-choice-checkbox flag, injector uncheck-siblings, telemetry fields.
-- `supabase/functions/resume-hub/index.ts` — new answer rules in `ext_autofill` system prompt.
-- `extension/manifest.json` — version bump.
-- `public/ayn-extension.zip` — rebuild artifact.
+- `extension/content.js` — scanner rewrite (Phase A)
+- `extension/sidepanel.js` — post-fill diagnostic panel (Phase A + B)
+- `extension/manifest.json` — version bumps
+- `public/ayn-extension.zip` — rebuild each phase
+- `supabase/functions/resume-hub/index.ts` — richer prompt, structured schema, self-check, second-pass repair, widened rules (Phase B)
