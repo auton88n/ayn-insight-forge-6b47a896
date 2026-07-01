@@ -1935,11 +1935,12 @@
 
       const { doc, rawId } = resolveDoc(id, _frame);
 
-      // Gem (jobs.gem.com) label-based custom group click
-      if (id.includes('__gem__:')) {
+      // Label-based custom group click (generalized; matches __labelgroup__: and legacy __gem__:)
+      if (id.includes('__labelgroup__:') || id.includes('__gem__:')) {
         const targets = [optionLabel || optionValue || value].filter(Boolean);
-        const labs = (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id)) || null;
-        if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'gem group not found' }); continue; }
+        const labs = ((window.__AYN_LABELGROUP_MAP__ && window.__AYN_LABELGROUP_MAP__.get(id))
+                   || (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id))) || null;
+        if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'labelgroup not found' }); continue; }
         let landed = false;
         for (const tRaw of targets) {
           const want = String(tRaw || '').trim(); if (!want) continue;
@@ -1961,10 +1962,11 @@
           } catch {}
           break;
         }
-        results.push({ id, ok: landed, verified: landed, reason: landed ? 'gem-click' : 'gem-click-unverified' });
+        results.push({ id, ok: landed, verified: landed, reason: landed ? 'labelgroup-click' : 'labelgroup-click-unverified' });
         if (landed) filled++;
         continue;
       }
+
 
 
 
