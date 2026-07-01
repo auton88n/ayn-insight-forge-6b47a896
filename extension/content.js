@@ -456,6 +456,57 @@
     return { role, name };
   }
 
+  // v1.9.43 — robust question resolver used by injectValues text-match fallback.
+  // Prefers proper labels; walks up to previous-sibling headings only when absent.
+  function aynFieldQuestion(el) {
+    if (!el || !el.getAttribute) return '';
+    const c = s => (s || '').replace(/\s+/g, ' ').trim();
+    let v = c(el.getAttribute('aria-label')); if (v) return v;
+    const lb = el.getAttribute('aria-labelledby');
+    if (lb) {
+      const t = lb.split(/\s+/).map(id => {
+        const r = document.getElementById(id); return r ? r.innerText : '';
+      }).join(' ');
+      if (c(t)) return c(t);
+    }
+    if (el.id) {
+      try {
+        const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (l && c(l.innerText)) return c(l.innerText);
+      } catch (_) {}
+    }
+    const w = el.closest && el.closest('label');
+    if (w) {
+      const cl = w.cloneNode(true);
+      cl.querySelectorAll('input,textarea,select,button').forEach(n => n.remove());
+      if (c(cl.innerText)) return c(cl.innerText);
+    }
+    let node = el;
+    for (let d = 0; d < 8 && node; d++, node = node.parentElement) {
+      let prev = node.previousElementSibling, guard = 0;
+      while (prev && guard++ < 4) {
+        const t = c(prev.innerText);
+        if (t && t.length >= 3 && t.length < 220 && !/^(\*|required)$/i.test(t)) return t.slice(0, 160);
+        prev = prev.previousElementSibling;
+      }
+    }
+    v = c(el.getAttribute('placeholder')); if (v) return v;
+    return '';
+  }
+
+  function aynQuestionScore(a, b) {
+    const clean = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    a = clean(a); b = clean(b);
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.includes(b) || b.includes(a)) return 0.9;
+    const wa = new Set(a.split(' ').filter(w => w.length > 3));
+    const wb = b.split(' ').filter(w => w.length > 3);
+    if (!wb.length) return 0;
+    let h = 0; wb.forEach(w => { if (wa.has(w)) h++; });
+    return h / Math.max(wa.size, wb.length);
+  }
+
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
@@ -2054,6 +2105,42 @@
         values.filter(v => /^__buttongroup__:/.test(v.id || '')).length);
     } catch {}
 
+    // v1.9.43 — text-candidate cache for question-based matching fallback
+    const __textCandCache = new Map(); // doc -> [{el, q}]
+    const __textUsed = new WeakSet();
+    function __textCandsFor(doc) {
+      if (__textCandCache.has(doc)) return __textCandCache.get(doc);
+      const sel = 'input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], textarea, [contenteditable="true"], [contenteditable=""]';
+      const list = [];
+      try {
+        Array.from(doc.querySelectorAll(sel)).forEach(el => {
+          if (!el || el.disabled || el.readOnly) return;
+          const rect = el.getBoundingClientRect && el.getBoundingClientRect();
+          if (rect && rect.width === 0 && rect.height === 0) return;
+          let q = '';
+          try { q = aynFieldQuestion(el); } catch (_) {}
+          list.push({ el, q });
+        });
+      } catch (_) {}
+      __textCandCache.set(doc, list);
+      return list;
+    }
+    function __resolveByQuestion(doc, aiLabel, preferTag) {
+      if (!aiLabel) return null;
+      const cands = __textCandsFor(doc);
+      let best = null, bestScore = 0;
+      for (const c of cands) {
+        if (__textUsed.has(c.el)) continue;
+        let s = aynQuestionScore(aiLabel, c.q);
+        if (preferTag && c.el.tagName === preferTag) s += 0.01; // tie-break by tag
+        if (s > bestScore) { bestScore = s; best = c; }
+      }
+      if (best && bestScore >= 0.5) return best.el;
+      return null;
+    }
+
+
+
     for (const v of values) {
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
@@ -2290,11 +2377,32 @@
 
       // Resolve a single element
       let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
+
+      // v1.9.43 — for text-like answers, prefer BEST QUESTION-TEXT MATCH over positional _idx.
+      // Rehydrate label from scan cache if the value payload didn't include it.
+      let __aiLabel = (v.label || v.question || '');
+      if (!__aiLabel) {
+        try {
+          const cache = window.__AYN_FIELD_LABELS__;
+          if (cache && cache.get) __aiLabel = cache.get(id) || cache.get(rawId) || '';
+        } catch (_) {}
+      }
+      const __kindHint = String(v.kind || v.type || '').toLowerCase();
+      const __looksText = !/(radio|checkbox|select)/.test(__kindHint)
+        && !(optionValues && optionValues.length)
+        && !(optionLabels && optionLabels.length);
+      if (!el && __looksText && __aiLabel) {
+        const preferTag = /textarea/.test(__kindHint) ? 'TEXTAREA' : '';
+        const matched = __resolveByQuestion(doc, __aiLabel, preferTag);
+        if (matched) { el = matched; try { console.log('[AYN-BG] question-match resolved for', id, '=>', __aiLabel); } catch {} }
+      }
+
       if (!el && _idx != null) {
         const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
       }
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); continue; }
+      if (__looksText) { try { __textUsed.add(el); } catch (_) {} }
       const chosen = optionValue || optionLabel || value;
       if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
 
@@ -2887,6 +2995,12 @@
       const jobText = extractJobText();
       let scanDiag = [];
       try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+      // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
+      try {
+        const map = new Map();
+        (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
+        window.__AYN_FIELD_LABELS__ = map;
+      } catch (_) {}
       sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
       return true;
     }
