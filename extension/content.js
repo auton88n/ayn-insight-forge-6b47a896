@@ -456,6 +456,57 @@
     return { role, name };
   }
 
+  // v1.9.43 — robust question resolver used by injectValues text-match fallback.
+  // Prefers proper labels; walks up to previous-sibling headings only when absent.
+  function aynFieldQuestion(el) {
+    if (!el || !el.getAttribute) return '';
+    const c = s => (s || '').replace(/\s+/g, ' ').trim();
+    let v = c(el.getAttribute('aria-label')); if (v) return v;
+    const lb = el.getAttribute('aria-labelledby');
+    if (lb) {
+      const t = lb.split(/\s+/).map(id => {
+        const r = document.getElementById(id); return r ? r.innerText : '';
+      }).join(' ');
+      if (c(t)) return c(t);
+    }
+    if (el.id) {
+      try {
+        const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (l && c(l.innerText)) return c(l.innerText);
+      } catch (_) {}
+    }
+    const w = el.closest && el.closest('label');
+    if (w) {
+      const cl = w.cloneNode(true);
+      cl.querySelectorAll('input,textarea,select,button').forEach(n => n.remove());
+      if (c(cl.innerText)) return c(cl.innerText);
+    }
+    let node = el;
+    for (let d = 0; d < 8 && node; d++, node = node.parentElement) {
+      let prev = node.previousElementSibling, guard = 0;
+      while (prev && guard++ < 4) {
+        const t = c(prev.innerText);
+        if (t && t.length >= 3 && t.length < 220 && !/^(\*|required)$/i.test(t)) return t.slice(0, 160);
+        prev = prev.previousElementSibling;
+      }
+    }
+    v = c(el.getAttribute('placeholder')); if (v) return v;
+    return '';
+  }
+
+  function aynQuestionScore(a, b) {
+    const clean = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    a = clean(a); b = clean(b);
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.includes(b) || b.includes(a)) return 0.9;
+    const wa = new Set(a.split(' ').filter(w => w.length > 3));
+    const wb = b.split(' ').filter(w => w.length > 3);
+    if (!wb.length) return 0;
+    let h = 0; wb.forEach(w => { if (wa.has(w)) h++; });
+    return h / Math.max(wa.size, wb.length);
+  }
+
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
