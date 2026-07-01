@@ -41,8 +41,15 @@
       "matches": ["https://*/*", "http://*/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["page-world.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ],
+
   "web_accessible_resources": [
     { "resources": ["vendor/*"], "matches": ["https://*/*", "http://*/*"] }
   ]
