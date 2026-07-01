@@ -13,6 +13,7 @@
   window.__AYN_CONTENT_LOADED__ = true;
   const AYN_BUILD = '1.8.1';
   const MAX_JD_CHARS = 20000;
+  const AYN_VISION_ENABLED = true;
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
   function sendQuiet(message) {
@@ -2021,6 +2022,166 @@
   attachSubmitListener();
 
   // ══════════════════════════════════════════════════════════════════
+  // 4B. VISION FALLBACK (v1.9.30, Phase 3) — used ONLY when the normal
+  //     autofill pass leaves option-style questions unresolved.
+  // ══════════════════════════════════════════════════════════════════
+
+  const AYN_OPTION_WORD_RE = /^(us|u\.?s\.?a?\.?|united states|canada|ireland|uk|united kingdom|male|female|non[- ]?binary|agender|other gender|asian|black|white|hispanic|latino|indigenous|native hawaiian|middle eastern|two or more|yes|no|maybe|prefer not|decline|i identify as|i am not|i do not wish|i currently reside|i am authorized|i require|i will require|i will not require|will not require|no, i am not|yes, i am)/i;
+
+  function aynIsVisible(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return false;
+    const s = (el.ownerDocument && el.ownerDocument.defaultView || window).getComputedStyle(el);
+    if (!s) return true;
+    return s.visibility !== 'hidden' && s.display !== 'none' && parseFloat(s.opacity || '1') > 0.05;
+  }
+
+  function aynCollectVisionCandidates(unresolvedFields) {
+    const out = { questions: [], options: [] };
+    unresolvedFields.forEach(f => {
+      if (f && f.label) out.questions.push(String(f.label).slice(0, 240));
+    });
+    try {
+      const seen = new Set();
+      const sel = 'label, button, [role="radio"], [role="checkbox"], [role="option"], [role="button"], li, div, span';
+      const nodes = Array.from(document.querySelectorAll(sel));
+      for (const el of nodes) {
+        if (out.options.length >= 40) break;
+        if (!aynIsVisible(el)) continue;
+        if (el.children && el.children.length > 3) continue;
+        const t = (el.innerText || el.textContent || '').trim();
+        if (!t || t.length > 80) continue;
+        const key = t.toLowerCase();
+        if (seen.has(key)) continue;
+        // Keep short option-looking words OR anything that looks like an option in a form question area
+        if (t.length <= 60 && (AYN_OPTION_WORD_RE.test(t) || /^[A-Z][^.?!]{1,60}$/.test(t))) {
+          seen.add(key);
+          out.options.push(t);
+        }
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  function aynFindClickableByText(chosenOptionText) {
+    if (!chosenOptionText) return null;
+    const want = String(chosenOptionText);
+    let best = null;
+    let bestScore = -1;
+    try {
+      const nodes = Array.from(document.querySelectorAll('label, [role="radio"], [role="checkbox"], [role="option"], [role="button"], button, li, div, span, a'));
+      for (const el of nodes) {
+        if (!aynIsVisible(el)) continue;
+        const t = (el.innerText || el.textContent || '').trim();
+        if (!t || t.length > 200) continue;
+        if (!aynOptionMatches(t, want)) continue;
+        const kids = el.children ? el.children.length : 0;
+        // Prefer LABEL, small elements, exact match
+        let score = 100;
+        if (el.tagName === 'LABEL') score += 40;
+        if (t.length === want.length) score += 30;
+        score -= kids * 5;
+        if (score > bestScore) { bestScore = score; best = el; }
+      }
+    } catch (_) {}
+    return best;
+  }
+
+  function aynLooksSelected(el) {
+    if (!el) return false;
+    try {
+      if (el.getAttribute && el.getAttribute('aria-checked') === 'true') return true;
+      if (el.getAttribute && el.getAttribute('aria-selected') === 'true') return true;
+      const cn = String((el.className && el.className.baseVal) || el.className || '');
+      if (/selected|checked|active|primary|-on\b|is-on\b/i.test(cn)) return true;
+      // sibling native input became checked
+      const parent = el.parentElement;
+      if (parent) {
+        const nativeChecked = parent.querySelector('input[type="radio"]:checked, input[type="checkbox"]:checked');
+        if (nativeChecked) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  async function aynRunVisionFallback(injectResult) {
+    if (!AYN_VISION_ENABLED) return;
+    let fields;
+    try { fields = scanFormFields(); } catch { return; }
+    if (!Array.isArray(fields) || !fields.length) return;
+
+    const results = (injectResult && injectResult.results) || [];
+    const resolvedIds = new Set(results.filter(r => r && (r.ok || r.verified)).map(r => r.id));
+
+    const unresolved = fields.filter(f => {
+      if (!f) return false;
+      const isOption = f.kind === 'radio' || f.kind === 'checkbox' || f.kind === 'buttongroup'
+        || (!f.kind && typeof f.label === 'string' && f.label.length < 48 && AYN_OPTION_WORD_RE.test(f.label));
+      if (!isOption) return false;
+      return !resolvedIds.has(f.id);
+    });
+    if (unresolved.length === 0) return;
+
+    const cand = aynCollectVisionCandidates(unresolved);
+    if (!cand.questions.length && !cand.options.length) return;
+    const candidates = { questions: cand.questions, options: cand.options };
+
+    let job;
+    try { job = extractJobText(); } catch { job = {}; }
+
+    let vres;
+    try {
+      vres = await new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage({
+            type: 'AYN_VISION_FILL',
+            candidates,
+            url: location.href,
+            jobTitle: job?.title || '',
+            company: job?.company || '',
+          }, (r) => { void chrome.runtime.lastError; resolve(r); });
+        } catch { resolve(null); }
+      });
+    } catch { vres = null; }
+
+    const decisions = (vres && Array.isArray(vres.decisions)) ? vres.decisions : [];
+    if (!decisions.length) return;
+
+    for (const d of decisions) {
+      const chosen = d && d.chosenOptionText;
+      if (!chosen) continue;
+      let landed = false;
+      try {
+        const el = aynFindClickableByText(chosen);
+        if (el) {
+          try { el.scrollIntoView({ block: 'center' }); } catch {}
+          const target = (el.closest && el.closest('label')) || el;
+          try { target.click(); } catch {}
+          await new Promise(r => setTimeout(r, 60));
+          if (!aynLooksSelected(target) && !aynLooksSelected(el)) {
+            try { fireFullClick(target); } catch {}
+            await new Promise(r => setTimeout(r, 60));
+          }
+          landed = aynLooksSelected(target) || aynLooksSelected(el);
+        }
+      } catch (_) { landed = false; }
+
+      const entry = {
+        id: 'vision:' + chosen,
+        ok: !!landed,
+        verified: !!landed,
+        reason: landed ? 'vision-click' : 'vision-click-unverified',
+      };
+      results.push(entry);
+      if (landed && injectResult && typeof injectResult.filled === 'number') {
+        injectResult.filled += 1;
+      }
+    }
+    if (injectResult) injectResult.results = results;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
   // 5. MESSAGE LISTENER
   // ══════════════════════════════════════════════════════════════════
 
@@ -2070,7 +2231,21 @@
     }
 
     if (message.type === 'INJECT_VALUES') {
-      injectValues(message.values).then(sendResponse).catch(e => sendResponse({ filled: 0, total: 0, results: [], error: e.message }));
+      (async () => {
+        let injectResult;
+        try {
+          injectResult = await injectValues(message.values);
+        } catch (e) {
+          sendResponse({ filled: 0, total: 0, results: [], error: e.message });
+          return;
+        }
+        try {
+          if (AYN_VISION_ENABLED) {
+            await aynRunVisionFallback(injectResult);
+          }
+        } catch (_) { /* swallow — never break normal fill */ }
+        sendResponse(injectResult);
+      })();
       return true;
     }
 

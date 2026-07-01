@@ -211,6 +211,8 @@ const EXT_ACTIONS = new Set([
   "ext_job_ingest",
   // v1.9.19: autofill telemetry
   "ext_log_result",
+  // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
+  "ext_vision_fill",
 ]);
 
 // ──────────────────────────────────────────────────────────────
@@ -1017,6 +1019,108 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
         } catch (e) {
           console.warn("ext_log_result failed", e);
           return json({ ok: false });
+        }
+      }
+
+      if (action === "ext_vision_fill") {
+        try {
+          const { image, candidates, url, jobTitle, company } = payload as {
+            image?: string;
+            candidates?: { questions?: string[]; options?: string[] } | unknown;
+            url?: string; jobTitle?: string; company?: string;
+          };
+          if (!image || typeof image !== "string" || !image.startsWith("data:image/")) {
+            return json({ decisions: [] });
+          }
+
+          const [{ data: profile }, canonical] = await Promise.all([
+            admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
+            loadCanonical(admin, userId),
+          ]);
+          const addr = (profile?.address || {}) as Record<string, string>;
+          const cwa = (canonical?.work_auth || {}) as Record<string, any>;
+          const pwa = (profile?.work_auth || {}) as Record<string, any>;
+          const CA_PROV: Record<string, string> = { ON: "Ontario", BC: "British Columbia", AB: "Alberta", QC: "Quebec", MB: "Manitoba", SK: "Saskatchewan", NS: "Nova Scotia", NB: "New Brunswick", NL: "Newfoundland and Labrador", PE: "Prince Edward Island", NT: "Northwest Territories", YT: "Yukon", NU: "Nunavut" };
+          const regionRaw = (addr.state || addr.province || "") as string;
+          const region_full = CA_PROV[regionRaw.toUpperCase()] || regionRaw;
+          const authorized_us = (typeof cwa.work_authorized_us === "boolean") ? cwa.work_authorized_us : undefined;
+          const authorized_ca = (typeof cwa.work_authorized_ca === "boolean") ? cwa.work_authorized_ca : undefined;
+          const needs_sponsorship = (typeof cwa.needs_sponsorship_now === "boolean") ? cwa.needs_sponsorship_now
+            : (typeof cwa.needs_sponsorship_future === "boolean") ? cwa.needs_sponsorship_future
+            : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined;
+
+          const facts = {
+            city: addr.city || "",
+            region: regionRaw || "",
+            region_full,
+            country: addr.country || "",
+            authorized_us,
+            authorized_ca,
+            needs_sponsorship,
+            citizenship: cwa.citizenship || "",
+          };
+
+          const cands = (candidates && typeof candidates === "object") ? candidates as { questions?: string[]; options?: string[] } : {};
+          const qList = Array.isArray(cands.questions) ? cands.questions.slice(0, 30) : [];
+          const optList = Array.isArray(cands.options) ? cands.options.slice(0, 40) : [];
+
+          const system = `You are AYN, an application autofill vision assistant. You see a screenshot of a job application form containing custom (styled) radio/checkbox controls with no native <input>. Your job is to pick the correct visible option text for each unresolved question, using the user's facts.
+
+DECISION RULES (STRICT):
+- Work authorization / "authorized to work in {country}": if authorized_ca=true for a Canada question, or authorized_us=true for a US question, or the combined list includes an authorized country → pick the option meaning "authorized to work" or the specific country name.
+- Sponsorship: if authorized in any listed country and needs_sponsorship is not true → pick the "do not require sponsorship" / "authorized for any employer" option.
+- Residence / location eligibility: if the user's city, region, region_full, or country matches any place mentioned in the question or its options → pick the "Yes, I currently reside" option.
+- EEO / demographics (gender, race, ethnicity, veteran, disability, sexual orientation): ALWAYS pick "Decline to self-identify" / "Prefer not to disclose" / "I do not wish to answer". NEVER a real demographic value.
+- Otherwise: pick the option that best matches the profile. If nothing fits with high confidence, OMIT that question.
+- chosenOptionText MUST be copied verbatim from the visible options list so the extension can click it. No dashes; use plain text.
+
+Return ONLY JSON, no code fences, no prose:
+{"decisions":[{"question":"...","chosenOptionText":"...","reasoning":"short"}]}`;
+
+          const userText = `USER FACTS (JSON):\n${JSON.stringify(facts)}\n\nJOB:\n${JSON.stringify({ url: url || "", jobTitle: jobTitle || "", company: company || "" })}\n\nUNRESOLVED QUESTIONS (labels):\n${JSON.stringify(qList)}\n\nVISIBLE OPTION STRINGS ON PAGE (pick chosenOptionText verbatim from this list when possible):\n${JSON.stringify(optList)}\n\nUse the screenshot to disambiguate which option belongs to which question. Respond with JSON only.`;
+
+          let text = "";
+          try {
+            const r = await callAI({
+              model: DEFAULT_MODEL,
+              system,
+              user: [
+                { type: "text", text: userText },
+                { type: "image_url", image_url: { url: image } },
+              ],
+            });
+            text = r?.text || "";
+          } catch (e) {
+            console.warn("ext_vision_fill callAI failed", e);
+            return json({ decisions: [] });
+          }
+
+          let decisions: Array<{ question: string; chosenOptionText: string; reasoning?: string }> = [];
+          try {
+            let raw = String(text || "").trim();
+            raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+            const m = raw.match(/\{[\s\S]*\}$/);
+            const jsonStr = m ? m[0] : raw;
+            const parsed = JSON.parse(jsonStr);
+            if (parsed && Array.isArray(parsed.decisions)) {
+              decisions = parsed.decisions
+                .filter((d: any) => d && typeof d.chosenOptionText === "string" && d.chosenOptionText.trim())
+                .slice(0, 20)
+                .map((d: any) => ({
+                  question: String(d.question || "").slice(0, 240),
+                  chosenOptionText: String(d.chosenOptionText).slice(0, 240),
+                  reasoning: d.reasoning ? String(d.reasoning).slice(0, 240) : "",
+                }));
+            }
+          } catch (e) {
+            console.warn("ext_vision_fill parse failed", e);
+            return json({ decisions: [] });
+          }
+
+          return json({ decisions });
+        } catch (e) {
+          console.warn("ext_vision_fill failed", e);
+          return json({ decisions: [] });
         }
       }
 
