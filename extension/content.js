@@ -1108,6 +1108,7 @@
             if (salaryRole === 'min') _group = 'logic.salary_min';
             else if (salaryRole === 'max') _group = 'logic.salary_max';
           }
+          const __ctx = aynCaptureContext(el);
           fields.push({
             id: prefix + (el.id || el.name || `f${idx}`),
             kind,
@@ -1120,6 +1121,10 @@
             group: _group,
             accRole: (el.tagName === 'SELECT') ? 'combobox' : (__accT.role || ''),
             labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : 'legacy',
+            section: __ctx.section,
+            siblingLabels: __ctx.siblingLabels,
+            helperText: __ctx.helperText,
+            placeholder: __ctx.placeholder,
             _idx: idx,
             _frame: prefix,
           });
