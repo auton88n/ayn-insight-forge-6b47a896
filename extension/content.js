@@ -1738,8 +1738,21 @@
       const wantText = ai.value != null ? String(ai.value) : '';
       const wantLabel = ai.optionLabel || ai.value || '';
       const wantValue = ai.optionValue || '';
+      // Rich-text editors (ProseMirror, TipTap, Slate, Draft, Quill, Lexical, CodeMirror, Monaco, role=textbox, data-editor)
+      if (kind !== 'radio' && kind !== 'checkbox' && kind !== 'select' && el.tagName !== 'SELECT' && el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') {
+        const info = aynResolveRichEditor(el);
+        if (info.editable) {
+          const r = await aynFillTextbox(info.editable, wantText);
+          r.richEditor = true;
+          r.richDetector = info.detector;
+          return r;
+        }
+      }
       if (el && el.isContentEditable) {
-        return await aynFillTextbox(el, wantText);
+        const r = await aynFillTextbox(el, wantText);
+        r.richEditor = true;
+        r.richDetector = r.richDetector || 'contenteditable';
+        return r;
       }
       if (kind === 'radio' || kind === 'checkbox' || role === 'radio' || role === 'checkbox' || el.type === 'radio' || el.type === 'checkbox') {
         return await aynFillOption(el, wantLabel, wantValue);
