@@ -84,20 +84,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // ── Vision fallback (v1.9.30, Phase 3) ─────────────────────────
+  // ── Vision fallback (v1.9.38: opt-in real screenshot, else html2canvas) ──
   if (message.type === 'AYN_VISION_FILL') {
     (async () => {
-      let dataUrl = (message.image && typeof message.image === 'string' && message.image.startsWith('data:image/')) ? message.image : null;
+      let granted = false;
+      try { granted = await chrome.permissions.contains({ origins: ['<all_urls>'] }); } catch { granted = false; }
+      let dataUrl = null;
+      let src = '';
       let captureError = '';
-      if (!dataUrl) {
-        try { dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' }); }
-        catch (e) { captureError = String((e && e.message) || 'capture failed'); }
+      if (granted) {
+        try {
+          dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' });
+          if (dataUrl) src = 'screenshot';
+        } catch (e) { captureError = String((e && e.message) || 'capture failed'); }
+      }
+      if (!dataUrl && message.image && typeof message.image === 'string' && message.image.startsWith('data:image/')) {
+        dataUrl = message.image; src = 'html2canvas';
       }
       if (!dataUrl) {
-        sendResponse({ ok: false, decisions: [], diag: { captured: false, captureError: captureError || 'no image', backendError: '', decisionsCount: 0 } });
+        sendResponse({ ok: false, decisions: [], diag: { captured: false, captureError: captureError || 'no image', backendError: '', decisionsCount: 0, src: '' } });
         return;
       }
-
       try {
         const resp = await callFunction('ext_vision_fill', {
           image: dataUrl,
@@ -107,12 +114,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           company: message.company || '',
         });
         const decisions = resp?.decisions || [];
-        sendResponse({ ok: true, decisions, diag: { captured: true, captureError: '', backendError: '', decisionsCount: decisions.length } });
+        sendResponse({ ok: true, decisions, diag: { captured: true, captureError: '', backendError: '', decisionsCount: decisions.length, src } });
       } catch (e) {
-        sendResponse({ ok: false, decisions: [], diag: { captured: true, captureError: '', backendError: String((e && e.message) || 'backend failed'), decisionsCount: 0 } });
+        sendResponse({ ok: false, decisions: [], diag: { captured: true, captureError: '', backendError: String((e && e.message) || 'backend failed'), decisionsCount: 0, src } });
       }
     })();
     return true;
+
   }
 
 
