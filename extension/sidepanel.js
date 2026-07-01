@@ -1622,3 +1622,58 @@ chrome.runtime.onMessage.addListener((msg) => {
     });
   }
 });
+
+// v1.9.38 — Opt-in high-accuracy vision (screenshot) toggle
+(function initVisionHQ() {
+  const el = document.getElementById('vision-hq-toggle');
+  const note = document.getElementById('vision-hq-note');
+  if (!el) return;
+
+  async function hasPerm() {
+    try { return await chrome.permissions.contains({ origins: ['<all_urls>'] }); }
+    catch { return false; }
+  }
+  async function reqPerm() {
+    try { return await chrome.permissions.request({ origins: ['<all_urls>'] }); }
+    catch { return false; }
+  }
+  async function removePerm() {
+    try { await chrome.permissions.remove({ origins: ['<all_urls>'] }); } catch {}
+  }
+  function showNote(t) {
+    if (!note) return;
+    if (!t) { note.classList.add('hidden'); note.textContent = ''; return; }
+    note.classList.remove('hidden'); note.textContent = t;
+  }
+
+  (async () => {
+    try {
+      const d = await new Promise(r => chrome.storage.local.get(['aynVisionScreenshot'], r));
+      const flag = d && d.aynVisionScreenshot === true;
+      const perm = await hasPerm();
+      if (flag && perm) { el.checked = true; showNote('Enabled'); }
+      else {
+        el.checked = false; showNote('');
+        if (flag && !perm) chrome.storage.local.set({ aynVisionScreenshot: false });
+      }
+    } catch {}
+  })();
+
+  el.addEventListener('change', async () => {
+    if (el.checked) {
+      const granted = await reqPerm();
+      if (granted) {
+        chrome.storage.local.set({ aynVisionScreenshot: true });
+        showNote('Enabled');
+      } else {
+        el.checked = false;
+        chrome.storage.local.set({ aynVisionScreenshot: false });
+        showNote('');
+      }
+    } else {
+      await removePerm();
+      chrome.storage.local.set({ aynVisionScreenshot: false });
+      showNote('');
+    }
+  });
+})();
