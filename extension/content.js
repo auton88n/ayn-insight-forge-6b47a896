@@ -2867,19 +2867,24 @@
 
     if (message.type === 'INJECT_VALUES') {
       (async () => {
+        aynShowActivityGlow(true);
         let injectResult;
         try {
-          injectResult = await injectValues(message.values);
-        } catch (e) {
-          sendResponse({ filled: 0, total: 0, results: [], error: e.message });
-          return;
-        }
-        try {
-          if (AYN_VISION_ENABLED) {
-            await aynRunVisionFallback(injectResult);
+          try {
+            injectResult = await injectValues(message.values);
+          } catch (e) {
+            sendResponse({ filled: 0, total: 0, results: [], error: e.message });
+            return;
           }
-        } catch (_) { /* swallow — never break normal fill */ }
-        sendResponse(injectResult);
+          try {
+            if (AYN_VISION_ENABLED) {
+              await aynRunVisionFallback(injectResult);
+            }
+          } catch (_) { /* swallow — never break normal fill */ }
+          sendResponse(injectResult);
+        } finally {
+          aynShowActivityGlow(false);
+        }
       })();
       return true;
     }
