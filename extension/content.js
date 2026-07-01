@@ -1590,6 +1590,9 @@
       const wantText = ai.value != null ? String(ai.value) : '';
       const wantLabel = ai.optionLabel || ai.value || '';
       const wantValue = ai.optionValue || '';
+      if (el && el.isContentEditable) {
+        return await aynFillTextbox(el, wantText);
+      }
       if (kind === 'radio' || kind === 'checkbox' || role === 'radio' || role === 'checkbox' || el.type === 'radio' || el.type === 'checkbox') {
         return await aynFillOption(el, wantLabel, wantValue);
       }
