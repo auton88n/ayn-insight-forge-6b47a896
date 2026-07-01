@@ -546,8 +546,8 @@
   function getOptionPairs(el) {
     if (el.tagName === 'SELECT') {
       return Array.from(el.options)
-        .filter(o => o.value || o.text)
-        .map(o => ({ label: (o.text || '').trim(), value: o.value || (o.text || '').trim() }))
+        .filter(o => o.value !== '' || (o.textContent || '').trim())
+        .map(o => ({ label: (o.textContent || '').trim(), value: o.value }))
         .slice(0, 40);
     }
     if ((el.type === 'radio' || el.type === 'checkbox') && el.name) {
@@ -986,7 +986,7 @@
             options: getOptionPairs(el),
             required: el.required || el.getAttribute('aria-required') === 'true',
             group: classifyField(label, el.name || '', kind),
-            accRole: __accT.role || '',
+            accRole: (el.tagName === 'SELECT') ? 'combobox' : (__accT.role || ''),
             labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : 'legacy',
             _idx: idx,
             _frame: prefix,
@@ -1437,20 +1437,67 @@
     return (el.value || '').trim() === String(value).trim();
   }
 
+  function aynReadValue(el) {
+    if (el.isContentEditable) return String(el.innerText || el.textContent || '').trim();
+    return String(el.value || '').trim();
+  }
+  function aynSelectAllIn(el) {
+    try {
+      if (el.isContentEditable) {
+        const r = document.createRange(); r.selectNodeContents(el);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      } else if (typeof el.select === 'function') { el.select(); }
+    } catch (_) {}
+  }
+  async function aynInsertViaExec(el, value) {
+    try { el.focus(); aynSelectAllIn(el); const ok = document.execCommand('insertText', false, value); await aynSleep(40); return ok; }
+    catch (_) { return false; }
+  }
+  async function aynInsertViaPaste(el, value) {
+    try {
+      el.focus(); aynSelectAllIn(el);
+      const dt = new DataTransfer(); dt.setData('text/plain', value);
+      el.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
+      await aynSleep(50); return true;
+    } catch (_) { return false; }
+  }
+
   async function aynFillTextbox(el, value) {
+    const want = String(value).trim();
+    const matches = () => { const c = aynReadValue(el); return c === want || (want.length > 12 && c.includes(want.slice(0, Math.min(30, want.length)))); };
+
+    // contenteditable: native .value is useless — use execCommand/paste directly
+    if (el.isContentEditable) {
+      await aynInsertViaExec(el, value);
+      if (matches()) return { ok: true, verified: true };
+      await aynInsertViaPaste(el, value);
+      return { ok: matches(), verified: matches(), reason: matches() ? '' : 'contenteditable rejected' };
+    }
+
+    // real input/textarea
     el.focus();
     aynSetNativeValue(el, value);
     await aynSleep(40);
-    if ((el.value || '').trim() === String(value).trim()) return { ok: true, verified: true };
-    el.focus();
-    aynSetNativeValue(el, '');
-    aynSetNativeValue(el, value);
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-    el.blur();
+    if (matches()) return { ok: true, verified: true };
+
+    el.focus(); aynSetNativeValue(el, ''); aynSetNativeValue(el, value);
+    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true })); el.blur();
     await aynSleep(40);
-    if ((el.value || '').trim() === String(value).trim()) return { ok: true, verified: true };
-    const typed = await aynTypeKeystrokes(el, value);
-    return { ok: typed, verified: typed, reason: typed ? '' : 'value did not stick (after keystrokes)' };
+    if (matches()) return { ok: true, verified: true };
+
+    // execCommand insertText — fires real beforeinput/input events React/rich editors honor
+    await aynInsertViaExec(el, value);
+    if (matches()) return { ok: true, verified: true };
+
+    // per-character keystrokes
+    try { await aynTypeKeystrokes(el, value); } catch (_) {}
+    if (matches()) return { ok: true, verified: true };
+
+    // synthetic paste (DataTransfer)
+    await aynInsertViaPaste(el, value);
+    if (matches()) return { ok: true, verified: true };
+
+    return { ok: false, verified: false, reason: 'value did not stick (all methods)' };
   }
 
   function aynNativeOptionEls(el) {
@@ -1543,6 +1590,9 @@
       const wantText = ai.value != null ? String(ai.value) : '';
       const wantLabel = ai.optionLabel || ai.value || '';
       const wantValue = ai.optionValue || '';
+      if (el && el.isContentEditable) {
+        return await aynFillTextbox(el, wantText);
+      }
       if (kind === 'radio' || kind === 'checkbox' || role === 'radio' || role === 'checkbox' || el.type === 'radio' || el.type === 'checkbox') {
         return await aynFillOption(el, wantLabel, wantValue);
       }
