@@ -2738,6 +2738,7 @@
             scale: 0.5, useCORS: true, allowTaint: false, logging: false,
             backgroundColor: '#ffffff', windowWidth: document.documentElement.clientWidth,
             height: Math.min(document.body.scrollHeight, 4000),
+            ignoreElements: (node) => node && node.id === 'ayn-activity-glow',
           });
           __img = __canvas.toDataURL('image/jpeg', 0.7);
           vdiag.captured = 'html2canvas';
