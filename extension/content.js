@@ -993,6 +993,64 @@
           });
         } catch { /* skip a single bad node, keep scanning */ }
       });
+
+      // ── RICH-EDITOR PASS: contenteditable / role=textbox / ProseMirror / TipTap / Slate / Draft / Quill / Lexical / CodeMirror / Monaco ──
+      try {
+        window.__AYN_RICH_EDITOR_MAP__ = window.__AYN_RICH_EDITOR_MAP__ || new Map();
+        const RICH_SEL = [
+          '[contenteditable=""]',
+          '[contenteditable="true"]',
+          '[contenteditable="plaintext-only"]',
+          '[role="textbox"]',
+          '[data-slate-editor="true"]',
+          '[data-lexical-editor="true"]',
+          '[data-editor]',
+          '.ProseMirror',
+          '.tiptap',
+          '.ql-editor',
+          '.DraftEditor-root',
+          '.public-DraftEditor-content',
+          '.cm-content',
+          '.monaco-editor .view-lines',
+        ].join(',');
+        const seenEditables = new WeakSet();
+        let reIdx = 0;
+        Array.from(doc.querySelectorAll(RICH_SEL)).forEach(cand => {
+          try {
+            const info = aynResolveRichEditor(cand);
+            const editable = info.editable;
+            if (!editable || seenEditables.has(editable)) return;
+            if (editable.closest && editable.closest('input,textarea,select')) return;
+            const rect = editable.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) return;
+            seenEditables.add(editable);
+            const __accR = (typeof aynResolveLabel === 'function') ? aynResolveLabel(editable) : { name: '', role: '' };
+            const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || '');
+            if (!label) return;
+            if (SKIP_RE.test(label)) return;
+            const rid = `${prefix}__richedit__:re${reIdx++}`;
+            window.__AYN_RICH_EDITOR_MAP__.set(rid, editable);
+            let current = '';
+            try { current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.innerText || ''); } catch {}
+            fields.push({
+              id: rid,
+              kind: 'text',
+              label: label.slice(0, 240),
+              type: 'text',
+              name: '',
+              currentValue: current || '',
+              options: [],
+              required: editable.getAttribute && editable.getAttribute('aria-required') === 'true',
+              group: classifyField(label, '', 'text'),
+              accRole: 'textbox',
+              labelSource: (__accR.name && __accR.name.length >= 2) ? 'accname' : 'legacy',
+              richEditor: true,
+              richDetector: info.detector,
+              _frame: prefix,
+            });
+          } catch {}
+        });
+      } catch { /* never fail the scan */ }
     });
 
     // ── PART A: Detect custom button-style single-choice toggles (Ashby/Jerry/etc.) ──
@@ -1537,16 +1595,106 @@
   }
 
 
+  // Detect rich-text editors (ProseMirror, TipTap, Slate, Draft, Quill, Lexical, CodeMirror, Monaco, role=textbox, data-editor, contenteditable).
+  // Returns the true editable descendant node (or null) plus a detector tag for telemetry.
+  function aynResolveRichEditor(el) {
+    if (!el || el.nodeType !== 1) return { editable: null, detector: '' };
+    try {
+      const tag = (el.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return { editable: null, detector: '' };
+      const ce = el.getAttribute && el.getAttribute('contenteditable');
+      if (ce === '' || ce === 'true' || ce === 'plaintext-only' || el.isContentEditable) {
+        return { editable: el, detector: 'contenteditable' };
+      }
+      if ((el.getAttribute && el.getAttribute('role')) === 'textbox') {
+        const inner = el.querySelector('[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"]');
+        return { editable: inner || el, detector: 'role-textbox' };
+      }
+      const selMap = [
+        ['[data-slate-editor="true"]', 'slate'],
+        ['[data-lexical-editor="true"]', 'lexical'],
+        ['[data-editor]', 'data-editor'],
+        ['.ProseMirror', 'prosemirror'],
+        ['.tiptap', 'tiptap'],
+        ['.ql-editor', 'quill'],
+        ['.DraftEditor-root', 'draft'],
+        ['.public-DraftEditor-content', 'draft'],
+        ['.cm-content', 'codemirror'],
+        ['.monaco-editor .view-lines', 'monaco'],
+      ];
+      for (const [sel, det] of selMap) {
+        if (el.matches && el.matches(sel)) {
+          const ed = el.querySelector('[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],.ql-editor,.cm-content,.public-DraftEditor-content') || el;
+          return { editable: ed, detector: det };
+        }
+      }
+      let cur = el.parentElement; let depth = 0;
+      while (cur && depth < 4) {
+        for (const [sel, det] of selMap) {
+          if (cur.matches && cur.matches(sel)) {
+            const ed = cur.querySelector('[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],.ql-editor,.cm-content,.public-DraftEditor-content') || cur;
+            return { editable: ed, detector: det + '-ancestor' };
+          }
+        }
+        cur = cur.parentElement; depth++;
+      }
+    } catch {}
+    return { editable: null, detector: '' };
+  }
+
   async function aynFillSelect(el, wantLabel, wantValue) {
     const want = wantLabel || wantValue;
-    const opt = Array.from(el.options).find(o => aynOptionMatches(o.textContent, want) || aynOptionMatches(o.value, want));
-    if (!opt) return { ok: false, reason: 'no matching select option' };
-    el.value = opt.value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    await aynSleep(30);
-    const ok = aynOptionMatches(el.options[el.selectedIndex] && el.options[el.selectedIndex].textContent, opt.textContent);
-    return { ok, verified: ok, reason: ok ? '' : 'select did not change' };
+    const opts = Array.from(el.options || []);
+    const opt = opts.find(o => aynOptionMatches(o.textContent, want) || aynOptionMatches(o.value, want));
+    if (!opt) return { ok: false, verified: false, reason: 'no matching select option', selectStrategy: '', selectVerified: false };
+
+    const verify = () => {
+      const cur = el.options[el.selectedIndex];
+      if (!cur) return false;
+      if (cur.value === opt.value) return true;
+      return aynOptionMatches(cur.textContent, opt.textContent);
+    };
+
+    // Strategy A — native setter + input/change
+    try {
+      el.focus && el.focus();
+      el.value = opt.value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      await aynSleep(40);
+      if (verify()) return { ok: true, verified: true, selectStrategy: 'A', selectVerified: true };
+    } catch {}
+
+    // Strategy B — selectedIndex + full pointer/focus/blur sequence
+    try {
+      el.focus && el.focus();
+      try { el.dispatchEvent(new Event('pointerdown', { bubbles: true })); } catch {}
+      try { el.dispatchEvent(new Event('mousedown', { bubbles: true })); } catch {}
+      try { el.dispatchEvent(new Event('focus', { bubbles: true })); } catch {}
+      el.selectedIndex = opt.index;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      try { el.blur && el.blur(); } catch {}
+      try { el.dispatchEvent(new Event('blur', { bubbles: true })); } catch {}
+      await aynSleep(60);
+      if (verify()) return { ok: true, verified: true, selectStrategy: 'B', selectVerified: true };
+    } catch {}
+
+    // Strategy C — native type-ahead keystrokes
+    try {
+      el.focus && el.focus();
+      const txt = String(opt.textContent || '').trim();
+      for (const ch of txt.slice(0, 40)) {
+        try { el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: ch })); } catch {}
+        try { el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: ch })); } catch {}
+        await aynSleep(15);
+      }
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      await aynSleep(40);
+      if (verify()) return { ok: true, verified: true, selectStrategy: 'C', selectVerified: true };
+    } catch {}
+
+    return { ok: false, verified: false, reason: 'value did not stick after retries', selectStrategy: 'failed', selectVerified: false };
   }
 
 
@@ -1590,8 +1738,21 @@
       const wantText = ai.value != null ? String(ai.value) : '';
       const wantLabel = ai.optionLabel || ai.value || '';
       const wantValue = ai.optionValue || '';
+      // Rich-text editors (ProseMirror, TipTap, Slate, Draft, Quill, Lexical, CodeMirror, Monaco, role=textbox, data-editor)
+      if (kind !== 'radio' && kind !== 'checkbox' && kind !== 'select' && el.tagName !== 'SELECT' && el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') {
+        const info = aynResolveRichEditor(el);
+        if (info.editable) {
+          const r = await aynFillTextbox(info.editable, wantText);
+          r.richEditor = true;
+          r.richDetector = info.detector;
+          return r;
+        }
+      }
       if (el && el.isContentEditable) {
-        return await aynFillTextbox(el, wantText);
+        const r = await aynFillTextbox(el, wantText);
+        r.richEditor = true;
+        r.richDetector = r.richDetector || 'contenteditable';
+        return r;
       }
       if (kind === 'radio' || kind === 'checkbox' || role === 'radio' || role === 'checkbox' || el.type === 'radio' || el.type === 'checkbox') {
         return await aynFillOption(el, wantLabel, wantValue);
@@ -1822,6 +1983,23 @@
         continue;
       }
 
+      // Rich editor ids (contenteditable / ProseMirror / TipTap / Slate / Draft / Quill / Lexical / etc.)
+      if (/^(?:frame\d+:)?__richedit__:/.test(id)) {
+        const editable = window.__AYN_RICH_EDITOR_MAP__ && window.__AYN_RICH_EDITOR_MAP__.get(id);
+        if (!editable) { results.push({ id, ok: false, reason: 'rich editor not found' }); continue; }
+        const chosenRE = optionValue || optionLabel || value;
+        if (!chosenRE || !String(chosenRE).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
+        try {
+          const r = await aynFillTextbox(editable, String(chosenRE));
+          if (r.ok) filled++;
+          const out = { id, ok: !!r.ok, richEditor: true };
+          if (r.verified !== undefined) out.verified = !!r.verified;
+          if (r.reason) out.reason = r.reason;
+          results.push(out);
+        } catch (e) { results.push({ id, ok: false, reason: e.message, richEditor: true }); }
+        continue;
+      }
+
       // Resolve a single element
       let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
       if (!el && _idx != null) {
@@ -1860,6 +2038,10 @@
         if (res.verified !== undefined) out.verified = !!res.verified;
         if (res.reason) out.reason = res.reason;
         if (res.picked) out.picked = res.picked;
+        if (res.selectStrategy) out.selectStrategy = res.selectStrategy;
+        if (res.selectVerified !== undefined) out.selectVerified = !!res.selectVerified;
+        if (res.richEditor) out.richEditor = true;
+        if (res.richDetector) out.richDetector = res.richDetector;
         results.push(out);
       } catch (e) { results.push({ id, ok: false, reason: e.message }); }
     }
