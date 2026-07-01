@@ -817,6 +817,9 @@
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
     let bgCounter = 0;
+    // v1.9.44 — reset per-scan used-radio tracker so stale state doesn't persist
+    window.__AYN_USED_RADIOS__ = new WeakSet();
+    window.__AYN_STRUCTRADIO_MAP__ = new Map();
 
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
@@ -897,6 +900,61 @@
           });
         });
       } catch { /* never fail the scan */ }
+
+      // v1.9.44 — STRUCTURAL grouping for native radios where names are unique/absent (e.g. Gem)
+      try {
+        const usedRadios = window.__AYN_USED_RADIOS__;
+        // mirror shared-name pass results into the window set
+        try { Array.from(doc.querySelectorAll('input[type="radio"]')).forEach(r => { if (processedRadios.has(r)) usedRadios.add(r); }); } catch (_) {}
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
+        const containerOf = (r) => {
+          let node = r.parentElement;
+          for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
+            if (node.querySelectorAll('input[type="radio"]').length >= 2) return node;
+          }
+          return null;
+        };
+        const groups = new Map();
+        allRadios.forEach(r => { const c = containerOf(r); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(r); });
+        let gi = 0;
+        groups.forEach((radios, container) => {
+          if (radios.length < 2) return;
+          const optTexts = new Set(radios.map(r => ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim().toLowerCase()));
+          let q = '', node = container;
+          for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
+            let p = node.previousElementSibling, guard = 0;
+            while (p && guard++ < 5) {
+              const t = (p.innerText || '').replace(/\s+/g,' ').trim();
+              const firstLine = t.split('\n')[0].trim();
+              if (firstLine && firstLine.length >= 3 && firstLine.length < 120 && !optTexts.has(firstLine.toLowerCase()) && !radios.some(r => p.contains(r))) { q = firstLine.slice(0,120); break; }
+              p = p.previousElementSibling;
+            }
+          }
+          if (!q) q = 'Question';
+          const options = radios.map(r => {
+            const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
+            return { label: lbl, value: r.value || lbl };
+          });
+          const gid = `${prefix}__structradio__:${++gi}`;
+          window.__AYN_STRUCTRADIO_MAP__.set(gid, radios);
+          radios.forEach(r => { usedRadios.add(r); processedRadios.add(r); });
+          fields.push({
+            id: gid,
+            kind: 'radio',
+            type: 'radio',
+            name: '',
+            label: q,
+            options,
+            required: /\*|required/i.test((container.innerText||'').slice(0,300)),
+            group: classifyField(q, '', 'radio'),
+            accRole: 'radio',
+            labelSource: 'structradio',
+            _frame: prefix,
+          });
+        });
+      } catch (_) { /* never fail the scan */ }
+
+
 
       // ── PRE-PASS: group CUSTOM (ARIA) radios by enclosing radiogroup/group ──
       const processedCustomRadios = new WeakSet();
@@ -2179,7 +2237,30 @@
         continue;
       }
 
-
+      // v1.9.44 — structural native-radio group (unique-name forms like Gem)
+      if (id.includes('__structradio__:')) {
+        const radios = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
+        if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
+        const want = String(optionValue || optionLabel || value || '').trim();
+        let target = null;
+        for (const r of radios) {
+          const lbl = ((r.closest('label')||r.parentElement)?.innerText||'').trim();
+          if (aynOptionMatches(lbl, want)) { target = r; break; }
+        }
+        let ok = false;
+        if (target) {
+          try {
+            const lab = target.closest('label') || (target.id && doc.querySelector(`label[for="${CSS.escape(target.id)}"]`)) || target.parentElement;
+            target.click(); await aynSleep(30);
+            if (!target.checked && lab) { lab.click(); await aynSleep(30); }
+            if (!target.checked) { target.checked = true; target.dispatchEvent(new Event('input',{bubbles:true})); target.dispatchEvent(new Event('change',{bubbles:true})); await aynSleep(20); }
+            ok = !!target.checked;
+          } catch (_) {}
+        }
+        results.push({ id, ok, verified: ok, reason: ok ? 'structradio-click' : 'structradio no match' });
+        if (ok) filled++;
+        continue;
+      }
 
 
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
