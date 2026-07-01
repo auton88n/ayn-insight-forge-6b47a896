@@ -809,7 +809,7 @@ Deno.serve(async (req) => {
           model: DEFAULT_MODEL,
           system: `You are a senior career coach filling a real job application. Use ONLY the user's profile, resume, and canonical data. Never invent personal facts.
 
-You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}].
+You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}], and optionally singleChoice:true (means the checkbox group is really "pick exactly one" — return optionLabels with a single element).
 
 OUTPUT one object per field you choose to answer:
 { "id":"<field id>", "value":"<for text/textarea/typeahead>", "optionValue":"<exact option.value for select/radio/buttongroup>", "optionLabel":"<exact option.label>", "optionLabels":["..."] (only for checkbox multi-select), "skip":false, "confidence":0..1, "reasoning":"one short sentence", "source":"profile|resume|canonical|computed|inferred" }
