@@ -1011,6 +1011,8 @@
               return !!match;
             });
             const __accRC = aynResolveLabel(el);
+            const _rcGroup = classifyField(qLabel, el.name || '', el.type);
+            const _singleChoice = (el.type === 'checkbox') && (_rcGroup === 'logic.preferred_city');
             fields.push({
               id: `${prefix}__${el.type}__:${el.name}`,
               kind: el.type,
@@ -1020,7 +1022,8 @@
               currentValue: checkedOpt ? checkedOpt.label : '',
               options,
               required: el.required || el.getAttribute('aria-required') === 'true',
-              group: classifyField(qLabel, el.name || '', el.type),
+              group: _rcGroup,
+              singleChoice: _singleChoice || undefined,
               accRole: __accRC.role || '',
               labelSource: (__accRC.name && __accRC.name.length >= 2) ? 'accname' : 'legacy',
               _frame: prefix,
