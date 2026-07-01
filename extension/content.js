@@ -546,8 +546,8 @@
   function getOptionPairs(el) {
     if (el.tagName === 'SELECT') {
       return Array.from(el.options)
-        .filter(o => o.value || o.text)
-        .map(o => ({ label: (o.text || '').trim(), value: o.value || (o.text || '').trim() }))
+        .filter(o => o.value !== '' || (o.textContent || '').trim())
+        .map(o => ({ label: (o.textContent || '').trim(), value: o.value }))
         .slice(0, 40);
     }
     if ((el.type === 'radio' || el.type === 'checkbox') && el.name) {
