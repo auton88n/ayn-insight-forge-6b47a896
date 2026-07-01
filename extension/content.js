@@ -2293,10 +2293,18 @@
         el = all[_idx];
       }
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); continue; }
-      if (isFilled(el) && el.type !== 'radio' && el.type !== 'checkbox') { results.push({ id, ok: false, reason: 'already filled' }); continue; }
-
       const chosen = optionValue || optionLabel || value;
       if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
+
+      if (el.type !== 'radio' && el.type !== 'checkbox') {
+        const __cur = (el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '')).trim();
+        const __want = String(chosen).trim();
+        const __digits = s => String(s || '').replace(/\D/g, '');
+        if (__cur && (__cur === __want || (__digits(__want).length >= 6 && __digits(__cur) === __digits(__want)))) {
+          results.push({ id, ok: true, verified: true, reason: 'already correct' }); continue;
+        }
+      }
+
 
       try {
         const aiVal = { value: chosen, optionLabel, optionValue };
