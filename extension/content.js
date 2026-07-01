@@ -1489,7 +1489,13 @@
         const kind = groupMatch[1];
         const name = groupMatch[2];
         const radios = Array.from(doc.querySelectorAll(`input[type="${kind}"][name="${CSS.escape(name)}"]`));
-        if (!radios.length) { results.push({ id, ok: false, reason: 'group not found' }); continue; }
+
+        // Custom (ARIA) radio group fallback: id like "__radio__:custom:N" (or empty name lookup)
+        const customEls = (kind === 'radio' && (!radios.length))
+          ? ((window.__AYN_CUSTOM_RADIO_MAP__ && window.__AYN_CUSTOM_RADIO_MAP__.get(id)) || null)
+          : null;
+
+        if (!radios.length && !customEls) { results.push({ id, ok: false, reason: 'group not found' }); continue; }
 
         const targets = (kind === 'checkbox' && Array.isArray(optionLabels))
           ? optionLabels
