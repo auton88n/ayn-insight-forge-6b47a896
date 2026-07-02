@@ -991,13 +991,13 @@
     window.__AYN_TEXT_FIELD_MAP__ = new Map();
 
     const registerTextField = (prefix, el, idx) => {
-      // Use the real DOM id when present; otherwise create our own scan-session id.
-      // Names are not guaranteed unique on modern ATS forms and caused text answers
-      // to resolve to the wrong radio/checkbox/select sibling.
-      const raw = el.id || `__textfield__:tf${textFieldCounter++}:${idx}`;
+      // Always use a scan-session DOM-backed id for text fields. Real ids/names on
+      // modern ATS pages are often duplicated or reused across radio/select wrappers,
+      // which is the root cause of open-text answers being routed into option logic.
+      const raw = `__textfield__:tf${textFieldCounter++}:${idx}`;
       const fid = prefix + raw;
       try {
-        if (window.__AYN_TEXT_FIELD_MAP__ && raw.includes('__textfield__:')) {
+        if (window.__AYN_TEXT_FIELD_MAP__) {
           window.__AYN_TEXT_FIELD_MAP__.set(fid, el);
           window.__AYN_TEXT_FIELD_MAP__.set(raw, el);
         }
@@ -1527,7 +1527,7 @@
             if (!label) label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
             if (!label) return;
             if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
-            const guessId = el.id ? prefix + el.id : `${prefix}__textfield__:sup${sIdx++}`;
+            const guessId = `${prefix}__textfield__:sup${sIdx++}`;
             try {
               if (window.__AYN_TEXT_FIELD_MAP__ && guessId.includes('__textfield__:')) {
                 window.__AYN_TEXT_FIELD_MAP__.set(guessId, el);
@@ -1557,6 +1557,7 @@
               helperText: __ctx.helperText,
               placeholder: __ctx.placeholder,
               _supplemental: true,
+              _idx: sIdx,
               _frame: prefix,
             });
             el.__aynEmitted = true;
