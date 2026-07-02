@@ -837,7 +837,7 @@ link.*      → Full URL with https://. STRICT URL MATCHING:
 logic.years_experience → Use mergedBasics.computed_years_experience and match the closest option ("5-7 years" etc.). Never inflate.
 logic.education_level  → Use mergedBasics.computed_education_level and match the closest option.
 logic.salary           → Only if canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation exists; otherwise skip.
-logic.start_date       → Only if canonical.preferences.start_date_availability or profile.default_answers.notice_period exists; otherwise skip.
+
 logic.citizenship      → Use canonical.work_auth.citizenship / work_authorized_ca / work_authorized_us. For a Yes/No "are you a citizen or permanent resident of {country}", answer from work_auth. If unknown, skip with a suggestion to add citizenship/PR status to the profile.
 logic.legal_age        → "Are you 18 or older / of legal working age?" Answer "yes" (the applicant is a working professional). confidence 0.9.
 logic.travel           → Use profile.default_answers.willing_to_travel or canonical.preferences.open_to_travel. Yes/No: answer accordingly. If it asks a percentage and the user is willing, answer "yes" or the stored value; if unknown, skip with a suggestion.
