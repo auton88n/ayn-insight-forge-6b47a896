@@ -3405,7 +3405,7 @@
       const key = `${url}|${fieldCount}|${hasResumeUpload}`;
       if (key === _lastFormReportKey) return true;
       _lastFormReportKey = key;
-      sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
+      if (AYN_IS_TOP) sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
       return true;
     } catch { return false; }
   }
