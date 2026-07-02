@@ -1,45 +1,53 @@
-# v1.9.58 — Skip Diagnostics + Vision Clarity
+# v1.9.59 — Kill the remaining skip patterns
 
-## 1. Explain "High-accuracy vision" in the sidepanel
-- In `extension/sidepanel.html` / `sidepanel.js`, update the helper text under the toggle to something honest and short:
-  > "Uses a screenshot + AI to read forms that don't expose proper labels (canvas UIs, unusual ATS layouts). Slower and costs more tokens. Leave off unless a form is being skipped."
-- No behavior change to the toggle itself.
+Pulled the last 15 fill runs from `autofill_runs`. Three distinct skip patterns are still firing. Nothing else needs code changes.
 
-## 2. Detailed skip logging for open-text fields
-Goal: for every textarea / contenteditable / role=textbox that ends up empty, record **why**, **which rule matched**, and **which DOM selector was used** — visible in DevTools and persisted for review.
+## Pattern 1 — Yes/No buttongroups on jobs.gem.com (BioRender)
+Telemetry (21:05 runs, 3x in a row):
+```
+skipped: [
+  {id: "cXVlc29wdDqb...", label: "Yes", reason: "No matching info in your profile."},
+  {id: "cXVlc29wdDr-...", label: "No",  reason: "No matching info in your profile."}
+]
+fields_total:16, ai_answered:8, filled:6, failed:2
+```
+The base64 IDs decode to `quesopt:...` — Gem is sending each Yes/No **option** as its own field. The v1.9.52 buttongroup detector only fires on visible checkbox pairs it discovers itself; it does not merge fields the site already presents as individual option nodes.
 
-### 2a. Content script (`extension/content.js`)
-- Add `aynLogSkip(field, reason, meta)` helper that:
-  - Builds a stable CSS selector for the element (id → name → nth-of-type path, max 4 segments).
-  - Emits `console.groupCollapsed('[AYN skip] <reason>')` with: selector, tag, role, resolved question, labelSource, kind, required flag, matched rule name, backend response snippet, verify-pass result.
-  - Pushes the entry into an in-memory `window.__aynSkipLog` ring buffer (last 50) so the sidepanel can read it.
-- Instrument the existing decision points to call `aynLogSkip` with a specific `reason` code:
-  - `no_question_resolved` — `aynFieldQuestion` + `aynNearbyPrompt` + `aynShortLabelFallback` all returned empty.
-  - `backend_returned_empty` — `ext_autofill` responded with no value for this field.
-  - `backend_skipped_optional` — model chose to skip; log the model's stated reason if present.
-  - `write_verify_failed` — value written but wiped by React after `aynSettleReapply` passes.
-  - `editor_unsupported` — rich editor detected but no adapter matched.
-  - `hidden_or_offscreen` — element not visible at fill time.
-- Each entry stores the exact rule/function name that produced (or failed to produce) the value, e.g. `resolver: aynNearbyPrompt`, `writer: setNativeValue+paste`.
+Fix in `extension/content.js`:
+- In `scanForm`, after scanning, group orphan option-shaped fields (`kind:'checkbox'` or button-like, label is exactly `Yes`/`No`/`Oui`/`Non`, sharing the same parent question container) into a synthetic `buttongroup` field with `options:[{label:'Yes',value:<id>},{label:'No',value:<id>}]` and a resolved question from the closest heading/label.
+- Send only the merged field to the backend; suppress the raw option children so they aren't counted as skipped.
+- On inject, click the option matching the backend's `optionLabel`.
 
-### 2b. Background script (`extension/background.js`)
-- When the fill run completes, forward the skip-log ring buffer alongside the existing `autofill_runs` telemetry payload.
+## Pattern 2 — Open-text still not answered on BioRender
+Runs at 19:45 and 18:52 skipped:
+```
+label: "Is there anything you'd like to clarify or expand on regarding your work history..."
+reason: "No relevant gaps or transitions mentioned in the resume or profile."
+```
+And in the 21:13 run, 16 fields but only 13 filled — the "Why are you interested in BioRender?" textarea still empty. v1.9.57 added an inference rule but the model is still refusing.
 
-### 2c. Backend (`supabase/functions/resume-hub/index.ts`)
-- Extend `ext_autofill` to include a short `skip_reason` string in the per-field response when it deliberately returns no value (currently it just omits). Content script maps that into `backend_skipped_optional` above.
-- Persist the skip log JSON into a new column on `public.autofill_runs`.
+Fix in `supabase/functions/resume-hub/index.ts` `ext_autofill` system prompt:
+- Promote the open-text rule from "inference guidance" to a **hard rule**: for any `kind` in `textarea|richedit|opentext` with label containing `interest|why|motivat|excite|passion|about (this|the) (company|role|position)`, you MUST return a 2–4 sentence answer synthesized from resume highlights + the company name in the label. Never return empty.
+- For `gap|clarify|expand|explain` textareas, if the resume shows no gaps, return the exact string `"No gaps to note; continuous progression through the roles listed in my resume."` instead of skipping.
+- Add `skip_reason` output rule: if the field is a required textarea, `skip_reason` is forbidden — must always produce a value.
 
-### 2d. Database
-- Migration: `alter table public.autofill_runs add column skip_log jsonb;`
-- Keep existing RLS.
+## Pattern 3 — Consent/personal-information checkbox skipped
+Latest run skipped: `label: "Personal information/ Informations personnelles" reason: "No matching info in your profile."`
+This is a GDPR/consent acknowledgement checkbox, not a data question.
 
-### 2e. Sidepanel debug view (optional, small)
-- Add a hidden "Show last skip log" link in `sidepanel.html` that renders `window.__aynSkipLog` as a table (reason, question, selector, rule). Only visible after clicking the version number 5x — no visual noise for normal users.
+Fix in `resume-hub/index.ts`:
+- Extend the consent-checkbox rule to match `personal information|informations personnelles|renseignements personnels|consent|acknowledge|agree|accept` — always return `optionValue:"true"` / check it.
 
-## 3. Version
-- Bump `manifest.json` and `AYN_BUILD` to `1.9.58`.
+## Pattern 4 — Silent write failures (2 unaccounted at 21:05)
+`ai_answered:8, filled:6, failed:2, skipped:2 options` — the 2 that failed to write aren't in `inject_results` skip metadata (v1.9.58 diagnostics only enrich failures, not backend skips vs. write failures).
+
+Fix in `extension/content.js` post-injection enrichment: also emit a `[AYN skip]` group and `skipMeta` entry for backend-returned `skip_reason` fields (currently only DOM write failures get enriched), so the log matches the counter math.
+
+## Delivery
+- Bump `extension/manifest.json` + `AYN_BUILD` to `1.9.59`.
 - Rebuild `public/ayn-extension.zip`.
 - Redeploy `resume-hub` edge function.
 
 ## Out of scope
-- No changes to the autofill algorithms themselves — this release is purely observability + one copy tweak.
+- No changes to scanning of standard label/for fields (already 100% on ashby/lever).
+- No UI changes.
