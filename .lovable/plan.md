@@ -1,53 +1,44 @@
-# v1.9.59 — Kill the remaining skip patterns
+## What is actually broken
 
-Pulled the last 15 fill runs from `autofill_runs`. Three distinct skip patterns are still firing. Nothing else needs code changes.
+Recent telemetry shows AYN is no longer mainly failing because the AI skips answers. The latest run answered all 16 fields, but 2 textareas failed during injection:
 
-## Pattern 1 — Yes/No buttongroups on jobs.gem.com (BioRender)
-Telemetry (21:05 runs, 3x in a row):
-```
-skipped: [
-  {id: "cXVlc29wdDqb...", label: "Yes", reason: "No matching info in your profile."},
-  {id: "cXVlc29wdDr-...", label: "No",  reason: "No matching info in your profile."}
-]
-fields_total:16, ai_answered:8, filled:6, failed:2
-```
-The base64 IDs decode to `quesopt:...` — Gem is sending each Yes/No **option** as its own field. The v1.9.52 buttongroup detector only fires on visible checkbox pairs it discovers itself; it does not merge fields the site already presents as individual option nodes.
+- `Why are you interested in working at BioRender?`
+- `Is there anything you would like to clarify or expand on regarding your work history...`
 
-Fix in `extension/content.js`:
-- In `scanForm`, after scanning, group orphan option-shaped fields (`kind:'checkbox'` or button-like, label is exactly `Yes`/`No`/`Oui`/`Non`, sharing the same parent question container) into a synthetic `buttongroup` field with `options:[{label:'Yes',value:<id>},{label:'No',value:<id>}]` and a resolved question from the closest heading/label.
-- Send only the merged field to the backend; suppress the raw option children so they aren't counted as skipped.
-- On inject, click the option matching the backend's `optionLabel`.
+Both had generated values, but the injector treated them like checkbox or radio fields and returned `no native group`. That means the DOM resolver is selecting the wrong element for ids like `f11` and `f12`, or the index based resolver is becoming stale after the page renders.
 
-## Pattern 2 — Open-text still not answered on BioRender
-Runs at 19:45 and 18:52 skipped:
-```
-label: "Is there anything you'd like to clarify or expand on regarding your work history..."
-reason: "No relevant gaps or transitions mentioned in the resume or profile."
-```
-And in the 21:13 run, 16 fields but only 13 filled — the "Why are you interested in BioRender?" textarea still empty. v1.9.57 added an inference rule but the model is still refusing.
+## Plan
 
-Fix in `supabase/functions/resume-hub/index.ts` `ext_autofill` system prompt:
-- Promote the open-text rule from "inference guidance" to a **hard rule**: for any `kind` in `textarea|richedit|opentext` with label containing `interest|why|motivat|excite|passion|about (this|the) (company|role|position)`, you MUST return a 2–4 sentence answer synthesized from resume highlights + the company name in the label. Never return empty.
-- For `gap|clarify|expand|explain` textareas, if the resume shows no gaps, return the exact string `"No gaps to note; continuous progression through the roles listed in my resume."` instead of skipping.
-- Add `skip_reason` output rule: if the field is a required textarea, `skip_reason` is forbidden — must always produce a value.
+1. **Replace fragile `f11` index ids for textareas**
+   - Generate stable synthetic ids for unlabeled or idless text fields and textareas.
+   - Store a live DOM reference in a map during scan.
+   - Resolve by that map first during injection, before falling back to document index.
 
-## Pattern 3 — Consent/personal-information checkbox skipped
-Latest run skipped: `label: "Personal information/ Informations personnelles" reason: "No matching info in your profile."`
-This is a GDPR/consent acknowledgement checkbox, not a data question.
+2. **Make injection type safe**
+   - Pass the scanned field `kind`, `type`, and label into the fill dispatcher.
+   - If backend says `kind: textarea`, never route the target through radio or checkbox filling even if the resolved DOM node is wrong.
+   - If resolved node type conflicts with the expected kind, force a question text rematch instead of clicking the wrong element.
 
-Fix in `resume-hub/index.ts`:
-- Extend the consent-checkbox rule to match `personal information|informations personnelles|renseignements personnels|consent|acknowledge|agree|accept` — always return `optionValue:"true"` / check it.
+3. **Improve question matching for open text**
+   - Match by normalized question text and proximity, not raw index.
+   - Prefer `TEXTAREA`, `[role=textbox]`, and contenteditable when the AI field is open text.
+   - Add a minimum score threshold so AYN does not fill the wrong field.
 
-## Pattern 4 — Silent write failures (2 unaccounted at 21:05)
-`ai_answered:8, filled:6, failed:2, skipped:2 options` — the 2 that failed to write aren't in `inject_results` skip metadata (v1.9.58 diagnostics only enrich failures, not backend skips vs. write failures).
+4. **Record better diagnostics**
+   - Add skip metadata for `expectedKind`, `resolvedTag`, `resolvedType`, `labelSource`, and whether index fallback was used.
+   - Log when a field was rejected because the resolved element did not match the expected kind.
 
-Fix in `extension/content.js` post-injection enrichment: also emit a `[AYN skip]` group and `skipMeta` entry for backend-returned `skip_reason` fields (currently only DOM write failures get enriched), so the log matches the counter math.
+5. **Keep backend rules, but reduce dependency on prompting**
+   - Keep the hard open text backend rule from v1.9.59.
+   - Do not add another prompt patch as the primary fix, because the latest data proves the AI answered these fields and the browser write failed.
 
-## Delivery
-- Bump `extension/manifest.json` + `AYN_BUILD` to `1.9.59`.
-- Rebuild `public/ayn-extension.zip`.
-- Redeploy `resume-hub` edge function.
+6. **Package and deploy**
+   - Bump extension to `v1.9.60`.
+   - Rebuild `public/ayn-extension.zip`.
+   - Redeploy `resume-hub` only if backend code changes are needed after the injector fix.
 
-## Out of scope
-- No changes to scanning of standard label/for fields (already 100% on ashby/lever).
-- No UI changes.
+## Validation
+
+- Recheck recent `autofill_runs` after the fix.
+- Confirm the BioRender textareas fill successfully and no longer show `no native group`.
+- Confirm filled count includes open text fields and diagnostics show the final selector or stable synthetic id used.
