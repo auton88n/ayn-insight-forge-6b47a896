@@ -424,6 +424,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
             options: f.options, required: f.required, currentValue: f.currentValue,
             accRole: f.accRole || '', labelSource: f.labelSource || '',
+            section: f.section || '', helperText: f.helperText || '', placeholder: f.placeholder || '',
+            siblingLabels: Array.isArray(f.siblingLabels) ? f.siblingLabels : [],
+            richEditor: !!f.richEditor, richDetector: f.richDetector || '',
           })),
           jobText: jobText?.text || '',
           jobTitle: jobText?.title || '',
@@ -435,7 +438,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         const runId = fillData?.run_id || null;
 
-        const values = (fillData.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
+        const fieldMeta = new Map(fields.map(f => [f.id, f]));
+        const values = (fillData.values || [])
+          .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
+          .map(v => {
+            const f = fieldMeta.get(v.id) || {};
+            return { ...v, label: f.label || v.label || '', kind: f.kind || f.type || v.kind || '', type: f.type || v.type || '', name: f.name || v.name || '' };
+          });
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         // Group values by owning frame; translate ids back to frame-local for injection
@@ -477,15 +486,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           if (newFieldsAll.length > 0) {
             const fill2 = await callFunction('ext_autofill', {
-              fields: newFieldsAll.map(f => ({
-                id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
-                options: f.options, required: f.required, currentValue: f.currentValue,
-                accRole: f.accRole || '', labelSource: f.labelSource || '',
-              })),
+                fields: newFieldsAll.map(f => ({
+                  id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
+                  options: f.options, required: f.required, currentValue: f.currentValue,
+                  accRole: f.accRole || '', labelSource: f.labelSource || '',
+                  section: f.section || '', helperText: f.helperText || '', placeholder: f.placeholder || '',
+                  siblingLabels: Array.isArray(f.siblingLabels) ? f.siblingLabels : [],
+                  richEditor: !!f.richEditor, richDetector: f.richDetector || '',
+                })),
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: topScan.ats || 'unknown', url: topScan.url || '',
             });
-            const newValues = (fill2.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
+              const newFieldMeta = new Map(newFieldsAll.map(f => [f.id, f]));
+              const newValues = (fill2.values || [])
+                .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
+                .map(v => {
+                  const f = newFieldMeta.get(v.id) || {};
+                  return { ...v, label: f.label || v.label || '', kind: f.kind || f.type || v.kind || '', type: f.type || v.type || '', name: f.name || v.name || '' };
+                });
             if (newValues.length > 0) {
               const byFrame2 = new Map();
               for (const v of newValues) {
