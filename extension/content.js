@@ -2666,7 +2666,10 @@
     }
 
 
-    return { filled, total: values.length, results };
+    // v1.9.52 — filled counts ANY ok===true result (including "already correct"), excludes visiondiag entries
+    const __countable = results.filter(r => r && r.id !== 'visiondiag');
+    const __filled = __countable.filter(r => r.ok === true).length;
+    return { filled: __filled, total: __countable.length, results };
   }
 
   // ══════════════════════════════════════════════════════════════════
