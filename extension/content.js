@@ -953,7 +953,7 @@
           if (!q) q = 'Question';
           const options = radios.map(r => {
             const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
-            return { label: lbl, value: r.value || lbl };
+            return { label: lbl, value: (r.value && r.value !== 'on') ? r.value : lbl };
           });
           const gid = `${prefix}__structradio__:${++gi}`;
           window.__AYN_STRUCTRADIO_MAP__.set(gid, radios);
@@ -2261,11 +2261,14 @@
       if (id.includes('__structradio__:')) {
         const radios = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
         if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
-        const want = String(optionValue || optionLabel || value || '').trim();
+        const cands = [optionLabel, optionValue, value].map(s => String(s || '').trim()).filter(Boolean);
         let target = null;
-        for (const r of radios) {
-          const lbl = ((r.closest('label')||r.parentElement)?.innerText||'').trim();
-          if (aynOptionMatches(lbl, want)) { target = r; break; }
+        outer:
+        for (const want of cands) {
+          for (const r of radios) {
+            const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
+            if (aynOptionMatches(lbl, want) || (r.value && r.value !== 'on' && aynOptionMatches(r.value, want))) { target = r; break outer; }
+          }
         }
         let ok = false;
         if (target) {

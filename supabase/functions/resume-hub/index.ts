@@ -43,7 +43,7 @@ function humanizeAny<T>(v: T): T {
   if (typeof v === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      out[k] = humanizeAny(val);
+      out[k] = k === "optionValue" || k === "optionLabel" || k === "optionLabels" ? val : humanizeAny(val);
     }
     return out as unknown as T;
   }
@@ -979,10 +979,11 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             required: !!f.required,
             options: Array.isArray(f.options) ? f.options.map(o => String(o.label || o.value || "").slice(0, 80)).slice(0, 15) : [],
           }));
-          const aiValues = (out.values || []).map((v: { id: string; value?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
+          const aiValues = (out.values || []).map((v: { id: string; value?: string; optionValue?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
             id: v.id,
             value: String(v.value || "").slice(0, 300),
             optionLabel: v.optionLabel || "",
+            optionValue: v.optionValue || "",
             skip: !!v.skip,
             confidence: v.confidence,
             reasoning: String(v.reasoning || "").slice(0, 200),
