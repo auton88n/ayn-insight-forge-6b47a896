@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.57';
+  const AYN_BUILD = '1.9.58';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
