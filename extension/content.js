@@ -1945,6 +1945,7 @@
   }
 
   function aynShowActivityGlow(on) {
+    if (!AYN_IS_TOP) return;
     try {
       const ID = 'ayn-activity-glow';
       let el = document.getElementById(ID);
