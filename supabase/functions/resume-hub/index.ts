@@ -812,6 +812,9 @@ Deno.serve(async (req) => {
 You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}], and optionally singleChoice:true (means the checkbox group is really "pick exactly one" — return optionLabels with a single element). Fields may also carry CONTEXT: section (the surrounding section heading, e.g. "References", "Salary expectations", "Emergency contact"), siblingLabels (labels of neighbor fields in the same row/group, e.g. ["First name","Last name"] tells you this is likely a middle-name slot), helperText (aria-describedby text — often decisive), placeholder. Use CONTEXT to disambiguate short/ambiguous labels ("Name" inside a "References" section = a reference contact's name, not the applicant's). NEVER guess when siblingLabels + section still don't clarify — skip with a suggestion.
 
 OUTPUT one object per field you choose to answer:
+
+LANGUAGE RULES: Field labels may be in any language, or bilingual (e.g. 'Name/Nom', 'What are your salary expectations?/Quelles sont vos attentes salariales?'). Treat non-English questions exactly like English ones: apply the same field-group rules and answer, never skip a question only because it is not in English. For open free-text questions, write the answer in the language of the question; for bilingual labels that include English, answer in English. For select/radio/buttongroup, optionValue and optionLabel must still be copied verbatim from options[] regardless of language. Never change a page-language or locale selector (labels like Language, Langue, Idioma, or names like defaultLanguageOverride) when it already has a currentValue; skip those.
+
 { "id":"<field id>", "value":"<for text/textarea/typeahead>", "optionValue":"<exact option.value for select/radio/buttongroup>", "optionLabel":"<exact option.label>", "optionLabels":["..."] (only for checkbox multi-select), "skip":false, "confidence":0..1, "reasoning":"one short sentence", "source":"profile|resume|canonical|computed|inferred" }
 
 CRITICAL RULES:
@@ -949,7 +952,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           if (typeof v.confidence === 'number' && v.confidence < 0.4) return false;
           return true;
         });
-        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string }>);
+        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string; currentValue?: unknown; labelSource?: string; type?: string; kind?: string; options?: Array<{ label?: string; value?: string }> }>);
         const fieldMap2 = new Map(fieldArr.map(f => [f.id, f]));
         const answeredIds = new Set(filtered.map(v => v.id));
         const skippedFromAI = (out.values || [])
@@ -957,8 +960,9 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           .map(v => ({ id: v.id, label: fieldMap2.get(v.id)?.label || v.id, reason: v.reasoning || "", suggestion: (v.suggestion || "").trim() }));
         const skippedIds = new Set(skippedFromAI.map(s => s.id));
         const isSensitive = (s: string) => /eeo|gender|race|ethnic|veteran|disab|sexual|pronoun|salary expectation|ssn|\bsin\b|social security|date of birth|\bdob\b/i.test(s || "");
+        const hasPrefilledValue = (v: unknown) => typeof v === "string" && v.trim().length > 0;
         const requiredMissing = fieldArr
-          .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
+          .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !hasPrefilledValue(f.currentValue) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
           .map(f => ({ id: f.id, label: f.label || f.id, reason: "No matching info in your profile.", suggestion: "Add this answer in your AYN profile." }));
         const skipped = [...skippedFromAI, ...requiredMissing].slice(0, 12);
         const meta = {
@@ -971,13 +975,15 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
         };
         let runId: string | null = null;
         try {
-          const fieldsScanned = (fieldArr as Array<{ id: string; label?: string; type?: string; kind?: string; group?: string; required?: boolean; options?: Array<{ label?: string; value?: string }> }>).map(f => ({
+          const fieldsScanned = fieldArr.map(f => ({
             id: f.id,
             label: String(f.label || "").slice(0, 240),
             type: f.type || f.kind || "",
             group: f.group || "",
             required: !!f.required,
             options: Array.isArray(f.options) ? f.options.map(o => String(o.label || o.value || "").slice(0, 80)).slice(0, 15) : [],
+            currentValue: String((f.currentValue as unknown) || "").slice(0, 60),
+            labelSource: f.labelSource || "",
           }));
           const aiValues = (out.values || []).map((v: { id: string; value?: string; optionValue?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
             id: v.id,

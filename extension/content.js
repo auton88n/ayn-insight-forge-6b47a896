@@ -569,36 +569,38 @@
   }
 
   // Classify a field into a semantic group so the AI can reason about it
-  function classifyField(label, name, type) {
-    const stripped = aynStripBilingual(label);
-    const l = ((stripped || '') + ' ' + (name || '')).toLowerCase();
-    if (/middle\s*name/.test(l)) return 'identity.middle_name';
-    if (/preferred\s*(first\s*)?name|nick\s*name|name\s+you\s+go\s+by/.test(l)) return 'identity.preferred_name';
-    if (/\bfirst\s*name|given\s*name|forename\b/.test(l)) return 'identity.first_name';
-    if (/\blast\s*name|surname|family\s*name\b/.test(l)) return 'identity.last_name';
-    if (/\bfull\s*name|legal\s*name\b/.test(l) || /^name$/i.test((stripped||'').trim())) return 'identity.full_name';
-    if (/\bemail\b/.test(l)) return 'identity.email';
-    if (/\bphone|mobile|cell\b/.test(l)) return 'identity.phone';
-    if (/\baddress|street\b/.test(l)) return 'identity.address';
-    if (/\bcity|town\b/.test(l)) return 'identity.city';
-    if (/\bstate|province|region\b/.test(l)) return 'identity.state';
-    if (/\bzip|postal\s*code|postcode\b/.test(l)) return 'identity.postal_code';
-    if (/\bcountry\b/.test(l)) return 'identity.country';
+   function classifyField(label, name, type) {
+     const stripped = aynStripBilingual(label);
+     // v1.9.49 — normalize + strip diacritics so FR/ES/DE synonyms match case- and accent-insensitively.
+     const l = (((stripped || '') + ' ' + (name || '')).toLowerCase())
+       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+     if (/middle\s*name|deuxieme\s*prenom|segundo\s*nombre/.test(l)) return 'identity.middle_name';
+     if (/preferred\s*(first\s*)?name|nick\s*name|name\s+you\s+go\s+by|prenom\s+prefere|nombre\s+preferido|rufname/.test(l)) return 'identity.preferred_name';
+     if (/\bfirst\s*name|given\s*name|forename\b|\bprenom\b|\bnombre\b|\bvorname\b/.test(l)) return 'identity.first_name';
+     if (/\blast\s*name|surname|family\s*name\b|nom\s+de\s+famille|\bapellido|\bnachname|\bapellidos\b/.test(l)) return 'identity.last_name';
+     if (/\bfull\s*name|legal\s*name\b|nom\s+complet|nombre\s+completo|vollstandiger\s+name/.test(l) || /^(name|nom|nombre)$/i.test((stripped||'').trim())) return 'identity.full_name';
+     if (/\bemail\b|\bcourriel\b|adresse\s+courriel|adresse\s+electronique|\bcorreo\b|correo\s+electronico|e[-\s]?mail/.test(l)) return 'identity.email';
+     if (/\bphone|mobile|cell\b|\btelephone\b|numero\s+de\s+telephone|\btelefono\b|telefonnummer|handynummer|portable/.test(l)) return 'identity.phone';
+     if (/\baddress|street\b|\badresse\b|\bdireccion\b|strasse|anschrift/.test(l)) return 'identity.address';
+     if (/\bcity|town\b|\bville\b|\bciudad\b|\bstadt\b/.test(l)) return 'identity.city';
+     if (/\bstate|province|region\b|provincia|bundesland/.test(l)) return 'identity.state';
+     if (/\bzip|postal\s*code|postcode\b|code\s+postal|codigo\s+postal|postleitzahl|\bplz\b/.test(l)) return 'identity.postal_code';
+     if (/\bcountry\b|\bpays\b|\bpais\b|\bland\b/.test(l)) return 'identity.country';
     if (/linkedin/.test(l)) return 'link.linkedin';
     if (/portfolio|website|personal\s*site/.test(l)) return 'link.portfolio';
     if (/github/.test(l)) return 'link.github';
-    if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed|entitled)|right\s+to\s+work/.test(l)) return 'logic.work_auth';
-    if (/sponsor|visa|require.*sponsorship/.test(l)) return 'logic.sponsorship';
-    if (/relocat/.test(l)) return 'logic.relocate';
+     if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed|entitled)|right\s+to\s+work|autoris(e|ee?)\s+a\s+travailler|autorisation\s+de\s+travail|permis\s+de\s+travail|autorizad[oa]\s+para\s+trabajar|arbeitserlaubnis|arbeitsgenehmigung/.test(l)) return 'logic.work_auth';
+     if (/sponsor|visa|require.*sponsorship|parrainage|patrocinio/.test(l)) return 'logic.sponsorship';
+     if (/relocat|demenager|relocalisation|reubicacion|umzug|umziehen/.test(l)) return 'logic.relocate';
     if (/remote|hybrid|on[\s-]?site/.test(l) && type !== 'text') return 'logic.work_mode';
     if (/years?\s+of\s+experience|experience\s+(level|years)|how\s+many\s+years/.test(l)) return 'logic.years_experience';
     if (/highest\s+(degree|education|level)|education\s+level|degree/.test(l) && type !== 'text') return 'logic.education_level';
     // Preferred city (checkbox/radio group of cities) takes precedence over generic preferred_location
     if (/preferred\s+(office|work)?\s*(city|location)|which\s+city.*(work|office)|preferred\s+office\s+location|city\s+.*(prefer|preferred)/.test(l) && (type === 'checkbox' || type === 'radio' || type === 'buttongroup')) return 'logic.preferred_city';
     // Salary min/max detection when label/name signals min|max|from|to and the surrounding context has salary/comp/currency
-    if (/(salary|compensation|expectation|\$|€|£|cad|usd)/.test(l) && /\b(min(imum)?|from|à\s*partir|starting|floor|low(er)?)\b/.test(l)) return 'logic.salary_min';
-    if (/(salary|compensation|expectation|\$|€|£|cad|usd)/.test(l) && /\b(max(imum)?|to|jusqu|upper|high(er)?|ceiling|top)\b/.test(l)) return 'logic.salary_max';
-    if (/salary\s+(expectation|expected|range|requirement)|expected\s+salary|compensation/.test(l)) return 'logic.salary';
+     if (/(salary|compensation|expectation|salaire|remuneration|attentes\s+salariales|salario|gehalt|\$|€|£|cad|usd)/.test(l) && /\b(min(imum)?|from|a\s*partir|starting|floor|low(er)?)\b/.test(l)) return 'logic.salary_min';
+     if (/(salary|compensation|expectation|salaire|remuneration|attentes\s+salariales|salario|gehalt|\$|€|£|cad|usd)/.test(l) && /\b(max(imum)?|to|jusqu|upper|high(er)?|ceiling|top)\b/.test(l)) return 'logic.salary_max';
+     if (/salary\s+(expectation|expected|range|requirement)|expected\s+salary|compensation|salaire|remuneration|attentes\s+salariales|salario|gehalt|gehaltsvorstellung/.test(l)) return 'logic.salary';
     if (/notice\s+period|when\s+can\s+you\s+start|start\s+date|available/.test(l)) return 'logic.start_date';
     if (/gender|sex\b/.test(l)) return 'eeo.gender';
     if (/ethnic|race|hispanic/.test(l)) return 'eeo.ethnicity';
@@ -607,7 +609,7 @@
     if (/pronoun/.test(l)) return 'eeo.pronouns';
     if (/tell\s+(us|me)\s+about|about\s+yourself|introduce\s+yourself/.test(l)) return 'open.about';
     if (/motivat|why\s+(this|do you want|are you interested|are you applying|.*role|.*company|.*position)|why\s+(does|do)\s+\w+|explore\s+a\s+new/.test(l)) return 'open.why';
-    if (/cover\s+letter|message\s+to\s+(hiring|recruiter)/.test(l)) return 'open.cover';
+    if (/cover\s+letter|message\s+to\s+(hiring|recruiter)|lettre\s+de\s+motivation|carta\s+de\s+presentacion|anschreiben|motivationsschreiben/.test(l)) return 'open.cover';
     if (/heard.*about|where.*find|how.*hear|source/.test(l)) return 'open.source';
     if (/legal(ly)?\s+(eligible|able|entitled)\s+to\s+work|eligible\s+to\s+work\b|proof\s+of\s+(eligibility|authorization)/.test(l)) return 'logic.work_auth';
     if (/citizen|permanent\s+resident|\bpr\b\s+status|immigration\s+status|status\s+in\s+canada/.test(l)) return 'logic.citizenship';
@@ -616,8 +618,8 @@
     if (/driver'?s?\s+licen[cs]e|valid\s+licen[cs]e/.test(l)) return 'logic.drivers_license';
     if (/willing\s+to\s+travel|able\s+to\s+travel|travel\s+(up\s+to|requirement|percentage|%)/.test(l)) return 'logic.travel';
     // Multi-checkbox languages field (before generic logic.languages)
-    if ((type === 'checkbox') && /languages?\s+(you\s+)?(are\s+)?(fluent|speak|proficient|spoken)|which\s+languages?|specify.*languages?|fluent\s+in/.test(l)) return 'logic.languages_multi';
-    if (/what\s+languages|languages?\s+(do\s+you|you\s+speak|spoken|proficiency|fluency)|fluent\s+in|bilingual/.test(l)) return 'logic.languages';
+     if ((type === 'checkbox') && /languages?\s+(you\s+)?(are\s+)?(fluent|speak|proficient|spoken)|which\s+languages?|specify.*languages?|fluent\s+in|langues?\s+parl|quelles\s+langues|idiomas?\s+que\s+habla|welche\s+sprachen/.test(l)) return 'logic.languages_multi';
+     if (/what\s+languages|languages?\s+(do\s+you|you\s+speak|spoken|proficiency|fluency)|fluent\s+in|bilingual|langue|langues|idioma|sprache|sprachen/.test(l)) return 'logic.languages';
     if (/criminal|convicted|felony|background\s+check|drug\s+(test|screen)/.test(l)) return 'logic.background';
     // Company-history specific patterns take precedence over generic prior_relationship
     if (/currently\s+employed\s+by|current\s+employee\s+of|are\s+you\s+.*current(ly)?\s+.*employee/.test(l)) return 'logic.company_current_employee';
@@ -625,7 +627,7 @@
     if (/current(ly)?\s+(employed|employee).*(here|us|company)|former\s+employee|previously\s+(employed|worked|applied)|ever\s+(worked|applied)\s+(at|for|here|with\s+us)/.test(l)) return 'logic.prior_relationship';
     if (/non[\s-]?compete|non[\s-]?disclosure|\bnda\b|restrictive\s+covenant/.test(l)) return 'logic.noncompete';
     if (/accommodat/.test(l)) return 'logic.accommodation';
-    if (/referr?ed\s+by|referral\s+(name|source)|who\s+referred/.test(l)) return 'open.referral';
+    if (/referr?ed\s+by|referral\s+(name|source)|who\s+referred|refere\s+par|recommande\s+par|referido\s+por|empfohlen\s+von/.test(l)) return 'open.referral';
     if (/reference|referee/.test(l)) return 'logic.references';
     if (/preferred\s+(location|office)|which\s+(location|office)|work\s+location/.test(l)) return 'logic.preferred_location';
     if (/employment\s+type|full[\s-]?time|part[\s-]?time|contract|desired\s+(employment|job\s+type)/.test(l) && type !== 'text') return 'logic.employment_type';
@@ -721,16 +723,43 @@
     return (el.value || '').trim().length > 0;
   }
 
+  // v1.9.49 — recursively collect top doc + open shadow roots + same-origin
+  // (possibly nested) iframes. Shadow roots get sh<n>: prefix; iframes get
+  // frame<i>: prefix scoped to their host root; nested prefixes concatenate.
+  // Every root is registered in window.__AYN_ROOTS_MAP__ so injectValues can
+  // resolve elements later.
   function collectScannableDocs() {
-    const docs = [{ doc: document, prefix: '' }];
-    document.querySelectorAll('iframe').forEach((frame, i) => {
-      try {
-        const fdoc = frame.contentDocument;
-        if (fdoc && fdoc.querySelector('input, textarea, select')) {
-          docs.push({ doc: fdoc, prefix: `frame${i}:` });
+    const docs = [];
+    const map = new Map();
+    const seenRoots = new WeakSet();
+    let shCounter = 0;
+    function add(root, prefix) {
+      if (!root || seenRoots.has(root)) return;
+      seenRoots.add(root);
+      docs.push({ doc: root, prefix });
+      map.set(prefix, root);
+      let els;
+      try { els = root.querySelectorAll ? root.querySelectorAll('*') : []; } catch { return; }
+      // Collect nested iframes (indexed within this root)
+      let iframeIdx = 0;
+      els.forEach(el => {
+        try {
+          if (el.shadowRoot) {
+            const p = `sh${shCounter++}:`;
+            add(el.shadowRoot, prefix + p);
+          }
+        } catch {}
+        if (el.tagName === 'IFRAME') {
+          const idx = iframeIdx++;
+          try {
+            const fdoc = el.contentDocument;
+            if (fdoc) add(fdoc, prefix + `frame${idx}:`);
+          } catch { /* cross-origin, ignore */ }
         }
-      } catch { /* cross-origin, ignore */ }
-    });
+      });
+    }
+    add(document, '');
+    try { window.__AYN_ROOTS_MAP__ = map; } catch {}
     return docs;
   }
 
@@ -1519,18 +1548,22 @@
 
   function resolveDoc(id, _frame) {
     let doc = document;
-    let rawId = id;
-    const m = /^frame(\d+):(.*)$/.exec(id || '');
-    if (m) {
-      const frame = document.querySelectorAll('iframe')[parseInt(m[1],10)];
-      try { if (frame?.contentDocument) doc = frame.contentDocument; } catch {}
-      rawId = m[2];
-    } else if (_frame) {
-      const fm = /^frame(\d+):$/.exec(_frame);
-      if (fm) {
-        const frame = document.querySelectorAll('iframe')[parseInt(fm[1],10)];
-        try { if (frame?.contentDocument) doc = frame.contentDocument; } catch {}
+    let rawId = id || '';
+    // v1.9.49 — support concatenated prefixes: frame0:sh1:frame2:...
+    const m = /^((?:(?:frame\d+|sh\d+):)+)(.*)$/.exec(rawId);
+    let prefix = '';
+    if (m) { prefix = m[1]; rawId = m[2]; }
+    else if (_frame) { prefix = _frame; }
+    if (prefix) {
+      let map = (typeof window !== 'undefined' && window.__AYN_ROOTS_MAP__) || null;
+      let root = map && map.get(prefix);
+      if (!root) {
+        // Rebuild registry (docs may have re-rendered)
+        try { collectScannableDocs(); } catch {}
+        map = (typeof window !== 'undefined' && window.__AYN_ROOTS_MAP__) || null;
+        root = map && map.get(prefix);
       }
+      if (root) doc = root;
     }
     return { doc, rawId };
   }
@@ -3134,15 +3167,20 @@
     }
 
     if (message.type === 'HIGHLIGHT_FIELDS') {
-      const all = document.querySelectorAll('input, textarea, select');
-      all.forEach((el, idx) => {
-        const id = el.id || el.name || `f${idx}`;
-        if (message.fieldIds?.includes(id)) {
-          el.style.outline = '2px solid #f59e0b';
-          el.style.outlineOffset = '2px';
-          setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2500);
-        }
-      });
+      const wanted = new Set(message.fieldIds || []);
+      try {
+        collectScannableDocs().forEach(({ doc, prefix }) => {
+          const all = doc.querySelectorAll ? doc.querySelectorAll('input, textarea, select') : [];
+          all.forEach((el, idx) => {
+            const id = `${prefix || ''}${el.id || el.name || `f${idx}`}`;
+            if (wanted.has(id)) {
+              el.style.outline = '2px solid #f59e0b';
+              el.style.outlineOffset = '2px';
+              setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2500);
+            }
+          });
+        });
+      } catch {}
       sendResponse({ ok: true });
       return true;
     }
