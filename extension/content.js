@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.60';
+  const AYN_BUILD = '1.9.61';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -991,9 +991,17 @@
     window.__AYN_TEXT_FIELD_MAP__ = new Map();
 
     const registerTextField = (prefix, el, idx) => {
-      // Always use a scan-session DOM-backed id for text fields. Real ids/names on
-      // modern ATS pages are often duplicated or reused across radio/select wrappers,
-      // which is the root cause of open-text answers being routed into option logic.
+      // v1.9.61 — hard guard: never allow non-text-like controls to be registered as
+      // text fields. Radios/checkboxes/file/hidden/submit/etc. reaching this path was
+      // the root cause of Yes/No options being answered as free-text (BioRender/Gem).
+      try {
+        const tag = (el && el.tagName || '').toUpperCase();
+        const typ = (el && el.type || '').toLowerCase();
+        const BAD = new Set(['radio','checkbox','file','hidden','submit','button','image','reset']);
+        if (tag === 'INPUT' && BAD.has(typ)) return null;
+        const role = (el && el.getAttribute && (el.getAttribute('role') || '')).toLowerCase();
+        if (role === 'radio' || role === 'checkbox') return null;
+      } catch (_) {}
       const raw = `__textfield__:tf${textFieldCounter++}:${idx}`;
       const fid = prefix + raw;
       try {
@@ -1104,22 +1112,53 @@
         groups.forEach((radios, container) => {
           if (radios.length < 2) return;
           const optTexts = new Set(radios.map(r => ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim().toLowerCase()));
+          // v1.9.61 — prefer real heading/label elements; treat helper paragraphs
+          // ("What is considered a disability?") and long explanation blocks as bad.
+          const HEADING_SEL = 'legend, label, h1, h2, h3, h4, h5, strong, [class*="question" i], [class*="Question"], [class*="label" i], [role="heading"]';
+          const HELPER_RE = /^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|for\s+more\s+information|see\s+(below|above)|note[:\s])/i;
+          const looksLikeQuestion = (text) => {
+            if (!text) return false;
+            const first = text.split('\n')[0].trim();
+            if (first.length < 3 || first.length > 140) return false;
+            if (optTexts.has(first.toLowerCase())) return false;
+            if (HELPER_RE.test(first)) return false;
+            if (/^(asian|black|hispanic|white|male|female|decline to self|prefer not|yes|no|i identify as|i am not a)/i.test(first)) return false;
+            return first;
+          };
           let q = '', node = container;
+          // Pass 1: search ancestors for a preceding heading-like element only.
           for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
             const kids = Array.from(node.children);
             const cIdx = kids.findIndex(k => k === container || k.contains(container));
             if (cIdx <= 0) continue;
-            for (let i = cIdx - 1; i >= 0; i--) {
+            for (let i = cIdx - 1; i >= 0 && !q; i--) {
               const p = kids[i];
               if (radios.some(r => p.contains(r))) continue;
               if (p.querySelector && p.querySelector('input:not([type="hidden"]), textarea, select')) continue;
-              const t = (p.innerText || '').replace(/\s+/g,' ').trim();
-              const firstLine = t.split('\n')[0].trim();
-              const looksLikeOptionBlock = p.querySelector && p.querySelector('input[type="radio"]');
-              const hasManyOptions = Array.from(optTexts).filter(o => o && t.toLowerCase().includes(o)).length >= 2;
-              const badFirst = /^(asian|black|hispanic|white|male|female|decline to self|prefer not|yes|no|i identify as|i am not a)/i.test(firstLine);
-              if (firstLine && firstLine.length >= 3 && firstLine.length < 120 && !optTexts.has(firstLine.toLowerCase()) && !badFirst && !looksLikeOptionBlock && !hasManyOptions) {
-                q = firstLine.slice(0,120); break;
+              const heads = (p.matches && p.matches(HEADING_SEL)) ? [p] : Array.from(p.querySelectorAll ? p.querySelectorAll(HEADING_SEL) : []);
+              for (const h of heads) {
+                const t = (h.innerText || h.textContent || '').replace(/\s+/g,' ').trim();
+                const good = looksLikeQuestion(t);
+                if (good) { q = good.slice(0,140); break; }
+              }
+            }
+          }
+          // Pass 2 (fallback): any preceding sibling first line — but reject helper paragraphs.
+          if (!q) {
+            node = container;
+            for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
+              const kids = Array.from(node.children);
+              const cIdx = kids.findIndex(k => k === container || k.contains(container));
+              if (cIdx <= 0) continue;
+              for (let i = cIdx - 1; i >= 0; i--) {
+                const p = kids[i];
+                if (radios.some(r => p.contains(r))) continue;
+                if (p.querySelector && p.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"]')) continue;
+                const t = (p.innerText || '').replace(/\s+/g,' ').trim();
+                const hasManyOptions = Array.from(optTexts).filter(o => o && t.toLowerCase().includes(o)).length >= 2;
+                if (hasManyOptions) continue;
+                const good = looksLikeQuestion(t);
+                if (good) { q = good.slice(0,140); break; }
               }
             }
           }
@@ -1475,6 +1514,7 @@
           }
           const __ctx = aynCaptureContext(el);
           const stableTextId = registerTextField(prefix, el, idx);
+          if (!stableTextId) return; // v1.9.61 — non-text control leaked into text pass; skip.
           fields.push({
             id: stableTextId,
             kind,
@@ -1748,17 +1788,22 @@
         }
         if (!matchB || !sharedAnc || usedContainers.has(sharedAnc)) continue;
         usedContainers.add(sharedAnc);
-        // Extract question label: nearest heading/label in ancestors that isn't Yes/No itself.
+        // v1.9.61 — prefer real heading/label over generic <p>; reject helper text.
+        const YN_HELPER_RE = /^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|note[:\s])/i;
         let qLabel = '';
-        let node = sharedAnc;
-        for (let up = 0; up < 5 && node && !qLabel; up++, node = node.parentElement) {
-          const heads = node.querySelectorAll('legend, label, [class*="label"], [class*="question"], [class*="Question"], h2, h3, h4, strong, p');
-          for (const h of heads) {
-            if (h.contains(a._el) || h.contains(matchB._el)) continue;
-            const t = ((h.innerText || h.textContent || '').trim().split('\n')[0] || '').trim();
-            if (t && t.length >= 3 && t.length <= 240 && !YESNO_RE.test(t)) { qLabel = t; break; }
+        const findQ = (sel) => {
+          let node = sharedAnc;
+          for (let up = 0; up < 5 && node && !qLabel; up++, node = node.parentElement) {
+            const heads = node.querySelectorAll(sel);
+            for (const h of heads) {
+              if (h.contains(a._el) || h.contains(matchB._el)) continue;
+              const t = ((h.innerText || h.textContent || '').trim().split('\n')[0] || '').trim();
+              if (t && t.length >= 3 && t.length <= 200 && !YESNO_RE.test(t) && !YN_HELPER_RE.test(t)) { qLabel = t; break; }
+            }
           }
-        }
+        };
+        findQ('legend, label, h1, h2, h3, h4, h5, strong, [class*="question" i], [class*="Question"], [class*="label" i], [role="heading"]');
+        if (!qLabel) findQ('p, span, div');
         if (!qLabel) qLabel = a.name || matchB.name || 'Yes/No question';
         const prefix = a._frame || '';
         const bgId = `${prefix}__buttongroup__:merge${bgCounter++}:${qLabel.slice(0, 40).replace(/\s+/g, '_')}`;
