@@ -4,7 +4,7 @@
 
 export const AYN_EXTENSION_ID = "bjbifnpjbcbdojhgjpedkakkfjpcjmdl";
 
-type ExtResponse<T = unknown> = { ok: boolean; error?: string } & Partial<T>;
+type ExtResponse<T = Record<string, unknown>> = { ok: boolean; error?: string } & Partial<T>;
 
 function hasChromeRuntime(): boolean {
   try {
