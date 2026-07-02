@@ -1428,6 +1428,7 @@
               accRole: __accRC.role || '',
               labelSource: (__accRC.name && __accRC.name.length >= 2) ? 'accname' : 'legacy',
               _frame: prefix,
+              _el: el, // v1.9.59 — stripped before payload emit; used by Yes/No merge pass
             });
             return;
           }
