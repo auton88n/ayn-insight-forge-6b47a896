@@ -804,6 +804,93 @@ Deno.serve(async (req) => {
                             : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined,
         };
 
+        // v1.9.62 — deterministic answer layer before AI.
+        // The root reliability issue was AI-first routing for fields that should
+        // never be guessed: EEO decline, work authorization, sponsorship,
+        // legal-age, required consent, and direct identity fields. These values
+        // are now produced from profile/canonical facts first, then only the
+        // unresolved fields are sent to the model.
+        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string; currentValue?: unknown; labelSource?: string; type?: string; kind?: string; name?: string; options?: Array<{ label?: string; value?: string }>; fingerprint?: string; section?: string; helperText?: string; placeholder?: string; siblingLabels?: string[]; richEditor?: boolean; richDetector?: string }>);
+        const hasPrefilledValue = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+        const normText = (s: unknown) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+        const optText = (o: { label?: string; value?: string }) => `${o.label || ""} ${o.value || ""}`;
+        const fieldBlob = (f: typeof fieldArr[number]) => normText([f.group, f.label, f.name, f.section, f.helperText, f.placeholder, ...(f.options || []).map(optText)].join(" "));
+        const isOptionLike = (f: typeof fieldArr[number]) => /select|radio|checkbox|buttongroup/i.test(String(f.kind || f.type || "")) || ((f.options || []).length > 0);
+        const chooseOpt = (f: typeof fieldArr[number], re: RegExp) => (f.options || []).find(o => re.test(normText(optText(o))));
+        const emitOpt = (f: typeof fieldArr[number], o: { label?: string; value?: string }, reasoning: string, confidence = 0.95, source = "computed") => ({ id: f.id, optionValue: o.value || o.label || "", optionLabel: o.label || o.value || "", skip: false, confidence, reasoning, source });
+        const chooseYesNo = (f: typeof fieldArr[number], yes: boolean, reasoning: string, confidence = 0.85) => {
+          const opts = f.options || [];
+          const yesOpt = opts.find(o => /^(yes|oui|si|ja)\b/.test(normText(o.label || o.value))) || opts.find(o => /\byes\b|\boui\b|\bsi\b|\bja\b/.test(normText(optText(o))));
+          const noOpt = opts.find(o => /^(no|non|nein)\b/.test(normText(o.label || o.value))) || opts.find(o => /\bno\b|\bnon\b|\bnein\b|not at this time|do not|will not/.test(normText(optText(o))));
+          const chosen = yes ? yesOpt : noOpt;
+          if (chosen) return emitOpt(f, chosen, reasoning, confidence);
+          if (/checkbox/i.test(String(f.kind || f.type || ""))) return { id: f.id, value: yes ? "yes" : "no", skip: false, confidence, reasoning, source: "computed" };
+          return null;
+        };
+        const directValueFor = (group: string) => {
+          const g = normText(group);
+          if (g.includes("identity.first_name")) return String(merged.first_name || "");
+          if (g.includes("identity.last_name")) return String(merged.last_name || "");
+          if (g.includes("identity.full_name")) return String(merged.full_name || "");
+          if (g.includes("identity.preferred_name")) return String((profile as any)?.preferred_name || merged.first_name || "");
+          if (g.includes("identity.email")) return String(merged.email || "");
+          if (g.includes("identity.phone")) return String(merged.phone || "");
+          if (g.includes("identity.city")) return String(merged.city || "");
+          if (g.includes("identity.state")) return String(merged.region || "");
+          if (g.includes("identity.country")) return String(merged.country || "");
+          if (g.includes("link.linkedin")) return String((merged as any).linkedin_url || "");
+          if (g.includes("link.portfolio")) return String((merged as any).portfolio_url || "");
+          if (g.includes("link.github")) return String((merged as any).github_url || "");
+          if (g.includes("logic.years_experience")) return String(merged.computed_years_experience || "");
+          if (g.includes("logic.hours_per_week")) return "40";
+          if (g.includes("logic.notice_period")) return String((profile as any)?.default_answers?.notice_period || "2 weeks");
+          return "";
+        };
+        const anyAuthorized = (merged.work_auth as any)?.authorized_us === true || (merged.work_auth as any)?.authorized_ca === true;
+        const openToRelocate = (canonical as any)?.preferences?.open_to_relocation === true || /^(yes|true)$/i.test(String((profile as any)?.default_answers?.willing_to_relocate || ""));
+        const ruleAnswer = (f: typeof fieldArr[number]) => {
+          if (!f?.id || hasPrefilledValue(f.currentValue)) return null;
+          const blob = fieldBlob(f);
+          const group = String(f.group || "");
+          const kind = String(f.kind || f.type || "").toLowerCase();
+          const isEeo = /^eeo\./.test(group) || /\b(gender|race|ethnic|veteran|disability status|self identify|self-identify|voluntary self identification)\b/.test(blob);
+          if (isEeo && isOptionLike(f)) {
+            const decline = chooseOpt(f, /decline|prefer not|do not wish|choose not|rather not|not disclose|no answer/);
+            if (decline) return emitOpt(f, decline, "EEO question; declined per policy", 0.99, "computed");
+          }
+          if (isOptionLike(f) && (/logic\.legal_age/.test(group) || /over 18|18 years|legal working age|age of majority/.test(blob))) return chooseYesNo(f, true, "Applicant is a working professional", 0.9);
+          if (/consent\.marketing/.test(group)) return chooseYesNo(f, false, "Optional marketing opt-in left off", 0.95);
+          if (/consent\.agree/.test(group) && (f.required || /required|certify|acknowledge|agree|privacy|terms|personal information|data processing/.test(blob))) return chooseYesNo(f, true, "Required application consent", 0.9);
+          if (/logic\.sponsorship/.test(group) || /sponsor|visa sponsorship/.test(blob)) {
+            const needs = (merged.work_auth as any)?.needs_sponsorship;
+            if (needs === true) return chooseYesNo(f, true, "Profile says sponsorship is needed", 0.95);
+            if (needs === false || anyAuthorized) return chooseYesNo(f, false, "Work authorization indicates no sponsorship needed", 0.95);
+          }
+          if (/logic\.work_auth|logic\.citizenship/.test(group) || /authorized to work|legally authorized|right to work|work authorization/.test(blob)) {
+            const authStatement = anyAuthorized ? chooseOpt(f, /authorized|eligible|right to work|any employer|permitted/) : null;
+            const countryOpt = (merged.work_auth as any)?.authorized_ca === true ? chooseOpt(f, /canada|canadian|\bca\b/) : (merged.work_auth as any)?.authorized_us === true ? chooseOpt(f, /united states|\bu\.?s\.?\b|usa|american/) : null;
+            if (authStatement) return emitOpt(f, authStatement, "Work authorization from profile", 0.95);
+            if (countryOpt) return emitOpt(f, countryOpt, "Work authorization country from profile", 0.95);
+            if (anyAuthorized) return chooseYesNo(f, true, "Work authorization from profile", 0.95);
+            if ((merged.work_auth as any)?.authorized_us === false || (merged.work_auth as any)?.authorized_ca === false) return chooseYesNo(f, false, "Work authorization not available for this country", 0.75);
+          }
+          if (/reside|currently based|currently located|location eligibility|relocat/.test(blob)) {
+            const locationParts = normText([merged.city, merged.region, merged.region_full, merged.country].join(" ")).split(" ").filter(p => p.length > 2);
+            const matchesPlace = locationParts.some(p => blob.includes(p));
+            if (matchesPlace) return chooseYesNo(f, true, "Current location matches the question", 0.85) || (chooseOpt(f, /currently reside|currently live|currently based|eligible/) ? emitOpt(f, chooseOpt(f, /currently reside|currently live|currently based|eligible/)!, "Current location matches the question", 0.85) : null);
+            if (openToRelocate) {
+              const relocateOpt = chooseOpt(f, /relocat|open to moving|willing to move/);
+              if (relocateOpt) return emitOpt(f, relocateOpt, "Open to relocation", 0.8);
+            }
+          }
+          if (isOptionLike(f) && /logic\.(company_current_employee|company_past_employee|prior_relationship|noncompete|accommodation)/.test(group)) return chooseYesNo(f, false, "Default no unless profile says otherwise", 0.7);
+          const direct = directValueFor(group);
+          if (direct && !isOptionLike(f) && !/textarea|richedit|opentext/.test(kind)) return { id: f.id, value: direct, skip: false, confidence: 0.95, reasoning: "From profile or resume", source: "profile" };
+          return null;
+        };
+        const ruleValues = fieldArr.map(ruleAnswer).filter(Boolean) as Array<{ id: string; value?: string; optionValue?: string; optionLabel?: string; optionLabels?: string[]; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }>;
+        const ruleAnsweredIds = new Set(ruleValues.map(v => v.id));
+        const fieldsForAI = fieldArr.filter(f => !ruleAnsweredIds.has(f.id));
 
         const r = await callAI({
           model: DEFAULT_MODEL,
@@ -925,7 +1012,7 @@ This ladder fires when required===true OR when a text/textarea has a clear open 
 SUGGESTION: when skip:true ONLY because the needed info is missing from the profile/resume/canonical, set "suggestion" to a short specific instruction (under 12 words) telling the user what to add to fix it, e.g. "Add your LinkedIn URL in Profile, Professional Links". Leave suggestion empty for sensitive fields (SIN, DOB, bank) and for EEO/demographic questions.`,
           user: JSON.stringify({
             context: { jobTitle, company, ats, url },
-            fields,
+            fields: fieldsForAI,
             mergedBasics: merged,
             canonical,
             canonicalSummary: canonicalText,
@@ -961,22 +1048,21 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           },
         });
         const out = (r.structured as { values?: Array<{ id: string; value?: string; optionValue?: string; optionLabel?: string; optionLabels?: string[]; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }> }) || { values: [] };
-        const filtered = (out.values || []).filter(v => {
+        const allValues = [...ruleValues, ...(out.values || [])];
+        const filtered = allValues.filter(v => {
           if (v.skip) return false;
           const hasAny = (v.value && v.value.trim()) || (v.optionValue && v.optionValue.trim()) || (v.optionLabel && v.optionLabel.trim()) || (Array.isArray(v.optionLabels) && v.optionLabels.length);
           if (!hasAny) return false;
           if (typeof v.confidence === 'number' && v.confidence < 0.4) return false;
           return true;
         });
-        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string; currentValue?: unknown; labelSource?: string; type?: string; kind?: string; options?: Array<{ label?: string; value?: string }> }>);
         const fieldMap2 = new Map(fieldArr.map(f => [f.id, f]));
         const answeredIds = new Set(filtered.map(v => v.id));
-        const skippedFromAI = (out.values || [])
+        const skippedFromAI = allValues
           .filter(v => v.skip && v.suggestion && v.suggestion.trim())
           .map(v => ({ id: v.id, label: fieldMap2.get(v.id)?.label || v.id, reason: v.reasoning || "", suggestion: (v.suggestion || "").trim() }));
         const skippedIds = new Set(skippedFromAI.map(s => s.id));
         const isSensitive = (s: string) => /eeo|gender|race|ethnic|veteran|disab|sexual|pronoun|salary expectation|ssn|\bsin\b|social security|date of birth|\bdob\b/i.test(s || "");
-        const hasPrefilledValue = (v: unknown) => typeof v === "string" && v.trim().length > 0;
         const requiredMissing = fieldArr
           .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !hasPrefilledValue(f.currentValue) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
           .map(f => ({ id: f.id, label: f.label || f.id, reason: "No matching info in your profile.", suggestion: "Add this answer in your AYN profile." }));
@@ -1000,8 +1086,9 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             options: Array.isArray(f.options) ? f.options.map(o => String(o.label || o.value || "").slice(0, 80)).slice(0, 15) : [],
             currentValue: String((f.currentValue as unknown) || "").slice(0, 60),
             labelSource: f.labelSource || "",
+            fingerprint: String((f as any).fingerprint || "").slice(0, 120),
           }));
-          const aiValues = (out.values || []).map((v: { id: string; value?: string; optionValue?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
+          const aiValues = allValues.map((v: { id: string; value?: string; optionValue?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
             id: v.id,
             value: String(v.value || "").slice(0, 300),
             optionLabel: v.optionLabel || "",
