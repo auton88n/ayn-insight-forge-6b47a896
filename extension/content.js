@@ -518,6 +518,27 @@
     return h / Math.max(wa.size, wb.length);
   }
 
+  function aynShortLabelFallback(el) {
+    try {
+      let node = el.parentElement;
+      for (let i = 0; i < 5 && node; i++) {
+        const controls = node.querySelectorAll('input, textarea, select');
+        if (controls.length > 1) break; // shared container, stop climbing
+        const clone = node.cloneNode(true);
+        clone.querySelectorAll('input,textarea,select,button,svg').forEach(n => n.remove());
+        const raw = (clone.innerText || clone.textContent || '').trim();
+        const firstLine = raw.split(/\n+/).map(s => s.trim()).find(s => s.length >= 2 && s.length <= 120);
+        if (firstLine) {
+          const out = { label: firstLine.replace(/\s*\*\s*$/, '').replace(/\s+/g, ' ').trim(), required: /\*\s*$/.test(firstLine) };
+          try { el.__aynProxLabel = out; } catch (_) {}
+          return out;
+        }
+        node = node.parentElement;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
     if (el.id) {
@@ -542,6 +563,8 @@
     // Last resort: walk ancestors for the nearest question-shaped text
     const near = nearestQuestionText(el);
     if (near) return near;
+    const prox = aynShortLabelFallback(el);
+    if (prox && prox.label) return prox.label;
     return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
   }
 
