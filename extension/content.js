@@ -1788,17 +1788,22 @@
         }
         if (!matchB || !sharedAnc || usedContainers.has(sharedAnc)) continue;
         usedContainers.add(sharedAnc);
-        // Extract question label: nearest heading/label in ancestors that isn't Yes/No itself.
+        // v1.9.61 — prefer real heading/label over generic <p>; reject helper text.
+        const YN_HELPER_RE = /^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|note[:\s])/i;
         let qLabel = '';
-        let node = sharedAnc;
-        for (let up = 0; up < 5 && node && !qLabel; up++, node = node.parentElement) {
-          const heads = node.querySelectorAll('legend, label, [class*="label"], [class*="question"], [class*="Question"], h2, h3, h4, strong, p');
-          for (const h of heads) {
-            if (h.contains(a._el) || h.contains(matchB._el)) continue;
-            const t = ((h.innerText || h.textContent || '').trim().split('\n')[0] || '').trim();
-            if (t && t.length >= 3 && t.length <= 240 && !YESNO_RE.test(t)) { qLabel = t; break; }
+        const findQ = (sel) => {
+          let node = sharedAnc;
+          for (let up = 0; up < 5 && node && !qLabel; up++, node = node.parentElement) {
+            const heads = node.querySelectorAll(sel);
+            for (const h of heads) {
+              if (h.contains(a._el) || h.contains(matchB._el)) continue;
+              const t = ((h.innerText || h.textContent || '').trim().split('\n')[0] || '').trim();
+              if (t && t.length >= 3 && t.length <= 200 && !YESNO_RE.test(t) && !YN_HELPER_RE.test(t)) { qLabel = t; break; }
+            }
           }
-        }
+        };
+        findQ('legend, label, h1, h2, h3, h4, h5, strong, [class*="question" i], [class*="Question"], [class*="label" i], [role="heading"]');
+        if (!qLabel) findQ('p, span, div');
         if (!qLabel) qLabel = a.name || matchB.name || 'Yes/No question';
         const prefix = a._frame || '';
         const bgId = `${prefix}__buttongroup__:merge${bgCounter++}:${qLabel.slice(0, 40).replace(/\s+/g, '_')}`;
