@@ -2526,7 +2526,7 @@
     const __textUsed = new WeakSet();
     function __textCandsFor(doc) {
       if (__textCandCache.has(doc)) return __textCandCache.get(doc);
-      const sel = 'input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], textarea, [contenteditable="true"], [contenteditable=""]';
+      const sel = 'input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], textarea, [role="textbox"], [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]';
       const list = [];
       try {
         Array.from(doc.querySelectorAll(sel)).forEach(el => {
@@ -2592,6 +2592,24 @@
         }
         results.push({ id, ok: landed, verified: landed, reason: landed ? 'labelgroup-click' : 'labelgroup-click-unverified' });
         if (landed) filled++;
+        continue;
+      }
+
+      // v1.9.57 — recovered open-answer boxes (textarea / rich editor wrappers).
+      if (id.includes('__opentext__:')) {
+        const editable = window.__AYN_OPEN_TEXT_MAP__ && window.__AYN_OPEN_TEXT_MAP__.get(id);
+        if (!editable) { results.push({ id, ok: false, reason: 'open text editor not found' }); continue; }
+        const chosenOT = optionValue || optionLabel || value;
+        if (!chosenOT || !String(chosenOT).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
+        try {
+          const r = await aynFillTextbox(editable, String(chosenOT));
+          if (r.ok) filled++;
+          const out = { id, ok: !!r.ok, openText: true };
+          if (r.verified !== undefined) out.verified = !!r.verified;
+          if (r.reason) out.reason = r.reason;
+          if (editable.isContentEditable || (editable.getAttribute && editable.getAttribute('role') === 'textbox')) out.richEditor = true;
+          results.push(out);
+        } catch (e) { results.push({ id, ok: false, reason: e.message, openText: true }); }
         continue;
       }
 
