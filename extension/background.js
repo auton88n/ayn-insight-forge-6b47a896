@@ -53,10 +53,11 @@ async function callPublic(action, body) {
 }
 
 // Inject content script if not loaded
-async function safeSendMessage(tabId, message) {
+async function safeSendMessage(tabId, message, frameId = 0) {
+  const opts = { frameId };
   const tryOnce = () => new Promise(resolve => {
     try {
-      chrome.tabs.sendMessage(tabId, message, response => {
+      chrome.tabs.sendMessage(tabId, message, opts, response => {
         if (chrome.runtime.lastError) resolve(null);
         else resolve(response);
       });
@@ -65,10 +66,33 @@ async function safeSendMessage(tabId, message) {
   const direct = await tryOnce();
   if (direct !== null) return direct;
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['content.js'] });
     await new Promise(r => setTimeout(r, 300));
     return tryOnce();
   } catch { return null; }
+}
+
+// Enumerate frames worth scanning: the top frame (which already covers its own
+// same-origin subframes + shadow roots via collectScannableDocs), plus any frame
+// that is cross-origin relative to its PARENT (an ancestor's scan cannot reach it).
+// Falls back to top-only if webNavigation is unavailable.
+async function getScannableFrames(tabId) {
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    if (!frames || !frames.length) return [{ frameId: 0 }];
+    const byId = new Map(frames.map(f => [f.frameId, f]));
+    const originOf = (u) => { try { return new URL(u).origin; } catch { return null; } };
+    const out = [];
+    for (const f of frames) {
+      if (f.frameId === 0) { out.push({ frameId: 0 }); continue; }
+      if (f.errorOccurred) continue;
+      const parent = byId.get(f.parentFrameId);
+      const po = parent ? originOf(parent.url) : null;
+      const fo = originOf(f.url);
+      if (fo && fo !== po) out.push({ frameId: f.frameId });
+    }
+    return out.length ? out : [{ frameId: 0 }];
+  } catch { return [{ frameId: 0 }]; }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
