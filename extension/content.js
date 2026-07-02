@@ -721,16 +721,43 @@
     return (el.value || '').trim().length > 0;
   }
 
+  // v1.9.49 — recursively collect top doc + open shadow roots + same-origin
+  // (possibly nested) iframes. Shadow roots get sh<n>: prefix; iframes get
+  // frame<i>: prefix scoped to their host root; nested prefixes concatenate.
+  // Every root is registered in window.__AYN_ROOTS_MAP__ so injectValues can
+  // resolve elements later.
   function collectScannableDocs() {
-    const docs = [{ doc: document, prefix: '' }];
-    document.querySelectorAll('iframe').forEach((frame, i) => {
-      try {
-        const fdoc = frame.contentDocument;
-        if (fdoc && fdoc.querySelector('input, textarea, select')) {
-          docs.push({ doc: fdoc, prefix: `frame${i}:` });
+    const docs = [];
+    const map = new Map();
+    const seenRoots = new WeakSet();
+    let shCounter = 0;
+    function add(root, prefix) {
+      if (!root || seenRoots.has(root)) return;
+      seenRoots.add(root);
+      docs.push({ doc: root, prefix });
+      map.set(prefix, root);
+      let els;
+      try { els = root.querySelectorAll ? root.querySelectorAll('*') : []; } catch { return; }
+      // Collect nested iframes (indexed within this root)
+      let iframeIdx = 0;
+      els.forEach(el => {
+        try {
+          if (el.shadowRoot) {
+            const p = `sh${shCounter++}:`;
+            add(el.shadowRoot, prefix + p);
+          }
+        } catch {}
+        if (el.tagName === 'IFRAME') {
+          const idx = iframeIdx++;
+          try {
+            const fdoc = el.contentDocument;
+            if (fdoc) add(fdoc, prefix + `frame${idx}:`);
+          } catch { /* cross-origin, ignore */ }
         }
-      } catch { /* cross-origin, ignore */ }
-    });
+      });
+    }
+    add(document, '');
+    try { window.__AYN_ROOTS_MAP__ = map; } catch {}
     return docs;
   }
 
