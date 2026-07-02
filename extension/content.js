@@ -1591,6 +1591,61 @@
     return { doc, rawId };
   }
 
+  // v1.9.51 — shared field-element resolver. MUST match injectValues' resolution
+  // so the settle-and-reapply pass targets the exact same DOM node injection
+  // wrote to. Handles: real ids, name= lookups, and index-scheme ids like "f4".
+  function aynResolveFieldEl(id, _frame) {
+    try {
+      const { doc, rawId } = resolveDoc(id, _frame);
+      if (!doc || !rawId) return null;
+      let el = null;
+      try { el = doc.getElementById(rawId); } catch (_) {}
+      if (!el) { try { el = doc.querySelector(`[name="${CSS.escape(rawId)}"]`); } catch (_) {} }
+      if (!el) {
+        const im = /^f(\d+)$/.exec(rawId);
+        if (im) {
+          const idx = parseInt(im[1], 10);
+          const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
+          el = all[idx] || null;
+        }
+      }
+      return el || null;
+    } catch (_) { return null; }
+  }
+
+  async function aynSettleReapply(values, injectResult) {
+    try {
+      const byId = new Map((values || []).filter(v => v && v.id && typeof v.value === 'string' && v.value.trim()).map(v => [v.id, v.value]));
+      if (!byId.size) return;
+      const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+      const digits = (s) => String(s || '').replace(/\D+/g, '');
+      for (let pass = 0; pass < 2; pass++) {
+        await aynSleep(pass === 0 ? 900 : 600);
+        let reverted = 0;
+        for (const res of (injectResult.results || [])) {
+          if (!res || !res.ok || !byId.has(res.id)) continue;
+          const want = byId.get(res.id);
+          const el = aynResolveFieldEl(res.id, res._frame);
+          if (!el) continue;
+          const tag = (el.tagName || '').toUpperCase();
+          if (tag !== 'INPUT' && tag !== 'TEXTAREA') continue;
+          const cur = el.value || '';
+          const wantDigits = digits(want);
+          const stillThere = norm(cur) === norm(want) || (wantDigits.length >= 7 && digits(cur) === wantDigits) || (norm(cur).length > 0 && norm(cur).includes(norm(want)));
+          if (stillThere) continue;
+          reverted++;
+          try {
+            const r2 = await aynFillTextbox(el, want);
+            res.reapplied = true;
+            res.verified = !!(r2 && r2.verified);
+            if (!r2 || !r2.ok) res.reason = 'reverted after render, reapply failed';
+          } catch (_) { res.reason = 'reverted after render, reapply threw'; }
+        }
+        if (!reverted) break;
+      }
+    } catch (_) { /* never break the fill */ }
+  }
+
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
   function setNativeValue(el, value) {
@@ -2536,7 +2591,7 @@
       }
 
       // Resolve a single element
-      let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
+      let el = aynResolveFieldEl(id, _frame);
 
       // v1.9.43 — for text-like answers, prefer BEST QUESTION-TEXT MATCH over positional _idx.
       // Rehydrate label from scan cache if the value payload didn't include it.
@@ -3176,6 +3231,7 @@
             sendResponse({ filled: 0, total: 0, results: [], error: e.message });
             return;
           }
+          try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);
