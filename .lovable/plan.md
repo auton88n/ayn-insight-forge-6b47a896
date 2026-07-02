@@ -1,44 +1,44 @@
-## What is actually broken
+## Root cause
 
-Recent telemetry shows AYN is no longer mainly failing because the AI skips answers. The latest run answered all 16 fields, but 2 textareas failed during injection:
+The extension is still treating some visible Yes/No option controls as text fields, so generated answers are routed to the wrong DOM element. This creates two bad outcomes:
 
-- `Why are you interested in working at BioRender?`
-- `Is there anything you would like to clarify or expand on regarding your work history...`
+1. **Wrong answer routing** — option labels like `Yes` and `No` become fake `__textfield__` fields.
+2. **Missing answers** — EEO groups like `Disability Status` can be scanned with a generic label such as `Question` because the scanner picks nearby helper text or option text instead of the real question heading.
 
-Both had generated values, but the injector treated them like checkbox or radio fields and returned `no native group`. That means the DOM resolver is selecting the wrong element for ids like `f11` and `f12`, or the index based resolver is becoming stale after the page renders.
+The latest reliable fix is not another backend prompt patch. The browser scanner must send the backend the correct question + correct field type first.
 
-## Plan
+## Fix plan for v1.9.61
 
-1. **Replace fragile `f11` index ids for textareas**
-   - Generate stable synthetic ids for unlabeled or idless text fields and textareas.
-   - Store a live DOM reference in a map during scan.
-   - Resolve by that map first during injection, before falling back to document index.
+1. **Stop checkboxes/radios from ever becoming text fields**
+   - Harden `registerTextField()` so `radio`, `checkbox`, `file`, `hidden`, `submit`, `button`, `image`, and `reset` inputs cannot receive `__textfield__` IDs.
+   - Add the same guard to the supplemental text-input recovery pass.
 
-2. **Make injection type safe**
-   - Pass the scanned field `kind`, `type`, and label into the fill dispatcher.
-   - If backend says `kind: textarea`, never route the target through radio or checkbox filling even if the resolved DOM node is wrong.
-   - If resolved node type conflicts with the expected kind, force a question text rematch instead of clicking the wrong element.
+2. **Add anonymous checkable grouping**
+   - Group visible idless/nameless checkboxes/radios by nearest shared question container.
+   - Emit one `radio`/`buttongroup` field with options instead of separate fake text fields.
+   - Store the grouped DOM elements in a map for injection, similar to `__AYN_STRUCTRADIO_MAP__`.
 
-3. **Improve question matching for open text**
-   - Match by normalized question text and proximity, not raw index.
-   - Prefer `TEXTAREA`, `[role=textbox]`, and contenteditable when the AI field is open text.
-   - Add a minimum score threshold so AYN does not fill the wrong field.
+3. **Fix question-heading detection for EEO and Gem forms**
+   - Add an `aynFindOptionGroupQuestion()` resolver.
+   - Prefer real headings/labels above the option row.
+   - Reject option text (`Yes`, `No`, `Decline to self-identify`, etc.) and long explanatory helper paragraphs.
+   - Use this resolver in shared-name radios, structural radios, custom radios, label groups, and Yes/No merge.
 
-4. **Record better diagnostics**
-   - Add skip metadata for `expectedKind`, `resolvedTag`, `resolvedType`, `labelSource`, and whether index fallback was used.
-   - Log when a field was rejected because the resolved element did not match the expected kind.
+4. **Protect EEO answer correctness**
+   - Ensure `Gender`, `Race/Ethnicity`, `Veteran Status`, and `Disability Status` classify correctly even when the raw scanned label is imperfect.
+   - Keep EEO answers conservative: choose `Decline to self-identify` / `Prefer not to answer` when present.
 
-5. **Keep backend rules, but reduce dependency on prompting**
-   - Keep the hard open text backend rule from v1.9.59.
-   - Do not add another prompt patch as the primary fix, because the latest data proves the AI answered these fields and the browser write failed.
+5. **Improve diagnostics**
+   - Log the final field type, resolved selector, question label, label source, and selected option for every EEO / Yes-No / open-text field.
+   - If a field is skipped, log whether the failure came from scan, backend answer, option match, or DOM injection.
 
-6. **Package and deploy**
-   - Bump extension to `v1.9.60`.
-   - Rebuild `public/ayn-extension.zip`.
-   - Redeploy `resume-hub` only if backend code changes are needed after the injector fix.
+6. **Version and package**
+   - Bump extension from `1.9.60` to `1.9.61` in manifest, constants, content, and download UI.
+   - Rebuild the extension zip.
 
-## Validation
+## Expected result
 
-- Recheck recent `autofill_runs` after the fix.
-- Confirm the BioRender textareas fill successfully and no longer show `no native group`.
-- Confirm filled count includes open text fields and diagnostics show the final selector or stable synthetic id used.
+- BioRender-style EEO questions scan as the actual questions, not `Question`.
+- Yes/No pairs are grouped and answered as one question.
+- Textarea answers are no longer confused with checkbox/radio controls.
+- The sidepanel count reflects real filled fields, not generated answers that failed to inject.
