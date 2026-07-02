@@ -481,16 +481,27 @@
       cl.querySelectorAll('input,textarea,select,button').forEach(n => n.remove());
       if (c(cl.innerText)) return c(cl.innerText);
     }
-    let node = el;
-    for (let d = 0; d < 8 && node; d++, node = node.parentElement) {
-      let prev = node.previousElementSibling, guard = 0;
-      while (prev && guard++ < 4) {
-        const t = c(prev.innerText);
-        if (t && t.length >= 3 && t.length < 220 && !/^(\*|required)$/i.test(t)) return t.slice(0, 160);
-        prev = prev.previousElementSibling;
+    // 5. document-order walk-up: at each ancestor, find the text block that precedes THIS field
+    //    among the ancestor's children and does not contain another fillable field.
+    let node = el.parentElement;
+    for (let d = 0; d < 6 && node; d++, node = node.parentElement) {
+      const kids = Array.from(node.children);
+      const fieldIdx = kids.findIndex(k => k.contains(el));
+      if (fieldIdx > 0) {
+        for (let i = fieldIdx - 1; i >= 0; i--) {
+          const k = kids[i];
+          if (k.querySelector && k.querySelector('input:not([type="hidden"]), textarea, select')) continue;
+          const t = (k.innerText || '').replace(/\s+/g, ' ').trim();
+          const firstLine = t.split('\n')[0].trim();
+          if (firstLine && firstLine.length >= 3 && firstLine.length < 200 && !/^(\*|required)$/i.test(firstLine)) {
+            return firstLine.slice(0, 160);
+          }
+        }
       }
     }
-    v = c(el.getAttribute('placeholder')); if (v) return v;
+    // 6. placeholder last
+    const ph = c(el.getAttribute('placeholder'));
+    if (ph) return ph;
     return '';
   }
 
