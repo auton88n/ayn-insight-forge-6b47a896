@@ -443,7 +443,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
           .map(v => {
             const f = fieldMeta.get(v.id) || {};
-            return { ...v, label: f.label || v.label || '', kind: f.kind || f.type || v.kind || '', type: f.type || v.type || '', name: f.name || v.name || '' };
+            return {
+              ...v,
+              label: f.label || v.label || '',
+              kind: f.kind || f.type || v.kind || '',
+              type: f.type || v.type || '',
+              name: f.name || v.name || '',
+              labelSource: f.labelSource || v.labelSource || '',
+              richDetector: f.richDetector || v.richDetector || '',
+              _idx: f._idx,
+              _frame: f._frame || '',
+            };
           });
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
@@ -502,7 +512,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
                 .map(v => {
                   const f = newFieldMeta.get(v.id) || {};
-                  return { ...v, label: f.label || v.label || '', kind: f.kind || f.type || v.kind || '', type: f.type || v.type || '', name: f.name || v.name || '' };
+                  return {
+                    ...v,
+                    label: f.label || v.label || '',
+                    kind: f.kind || f.type || v.kind || '',
+                    type: f.type || v.type || '',
+                    name: f.name || v.name || '',
+                    labelSource: f.labelSource || v.labelSource || '',
+                    richDetector: f.richDetector || v.richDetector || '',
+                    _idx: f._idx,
+                    _frame: f._frame || '',
+                  };
                 });
             if (newValues.length > 0) {
               const byFrame2 = new Map();
