@@ -589,9 +589,9 @@
     if (/linkedin/.test(l)) return 'link.linkedin';
     if (/portfolio|website|personal\s*site/.test(l)) return 'link.portfolio';
     if (/github/.test(l)) return 'link.github';
-    if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed|entitled)|right\s+to\s+work/.test(l)) return 'logic.work_auth';
-    if (/sponsor|visa|require.*sponsorship/.test(l)) return 'logic.sponsorship';
-    if (/relocat/.test(l)) return 'logic.relocate';
+     if (/authoriz(e|ed)\s+to\s+work|work\s+authorization|legally\s+(authorized|allowed|entitled)|right\s+to\s+work|autoris(e|ee?)\s+a\s+travailler|autorisation\s+de\s+travail|permis\s+de\s+travail|autorizad[oa]\s+para\s+trabajar|arbeitserlaubnis|arbeitsgenehmigung/.test(l)) return 'logic.work_auth';
+     if (/sponsor|visa|require.*sponsorship|parrainage|patrocinio/.test(l)) return 'logic.sponsorship';
+     if (/relocat|demenager|relocalisation|reubicacion|umzug|umziehen/.test(l)) return 'logic.relocate';
     if (/remote|hybrid|on[\s-]?site/.test(l) && type !== 'text') return 'logic.work_mode';
     if (/years?\s+of\s+experience|experience\s+(level|years)|how\s+many\s+years/.test(l)) return 'logic.years_experience';
     if (/highest\s+(degree|education|level)|education\s+level|degree/.test(l) && type !== 'text') return 'logic.education_level';
