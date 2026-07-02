@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText } from "lucide-react";
+import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2 } from "lucide-react";
+import { triggerAutofill, handoffUrl } from "@/lib/extension";
 
 interface Props { userId: string; onOpenJob: (id: string) => void }
 
@@ -182,6 +183,23 @@ export default function JobsTab({ userId }: Props) {
                 <Button onClick={tailorResume} disabled={busy || !primaryResume} variant="outline">Tailor resume</Button>
                 <Button onClick={writeCover} disabled={busy || !primaryResume} variant="outline">Write cover letter</Button>
                 <Button onClick={addToTracker} variant="outline">Add to tracker</Button>
+                {selected.source_url && (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      const url = selected.source_url!;
+                      const r = await triggerAutofill(url, primaryResume?.id);
+                      if (r.ok) {
+                        toast({ title: "Autofill sent", description: "Switch to the job tab to watch AYN fill it." });
+                      } else {
+                        window.open(handoffUrl(url, primaryResume?.id), "_blank", "noopener");
+                        toast({ title: "Opening job page", description: "Install the AYN extension to autofill instantly." });
+                      }
+                    }}
+                  >
+                    <Wand2 className="w-4 h-4 mr-2" />Autofill with AYN
+                  </Button>
+                )}
                 <Button onClick={() => removeJob(selected.id)} variant="ghost" size="sm" className="ml-auto"><Trash2 className="w-4 h-4" /></Button>
               </div>
               {!primaryResume && (

@@ -1,53 +1,57 @@
+# AYN Extension v1.9.55 — Jobright Parity Pack
 
-# Make AYN Autofill Truly Universal
+Close all four architectural gaps identified in the reverse-engineering of Jobright v1.14.0. No UX changes to the side panel; this is plumbing.
 
-Goal: AYN understands every form on every ATS and fills every question correctly. Ship in two phases so we can measure the win after each.
+## 1. `declarativeNetRequest` — CSP strip for hostile ATS pages
 
-## Phase A — Universal DOM understanding (v1.9.37)
+**Why:** Workday, some Greenhouse embeds, and a few Oracle Cloud pages set a `Content-Security-Policy` that blocks our `page-world.js` power-setter or refuses `blob:` PDF downloads. Jobright ships a static ruleset to strip those headers on job-page navigations.
 
-Rewrite the scanner in `extension/content.js` so the field list AYN sees matches what a human sees.
+**Changes:**
+- `manifest.json`: add `"declarativeNetRequest"` permission and a `declarative_net_request.rule_resources` block pointing at `rules/csp.json`.
+- New file `extension/rules/csp.json` — one rule per ATS host pattern (Workday `*.myworkdayjobs.com`, Greenhouse `boards.greenhouse.io`, Lever `jobs.lever.co`, Ashby `jobs.ashbyhq.com`, iCIMS, SmartRecruiters, Taleo), each: `action: { type: "modifyHeaders", responseHeaders: [{ header: "content-security-policy", operation: "remove" }, { header: "content-security-policy-report-only", operation: "remove" }] }`, `condition.resourceTypes: ["main_frame", "sub_frame"]`.
+- Scope narrowly — do NOT apply to `<all_urls>` (would break banking, gov sites).
 
-1. **Walk fieldsets, legends, and ARIA trees, not just individual inputs.**
-   - Group by nearest `<fieldset>`, `role="group"`, `role="radiogroup"`, `aria-labelledby`, or a preceding heading (h2/h3/h4/label/legend).
-   - Use each group's accessible name as the question, its children as options.
-   - Works across Workday, Greenhouse, Lever, Ashby, Gem, Taleo, iCIMS, SAP SuccessFactors, BambooHR — no per-site adapters needed beyond the existing Gem one.
+## 2. Split `content.js` into modules
 
-2. **True control-kind detection.** For every group decide: text, textarea, richEditor, select (native), combobox (typeahead), radioGroup, checkboxGroup (multi vs singleChoice), datePicker, phone-with-country, file. Kind drives the injector; today too many things get miscalled `text`.
+**Why:** `content.js` is a ~3k-line monolith. Jobright splits into `constants.js` + `filler.js` + `contents.js` for parse-time and cache reuse.
 
-3. **Sibling context capture.** For each field record: section heading, preceding sibling label, following helper text, `aria-describedby`, placeholder, and up to 3 sibling field labels. This is the context Phase B feeds to the model.
+**Changes:**
+- New `extension/constants.js` — regexes, exclude lists, similarity thresholds, timing constants (`aynFieldQuestion`, language synonyms, `AYN_IS_TOP`). Loaded first in `content_scripts[0]`.
+- New `extension/filler.js` — extraction of `aynFillTextbox`, `aynSettleReapply`, radio/checkbox/select fillers, verify-and-retry executor, structural radio grouping. Loaded second.
+- `extension/content.js` — trimmed to orchestration: `SCAN_FORM`, `INJECT_VALUES`, activity glow, message routing. Calls into `filler.js` globals.
+- `manifest.json`: `content_scripts[0].js` becomes `["constants.js", "filler.js", "content.js"]` (order matters, all isolated world).
+- `page-world.js` and its MAIN-world entry unchanged.
+- **Zero behavior change** — this is a pure refactor. Add a smoke-test checklist in `README.md` covering Workday, Greenhouse, Lever, Ashby, LinkedIn Easy Apply.
 
-4. **Dedupe + ordering.** Preserve DOM order, dedupe by group id, and drop hidden/decorative controls.
+## 3. Page-to-extension click bridge + stable key
 
-5. **Diagnostic panel (in the extension).** After Fill, show a collapsible list of every field AYN saw: label, kind, classifier tag, chosen answer, source (profile key or "AI"), and skip reason. This is how we prove Phase A works and drive Phase B fixes.
+**Why:** So aynn.io (dashboard "Autofill this job" button) can trigger the extension without the user opening the side panel. Requires a fixed extension ID.
 
-Deliverables: `extension/content.js` scanner rewrite, `extension/sidepanel.js` diagnostic panel, telemetry writes the new fields to `autofill_runs`. Bump to `1.9.37`, rebuild `public/ayn-extension.zip`.
+**Changes:**
+- `manifest.json`: add `"key"` field (generate one via `openssl genrsa 2048 | openssl rsa -pubout -outform DER | base64` — stored as text, safe to commit). Also add `"externally_connectable": { "matches": ["https://aynn.io/*", "https://*.aynn.io/*", "https://*.lovable.app/*"] }`.
+- `background.js`: add `chrome.runtime.onMessageExternal.addListener` handling `{ type: "AYN_TRIGGER_AUTOFILL", jobUrl }` — opens/focuses the tab, then routes into existing `AUTO_AUTOFILL`.
+- `src/lib/extension.ts` (new, dashboard side) — helper `triggerAutofill(jobUrl)` that calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)`, with `EXTENSION_ID` derived from the committed key (compute once, hardcode as constant).
+- Wire an "Autofill with AYN" button on `/resume-hub` job cards (uses the helper; falls back to "Install extension" if `chrome.runtime` is undefined).
 
-## Phase B — Smarter AI answering + self-check (v1.9.38)
+## 4. aynn.io deep-link handler
 
-Upgrade `supabase/functions/resume-hub/index.ts` `ext_autofill`.
+**Why:** Jobright's `scroll-to-anchor.js` is a domain-scoped content script that reads a URL hash on their own site to jump the user into a specific job. AYN needs the reverse: when the dashboard hands off to a job page, restore context (JD, saved answers) automatically.
 
-1. **Richer field payload to the model.** Send `{ id, label, kind, options, section, sibling_labels, helper_text, classifier, dependsOn, priorAnswers }` per field. Priors let the model keep dependent answers consistent (e.g. "Which agency" only if prior was Yes).
+**Changes:**
+- New `extension/deep-link.js` — content script scoped to `matches: ["https://aynn.io/handoff*", "https://*.aynn.io/handoff*", "https://*.lovable.app/handoff*"]`. Reads `?job=<encoded url>&resume=<id>` from `location`, stores into `chrome.storage.local` under `ayn:pendingHandoff`, then `window.close()` or redirects to the target job URL.
+- `content.js` on first load per tab: checks `ayn:pendingHandoff`, if the current URL matches the stored job URL, hydrates JD/resume selection and shows a toast "Restored from AYN".
+- Dashboard: add a "Continue on the job page" link that opens `https://aynn.io/handoff?job=...` in a new tab.
 
-2. **Structured answer schema.** Model returns `{ id, value | optionLabel | optionLabels, source, confidence, reasoning, skip?, suggestion? }`. Reject any field that doesn't fit; ask the model to redo just those.
+## Rollout
 
-3. **Self-check pass.** After the first answer set, run a lightweight second call: "Given these answers and the user profile, list any that contradict the profile, misuse an option, or violate a dependency." Replace flagged answers.
+- Bump `manifest.json` version to `1.9.55`.
+- Rebuild `public/ayn-resume-tailor.zip` via the existing nix zip command.
+- Update `README.md` install steps to note the new stable extension ID.
+- Post-install regression: run the smoke-test list on Workday, Greenhouse, Lever, Ashby, LinkedIn Easy Apply, iCIMS. Confirm autofill success rate is unchanged or better; confirm CSP rules only fire on the listed hosts (check `chrome://extensions` → Service worker → `chrome.declarativeNetRequest.getMatchedRules`).
 
-4. **Second-pass repair for skipped fields.** For everything skipped, retry once with the full JD + siblings included, and label truly unanswerable ones with a clear "add X to your profile" suggestion (already wired to the UI in 1.9.17).
+## Technical notes
 
-5. **Widened rules.** Add rules for common gaps still missed today: sponsorship (now vs future), start date, notice period, current/expected salary currency, gender/ethnicity self-ID (default "Prefer not to say" unless profile says otherwise), disability/veteran self-ID (same), reference name/email/phone triples, portfolio/GitHub/LinkedIn URLs, availability days/hours, security clearance, driver's license, willingness to travel %.
-
-6. **Confidence gating.** Only inject answers with `confidence >= 0.6`; lower-confidence answers become suggestions in the diagnostic panel so the user can approve them.
-
-Deliverables: `supabase/functions/resume-hub/index.ts` updated `ext_autofill`, diagnostic panel shows confidence + reasoning per field, injector honors confidence gate. Bump to `1.9.38`, rebuild zip, redeploy edge function.
-
-## Out of scope
-
-No changes to Ashby, Gem site adapter, vision fallback, or the option-matching normalizer. No new profile fields. No changes to Score/Cover/Contacts/Tailor tabs.
-
-## Files touched
-
-- `extension/content.js` — scanner rewrite (Phase A)
-- `extension/sidepanel.js` — post-fill diagnostic panel (Phase A + B)
-- `extension/manifest.json` — version bumps
-- `public/ayn-extension.zip` — rebuild each phase
-- `supabase/functions/resume-hub/index.ts` — richer prompt, structured schema, self-check, second-pass repair, widened rules (Phase B)
+- The `key` field permanently pins the extension ID. Once shipped, do not change it — users would get a duplicate install.
+- `declarativeNetRequest` static rules count against the 30k global rule limit; we'll use ~10 rules, negligible.
+- `externally_connectable` uses `https://` match patterns only — no `<all_urls>`, no wildcards on TLD.
+- All existing v1.9.54 behavior (frame-aware routing, `@@F<n>@@` namespacing, verify-and-retry) is preserved.
