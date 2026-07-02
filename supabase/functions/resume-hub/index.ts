@@ -865,7 +865,7 @@ logic.current_salary   → NEVER volunteer. Only answer if canonical.preferences
 logic.reference_name / logic.reference_email / logic.reference_phone → Use profile.default_answers.references[]. Match by index using siblingLabels + section (Reference 1 vs Reference 2). If not stored, skip with suggestion "Add references in Profile".
 identity.middle_name   → Only if present in the profile; never invent. Otherwise skip.
 identity.preferred_name→ Use the profile's preferred name; if absent, use the first name.
-consent.agree          → Consent/terms/privacy/attestation checkboxes that are REQUIRED to submit (including "I certify the information is true"): answer "yes", since the user initiated this application. Do not tick anything that is optional marketing.
+consent.agree          → Consent/terms/privacy/attestation/personal-information checkboxes that are REQUIRED to submit (including "I certify the information is true", "Personal information", "Informations personnelles", "Renseignements personnels", "I acknowledge", "I accept", "I agree", GDPR/CCPA notices, data-processing consent for THIS application): answer "yes"/tick the box, since the user initiated this application. Do not tick anything that is optional marketing.
 consent.marketing      → Optional marketing/newsletter opt-ins: leave OFF. Return value "no" (or skip). Never opt the user in.
 open.referral          → If the profile names a referral, use it; otherwise skip with a suggestion. Never invent a referrer.
 open.behavioral        → Write a concise STAR-style answer grounded ONLY in the resume's real experience, under 120 words.
