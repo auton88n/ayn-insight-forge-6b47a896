@@ -57,6 +57,7 @@ const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
 const ContactPage = lazy(() => import("./pages/Contact"));
 const ResumeMatch = lazy(() => import("./pages/ResumeMatch"));
 const ResumeHub = lazy(() => import("./pages/ResumeHub"));
+const Handoff = lazy(() => import("./pages/Handoff"));
 // const AIAgents = lazy(() => import("./pages/services/AIAgents"));
 // const AIAgentsApply = lazy(() => import("./pages/services/AIAgentsApply"));
 // const Automation = lazy(() => import("./pages/services/Automation"));
@@ -120,6 +121,7 @@ const AnimatedRoutes = () => {
       <Route path="/resume-match" element={<Suspense fallback={<PageLoader />}><ResumeMatch /></Suspense>} />
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
+      <Route path="/handoff" element={<Suspense fallback={<PageLoader />}><Handoff /></Suspense>} />
       <Route path="/support" element={<Support />} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
