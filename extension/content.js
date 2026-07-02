@@ -1546,18 +1546,22 @@
 
   function resolveDoc(id, _frame) {
     let doc = document;
-    let rawId = id;
-    const m = /^frame(\d+):(.*)$/.exec(id || '');
-    if (m) {
-      const frame = document.querySelectorAll('iframe')[parseInt(m[1],10)];
-      try { if (frame?.contentDocument) doc = frame.contentDocument; } catch {}
-      rawId = m[2];
-    } else if (_frame) {
-      const fm = /^frame(\d+):$/.exec(_frame);
-      if (fm) {
-        const frame = document.querySelectorAll('iframe')[parseInt(fm[1],10)];
-        try { if (frame?.contentDocument) doc = frame.contentDocument; } catch {}
+    let rawId = id || '';
+    // v1.9.49 — support concatenated prefixes: frame0:sh1:frame2:...
+    const m = /^((?:(?:frame\d+|sh\d+):)+)(.*)$/.exec(rawId);
+    let prefix = '';
+    if (m) { prefix = m[1]; rawId = m[2]; }
+    else if (_frame) { prefix = _frame; }
+    if (prefix) {
+      let map = (typeof window !== 'undefined' && window.__AYN_ROOTS_MAP__) || null;
+      let root = map && map.get(prefix);
+      if (!root) {
+        // Rebuild registry (docs may have re-rendered)
+        try { collectScannableDocs(); } catch {}
+        map = (typeof window !== 'undefined' && window.__AYN_ROOTS_MAP__) || null;
+        root = map && map.get(prefix);
       }
+      if (root) doc = root;
     }
     return { doc, rawId };
   }
