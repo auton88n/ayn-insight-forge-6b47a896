@@ -871,7 +871,7 @@ open.referral          → If the profile names a referral, use it; otherwise sk
 open.behavioral        → Write a concise STAR-style answer grounded ONLY in the resume's real experience, under 120 words.
 logic.relocate → canonical.preferences.open_to_relocation === true ⇒ Yes; else profile.default_answers.willing_to_relocate ("yes"/true ⇒ Yes); else skip.
 logic.work_mode / remote → canonical.preferences.open_to_remote === true ⇒ remote-friendly/Yes; else profile.default_answers.remote_preference; else skip.
-logic.travel → canonical.preferences.open_to_travel === true ⇒ Yes; else profile.default_answers.willing_to_travel ("yes"/true ⇒ Yes); else skip.
+
 
 BUTTONGROUP YES/NO ROUTING:
 A buttongroup whose options reduce to Yes/No (case-insensitive) is a real single-choice question — NOT a "should I tick this checkbox" decision. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION, and EEO rules below to decide Yes vs No, then return the exact optionLabel/optionValue from the field's options[]. If the rule says skip, return skip:true. Never default to "No" out of caution.
