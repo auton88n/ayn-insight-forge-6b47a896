@@ -598,9 +598,9 @@
     // Preferred city (checkbox/radio group of cities) takes precedence over generic preferred_location
     if (/preferred\s+(office|work)?\s*(city|location)|which\s+city.*(work|office)|preferred\s+office\s+location|city\s+.*(prefer|preferred)/.test(l) && (type === 'checkbox' || type === 'radio' || type === 'buttongroup')) return 'logic.preferred_city';
     // Salary min/max detection when label/name signals min|max|from|to and the surrounding context has salary/comp/currency
-    if (/(salary|compensation|expectation|\$|€|£|cad|usd)/.test(l) && /\b(min(imum)?|from|à\s*partir|starting|floor|low(er)?)\b/.test(l)) return 'logic.salary_min';
-    if (/(salary|compensation|expectation|\$|€|£|cad|usd)/.test(l) && /\b(max(imum)?|to|jusqu|upper|high(er)?|ceiling|top)\b/.test(l)) return 'logic.salary_max';
-    if (/salary\s+(expectation|expected|range|requirement)|expected\s+salary|compensation/.test(l)) return 'logic.salary';
+     if (/(salary|compensation|expectation|salaire|remuneration|attentes\s+salariales|salario|gehalt|\$|€|£|cad|usd)/.test(l) && /\b(min(imum)?|from|a\s*partir|starting|floor|low(er)?)\b/.test(l)) return 'logic.salary_min';
+     if (/(salary|compensation|expectation|salaire|remuneration|attentes\s+salariales|salario|gehalt|\$|€|£|cad|usd)/.test(l) && /\b(max(imum)?|to|jusqu|upper|high(er)?|ceiling|top)\b/.test(l)) return 'logic.salary_max';
+     if (/salary\s+(expectation|expected|range|requirement)|expected\s+salary|compensation|salaire|remuneration|attentes\s+salariales|salario|gehalt|gehaltsvorstellung/.test(l)) return 'logic.salary';
     if (/notice\s+period|when\s+can\s+you\s+start|start\s+date|available/.test(l)) return 'logic.start_date';
     if (/gender|sex\b/.test(l)) return 'eeo.gender';
     if (/ethnic|race|hispanic/.test(l)) return 'eeo.ethnicity';
