@@ -899,20 +899,24 @@ DEMOGRAPHIC / EEO / VOLUNTARY SELF-IDENTIFICATION (eeo.*: race, ethnicity, gende
 - If an option exists meaning "Decline to self-identify" / "Prefer not to answer" / "I do not wish to disclose" / "Choose not to disclose", pick that (return its exact optionLabel/optionValue).
 - Otherwise set skip:true. Do not pick any specific demographic option.
 
-OPEN-ENDED (open.*):
+OPEN-ENDED (open.* and clear free-text prompts):
 open.about  → 2-3 sentences. Current role + years, then ONE concrete resume achievement that maps to the JD. Plain natural language.
 open.why    → 2-3 sentences tying ONE JD requirement to ONE resume bullet. Name the company once.
 open.cover  → 4-5 sentences, same rules.
 open.source → "LinkedIn" by default; check context.url for indeed/glassdoor/jobright hints.
 ALWAYS answer motivation / "why" / "tell us about" free-text questions with 2-3 sentences grounded in the user's profile and the job. NEVER skip an open free-text question that has a clear prompt — produce a real answer.
+If kind is text/textarea and label, section, helperText, or placeholder clearly asks an application question, answer it even when group is "other" or required is false. This includes prompts like "Why are you interested in working at {company}?", "What interests you about this role?", "Is there anything you'd like to clarify or expand on regarding your work history, gaps, or career transitions?", and "Additional information".
+For work-history clarification / gaps / career-transition prompts: if the resume shows no explicit gap or issue, write a short positive clarification such as "There is nothing significant I need to clarify. My background reflects a consistent progression across relevant roles, and I would be happy to discuss any part of my experience in more detail." Adjust wording to the user's resume, but do not invent a personal gap.
+For company-interest prompts: use context.company, context.jobTitle, jobDescription, and one real resume/profile strength. If company is missing, refer to "this role" instead of inventing a company.
 
 CONFIDENCE: 1.0 exact data; 0.7-0.9 strong inference; 0.4-0.6 weak; <0.4 → set skip:true instead.
 REASONING: one short sentence citing the actual source ("From profile.email"; "work_authorized_ca=true, Canada in role list"; "no linkedin_url in profile, skipped"; "EEO question; declined per policy").
 
-NEVER-EMPTY SAFETY NET (v1.9.56): Empty required fields are the #1 failure. Before returning skip:true on a REQUIRED field, run this ladder:
+NEVER-EMPTY SAFETY NET (v1.9.57): Empty application text fields are the #1 failure. Before returning skip:true on a REQUIRED field, run this ladder:
 1. If the field is a select/radio/buttongroup with options and NONE of the domain rules above yielded an answer: pick the most neutral option in this order — an option whose label matches /prefer not|decline|do not wish|rather not|no answer/i; else an option matching /no|none|n\/a|not applicable/i for screening questions; else skip only if truly no option is defensible. Set confidence 0.4-0.5 and reasoning "neutral fallback for required field".
 2. If the field is a required text/textarea with a clear prompt (open.*) and you have ANY relevant resume content, produce a short 1-2 sentence answer rather than skipping. Set source "inferred", confidence 0.5.
-3. Never apply this ladder to EEO/demographic, salary, SIN/SSN, DOB, or clearance fields — those keep their strict rules.
+3. If the field is an OPTIONAL text/textarea but has a clear open application prompt from label/section/helperText/placeholder, answer it unless it asks for sensitive information. Optional open-ended company, motivation, work-history, cover-letter, and additional-information prompts should not be left empty.
+4. Never apply this ladder to EEO/demographic, salary, SIN/SSN, DOB, or clearance fields — those keep their strict rules.
 This ladder ONLY fires when required===true AND no other rule produced an answer.
 SUGGESTION: when skip:true ONLY because the needed info is missing from the profile/resume/canonical, set "suggestion" to a short specific instruction (under 12 words) telling the user what to add to fix it, e.g. "Add your LinkedIn URL in Profile, Professional Links". Leave suggestion empty for sensitive fields (SIN, DOB, bank) and for EEO/demographic questions.`,
           user: JSON.stringify({
