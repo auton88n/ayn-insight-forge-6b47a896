@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.61';
+  const AYN_BUILD = '1.9.62';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -975,6 +975,142 @@
     return ctx;
   }
 
+  // v1.9.62 — shared question resolver for native radios, structural radios,
+  // ARIA/custom radios, label groups and Yes/No merges. The previous scanners
+  // each guessed independently, which let helper copy such as "Question" or
+  // "What is considered a disability?" replace the real field title.
+  function aynNormLine(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+  function aynFirstUsefulLine(text) {
+    const lines = String(text || '').split(/[\n\r]+/).map(aynNormLine).filter(Boolean);
+    return lines[0] || '';
+  }
+  function aynHashShort(s) {
+    let h = 2166136261;
+    const str = String(s || '');
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(36);
+  }
+  function aynOptionTextSet(optionsOrEls) {
+    const set = new Set();
+    try {
+      (optionsOrEls || []).forEach(o => {
+        let t = '';
+        if (typeof o === 'string') t = o;
+        else if (o && typeof o.label === 'string') t = o.label;
+        else if (o && o.nodeType === 1) t = safeText(o) || o.getAttribute?.('aria-label') || '';
+        t = aynNormLine(t).toLowerCase();
+        if (t) set.add(t);
+      });
+    } catch (_) {}
+    return set;
+  }
+  function aynBadQuestionLine(line, optTexts) {
+    const t = aynNormLine(line);
+    const l = t.toLowerCase();
+    if (!t || t.length < 2 || t.length > 180) return true;
+    if (/^(question|select one|choose one|required|optional)$/i.test(t)) return true;
+    if (/^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|for\s+more\s+information|see\s+(below|above)|note[:\s]|learn more|description[:\s])/i.test(t)) return true;
+    if (/^(asian|black|hispanic|latino|white|male|female|non[- ]?binary|decline to self|prefer not|yes|no|oui|non|i identify as|i am not a|i do not wish)/i.test(t)) return true;
+    if (optTexts && optTexts.has(l)) return true;
+    if (optTexts) {
+      let hits = 0;
+      optTexts.forEach(o => { if (o && l.includes(o)) hits++; });
+      if (hits >= 2) return true;
+    }
+    return false;
+  }
+  function aynScoreQuestionCandidate(el, text, optTexts, anchor) {
+    const t = aynNormLine(text);
+    if (aynBadQuestionLine(t, optTexts)) return -1;
+    const tag = (el && el.tagName || '').toLowerCase();
+    const cls = String((el && el.className) || '');
+    const role = String((el && el.getAttribute && el.getAttribute('role')) || '').toLowerCase();
+    let score = 10;
+    if (/^(legend|h1|h2|h3|h4|h5)$/.test(tag) || role === 'heading') score += 60;
+    if (tag === 'label' || tag === 'strong') score += 38;
+    if (/question|label|title|heading|field/i.test(cls)) score += 30;
+    if (/\b(disability|veteran|gender|race|ethnic|self[- ]?identif|pronoun|authorization|sponsor|reside|relocat)/i.test(t)) score += 35;
+    if (/[?]$/.test(t)) score += 8;
+    try {
+      if (anchor && el && el.compareDocumentPosition) {
+        const pos = el.compareDocumentPosition(anchor);
+        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) score += 12;
+      }
+    } catch (_) {}
+    if (t.length <= 45) score += 10;
+    if (t.length > 110) score -= 20;
+    return score;
+  }
+  function aynCollectQuestionLines(el, optTexts, anchor, out) {
+    if (!el || !out) return;
+    try {
+      const candidates = [];
+      if (el.matches && el.matches('legend, label, h1, h2, h3, h4, h5, strong, [role="heading"], [class*="question" i], [class*="label" i], [class*="title" i], [class*="heading" i]')) candidates.push(el);
+      if (el.querySelectorAll) candidates.push(...Array.from(el.querySelectorAll('legend, label, h1, h2, h3, h4, h5, strong, [role="heading"], [class*="question" i], [class*="label" i], [class*="title" i], [class*="heading" i]')).slice(0, 20));
+      for (const c of candidates) {
+        if (!c || (anchor && c.contains && c.contains(anchor))) continue;
+        if (c.querySelector && c.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"], [role="checkbox"]')) continue;
+        const raw = safeText(c) || c.getAttribute?.('aria-label') || '';
+        const lines = String(raw).split(/[\n\r]+/).map(aynNormLine).filter(Boolean);
+        for (const line of lines.slice(0, 4)) {
+          const score = aynScoreQuestionCandidate(c, line, optTexts, anchor);
+          if (score >= 0) out.push({ text: line, score, source: 'heading' });
+        }
+      }
+      // Some ATS wrappers put useful labels as plain text siblings, not semantic headings.
+      const rawLines = String(safeText(el) || '').split(/[\n\r]+/).map(aynNormLine).filter(Boolean).slice(0, 10);
+      for (const line of rawLines) {
+        const score = aynScoreQuestionCandidate(el, line, optTexts, anchor) - 12;
+        if (score >= 0) out.push({ text: line, score, source: 'text-line' });
+      }
+    } catch (_) {}
+  }
+  function aynFindQuestionForOptionGroup(container, optionsOrEls, fallbackEl) {
+    const anchor = fallbackEl || container;
+    const optTexts = aynOptionTextSet(optionsOrEls);
+    const cands = [];
+    try {
+      // 1) Real fieldset/radiogroup labels win.
+      let direct = container && container.querySelector && container.querySelector(':scope > legend, :scope > label, :scope > [role="heading"], :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > strong');
+      if (direct && !(anchor && direct.contains(anchor))) aynCollectQuestionLines(direct, optTexts, anchor, cands);
+    } catch (_) {}
+    try {
+      // 2) Preceding siblings of the group and its ancestors.
+      let node = container;
+      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
+        let sib = node.previousElementSibling;
+        for (let guard = 0; sib && guard < 8; guard++, sib = sib.previousElementSibling) {
+          if (sib.querySelector && sib.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"], [role="checkbox"]')) continue;
+          aynCollectQuestionLines(sib, optTexts, anchor, cands);
+        }
+      }
+    } catch (_) {}
+    try {
+      // 3) Ancestor headings and short text lines, useful for Gem/BioRender where
+      // helper text is between the title and options.
+      let node = container;
+      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
+        aynCollectQuestionLines(node, optTexts, anchor, cands);
+      }
+    } catch (_) {}
+    if (!cands.length) return { label: '', source: '' };
+    const seen = new Set();
+    const best = cands
+      .filter(c => { const k = c.text.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a, b) => b.score - a.score)[0];
+    return { label: best ? best.text.slice(0, 240) : '', source: best ? best.source : '' };
+  }
+
+  function aynFingerprintField(field) {
+    try {
+      const label = aynNormLine(field.label || '').toLowerCase();
+      const section = aynNormLine(field.section || '').toLowerCase();
+      const opts = Array.isArray(field.options) ? field.options.map(o => aynNormLine(o.label || o.value || '').toLowerCase()).join('|') : '';
+      const sig = [field._frame || '', field.kind || field.type || '', label, section, field.name || '', opts].join('::');
+      return `fp_${aynHashShort(sig)}`;
+    } catch (_) { return `fp_${aynHashShort(Math.random())}`; }
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
@@ -1050,27 +1186,19 @@
           });
           const optionLabelsLC = new Set(options.map(o => (o.label || '').toLowerCase()).filter(Boolean));
 
-          // Resolve question (NOT an option label)
-          let qLabel = aynGroupName(first);
-          let labelSrc = qLabel ? 'accname' : '';
-          if (!qLabel) {
-            const container = first.closest('fieldset, [role="radiogroup"], [role="group"], [class*="question"], [class*="field"], [class*="form-group"]')
-              || (first.parentElement && first.parentElement.parentElement) || first.parentElement;
-            if (container) {
-              const cands = Array.from(container.querySelectorAll('legend, [class*="question"], [class*="label"], h2, h3, h4, strong, p, span'));
-              for (const c of cands) {
-                if (radios.some(r => c.contains(r))) continue;
-                const t = (c.innerText || '').trim();
-                if (!t || t.length > 400) continue;
-                if (optionLabelsLC.has(t.toLowerCase())) continue;
-                qLabel = t;
-                labelSrc = 'legacy';
-                break;
-              }
-            }
+          // Resolve question (NOT an option label). v1.9.62 centralizes this
+          // so helper blocks cannot overwrite real EEO titles.
+          const container = first.closest('fieldset, [role="radiogroup"], [role="group"], [class*="question"], [class*="field"], [class*="form-group"]')
+            || (first.parentElement && first.parentElement.parentElement) || first.parentElement;
+          const resolvedQ = aynFindQuestionForOptionGroup(container, options, first);
+          let qLabel = resolvedQ.label || aynGroupName(first);
+          let labelSrc = resolvedQ.source || (qLabel ? 'accname' : '');
+          if (!qLabel || optionLabelsLC.has(String(qLabel).toLowerCase()) || /^question$/i.test(qLabel)) {
+            qLabel = getLabelFor(first) || groupName || 'Question';
+            labelSrc = labelSrc || 'legacy';
           }
-          if (!qLabel) { qLabel = getLabelFor(first) || groupName || 'Question'; labelSrc = labelSrc || 'legacy'; }
           qLabel = qLabel.slice(0, 240);
+          const classifyText = `${qLabel} ${options.map(o => o.label).join(' ')}`;
 
           const checked = radios.find(r => r.checked);
           const required = radios.some(r => r.required || r.getAttribute('aria-required') === 'true')
@@ -1085,7 +1213,7 @@
             currentValue: checked ? ((getLabelFor(checked) || checked.value || '').trim()) : '',
             options,
             required,
-            group: classifyField(qLabel, first.name || '', 'radio'),
+            group: classifyField(classifyText, first.name || '', 'radio'),
             accRole: 'radio',
             labelSource: labelSrc || 'legacy',
             _frame: prefix,
@@ -1111,62 +1239,13 @@
         let gi = 0;
         groups.forEach((radios, container) => {
           if (radios.length < 2) return;
-          const optTexts = new Set(radios.map(r => ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim().toLowerCase()));
-          // v1.9.61 — prefer real heading/label elements; treat helper paragraphs
-          // ("What is considered a disability?") and long explanation blocks as bad.
-          const HEADING_SEL = 'legend, label, h1, h2, h3, h4, h5, strong, [class*="question" i], [class*="Question"], [class*="label" i], [role="heading"]';
-          const HELPER_RE = /^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|for\s+more\s+information|see\s+(below|above)|note[:\s])/i;
-          const looksLikeQuestion = (text) => {
-            if (!text) return false;
-            const first = text.split('\n')[0].trim();
-            if (first.length < 3 || first.length > 140) return false;
-            if (optTexts.has(first.toLowerCase())) return false;
-            if (HELPER_RE.test(first)) return false;
-            if (/^(asian|black|hispanic|white|male|female|decline to self|prefer not|yes|no|i identify as|i am not a)/i.test(first)) return false;
-            return first;
-          };
-          let q = '', node = container;
-          // Pass 1: search ancestors for a preceding heading-like element only.
-          for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
-            const kids = Array.from(node.children);
-            const cIdx = kids.findIndex(k => k === container || k.contains(container));
-            if (cIdx <= 0) continue;
-            for (let i = cIdx - 1; i >= 0 && !q; i--) {
-              const p = kids[i];
-              if (radios.some(r => p.contains(r))) continue;
-              if (p.querySelector && p.querySelector('input:not([type="hidden"]), textarea, select')) continue;
-              const heads = (p.matches && p.matches(HEADING_SEL)) ? [p] : Array.from(p.querySelectorAll ? p.querySelectorAll(HEADING_SEL) : []);
-              for (const h of heads) {
-                const t = (h.innerText || h.textContent || '').replace(/\s+/g,' ').trim();
-                const good = looksLikeQuestion(t);
-                if (good) { q = good.slice(0,140); break; }
-              }
-            }
-          }
-          // Pass 2 (fallback): any preceding sibling first line — but reject helper paragraphs.
-          if (!q) {
-            node = container;
-            for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
-              const kids = Array.from(node.children);
-              const cIdx = kids.findIndex(k => k === container || k.contains(container));
-              if (cIdx <= 0) continue;
-              for (let i = cIdx - 1; i >= 0; i--) {
-                const p = kids[i];
-                if (radios.some(r => p.contains(r))) continue;
-                if (p.querySelector && p.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"]')) continue;
-                const t = (p.innerText || '').replace(/\s+/g,' ').trim();
-                const hasManyOptions = Array.from(optTexts).filter(o => o && t.toLowerCase().includes(o)).length >= 2;
-                if (hasManyOptions) continue;
-                const good = looksLikeQuestion(t);
-                if (good) { q = good.slice(0,140); break; }
-              }
-            }
-          }
-          if (!q) q = 'Question';
           const options = radios.map(r => {
             const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
             return { label: lbl, value: (r.value && r.value !== 'on') ? r.value : lbl };
           });
+          const rq = aynFindQuestionForOptionGroup(container, options, radios[0]);
+          const q = (rq.label || 'Question').slice(0, 240);
+          const classifyText = `${q} ${options.map(o => o.label).join(' ')}`;
           const gid = `${prefix}__structradio__:${++gi}`;
           window.__AYN_STRUCTRADIO_MAP__.set(gid, radios);
           radios.forEach(r => { usedRadios.add(r); processedRadios.add(r); });
@@ -1178,7 +1257,7 @@
             label: q,
             options,
             required: /\*|required/i.test((container.innerText||'').slice(0,300)),
-            group: classifyField(q, '', 'radio'),
+            group: classifyField(classifyText, '', 'radio'),
             accRole: 'radio',
             labelSource: 'structradio',
             _frame: prefix,
@@ -1221,23 +1300,13 @@
           });
           const optionLabelsLC = new Set(options.map(o => (o.label || '').toLowerCase()).filter(Boolean));
 
-          let qLabel = aynGroupName(first);
-          let labelSrc = qLabel ? 'accname' : '';
-          if (!qLabel) {
-            const container = group.parentElement || group;
-            const cands = Array.from(container.querySelectorAll('legend, [class*="question"], [class*="label"], h2, h3, h4, strong, p, span'));
-            for (const c of cands) {
-              if (els.some(e => c.contains(e))) continue;
-              const t = (c.innerText || '').trim();
-              if (!t || t.length > 400) continue;
-              if (optionLabelsLC.has(t.toLowerCase())) continue;
-              qLabel = t;
-              labelSrc = 'legacy';
-              break;
-            }
-          }
+          const rq = aynFindQuestionForOptionGroup(group, options, first);
+          let qLabel = rq.label || aynGroupName(first);
+          let labelSrc = rq.source || (qLabel ? 'accname' : '');
+          if (optionLabelsLC.has(String(qLabel).toLowerCase()) || /^question$/i.test(qLabel)) qLabel = '';
           if (!qLabel) { qLabel = 'Question'; labelSrc = labelSrc || 'legacy'; }
           qLabel = qLabel.slice(0, 240);
+          const classifyText = `${qLabel} ${options.map(o => o.label).join(' ')}`;
 
           const checked = els.find(e => e.getAttribute('aria-checked') === 'true');
           const groupTxt = ((group.innerText || '') + ' ' + (aynGroupName(first) || ''));
@@ -1254,7 +1323,7 @@
             currentValue: checked ? ((aynAccName(checked) || safeText(checked) || '').trim()) : '',
             options,
             required,
-            group: classifyField(qLabel, '', 'radio'),
+            group: classifyField(classifyText, '', 'radio'),
             accRole: 'radio',
             labelSource: labelSrc || 'legacy',
             _frame: prefix,
@@ -1304,26 +1373,18 @@
           if (seenGroupKeys.has(groupKey)) return;
           seenGroupKeys.add(groupKey);
           const options = labs.map(l => { const t = (l.innerText || '').trim(); return { label: t, value: t }; });
-          const optLC = new Set(options.map(o => o.label.toLowerCase()));
           let qLabel = '';
-          let scan = container;
-          for (let up = 0; up < 4 && scan && !qLabel; up++) {
-            let sib = scan.previousElementSibling; let guard = 0;
-            while (sib && guard++ < 6) {
-              const t = (sib.innerText || '').trim();
-              if (t && t.length <= 300 && !optLC.has(t.toLowerCase()) && !labs.some(l => sib.contains(l))) { qLabel = t.split('\n')[0].trim(); break; }
-              sib = sib.previousElementSibling;
-            }
-            scan = scan.parentElement;
-          }
+          const rq = aynFindQuestionForOptionGroup(container, options, labs[0]);
+          qLabel = rq.label || '';
           if (!qLabel) qLabel = 'Question';
           qLabel = qLabel.slice(0, 240);
+          const classifyText = `${qLabel} ${options.map(o => o.label).join(' ')}`;
           window.__AYN_LABELGROUP_MAP__.set(lgId, labs);
           fields.push({
             id: lgId, kind: 'radio', label: qLabel, type: 'radio', name: '',
             currentValue: '', options,
             required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
-            group: classifyField(qLabel, '', 'radio'), accRole: 'radio', labelSource: 'labelgroup', _frame: prefix,
+            group: classifyField(classifyText, '', 'radio'), accRole: 'radio', labelSource: rq.source || 'labelgroup', _frame: prefix,
           });
         });
       } catch { /* never fail the scan */ }
@@ -1375,12 +1436,10 @@
                 const seenT = new Set();
                 const uniqBtns = optBtns.filter(b => { const k = (safeText(b) || '').trim().toLowerCase(); if (seenT.has(k)) return false; seenT.add(k); return true; });
                 if (uniqBtns.length >= 2 && uniqBtns.length <= 6) {
-                  let qLabel = '';
-                  const lblEl = container.querySelector('label, [class*="question"], [class*="label"], legend, h3, h4, strong');
-                  if (lblEl && !lblEl.contains(el)) qLabel = safeText(lblEl).trim();
-                  if (!qLabel) qLabel = getLabelFor(el) || el.name;
-                  qLabel = (qLabel || '').slice(0, 240);
                   const optionTexts = uniqBtns.map(b => (safeText(b) || '').trim());
+                  const rq = aynFindQuestionForOptionGroup(container, optionTexts, el);
+                  let qLabel = rq.label || getLabelFor(el) || el.name;
+                  qLabel = (qLabel || '').slice(0, 240);
                   const bgId = `${prefix}__buttongroup__:bcx${bgCounter++}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
                   window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
                   window.__AYN_BG_MAP__.set(bgId, { qLabel, optionTexts });
@@ -1389,9 +1448,9 @@
                     id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: el.name,
                     currentValue: '', options: optionTexts.map(t => ({ label: t, value: t })),
                     required: el.required || el.getAttribute('aria-required') === 'true',
-                    group: classifyField(qLabel, el.name || '', 'buttongroup'),
+                    group: classifyField(`${qLabel} ${optionTexts.join(' ')}`, el.name || '', 'buttongroup'),
                     accRole: __accBG.role || 'buttongroup',
-                    labelSource: (__accBG.name && __accBG.name.length >= 2) ? 'accname' : 'legacy',
+                    labelSource: rq.source || ((__accBG.name && __accBG.name.length >= 2) ? 'accname' : 'legacy'),
                     _frame: prefix,
                   });
                   return;
@@ -1421,10 +1480,8 @@
                 const lowered = texts.map(t => t.toLowerCase());
                 const isYesNoPair = texts.length === 2 && lowered.includes('yes') && lowered.includes('no');
                 if (isYesNoPair) {
-                  let qLabel = '';
-                  const lblEl = container.querySelector('label, [class*="question"], [class*="label"], legend, h3, h4, strong');
-                  if (lblEl && !lblEl.contains(el)) qLabel = safeText(lblEl).trim();
-                  if (!qLabel) qLabel = getLabelFor(el) || el.name;
+                  const rq = aynFindQuestionForOptionGroup(container, ['Yes', 'No'], el);
+                  let qLabel = rq.label || getLabelFor(el) || el.name;
                   qLabel = (qLabel || '').slice(0, 240);
                   const bgId = `${prefix}__buttongroup__:bcv${bgCounter++}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
                   window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
@@ -1434,9 +1491,9 @@
                     id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: el.name,
                     currentValue: '', options: [{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }],
                     required: el.required || el.getAttribute('aria-required') === 'true',
-                    group: classifyField(qLabel, el.name || '', 'buttongroup'),
+                    group: classifyField(`${qLabel} Yes No`, el.name || '', 'buttongroup'),
                     accRole: __accBG2.role || 'buttongroup',
-                    labelSource: (__accBG2.name && __accBG2.name.length >= 2) ? 'accname' : 'legacy',
+                    labelSource: rq.source || ((__accBG2.name && __accBG2.name.length >= 2) ? 'accname' : 'legacy'),
                     _frame: prefix,
                   });
                   return;
@@ -1444,33 +1501,25 @@
               }
             }
 
-            // Question label = nearest fieldset legend / label group; fall back to this input's label.
+            // Question label = shared resolver, then fieldset/wrapper fallbacks.
             let qLabel = '';
-            const fs = el.closest('fieldset');
-            if (fs) {
-              const lg = fs.querySelector('legend, [class*="label"], [class*="question"]');
-              if (lg) qLabel = safeText(lg).trim();
-            }
-            if (!qLabel) {
-              const wrap = el.closest('[role="radiogroup"], [role="group"], [class*="question"], [class*="field"], [class*="form-group"]');
-              if (wrap) {
-                const h = wrap.querySelector('legend, label, [class*="label"], [class*="question"], h3, h4, strong');
-                if (h && !h.contains(el)) qLabel = safeText(h).trim();
-              }
-            }
+            const options = getOptionPairs(el);
+            const wrap = el.closest('fieldset, [role="radiogroup"], [role="group"], [class*="question"], [class*="field"], [class*="form-group"]') || el.parentElement;
+            const rq = aynFindQuestionForOptionGroup(wrap, options, el);
+            qLabel = rq.label || '';
             if (!qLabel) {
               const __acc0 = aynResolveLabel(el);
               qLabel = (__acc0.name && __acc0.name.length >= 2) ? __acc0.name : (getLabelFor(el) || el.name);
             }
             qLabel = (qLabel || '').slice(0, 240);
-            const options = getOptionPairs(el);
+            const classifyText = `${qLabel} ${options.map(o => o.label).join(' ')}`;
             const checkedOpt = options.find(o => {
               const match = Array.from(doc.querySelectorAll(`input[type="${el.type}"][name="${CSS.escape(el.name)}"]`))
                 .find(r => r.checked && ((getLabelFor(r) || r.value).trim() === o.label || r.value === o.value));
               return !!match;
             });
             const __accRC = aynResolveLabel(el);
-            const _rcGroup = classifyField(qLabel, el.name || '', el.type);
+            const _rcGroup = classifyField(classifyText, el.name || '', el.type);
             const _singleChoice = (el.type === 'checkbox') && (_rcGroup === 'logic.preferred_city');
             fields.push({
               id: `${prefix}__${el.type}__:${el.name}`,
@@ -1484,7 +1533,7 @@
               group: _rcGroup,
               singleChoice: _singleChoice || undefined,
               accRole: __accRC.role || '',
-              labelSource: (__accRC.name && __accRC.name.length >= 2) ? 'accname' : 'legacy',
+              labelSource: rq.source || ((__accRC.name && __accRC.name.length >= 2) ? 'accname' : 'legacy'),
               _frame: prefix,
               _el: el, // v1.9.59 — stripped before payload emit; used by Yes/No merge pass
             });
@@ -1788,22 +1837,8 @@
         }
         if (!matchB || !sharedAnc || usedContainers.has(sharedAnc)) continue;
         usedContainers.add(sharedAnc);
-        // v1.9.61 — prefer real heading/label over generic <p>; reject helper text.
-        const YN_HELPER_RE = /^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|note[:\s])/i;
-        let qLabel = '';
-        const findQ = (sel) => {
-          let node = sharedAnc;
-          for (let up = 0; up < 5 && node && !qLabel; up++, node = node.parentElement) {
-            const heads = node.querySelectorAll(sel);
-            for (const h of heads) {
-              if (h.contains(a._el) || h.contains(matchB._el)) continue;
-              const t = ((h.innerText || h.textContent || '').trim().split('\n')[0] || '').trim();
-              if (t && t.length >= 3 && t.length <= 200 && !YESNO_RE.test(t) && !YN_HELPER_RE.test(t)) { qLabel = t; break; }
-            }
-          }
-        };
-        findQ('legend, label, h1, h2, h3, h4, h5, strong, [class*="question" i], [class*="Question"], [class*="label" i], [role="heading"]');
-        if (!qLabel) findQ('p, span, div');
+        const rq = aynFindQuestionForOptionGroup(sharedAnc, ['Yes', 'No'], a._el);
+        let qLabel = rq.label || '';
         if (!qLabel) qLabel = a.name || matchB.name || 'Yes/No question';
         const prefix = a._frame || '';
         const bgId = `${prefix}__buttongroup__:merge${bgCounter++}:${qLabel.slice(0, 40).replace(/\s+/g, '_')}`;
@@ -1813,8 +1848,8 @@
           id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: '',
           currentValue: '', options: [{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }],
           required: !!(a.required || matchB.required),
-          group: classifyField(qLabel, '', 'buttongroup'),
-          accRole: 'buttongroup', labelSource: 'yesno-merge', _frame: prefix,
+          group: classifyField(`${qLabel} Yes No`, '', 'buttongroup'),
+          accRole: 'buttongroup', labelSource: rq.source || 'yesno-merge', _frame: prefix,
         });
         toRemove.add(a); toRemove.add(matchB);
       }
@@ -1822,6 +1857,21 @@
       if (merged.length) fields.push(...merged);
       try { console.log('[AYN] yesno-merge: merged', merged.length, 'pairs; removed', toRemove.size, 'orphan option fields'); } catch (_) {}
     } catch (_) { /* never fail the scan */ }
+
+    // v1.9.62 — stable identity for scan → AI → inject → telemetry.
+    for (const f of fields) {
+      try {
+        if (!f.fingerprint) f.fingerprint = aynFingerprintField(f);
+        if (!f.label || /^question$/i.test(f.label)) {
+          const stronger = (f.group && /^eeo\.disability$/.test(f.group)) ? 'Disability Status'
+            : (f.group && /^eeo\.veteran$/.test(f.group)) ? 'Veteran Status'
+            : (f.group && /^eeo\.gender$/.test(f.group)) ? 'Gender'
+            : (f.group && /^eeo\.ethnicity$/.test(f.group)) ? 'Race or Ethnicity'
+            : '';
+          if (stronger) f.label = stronger;
+        }
+      } catch (_) {}
+    }
 
     // Strip transient DOM refs so payload serializes cleanly.
     for (const f of fields) { try { delete f._el; } catch (_) {} }

@@ -554,9 +554,14 @@ $('autofill-now-btn').addEventListener('click', () => {
       }
 
       const { filled, total, details } = response;
-      const pct = total > 0 ? Math.round(filled/total*100) : 0;
-      $('fill-stat-n').textContent = `${filled}/${total}`;
-      $('fill-stat-lbl').textContent = `${pct}%`;
+      const answered = typeof response.answered === 'number' ? response.answered : (details || []).length;
+      const verified = typeof response.verified === 'number' ? response.verified : filled;
+      const needsReview = typeof response.needsReview === 'number'
+        ? response.needsReview
+        : Math.max(0, answered - verified) + ((response.skipped || []).length);
+      const pct = total > 0 ? Math.round(verified/total*100) : 0;
+      $('fill-stat-n').textContent = `${answered} answered · ${verified} verified`;
+      $('fill-stat-lbl').textContent = `${needsReview} review`;
       const fillBar = $('fill-progress-fill');
       fillBar.style.width = pct + '%';
       fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
@@ -573,7 +578,7 @@ $('autofill-now-btn').addEventListener('click', () => {
         list.innerHTML += `
           <div class="fi">
             <div class="fd ${d.ok ? 'on' : 'off'}"></div>
-            <div class="fl">${esc(d.label || d.id)} ${confBadge}</div>
+            <div class="fl">${esc(fillDisplayLabel(d))} ${confBadge}</div>
             <div class="fv">${d.ok ? esc((d.value||'').slice(0,28)) : esc(d.reason||'skipped')}</div>
             ${reason}
           </div>`;
@@ -1454,6 +1459,23 @@ function bgFunc(action, payload, opts = {}) {
 // ── Helpers ──
 function getTab(cb) { chrome.tabs.query({ active:true, currentWindow:true }, tabs => cb(tabs[0]||null)); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function fillDisplayLabel(d={}) {
+  const raw = String(d.label || '').trim();
+  if (raw && !/^question$/i.test(raw)) return raw;
+  const group = String(d.group || '').trim();
+  const labels = {
+    'eeo.disability': 'Disability status',
+    'eeo.veteran': 'Veteran status',
+    'eeo.gender': 'Gender',
+    'eeo.ethnicity': 'Race or ethnicity',
+    'logic.work_auth': 'Work authorization',
+    'logic.sponsorship': 'Visa sponsorship',
+    'logic.relocate': 'Relocation',
+    'consent.agree': 'Required consent',
+  };
+  return labels[group] || group || raw || d.id || 'Field';
+}
 function cleanTitle(t) {
   return String(t||'').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
 }

@@ -1,44 +1,108 @@
-## Root cause
+## What I found
 
-The extension is still treating some visible Yes/No option controls as text fields, so generated answers are routed to the wrong DOM element. This creates two bad outcomes:
+This is not one single missing regex. The telemetry shows AYN already generated answers for the BioRender page, but the system is still unreliable because the architecture has three weak points:
 
-1. **Wrong answer routing** — option labels like `Yes` and `No` become fake `__textfield__` fields.
-2. **Missing answers** — EEO groups like `Disability Status` can be scanned with a generic label such as `Question` because the scanner picks nearby helper text or option text instead of the real question heading.
+1. **Wrong success metric**
+   - The sidepanel says 100% because it counts only the AI answers it attempted to inject.
+   - It does not count the full scanned form, already filled fields, skipped AI decisions, and failed injections together.
+   - Example: the latest telemetry scanned 13 fields, AI answered 7, injected 7, then the UI showed 7/7 as 100%. That hides the real state.
 
-The latest reliable fix is not another backend prompt patch. The browser scanner must send the backend the correct question + correct field type first.
+2. **Question identity is still too fragile**
+   - BioRender's Disability Status scanned as `Question` instead of `Disability Status`.
+   - The scanner is still choosing nearby helper text or option blocks in some cases instead of building a stable question object from heading, helper text, options, container path, and visual order.
+   - That means the backend sometimes answers the right option for the wrong label, or the UI displays confusing results.
 
-## Fix plan for v1.9.61
+3. **The engine is AI-first where it should be rules-first**
+   - EEO, work authorization, sponsorship, location eligibility, consent, yes/no, and common profile fields should not rely on the LLM every time.
+   - The LLM should only handle open text and ambiguous custom questions.
+   - Proven autofill systems use deterministic field discovery, stable field identity, native setter plus React value tracker, MutationObserver for dynamic forms, iframes, shadow roots, and per-site adapters. AYN has pieces of this, but they are layered as patches instead of a single pipeline.
 
-1. **Stop checkboxes/radios from ever becoming text fields**
-   - Harden `registerTextField()` so `radio`, `checkbox`, `file`, `hidden`, `submit`, `button`, `image`, and `reset` inputs cannot receive `__textfield__` IDs.
-   - Add the same guard to the supplemental text-input recovery pass.
+## Plan for AYN v1.9.62
 
-2. **Add anonymous checkable grouping**
-   - Group visible idless/nameless checkboxes/radios by nearest shared question container.
-   - Emit one `radio`/`buttongroup` field with options instead of separate fake text fields.
-   - Store the grouped DOM elements in a map for injection, similar to `__AYN_STRUCTRADIO_MAP__`.
+### 1. Replace the misleading fill score
+- Show three honest numbers:
+  - **Answered by AYN**: AI or rules produced a value.
+  - **Filled on page**: injector verified the value on the DOM.
+  - **Needs review**: scanned fields that were empty, skipped, failed, or unknown.
+- Never show 100% unless every scanned fillable field is either filled, already filled, safely ignored, or intentionally declined.
+- Display EEO decline fields as `Declined`, not generic `Question`.
 
-3. **Fix question-heading detection for EEO and Gem forms**
-   - Add an `aynFindOptionGroupQuestion()` resolver.
-   - Prefer real headings/labels above the option row.
-   - Reject option text (`Yes`, `No`, `Decline to self-identify`, etc.) and long explanatory helper paragraphs.
-   - Use this resolver in shared-name radios, structural radios, custom radios, label groups, and Yes/No merge.
+### 2. Add a deterministic pre-answer layer before the AI
+Create a local rules engine that answers high-confidence fields without the LLM:
+- EEO and demographic fields: always choose decline or prefer not to disclose when available.
+- Work authorization and sponsorship: answer from canonical work authorization only.
+- Name, email, phone, LinkedIn, location: answer directly from profile or resume.
+- Consent and required attestation: tick only required application consent, not marketing.
+- Yes/No pairs: classify by actual question text, not option text.
 
-4. **Protect EEO answer correctness**
-   - Ensure `Gender`, `Race/Ethnicity`, `Veteran Status`, and `Disability Status` classify correctly even when the raw scanned label is imperfect.
-   - Keep EEO answers conservative: choose `Decline to self-identify` / `Prefer not to answer` when present.
+The AI will receive only fields that rules cannot safely answer.
 
-5. **Improve diagnostics**
-   - Log the final field type, resolved selector, question label, label source, and selected option for every EEO / Yes-No / open-text field.
-   - If a field is skipped, log whether the failure came from scan, backend answer, option match, or DOM injection.
+### 3. Build stable field fingerprints
+For every scanned field, create a `fingerprint` from:
+- normalized question label
+- section heading
+- option labels
+- field kind
+- DOM path signature
+- frame id
+- visual order
 
-6. **Version and package**
-   - Bump extension from `1.9.60` to `1.9.61` in manifest, constants, content, and download UI.
-   - Rebuild the extension zip.
+Use this fingerprint for scan, AI decision, injection, telemetry, and second pass. This removes fragile index matching like `tf6:10` from the core flow.
+
+### 4. Fix option group question detection properly
+- Add a shared `findQuestionForOptionGroup()` resolver used by native radios, structural radios, label groups, custom radios, and yes/no buttongroups.
+- Prefer headings/legends/labels immediately before the option group.
+- Reject helper paragraphs such as `What is considered a disability?` when a stronger parent heading exists.
+- If a group has options like `Yes / No / Decline`, and a nearby heading says `Disability Status`, classify it as `eeo.disability`.
+
+### 5. Add a reconciliation pass after injection
+After filling:
+- rescan the page
+- compare expected answers by fingerprint
+- mark each field as `verified`, `already filled`, `not attempted`, `failed`, or `unsafe skipped`
+- run a third targeted fill only on failed required fields
+- include the exact reason in telemetry and sidepanel
+
+### 6. Improve open text quality
+- Keep AI for open text, but add a postprocessor that rejects generic answers.
+- Require company name, role context, and one concrete resume backed achievement for `Why this company?`.
+- Work history clarification should be short, honest, and not overstate if no gap is known.
+
+### 7. Add a fixture test page for BioRender/Gem patterns
+Create a local test fixture that reproduces:
+- unique-name or nameless radio groups
+- EEO Gender, Race, Veteran, Disability
+- helper text between heading and options
+- two open textareas
+- yes/no checkbox pairs
+
+Use it to verify scanner output and injection logic before bumping the extension.
+
+## Files to change
+
+- `extension/content.js`
+  - stable fingerprints
+  - shared option-group question resolver
+  - deterministic pre-answer support metadata
+  - post-fill rescan reconciliation
+
+- `extension/background.js`
+  - merge rule answers plus AI answers
+  - truthful progress counts
+  - richer telemetry payload
+
+- `supabase/functions/resume-hub/index.ts`
+  - accept pre-answered fields
+  - only ask AI for unresolved fields
+  - improve open text generation rules
+
+- `extension/sidepanel.js`
+  - replace misleading 100% UI with honest statuses
+  - show `Needs review` and exact skip/fail reasons
+
+- `extension/manifest.json`, `extension/constants.js`, `src/pages/ResumeHub.tsx`
+  - bump to v1.9.62
 
 ## Expected result
 
-- BioRender-style EEO questions scan as the actual questions, not `Question`.
-- Yes/No pairs are grouped and answered as one question.
-- Textarea answers are no longer confused with checkbox/radio controls.
-- The sidepanel count reflects real filled fields, not generated answers that failed to inject.
+BioRender/Gem style forms should no longer look falsely perfect. AYN should identify EEO sections correctly, decline them consistently, fill open text with better answers, and clearly show what was actually filled versus what still needs review.
