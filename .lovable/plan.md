@@ -1,33 +1,45 @@
-Diagnosis: those boxes are most likely custom large text editors or textarea wrappers where the visible question sits outside the actual editable node. AYN currently detects many inputs, but it can still lose the question text or not pass captured context to the backend, so the AI either skips them or returns no usable value.
+# v1.9.58 — Skip Diagnostics + Vision Clarity
 
-Plan:
+## 1. Explain "High-accuracy vision" in the sidepanel
+- In `extension/sidepanel.html` / `sidepanel.js`, update the helper text under the toggle to something honest and short:
+  > "Uses a screenshot + AI to read forms that don't expose proper labels (canvas UIs, unusual ATS layouts). Slower and costs more tokens. Leave off unless a form is being skipped."
+- No behavior change to the toggle itself.
 
-1. Strengthen open text question detection
-   - Add a dedicated recovery pass for large visible free-text fields: `textarea`, `role=textbox`, `contenteditable`, ProseMirror, Slate, Draft, Quill, Lexical and wrapper based editors.
-   - Resolve the question from the nearest visible prompt above the box, not only from `label`, `aria-label`, `name`, or placeholder.
-   - Preserve prompts like:
-     - “Why are you interested in working at BioRender?”
-     - “Clarify or expand on work history, gaps, transitions”
+## 2. Detailed skip logging for open-text fields
+Goal: for every textarea / contenteditable / role=textbox that ends up empty, record **why**, **which rule matched**, and **which DOM selector was used** — visible in DevTools and persisted for review.
 
-2. Improve label and required detection
-   - Treat a nearby red/star marker as required.
-   - Allow longer question labels up to a safe limit instead of dropping multi-line application prompts.
-   - Prefer question-shaped text above the field before falling back to placeholder or generated names.
+### 2a. Content script (`extension/content.js`)
+- Add `aynLogSkip(field, reason, meta)` helper that:
+  - Builds a stable CSS selector for the element (id → name → nth-of-type path, max 4 segments).
+  - Emits `console.groupCollapsed('[AYN skip] <reason>')` with: selector, tag, role, resolved question, labelSource, kind, required flag, matched rule name, backend response snippet, verify-pass result.
+  - Pushes the entry into an in-memory `window.__aynSkipLog` ring buffer (last 50) so the sidepanel can read it.
+- Instrument the existing decision points to call `aynLogSkip` with a specific `reason` code:
+  - `no_question_resolved` — `aynFieldQuestion` + `aynNearbyPrompt` + `aynShortLabelFallback` all returned empty.
+  - `backend_returned_empty` — `ext_autofill` responded with no value for this field.
+  - `backend_skipped_optional` — model chose to skip; log the model's stated reason if present.
+  - `write_verify_failed` — value written but wiped by React after `aynSettleReapply` passes.
+  - `editor_unsupported` — rich editor detected but no adapter matched.
+  - `hidden_or_offscreen` — element not visible at fill time.
+- Each entry stores the exact rule/function name that produced (or failed to produce) the value, e.g. `resolver: aynNearbyPrompt`, `writer: setNativeValue+paste`.
 
-3. Send full field context to the backend
-   - Forward `section`, `helperText`, `placeholder`, `siblingLabels`, `labelSource`, `kind`, and `name` in both first pass and second pass autofill requests.
-   - This fixes cases where the scan knows the context but the AI never receives it.
+### 2b. Background script (`extension/background.js`)
+- When the fill run completes, forward the skip-log ring buffer alongside the existing `autofill_runs` telemetry payload.
 
-4. Backend answer rules for these exact fields
-   - Update `ext_autofill` rules so open-ended application questions with clear prompts are answered, even if optional.
-   - Generate 2 to 3 sentence company-specific motivation answers using job title, company, resume, and profile.
-   - Generate a safe, professional answer for work-history clarification fields when there are no gaps, instead of leaving them empty.
+### 2c. Backend (`supabase/functions/resume-hub/index.ts`)
+- Extend `ext_autofill` to include a short `skip_reason` string in the per-field response when it deliberately returns no value (currently it just omits). Content script maps that into `backend_skipped_optional` above.
+- Persist the skip log JSON into a new column on `public.autofill_runs`.
 
-5. Make writing into custom editors more reliable
-   - Reuse the existing rich-editor map for recovered fields.
-   - Fill via native setter, input/change events, paste event, execCommand, and page-world fallback.
-   - Verify after fill and reapply if React wipes the value.
+### 2d. Database
+- Migration: `alter table public.autofill_runs add column skip_log jsonb;`
+- Keep existing RLS.
 
-6. Version and package
-   - Bump the Chrome extension to v1.9.57.
-   - Rebuild `public/ayn-extension.zip` after implementation.
+### 2e. Sidepanel debug view (optional, small)
+- Add a hidden "Show last skip log" link in `sidepanel.html` that renders `window.__aynSkipLog` as a table (reason, question, selector, rule). Only visible after clicking the version number 5x — no visual noise for normal users.
+
+## 3. Version
+- Bump `manifest.json` and `AYN_BUILD` to `1.9.58`.
+- Rebuild `public/ayn-extension.zip`.
+- Redeploy `resume-hub` edge function.
+
+## Out of scope
+- No changes to the autofill algorithms themselves — this release is purely observability + one copy tweak.
