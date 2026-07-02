@@ -411,10 +411,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           reason: resultMap[v.id]?.reason || '',
         }));
 
+        // v1.9.52 — unified counting: ok===true counts as filled (incl. "already correct"), exclude visiondiag
+        const __allResults = (fillResult?.results || []);
+        const __countable = __allResults.filter(r => r && r.id !== 'visiondiag');
+        const __filled = __countable.filter(r => r.ok === true).length;
+        const __total = __countable.length;
+
         sendResponse({
           ok: true,
-          filled: (fillResult?.filled || 0) + secondPassFilled,
-          total: values.length,
+          filled: __filled,
+          total: __total,
           details,
           passes: secondPassFilled > 0 ? 2 : 1,
           skipped: fillData?.skipped || [],
@@ -425,9 +431,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (runId) {
             callFunction('ext_log_result', {
               run_id: runId,
-              inject_results: (fillResult?.results || []),
-              filled: (fillResult?.filled || 0) + secondPassFilled,
-              total: values.length,
+              inject_results: __allResults,
+              filled: __filled,
+              total: __total,
             }).catch(() => {});
           }
         } catch (_) { /* ignore */ }

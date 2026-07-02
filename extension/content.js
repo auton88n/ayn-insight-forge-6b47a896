@@ -1239,6 +1239,51 @@
               }
             }
 
+            // v1.9.52 — visible custom checkbox pair (Yes/No). Gem-style forms render
+            // Yes/No as visible clickable option elements; emit as buttongroup so the AI
+            // returns a single-choice answer and the existing buttongroup injector fires.
+            if (el.type === 'checkbox' && !isElHidden(el)) {
+              const container = el.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || el.parentElement;
+              if (container) {
+                const optBtns = Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"],[role="checkbox"]')).filter(b => {
+                  if (b.disabled) return false;
+                  if ((b.type || '').toLowerCase() === 'submit') return false;
+                  const r = b.getBoundingClientRect();
+                  if (r.width === 0 && r.height === 0) return false;
+                  const t = (safeText(b) || b.getAttribute('aria-label') || '').trim();
+                  if (!t || t.length > 24 || t.split(/\s+/).length > 4) return false;
+                  if (/^(submit|next|back|continue|apply|cancel|close|save|upload|attach)$/i.test(t)) return false;
+                  return true;
+                });
+                const texts = [];
+                const seenY = new Set();
+                optBtns.forEach(b => { const t = (safeText(b) || b.getAttribute('aria-label') || '').trim(); const k = t.toLowerCase(); if (t && !seenY.has(k)) { seenY.add(k); texts.push(t); } });
+                const lowered = texts.map(t => t.toLowerCase());
+                const isYesNoPair = texts.length === 2 && lowered.includes('yes') && lowered.includes('no');
+                if (isYesNoPair) {
+                  let qLabel = '';
+                  const lblEl = container.querySelector('label, [class*="question"], [class*="label"], legend, h3, h4, strong');
+                  if (lblEl && !lblEl.contains(el)) qLabel = safeText(lblEl).trim();
+                  if (!qLabel) qLabel = getLabelFor(el) || el.name;
+                  qLabel = (qLabel || '').slice(0, 240);
+                  const bgId = `${prefix}__buttongroup__:bcv${bgCounter++}:${qLabel.slice(0, 60).replace(/\s+/g, '_')}`;
+                  window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+                  window.__AYN_BG_MAP__.set(bgId, { qLabel, optionTexts: ['Yes', 'No'] });
+                  const __accBG2 = aynResolveLabel(el);
+                  fields.push({
+                    id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: el.name,
+                    currentValue: '', options: [{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }],
+                    required: el.required || el.getAttribute('aria-required') === 'true',
+                    group: classifyField(qLabel, el.name || '', 'buttongroup'),
+                    accRole: __accBG2.role || 'buttongroup',
+                    labelSource: (__accBG2.name && __accBG2.name.length >= 2) ? 'accname' : 'legacy',
+                    _frame: prefix,
+                  });
+                  return;
+                }
+              }
+            }
+
             // Question label = nearest fieldset legend / label group; fall back to this input's label.
             let qLabel = '';
             const fs = el.closest('fieldset');
@@ -2666,7 +2711,10 @@
     }
 
 
-    return { filled, total: values.length, results };
+    // v1.9.52 — filled counts ANY ok===true result (including "already correct"), excludes visiondiag entries
+    const __countable = results.filter(r => r && r.id !== 'visiondiag');
+    const __filled = __countable.filter(r => r.ok === true).length;
+    return { filled: __filled, total: __countable.length, results };
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -3152,11 +3200,14 @@
           verified: !!landed,
           reason: landed ? 'vision-click' : 'vision-click-unverified',
         });
-        if (landed && injectResult && typeof injectResult.filled === 'number') {
-          injectResult.filled += 1;
-        }
       }
-      if (injectResult) injectResult.results = results;
+      if (injectResult) {
+        injectResult.results = results;
+        // v1.9.52 — recompute using unified rule
+        const __c = results.filter(r => r && r.id !== 'visiondiag');
+        injectResult.total = __c.length;
+        injectResult.filled = __c.filter(r => r.ok === true).length;
+      }
     } catch (_) {
       /* swallow */
     } finally {

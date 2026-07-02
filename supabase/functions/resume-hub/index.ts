@@ -811,17 +811,16 @@ Deno.serve(async (req) => {
 
 You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}], and optionally singleChoice:true (means the checkbox group is really "pick exactly one" — return optionLabels with a single element). Fields may also carry CONTEXT: section (the surrounding section heading, e.g. "References", "Salary expectations", "Emergency contact"), siblingLabels (labels of neighbor fields in the same row/group, e.g. ["First name","Last name"] tells you this is likely a middle-name slot), helperText (aria-describedby text — often decisive), placeholder. Use CONTEXT to disambiguate short/ambiguous labels ("Name" inside a "References" section = a reference contact's name, not the applicant's). NEVER guess when siblingLabels + section still don't clarify — skip with a suggestion.
 
-OUTPUT one object per field you choose to answer:
-
 LANGUAGE RULES: Field labels may be in any language, or bilingual (e.g. 'Name/Nom', 'What are your salary expectations?/Quelles sont vos attentes salariales?'). Treat non-English questions exactly like English ones: apply the same field-group rules and answer, never skip a question only because it is not in English. For open free-text questions, write the answer in the language of the question; for bilingual labels that include English, answer in English. For select/radio/buttongroup, optionValue and optionLabel must still be copied verbatim from options[] regardless of language. Never change a page-language or locale selector (labels like Language, Langue, Idioma, or names like defaultLanguageOverride) when it already has a currentValue; skip those.
 
 RESUME-BASED INFERENCE (be smart, not silent): Many screening questions are not stored in the profile but ARE answerable from the resume. For questions about industry background, domain exposure, or familiarity ('Do you have experience in/with X', 'Do you have an academic background and/or working experience in X', 'Have you worked in a regulated/startup/enterprise environment', 'Are you familiar with X'): scan the resume work history, education, and skills for reasonable evidence. If any real evidence exists, answer Yes with confidence 0.6 to 0.8, source 'inferred', and cite the evidence in reasoning (e.g. 'Pharmaceutical project management at BritPharm 2020 to 2022 counts as life sciences working experience'). If the resume clearly shows no connection and the question is a routine screening question, answer No with confidence 0.6 rather than skipping. An evidence-based answer on a background question is always better than leaving a required screening question blank. This inference rule NEVER applies to: licenses or certifications the user has not listed, security clearance, citizenship or work authorization (use mergedBasics.work_auth only), criminal or background checks, medical questions, or EEO/demographic questions; those keep their existing rules.
 
+OUTPUT one object per field you choose to answer:
 
 { "id":"<field id>", "value":"<for text/textarea/typeahead>", "optionValue":"<exact option.value for select/radio/buttongroup>", "optionLabel":"<exact option.label>", "optionLabels":["..."] (only for checkbox multi-select), "skip":false, "confidence":0..1, "reasoning":"one short sentence", "source":"profile|resume|canonical|computed|inferred" }
 
 CRITICAL RULES:
-- For select/radio/buttongroup: SINGLE CHOICE. optionValue AND optionLabel MUST be copied verbatim from the field's options array. NEVER put a "value" string for these. If none of the offered options fits with high confidence, set skip:true. NEVER default to "No" just because you are unsure — skip instead.
+- For select/radio/buttongroup: SINGLE CHOICE. optionValue AND optionLabel MUST be copied verbatim from the field's options array. NEVER put a "value" string for these. If none of the offered options fits with high confidence, set skip:true. NEVER default to "No" just because you are unsure — skip instead, UNLESS the RESUME-BASED INFERENCE rule applies (routine background/industry/familiarity screening questions), in which case give the evidence-based answer.
 - For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no". If a single checkbox's label is actually a Yes/No question (work authorization, sponsorship, residence, or any "Are you…", "Do you…", "Will you…", "Have you…" question), DO NOT treat it as a passive tick. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION rules below to decide, then return value "yes" or "no" accordingly. NEVER default to "no" out of caution — if the rule yields Yes, return "yes".
 - For typeahead: put a plain string in value (e.g. a city) the page can match against its suggestion list.
 - For text/textarea: put the answer in value. No dashes of any kind ("-", "–", "—"). Use "to" for ranges and a comma for connectors.
@@ -838,10 +837,10 @@ link.*      → Full URL with https://. STRICT URL MATCHING:
 logic.years_experience → Use mergedBasics.computed_years_experience and match the closest option ("5-7 years" etc.). Never inflate.
 logic.education_level  → Use mergedBasics.computed_education_level and match the closest option.
 logic.salary           → Only if canonical.preferences.salary_min_usd or profile.default_answers.salary_expectation exists; otherwise skip.
-logic.start_date       → Only if canonical.preferences.start_date_availability or profile.default_answers.notice_period exists; otherwise skip.
+
 logic.citizenship      → Use canonical.work_auth.citizenship / work_authorized_ca / work_authorized_us. For a Yes/No "are you a citizen or permanent resident of {country}", answer from work_auth. If unknown, skip with a suggestion to add citizenship/PR status to the profile.
 logic.legal_age        → "Are you 18 or older / of legal working age?" Answer "yes" (the applicant is a working professional). confidence 0.9.
-logic.travel           → Use profile.default_answers.willing_to_travel or canonical.preferences.open_to_travel. Yes/No: answer accordingly. If it asks a percentage and the user is willing, answer "yes" or the stored value; if unknown, skip with a suggestion.
+logic.travel           → canonical.preferences.open_to_travel === true ⇒ Yes; else profile.default_answers.willing_to_travel ("yes"/true ⇒ Yes); if it asks a percentage and the user is willing, answer "yes" or the stored value; else skip with a suggestion.
 logic.languages        → Use profile.default_answers.other_languages plus English. If asked which languages, list them; if nothing beyond English is known, answer "English" and suggest adding languages to the profile.
 logic.background       → Criminal/background/drug questions: use profile.default_answers.criminal_record. If it indicates none, answer "no". If unknown, skip with a suggestion. For "do you consent to a background check" that is required to proceed, answer "yes".
 logic.prior_relationship → "Current/former employee of {company}? Previously worked/applied here?" Default "no" unless the profile says otherwise. confidence 0.7.
@@ -872,7 +871,7 @@ open.referral          → If the profile names a referral, use it; otherwise sk
 open.behavioral        → Write a concise STAR-style answer grounded ONLY in the resume's real experience, under 120 words.
 logic.relocate → canonical.preferences.open_to_relocation === true ⇒ Yes; else profile.default_answers.willing_to_relocate ("yes"/true ⇒ Yes); else skip.
 logic.work_mode / remote → canonical.preferences.open_to_remote === true ⇒ remote-friendly/Yes; else profile.default_answers.remote_preference; else skip.
-logic.travel → canonical.preferences.open_to_travel === true ⇒ Yes; else profile.default_answers.willing_to_travel ("yes"/true ⇒ Yes); else skip.
+
 
 BUTTONGROUP YES/NO ROUTING:
 A buttongroup whose options reduce to Yes/No (case-insensitive) is a real single-choice question — NOT a "should I tick this checkbox" decision. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION, and EEO rules below to decide Yes vs No, then return the exact optionLabel/optionValue from the field's options[]. If the rule says skip, return skip:true. Never default to "No" out of caution.
@@ -2048,59 +2047,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ body: r.text });
     }
 
-    // ---------------- autofill ----------------
-    if (action === "autofill") {
-      const { fields, profile, resume } = payload as { fields: Array<{ id: string; label: string; type?: string; options?: string[] }>; profile: unknown; resume?: unknown };
-      if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
-      const r = await callAI({
-        system: "Given a list of form fields and the user's profile + resume, return the best value to enter for each field. For select fields with options, pick from options. Leave value empty if unknown or sensitive (do NOT guess SSN, DOB year, salary expectation).",
-        user: JSON.stringify({ fields, profile, resume }).slice(0, 30000),
-        toolName: "emit_autofill",
-        toolSchema: {
-          type: "object",
-          properties: {
-            values: {
-              type: "array",
-              items: { type: "object", properties: { id: { type: "string" }, value: { type: "string" } }, required: ["id", "value"] },
-            },
-          },
-          required: ["values"],
-        },
-      });
-      return json(r.structured);
-    }
-
     // ── NEW ACTIONS (JWT auth) ──
     // These run after JWT validation using supa client with RLS
     const userId = user.id;
     const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 
-
-
-    if (action === "ext_find_contacts") {
-      const { company, jobTitle, jobUrl, jobSnippet } = payload as { company?:string; jobTitle?:string; jobUrl?:string; jobSnippet?:string };
-      if (!company) return json({ error: "company required" }, 400);
-      const { data: profile } = await adminForNew.from("user_profile_data").select("legal_first_name,legal_last_name,default_answers").eq("user_id",userId).maybeSingle();
-      const { data: resume } = await adminForNew.from("resumes").select("content").eq("user_id",userId).eq("is_primary",true).maybeSingle();
-      const userName = [profile?.legal_first_name,profile?.legal_last_name].filter(Boolean).join(" ")||"the candidate";
-      const aboutMe = ((profile?.default_answers as Record<string,unknown>)?.about_me as string)||"";
-      const r = await callAI({
-        system: `Job search assistant. Return ONLY valid JSON:
-{"contacts":[{"role":"<title>","why":"<why>","linkedinSearchUrl":"<url>","titles":["<t1>"]}],"emailFormats":["<fmt>"],"companyDomain":"<domain>","coldOutreach":"<message>","subjectLine":"<subject>"}
-- 2-3 contact types. LinkedIn URL: https://www.linkedin.com/search/results/people/?keywords=TITLE&currentCompany=["COMPANY"]
-- Cold outreach: under 80 words, first person, specific to role, no generic openers`,
-        user: `COMPANY: ${company}
-JOB: ${jobTitle||""}
-URL: ${jobUrl||""}
-SNIPPET: ${(jobSnippet||"").slice(0,600)}
-CANDIDATE: ${userName}
-BACKGROUND: ${aboutMe.slice(0,300)||JSON.stringify(resume?.content?.basics||{}).slice(0,300)}`,
-      });
-      let parsed: Record<string,unknown> = {};
-      try { const raw=r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim(); const s=raw.indexOf("{"),e=raw.lastIndexOf("}"); parsed=JSON.parse(s!==-1?raw.slice(s,e+1):raw); } catch {}
-      return json({ contacts:(parsed.contacts as unknown[]||[]).slice(0,3), emailFormats:(parsed.emailFormats as string[]||[]).slice(0,3), companyDomain:parsed.companyDomain||"", coldOutreach:parsed.coldOutreach||"", subjectLine:parsed.subjectLine||"" });
-    }
 
     // ---------------- Canonical Profile (Phase 1) ----------------
     // profile_canonical_get: load the saved canonical profile (empty shell if none)
