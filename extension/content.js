@@ -2911,6 +2911,57 @@
   // Click "Add another experience", "Show more", section toggles BEFORE scanning.
   // Greenhouse, Workday, Lever, Ashby all use a button to reveal more fields.
   // ══════════════════════════════════════════════════════════════════
+  // v1.9.56 — Pass A: force lazy-mounted / virtualized form sections to render.
+  // Some ATS forms (Workday, custom React apps) only mount fields when their
+  // container scrolls into view. Sweep the form top-to-bottom in 500px steps,
+  // then restore. Best-effort; failures are silent.
+  async function aynLazyScrollMount() {
+    try {
+      const form = document.querySelector('form, [role="form"], main, [class*="application"], body');
+      if (!form) return;
+      const originalY = window.scrollY;
+      const height = Math.min(document.documentElement.scrollHeight, 15000);
+      const step = 500;
+      for (let y = 0; y < height; y += step) {
+        window.scrollTo({ top: y, behavior: 'auto' });
+        await aynSleep(40);
+      }
+      window.scrollTo({ top: originalY, behavior: 'auto' });
+      await aynSleep(80);
+    } catch (_) {}
+  }
+
+  // v1.9.56 — Pass B: visual-neighbor resolver. When no accessible label exists,
+  // find the nearest text node above or to the left of the field within 140px
+  // using getBoundingClientRect. Handles CSS-grid forms where DOM order ≠ visual.
+  function aynVisualNeighbor(el) {
+    try {
+      if (!el || !el.getBoundingClientRect) return '';
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return '';
+      const root = el.closest('form, [role="form"], main, body') || document.body;
+      const nodes = root.querySelectorAll('label, legend, span, div, p, h1, h2, h3, h4, h5, strong');
+      let best = null; let bestDist = Infinity;
+      for (const n of nodes) {
+        if (n === el || n.contains(el)) continue;
+        if (n.querySelector && n.querySelector('input, textarea, select')) continue;
+        const txt = (n.innerText || n.textContent || '').trim();
+        if (!txt || txt.length < 2 || txt.length > 180) continue;
+        const nr = n.getBoundingClientRect();
+        if (!nr.width && !nr.height) continue;
+        // Prefer text ABOVE (nr.bottom <= r.top+8) or LEFT (nr.right <= r.left+8) of the field
+        const above = nr.bottom <= r.top + 8 && Math.abs(nr.left - r.left) < 260;
+        const left  = nr.right  <= r.left + 8 && Math.abs(nr.top - r.top) < 60;
+        if (!above && !left) continue;
+        const dx = Math.max(0, Math.abs((nr.left + nr.right)/2 - (r.left + r.right)/2) - r.width/2);
+        const dy = above ? (r.top - nr.bottom) : Math.abs(nr.top - r.top);
+        const dist = dx + dy * 1.2;
+        if (dist < bestDist && dist < 160) { bestDist = dist; best = txt.split('\n')[0].trim().slice(0, 160); }
+      }
+      return best || '';
+    } catch (_) { return ''; }
+  }
+
   function expandRepeatingSections() {
     const ADD_RE = /^\s*(\+\s*)?(add\s+(another|more|new)?|add (experience|education|employment|work|position)|show more|see more|expand)/i;
     const buttons = Array.from(document.querySelectorAll('button, a[role="button"], [class*="add-row"], [data-automation-id*="add"], [aria-label*="Add"]'));
@@ -2927,8 +2978,11 @@
         if (clicked >= 6) return; // cap so we don't spam-click
       } catch { /* ignore */ }
     });
+    // v1.9.56 — trigger lazy mounts before scan returns
+    try { aynLazyScrollMount(); } catch (_) {}
     return clicked;
   }
+
 
   // ══════════════════════════════════════════════════════════════════
   // v1.4.0: PROGRAMMATIC RESUME ATTACH (DataTransfer)
