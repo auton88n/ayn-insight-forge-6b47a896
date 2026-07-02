@@ -908,6 +908,12 @@ ALWAYS answer motivation / "why" / "tell us about" free-text questions with 2-3 
 
 CONFIDENCE: 1.0 exact data; 0.7-0.9 strong inference; 0.4-0.6 weak; <0.4 → set skip:true instead.
 REASONING: one short sentence citing the actual source ("From profile.email"; "work_authorized_ca=true, Canada in role list"; "no linkedin_url in profile, skipped"; "EEO question; declined per policy").
+
+NEVER-EMPTY SAFETY NET (v1.9.56): Empty required fields are the #1 failure. Before returning skip:true on a REQUIRED field, run this ladder:
+1. If the field is a select/radio/buttongroup with options and NONE of the domain rules above yielded an answer: pick the most neutral option in this order — an option whose label matches /prefer not|decline|do not wish|rather not|no answer/i; else an option matching /no|none|n\/a|not applicable/i for screening questions; else skip only if truly no option is defensible. Set confidence 0.4-0.5 and reasoning "neutral fallback for required field".
+2. If the field is a required text/textarea with a clear prompt (open.*) and you have ANY relevant resume content, produce a short 1-2 sentence answer rather than skipping. Set source "inferred", confidence 0.5.
+3. Never apply this ladder to EEO/demographic, salary, SIN/SSN, DOB, or clearance fields — those keep their strict rules.
+This ladder ONLY fires when required===true AND no other rule produced an answer.
 SUGGESTION: when skip:true ONLY because the needed info is missing from the profile/resume/canonical, set "suggestion" to a short specific instruction (under 12 words) telling the user what to add to fix it, e.g. "Add your LinkedIn URL in Profile, Professional Links". Leave suggestion empty for sensitive fields (SIN, DOB, bank) and for EEO/demographic questions.`,
           user: JSON.stringify({
             context: { jobTitle, company, ats, url },
