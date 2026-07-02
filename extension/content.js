@@ -3232,6 +3232,7 @@
     }
 
     if (message.type === 'DETECT_PAGE') {
+      if (!AYN_IS_TOP) return false;
       const job = extractJobText();
       const fields = scanFormFields();
       const fileFields = fields._fileFields || [];
