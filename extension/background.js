@@ -347,7 +347,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const fillData = await callFunction('ext_autofill', {
           fields: fields.map(f => ({
-            id: f.id, label: f.label, type: f.type, group: f.group,
+            id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
             options: f.options, required: f.required, currentValue: f.currentValue,
             accRole: f.accRole || '', labelSource: f.labelSource || '',
           })),
@@ -380,7 +380,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           if (newFields.length > 0) {
             const fill2 = await callFunction('ext_autofill', {
               fields: newFields.map(f => ({
-                id: f.id, label: f.label, type: f.type, group: f.group,
+                id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
                 options: f.options, required: f.required, currentValue: f.currentValue,
                 accRole: f.accRole || '', labelSource: f.labelSource || '',
               })),
