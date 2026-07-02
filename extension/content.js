@@ -1832,6 +1832,12 @@
           el = all[idx] || null;
         }
       }
+      if (!el && rawId.includes('__opentext__:')) {
+        el = (window.__AYN_OPEN_TEXT_MAP__ && window.__AYN_OPEN_TEXT_MAP__.get(rawId)) || null;
+      }
+      if (!el && rawId.includes('__richedit__:')) {
+        el = (window.__AYN_RICH_EDITOR_MAP__ && window.__AYN_RICH_EDITOR_MAP__.get(rawId)) || null;
+      }
       return el || null;
     } catch (_) { return null; }
   }
