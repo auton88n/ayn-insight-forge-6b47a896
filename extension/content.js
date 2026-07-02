@@ -1112,22 +1112,53 @@
         groups.forEach((radios, container) => {
           if (radios.length < 2) return;
           const optTexts = new Set(radios.map(r => ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim().toLowerCase()));
+          // v1.9.61 — prefer real heading/label elements; treat helper paragraphs
+          // ("What is considered a disability?") and long explanation blocks as bad.
+          const HEADING_SEL = 'legend, label, h1, h2, h3, h4, h5, strong, [class*="question" i], [class*="Question"], [class*="label" i], [role="heading"]';
+          const HELPER_RE = /^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|for\s+more\s+information|see\s+(below|above)|note[:\s])/i;
+          const looksLikeQuestion = (text) => {
+            if (!text) return false;
+            const first = text.split('\n')[0].trim();
+            if (first.length < 3 || first.length > 140) return false;
+            if (optTexts.has(first.toLowerCase())) return false;
+            if (HELPER_RE.test(first)) return false;
+            if (/^(asian|black|hispanic|white|male|female|decline to self|prefer not|yes|no|i identify as|i am not a)/i.test(first)) return false;
+            return first;
+          };
           let q = '', node = container;
+          // Pass 1: search ancestors for a preceding heading-like element only.
           for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
             const kids = Array.from(node.children);
             const cIdx = kids.findIndex(k => k === container || k.contains(container));
             if (cIdx <= 0) continue;
-            for (let i = cIdx - 1; i >= 0; i--) {
+            for (let i = cIdx - 1; i >= 0 && !q; i--) {
               const p = kids[i];
               if (radios.some(r => p.contains(r))) continue;
               if (p.querySelector && p.querySelector('input:not([type="hidden"]), textarea, select')) continue;
-              const t = (p.innerText || '').replace(/\s+/g,' ').trim();
-              const firstLine = t.split('\n')[0].trim();
-              const looksLikeOptionBlock = p.querySelector && p.querySelector('input[type="radio"]');
-              const hasManyOptions = Array.from(optTexts).filter(o => o && t.toLowerCase().includes(o)).length >= 2;
-              const badFirst = /^(asian|black|hispanic|white|male|female|decline to self|prefer not|yes|no|i identify as|i am not a)/i.test(firstLine);
-              if (firstLine && firstLine.length >= 3 && firstLine.length < 120 && !optTexts.has(firstLine.toLowerCase()) && !badFirst && !looksLikeOptionBlock && !hasManyOptions) {
-                q = firstLine.slice(0,120); break;
+              const heads = (p.matches && p.matches(HEADING_SEL)) ? [p] : Array.from(p.querySelectorAll ? p.querySelectorAll(HEADING_SEL) : []);
+              for (const h of heads) {
+                const t = (h.innerText || h.textContent || '').replace(/\s+/g,' ').trim();
+                const good = looksLikeQuestion(t);
+                if (good) { q = good.slice(0,140); break; }
+              }
+            }
+          }
+          // Pass 2 (fallback): any preceding sibling first line — but reject helper paragraphs.
+          if (!q) {
+            node = container;
+            for (let d = 0; d < 6 && node && !q; d++, node = node.parentElement) {
+              const kids = Array.from(node.children);
+              const cIdx = kids.findIndex(k => k === container || k.contains(container));
+              if (cIdx <= 0) continue;
+              for (let i = cIdx - 1; i >= 0; i--) {
+                const p = kids[i];
+                if (radios.some(r => p.contains(r))) continue;
+                if (p.querySelector && p.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"]')) continue;
+                const t = (p.innerText || '').replace(/\s+/g,' ').trim();
+                const hasManyOptions = Array.from(optTexts).filter(o => o && t.toLowerCase().includes(o)).length >= 2;
+                if (hasManyOptions) continue;
+                const good = looksLikeQuestion(t);
+                if (good) { q = good.slice(0,140); break; }
               }
             }
           }
