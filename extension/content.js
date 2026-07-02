@@ -3165,15 +3165,20 @@
     }
 
     if (message.type === 'HIGHLIGHT_FIELDS') {
-      const all = document.querySelectorAll('input, textarea, select');
-      all.forEach((el, idx) => {
-        const id = el.id || el.name || `f${idx}`;
-        if (message.fieldIds?.includes(id)) {
-          el.style.outline = '2px solid #f59e0b';
-          el.style.outlineOffset = '2px';
-          setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2500);
-        }
-      });
+      const wanted = new Set(message.fieldIds || []);
+      try {
+        collectScannableDocs().forEach(({ doc, prefix }) => {
+          const all = doc.querySelectorAll ? doc.querySelectorAll('input, textarea, select') : [];
+          all.forEach((el, idx) => {
+            const id = `${prefix || ''}${el.id || el.name || `f${idx}`}`;
+            if (wanted.has(id)) {
+              el.style.outline = '2px solid #f59e0b';
+              el.style.outlineOffset = '2px';
+              setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2500);
+            }
+          });
+        });
+      } catch {}
       sendResponse({ ok: true });
       return true;
     }
