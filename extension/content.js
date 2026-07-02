@@ -3231,6 +3231,7 @@
             sendResponse({ filled: 0, total: 0, results: [], error: e.message });
             return;
           }
+          try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);
