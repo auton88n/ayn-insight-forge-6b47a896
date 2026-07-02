@@ -572,6 +572,8 @@
     if (near) return near;
     const prox = aynShortLabelFallback(el);
     if (prox && prox.label) return prox.label;
+    // v1.9.56 — visual-neighbor fallback before falling back to placeholder/name
+    try { const vn = aynVisualNeighbor(el); if (vn) return vn; } catch (_) {}
     return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
   }
 
