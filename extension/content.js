@@ -991,7 +991,10 @@
     window.__AYN_TEXT_FIELD_MAP__ = new Map();
 
     const registerTextField = (prefix, el, idx) => {
-      const raw = el.id || el.name || `__textfield__:tf${textFieldCounter++}:${idx}`;
+      // Use the real DOM id when present; otherwise create our own scan-session id.
+      // Names are not guaranteed unique on modern ATS forms and caused text answers
+      // to resolve to the wrong radio/checkbox/select sibling.
+      const raw = el.id || `__textfield__:tf${textFieldCounter++}:${idx}`;
       const fid = prefix + raw;
       try {
         if (window.__AYN_TEXT_FIELD_MAP__ && raw.includes('__textfield__:')) {
@@ -1524,7 +1527,7 @@
             if (!label) label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
             if (!label) return;
             if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
-            const guessId = el.id || el.name ? prefix + (el.id || el.name) : `${prefix}__textfield__:sup${sIdx++}`;
+            const guessId = el.id ? prefix + el.id : `${prefix}__textfield__:sup${sIdx++}`;
             try {
               if (window.__AYN_TEXT_FIELD_MAP__ && guessId.includes('__textfield__:')) {
                 window.__AYN_TEXT_FIELD_MAP__.set(guessId, el);
@@ -1926,10 +1929,10 @@
         }
       }
       if (!el && rawId.includes('__opentext__:')) {
-        el = (window.__AYN_OPEN_TEXT_MAP__ && window.__AYN_OPEN_TEXT_MAP__.get(rawId)) || null;
+        el = (window.__AYN_OPEN_TEXT_MAP__ && (window.__AYN_OPEN_TEXT_MAP__.get(id) || window.__AYN_OPEN_TEXT_MAP__.get(rawId))) || null;
       }
       if (!el && rawId.includes('__richedit__:')) {
-        el = (window.__AYN_RICH_EDITOR_MAP__ && window.__AYN_RICH_EDITOR_MAP__.get(rawId)) || null;
+        el = (window.__AYN_RICH_EDITOR_MAP__ && (window.__AYN_RICH_EDITOR_MAP__.get(id) || window.__AYN_RICH_EDITOR_MAP__.get(rawId))) || null;
       }
       return el || null;
     } catch (_) { return null; }
