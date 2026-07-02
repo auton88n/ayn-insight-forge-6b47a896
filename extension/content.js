@@ -1692,6 +1692,68 @@
     }
     fields = dedupedFields;
 
+    // ── v1.9.59: MERGE ORPHAN YES/NO OPTION FIELDS INTO A BUTTONGROUP ──
+    // Gem/Talentpool-style forms give each Yes/No option its own DOM element with a
+    // unique name, so the checkbox/radio pass emits them as two separate fields with
+    // labels 'Yes' and 'No'. The AI backend has no context and skips both.
+    // Detect pairs by shared ancestor + differing Yes/No labels; emit one buttongroup.
+    try {
+      const YESNO_RE = /^(yes|no|oui|non|true|false)$/i;
+      const isYN = (f) => (f.kind === 'checkbox' || f.kind === 'radio')
+        && YESNO_RE.test(String(f.label || '').trim())
+        && f._el && f._el.isConnected;
+      const cands = fields.filter(isYN);
+      const toRemove = new Set();
+      const usedContainers = new WeakSet();
+      const merged = [];
+      for (let i = 0; i < cands.length; i++) {
+        const a = cands[i];
+        if (toRemove.has(a)) continue;
+        const aLbl = String(a.label).trim().toLowerCase();
+        let matchB = null;
+        let sharedAnc = null;
+        let anc = a._el.parentElement;
+        for (let up = 0; up < 6 && anc && !matchB; up++, anc = anc.parentElement) {
+          const other = cands.find(o => o !== a && !toRemove.has(o)
+            && anc.contains(o._el)
+            && String(o.label).trim().toLowerCase() !== aLbl);
+          if (other) { matchB = other; sharedAnc = anc; }
+        }
+        if (!matchB || !sharedAnc || usedContainers.has(sharedAnc)) continue;
+        usedContainers.add(sharedAnc);
+        // Extract question label: nearest heading/label in ancestors that isn't Yes/No itself.
+        let qLabel = '';
+        let node = sharedAnc;
+        for (let up = 0; up < 5 && node && !qLabel; up++, node = node.parentElement) {
+          const heads = node.querySelectorAll('legend, label, [class*="label"], [class*="question"], [class*="Question"], h2, h3, h4, strong, p');
+          for (const h of heads) {
+            if (h.contains(a._el) || h.contains(matchB._el)) continue;
+            const t = ((h.innerText || h.textContent || '').trim().split('\n')[0] || '').trim();
+            if (t && t.length >= 3 && t.length <= 240 && !YESNO_RE.test(t)) { qLabel = t; break; }
+          }
+        }
+        if (!qLabel) qLabel = a.name || matchB.name || 'Yes/No question';
+        const prefix = a._frame || '';
+        const bgId = `${prefix}__buttongroup__:merge${bgCounter++}:${qLabel.slice(0, 40).replace(/\s+/g, '_')}`;
+        window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+        window.__AYN_BG_MAP__.set(bgId, { qLabel, optionTexts: ['Yes', 'No'] });
+        merged.push({
+          id: bgId, kind: 'buttongroup', label: qLabel, type: 'buttongroup', name: '',
+          currentValue: '', options: [{ label: 'Yes', value: 'Yes' }, { label: 'No', value: 'No' }],
+          required: !!(a.required || matchB.required),
+          group: classifyField(qLabel, '', 'buttongroup'),
+          accRole: 'buttongroup', labelSource: 'yesno-merge', _frame: prefix,
+        });
+        toRemove.add(a); toRemove.add(matchB);
+      }
+      if (toRemove.size) fields = fields.filter(f => !toRemove.has(f));
+      if (merged.length) fields.push(...merged);
+      try { console.log('[AYN] yesno-merge: merged', merged.length, 'pairs; removed', toRemove.size, 'orphan option fields'); } catch (_) {}
+    } catch (_) { /* never fail the scan */ }
+
+    // Strip transient DOM refs so payload serializes cleanly.
+    for (const f of fields) { try { delete f._el; } catch (_) {} }
+
     fields._fileFields = fileFields;
     return fields;
   }
