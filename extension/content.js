@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.37';
+  const AYN_BUILD = '1.9.57';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -358,7 +358,7 @@
   // Walk up the DOM and harvest the nearest visible question text near the input.
   // Tightened: only accept text that actually looks like a question/prompt,
   // not any capitalized blob — stops autofill from mislabeling fields.
-  const QUESTION_RE = /\?\s*$|^(what|how|are|do|did|have|has|why|when|where|which|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
+  const QUESTION_RE = /\?\s*$|^(what|how|are|is|do|did|have|has|why|when|where|which|will|would|can|could|may|should|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
   function nearestQuestionText(el) {
     let node = el.parentElement;
     for (let i = 0; i < 5 && node; i++) {
@@ -372,6 +372,94 @@
       node = node.parentElement;
     }
     return '';
+  }
+
+  // v1.9.57 — open-answer prompt resolver for large text boxes and custom editors.
+  // Many ATS pages render the question as plain text above a textarea / rich editor,
+  // not as a real <label>. Resolve from visual and document proximity before falling
+  // back to placeholder/name so open-ended questions do not arrive at the backend as
+  // anonymous fields.
+  function aynCleanPromptText(raw, maxLen = 280) {
+    const lines = String(raw || '')
+      .replace(/\u00a0/g, ' ')
+      .split(/\n+/)
+      .map(s => s.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    const meaningful = lines.filter(s => !/^(\*|required|optional|optional\s*[–—-]|\d+\s*\/\s*\d+|characters?\s+remaining)$/i.test(s));
+    if (!meaningful.length) return '';
+    const joined = meaningful.slice(0, 3).join(' ').replace(/\s+/g, ' ').trim();
+    return joined.length > maxLen ? joined.slice(0, maxLen).trim() : joined;
+  }
+
+  function aynLooksLikePromptText(text) {
+    const t = String(text || '').trim();
+    if (!t || t.length < 3 || t.length > 320) return false;
+    if (/^(yes|no|submit|next|back|continue|apply|cancel|save|upload|attach)$/i.test(t)) return false;
+    if (QUESTION_RE.test(t)) return true;
+    return /\b(interested|working at|work history|career transitions?|gaps? in|expand on|clarify|motivation|why|about yourself|cover letter|additional information|anything else|tell us|describe|experience with|familiarity with)\b/i.test(t);
+  }
+
+  function aynNearbyPrompt(el) {
+    try {
+      if (!el || !el.getBoundingClientRect) return '';
+      const ownRect = el.getBoundingClientRect();
+      const ownsField = (node) => node && node.querySelector && node.querySelector('input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]');
+
+      // 1) Walk document-order ancestors and prefer preceding text-only siblings.
+      let node = el.parentElement;
+      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
+        const kids = Array.from(node.children || []);
+        const fieldIdx = kids.findIndex(k => k === el || k.contains(el));
+        if (fieldIdx > 0) {
+          const parts = [];
+          for (let i = Math.max(0, fieldIdx - 3); i < fieldIdx; i++) {
+            const k = kids[i];
+            if (!k || (k.contains && k.contains(el))) continue;
+            if (ownsField(k)) continue;
+            const t = aynCleanPromptText(k.innerText || k.textContent || '');
+            if (t) parts.push(t);
+          }
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (aynLooksLikePromptText(parts[i])) return parts[i];
+          }
+        }
+      }
+
+      // 2) Visual pass: nearest visible text block above or left of the control.
+      const root = el.closest('form, [role="form"], main, body') || document.body;
+      const nodes = Array.from(root.querySelectorAll('label, legend, p, h1, h2, h3, h4, h5, strong, span, div'));
+      let best = ''; let bestScore = Infinity;
+      for (const n of nodes) {
+        if (n === el || n.contains(el) || ownsField(n)) continue;
+        const text = aynCleanPromptText(n.innerText || n.textContent || '');
+        if (!aynLooksLikePromptText(text)) continue;
+        const r = n.getBoundingClientRect && n.getBoundingClientRect();
+        if (!r || (!r.width && !r.height)) continue;
+        const above = r.bottom <= ownRect.top + 16 && r.bottom >= ownRect.top - 360 && Math.abs(r.left - ownRect.left) < 420;
+        const left = r.right <= ownRect.left + 16 && Math.abs(r.top - ownRect.top) < 90;
+        if (!above && !left) continue;
+        const dy = above ? Math.max(0, ownRect.top - r.bottom) : Math.abs(r.top - ownRect.top);
+        const dx = Math.max(0, Math.abs(r.left - ownRect.left) - 80);
+        const score = dy * 1.2 + dx;
+        if (score < bestScore) { bestScore = score; best = text; }
+      }
+      return best || '';
+    } catch (_) { return ''; }
+  }
+
+  function aynNearbyRequired(el) {
+    try {
+      if (!el) return false;
+      if (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true')) return true;
+      let node = el.parentElement;
+      for (let i = 0; i < 5 && node; i++, node = node.parentElement) {
+        const t = String(node.innerText || node.textContent || '').slice(0, 360);
+        if (/\*|\brequired\b/i.test(t)) return true;
+        const aria = node.getAttribute && (node.getAttribute('aria-required') || node.getAttribute('data-required'));
+        if (String(aria || '').toLowerCase() === 'true') return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   // ---- Accessible name + role resolver (W3C accname-style, Playwright-inspired) ----
@@ -483,7 +571,9 @@
       cl.querySelectorAll('input,textarea,select,button').forEach(n => n.remove());
       if (c(cl.innerText)) return c(cl.innerText);
     }
-    // 5. document-order walk-up: at each ancestor, find the text block that precedes THIS field
+    // 5. v1.9.57 — nearest plain-text prompt above large text fields / editors.
+    try { const nearPrompt = aynNearbyPrompt(el); if (nearPrompt) return nearPrompt; } catch (_) {}
+    // 6. document-order walk-up: at each ancestor, find the text block that precedes THIS field
     //    among the ancestor's children and does not contain another fillable field.
     let node = el.parentElement;
     for (let d = 0; d < 6 && node; d++, node = node.parentElement) {
@@ -501,12 +591,12 @@
         }
       }
     }
-    // 6. placeholder
+    // 7. placeholder
     const ph = c(el.getAttribute('placeholder'));
     if (ph) return ph;
-    // 7. v1.9.56 — visual-neighbor fallback (grid forms, DOM ≠ visual order)
+    // 8. v1.9.56 — visual-neighbor fallback (grid forms, DOM ≠ visual order)
     try { const vn = aynVisualNeighbor(el); if (vn) return vn; } catch (_) {}
-    // 8. v1.9.56 — synthesize from name attr as last resort so backend still receives it
+    // 9. v1.9.56 — synthesize from name attr as last resort so backend still receives it
     const nm = c(el.getAttribute('name'));
     if (nm && !/^[a-f0-9-]{20,}$/i.test(nm)) return nm.replace(/[_\-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
     return '';
@@ -572,6 +662,8 @@
     if (near) return near;
     const prox = aynShortLabelFallback(el);
     if (prox && prox.label) return prox.label;
+    // v1.9.57 — stronger prompt fallback for textareas and rich editors.
+    try { const np = aynNearbyPrompt(el); if (np) return np; } catch (_) {}
     // v1.9.56 — visual-neighbor fallback before falling back to placeholder/name
     try { const vn = aynVisualNeighbor(el); if (vn) return vn; } catch (_) {}
     return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
@@ -666,6 +758,7 @@
     if (/subscribe|newsletter|marketing|keep\s+me\s+(updated|informed)|opt[\s-]?in/.test(l)) return 'consent.marketing';
     if (/agree\b|consent|terms|privacy\s+policy|i\s+certify|i\s+acknowledge|i\s+confirm|gdpr|data\s+(processing|protection)/.test(l)) return 'consent.agree';
     if (/describe\s+a\s+time|tell\s+(us|me)\s+about\s+a\s+time|give\s+(an|us\s+an)\s+example|situation\s+where/.test(l)) return 'open.behavioral';
+    if (/work\s+history|employment\s+history|career\s+transition|resume\s+gap|gaps?\s+in\s+(your\s+)?resume|clarify\s+or\s+expand|anything\s+.*(clarify|expand)|additional\s+information/.test(l)) return 'open.work_history';
     // Dependent follow-up text fields ("Which agency", "Please specify", "If yes, ...")
     if (type === 'text' && /which\s+(agency|bu|department|team)|please\s+specify|if\s+(yes|so)\s*,|if\s+yes\s+which/.test(l)) return 'logic.dependent_followup';
     // Widened v1.9.37 categories
@@ -1340,7 +1433,10 @@
           }
 
           const __accT = aynResolveLabel(el);
-          const label = (__accT.name && __accT.name.length >= 2) ? __accT.name : getLabelFor(el);
+          let label = (__accT.name && __accT.name.length >= 2) ? __accT.name : getLabelFor(el);
+          if (!label && (el.tagName === 'TEXTAREA' || ((__accT.role || '').toLowerCase() === 'textbox'))) {
+            label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
+          }
           if (!label && (!el.name || el.name.length < 2)) return;
           if (SKIP_RE.test(label)) return;
 
@@ -1366,10 +1462,10 @@
             name: el.name || '',
             currentValue: isFilled(el) ? (el.value || '') : '',
             options: getOptionPairs(el),
-            required: el.required || el.getAttribute('aria-required') === 'true' || !!(el.__aynProxLabel && el.__aynProxLabel.required),
+            required: el.required || el.getAttribute('aria-required') === 'true' || !!(el.__aynProxLabel && el.__aynProxLabel.required) || aynNearbyRequired(el),
             group: _group,
             accRole: (el.tagName === 'SELECT') ? 'combobox' : (__accT.role || ''),
-            labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : ((el.__aynProxLabel && el.__aynProxLabel.label === label) ? 'proximity' : 'legacy'),
+            labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : ((el.__aynProxLabel && el.__aynProxLabel.label === label) ? 'proximity' : (aynLooksLikePromptText(label) ? 'nearby-prompt' : 'legacy')),
             section: __ctx.section,
             siblingLabels: __ctx.siblingLabels,
             helperText: __ctx.helperText,
@@ -1377,6 +1473,7 @@
             _idx: idx,
             _frame: prefix,
           });
+          try { el.__aynEmitted = true; } catch (_) {}
         } catch { /* skip a single bad node, keep scanning */ }
       });
 
@@ -1406,6 +1503,7 @@
               // Fallback: placeholder or aria-label
               label = (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder'))) || '';
             }
+            if (!label) label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
             if (!label) return;
             if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
             const guessId = prefix + (el.id || el.name || `sup_txt_${sIdx++}`);
@@ -1423,10 +1521,10 @@
               name: el.name || '',
               currentValue: current || '',
               options: [],
-              required: (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true')) || false,
+              required: (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true') || aynNearbyRequired(el)) || false,
               group: classifyField(label, el.name || '', 'text'),
               accRole: 'textbox',
-              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : 'legacy',
+              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : (aynLooksLikePromptText(label) ? 'nearby-prompt' : 'legacy'),
               section: __ctx.section,
               siblingLabels: __ctx.siblingLabels,
               helperText: __ctx.helperText,
@@ -1472,13 +1570,14 @@
             if (rect.width === 0 && rect.height === 0) return;
             seenEditables.add(editable);
             const __accR = (typeof aynResolveLabel === 'function') ? aynResolveLabel(editable) : { name: '', role: '' };
-            const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || '');
+            const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || aynNearbyPrompt(editable) || '');
             if (!label) return;
             if (SKIP_RE.test(label)) return;
             const rid = `${prefix}__richedit__:re${reIdx++}`;
             window.__AYN_RICH_EDITOR_MAP__.set(rid, editable);
             let current = '';
             try { current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.innerText || ''); } catch {}
+            const __ctxR = (typeof aynCaptureContext === 'function') ? aynCaptureContext(editable) : { section:'', siblingLabels:[], helperText:'', placeholder:'' };
             fields.push({
               id: rid,
               kind: 'text',
@@ -1487,15 +1586,86 @@
               name: '',
               currentValue: current || '',
               options: [],
-              required: editable.getAttribute && editable.getAttribute('aria-required') === 'true',
+              required: (editable.getAttribute && editable.getAttribute('aria-required') === 'true') || aynNearbyRequired(editable),
               group: classifyField(label, '', 'text'),
               accRole: 'textbox',
-              labelSource: (__accR.name && __accR.name.length >= 2) ? 'accname' : 'legacy',
+              labelSource: (__accR.name && __accR.name.length >= 2) ? 'accname' : (aynLooksLikePromptText(label) ? 'nearby-prompt' : 'legacy'),
+              section: __ctxR.section,
+              siblingLabels: __ctxR.siblingLabels,
+              helperText: __ctxR.helperText,
+              placeholder: __ctxR.placeholder,
               richEditor: true,
               richDetector: info.detector,
               _frame: prefix,
             });
+            try { editable.__aynEmitted = true; } catch (_) {}
           } catch {}
+        });
+      } catch { /* never fail the scan */ }
+
+      // v1.9.57 — final recovery pass for open-answer boxes missed by normal selectors.
+      // This specifically catches large ATS answer boxes where the editable is inside a
+      // decorative wrapper and the prompt is only visual text above it.
+      try {
+        window.__AYN_OPEN_TEXT_MAP__ = window.__AYN_OPEN_TEXT_MAP__ || new Map();
+        const seenEditables = new WeakSet();
+        fields.forEach(f => {
+          try {
+            if (f && f.id && /__(richedit|opentext)__:/.test(f.id)) {
+              const e = window.__AYN_RICH_EDITOR_MAP__?.get(f.id) || window.__AYN_OPEN_TEXT_MAP__?.get(f.id);
+              if (e) seenEditables.add(e);
+            }
+          } catch (_) {}
+        });
+        const OPEN_SEL = [
+          'textarea',
+          '[role="textbox"]',
+          '[contenteditable=""]',
+          '[contenteditable="true"]',
+          '[contenteditable="plaintext-only"]',
+          '.ProseMirror', '.tiptap', '.ql-editor', '.DraftEditor-root', '.public-DraftEditor-content',
+          '[data-slate-editor="true"]', '[data-lexical-editor="true"]', '[data-editor]'
+        ].join(',');
+        let otIdx = 0;
+        Array.from(doc.querySelectorAll(OPEN_SEL)).forEach(cand => {
+          try {
+            const info = aynResolveRichEditor(cand);
+            const editable = info.editable || cand;
+            if (!editable || seenEditables.has(editable) || editable.__aynEmitted) return;
+            if (editable.disabled || editable.readOnly) return;
+            if (editable.closest && editable.closest('input,select')) return;
+            const rect = editable.getBoundingClientRect && editable.getBoundingClientRect();
+            if (rect && rect.width === 0 && rect.height === 0) return;
+            const acc = aynResolveLabel(editable);
+            const prompt = ((acc.name && acc.name.length >= 2) ? acc.name : '') || getLabelFor(editable) || aynNearbyPrompt(editable) || aynFieldQuestion(editable) || '';
+            if (!prompt || SKIP_RE.test(prompt)) return;
+            const current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.value || editable.innerText || '');
+            const rid = `${prefix}__opentext__:ot${otIdx++}`;
+            window.__AYN_OPEN_TEXT_MAP__.set(rid, editable);
+            seenEditables.add(editable);
+            const ctx = aynCaptureContext(editable);
+            fields.push({
+              id: rid,
+              kind: editable.tagName === 'TEXTAREA' ? 'textarea' : 'text',
+              label: prompt.slice(0, 300),
+              type: editable.tagName === 'TEXTAREA' ? 'textarea' : 'text',
+              name: editable.name || '',
+              currentValue: current || '',
+              options: [],
+              required: aynNearbyRequired(editable),
+              group: classifyField(prompt, editable.name || '', editable.tagName === 'TEXTAREA' ? 'textarea' : 'text'),
+              accRole: 'textbox',
+              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : 'nearby-prompt',
+              section: ctx.section,
+              siblingLabels: ctx.siblingLabels,
+              helperText: ctx.helperText,
+              placeholder: ctx.placeholder,
+              richEditor: !!info.editable || !!editable.isContentEditable,
+              richDetector: info.detector || (editable.isContentEditable ? 'contenteditable' : ''),
+              _frame: prefix,
+            });
+            try { editable.__aynEmitted = true; } catch (_) {}
+          } catch (_) {}
         });
       } catch { /* never fail the scan */ }
     });
@@ -1662,6 +1832,12 @@
           const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
           el = all[idx] || null;
         }
+      }
+      if (!el && rawId.includes('__opentext__:')) {
+        el = (window.__AYN_OPEN_TEXT_MAP__ && window.__AYN_OPEN_TEXT_MAP__.get(rawId)) || null;
+      }
+      if (!el && rawId.includes('__richedit__:')) {
+        el = (window.__AYN_RICH_EDITOR_MAP__ && window.__AYN_RICH_EDITOR_MAP__.get(rawId)) || null;
       }
       return el || null;
     } catch (_) { return null; }
@@ -2357,7 +2533,7 @@
     const __textUsed = new WeakSet();
     function __textCandsFor(doc) {
       if (__textCandCache.has(doc)) return __textCandCache.get(doc);
-      const sel = 'input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], textarea, [contenteditable="true"], [contenteditable=""]';
+      const sel = 'input:not([type]), input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], input[type="search"], textarea, [role="textbox"], [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]';
       const list = [];
       try {
         Array.from(doc.querySelectorAll(sel)).forEach(el => {
@@ -2423,6 +2599,24 @@
         }
         results.push({ id, ok: landed, verified: landed, reason: landed ? 'labelgroup-click' : 'labelgroup-click-unverified' });
         if (landed) filled++;
+        continue;
+      }
+
+      // v1.9.57 — recovered open-answer boxes (textarea / rich editor wrappers).
+      if (id.includes('__opentext__:')) {
+        const editable = window.__AYN_OPEN_TEXT_MAP__ && window.__AYN_OPEN_TEXT_MAP__.get(id);
+        if (!editable) { results.push({ id, ok: false, reason: 'open text editor not found' }); continue; }
+        const chosenOT = optionValue || optionLabel || value;
+        if (!chosenOT || !String(chosenOT).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
+        try {
+          const r = await aynFillTextbox(editable, String(chosenOT));
+          if (r.ok) filled++;
+          const out = { id, ok: !!r.ok, openText: true };
+          if (r.verified !== undefined) out.verified = !!r.verified;
+          if (r.reason) out.reason = r.reason;
+          if (editable.isContentEditable || (editable.getAttribute && editable.getAttribute('role') === 'textbox')) out.richEditor = true;
+          results.push(out);
+        } catch (e) { results.push({ id, ok: false, reason: e.message, openText: true }); }
         continue;
       }
 
