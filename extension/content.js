@@ -758,6 +758,7 @@
     if (/subscribe|newsletter|marketing|keep\s+me\s+(updated|informed)|opt[\s-]?in/.test(l)) return 'consent.marketing';
     if (/agree\b|consent|terms|privacy\s+policy|i\s+certify|i\s+acknowledge|i\s+confirm|gdpr|data\s+(processing|protection)/.test(l)) return 'consent.agree';
     if (/describe\s+a\s+time|tell\s+(us|me)\s+about\s+a\s+time|give\s+(an|us\s+an)\s+example|situation\s+where/.test(l)) return 'open.behavioral';
+    if (/work\s+history|employment\s+history|career\s+transition|resume\s+gap|gaps?\s+in\s+(your\s+)?resume|clarify\s+or\s+expand|anything\s+.*(clarify|expand)|additional\s+information/.test(l)) return 'open.work_history';
     // Dependent follow-up text fields ("Which agency", "Please specify", "If yes, ...")
     if (type === 'text' && /which\s+(agency|bu|department|team)|please\s+specify|if\s+(yes|so)\s*,|if\s+yes\s+which/.test(l)) return 'logic.dependent_followup';
     // Widened v1.9.37 categories
