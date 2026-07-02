@@ -2893,6 +2893,7 @@
   });
 
   function startCardScoring() {
+    if (!AYN_IS_TOP) return;
     scoringEnabled = true;
     scoreSiblingCards();
     cardObserver.observe(document.body, { childList: true, subtree: true });
