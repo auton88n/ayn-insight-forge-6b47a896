@@ -14,6 +14,8 @@
   const AYN_BUILD = '1.9.37';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
+  // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
+  const AYN_IS_TOP = (() => { try { return window === window.top; } catch (_) { return false; } })();
 
   // Quiet message sender — swallows chrome.runtime.lastError when no receiver
   function sendQuiet(message) {
@@ -1943,6 +1945,7 @@
   }
 
   function aynShowActivityGlow(on) {
+    if (!AYN_IS_TOP) return;
     try {
       const ID = 'ayn-activity-glow';
       let el = document.getElementById(ID);
@@ -2890,6 +2893,7 @@
   });
 
   function startCardScoring() {
+    if (!AYN_IS_TOP) return;
     scoringEnabled = true;
     scoreSiblingCards();
     cardObserver.observe(document.body, { childList: true, subtree: true });
@@ -3228,6 +3232,7 @@
     }
 
     if (message.type === 'DETECT_PAGE') {
+      if (!AYN_IS_TOP) return false;
       const job = extractJobText();
       const fields = scanFormFields();
       const fileFields = fields._fileFields || [];
@@ -3400,7 +3405,7 @@
       const key = `${url}|${fieldCount}|${hasResumeUpload}`;
       if (key === _lastFormReportKey) return true;
       _lastFormReportKey = key;
-      sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
+      if (AYN_IS_TOP) sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
       return true;
     } catch { return false; }
   }
@@ -3422,7 +3427,7 @@
     if (result.text && result.text.length > 100) {
       if (location.href === _lastDetectedUrl) return; // already reported
       _lastDetectedUrl = location.href;
-      sendQuiet({
+      if (AYN_IS_TOP) sendQuiet({
         type: 'JOB_DETECTED',
         text: result.text,
         title: result.title,
