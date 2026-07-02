@@ -840,7 +840,7 @@ logic.salary           → Only if canonical.preferences.salary_min_usd or profi
 
 logic.citizenship      → Use canonical.work_auth.citizenship / work_authorized_ca / work_authorized_us. For a Yes/No "are you a citizen or permanent resident of {country}", answer from work_auth. If unknown, skip with a suggestion to add citizenship/PR status to the profile.
 logic.legal_age        → "Are you 18 or older / of legal working age?" Answer "yes" (the applicant is a working professional). confidence 0.9.
-logic.travel           → Use profile.default_answers.willing_to_travel or canonical.preferences.open_to_travel. Yes/No: answer accordingly. If it asks a percentage and the user is willing, answer "yes" or the stored value; if unknown, skip with a suggestion.
+logic.travel           → canonical.preferences.open_to_travel === true ⇒ Yes; else profile.default_answers.willing_to_travel ("yes"/true ⇒ Yes); if it asks a percentage and the user is willing, answer "yes" or the stored value; else skip with a suggestion.
 logic.languages        → Use profile.default_answers.other_languages plus English. If asked which languages, list them; if nothing beyond English is known, answer "English" and suggest adding languages to the profile.
 logic.background       → Criminal/background/drug questions: use profile.default_answers.criminal_record. If it indicates none, answer "no". If unknown, skip with a suggestion. For "do you consent to a background check" that is required to proceed, answer "yes".
 logic.prior_relationship → "Current/former employee of {company}? Previously worked/applied here?" Default "no" unless the profile says otherwise. confidence 0.7.
