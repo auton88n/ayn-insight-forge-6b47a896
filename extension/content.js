@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.57';
+  const AYN_BUILD = '1.9.58';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -2917,6 +2917,71 @@
       } catch (e) { results.push({ id, ok: false, reason: e.message }); }
     }
 
+
+    // v1.9.58 — enrich failed results with skip diagnostics (selector, tag, resolver, kind)
+    try {
+      const aynBuildSelector = (el) => {
+        if (!el || el.nodeType !== 1) return '';
+        try {
+          if (el.id) return '#' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id);
+          const nm = el.getAttribute && el.getAttribute('name');
+          if (nm) return `${el.tagName.toLowerCase()}[name="${String(nm).replace(/"/g, '\\"')}"]`;
+          const parts = [];
+          let n = el;
+          for (let i = 0; i < 4 && n && n.nodeType === 1; i++, n = n.parentElement) {
+            let seg = n.tagName.toLowerCase();
+            const cls = (typeof n.className === 'string' ? n.className : '').trim().split(/\s+/)[0];
+            if (cls) seg += '.' + cls.replace(/[^\w-]/g, '');
+            parts.unshift(seg);
+          }
+          return parts.join(' > ');
+        } catch (_) { return ''; }
+      };
+      const failed = results.filter(r => r && r.ok === false);
+      const enriched = failed.map(r => {
+        const v = values.find(x => x && x.id === r.id) || {};
+        let el = null;
+        try {
+          const rd = resolveDoc(r.id, v._frame);
+          const doc = rd && rd.doc;
+          const raw = rd && rd.rawId;
+          if (doc && raw) {
+            el = doc.getElementById(raw)
+              || doc.querySelector(`[name="${String(raw).replace(/"/g,'\\"')}"]`)
+              || null;
+          }
+        } catch (_) {}
+        const isOpenText = !!(el && (
+          el.tagName === 'TEXTAREA'
+          || (el.getAttribute && el.getAttribute('role') === 'textbox')
+          || el.isContentEditable
+        ));
+        const skipMeta = {
+          id: r.id,
+          reason: r.reason || 'unknown',
+          selector: aynBuildSelector(el),
+          tag: el ? el.tagName : '',
+          kind: v.kind || v.type || '',
+          question: v.label || '',
+          resolver: v.labelSource || '',
+          richDetector: v.richDetector || r.richDetector || '',
+          isOpenText,
+          hasValue: !!(v.value || v.optionLabel || v.optionValue),
+          at: Date.now(),
+        };
+        r.skipMeta = skipMeta;
+        try {
+          console.groupCollapsed(`[AYN skip] ${skipMeta.reason} — ${skipMeta.selector || skipMeta.id}${isOpenText ? ' (open-text)' : ''}`);
+          console.log(skipMeta);
+          if (el) console.log('element:', el);
+          console.groupEnd();
+        } catch (_) {}
+        return skipMeta;
+      });
+      try {
+        window.__aynSkipLog = (window.__aynSkipLog || []).concat(enriched).slice(-50);
+      } catch (_) {}
+    } catch (_) { /* diagnostics must never break fill */ }
 
     // v1.9.52 — filled counts ANY ok===true result (including "already correct"), excludes visiondiag entries
     const __countable = results.filter(r => r && r.id !== 'visiondiag');
