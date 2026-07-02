@@ -501,9 +501,14 @@
         }
       }
     }
-    // 6. placeholder last
+    // 6. placeholder
     const ph = c(el.getAttribute('placeholder'));
     if (ph) return ph;
+    // 7. v1.9.56 — visual-neighbor fallback (grid forms, DOM ≠ visual order)
+    try { const vn = aynVisualNeighbor(el); if (vn) return vn; } catch (_) {}
+    // 8. v1.9.56 — synthesize from name attr as last resort so backend still receives it
+    const nm = c(el.getAttribute('name'));
+    if (nm && !/^[a-f0-9-]{20,}$/i.test(nm)) return nm.replace(/[_\-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
     return '';
   }
 
