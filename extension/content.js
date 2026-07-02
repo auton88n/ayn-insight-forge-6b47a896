@@ -991,9 +991,17 @@
     window.__AYN_TEXT_FIELD_MAP__ = new Map();
 
     const registerTextField = (prefix, el, idx) => {
-      // Always use a scan-session DOM-backed id for text fields. Real ids/names on
-      // modern ATS pages are often duplicated or reused across radio/select wrappers,
-      // which is the root cause of open-text answers being routed into option logic.
+      // v1.9.61 — hard guard: never allow non-text-like controls to be registered as
+      // text fields. Radios/checkboxes/file/hidden/submit/etc. reaching this path was
+      // the root cause of Yes/No options being answered as free-text (BioRender/Gem).
+      try {
+        const tag = (el && el.tagName || '').toUpperCase();
+        const typ = (el && el.type || '').toLowerCase();
+        const BAD = new Set(['radio','checkbox','file','hidden','submit','button','image','reset']);
+        if (tag === 'INPUT' && BAD.has(typ)) return null;
+        const role = (el && el.getAttribute && (el.getAttribute('role') || '')).toLowerCase();
+        if (role === 'radio' || role === 'checkbox') return null;
+      } catch (_) {}
       const raw = `__textfield__:tf${textFieldCounter++}:${idx}`;
       const fid = prefix + raw;
       try {
