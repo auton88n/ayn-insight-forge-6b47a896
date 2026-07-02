@@ -569,21 +569,23 @@
   }
 
   // Classify a field into a semantic group so the AI can reason about it
-  function classifyField(label, name, type) {
-    const stripped = aynStripBilingual(label);
-    const l = ((stripped || '') + ' ' + (name || '')).toLowerCase();
-    if (/middle\s*name/.test(l)) return 'identity.middle_name';
-    if (/preferred\s*(first\s*)?name|nick\s*name|name\s+you\s+go\s+by/.test(l)) return 'identity.preferred_name';
-    if (/\bfirst\s*name|given\s*name|forename\b/.test(l)) return 'identity.first_name';
-    if (/\blast\s*name|surname|family\s*name\b/.test(l)) return 'identity.last_name';
-    if (/\bfull\s*name|legal\s*name\b/.test(l) || /^name$/i.test((stripped||'').trim())) return 'identity.full_name';
-    if (/\bemail\b/.test(l)) return 'identity.email';
-    if (/\bphone|mobile|cell\b/.test(l)) return 'identity.phone';
-    if (/\baddress|street\b/.test(l)) return 'identity.address';
-    if (/\bcity|town\b/.test(l)) return 'identity.city';
-    if (/\bstate|province|region\b/.test(l)) return 'identity.state';
-    if (/\bzip|postal\s*code|postcode\b/.test(l)) return 'identity.postal_code';
-    if (/\bcountry\b/.test(l)) return 'identity.country';
+   function classifyField(label, name, type) {
+     const stripped = aynStripBilingual(label);
+     // v1.9.49 — normalize + strip diacritics so FR/ES/DE synonyms match case- and accent-insensitively.
+     const l = (((stripped || '') + ' ' + (name || '')).toLowerCase())
+       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+     if (/middle\s*name|deuxieme\s*prenom|segundo\s*nombre/.test(l)) return 'identity.middle_name';
+     if (/preferred\s*(first\s*)?name|nick\s*name|name\s+you\s+go\s+by|prenom\s+prefere|nombre\s+preferido|rufname/.test(l)) return 'identity.preferred_name';
+     if (/\bfirst\s*name|given\s*name|forename\b|\bprenom\b|\bnombre\b|\bvorname\b/.test(l)) return 'identity.first_name';
+     if (/\blast\s*name|surname|family\s*name\b|nom\s+de\s+famille|\bapellido|\bnachname|\bapellidos\b/.test(l)) return 'identity.last_name';
+     if (/\bfull\s*name|legal\s*name\b|nom\s+complet|nombre\s+completo|vollstandiger\s+name/.test(l) || /^(name|nom|nombre)$/i.test((stripped||'').trim())) return 'identity.full_name';
+     if (/\bemail\b|\bcourriel\b|adresse\s+courriel|adresse\s+electronique|\bcorreo\b|correo\s+electronico|e[-\s]?mail/.test(l)) return 'identity.email';
+     if (/\bphone|mobile|cell\b|\btelephone\b|numero\s+de\s+telephone|\btelefono\b|telefonnummer|handynummer|portable/.test(l)) return 'identity.phone';
+     if (/\baddress|street\b|\badresse\b|\bdireccion\b|strasse|anschrift/.test(l)) return 'identity.address';
+     if (/\bcity|town\b|\bville\b|\bciudad\b|\bstadt\b/.test(l)) return 'identity.city';
+     if (/\bstate|province|region\b|provincia|bundesland/.test(l)) return 'identity.state';
+     if (/\bzip|postal\s*code|postcode\b|code\s+postal|codigo\s+postal|postleitzahl|\bplz\b/.test(l)) return 'identity.postal_code';
+     if (/\bcountry\b|\bpays\b|\bpais\b|\bland\b/.test(l)) return 'identity.country';
     if (/linkedin/.test(l)) return 'link.linkedin';
     if (/portfolio|website|personal\s*site/.test(l)) return 'link.portfolio';
     if (/github/.test(l)) return 'link.github';
