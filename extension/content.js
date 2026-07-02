@@ -3155,11 +3155,14 @@
           verified: !!landed,
           reason: landed ? 'vision-click' : 'vision-click-unverified',
         });
-        if (landed && injectResult && typeof injectResult.filled === 'number') {
-          injectResult.filled += 1;
-        }
       }
-      if (injectResult) injectResult.results = results;
+      if (injectResult) {
+        injectResult.results = results;
+        // v1.9.52 — recompute using unified rule
+        const __c = results.filter(r => r && r.id !== 'visiondiag');
+        injectResult.total = __c.length;
+        injectResult.filled = __c.filter(r => r.ok === true).length;
+      }
     } catch (_) {
       /* swallow */
     } finally {
