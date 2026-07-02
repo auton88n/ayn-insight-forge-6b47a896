@@ -3427,7 +3427,7 @@
     if (result.text && result.text.length > 100) {
       if (location.href === _lastDetectedUrl) return; // already reported
       _lastDetectedUrl = location.href;
-      sendQuiet({
+      if (AYN_IS_TOP) sendQuiet({
         type: 'JOB_DETECTED',
         text: result.text,
         title: result.title,
