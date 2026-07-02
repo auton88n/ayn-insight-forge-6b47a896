@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.59';
+  const AYN_BUILD = '1.9.60';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -982,9 +982,25 @@
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
     let bgCounter = 0;
+    let textFieldCounter = 0;
     // v1.9.44 — reset per-scan used-radio tracker so stale state doesn't persist
     window.__AYN_USED_RADIOS__ = new WeakSet();
     window.__AYN_STRUCTRADIO_MAP__ = new Map();
+    // v1.9.60 — stable DOM-backed ids for idless text fields. Avoids stale f11/f12
+    // index resolution after React/Gem reorders controls between scan and inject.
+    window.__AYN_TEXT_FIELD_MAP__ = new Map();
+
+    const registerTextField = (prefix, el, idx) => {
+      const raw = el.id || el.name || `__textfield__:tf${textFieldCounter++}:${idx}`;
+      const fid = prefix + raw;
+      try {
+        if (window.__AYN_TEXT_FIELD_MAP__ && raw.includes('__textfield__:')) {
+          window.__AYN_TEXT_FIELD_MAP__.set(fid, el);
+          window.__AYN_TEXT_FIELD_MAP__.set(raw, el);
+        }
+      } catch (_) {}
+      return fid;
+    };
 
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
@@ -1455,8 +1471,9 @@
             else if (salaryRole === 'max') _group = 'logic.salary_max';
           }
           const __ctx = aynCaptureContext(el);
+          const stableTextId = registerTextField(prefix, el, idx);
           fields.push({
-            id: prefix + (el.id || el.name || `f${idx}`),
+            id: stableTextId,
             kind,
             label: label || `Field ${idx}`,
             type: kind === 'select' ? 'select' : (el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || 'text')),
@@ -1507,7 +1524,13 @@
             if (!label) label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
             if (!label) return;
             if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
-            const guessId = prefix + (el.id || el.name || `sup_txt_${sIdx++}`);
+            const guessId = el.id || el.name ? prefix + (el.id || el.name) : `${prefix}__textfield__:sup${sIdx++}`;
+            try {
+              if (window.__AYN_TEXT_FIELD_MAP__ && guessId.includes('__textfield__:')) {
+                window.__AYN_TEXT_FIELD_MAP__.set(guessId, el);
+                window.__AYN_TEXT_FIELD_MAP__.set(guessId.replace(prefix, ''), el);
+              }
+            } catch (_) {}
             if (emittedIds.has(guessId)) return;
             emittedIds.add(guessId);
             const isCE = el.isContentEditable || /^(true|)$/i.test(el.getAttribute && el.getAttribute('contenteditable') || '');
@@ -1886,6 +1909,12 @@
       const { doc, rawId } = resolveDoc(id, _frame);
       if (!doc || !rawId) return null;
       let el = null;
+      if (!el && rawId.includes('__textfield__:')) {
+        try {
+          const map = window.__AYN_TEXT_FIELD_MAP__;
+          el = (map && (map.get(id) || map.get(rawId))) || null;
+        } catch (_) {}
+      }
       try { el = doc.getElementById(rawId); } catch (_) {}
       if (!el) { try { el = doc.querySelector(`[name="${CSS.escape(rawId)}"]`); } catch (_) {} }
       if (!el) {
@@ -2618,11 +2647,32 @@
       for (const c of cands) {
         if (__textUsed.has(c.el)) continue;
         let s = aynQuestionScore(aiLabel, c.q);
-        if (preferTag && c.el.tagName === preferTag) s += 0.01; // tie-break by tag
+        if (preferTag && c.el.tagName === preferTag) s += 0.08; // prefer textarea for open answers
         if (s > bestScore) { bestScore = s; best = c; }
       }
       if (best && bestScore >= 0.5) return best.el;
       return null;
+    }
+
+    function __isTextLikeEl(el) {
+      if (!el) return false;
+      const tag = (el.tagName || '').toUpperCase();
+      const type = String(el.type || '').toLowerCase();
+      return tag === 'TEXTAREA'
+        || el.isContentEditable
+        || (el.getAttribute && el.getAttribute('role') === 'textbox')
+        || (tag === 'INPUT' && /^(|text|email|tel|url|number|search|password)$/.test(type));
+    }
+
+    function __isKindMismatch(el, expectedKind, looksText) {
+      if (!el) return false;
+      const tag = (el.tagName || '').toUpperCase();
+      const type = String(el.type || '').toLowerCase();
+      if (looksText && (tag === 'SELECT' || type === 'radio' || type === 'checkbox')) return true;
+      if (/textarea|opentext|richedit/.test(expectedKind) && !__isTextLikeEl(el)) return true;
+      if (/select/.test(expectedKind) && tag !== 'SELECT') return true;
+      if (/(radio|checkbox)/.test(expectedKind) && type && type !== expectedKind) return true;
+      return false;
     }
 
 
@@ -2921,17 +2971,34 @@
       const __looksText = !/(radio|checkbox|select)/.test(__kindHint)
         && !(optionValues && optionValues.length)
         && !(optionLabels && optionLabels.length);
-      if (!el && __looksText && __aiLabel) {
+      let __resolverUsed = el ? (rawId && rawId.includes('__textfield__:') ? 'stable-text-map' : 'direct') : '';
+      let __indexFallbackUsed = false;
+      if ((!el || __isKindMismatch(el, __kindHint, __looksText)) && __looksText && __aiLabel) {
         const preferTag = /textarea/.test(__kindHint) ? 'TEXTAREA' : '';
         const matched = __resolveByQuestion(doc, __aiLabel, preferTag);
-        if (matched) { el = matched; try { console.log('[AYN-BG] question-match resolved for', id, '=>', __aiLabel); } catch {} }
+        if (matched) { el = matched; __resolverUsed = 'question-match'; try { console.log('[AYN-BG] question-match resolved for', id, '=>', __aiLabel); } catch {} }
       }
 
       if (!el && _idx != null) {
         const all = doc.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="image"]):not([type="reset"]), textarea, select');
         el = all[_idx];
+        __resolverUsed = 'index-fallback';
+        __indexFallbackUsed = true;
       }
       if (!el || el.disabled || el.readOnly) { results.push({ id, ok: false, reason: 'not found or disabled' }); continue; }
+      if (__isKindMismatch(el, __kindHint, __looksText)) {
+        results.push({
+          id,
+          ok: false,
+          reason: 'resolved element kind mismatch',
+          expectedKind: __kindHint,
+          resolvedTag: el.tagName || '',
+          resolvedType: el.type || '',
+          resolver: __resolverUsed || '',
+          indexFallback: __indexFallbackUsed,
+        });
+        continue;
+      }
       if (__looksText) { try { __textUsed.add(el); } catch (_) {} }
       const chosen = optionValue || optionLabel || value;
       if (!chosen || !String(chosen).trim()) { results.push({ id, ok: false, reason: 'no value' }); continue; }
@@ -2948,7 +3015,7 @@
 
       try {
         const aiVal = { value: chosen, optionLabel, optionValue };
-        const field = { kind: el.tagName === 'SELECT' ? 'select' : (el.type || '').toLowerCase(), accRole: (el.getAttribute && el.getAttribute('role')) || '' };
+        const field = { kind: __kindHint || (el.tagName === 'SELECT' ? 'select' : (el.tagName === 'TEXTAREA' ? 'textarea' : (el.type || '').toLowerCase())), accRole: (el.getAttribute && el.getAttribute('role')) || '' };
         let res = await aynFillField(el, field, aiVal);
         // Fallback: for radio/checkbox proxies (no native group), try buttongroup resolver
         if (!res.ok && (res.fallthrough || el.type === 'radio' || el.type === 'checkbox')) {
@@ -2968,7 +3035,7 @@
           } catch {}
         }
         if (res.ok) filled++;
-        const out = { id, ok: !!res.ok };
+        const out = { id, ok: !!res.ok, expectedKind: __kindHint, resolvedTag: el.tagName || '', resolvedType: el.type || '', resolver: __resolverUsed || '', indexFallback: __indexFallbackUsed };
         if (res.verified !== undefined) out.verified = !!res.verified;
         if (res.reason) out.reason = res.reason;
         if (res.picked) out.picked = res.picked;
@@ -3009,7 +3076,8 @@
           const doc = rd && rd.doc;
           const raw = rd && rd.rawId;
           if (doc && raw) {
-            el = doc.getElementById(raw)
+            el = aynResolveFieldEl(r.id, v._frame)
+              || doc.getElementById(raw)
               || doc.querySelector(`[name="${String(raw).replace(/"/g,'\\"')}"]`)
               || null;
           }
@@ -3025,8 +3093,13 @@
           selector: aynBuildSelector(el),
           tag: el ? el.tagName : '',
           kind: v.kind || v.type || '',
+          expectedKind: r.expectedKind || v.kind || v.type || '',
+          resolvedTag: r.resolvedTag || (el ? el.tagName : ''),
+          resolvedType: r.resolvedType || (el ? el.type || '' : ''),
           question: v.label || '',
-          resolver: v.labelSource || '',
+          resolver: r.resolver || v.labelSource || '',
+          labelSource: v.labelSource || '',
+          indexFallback: !!r.indexFallback,
           richDetector: v.richDetector || r.richDetector || '',
           isOpenText,
           hasValue: !!(v.value || v.optionLabel || v.optionValue),
