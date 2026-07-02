@@ -1,57 +1,68 @@
-# AYN Extension v1.9.55 — Jobright Parity Pack
+# AYN Extension v1.9.56 — Zero-Skip Autofill
 
-Close all four architectural gaps identified in the reverse-engineering of Jobright v1.14.0. No UX changes to the side panel; this is plumbing.
+Goal: eliminate the #1 pain — **fields left empty** — on every site (not just known ATS). No frame/motion changes, no UI redesign, just detection + inference + write reliability.
 
-## 1. `declarativeNetRequest` — CSP strip for hostile ATS pages
+## Root causes we're targeting
 
-**Why:** Workday, some Greenhouse embeds, and a few Oracle Cloud pages set a `Content-Security-Policy` that blocks our `page-world.js` power-setter or refuses `blob:` PDF downloads. Jobright ships a static ruleset to strip those headers on job-page navigations.
+Fields go empty for 5 reasons. We fix each with a dedicated pass.
 
-**Changes:**
-- `manifest.json`: add `"declarativeNetRequest"` permission and a `declarative_net_request.rule_resources` block pointing at `rules/csp.json`.
-- New file `extension/rules/csp.json` — one rule per ATS host pattern (Workday `*.myworkdayjobs.com`, Greenhouse `boards.greenhouse.io`, Lever `jobs.lever.co`, Ashby `jobs.ashbyhq.com`, iCIMS, SmartRecruiters, Taleo), each: `action: { type: "modifyHeaders", responseHeaders: [{ header: "content-security-policy", operation: "remove" }, { header: "content-security-policy-report-only", operation: "remove" }] }`, `condition.resourceTypes: ["main_frame", "sub_frame"]`.
-- Scope narrowly — do NOT apply to `<all_urls>` (would break banking, gov sites).
+1. **Field never discovered** — inputs inside Shadow DOM, closed dialogs, virtualized lists, or lazy-mounted sections aren't in the initial scan.
+2. **Question text not resolved** — no label/aria, so backend has nothing to match → returns nothing → field skipped.
+3. **Backend returns nothing** — question is fine but LLM has no matching resume data and no inference rule → empty answer.
+4. **Value written but wiped** — React/Angular/Workday clears the input after our write, and our settle-reapply gives up too early.
+5. **Custom widgets** — combobox, listbox, contenteditable, file inputs, date pickers — our writer only handles native `<input>/<select>/<textarea>`.
 
-## 2. Split `content.js` into modules
+## Plan
 
-**Why:** `content.js` is a ~3k-line monolith. Jobright splits into `constants.js` + `filler.js` + `contents.js` for parse-time and cache reuse.
+### Pass A — Discovery (fix cause #1)
 
-**Changes:**
-- New `extension/constants.js` — regexes, exclude lists, similarity thresholds, timing constants (`aynFieldQuestion`, language synonyms, `AYN_IS_TOP`). Loaded first in `content_scripts[0]`.
-- New `extension/filler.js` — extraction of `aynFillTextbox`, `aynSettleReapply`, radio/checkbox/select fillers, verify-and-retry executor, structural radio grouping. Loaded second.
-- `extension/content.js` — trimmed to orchestration: `SCAN_FORM`, `INJECT_VALUES`, activity glow, message routing. Calls into `filler.js` globals.
-- `manifest.json`: `content_scripts[0].js` becomes `["constants.js", "filler.js", "content.js"]` (order matters, all isolated world).
-- `page-world.js` and its MAIN-world entry unchanged.
-- **Zero behavior change** — this is a pure refactor. Add a smoke-test checklist in `README.md` covering Workday, Greenhouse, Lever, Ashby, LinkedIn Easy Apply.
+- **Continuous rescan loop**: after first fill, keep a MutationObserver for 8s; when new fields appear (accordion opens, "Add another" clicked, step 2 mounts), auto-queue them for the next fill batch instead of requiring a re-click.
+- **Deep Shadow + closed-root fallback**: walk `element.shadowRoot` recursively, and for closed shadow roots use `elementFromPoint` sweep to still enumerate focusable inputs.
+- **Virtualized/lazy sections**: before scanning, programmatically scroll the form container top→bottom in 400px steps to force lazy mounts, then scroll back.
 
-## 3. Page-to-extension click bridge + stable key
+### Pass B — Question resolution (fix cause #2)
 
-**Why:** So aynn.io (dashboard "Autofill this job" button) can trigger the extension without the user opening the side panel. Requires a fixed extension ID.
+Add a 4th resolver tier after `aynFieldQuestion` → `aynShortLabelFallback`:
+- **Visual-neighbor resolver**: use `getBoundingClientRect` to find the nearest text node above/left of the field within 120px, ignoring other inputs' labels. Solves grid forms where DOM order ≠ visual order.
+- **Placeholder + name-attr synthesis**: when only `name="q_12345"` exists, combine placeholder + surrounding `<legend>`/`<h*>` into a synthetic question rather than dropping the field.
+- **Never return empty**: if all resolvers fail, send the field to backend with `question: "(unlabeled field near: <nearest heading>)"` and `kind` + `options` — backend can still infer from context.
 
-**Changes:**
-- `manifest.json`: add `"key"` field (generate one via `openssl genrsa 2048 | openssl rsa -pubout -outform DER | base64` — stored as text, safe to commit). Also add `"externally_connectable": { "matches": ["https://aynn.io/*", "https://*.aynn.io/*", "https://*.lovable.app/*"] }`.
-- `background.js`: add `chrome.runtime.onMessageExternal.addListener` handling `{ type: "AYN_TRIGGER_AUTOFILL", jobUrl }` — opens/focuses the tab, then routes into existing `AUTO_AUTOFILL`.
-- `src/lib/extension.ts` (new, dashboard side) — helper `triggerAutofill(jobUrl)` that calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)`, with `EXTENSION_ID` derived from the committed key (compute once, hardcode as constant).
-- Wire an "Autofill with AYN" button on `/resume-hub` job cards (uses the helper; falls back to "Install extension" if `chrome.runtime` is undefined).
+### Pass C — Backend inference (fix cause #3)
 
-## 4. aynn.io deep-link handler
+Update `ext_autofill` system prompt in `supabase/functions/resume-hub/index.ts`:
+- **Never return empty string** for a field unless truly impossible. Add a fallback ladder: resume → profile → sensible default (e.g. "No" for felony/sponsorship-needed when resume shows work auth, "Prefer not to say" for demographics, today's date for "available start date" when unknown).
+- **Options-field guarantee**: for any field with `options`, MUST pick one — never skip. If uncertain, pick the most neutral option ("Prefer not to answer" > last option > first non-empty).
+- **Add "confidence" field** in response so frontend can log low-confidence writes for the telemetry table.
 
-**Why:** Jobright's `scroll-to-anchor.js` is a domain-scoped content script that reads a URL hash on their own site to jump the user into a specific job. AYN needs the reverse: when the dashboard hands off to a job page, restore context (JD, saved answers) automatically.
+### Pass D — Write reliability (fix cause #4)
 
-**Changes:**
-- New `extension/deep-link.js` — content script scoped to `matches: ["https://aynn.io/handoff*", "https://*.aynn.io/handoff*", "https://*.lovable.app/handoff*"]`. Reads `?job=<encoded url>&resume=<id>` from `location`, stores into `chrome.storage.local` under `ayn:pendingHandoff`, then `window.close()` or redirects to the target job URL.
-- `content.js` on first load per tab: checks `ayn:pendingHandoff`, if the current URL matches the stored job URL, hydrates JD/resume selection and shows a toast "Restored from AYN".
-- Dashboard: add a "Continue on the job page" link that opens `https://aynn.io/handoff?job=...` in a new tab.
+- **Extend `aynSettleReapply` window**: 3 verification passes at 250ms / 800ms / 2000ms instead of one. If wiped on the 3rd pass, dispatch a synthetic `focus → keystroke → blur` sequence via `page-world.js` power-setter.
+- **Framework detection**: sniff React fiber / Angular zone / Vue instance on the field; pick the write strategy known to work for that framework (native setter for React, `dispatchEvent('input',{bubbles:true})` + `blur` for Angular, `v-model` trigger for Vue).
+- **Post-fill audit**: after the whole batch, one final sweep counts empty required fields and re-runs only those (max 2 retries). Report each still-empty field to `autofill_runs.skipped_reason`.
 
-## Rollout
+### Pass E — Custom widgets (fix cause #5)
 
-- Bump `manifest.json` version to `1.9.55`.
-- Rebuild `public/ayn-resume-tailor.zip` via the existing nix zip command.
-- Update `README.md` install steps to note the new stable extension ID.
-- Post-install regression: run the smoke-test list on Workday, Greenhouse, Lever, Ashby, LinkedIn Easy Apply, iCIMS. Confirm autofill success rate is unchanged or better; confirm CSP rules only fire on the listed hosts (check `chrome://extensions` → Service worker → `chrome.declarativeNetRequest.getMatchedRules`).
+- **Combobox/listbox**: detect `role="combobox"` / `aria-haspopup="listbox"`, open the popup, wait for options, click by fuzzy match on visible text.
+- **Contenteditable**: use `execCommand('insertText')` + input event.
+- **Date pickers**: try native `type=date` first; if custom, type ISO into the trigger input, dispatch keydown Enter.
+- **Skip gracefully**: file inputs and captchas are logged as `unsupported` not `failed`, so telemetry stays accurate.
 
-## Technical notes
+### Telemetry & verification
 
-- The `key` field permanently pins the extension ID. Once shipped, do not change it — users would get a duplicate install.
-- `declarativeNetRequest` static rules count against the 30k global rule limit; we'll use ~10 rules, negligible.
-- `externally_connectable` uses `https://` match patterns only — no `<all_urls>`, no wildcards on TLD.
-- All existing v1.9.54 behavior (frame-aware routing, `@@F<n>@@` namespacing, verify-and-retry) is preserved.
+- Extend `autofill_runs` inserts with per-field `{selector, question, resolver_tier, write_strategy, outcome, retries}` so we can see exactly where skips happen.
+- Add a dev-only console table when `localStorage.AYN_DEBUG === '1'` summarizing each field's journey.
+
+## Deliverable
+
+- Ship as **v1.9.56** in one bundle, all 5 passes together (they compound — half of them isn't much better than today).
+- `extension/manifest.json` version bump.
+- `extension/content.js`, `extension/filler.js`, `extension/background.js`, `extension/page-world.js` updated.
+- `supabase/functions/resume-hub/index.ts` prompt update + redeploy.
+- Rebuild `public/ayn-extension.zip`.
+- No frame, motion, or dashboard UI changes.
+
+## Technical notes (safe to skim)
+
+- All new logic is behind existing `AYN_IS_TOP` / `all_frames` gating from v1.9.53–54 — no permission changes, no manifest surface expansion.
+- Backend prompt change is additive; existing correct answers keep working.
+- Retry cap (2) + settle window (2s max) keeps worst-case fill time under +3s vs today.
