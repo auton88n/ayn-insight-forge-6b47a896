@@ -917,7 +917,7 @@ NEVER-EMPTY SAFETY NET (v1.9.57): Empty application text fields are the #1 failu
 2. If the field is a required text/textarea with a clear prompt (open.*) and you have ANY relevant resume content, produce a short 1-2 sentence answer rather than skipping. Set source "inferred", confidence 0.5.
 3. If the field is an OPTIONAL text/textarea but has a clear open application prompt from label/section/helperText/placeholder, answer it unless it asks for sensitive information. Optional open-ended company, motivation, work-history, cover-letter, and additional-information prompts should not be left empty.
 4. Never apply this ladder to EEO/demographic, salary, SIN/SSN, DOB, or clearance fields — those keep their strict rules.
-This ladder ONLY fires when required===true AND no other rule produced an answer.
+This ladder fires when required===true OR when a text/textarea has a clear open application prompt, and no other rule produced an answer.
 SUGGESTION: when skip:true ONLY because the needed info is missing from the profile/resume/canonical, set "suggestion" to a short specific instruction (under 12 words) telling the user what to add to fix it, e.g. "Add your LinkedIn URL in Profile, Professional Links". Leave suggestion empty for sensitive fields (SIN, DOB, bank) and for EEO/demographic questions.`,
           user: JSON.stringify({
             context: { jobTitle, company, ats, url },
