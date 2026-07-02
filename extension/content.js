@@ -447,6 +447,21 @@
     } catch (_) { return ''; }
   }
 
+  function aynNearbyRequired(el) {
+    try {
+      if (!el) return false;
+      if (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true')) return true;
+      let node = el.parentElement;
+      for (let i = 0; i < 5 && node; i++, node = node.parentElement) {
+        const t = String(node.innerText || node.textContent || '').slice(0, 360);
+        if (/\*|\brequired\b/i.test(t)) return true;
+        const aria = node.getAttribute && (node.getAttribute('aria-required') || node.getAttribute('data-required'));
+        if (String(aria || '').toLowerCase() === 'true') return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   // ---- Accessible name + role resolver (W3C accname-style, Playwright-inspired) ----
   function aynAccRole(el) {
     const explicit = (el.getAttribute('role') || '').trim().toLowerCase();
@@ -1417,7 +1432,10 @@
           }
 
           const __accT = aynResolveLabel(el);
-          const label = (__accT.name && __accT.name.length >= 2) ? __accT.name : getLabelFor(el);
+          let label = (__accT.name && __accT.name.length >= 2) ? __accT.name : getLabelFor(el);
+          if (!label && (el.tagName === 'TEXTAREA' || ((__accT.role || '').toLowerCase() === 'textbox'))) {
+            label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
+          }
           if (!label && (!el.name || el.name.length < 2)) return;
           if (SKIP_RE.test(label)) return;
 
@@ -1443,10 +1461,10 @@
             name: el.name || '',
             currentValue: isFilled(el) ? (el.value || '') : '',
             options: getOptionPairs(el),
-            required: el.required || el.getAttribute('aria-required') === 'true' || !!(el.__aynProxLabel && el.__aynProxLabel.required),
+            required: el.required || el.getAttribute('aria-required') === 'true' || !!(el.__aynProxLabel && el.__aynProxLabel.required) || aynNearbyRequired(el),
             group: _group,
             accRole: (el.tagName === 'SELECT') ? 'combobox' : (__accT.role || ''),
-            labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : ((el.__aynProxLabel && el.__aynProxLabel.label === label) ? 'proximity' : 'legacy'),
+            labelSource: (__accT.name && __accT.name.length >= 2) ? 'accname' : ((el.__aynProxLabel && el.__aynProxLabel.label === label) ? 'proximity' : (aynLooksLikePromptText(label) ? 'nearby-prompt' : 'legacy')),
             section: __ctx.section,
             siblingLabels: __ctx.siblingLabels,
             helperText: __ctx.helperText,
@@ -1454,6 +1472,7 @@
             _idx: idx,
             _frame: prefix,
           });
+          try { el.__aynEmitted = true; } catch (_) {}
         } catch { /* skip a single bad node, keep scanning */ }
       });
 
@@ -1483,6 +1502,7 @@
               // Fallback: placeholder or aria-label
               label = (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('placeholder'))) || '';
             }
+            if (!label) label = aynNearbyPrompt(el) || aynFieldQuestion(el) || '';
             if (!label) return;
             if (SKIP_RE.test(label) || SKIP_RE.test((el.name || '') + (el.id || ''))) return;
             const guessId = prefix + (el.id || el.name || `sup_txt_${sIdx++}`);
@@ -1500,10 +1520,10 @@
               name: el.name || '',
               currentValue: current || '',
               options: [],
-              required: (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true')) || false,
+              required: (el.required || (el.getAttribute && el.getAttribute('aria-required') === 'true') || aynNearbyRequired(el)) || false,
               group: classifyField(label, el.name || '', 'text'),
               accRole: 'textbox',
-              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : 'legacy',
+              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : (aynLooksLikePromptText(label) ? 'nearby-prompt' : 'legacy'),
               section: __ctx.section,
               siblingLabels: __ctx.siblingLabels,
               helperText: __ctx.helperText,
@@ -1549,13 +1569,14 @@
             if (rect.width === 0 && rect.height === 0) return;
             seenEditables.add(editable);
             const __accR = (typeof aynResolveLabel === 'function') ? aynResolveLabel(editable) : { name: '', role: '' };
-            const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || '');
+            const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || aynNearbyPrompt(editable) || '');
             if (!label) return;
             if (SKIP_RE.test(label)) return;
             const rid = `${prefix}__richedit__:re${reIdx++}`;
             window.__AYN_RICH_EDITOR_MAP__.set(rid, editable);
             let current = '';
             try { current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.innerText || ''); } catch {}
+            const __ctxR = (typeof aynCaptureContext === 'function') ? aynCaptureContext(editable) : { section:'', siblingLabels:[], helperText:'', placeholder:'' };
             fields.push({
               id: rid,
               kind: 'text',
@@ -1564,15 +1585,86 @@
               name: '',
               currentValue: current || '',
               options: [],
-              required: editable.getAttribute && editable.getAttribute('aria-required') === 'true',
+              required: (editable.getAttribute && editable.getAttribute('aria-required') === 'true') || aynNearbyRequired(editable),
               group: classifyField(label, '', 'text'),
               accRole: 'textbox',
-              labelSource: (__accR.name && __accR.name.length >= 2) ? 'accname' : 'legacy',
+              labelSource: (__accR.name && __accR.name.length >= 2) ? 'accname' : (aynLooksLikePromptText(label) ? 'nearby-prompt' : 'legacy'),
+              section: __ctxR.section,
+              siblingLabels: __ctxR.siblingLabels,
+              helperText: __ctxR.helperText,
+              placeholder: __ctxR.placeholder,
               richEditor: true,
               richDetector: info.detector,
               _frame: prefix,
             });
+            try { editable.__aynEmitted = true; } catch (_) {}
           } catch {}
+        });
+      } catch { /* never fail the scan */ }
+
+      // v1.9.57 — final recovery pass for open-answer boxes missed by normal selectors.
+      // This specifically catches large ATS answer boxes where the editable is inside a
+      // decorative wrapper and the prompt is only visual text above it.
+      try {
+        window.__AYN_OPEN_TEXT_MAP__ = window.__AYN_OPEN_TEXT_MAP__ || new Map();
+        const seenEditables = new WeakSet();
+        fields.forEach(f => {
+          try {
+            if (f && f.id && /__(richedit|opentext)__:/.test(f.id)) {
+              const e = window.__AYN_RICH_EDITOR_MAP__?.get(f.id) || window.__AYN_OPEN_TEXT_MAP__?.get(f.id);
+              if (e) seenEditables.add(e);
+            }
+          } catch (_) {}
+        });
+        const OPEN_SEL = [
+          'textarea',
+          '[role="textbox"]',
+          '[contenteditable=""]',
+          '[contenteditable="true"]',
+          '[contenteditable="plaintext-only"]',
+          '.ProseMirror', '.tiptap', '.ql-editor', '.DraftEditor-root', '.public-DraftEditor-content',
+          '[data-slate-editor="true"]', '[data-lexical-editor="true"]', '[data-editor]'
+        ].join(',');
+        let otIdx = 0;
+        Array.from(doc.querySelectorAll(OPEN_SEL)).forEach(cand => {
+          try {
+            const info = aynResolveRichEditor(cand);
+            const editable = info.editable || cand;
+            if (!editable || seenEditables.has(editable) || editable.__aynEmitted) return;
+            if (editable.disabled || editable.readOnly) return;
+            if (editable.closest && editable.closest('input,select')) return;
+            const rect = editable.getBoundingClientRect && editable.getBoundingClientRect();
+            if (rect && rect.width === 0 && rect.height === 0) return;
+            const acc = aynResolveLabel(editable);
+            const prompt = ((acc.name && acc.name.length >= 2) ? acc.name : '') || getLabelFor(editable) || aynNearbyPrompt(editable) || aynFieldQuestion(editable) || '';
+            if (!prompt || SKIP_RE.test(prompt)) return;
+            const current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.value || editable.innerText || '');
+            const rid = `${prefix}__opentext__:ot${otIdx++}`;
+            window.__AYN_OPEN_TEXT_MAP__.set(rid, editable);
+            seenEditables.add(editable);
+            const ctx = aynCaptureContext(editable);
+            fields.push({
+              id: rid,
+              kind: editable.tagName === 'TEXTAREA' ? 'textarea' : 'text',
+              label: prompt.slice(0, 300),
+              type: editable.tagName === 'TEXTAREA' ? 'textarea' : 'text',
+              name: editable.name || '',
+              currentValue: current || '',
+              options: [],
+              required: aynNearbyRequired(editable),
+              group: classifyField(prompt, editable.name || '', editable.tagName === 'TEXTAREA' ? 'textarea' : 'text'),
+              accRole: 'textbox',
+              labelSource: (acc.name && acc.name.length >= 2) ? 'accname' : 'nearby-prompt',
+              section: ctx.section,
+              siblingLabels: ctx.siblingLabels,
+              helperText: ctx.helperText,
+              placeholder: ctx.placeholder,
+              richEditor: !!info.editable || !!editable.isContentEditable,
+              richDetector: info.detector || (editable.isContentEditable ? 'contenteditable' : ''),
+              _frame: prefix,
+            });
+            try { editable.__aynEmitted = true; } catch (_) {}
+          } catch (_) {}
         });
       } catch { /* never fail the scan */ }
     });
