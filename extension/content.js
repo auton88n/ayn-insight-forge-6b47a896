@@ -1483,6 +1483,7 @@
           }
           const __ctx = aynCaptureContext(el);
           const stableTextId = registerTextField(prefix, el, idx);
+          if (!stableTextId) return; // v1.9.61 — non-text control leaked into text pass; skip.
           fields.push({
             id: stableTextId,
             kind,
