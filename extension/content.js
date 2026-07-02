@@ -618,8 +618,8 @@
     if (/driver'?s?\s+licen[cs]e|valid\s+licen[cs]e/.test(l)) return 'logic.drivers_license';
     if (/willing\s+to\s+travel|able\s+to\s+travel|travel\s+(up\s+to|requirement|percentage|%)/.test(l)) return 'logic.travel';
     // Multi-checkbox languages field (before generic logic.languages)
-    if ((type === 'checkbox') && /languages?\s+(you\s+)?(are\s+)?(fluent|speak|proficient|spoken)|which\s+languages?|specify.*languages?|fluent\s+in/.test(l)) return 'logic.languages_multi';
-    if (/what\s+languages|languages?\s+(do\s+you|you\s+speak|spoken|proficiency|fluency)|fluent\s+in|bilingual/.test(l)) return 'logic.languages';
+     if ((type === 'checkbox') && /languages?\s+(you\s+)?(are\s+)?(fluent|speak|proficient|spoken)|which\s+languages?|specify.*languages?|fluent\s+in|langues?\s+parl|quelles\s+langues|idiomas?\s+que\s+habla|welche\s+sprachen/.test(l)) return 'logic.languages_multi';
+     if (/what\s+languages|languages?\s+(do\s+you|you\s+speak|spoken|proficiency|fluency)|fluent\s+in|bilingual|langue|langues|idioma|sprache|sprachen/.test(l)) return 'logic.languages';
     if (/criminal|convicted|felony|background\s+check|drug\s+(test|screen)/.test(l)) return 'logic.background';
     // Company-history specific patterns take precedence over generic prior_relationship
     if (/currently\s+employed\s+by|current\s+employee\s+of|are\s+you\s+.*current(ly)?\s+.*employee/.test(l)) return 'logic.company_current_employee';
