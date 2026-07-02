@@ -2591,7 +2591,7 @@
       }
 
       // Resolve a single element
-      let el = (rawId && doc.getElementById(rawId)) || (rawId && doc.querySelector(`[name="${CSS.escape(rawId)}"]`));
+      let el = aynResolveFieldEl(id, _frame);
 
       // v1.9.43 — for text-like answers, prefer BEST QUESTION-TEXT MATCH over positional _idx.
       // Rehydrate label from scan cache if the value payload didn't include it.
