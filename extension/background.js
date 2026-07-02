@@ -9,6 +9,41 @@ const AYN_WEB = 'https://aynn.io';
 chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id }));
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
+// ── v1.9.55: External bridge for aynn.io / lovable dashboard ──────
+// Allows the web app to trigger autofill without opening the side panel.
+// The manifest `externally_connectable.matches` gate origins to aynn.io.
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (!message || !message.type) { sendResponse({ ok: false, error: 'bad_message' }); return; }
+
+  if (message.type === 'AYN_PING') {
+    sendResponse({ ok: true, version: chrome.runtime.getManifest().version });
+    return;
+  }
+
+  if (message.type === 'AYN_TRIGGER_AUTOFILL') {
+    (async () => {
+      try {
+        const jobUrl = String(message.jobUrl || '').trim();
+        if (!jobUrl) { sendResponse({ ok: false, error: 'no_url' }); return; }
+        // Find existing tab with this URL, else open a new one.
+        const tabs = await chrome.tabs.query({});
+        const found = tabs.find(t => t.url === jobUrl);
+        const tab = found || await chrome.tabs.create({ url: jobUrl, active: true });
+        if (found) { try { await chrome.tabs.update(tab.id, { active: true }); } catch {} }
+        // Store handoff so hydrate script surfaces a toast if needed.
+        try { await chrome.storage.local.set({ 'ayn:pendingHandoff': { targetUrl: jobUrl, resumeId: message.resumeId || '', ts: Date.now() } }); } catch {}
+        // Wait for load, then dispatch AUTO_AUTOFILL to ourselves.
+        await new Promise(r => setTimeout(r, 1500));
+        chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, () => void chrome.runtime.lastError);
+        sendResponse({ ok: true, tabId: tab.id });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+
+  sendResponse({ ok: false, error: 'unknown_type' });
+});
+
 // PART B: per-tab form-detection cache (tabId → { hasForm, fieldCount, hasResumeUpload, url, ts })
 const FORM_CACHE = new Map();
 chrome.tabs.onRemoved.addListener(tabId => FORM_CACHE.delete(tabId));
