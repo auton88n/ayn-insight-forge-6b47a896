@@ -53,10 +53,11 @@ async function callPublic(action, body) {
 }
 
 // Inject content script if not loaded
-async function safeSendMessage(tabId, message) {
+async function safeSendMessage(tabId, message, frameId = 0) {
+  const opts = { frameId };
   const tryOnce = () => new Promise(resolve => {
     try {
-      chrome.tabs.sendMessage(tabId, message, response => {
+      chrome.tabs.sendMessage(tabId, message, opts, response => {
         if (chrome.runtime.lastError) resolve(null);
         else resolve(response);
       });
@@ -65,10 +66,33 @@ async function safeSendMessage(tabId, message) {
   const direct = await tryOnce();
   if (direct !== null) return direct;
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['content.js'] });
     await new Promise(r => setTimeout(r, 300));
     return tryOnce();
   } catch { return null; }
+}
+
+// Enumerate frames worth scanning: the top frame (which already covers its own
+// same-origin subframes + shadow roots via collectScannableDocs), plus any frame
+// that is cross-origin relative to its PARENT (an ancestor's scan cannot reach it).
+// Falls back to top-only if webNavigation is unavailable.
+async function getScannableFrames(tabId) {
+  try {
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    if (!frames || !frames.length) return [{ frameId: 0 }];
+    const byId = new Map(frames.map(f => [f.frameId, f]));
+    const originOf = (u) => { try { return new URL(u).origin; } catch { return null; } };
+    const out = [];
+    for (const f of frames) {
+      if (f.frameId === 0) { out.push({ frameId: 0 }); continue; }
+      if (f.errorOccurred) continue;
+      const parent = byId.get(f.parentFrameId);
+      const po = parent ? originOf(parent.url) : null;
+      const fo = originOf(f.url);
+      if (fo && fo !== po) out.push({ frameId: f.frameId });
+    }
+    return out.length ? out : [{ frameId: 0 }];
+  } catch { return [{ frameId: 0 }]; }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -334,15 +358,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const token = await getToken();
         if (!token) { sendResponse({ ok: false, error: 'not_signed_in' }); return; }
 
-        // v1.4.0: First expand "Add another" buttons so repeating sections appear
-        await safeSendMessage(tabId, { type: 'EXPAND_SECTIONS' });
+        const frames = await getScannableFrames(tabId);
+        const AGG = (fid, id) => fid === 0 ? id : `@@F${fid}@@${id}`;
+        const DEAGG = (fid, id) => fid === 0 ? id : id.replace(`@@F${fid}@@`, '');
+
+        // Expand repeating sections in every scannable frame
+        for (const fr of frames) { await safeSendMessage(tabId, { type: 'EXPAND_SECTIONS' }, fr.frameId); }
         await new Promise(r => setTimeout(r, 350));
 
-        const scan = await safeSendMessage(tabId, { type: 'SCAN_FORM' });
-        if (!scan) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
-
-        const fields = scan.fields || [];
-        const jobText = scan.jobText || {};
+        // Scan each frame; namespace non-top-frame field ids so they stay unique
+        const frameOfField = new Map();
+        const scanByFrame = {};
+        let fields = [];
+        for (const fr of frames) {
+          const s = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
+          if (!s || !Array.isArray(s.fields)) continue;
+          scanByFrame[fr.frameId] = s;
+          for (const f of s.fields) {
+            const aggId = AGG(fr.frameId, f.id);
+            frameOfField.set(aggId, fr.frameId);
+            fields.push({ ...f, id: aggId });
+          }
+        }
+        const topScan = scanByFrame[0] || {};
+        const jobText = topScan.jobText || {};
         if (fields.length === 0) { sendResponse({ ok: false, error: 'no_fields' }); return; }
 
         const fillData = await callFunction('ext_autofill', {
@@ -354,9 +393,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           jobText: jobText?.text || '',
           jobTitle: jobText?.title || '',
           company: jobText?.company || '',
-          ats: scan.ats || 'unknown',
-          url: scan.url || '',
-          scanDiag: Array.isArray(scan.scanDiag) ? scan.scanDiag : [],
+          ats: topScan.ats || 'unknown',
+          url: topScan.url || '',
+          scanDiag: Array.isArray(topScan.scanDiag) ? topScan.scanDiag : [],
           extVersion: chrome.runtime.getManifest().version,
         });
         const runId = fillData?.run_id || null;
@@ -364,36 +403,67 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const values = (fillData.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
-        await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: values.map(v => v.id) });
+        // Group values by owning frame; translate ids back to frame-local for injection
+        const byFrame = new Map();
+        for (const v of values) {
+          const fid = frameOfField.get(v.id) ?? 0;
+          if (!byFrame.has(fid)) byFrame.set(fid, []);
+          byFrame.get(fid).push({ ...v, id: DEAGG(fid, v.id) });
+        }
+
+        for (const [fid, vals] of byFrame) {
+          await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: vals.map(v => v.id) }, fid);
+        }
         await new Promise(r => setTimeout(r, 350));
 
-        const fillResult = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values });
+        let mergedResults = [];
+        for (const [fid, vals] of byFrame) {
+          const fr = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: vals }, fid);
+          (fr?.results || []).forEach(r => mergedResults.push({ ...r, id: AGG(fid, r.id), _frameId: fid }));
+        }
+        let fillResult = { results: mergedResults };
 
-        // v1.4.0: Second pass — re-scan in case filling revealed new fields (conditional questions)
+        // Second pass per frame — refill fields revealed by the first pass
         let secondPassFilled = 0;
         try {
           await new Promise(r => setTimeout(r, 700));
-          const scan2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' });
-          const newFields = (scan2?.fields || []).filter(f =>
-            !fields.some(old => old.id === f.id) && !f.currentValue
-          );
-          if (newFields.length > 0) {
+          let newFieldsAll = [];
+          for (const fr of frames) {
+            const prev = scanByFrame[fr.frameId];
+            const s2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
+            const prevIds = new Set((prev?.fields || []).map(f => f.id));
+            (s2?.fields || []).forEach(f => {
+              if (!prevIds.has(f.id) && !f.currentValue) {
+                const aggId = AGG(fr.frameId, f.id);
+                frameOfField.set(aggId, fr.frameId);
+                newFieldsAll.push({ ...f, id: aggId });
+              }
+            });
+          }
+          if (newFieldsAll.length > 0) {
             const fill2 = await callFunction('ext_autofill', {
-              fields: newFields.map(f => ({
+              fields: newFieldsAll.map(f => ({
                 id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
                 options: f.options, required: f.required, currentValue: f.currentValue,
                 accRole: f.accRole || '', labelSource: f.labelSource || '',
               })),
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
-              ats: scan.ats || 'unknown', url: scan.url || '',
+              ats: topScan.ats || 'unknown', url: topScan.url || '',
             });
             const newValues = (fill2.values || []).filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)));
             if (newValues.length > 0) {
-              const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: newValues });
-              secondPassFilled = fr2?.filled || 0;
-              // Merge into result
-              (fr2?.results || []).forEach(r => fillResult.results.push(r));
-              newValues.forEach(v => values.push(v));
+              const byFrame2 = new Map();
+              for (const v of newValues) {
+                const fid = frameOfField.get(v.id) ?? 0;
+                if (!byFrame2.has(fid)) byFrame2.set(fid, []);
+                byFrame2.get(fid).push({ ...v, id: DEAGG(fid, v.id) });
+              }
+              for (const [fid, vals] of byFrame2) {
+                const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: vals }, fid);
+                secondPassFilled += (fr2?.filled || 0);
+                (fr2?.results || []).forEach(r => mergedResults.push({ ...r, id: AGG(fid, r.id), _frameId: fid }));
+                vals.forEach(v => values.push({ ...v, id: AGG(fid, v.id) }));
+              }
             }
           }
         } catch { /* ignore second-pass errors */ }
@@ -411,9 +481,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           reason: resultMap[v.id]?.reason || '',
         }));
 
-        // v1.9.52 — unified counting: ok===true counts as filled (incl. "already correct"), exclude visiondiag
+        // Unified counting: ok===true counts as filled (incl. "already correct"); exclude any visiondiag entry (namespaced or not)
         const __allResults = (fillResult?.results || []);
-        const __countable = __allResults.filter(r => r && r.id !== 'visiondiag');
+        const __countable = __allResults.filter(r => r && !String(r.id).endsWith('visiondiag'));
         const __filled = __countable.filter(r => r.ok === true).length;
         const __total = __countable.length;
 
@@ -426,7 +496,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           skipped: fillData?.skipped || [],
         });
 
-        // v1.9.19: telemetry — fire-and-forget; must never break filling
         try {
           if (runId) {
             callFunction('ext_log_result', {
