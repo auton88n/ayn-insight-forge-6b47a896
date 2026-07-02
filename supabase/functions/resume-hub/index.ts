@@ -952,7 +952,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           if (typeof v.confidence === 'number' && v.confidence < 0.4) return false;
           return true;
         });
-        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string }>);
+        const fieldArr = (fields as Array<{ id: string; label?: string; required?: boolean; group?: string; currentValue?: unknown; labelSource?: string; type?: string; kind?: string; options?: Array<{ label?: string; value?: string }> }>);
         const fieldMap2 = new Map(fieldArr.map(f => [f.id, f]));
         const answeredIds = new Set(filtered.map(v => v.id));
         const skippedFromAI = (out.values || [])
@@ -960,8 +960,9 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           .map(v => ({ id: v.id, label: fieldMap2.get(v.id)?.label || v.id, reason: v.reasoning || "", suggestion: (v.suggestion || "").trim() }));
         const skippedIds = new Set(skippedFromAI.map(s => s.id));
         const isSensitive = (s: string) => /eeo|gender|race|ethnic|veteran|disab|sexual|pronoun|salary expectation|ssn|\bsin\b|social security|date of birth|\bdob\b/i.test(s || "");
+        const hasPrefilledValue = (v: unknown) => typeof v === "string" && v.trim().length > 0;
         const requiredMissing = fieldArr
-          .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
+          .filter(f => f.required && !answeredIds.has(f.id) && !skippedIds.has(f.id) && !hasPrefilledValue(f.currentValue) && !isSensitive(((f.group || "") + " " + (f.label || ""))))
           .map(f => ({ id: f.id, label: f.label || f.id, reason: "No matching info in your profile.", suggestion: "Add this answer in your AYN profile." }));
         const skipped = [...skippedFromAI, ...requiredMissing].slice(0, 12);
         const meta = {
@@ -974,13 +975,15 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
         };
         let runId: string | null = null;
         try {
-          const fieldsScanned = (fieldArr as Array<{ id: string; label?: string; type?: string; kind?: string; group?: string; required?: boolean; options?: Array<{ label?: string; value?: string }> }>).map(f => ({
+          const fieldsScanned = fieldArr.map(f => ({
             id: f.id,
             label: String(f.label || "").slice(0, 240),
             type: f.type || f.kind || "",
             group: f.group || "",
             required: !!f.required,
             options: Array.isArray(f.options) ? f.options.map(o => String(o.label || o.value || "").slice(0, 80)).slice(0, 15) : [],
+            currentValue: String((f.currentValue as unknown) || "").slice(0, 60),
+            labelSource: f.labelSource || "",
           }));
           const aiValues = (out.values || []).map((v: { id: string; value?: string; optionValue?: string; optionLabel?: string; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }) => ({
             id: v.id,
