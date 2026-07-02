@@ -4,7 +4,12 @@
 
 export const AYN_EXTENSION_ID = "bjbifnpjbcbdojhgjpedkakkfjpcjmdl";
 
-type ExtResponse<T = Record<string, unknown>> = { ok: boolean; error?: string } & Partial<T>;
+export type ExtResponse = {
+  ok: boolean;
+  error?: string;
+  version?: string;
+  tabId?: number;
+};
 
 function hasChromeRuntime(): boolean {
   try {
@@ -15,7 +20,7 @@ function hasChromeRuntime(): boolean {
   }
 }
 
-function send<T>(payload: Record<string, unknown>): Promise<ExtResponse<T>> {
+function send(payload: Record<string, unknown>): Promise<ExtResponse> {
   return new Promise((resolve) => {
     if (!hasChromeRuntime()) {
       resolve({ ok: false, error: "not_installed" });
@@ -23,7 +28,7 @@ function send<T>(payload: Record<string, unknown>): Promise<ExtResponse<T>> {
     }
     try {
       // @ts-expect-error — chrome global
-      chrome.runtime.sendMessage(AYN_EXTENSION_ID, payload, (response: ExtResponse<T> | undefined) => {
+      chrome.runtime.sendMessage(AYN_EXTENSION_ID, payload, (response: ExtResponse | undefined) => {
         // @ts-expect-error — chrome global
         if (chrome.runtime.lastError) {
           resolve({ ok: false, error: "not_installed" });
@@ -38,12 +43,12 @@ function send<T>(payload: Record<string, unknown>): Promise<ExtResponse<T>> {
 }
 
 export async function isExtensionInstalled(): Promise<boolean> {
-  const r = await send<{ version: string }>({ type: "AYN_PING" });
+  const r = await send({ type: "AYN_PING" });
   return !!r.ok;
 }
 
-export async function triggerAutofill(jobUrl: string, resumeId?: string): Promise<ExtResponse<{ tabId: number }>> {
-  return send<{ tabId: number }>({ type: "AYN_TRIGGER_AUTOFILL", jobUrl, resumeId });
+export async function triggerAutofill(jobUrl: string, resumeId?: string): Promise<ExtResponse> {
+  return send({ type: "AYN_TRIGGER_AUTOFILL", jobUrl, resumeId });
 }
 
 /**
