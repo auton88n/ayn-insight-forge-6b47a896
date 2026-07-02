@@ -1673,8 +1673,11 @@
       if (!byId.size) return;
       const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
       const digits = (s) => String(s || '').replace(/\D+/g, '');
-      for (let pass = 0; pass < 2; pass++) {
-        await aynSleep(pass === 0 ? 900 : 600);
+      // v1.9.56 — 3 verification passes at 250 / 900 / 1800 ms handles Workday &
+      // slow-hydrating React forms that wipe values after our first reapply.
+      const DELAYS = [250, 900, 1800];
+      for (let pass = 0; pass < DELAYS.length; pass++) {
+        await aynSleep(DELAYS[pass]);
         let reverted = 0;
         for (const res of (injectResult.results || [])) {
           if (!res || !res.ok || !byId.has(res.id)) continue;
