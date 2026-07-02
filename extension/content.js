@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.37';
+  const AYN_BUILD = '1.9.57';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -358,7 +358,7 @@
   // Walk up the DOM and harvest the nearest visible question text near the input.
   // Tightened: only accept text that actually looks like a question/prompt,
   // not any capitalized blob — stops autofill from mislabeling fields.
-  const QUESTION_RE = /\?\s*$|^(what|how|are|do|did|have|has|why|when|where|which|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
+  const QUESTION_RE = /\?\s*$|^(what|how|are|is|do|did|have|has|why|when|where|which|will|would|can|could|may|should|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
   function nearestQuestionText(el) {
     let node = el.parentElement;
     for (let i = 0; i < 5 && node; i++) {
@@ -372,6 +372,79 @@
       node = node.parentElement;
     }
     return '';
+  }
+
+  // v1.9.57 — open-answer prompt resolver for large text boxes and custom editors.
+  // Many ATS pages render the question as plain text above a textarea / rich editor,
+  // not as a real <label>. Resolve from visual and document proximity before falling
+  // back to placeholder/name so open-ended questions do not arrive at the backend as
+  // anonymous fields.
+  function aynCleanPromptText(raw, maxLen = 280) {
+    const lines = String(raw || '')
+      .replace(/\u00a0/g, ' ')
+      .split(/\n+/)
+      .map(s => s.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    const meaningful = lines.filter(s => !/^(\*|required|optional|optional\s*[–—-]|\d+\s*\/\s*\d+|characters?\s+remaining)$/i.test(s));
+    if (!meaningful.length) return '';
+    const joined = meaningful.slice(0, 3).join(' ').replace(/\s+/g, ' ').trim();
+    return joined.length > maxLen ? joined.slice(0, maxLen).trim() : joined;
+  }
+
+  function aynLooksLikePromptText(text) {
+    const t = String(text || '').trim();
+    if (!t || t.length < 3 || t.length > 320) return false;
+    if (/^(yes|no|submit|next|back|continue|apply|cancel|save|upload|attach)$/i.test(t)) return false;
+    if (QUESTION_RE.test(t)) return true;
+    return /\b(interested|working at|work history|career transitions?|gaps? in|expand on|clarify|motivation|why|about yourself|cover letter|additional information|anything else|tell us|describe|experience with|familiarity with)\b/i.test(t);
+  }
+
+  function aynNearbyPrompt(el) {
+    try {
+      if (!el || !el.getBoundingClientRect) return '';
+      const ownRect = el.getBoundingClientRect();
+      const ownsField = (node) => node && node.querySelector && node.querySelector('input:not([type="hidden"]), textarea, select, [contenteditable="true"], [role="textbox"]');
+
+      // 1) Walk document-order ancestors and prefer preceding text-only siblings.
+      let node = el.parentElement;
+      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
+        const kids = Array.from(node.children || []);
+        const fieldIdx = kids.findIndex(k => k === el || k.contains(el));
+        if (fieldIdx > 0) {
+          const parts = [];
+          for (let i = Math.max(0, fieldIdx - 3); i < fieldIdx; i++) {
+            const k = kids[i];
+            if (!k || (k.contains && k.contains(el))) continue;
+            if (ownsField(k)) continue;
+            const t = aynCleanPromptText(k.innerText || k.textContent || '');
+            if (t) parts.push(t);
+          }
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (aynLooksLikePromptText(parts[i])) return parts[i];
+          }
+        }
+      }
+
+      // 2) Visual pass: nearest visible text block above or left of the control.
+      const root = el.closest('form, [role="form"], main, body') || document.body;
+      const nodes = Array.from(root.querySelectorAll('label, legend, p, h1, h2, h3, h4, h5, strong, span, div'));
+      let best = ''; let bestScore = Infinity;
+      for (const n of nodes) {
+        if (n === el || n.contains(el) || ownsField(n)) continue;
+        const text = aynCleanPromptText(n.innerText || n.textContent || '');
+        if (!aynLooksLikePromptText(text)) continue;
+        const r = n.getBoundingClientRect && n.getBoundingClientRect();
+        if (!r || (!r.width && !r.height)) continue;
+        const above = r.bottom <= ownRect.top + 16 && r.bottom >= ownRect.top - 360 && Math.abs(r.left - ownRect.left) < 420;
+        const left = r.right <= ownRect.left + 16 && Math.abs(r.top - ownRect.top) < 90;
+        if (!above && !left) continue;
+        const dy = above ? Math.max(0, ownRect.top - r.bottom) : Math.abs(r.top - ownRect.top);
+        const dx = Math.max(0, Math.abs(r.left - ownRect.left) - 80);
+        const score = dy * 1.2 + dx;
+        if (score < bestScore) { bestScore = score; best = text; }
+      }
+      return best || '';
+    } catch (_) { return ''; }
   }
 
   // ---- Accessible name + role resolver (W3C accname-style, Playwright-inspired) ----
@@ -483,7 +556,9 @@
       cl.querySelectorAll('input,textarea,select,button').forEach(n => n.remove());
       if (c(cl.innerText)) return c(cl.innerText);
     }
-    // 5. document-order walk-up: at each ancestor, find the text block that precedes THIS field
+    // 5. v1.9.57 — nearest plain-text prompt above large text fields / editors.
+    try { const nearPrompt = aynNearbyPrompt(el); if (nearPrompt) return nearPrompt; } catch (_) {}
+    // 6. document-order walk-up: at each ancestor, find the text block that precedes THIS field
     //    among the ancestor's children and does not contain another fillable field.
     let node = el.parentElement;
     for (let d = 0; d < 6 && node; d++, node = node.parentElement) {
@@ -501,12 +576,12 @@
         }
       }
     }
-    // 6. placeholder
+    // 7. placeholder
     const ph = c(el.getAttribute('placeholder'));
     if (ph) return ph;
-    // 7. v1.9.56 — visual-neighbor fallback (grid forms, DOM ≠ visual order)
+    // 8. v1.9.56 — visual-neighbor fallback (grid forms, DOM ≠ visual order)
     try { const vn = aynVisualNeighbor(el); if (vn) return vn; } catch (_) {}
-    // 8. v1.9.56 — synthesize from name attr as last resort so backend still receives it
+    // 9. v1.9.56 — synthesize from name attr as last resort so backend still receives it
     const nm = c(el.getAttribute('name'));
     if (nm && !/^[a-f0-9-]{20,}$/i.test(nm)) return nm.replace(/[_\-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
     return '';
@@ -572,6 +647,8 @@
     if (near) return near;
     const prox = aynShortLabelFallback(el);
     if (prox && prox.label) return prox.label;
+    // v1.9.57 — stronger prompt fallback for textareas and rich editors.
+    try { const np = aynNearbyPrompt(el); if (np) return np; } catch (_) {}
     // v1.9.56 — visual-neighbor fallback before falling back to placeholder/name
     try { const vn = aynVisualNeighbor(el); if (vn) return vn; } catch (_) {}
     return el.placeholder?.trim() || el.name?.replace(/[_\-]/g, ' ').trim() || '';
