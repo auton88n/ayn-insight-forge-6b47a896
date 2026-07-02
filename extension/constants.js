@@ -8,7 +8,7 @@
   if (window.AYN_CONST) return;
   const IS_TOP = (() => { try { return window === window.top; } catch (_) { return false; } })();
   window.AYN_CONST = Object.freeze({
-    BUILD: '1.9.55',
+    BUILD: '1.9.60',
     MAX_JD_CHARS: 20000,
     VISION_ENABLED: true,
     IS_TOP,

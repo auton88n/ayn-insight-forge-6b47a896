@@ -1915,7 +1915,7 @@
           el = (map && (map.get(id) || map.get(rawId))) || null;
         } catch (_) {}
       }
-      try { el = doc.getElementById(rawId); } catch (_) {}
+      if (!el) { try { el = doc.getElementById(rawId); } catch (_) {} }
       if (!el) { try { el = doc.querySelector(`[name="${CSS.escape(rawId)}"]`); } catch (_) {} }
       if (!el) {
         const im = /^f(\d+)$/.exec(rawId);
