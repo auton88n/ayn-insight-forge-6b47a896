@@ -627,7 +627,7 @@
     if (/current(ly)?\s+(employed|employee).*(here|us|company)|former\s+employee|previously\s+(employed|worked|applied)|ever\s+(worked|applied)\s+(at|for|here|with\s+us)/.test(l)) return 'logic.prior_relationship';
     if (/non[\s-]?compete|non[\s-]?disclosure|\bnda\b|restrictive\s+covenant/.test(l)) return 'logic.noncompete';
     if (/accommodat/.test(l)) return 'logic.accommodation';
-    if (/referr?ed\s+by|referral\s+(name|source)|who\s+referred/.test(l)) return 'open.referral';
+    if (/referr?ed\s+by|referral\s+(name|source)|who\s+referred|refere\s+par|recommande\s+par|referido\s+por|empfohlen\s+von/.test(l)) return 'open.referral';
     if (/reference|referee/.test(l)) return 'logic.references';
     if (/preferred\s+(location|office)|which\s+(location|office)|work\s+location/.test(l)) return 'logic.preferred_location';
     if (/employment\s+type|full[\s-]?time|part[\s-]?time|contract|desired\s+(employment|job\s+type)/.test(l) && type !== 'text') return 'logic.employment_type';
