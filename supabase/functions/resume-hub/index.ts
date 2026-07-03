@@ -719,13 +719,107 @@ Deno.serve(async (req) => {
         return json({ job_id: inserted.id, deduped: false });
       }
 
+      if (action === "ext_profile") {
+        // v1.9.55: compact profile vector for the extension's local resolver.
+        // Excludes any work_auth / EEO / salary facts — those must stay AI-side.
+        const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
+          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
+          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          loadCanonical(admin, userId),
+        ]);
+        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: Array<Record<string, unknown>>; education?: Array<Record<string, unknown>> } | null) || null;
+        const basics = (rb?.basics || {}) as Record<string, string>;
+        const work = (rb?.work || []) as Array<Record<string, unknown>>;
+        const edu = (rb?.education || []) as Array<Record<string, unknown>>;
+        const [firstFromResume, ...restFromResume] = (basics.name || "").trim().split(/\s+/);
+        const addr = (profile?.address || {}) as Record<string, string>;
+        const plinks = (profile?.links || {}) as Record<string, string>;
+        const linkedin = plinks.linkedin || (basics.links as unknown as Array<{ url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const website = plinks.portfolio || plinks.website || (basics.links as unknown as Array<{ url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
+        const eduTop = edu[0] || {};
+        const gradYear = (() => { const m = String((eduTop as any).end || "").match(/(19|20)\d{2}/); return m ? m[0] : ""; })();
+        const parseYear = (s: unknown): number | null => { const m = String(s || "").match(/(19|20)\d{2}/); return m ? parseInt(m[0], 10) : null; };
+        const nowYear = new Date().getFullYear();
+        let yoe = 0;
+        for (const w of work) {
+          const sy = parseYear(w.start);
+          const ey = /present|current/i.test(String(w.end || "")) ? nowYear : (parseYear(w.end) || nowYear);
+          if (sy) yoe += Math.max(0, ey - sy);
+        }
+        const first_name = String(profile?.legal_first_name || firstFromResume || "");
+        const last_name = String(profile?.legal_last_name || restFromResume.join(" ") || "");
+        const facts = {
+          first_name,
+          last_name,
+          full_name: [first_name, last_name].filter(Boolean).join(" ") || basics.name || "",
+          email: String(profile?.email || basics.email || ""),
+          phone: String(profile?.phone || basics.phone || ""),
+          linkedin: /linkedin\.com\//i.test(linkedin) ? linkedin : "",
+          website: website && !/linkedin\.com/i.test(website) ? website : "",
+          city: String(addr.city || ""),
+          region: String(addr.state || addr.province || ""),
+          country: String(addr.country || ""),
+          current_title: String(canonical?.derived?.current_title || (work[0] as { title?: string })?.title || basics.title || ""),
+          current_company: String(canonical?.derived?.current_company || (work[0] as { company?: string })?.company || ""),
+          years_experience: String(canonical?.derived?.total_yoe ?? yoe ?? ""),
+          school: String((eduTop as any).school || (eduTop as any).institution || ""),
+          degree: String((eduTop as any).degree || ""),
+          grad_year: gradYear,
+        };
+        const aliases = {
+          first_name: ["first name","given name","forename","prenom","prénom","nombre"],
+          last_name: ["last name","surname","family name","nom","nom de famille","apellido"],
+          full_name: ["full name","name","your name","legal name","nom complet","nombre completo"],
+          email: ["email","e-mail","email address","courriel","adresse courriel","correo","correo electronico"],
+          phone: ["phone","phone number","mobile","cell","cellphone","telephone","mobile number","téléphone","telefono","numero de telephone"],
+          linkedin: ["linkedin","linkedin url","linkedin profile","profil linkedin"],
+          website: ["website","portfolio","personal website","portfolio url","site web","sitio web"],
+          city: ["city","town","ville","ciudad"],
+          region: ["state","province","region","state/province","région","provincia"],
+          country: ["country","pays","pais","país"],
+          current_title: ["current title","job title","current role","title","poste actuel","puesto actual"],
+          current_company: ["current company","employer","company","current employer","entreprise actuelle","empresa actual"],
+          years_experience: ["years of experience","total experience","years experience","annees d'experience","anos de experiencia"],
+          school: ["school","university","college","institution","universite","université","universidad"],
+          degree: ["degree","qualification","diplome","diplôme","titulo"],
+          grad_year: ["graduation year","year of graduation","annee de diplome","ano de graduacion"],
+        };
+        const digest = await sha256Hex(JSON.stringify(facts));
+        return json({ facts, aliases, digest });
+      }
+
       if (action === "ext_autofill") {
-        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag } = payload as {
+        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag, resolved } = payload as {
           fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string; scanDiag?: unknown;
+          resolved?: Array<{ id: string; source: string; confidence?: number }>;
         };
         const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
-        if (fields.length === 0) return json({ values: [], meta: { reason: "no_form_fields" } });
+        const resolvedArr = Array.isArray(resolved) ? resolved : [];
+        const resolvedBySrc = resolvedArr.reduce((acc: Record<string, number>, r) => { const k = String(r.source || "unknown"); acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+        if (fields.length === 0) {
+          // v1.9.55: nothing left for AI. Still record a telemetry row so
+          // resolved-by-profile/memory runs show up in autofill_runs.
+          let earlyRunId: string | null = null;
+          try {
+            const { data: runRow } = await admin.from("autofill_runs").insert({
+              user_id: userId || null,
+              url: url || null,
+              ats: ats || null,
+              company: company || null,
+              job_title: jobTitle || null,
+              ext_version: extVersion || "",
+              fields_total: resolvedArr.length,
+              ai_answered: 0,
+              fields_scanned: [],
+              ai_values: [],
+              skipped: [],
+              meta: { reason: "all_resolved_locally", resolved_by: { ...resolvedBySrc, ai: 0 }, scanDiag: Array.isArray(scanDiag) ? (scanDiag as unknown[]).slice(0, 30) : [] },
+            }).select("id").single();
+            earlyRunId = runRow?.id || null;
+          } catch (e) { console.warn("autofill_runs early insert failed", e); }
+          return json({ values: [], skipped: [], run_id: earlyRunId, meta: { reason: "no_form_fields", resolved_by: { ...resolvedBySrc, ai: 0 } } });
+        }
         const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
           admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
