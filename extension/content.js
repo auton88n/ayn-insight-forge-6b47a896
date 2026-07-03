@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.64';
+  const AYN_BUILD = '1.9.65';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -37,22 +37,32 @@
   }
   function safeLen(el) { return safeText(el).length; }
 
+  // v1.9.65 — loop until scrollHeight stabilizes so IntersectionObserver-driven
+  // sections (Veteran / Disability on Gem, BioRender, etc.) get a chance to mount.
+  // Returns a restore() function; caller MUST call it in a finally after scanning
+  // so the user's original scroll position is preserved.
   async function aynEnsureRendered() {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const raf = () => new Promise(r => { try { requestAnimationFrame(() => r()); } catch { r(); } });
+    let startY = 0;
     try {
       const se = document.scrollingElement || document.documentElement;
-      if (!se) return;
-      const startY = se.scrollTop || 0;
-      const max = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
-      if (max > 100) {
-        for (let step = 1; step <= 4; step++) {
-          try { window.scrollTo(0, Math.floor(max * (step / 4))); } catch (_) {}
-          await sleep(150);
-        }
-        try { window.scrollTo(0, startY); } catch (_) {}
-        await sleep(80);
+      if (!se) return () => {};
+      startY = se.scrollTop || 0;
+      let lastH = se.scrollHeight || 0;
+      for (let i = 0; i < 6; i++) {
+        const max = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
+        if (max <= 100) break;
+        try { window.scrollTo(0, max); } catch (_) {}
+        await sleep(250);
+        const nowH = se.scrollHeight || 0;
+        if (Math.abs(nowH - lastH) < 4) break;
+        lastH = nowH;
       }
+      await raf();
+      await sleep(300);
     } catch (_) {}
+    return () => { try { window.scrollTo(0, startY); } catch (_) {} };
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1244,7 +1254,9 @@
         const usedRadios = window.__AYN_USED_RADIOS__;
         // mirror shared-name pass results into the window set
         try { Array.from(doc.querySelectorAll('input[type="radio"]')).forEach(r => { if (processedRadios.has(r)) usedRadios.add(r); }); } catch (_) {}
-        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
+        // v1.9.65 — drop offsetParent check so lazy-mounted (below-fold) radios
+        // like Veteran / Disability get grouped even when not currently visible.
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled);
         const containerOf = (r) => {
           let node = r.parentElement;
           for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
@@ -3839,18 +3851,38 @@
 
     if (message.type === 'SCAN_FORM') {
       (async () => {
-        await aynEnsureRendered();
-        const fields = scanFormFields();
-        const jobText = extractJobText();
-        let scanDiag = [];
-        try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
-        // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
+        const restore = await aynEnsureRendered();
         try {
-          const map = new Map();
-          (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
-          window.__AYN_FIELD_LABELS__ = map;
-        } catch (_) {}
-        sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
+          const countCtrls = () => {
+            try { return document.querySelectorAll('input,textarea,select,[role="radio"],[role="checkbox"],[role="combobox"]').length; }
+            catch { return 0; }
+          };
+          const before = countCtrls();
+          let fields = scanFormFields();
+          // v1.9.65 — one extra pass if new controls mounted late (React Suspense / lazy sections)
+          try {
+            await new Promise(r => setTimeout(r, 400));
+            if (countCtrls() > before) {
+              const extra = scanFormFields();
+              const seen = new Set((fields || []).map(f => f && f.id).filter(Boolean));
+              for (const f of (extra || [])) {
+                if (f && f.id && !seen.has(f.id)) { fields.push(f); seen.add(f.id); }
+              }
+            }
+          } catch (_) {}
+          const jobText = extractJobText();
+          let scanDiag = [];
+          try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+          // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
+          try {
+            const map = new Map();
+            (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
+            window.__AYN_FIELD_LABELS__ = map;
+          } catch (_) {}
+          sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
+        } finally {
+          try { restore && restore(); } catch (_) {}
+        }
       })();
       return true;
     }
