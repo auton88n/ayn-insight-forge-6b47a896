@@ -2963,14 +2963,9 @@
                 await sleep(80);
                 verified = target.getAttribute('aria-checked') === 'true';
               }
-              if (!verified) {
-                // Manually set aria-checked and unset siblings (last-resort)
-                try {
-                  target.setAttribute('aria-checked', 'true');
-                  customEls.forEach(e => { if (e !== target) { try { e.setAttribute('aria-checked', 'false'); } catch {} } });
-                  verified = true;
-                } catch {}
-              }
+              // v1.9.67 — removed forced success. Painting aria-checked ourselves does
+              // not change the page's real state; reporting it as verified poisoned
+              // answer memory and inflated fill counts. Unverified stays unverified.
               if (verified) anyC = true;
             } catch {}
           }
