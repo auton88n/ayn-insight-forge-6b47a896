@@ -588,6 +588,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   };
                 });
             if (newValues.length > 0) {
+              const secondResults = [];
               const byFrame2 = new Map();
               for (const v of newValues) {
                 const fid = frameOfField.get(v.id) ?? 0;
@@ -597,9 +598,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               for (const [fid, vals] of byFrame2) {
                 const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: vals }, fid);
                 secondPassFilled += (fr2?.filled || 0);
-                (fr2?.results || []).forEach(r => mergedResults.push({ ...r, id: AGG(fid, r.id), _frameId: fid }));
+                (fr2?.results || []).forEach(r => { const rr = { ...r, id: AGG(fid, r.id), _frameId: fid }; mergedResults.push(rr); secondResults.push(rr); });
                 vals.forEach(v => values.push({ ...v, id: AGG(fid, v.id) }));
               }
+              // v1.9.67 — close the second-pass telemetry row (previously orphaned:
+              // the second ext_autofill call inserted a run that was never completed).
+              try {
+                if (fill2?.run_id) {
+                  callFunction('ext_log_result', {
+                    run_id: fill2.run_id,
+                    inject_results: secondResults,
+                    filled: secondResults.filter(r => r && r.ok === true).length,
+                    total: secondResults.length,
+                  }).catch(() => {});
+                }
+              } catch (_) {}
             }
           }
         } catch { /* ignore second-pass errors */ }
