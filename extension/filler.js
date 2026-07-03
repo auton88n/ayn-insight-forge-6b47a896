@@ -1,4 +1,4 @@
-// filler.js — AYN Resume Tailor two-lane resolver (v1.9.55)
+// filler.js — AYN Resume Tailor two-lane resolver (v1.9.67)
 // Loaded by content scripts AND by the background service worker
 // (importScripts). Attaches self.AYN_RESOLVER for both surfaces.
 (function () {
