@@ -95,6 +95,4 @@
   }
 
   self.AYN_RESOLVER = { norm, isSensitive, fingerprint, optionsSignature, matchProfile };
-  // Legacy stub namespace for any content-script consumer expecting it.
-  self.AYN_FILLER = self.AYN_FILLER || {};
 })();
