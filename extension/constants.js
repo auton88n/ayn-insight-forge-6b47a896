@@ -7,7 +7,7 @@
   if (self.AYN_CONST) return;
   const IS_TOP = (() => { try { return typeof window !== 'undefined' && window === window.top; } catch (_) { return false; } })();
   self.AYN_CONST = Object.freeze({
-    BUILD: '1.9.66',
+    BUILD: '1.9.67',
     MAX_JD_CHARS: 20000,
     VISION_ENABLED: true,
     RESOLVER_V2: true,
@@ -17,6 +17,7 @@
       'greenhouse.io',
       'lever.co',
       'ashbyhq.com',
+      'jobs.gem.com',
       'icims.com',
       'smartrecruiters.com',
       'taleo.net',
