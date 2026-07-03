@@ -373,6 +373,7 @@
     if (/myworkdayjobs\.com|workday/i.test(url)) return 'workday';
     if (/icims\.com/i.test(url)) return 'icims';
     if (/jobs\.ashbyhq\.com/i.test(url)) return 'ashby';
+    if (/jobs\.gem\.com/i.test(url)) return 'gem';
     if (/smartrecruiters\.com/i.test(url)) return 'smartrecruiters';
     if (/cornerstoneondemand|csod\.com/i.test(url)) return 'cornerstone';
     if (/linkedin\.com\/jobs/i.test(url) && document.querySelector('[data-test-modal], .jobs-easy-apply-modal')) return 'linkedin_easy_apply';
