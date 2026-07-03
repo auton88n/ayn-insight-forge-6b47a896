@@ -605,23 +605,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const resultMap = {};
         (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
-        const details = values.map(v => ({
-          id: v.id,
-          label: fields.find(f => f.id === v.id)?.label || v.id,
-          group: v.group || fields.find(f => f.id === v.id)?.group || '',
-          value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
-          confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
-          reasoning: v.reasoning || '',
-          source: v.source || '',
-          ok: resultMap[v.id]?.ok || false,
-          reason: resultMap[v.id]?.reason || '',
-        }));
+
+        // v1.9.55 — write answer memory for non-sensitive AI/inferred fills
+        try {
+          const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
+          const mem = await aynMemGet();
+          for (const r of mergedResults) {
+            if (!r || !r.ok || String(r.id).endsWith('visiondiag')) continue;
+            const v = values.find(x => x.id === r.id);
+            const f = fields.find(x => x.id === r.id);
+            if (!v || !f) continue;
+            if (self.AYN_RESOLVER && self.AYN_RESOLVER.isSensitive(f)) continue;
+            if (!(v.value || v.optionLabel)) continue;
+            const fp = self.AYN_RESOLVER ? await self.AYN_RESOLVER.fingerprint(f, host) : null;
+            if (!fp) continue;
+            const prev = mem[fp] || { hits: 0 };
+            mem[fp] = {
+              label: f.label,
+              kind: f.kind || f.type || '',
+              value: v.value || '',
+              optionLabel: v.optionLabel || '',
+              optionValue: v.optionValue || '',
+              source: v.source || 'ai',
+              hits: (prev.hits || 0) + 1,
+              last_used_at: new Date().toISOString(),
+            };
+          }
+          await aynMemSet(mem);
+        } catch (_) {}
+
+        const details = values.map(v => {
+          const f = fields.find(x => x.id === v.id);
+          const needsReview = (typeof v.confidence === 'number' && v.confidence < 0.6)
+            || (f ? (self.AYN_RESOLVER ? self.AYN_RESOLVER.isSensitive(f) : false) : false);
+          return {
+            id: v.id,
+            label: f?.label || v.id,
+            group: v.group || f?.group || '',
+            value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
+            confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
+            reasoning: v.reasoning || '',
+            source: v.source || (resultMap[v.id] ? 'ai' : ''),
+            needsReview,
+            ok: resultMap[v.id]?.ok || false,
+            reason: resultMap[v.id]?.reason || '',
+          };
+        });
 
         // Unified counting: ok===true counts as filled (incl. "already correct"); exclude any visiondiag entry (namespaced or not)
         const __allResults = (fillResult?.results || []);
         const __countable = __allResults.filter(r => r && !String(r.id).endsWith('visiondiag'));
         const __filled = __countable.filter(r => r.ok === true).length;
         const __total = __countable.length;
+        const __needsReviewCount = details.filter(d => d.needsReview).length;
 
         sendResponse({
           ok: true,
@@ -630,6 +666,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           answered: values.length,
           verified: __filled,
           needsReview: Math.max(0, values.length - __filled) + ((fillData?.skipped || []).length),
+          needsReviewCount: __needsReviewCount,
+          resolvedLocally: localValues.length,
           details,
           passes: secondPassFilled > 0 ? 2 : 1,
           skipped: fillData?.skipped || [],
