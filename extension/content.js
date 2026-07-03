@@ -1288,8 +1288,8 @@
           const rq = aynFindQuestionForOptionGroup(container, options, radios[0]);
           const q = (rq.label || 'Question').slice(0, 240);
           const classifyText = `${q} ${options.map(o => o.label).join(' ')}`;
-          const gid = `${prefix}__structradio__:${++gi}`;
-          window.__AYN_STRUCTRADIO_MAP__.set(gid, radios);
+          const gid = `${prefix}__structradio__:g${aynFid(container)}`;
+          window.__AYN_STRUCTRADIO_MAP__.set(gid, { container, radios });
           radios.forEach(r => { usedRadios.add(r); processedRadios.add(r); });
           fields.push({
             id: gid,
