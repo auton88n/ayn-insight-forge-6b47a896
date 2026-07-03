@@ -567,6 +567,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 })),
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: topScan.ats || 'unknown', url: topScan.url || '',
+              extVersion: chrome.runtime.getManifest().version,
             });
               const newFieldMeta = new Map(newFieldsAll.map(f => [f.id, f]));
               const newValues = (fill2.values || [])
