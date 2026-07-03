@@ -3640,8 +3640,8 @@
     const vdiag = { enabled: AYN_VISION_ENABLED, scanned: 0, unresolved: 0, candQ: 0, candOpt: 0, sent: false, resp: 'none', captured: '', captureError: '', backendError: '', decisions: 0, clicks: 0 };
     const pushDiag = () => {
       try {
-        results.push({ id: 'visiondiag', ok: (vdiag.clicks > 0), reason: JSON.stringify(vdiag).slice(0, 300) });
-        if (injectResult) injectResult.results = results;
+        // v1.9.67 — diagnostics ride as metadata, never as a fake failed result row.
+        if (injectResult) { injectResult.visionDiag = vdiag; injectResult.results = results; }
       } catch (_) {}
     };
     try {
