@@ -1135,6 +1135,21 @@
     } catch (_) { return `fp_${aynHashShort(Math.random())}`; }
   }
 
+  // v1.9.67 — stable field identity. A monotonic sequence stamped directly on the
+  // DOM node. Survives rescans: a node keeps its id for the lifetime of the page,
+  // so re-scanning never repoints ids the way the old per-scan counters did.
+  function aynFid(el) {
+    try {
+      if (!el.__aynFid) {
+        window.__AYN_FID_SEQ__ = (window.__AYN_FID_SEQ__ || 0) + 1;
+        el.__aynFid = window.__AYN_FID_SEQ__;
+      }
+      return el.__aynFid;
+    } catch (_) {
+      return Math.floor(Math.random() * 1e9);
+    }
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
