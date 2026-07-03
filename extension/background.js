@@ -439,8 +439,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const jobText = topScan.jobText || {};
         if (fields.length === 0) { sendResponse({ ok: false, error: 'no_fields' }); return; }
 
+        // ── v1.9.55 two-lane resolver stage ─────────────────────────
+        // Resolves standard identity/link/logic fields locally from the
+        // cached profile vector + previously-saved answer memory, so only
+        // truly unknown fields go to the AI backend.
+        let localValues = [];
+        let unknownFields = fields;
+        let __resolvedSummary = [];
+        try {
+          if (self.AYN_CONST && self.AYN_CONST.RESOLVER_V2 && self.AYN_RESOLVER) {
+            const vector = await aynGetProfileVector();
+            if (vector) {
+              const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
+              const mem = await aynMemGet();
+              const unknown = [];
+              for (const f of fields) {
+                let hit = null;
+                if (!self.AYN_RESOLVER.isSensitive(f)) {
+                  const fp = await self.AYN_RESOLVER.fingerprint(f, host);
+                  const mm = mem[fp];
+                  if (mm && (mm.value || mm.optionLabel)) {
+                    hit = { id: f.id, ...(mm.optionLabel ? { optionLabel: mm.optionLabel, optionValue: mm.optionValue } : { value: mm.value }), confidence: 0.9, source: 'memory', reasoning: 'Reused a saved answer.' };
+                  }
+                }
+                if (!hit) {
+                  const m = self.AYN_RESOLVER.matchProfile(f, vector);
+                  if (m) hit = { id: f.id, ...(m.optionLabel ? { optionLabel: m.optionLabel, optionValue: m.optionValue } : { value: m.value }), confidence: m.confidence, source: 'profile', reasoning: 'Filled from your profile.' };
+                }
+                if (hit) { localValues.push(hit); __resolvedSummary.push({ id: f.id, source: hit.source, confidence: hit.confidence }); }
+                else unknown.push(f);
+              }
+              unknownFields = unknown;
+            }
+          }
+        } catch (e) { localValues = []; unknownFields = fields; __resolvedSummary = []; }
+
         const fillData = await callFunction('ext_autofill', {
-          fields: fields.map(f => ({
+          fields: unknownFields.map(f => ({
             id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
             options: f.options, required: f.required, currentValue: f.currentValue,
             accRole: f.accRole || '', labelSource: f.labelSource || '',
@@ -449,6 +484,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             siblingLabels: Array.isArray(f.siblingLabels) ? f.siblingLabels : [],
             richEditor: !!f.richEditor, richDetector: f.richDetector || '',
           })),
+          resolved: __resolvedSummary,
           jobText: jobText?.text || '',
           jobTitle: jobText?.title || '',
           company: jobText?.company || '',
@@ -460,23 +496,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const runId = fillData?.run_id || null;
 
         const fieldMeta = new Map(fields.map(f => [f.id, f]));
-        const values = (fillData.values || [])
+        const decorate = v => {
+          const f = fieldMeta.get(v.id) || {};
+          return {
+            ...v,
+            label: f.label || v.label || '',
+            kind: f.kind || f.type || v.kind || '',
+            type: f.type || v.type || '',
+            name: f.name || v.name || '',
+            group: f.group || v.group || '',
+            labelSource: f.labelSource || v.labelSource || '',
+            richDetector: f.richDetector || v.richDetector || '',
+            _idx: f._idx,
+            _frame: f._frame || '',
+          };
+        };
+        const aiValues = (fillData.values || [])
           .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
-          .map(v => {
-            const f = fieldMeta.get(v.id) || {};
-            return {
-              ...v,
-              label: f.label || v.label || '',
-              kind: f.kind || f.type || v.kind || '',
-              type: f.type || v.type || '',
-              name: f.name || v.name || '',
-              group: f.group || v.group || '',
-              labelSource: f.labelSource || v.labelSource || '',
-              richDetector: f.richDetector || v.richDetector || '',
-              _idx: f._idx,
-              _frame: f._frame || '',
-            };
-          });
+          .map(v => decorate({ ...v, source: v.source || 'ai' }));
+        const values = [...localValues.map(decorate), ...aiValues];
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         // Group values by owning frame; translate ids back to frame-local for injection
