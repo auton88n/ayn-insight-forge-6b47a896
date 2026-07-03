@@ -1,6 +1,9 @@
 // background.js — AYN Resume Tailor service worker
 // Auth: device tokens via "Sign in with AYN" one-click flow.
 
+// v1.9.55: two-lane resolver. Load shared constants + resolver into the SW.
+try { importScripts('constants.js', 'filler.js'); } catch (e) { console.warn('AYN resolver load failed', e); }
+
 const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
 const AYN_WEB = 'https://aynn.io';
@@ -106,6 +109,23 @@ async function safeSendMessage(tabId, message, frameId = 0) {
     return tryOnce();
   } catch { return null; }
 }
+
+// ── v1.9.55: profile vector + answer memory (two-lane resolver) ──────
+async function aynGetProfileVector() {
+  try {
+    const r = await chrome.storage.local.get('ayn_profile_vector');
+    const cached = r.ayn_profile_vector;
+    const fresh = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < 24 * 3600 * 1000);
+    if (fresh && cached.vector) return cached.vector;
+    const resp = await callFunction('ext_profile', {});
+    if (resp && resp.facts) { await chrome.storage.local.set({ ayn_profile_vector: { vector: resp, fetchedAt: Date.now() } }); return resp; }
+    return cached && cached.vector ? cached.vector : null;
+  } catch (_) {
+    try { const r = await chrome.storage.local.get('ayn_profile_vector'); return r.ayn_profile_vector ? r.ayn_profile_vector.vector : null; } catch { return null; }
+  }
+}
+async function aynMemGet() { try { const r = await chrome.storage.local.get('ayn_answers'); return r.ayn_answers || {}; } catch { return {}; } }
+async function aynMemSet(m) { try { await chrome.storage.local.set({ ayn_answers: m }); } catch (_) {} }
 
 // Enumerate frames worth scanning: the top frame (which already covers its own
 // same-origin subframes + shadow roots via collectScannableDocs), plus any frame
