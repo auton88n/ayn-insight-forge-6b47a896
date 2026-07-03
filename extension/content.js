@@ -1778,7 +1778,6 @@
           '.ProseMirror', '.tiptap', '.ql-editor', '.DraftEditor-root', '.public-DraftEditor-content',
           '[data-slate-editor="true"]', '[data-lexical-editor="true"]', '[data-editor]'
         ].join(',');
-        let otIdx = 0;
         Array.from(doc.querySelectorAll(OPEN_SEL)).forEach(cand => {
           try {
             const info = aynResolveRichEditor(cand);
