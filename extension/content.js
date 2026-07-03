@@ -1157,13 +1157,13 @@
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
     let bgCounter = 0;
-    let textFieldCounter = 0;
     // v1.9.44 — reset per-scan used-radio tracker so stale state doesn't persist
     window.__AYN_USED_RADIOS__ = new WeakSet();
-    window.__AYN_STRUCTRADIO_MAP__ = new Map();
-    // v1.9.60 — stable DOM-backed ids for idless text fields. Avoids stale f11/f12
-    // index resolution after React/Gem reorders controls between scan and inject.
-    window.__AYN_TEXT_FIELD_MAP__ = new Map();
+    // v1.9.67 — PERSISTENT registries, never reset between scans. Ids come from
+    // aynFid() stamped on the node itself, so a rescan re-registers the same
+    // element under the same id instead of repointing ids to different controls.
+    window.__AYN_STRUCTRADIO_MAP__ = window.__AYN_STRUCTRADIO_MAP__ || new Map();
+    window.__AYN_TEXT_FIELD_MAP__ = window.__AYN_TEXT_FIELD_MAP__ || new Map();
 
     const registerTextField = (prefix, el, idx) => {
       // v1.9.61 — hard guard: never allow non-text-like controls to be registered as
