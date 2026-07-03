@@ -2084,7 +2084,7 @@
           if (tag !== 'INPUT' && tag !== 'TEXTAREA') continue;
           const cur = el.value || '';
           const wantDigits = digits(want);
-          const stillThere = norm(cur) === norm(want) || (wantDigits.length >= 7 && digits(cur) === wantDigits) || (norm(cur).length > 0 && norm(cur).includes(norm(want)));
+          const stillThere = norm(cur) === norm(want) || (wantDigits.length >= 7 && digits(cur) === wantDigits) || (norm(want).length >= 6 && norm(cur).includes(norm(want)));
           if (stillThere) continue;
           reverted++;
           try {
