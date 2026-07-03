@@ -1791,7 +1791,7 @@
             const prompt = ((acc.name && acc.name.length >= 2) ? acc.name : '') || getLabelFor(editable) || aynNearbyPrompt(editable) || aynFieldQuestion(editable) || '';
             if (!prompt || SKIP_RE.test(prompt)) return;
             const current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.value || editable.innerText || '');
-            const rid = `${prefix}__opentext__:ot${otIdx++}`;
+            const rid = `${prefix}__opentext__:ot${aynFid(editable)}`;
             window.__AYN_OPEN_TEXT_MAP__.set(rid, editable);
             seenEditables.add(editable);
             const ctx = aynCaptureContext(editable);
