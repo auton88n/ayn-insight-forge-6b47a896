@@ -1712,7 +1712,6 @@
           '.monaco-editor .view-lines',
         ].join(',');
         const seenEditables = new WeakSet();
-        let reIdx = 0;
         Array.from(doc.querySelectorAll(RICH_SEL)).forEach(cand => {
           try {
             const info = aynResolveRichEditor(cand);
