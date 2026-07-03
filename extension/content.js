@@ -2863,7 +2863,20 @@
 
       // v1.9.44 — structural native-radio group (unique-name forms like Gem)
       if (id.includes('__structradio__:')) {
-        const radios = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
+        const entry = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
+        let radios = null;
+        if (entry) {
+          // v1.9.67 — prefer LIVE radios from the persisted container. React
+          // re-renders replace input nodes, but the container usually survives.
+          const container = entry.container || null;
+          const stored = Array.isArray(entry) ? entry : (entry.radios || []);
+          if (container && container.isConnected) {
+            const live = Array.from(container.querySelectorAll('input[type="radio"]')).filter(r => !r.disabled);
+            radios = live.length >= 2 ? live : stored;
+          } else {
+            radios = stored;
+          }
+        }
         if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
         const cands = [optionLabel, optionValue, value].map(s => String(s || '').trim()).filter(Boolean);
         let target = null;
