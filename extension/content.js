@@ -1725,7 +1725,7 @@
             const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || aynNearbyPrompt(editable) || '');
             if (!label) return;
             if (SKIP_RE.test(label)) return;
-            const rid = `${prefix}__richedit__:re${reIdx++}`;
+            const rid = `${prefix}__richedit__:re${aynFid(editable)}`;
             window.__AYN_RICH_EDITOR_MAP__.set(rid, editable);
             let current = '';
             try { current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.innerText || ''); } catch {}
