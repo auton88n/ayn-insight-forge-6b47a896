@@ -1378,8 +1378,6 @@
       //   - Uses tight nearest-common-ancestor via containerFor
       try {
         if (!window.__AYN_LABELGROUP_MAP__) window.__AYN_LABELGROUP_MAP__ = new Map();
-        // Back-compat alias so any legacy code paths using __AYN_GEM_MAP__ still resolve.
-        if (!window.__AYN_GEM_MAP__) window.__AYN_GEM_MAP__ = window.__AYN_LABELGROUP_MAP__;
         const allLabels = Array.from(doc.querySelectorAll('label')).filter(l => {
           if (l.querySelector('input, select, textarea, [role="radio"], [role="checkbox"]')) return false;
           // If the label points via htmlFor to a native form control, skip (native pass owns it).
