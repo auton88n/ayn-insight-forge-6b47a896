@@ -2238,63 +2238,18 @@
     return { target: interactive, scope };
   }
 
-  // Main-world click fallback — injects a <script> into the page to run the click
-  // outside the extension's isolated world (so React listeners on the page can react).
+  // Main-world click fallback — v1.9.67: routed through page-world.js via the same
+  // attribute+event bridge used for text fills. Replaces the old inline <script>
+  // injection, which page CSP blocked on many sites.
   function mainWorldClickByText(qLabel, optionText) {
     try {
-      const q = JSON.stringify(String(qLabel || '').slice(0, 40));
-      const o = JSON.stringify(String(optionText || '').trim());
-      const code = `(function(){
-        function normOpt(s){
-          return String(s||'').toLowerCase()
-            .replace(/[\\u2010-\\u2015\\u2212]/g,'-')
-            .replace(/[.,;:!?'"()]/g,' ')
-            .replace(/\\s+/g,' ').trim();
-        }
-        function optMatches(a,b){
-          a=normOpt(a);b=normOpt(b);
-          if(!a||!b)return false;
-          if(a===b)return true;
-          if(a.length>=3 && b.length>=3 && (a.indexOf(b)!==-1 || b.indexOf(a)!==-1)) return true;
-          var wa=a.split(' ').filter(function(w){return w.length>2;});
-          var wb=b.split(' ').filter(function(w){return w.length>2;});
-          var short=wa, long=new Set(wb);
-          if(wa.length>wb.length){short=wb;long=new Set(wa);}
-          if(short.length>=3){
-            var hits=short.filter(function(w){return long.has(w);}).length;
-            if(hits/short.length>=0.8)return true;
-          }
-          return false;
-        }
-        try{
-          var qKey=${q}.trim().toLowerCase();
-          var wantRaw=${o};
-          if(!qKey||!wantRaw)return;
-          var all=document.querySelectorAll('label,legend,p,h2,h3,h4,strong,div,span');
-          var labelEl=null;
-          for(var i=0;i<all.length;i++){
-            var c=all[i];var t=(c.textContent||'').trim().toLowerCase();
-            if(!t||t.length>=260)continue;
-            if(t.indexOf(qKey)!==-1){labelEl=c;break;}
-          }
-          if(!labelEl)return;
-          var node=labelEl.parentElement;
-          for(var j=0;j<7&&node;j++,node=node.parentElement){
-            var btns=node.querySelectorAll('button,[role="radio"],[role="button"],[role="option"]');
-            for(var k=0;k<btns.length;k++){
-              var b=btns[k];var bt=(b.textContent||'').trim();
-              if(optMatches(bt,wantRaw)){b.click();return;}
-            }
-          }
-        }catch(e){}
-      })();`;
-      const s = document.createElement('script');
-      s.textContent = code;
-      (document.head || document.documentElement).appendChild(s);
-      s.remove();
+      const root = document.documentElement;
+      root.setAttribute('data-ayn-click-q', String(qLabel || '').slice(0, 120));
+      root.setAttribute('data-ayn-click-opt', String(optionText || '').trim().slice(0, 200));
+      document.dispatchEvent(new Event('ayn-click-request', { bubbles: true }));
       return true;
     } catch (e) {
-      console.log('[AYN-BG] mainWorld blocked', e && e.message);
+      console.log('[AYN-BG] mainWorld bridge failed', e && e.message);
       return false;
     }
   }
