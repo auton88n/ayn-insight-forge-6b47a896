@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.62';
+  const AYN_BUILD = '1.9.64';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -36,6 +36,24 @@
     } catch { return ''; }
   }
   function safeLen(el) { return safeText(el).length; }
+
+  async function aynEnsureRendered() {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    try {
+      const se = document.scrollingElement || document.documentElement;
+      if (!se) return;
+      const startY = se.scrollTop || 0;
+      const max = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
+      if (max > 100) {
+        for (let step = 1; step <= 4; step++) {
+          try { window.scrollTo(0, Math.floor(max * (step / 4))); } catch (_) {}
+          await sleep(150);
+        }
+        try { window.scrollTo(0, startY); } catch (_) {}
+        await sleep(80);
+      }
+    } catch (_) {}
+  }
 
   // ══════════════════════════════════════════════════════════════════
   // 1. JOB TEXT EXTRACTION
@@ -3820,17 +3838,20 @@
     }
 
     if (message.type === 'SCAN_FORM') {
-      const fields = scanFormFields();
-      const jobText = extractJobText();
-      let scanDiag = [];
-      try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
-      // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
-      try {
-        const map = new Map();
-        (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
-        window.__AYN_FIELD_LABELS__ = map;
-      } catch (_) {}
-      sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
+      (async () => {
+        await aynEnsureRendered();
+        const fields = scanFormFields();
+        const jobText = extractJobText();
+        let scanDiag = [];
+        try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+        // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
+        try {
+          const map = new Map();
+          (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
+          window.__AYN_FIELD_LABELS__ = map;
+        } catch (_) {}
+        sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
+      })();
       return true;
     }
 
