@@ -1279,7 +1279,6 @@
         };
         const groups = new Map();
         allRadios.forEach(r => { const c = containerOf(r); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(r); });
-        let gi = 0;
         groups.forEach((radios, container) => {
           if (radios.length < 2) return;
           const options = radios.map(r => {
