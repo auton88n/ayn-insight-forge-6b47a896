@@ -373,6 +373,7 @@
     if (/myworkdayjobs\.com|workday/i.test(url)) return 'workday';
     if (/icims\.com/i.test(url)) return 'icims';
     if (/jobs\.ashbyhq\.com/i.test(url)) return 'ashby';
+    if (/jobs\.gem\.com/i.test(url)) return 'gem';
     if (/smartrecruiters\.com/i.test(url)) return 'smartrecruiters';
     if (/cornerstoneondemand|csod\.com/i.test(url)) return 'cornerstone';
     if (/linkedin\.com\/jobs/i.test(url) && document.querySelector('[data-test-modal], .jobs-easy-apply-modal')) return 'linkedin_easy_apply';
@@ -881,7 +882,6 @@
     const docs = [];
     const map = new Map();
     const seenRoots = new WeakSet();
-    let shCounter = 0;
     function add(root, prefix) {
       if (!root || seenRoots.has(root)) return;
       seenRoots.add(root);
@@ -889,20 +889,16 @@
       map.set(prefix, root);
       let els;
       try { els = root.querySelectorAll ? root.querySelectorAll('*') : []; } catch { return; }
-      // Collect nested iframes (indexed within this root)
-      let iframeIdx = 0;
       els.forEach(el => {
         try {
           if (el.shadowRoot) {
-            const p = `sh${shCounter++}:`;
-            add(el.shadowRoot, prefix + p);
+            add(el.shadowRoot, prefix + `sh${aynFid(el)}:`);
           }
         } catch {}
         if (el.tagName === 'IFRAME') {
-          const idx = iframeIdx++;
           try {
             const fdoc = el.contentDocument;
-            if (fdoc) add(fdoc, prefix + `frame${idx}:`);
+            if (fdoc) add(fdoc, prefix + `frame${aynFid(el)}:`);
           } catch { /* cross-origin, ignore */ }
         }
       });
@@ -1135,6 +1131,21 @@
     } catch (_) { return `fp_${aynHashShort(Math.random())}`; }
   }
 
+  // v1.9.67 — stable field identity. A monotonic sequence stamped directly on the
+  // DOM node. Survives rescans: a node keeps its id for the lifetime of the page,
+  // so re-scanning never repoints ids the way the old per-scan counters did.
+  function aynFid(el) {
+    try {
+      if (!el.__aynFid) {
+        window.__AYN_FID_SEQ__ = (window.__AYN_FID_SEQ__ || 0) + 1;
+        el.__aynFid = window.__AYN_FID_SEQ__;
+      }
+      return el.__aynFid;
+    } catch (_) {
+      return Math.floor(Math.random() * 1e9);
+    }
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
@@ -1142,13 +1153,13 @@
     const fileFields = [];
     const seenGroupKeys = new Set(); // dedupe radio/checkbox groups by name+frame
     let bgCounter = 0;
-    let textFieldCounter = 0;
     // v1.9.44 — reset per-scan used-radio tracker so stale state doesn't persist
     window.__AYN_USED_RADIOS__ = new WeakSet();
-    window.__AYN_STRUCTRADIO_MAP__ = new Map();
-    // v1.9.60 — stable DOM-backed ids for idless text fields. Avoids stale f11/f12
-    // index resolution after React/Gem reorders controls between scan and inject.
-    window.__AYN_TEXT_FIELD_MAP__ = new Map();
+    // v1.9.67 — PERSISTENT registries, never reset between scans. Ids come from
+    // aynFid() stamped on the node itself, so a rescan re-registers the same
+    // element under the same id instead of repointing ids to different controls.
+    window.__AYN_STRUCTRADIO_MAP__ = window.__AYN_STRUCTRADIO_MAP__ || new Map();
+    window.__AYN_TEXT_FIELD_MAP__ = window.__AYN_TEXT_FIELD_MAP__ || new Map();
 
     const registerTextField = (prefix, el, idx) => {
       // v1.9.61 — hard guard: never allow non-text-like controls to be registered as
@@ -1162,7 +1173,7 @@
         const role = (el && el.getAttribute && (el.getAttribute('role') || '')).toLowerCase();
         if (role === 'radio' || role === 'checkbox') return null;
       } catch (_) {}
-      const raw = `__textfield__:tf${textFieldCounter++}:${idx}`;
+      const raw = `__textfield__:tf${aynFid(el)}`;
       const fid = prefix + raw;
       try {
         if (window.__AYN_TEXT_FIELD_MAP__) {
@@ -1264,7 +1275,6 @@
         };
         const groups = new Map();
         allRadios.forEach(r => { const c = containerOf(r); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(r); });
-        let gi = 0;
         groups.forEach((radios, container) => {
           if (radios.length < 2) return;
           const options = radios.map(r => {
@@ -1274,8 +1284,8 @@
           const rq = aynFindQuestionForOptionGroup(container, options, radios[0]);
           const q = (rq.label || 'Question').slice(0, 240);
           const classifyText = `${q} ${options.map(o => o.label).join(' ')}`;
-          const gid = `${prefix}__structradio__:${++gi}`;
-          window.__AYN_STRUCTRADIO_MAP__.set(gid, radios);
+          const gid = `${prefix}__structradio__:g${aynFid(container)}`;
+          window.__AYN_STRUCTRADIO_MAP__.set(gid, { container, radios });
           radios.forEach(r => { usedRadios.add(r); processedRadios.add(r); });
           fields.push({
             id: gid,
@@ -1302,22 +1312,19 @@
         const customRadios = Array.from(doc.querySelectorAll('[role="radio"]'))
           .filter(el => el.tagName !== 'INPUT' && !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
         const byGroup = new Map();
-        let anonCIdx = 0;
         customRadios.forEach(el => {
           const g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
           if (!g) return;
-          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + (++anonCIdx);
+          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + aynFid(g);
           const key = g.__aynCustomGroupKey;
           if (!byGroup.has(key)) byGroup.set(key, { group: g, els: [] });
           byGroup.get(key).els.push(el);
         });
-        let cCounter = 0;
         byGroup.forEach(({ group, els }) => {
           if (els.length < 2) return;
           const first = els[0];
-          const localIdx = ++cCounter;
-          const fieldId = `${prefix}__radio__:custom:${localIdx}`;
-          const groupKey = `${prefix}radio:custom:${localIdx}`;
+          const fieldId = `${prefix}__radio__:custom:g${aynFid(group)}`;
+          const groupKey = fieldId;
           if (seenGroupKeys.has(groupKey)) { els.forEach(e => processedCustomRadios.add(e)); return; }
           seenGroupKeys.add(groupKey);
           els.forEach(e => processedCustomRadios.add(e));
@@ -1367,8 +1374,6 @@
       //   - Uses tight nearest-common-ancestor via containerFor
       try {
         if (!window.__AYN_LABELGROUP_MAP__) window.__AYN_LABELGROUP_MAP__ = new Map();
-        // Back-compat alias so any legacy code paths using __AYN_GEM_MAP__ still resolve.
-        if (!window.__AYN_GEM_MAP__) window.__AYN_GEM_MAP__ = window.__AYN_LABELGROUP_MAP__;
         const allLabels = Array.from(doc.querySelectorAll('label')).filter(l => {
           if (l.querySelector('input, select, textarea, [role="radio"], [role="checkbox"]')) return false;
           // If the label points via htmlFor to a native form control, skip (native pass owns it).
@@ -1391,13 +1396,12 @@
         };
         const groups = new Map();
         allLabels.forEach(l => { const c = containerFor(l); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); });
-        let lgIdx = 0;
         groups.forEach((labs, container) => {
           if (labs.length < 2 || labs.length > 12) return;
           // Skip if container already covered by native/role checkables (owned by earlier passes)
           if (container.querySelector('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]')) return;
-          const lgId = `${prefix}__labelgroup__:${++lgIdx}`;
-          const groupKey = `${prefix}labelgroup:${lgIdx}`;
+          const lgId = `${prefix}__labelgroup__:g${aynFid(container)}`;
+          const groupKey = lgId;
           if (seenGroupKeys.has(groupKey)) return;
           seenGroupKeys.add(groupKey);
           const options = labs.map(l => { const t = (l.innerText || '').trim(); return { label: t, value: t }; });
@@ -1704,7 +1708,6 @@
           '.monaco-editor .view-lines',
         ].join(',');
         const seenEditables = new WeakSet();
-        let reIdx = 0;
         Array.from(doc.querySelectorAll(RICH_SEL)).forEach(cand => {
           try {
             const info = aynResolveRichEditor(cand);
@@ -1718,7 +1721,7 @@
             const label = (__accR.name && __accR.name.length >= 2) ? __accR.name : (getLabelFor(editable) || aynNearbyPrompt(editable) || '');
             if (!label) return;
             if (SKIP_RE.test(label)) return;
-            const rid = `${prefix}__richedit__:re${reIdx++}`;
+            const rid = `${prefix}__richedit__:re${aynFid(editable)}`;
             window.__AYN_RICH_EDITOR_MAP__.set(rid, editable);
             let current = '';
             try { current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.innerText || ''); } catch {}
@@ -1771,7 +1774,6 @@
           '.ProseMirror', '.tiptap', '.ql-editor', '.DraftEditor-root', '.public-DraftEditor-content',
           '[data-slate-editor="true"]', '[data-lexical-editor="true"]', '[data-editor]'
         ].join(',');
-        let otIdx = 0;
         Array.from(doc.querySelectorAll(OPEN_SEL)).forEach(cand => {
           try {
             const info = aynResolveRichEditor(cand);
@@ -1785,7 +1787,7 @@
             const prompt = ((acc.name && acc.name.length >= 2) ? acc.name : '') || getLabelFor(editable) || aynNearbyPrompt(editable) || aynFieldQuestion(editable) || '';
             if (!prompt || SKIP_RE.test(prompt)) return;
             const current = (typeof aynReadValue === 'function') ? aynReadValue(editable) : (editable.value || editable.innerText || '');
-            const rid = `${prefix}__opentext__:ot${otIdx++}`;
+            const rid = `${prefix}__opentext__:ot${aynFid(editable)}`;
             window.__AYN_OPEN_TEXT_MAP__.set(rid, editable);
             seenEditables.add(editable);
             const ctx = aynCaptureContext(editable);
@@ -2083,7 +2085,7 @@
           if (tag !== 'INPUT' && tag !== 'TEXTAREA') continue;
           const cur = el.value || '';
           const wantDigits = digits(want);
-          const stillThere = norm(cur) === norm(want) || (wantDigits.length >= 7 && digits(cur) === wantDigits) || (norm(cur).length > 0 && norm(cur).includes(norm(want)));
+          const stillThere = norm(cur) === norm(want) || (wantDigits.length >= 7 && digits(cur) === wantDigits) || (norm(want).length >= 6 && norm(cur).includes(norm(want)));
           if (stillThere) continue;
           reverted++;
           try {
@@ -2237,63 +2239,18 @@
     return { target: interactive, scope };
   }
 
-  // Main-world click fallback — injects a <script> into the page to run the click
-  // outside the extension's isolated world (so React listeners on the page can react).
+  // Main-world click fallback — v1.9.67: routed through page-world.js via the same
+  // attribute+event bridge used for text fills. Replaces the old inline <script>
+  // injection, which page CSP blocked on many sites.
   function mainWorldClickByText(qLabel, optionText) {
     try {
-      const q = JSON.stringify(String(qLabel || '').slice(0, 40));
-      const o = JSON.stringify(String(optionText || '').trim());
-      const code = `(function(){
-        function normOpt(s){
-          return String(s||'').toLowerCase()
-            .replace(/[\\u2010-\\u2015\\u2212]/g,'-')
-            .replace(/[.,;:!?'"()]/g,' ')
-            .replace(/\\s+/g,' ').trim();
-        }
-        function optMatches(a,b){
-          a=normOpt(a);b=normOpt(b);
-          if(!a||!b)return false;
-          if(a===b)return true;
-          if(a.length>=3 && b.length>=3 && (a.indexOf(b)!==-1 || b.indexOf(a)!==-1)) return true;
-          var wa=a.split(' ').filter(function(w){return w.length>2;});
-          var wb=b.split(' ').filter(function(w){return w.length>2;});
-          var short=wa, long=new Set(wb);
-          if(wa.length>wb.length){short=wb;long=new Set(wa);}
-          if(short.length>=3){
-            var hits=short.filter(function(w){return long.has(w);}).length;
-            if(hits/short.length>=0.8)return true;
-          }
-          return false;
-        }
-        try{
-          var qKey=${q}.trim().toLowerCase();
-          var wantRaw=${o};
-          if(!qKey||!wantRaw)return;
-          var all=document.querySelectorAll('label,legend,p,h2,h3,h4,strong,div,span');
-          var labelEl=null;
-          for(var i=0;i<all.length;i++){
-            var c=all[i];var t=(c.textContent||'').trim().toLowerCase();
-            if(!t||t.length>=260)continue;
-            if(t.indexOf(qKey)!==-1){labelEl=c;break;}
-          }
-          if(!labelEl)return;
-          var node=labelEl.parentElement;
-          for(var j=0;j<7&&node;j++,node=node.parentElement){
-            var btns=node.querySelectorAll('button,[role="radio"],[role="button"],[role="option"]');
-            for(var k=0;k<btns.length;k++){
-              var b=btns[k];var bt=(b.textContent||'').trim();
-              if(optMatches(bt,wantRaw)){b.click();return;}
-            }
-          }
-        }catch(e){}
-      })();`;
-      const s = document.createElement('script');
-      s.textContent = code;
-      (document.head || document.documentElement).appendChild(s);
-      s.remove();
+      const root = document.documentElement;
+      root.setAttribute('data-ayn-click-q', String(qLabel || '').slice(0, 120));
+      root.setAttribute('data-ayn-click-opt', String(optionText || '').trim().slice(0, 200));
+      document.dispatchEvent(new Event('ayn-click-request', { bubbles: true }));
       return true;
     } catch (e) {
-      console.log('[AYN-BG] mainWorld blocked', e && e.message);
+      console.log('[AYN-BG] mainWorld bridge failed', e && e.message);
       return false;
     }
   }
@@ -2810,11 +2767,10 @@
 
       const { doc, rawId } = resolveDoc(id, _frame);
 
-      // Label-based custom group click (generalized; matches __labelgroup__: and legacy __gem__:)
-      if (id.includes('__labelgroup__:') || id.includes('__gem__:')) {
+      // Label-based custom group click
+      if (id.includes('__labelgroup__:')) {
         const targets = [optionLabel || optionValue || value].filter(Boolean);
-        const labs = ((window.__AYN_LABELGROUP_MAP__ && window.__AYN_LABELGROUP_MAP__.get(id))
-                   || (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id))) || null;
+        const labs = (window.__AYN_LABELGROUP_MAP__ && window.__AYN_LABELGROUP_MAP__.get(id)) || null;
         if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'labelgroup not found' }); continue; }
         let landed = false;
         for (const tRaw of targets) {
@@ -2862,7 +2818,20 @@
 
       // v1.9.44 — structural native-radio group (unique-name forms like Gem)
       if (id.includes('__structradio__:')) {
-        const radios = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
+        const entry = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(id)) || null;
+        let radios = null;
+        if (entry) {
+          // v1.9.67 — prefer LIVE radios from the persisted container. React
+          // re-renders replace input nodes, but the container usually survives.
+          const container = entry.container || null;
+          const stored = Array.isArray(entry) ? entry : (entry.radios || []);
+          if (container && container.isConnected) {
+            const live = Array.from(container.querySelectorAll('input[type="radio"]')).filter(r => !r.disabled);
+            radios = live.length >= 2 ? live : stored;
+          } else {
+            radios = stored;
+          }
+        }
         if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
         const cands = [optionLabel, optionValue, value].map(s => String(s || '').trim()).filter(Boolean);
         let target = null;
@@ -2950,14 +2919,9 @@
                 await sleep(80);
                 verified = target.getAttribute('aria-checked') === 'true';
               }
-              if (!verified) {
-                // Manually set aria-checked and unset siblings (last-resort)
-                try {
-                  target.setAttribute('aria-checked', 'true');
-                  customEls.forEach(e => { if (e !== target) { try { e.setAttribute('aria-checked', 'false'); } catch {} } });
-                  verified = true;
-                } catch {}
-              }
+              // v1.9.67 — removed forced success. Painting aria-checked ourselves does
+              // not change the page's real state; reporting it as verified poisoned
+              // answer memory and inflated fill counts. Unverified stays unverified.
               if (verified) anyC = true;
             } catch {}
           }
@@ -3014,14 +2978,8 @@
           try { target.scrollIntoView({ block: 'center' }); } catch {}
           try { target.focus && target.focus(); } catch {}
           target.click();
-          // role=radio: set aria-checked manually & unset siblings within scope
-          if ((target.getAttribute('role') || '').toLowerCase() === 'radio') {
-            try { target.setAttribute('aria-checked', 'true'); } catch {}
-            const root = scope || document;
-            root.querySelectorAll('[role="radio"]').forEach(r => {
-              if (r !== target) { try { r.setAttribute('aria-checked', 'false'); } catch {} }
-            });
-          }
+          // v1.9.67 — removed manual aria-checked painting. Verification below must
+          // observe the page's own state change; otherwise the result is unverified.
 
           await sleep(60);
           let verified = bgIsSelected(target);
@@ -3246,10 +3204,9 @@
       } catch (_) {}
     } catch (_) { /* diagnostics must never break fill */ }
 
-    // v1.9.52 — filled counts ANY ok===true result (including "already correct"), excludes visiondiag entries
-    const __countable = results.filter(r => r && r.id !== 'visiondiag');
-    const __filled = __countable.filter(r => r.ok === true).length;
-    return { filled: __filled, total: __countable.length, results };
+    // v1.9.67 — single counting rule: ok===true counts as filled (incl. "already correct").
+    const __filled = results.filter(r => r && r.ok === true).length;
+    return { filled: __filled, total: results.length, results };
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -3684,8 +3641,8 @@
     const vdiag = { enabled: AYN_VISION_ENABLED, scanned: 0, unresolved: 0, candQ: 0, candOpt: 0, sent: false, resp: 'none', captured: '', captureError: '', backendError: '', decisions: 0, clicks: 0 };
     const pushDiag = () => {
       try {
-        results.push({ id: 'visiondiag', ok: (vdiag.clicks > 0), reason: JSON.stringify(vdiag).slice(0, 300) });
-        if (injectResult) injectResult.results = results;
+        // v1.9.67 — diagnostics ride as metadata, never as a fake failed result row.
+        if (injectResult) { injectResult.visionDiag = vdiag; injectResult.results = results; }
       } catch (_) {}
     };
     try {
@@ -3794,9 +3751,8 @@
       if (injectResult) {
         injectResult.results = results;
         // v1.9.52 — recompute using unified rule
-        const __c = results.filter(r => r && r.id !== 'visiondiag');
-        injectResult.total = __c.length;
-        injectResult.filled = __c.filter(r => r.ok === true).length;
+        injectResult.total = results.length;
+        injectResult.filled = results.filter(r => r && r.ok === true).length;
       }
     } catch (_) {
       /* swallow */
@@ -3911,18 +3867,13 @@
     }
 
     if (message.type === 'HIGHLIGHT_FIELDS') {
-      const wanted = new Set(message.fieldIds || []);
       try {
-        collectScannableDocs().forEach(({ doc, prefix }) => {
-          const all = doc.querySelectorAll ? doc.querySelectorAll('input, textarea, select') : [];
-          all.forEach((el, idx) => {
-            const id = `${prefix || ''}${el.id || el.name || `f${idx}`}`;
-            if (wanted.has(id)) {
-              el.style.outline = '2px solid #f59e0b';
-              el.style.outlineOffset = '2px';
-              setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2500);
-            }
-          });
+        (message.fieldIds || []).forEach(id => {
+          const el = aynResolveFieldEl(id, '');
+          if (!el || !el.style) return;
+          el.style.outline = '2px solid #f59e0b';
+          el.style.outlineOffset = '2px';
+          setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2500);
         });
       } catch {}
       sendResponse({ ok: true });

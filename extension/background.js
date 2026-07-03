@@ -104,7 +104,7 @@ async function safeSendMessage(tabId, message, frameId = 0) {
   const direct = await tryOnce();
   if (direct !== null) return direct;
   try {
-    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['content.js'] });
+    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['constants.js', 'filler.js', 'content.js'] });
     await new Promise(r => setTimeout(r, 300));
     return tryOnce();
   } catch { return null; }
@@ -567,6 +567,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 })),
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: topScan.ats || 'unknown', url: topScan.url || '',
+              extVersion: chrome.runtime.getManifest().version,
             });
               const newFieldMeta = new Map(newFieldsAll.map(f => [f.id, f]));
               const newValues = (fill2.values || [])
@@ -587,6 +588,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                   };
                 });
             if (newValues.length > 0) {
+              const secondResults = [];
               const byFrame2 = new Map();
               for (const v of newValues) {
                 const fid = frameOfField.get(v.id) ?? 0;
@@ -596,9 +598,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               for (const [fid, vals] of byFrame2) {
                 const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: vals }, fid);
                 secondPassFilled += (fr2?.filled || 0);
-                (fr2?.results || []).forEach(r => mergedResults.push({ ...r, id: AGG(fid, r.id), _frameId: fid }));
+                (fr2?.results || []).forEach(r => { const rr = { ...r, id: AGG(fid, r.id), _frameId: fid }; mergedResults.push(rr); secondResults.push(rr); });
                 vals.forEach(v => values.push({ ...v, id: AGG(fid, v.id) }));
               }
+              // v1.9.67 — close the second-pass telemetry row (previously orphaned:
+              // the second ext_autofill call inserted a run that was never completed).
+              try {
+                if (fill2?.run_id) {
+                  callFunction('ext_log_result', {
+                    run_id: fill2.run_id,
+                    inject_results: secondResults,
+                    filled: secondResults.filter(r => r && r.ok === true).length,
+                    total: secondResults.length,
+                  }).catch(() => {});
+                }
+              } catch (_) {}
             }
           }
         } catch { /* ignore second-pass errors */ }
@@ -611,7 +625,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
           const mem = await aynMemGet();
           for (const r of mergedResults) {
-            if (!r || !r.ok || String(r.id).endsWith('visiondiag')) continue;
+            if (!r || !r.ok || r.verified === false) continue;
             const v = values.find(x => x.id === r.id);
             const f = fields.find(x => x.id === r.id);
             if (!v || !f) continue;
@@ -652,11 +666,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           };
         });
 
-        // Unified counting: ok===true counts as filled (incl. "already correct"); exclude any visiondiag entry (namespaced or not)
+        // v1.9.67 — single counting rule: ok===true counts as filled.
         const __allResults = (fillResult?.results || []);
-        const __countable = __allResults.filter(r => r && !String(r.id).endsWith('visiondiag'));
-        const __filled = __countable.filter(r => r.ok === true).length;
-        const __total = __countable.length;
+        const __filled = __allResults.filter(r => r && r.ok === true).length;
+        const __total = __allResults.length;
         const __needsReviewCount = details.filter(d => d.needsReview).length;
 
         sendResponse({
