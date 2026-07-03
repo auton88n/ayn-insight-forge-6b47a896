@@ -3203,10 +3203,9 @@
       } catch (_) {}
     } catch (_) { /* diagnostics must never break fill */ }
 
-    // v1.9.52 — filled counts ANY ok===true result (including "already correct"), excludes visiondiag entries
-    const __countable = results.filter(r => r && r.id !== 'visiondiag');
-    const __filled = __countable.filter(r => r.ok === true).length;
-    return { filled: __filled, total: __countable.length, results };
+    // v1.9.67 — single counting rule: ok===true counts as filled (incl. "already correct").
+    const __filled = results.filter(r => r && r.ok === true).length;
+    return { filled: __filled, total: results.length, results };
   }
 
   // ══════════════════════════════════════════════════════════════════
