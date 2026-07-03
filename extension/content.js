@@ -1316,22 +1316,19 @@
         const customRadios = Array.from(doc.querySelectorAll('[role="radio"]'))
           .filter(el => el.tagName !== 'INPUT' && !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
         const byGroup = new Map();
-        let anonCIdx = 0;
         customRadios.forEach(el => {
           const g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
           if (!g) return;
-          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + (++anonCIdx);
+          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + aynFid(g);
           const key = g.__aynCustomGroupKey;
           if (!byGroup.has(key)) byGroup.set(key, { group: g, els: [] });
           byGroup.get(key).els.push(el);
         });
-        let cCounter = 0;
         byGroup.forEach(({ group, els }) => {
           if (els.length < 2) return;
           const first = els[0];
-          const localIdx = ++cCounter;
-          const fieldId = `${prefix}__radio__:custom:${localIdx}`;
-          const groupKey = `${prefix}radio:custom:${localIdx}`;
+          const fieldId = `${prefix}__radio__:custom:g${aynFid(group)}`;
+          const groupKey = fieldId;
           if (seenGroupKeys.has(groupKey)) { els.forEach(e => processedCustomRadios.add(e)); return; }
           seenGroupKeys.add(groupKey);
           els.forEach(e => processedCustomRadios.add(e));
