@@ -43,24 +43,20 @@
   // so the user's original scroll position is preserved.
   async function aynEnsureRendered() {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const raf = () => new Promise(r => { try { requestAnimationFrame(() => r()); } catch { r(); } });
     let startY = 0;
     try {
       const se = document.scrollingElement || document.documentElement;
       if (!se) return () => {};
       startY = se.scrollTop || 0;
-      let lastH = se.scrollHeight || 0;
-      for (let i = 0; i < 6; i++) {
-        const max = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
-        if (max <= 100) break;
-        try { window.scrollTo(0, max); } catch (_) {}
-        await sleep(250);
-        const nowH = se.scrollHeight || 0;
-        if (Math.abs(nowH - lastH) < 4) break;
-        lastH = nowH;
+      const max0 = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
+      if (max0 > 100) {
+        for (let step = 1; step <= 4; step++) {
+          const cur = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
+          try { window.scrollTo(0, Math.floor(cur * (step / 4))); } catch (_) {}
+          await sleep(130);
+        }
+        await sleep(120);
       }
-      await raf();
-      await sleep(300);
     } catch (_) {}
     return () => { try { window.scrollTo(0, startY); } catch (_) {} };
   }
