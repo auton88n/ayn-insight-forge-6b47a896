@@ -2811,11 +2811,10 @@
 
       const { doc, rawId } = resolveDoc(id, _frame);
 
-      // Label-based custom group click (generalized; matches __labelgroup__: and legacy __gem__:)
-      if (id.includes('__labelgroup__:') || id.includes('__gem__:')) {
+      // Label-based custom group click
+      if (id.includes('__labelgroup__:')) {
         const targets = [optionLabel || optionValue || value].filter(Boolean);
-        const labs = ((window.__AYN_LABELGROUP_MAP__ && window.__AYN_LABELGROUP_MAP__.get(id))
-                   || (window.__AYN_GEM_MAP__ && window.__AYN_GEM_MAP__.get(id))) || null;
+        const labs = (window.__AYN_LABELGROUP_MAP__ && window.__AYN_LABELGROUP_MAP__.get(id)) || null;
         if (!labs || !labs.length) { results.push({ id, ok: false, reason: 'labelgroup not found' }); continue; }
         let landed = false;
         for (const tRaw of targets) {
