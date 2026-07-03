@@ -652,11 +652,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           };
         });
 
-        // Unified counting: ok===true counts as filled (incl. "already correct"); exclude any visiondiag entry (namespaced or not)
+        // v1.9.67 — single counting rule: ok===true counts as filled.
         const __allResults = (fillResult?.results || []);
-        const __countable = __allResults.filter(r => r && !String(r.id).endsWith('visiondiag'));
-        const __filled = __countable.filter(r => r.ok === true).length;
-        const __total = __countable.length;
+        const __filled = __allResults.filter(r => r && r.ok === true).length;
+        const __total = __allResults.length;
         const __needsReviewCount = details.filter(d => d.needsReview).length;
 
         sendResponse({
