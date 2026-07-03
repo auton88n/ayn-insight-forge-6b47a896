@@ -881,7 +881,6 @@
     const docs = [];
     const map = new Map();
     const seenRoots = new WeakSet();
-    let shCounter = 0;
     function add(root, prefix) {
       if (!root || seenRoots.has(root)) return;
       seenRoots.add(root);
@@ -889,20 +888,16 @@
       map.set(prefix, root);
       let els;
       try { els = root.querySelectorAll ? root.querySelectorAll('*') : []; } catch { return; }
-      // Collect nested iframes (indexed within this root)
-      let iframeIdx = 0;
       els.forEach(el => {
         try {
           if (el.shadowRoot) {
-            const p = `sh${shCounter++}:`;
-            add(el.shadowRoot, prefix + p);
+            add(el.shadowRoot, prefix + `sh${aynFid(el)}:`);
           }
         } catch {}
         if (el.tagName === 'IFRAME') {
-          const idx = iframeIdx++;
           try {
             const fdoc = el.contentDocument;
-            if (fdoc) add(fdoc, prefix + `frame${idx}:`);
+            if (fdoc) add(fdoc, prefix + `frame${aynFid(el)}:`);
           } catch { /* cross-origin, ignore */ }
         }
       });
