@@ -1400,7 +1400,6 @@
         };
         const groups = new Map();
         allLabels.forEach(l => { const c = containerFor(l); if (!c) return; if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); });
-        let lgIdx = 0;
         groups.forEach((labs, container) => {
           if (labs.length < 2 || labs.length > 12) return;
           // Skip if container already covered by native/role checkables (owned by earlier passes)
