@@ -1207,7 +1207,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             fields_scanned: fieldsScanned,
             ai_values: aiValues,
             skipped,
-            meta: (() => { try { return { ...(meta || {}), scanDiag: Array.isArray(scanDiag) ? (scanDiag as unknown[]).slice(0, 30) : [] }; } catch { return meta; } })(),
+            meta: (() => { try { return { ...(meta || {}), resolved_by: { ...resolvedBySrc, ai: filtered.length }, scanDiag: Array.isArray(scanDiag) ? (scanDiag as unknown[]).slice(0, 30) : [] }; } catch { return meta; } })(),
           }).select("id").single();
           runId = runRow?.id || null;
         } catch (e) {
