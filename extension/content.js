@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.65';
+  const AYN_BUILD = '1.9.66';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -43,24 +43,20 @@
   // so the user's original scroll position is preserved.
   async function aynEnsureRendered() {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const raf = () => new Promise(r => { try { requestAnimationFrame(() => r()); } catch { r(); } });
     let startY = 0;
     try {
       const se = document.scrollingElement || document.documentElement;
       if (!se) return () => {};
       startY = se.scrollTop || 0;
-      let lastH = se.scrollHeight || 0;
-      for (let i = 0; i < 6; i++) {
-        const max = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
-        if (max <= 100) break;
-        try { window.scrollTo(0, max); } catch (_) {}
-        await sleep(250);
-        const nowH = se.scrollHeight || 0;
-        if (Math.abs(nowH - lastH) < 4) break;
-        lastH = nowH;
+      const max0 = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
+      if (max0 > 100) {
+        for (let step = 1; step <= 4; step++) {
+          const cur = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
+          try { window.scrollTo(0, Math.floor(cur * (step / 4))); } catch (_) {}
+          await sleep(130);
+        }
+        await sleep(120);
       }
-      await raf();
-      await sleep(300);
     } catch (_) {}
     return () => { try { window.scrollTo(0, startY); } catch (_) {} };
   }
@@ -1254,9 +1250,11 @@
         const usedRadios = window.__AYN_USED_RADIOS__;
         // mirror shared-name pass results into the window set
         try { Array.from(doc.querySelectorAll('input[type="radio"]')).forEach(r => { if (processedRadios.has(r)) usedRadios.add(r); }); } catch (_) {}
-        // v1.9.65 — drop offsetParent check so lazy-mounted (below-fold) radios
-        // like Veteran / Disability get grouped even when not currently visible.
-        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled);
+        // v1.9.66 — only group radios that are actually laid out. Hidden/template
+        // radios must be excluded or groups get polluted and the wrong option is clicked.
+        // Lazy below-fold radios are mounted by aynEnsureRendered() and then have a
+        // non-null offsetParent, so this still catches Veteran / Disability on Gem.
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
         const containerOf = (r) => {
           let node = r.parentElement;
           for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
