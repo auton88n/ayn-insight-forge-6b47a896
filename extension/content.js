@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.65';
+  const AYN_BUILD = '1.9.66';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -1250,9 +1250,11 @@
         const usedRadios = window.__AYN_USED_RADIOS__;
         // mirror shared-name pass results into the window set
         try { Array.from(doc.querySelectorAll('input[type="radio"]')).forEach(r => { if (processedRadios.has(r)) usedRadios.add(r); }); } catch (_) {}
-        // v1.9.65 — drop offsetParent check so lazy-mounted (below-fold) radios
-        // like Veteran / Disability get grouped even when not currently visible.
-        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled);
+        // v1.9.66 — only group radios that are actually laid out. Hidden/template
+        // radios must be excluded or groups get polluted and the wrong option is clicked.
+        // Lazy below-fold radios are mounted by aynEnsureRendered() and then have a
+        // non-null offsetParent, so this still catches Veteran / Disability on Gem.
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
         const containerOf = (r) => {
           let node = r.parentElement;
           for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
