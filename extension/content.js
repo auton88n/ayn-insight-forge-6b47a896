@@ -1405,8 +1405,8 @@
           if (labs.length < 2 || labs.length > 12) return;
           // Skip if container already covered by native/role checkables (owned by earlier passes)
           if (container.querySelector('input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]')) return;
-          const lgId = `${prefix}__labelgroup__:${++lgIdx}`;
-          const groupKey = `${prefix}labelgroup:${lgIdx}`;
+          const lgId = `${prefix}__labelgroup__:g${aynFid(container)}`;
+          const groupKey = lgId;
           if (seenGroupKeys.has(groupKey)) return;
           seenGroupKeys.add(groupKey);
           const options = labs.map(l => { const t = (l.innerText || '').trim(); return { label: t, value: t }; });
