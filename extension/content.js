@@ -3750,9 +3750,8 @@
       if (injectResult) {
         injectResult.results = results;
         // v1.9.52 — recompute using unified rule
-        const __c = results.filter(r => r && r.id !== 'visiondiag');
-        injectResult.total = __c.length;
-        injectResult.filled = __c.filter(r => r.ok === true).length;
+        injectResult.total = results.length;
+        injectResult.filled = results.filter(r => r && r.ok === true).length;
       }
     } catch (_) {
       /* swallow */
