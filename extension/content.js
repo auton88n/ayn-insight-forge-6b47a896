@@ -3022,14 +3022,8 @@
           try { target.scrollIntoView({ block: 'center' }); } catch {}
           try { target.focus && target.focus(); } catch {}
           target.click();
-          // role=radio: set aria-checked manually & unset siblings within scope
-          if ((target.getAttribute('role') || '').toLowerCase() === 'radio') {
-            try { target.setAttribute('aria-checked', 'true'); } catch {}
-            const root = scope || document;
-            root.querySelectorAll('[role="radio"]').forEach(r => {
-              if (r !== target) { try { r.setAttribute('aria-checked', 'false'); } catch {} }
-            });
-          }
+          // v1.9.67 — removed manual aria-checked painting. Verification below must
+          // observe the page's own state change; otherwise the result is unverified.
 
           await sleep(60);
           let verified = bgIsSelected(target);
