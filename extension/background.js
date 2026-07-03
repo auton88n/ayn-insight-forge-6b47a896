@@ -1,6 +1,9 @@
 // background.js — AYN Resume Tailor service worker
 // Auth: device tokens via "Sign in with AYN" one-click flow.
 
+// v1.9.55: two-lane resolver. Load shared constants + resolver into the SW.
+try { importScripts('constants.js', 'filler.js'); } catch (e) { console.warn('AYN resolver load failed', e); }
+
 const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
 const AYN_WEB = 'https://aynn.io';
@@ -106,6 +109,23 @@ async function safeSendMessage(tabId, message, frameId = 0) {
     return tryOnce();
   } catch { return null; }
 }
+
+// ── v1.9.55: profile vector + answer memory (two-lane resolver) ──────
+async function aynGetProfileVector() {
+  try {
+    const r = await chrome.storage.local.get('ayn_profile_vector');
+    const cached = r.ayn_profile_vector;
+    const fresh = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < 24 * 3600 * 1000);
+    if (fresh && cached.vector) return cached.vector;
+    const resp = await callFunction('ext_profile', {});
+    if (resp && resp.facts) { await chrome.storage.local.set({ ayn_profile_vector: { vector: resp, fetchedAt: Date.now() } }); return resp; }
+    return cached && cached.vector ? cached.vector : null;
+  } catch (_) {
+    try { const r = await chrome.storage.local.get('ayn_profile_vector'); return r.ayn_profile_vector ? r.ayn_profile_vector.vector : null; } catch { return null; }
+  }
+}
+async function aynMemGet() { try { const r = await chrome.storage.local.get('ayn_answers'); return r.ayn_answers || {}; } catch { return {}; } }
+async function aynMemSet(m) { try { await chrome.storage.local.set({ ayn_answers: m }); } catch (_) {} }
 
 // Enumerate frames worth scanning: the top frame (which already covers its own
 // same-origin subframes + shadow roots via collectScannableDocs), plus any frame
@@ -419,8 +439,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const jobText = topScan.jobText || {};
         if (fields.length === 0) { sendResponse({ ok: false, error: 'no_fields' }); return; }
 
+        // ── v1.9.55 two-lane resolver stage ─────────────────────────
+        // Resolves standard identity/link/logic fields locally from the
+        // cached profile vector + previously-saved answer memory, so only
+        // truly unknown fields go to the AI backend.
+        let localValues = [];
+        let unknownFields = fields;
+        let __resolvedSummary = [];
+        try {
+          if (self.AYN_CONST && self.AYN_CONST.RESOLVER_V2 && self.AYN_RESOLVER) {
+            const vector = await aynGetProfileVector();
+            if (vector) {
+              const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
+              const mem = await aynMemGet();
+              const unknown = [];
+              for (const f of fields) {
+                let hit = null;
+                if (!self.AYN_RESOLVER.isSensitive(f)) {
+                  const fp = await self.AYN_RESOLVER.fingerprint(f, host);
+                  const mm = mem[fp];
+                  if (mm && (mm.value || mm.optionLabel)) {
+                    hit = { id: f.id, ...(mm.optionLabel ? { optionLabel: mm.optionLabel, optionValue: mm.optionValue } : { value: mm.value }), confidence: 0.9, source: 'memory', reasoning: 'Reused a saved answer.' };
+                  }
+                }
+                if (!hit) {
+                  const m = self.AYN_RESOLVER.matchProfile(f, vector);
+                  if (m) hit = { id: f.id, ...(m.optionLabel ? { optionLabel: m.optionLabel, optionValue: m.optionValue } : { value: m.value }), confidence: m.confidence, source: 'profile', reasoning: 'Filled from your profile.' };
+                }
+                if (hit) { localValues.push(hit); __resolvedSummary.push({ id: f.id, source: hit.source, confidence: hit.confidence }); }
+                else unknown.push(f);
+              }
+              unknownFields = unknown;
+            }
+          }
+        } catch (e) { localValues = []; unknownFields = fields; __resolvedSummary = []; }
+
         const fillData = await callFunction('ext_autofill', {
-          fields: fields.map(f => ({
+          fields: unknownFields.map(f => ({
             id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
             options: f.options, required: f.required, currentValue: f.currentValue,
             accRole: f.accRole || '', labelSource: f.labelSource || '',
@@ -429,6 +484,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             siblingLabels: Array.isArray(f.siblingLabels) ? f.siblingLabels : [],
             richEditor: !!f.richEditor, richDetector: f.richDetector || '',
           })),
+          resolved: __resolvedSummary,
           jobText: jobText?.text || '',
           jobTitle: jobText?.title || '',
           company: jobText?.company || '',
@@ -440,23 +496,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const runId = fillData?.run_id || null;
 
         const fieldMeta = new Map(fields.map(f => [f.id, f]));
-        const values = (fillData.values || [])
+        const decorate = v => {
+          const f = fieldMeta.get(v.id) || {};
+          return {
+            ...v,
+            label: f.label || v.label || '',
+            kind: f.kind || f.type || v.kind || '',
+            type: f.type || v.type || '',
+            name: f.name || v.name || '',
+            group: f.group || v.group || '',
+            labelSource: f.labelSource || v.labelSource || '',
+            richDetector: f.richDetector || v.richDetector || '',
+            _idx: f._idx,
+            _frame: f._frame || '',
+          };
+        };
+        const aiValues = (fillData.values || [])
           .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
-          .map(v => {
-            const f = fieldMeta.get(v.id) || {};
-            return {
-              ...v,
-              label: f.label || v.label || '',
-              kind: f.kind || f.type || v.kind || '',
-              type: f.type || v.type || '',
-              name: f.name || v.name || '',
-              group: f.group || v.group || '',
-              labelSource: f.labelSource || v.labelSource || '',
-              richDetector: f.richDetector || v.richDetector || '',
-              _idx: f._idx,
-              _frame: f._frame || '',
-            };
-          });
+          .map(v => decorate({ ...v, source: v.source || 'ai' }));
+        const values = [...localValues.map(decorate), ...aiValues];
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         // Group values by owning frame; translate ids back to frame-local for injection
@@ -547,23 +605,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         const resultMap = {};
         (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
-        const details = values.map(v => ({
-          id: v.id,
-          label: fields.find(f => f.id === v.id)?.label || v.id,
-          group: v.group || fields.find(f => f.id === v.id)?.group || '',
-          value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
-          confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
-          reasoning: v.reasoning || '',
-          source: v.source || '',
-          ok: resultMap[v.id]?.ok || false,
-          reason: resultMap[v.id]?.reason || '',
-        }));
+
+        // v1.9.55 — write answer memory for non-sensitive AI/inferred fills
+        try {
+          const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
+          const mem = await aynMemGet();
+          for (const r of mergedResults) {
+            if (!r || !r.ok || String(r.id).endsWith('visiondiag')) continue;
+            const v = values.find(x => x.id === r.id);
+            const f = fields.find(x => x.id === r.id);
+            if (!v || !f) continue;
+            if (self.AYN_RESOLVER && self.AYN_RESOLVER.isSensitive(f)) continue;
+            if (!(v.value || v.optionLabel)) continue;
+            const fp = self.AYN_RESOLVER ? await self.AYN_RESOLVER.fingerprint(f, host) : null;
+            if (!fp) continue;
+            const prev = mem[fp] || { hits: 0 };
+            mem[fp] = {
+              label: f.label,
+              kind: f.kind || f.type || '',
+              value: v.value || '',
+              optionLabel: v.optionLabel || '',
+              optionValue: v.optionValue || '',
+              source: v.source || 'ai',
+              hits: (prev.hits || 0) + 1,
+              last_used_at: new Date().toISOString(),
+            };
+          }
+          await aynMemSet(mem);
+        } catch (_) {}
+
+        const details = values.map(v => {
+          const f = fields.find(x => x.id === v.id);
+          const needsReview = (typeof v.confidence === 'number' && v.confidence < 0.6)
+            || (f ? (self.AYN_RESOLVER ? self.AYN_RESOLVER.isSensitive(f) : false) : false);
+          return {
+            id: v.id,
+            label: f?.label || v.id,
+            group: v.group || f?.group || '',
+            value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
+            confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
+            reasoning: v.reasoning || '',
+            source: v.source || (resultMap[v.id] ? 'ai' : ''),
+            needsReview,
+            ok: resultMap[v.id]?.ok || false,
+            reason: resultMap[v.id]?.reason || '',
+          };
+        });
 
         // Unified counting: ok===true counts as filled (incl. "already correct"); exclude any visiondiag entry (namespaced or not)
         const __allResults = (fillResult?.results || []);
         const __countable = __allResults.filter(r => r && !String(r.id).endsWith('visiondiag'));
         const __filled = __countable.filter(r => r.ok === true).length;
         const __total = __countable.length;
+        const __needsReviewCount = details.filter(d => d.needsReview).length;
 
         sendResponse({
           ok: true,
@@ -572,6 +666,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           answered: values.length,
           verified: __filled,
           needsReview: Math.max(0, values.length - __filled) + ((fillData?.skipped || []).length),
+          needsReviewCount: __needsReviewCount,
+          resolvedLocally: localValues.length,
           details,
           passes: secondPassFilled > 0 ? 2 : 1,
           skipped: fillData?.skipped || [],

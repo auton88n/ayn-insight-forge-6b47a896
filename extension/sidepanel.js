@@ -560,7 +560,9 @@ $('autofill-now-btn').addEventListener('click', () => {
         ? response.needsReview
         : Math.max(0, answered - verified) + ((response.skipped || []).length);
       const pct = total > 0 ? Math.round(verified/total*100) : 0;
-      $('fill-stat-n').textContent = `${answered} answered · ${verified} verified`;
+      const needsReviewCount = typeof response.needsReviewCount === 'number' ? response.needsReviewCount : 0;
+      const reviewSuffix = needsReviewCount > 0 ? `, ${needsReviewCount} to review` : '';
+      $('fill-stat-n').textContent = `${verified}/${total} filled${reviewSuffix}`;
       $('fill-stat-lbl').textContent = `${needsReview} review`;
       const fillBar = $('fill-progress-fill');
       fillBar.style.width = pct + '%';
@@ -569,16 +571,20 @@ $('autofill-now-btn').addEventListener('click', () => {
 
       const list = $('fill-result-list');
       list.innerHTML = '';
+      const SOURCE_LABEL = { profile: 'Profile', memory: 'Memory', ai: 'AI', inferred: 'AI', computed: 'AI', canonical: 'AI', resume: 'AI' };
       (details || []).forEach(d => {
         const conf = typeof d.confidence === 'number' ? Math.round(d.confidence * 100) : null;
         const confBadge = conf != null
           ? `<span class="conf-pill ${conf>=80?'hi':conf>=50?'md':'lo'}" title="AI confidence">${conf}%</span>`
           : '';
+        const srcLbl = d.source ? (SOURCE_LABEL[d.source] || d.source) : '';
+        const srcBadge = srcLbl ? `<span style="margin-left:6px;font-size:10px;color:var(--ayn-muted,#6b7280);font-weight:600;">${esc(srcLbl)}</span>` : '';
+        const reviewBadge = d.needsReview ? `<span style="margin-left:6px;font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-weight:600;">Review</span>` : '';
         const reason = d.reasoning ? `<div class="fr">${esc(String(d.reasoning).slice(0,90))}</div>` : '';
         list.innerHTML += `
           <div class="fi">
             <div class="fd ${d.ok ? 'on' : 'off'}"></div>
-            <div class="fl">${esc(fillDisplayLabel(d))} ${confBadge}</div>
+            <div class="fl">${esc(fillDisplayLabel(d))} ${confBadge}${srcBadge}${reviewBadge}</div>
             <div class="fv">${d.ok ? esc((d.value||'').slice(0,28)) : esc(d.reason||'skipped')}</div>
             ${reason}
           </div>`;
