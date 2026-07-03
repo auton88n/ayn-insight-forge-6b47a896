@@ -611,7 +611,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
           const mem = await aynMemGet();
           for (const r of mergedResults) {
-            if (!r || !r.ok || String(r.id).endsWith('visiondiag')) continue;
+            if (!r || !r.ok || r.verified === false) continue;
             const v = values.find(x => x.id === r.id);
             const f = fields.find(x => x.id === r.id);
             if (!v || !f) continue;
