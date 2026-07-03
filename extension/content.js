@@ -1177,7 +1177,7 @@
         const role = (el && el.getAttribute && (el.getAttribute('role') || '')).toLowerCase();
         if (role === 'radio' || role === 'checkbox') return null;
       } catch (_) {}
-      const raw = `__textfield__:tf${textFieldCounter++}:${idx}`;
+      const raw = `__textfield__:tf${aynFid(el)}`;
       const fid = prefix + raw;
       try {
         if (window.__AYN_TEXT_FIELD_MAP__) {
