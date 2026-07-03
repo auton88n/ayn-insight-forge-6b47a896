@@ -39,9 +39,9 @@
 
   const SENSITIVE_RE = /gender|race|ethnic|disab|veteran|sexual|orientation|salary|compensation|desired pay|criminal|felony|conviction|date of birth|\bdob\b|\bage\b|religion|marital|pronoun/i;
   function isSensitive(field) {
-    const g = String(field && field.group || '').toLowerCase();
+    const g = (String((field && field.group) || '') + ' ' + String((field && field.section) || '')).toLowerCase();
     if (/eeo|demograph|self.?identif|voluntary|diversity/.test(g)) return true;
-    return SENSITIVE_RE.test((field && field.label) || '') || SENSITIVE_RE.test((field && field.group) || '');
+    return SENSITIVE_RE.test((field && field.label) || '') || SENSITIVE_RE.test((field && field.group) || '') || SENSITIVE_RE.test((field && field.section) || '');
   }
 
   function optionsSignature(field) {
