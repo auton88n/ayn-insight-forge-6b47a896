@@ -213,6 +213,8 @@ const EXT_ACTIONS = new Set([
   "ext_log_result",
   // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
   "ext_vision_fill",
+  // v1.9.55: two-lane resolver — client-side profile vector
+  "ext_profile",
 ]);
 
 // ──────────────────────────────────────────────────────────────
