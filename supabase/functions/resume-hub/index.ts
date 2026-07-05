@@ -1105,6 +1105,7 @@ Generic decision rules (apply to ANY user, no country baked in):
 
 DEMOGRAPHIC / EEO / VOLUNTARY SELF-IDENTIFICATION (eeo.*: race, ethnicity, gender, gender identity, pronouns, sexual orientation, disability status, veteran status):
 - NEVER guess or infer from the name, resume, or anything else.
+- EXCEPTION: profile.default_answers.eeo holds the user's OWN stored answers (keys: gender, race, veteran, disability, visible_minority, indigenous). When the question type has a stored answer, pick the option matching that stored value, optionLabel/optionValue copied verbatim from options[], source "profile". race may be an ordered list of preferences; use the first that matches an option.
 - If an option exists meaning "Decline to self-identify" / "Prefer not to answer" / "I do not wish to disclose" / "Choose not to disclose", pick that (return its exact optionLabel/optionValue).
 - Otherwise set skip:true. Do not pick any specific demographic option.
 
