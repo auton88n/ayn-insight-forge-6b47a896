@@ -1096,6 +1096,8 @@
 
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
+      // v2.0.0 — page-global option-text index for this document's scan.
+      try { if (self.AYN_DOM && self.AYN_DOM.beginScan) self.AYN_DOM.beginScan(doc); } catch (_) {}
       // ── PRE-PASS: group native radios by shared name into ONE field per group ──
       const processedRadios = new WeakSet();
       try {
