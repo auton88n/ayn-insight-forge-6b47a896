@@ -1303,6 +1303,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             authorized_ca,
             needs_sponsorship,
             citizenship: cwa.citizenship || "",
+            eeo: (((profile?.default_answers as Record<string, unknown>) || {}) as any).eeo || {},
           };
 
           const cands = (candidates && typeof candidates === "object") ? candidates as { questions?: string[]; options?: string[] } : {};
