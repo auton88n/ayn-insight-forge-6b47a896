@@ -1316,7 +1316,7 @@ DECISION RULES (STRICT):
 - Work authorization / "authorized to work in {country}": if authorized_ca=true for a Canada question, or authorized_us=true for a US question, or the combined list includes an authorized country → pick the option meaning "authorized to work" or the specific country name.
 - Sponsorship: if authorized in any listed country and needs_sponsorship is not true → pick the "do not require sponsorship" / "authorized for any employer" option.
 - Residence / location eligibility: if the user's city, region, region_full, or country matches any place mentioned in the question or its options → pick the "Yes, I currently reside" option.
-- EEO / demographics (gender, race, ethnicity, veteran, disability, sexual orientation): ALWAYS pick "Decline to self-identify" / "Prefer not to disclose" / "I do not wish to answer". NEVER a real demographic value.
+- EEO / demographics (gender, race, ethnicity, veteran, disability, sexual orientation): if USER FACTS eeo stores an answer for that question type (gender, race, veteran, disability, visible_minority, indigenous), pick the visible option matching the stored value (race may be an ordered preference list; use the first that matches). Otherwise pick "Decline to self-identify" / "Prefer not to disclose" / "I do not wish to answer". NEVER guess a demographic value that is not stored.
 - Otherwise: pick the option that best matches the profile. If nothing fits with high confidence, OMIT that question.
 - chosenOptionText MUST be copied verbatim from the visible options list so the extension can click it. No dashes; use plain text.
 
