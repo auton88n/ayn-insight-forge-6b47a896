@@ -2893,6 +2893,13 @@
           const qLabel = getLabelFor(firstInput) || name;
           try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
           if (btn) {
+            // v2.1.0 — idempotency: if the button already reflects the wanted
+            // state, don't click (Ashby toggles on second click and undoes it).
+            const alreadySelected = bgIsSelected(btn);
+            if (alreadySelected) {
+              filled++; results.push({ id, ok: true, verified: true, reason: 'proxy-already-set' });
+              continue;
+            }
             const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
             if (okv) { filled++; results.push({ id, ok: true, verified: true }); continue; }
           }
