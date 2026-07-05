@@ -985,7 +985,7 @@ Deno.serve(async (req) => {
               const stored = (eeoPrefs as any).race;
               const wants = Array.isArray(stored) ? stored : (stored ? [stored] : []);
               const picked: string[] = [];
-              for (const w of wants) { const m = matchOpt(w); if (m && m.label) picked.push(m.label); }
+              for (const w of wants) { const m = matchOpt(w); if (m && m.label) { picked.push(m.label); break; } }
               if (picked.length) return { id: f.id, optionLabels: picked, skip: false, confidence: 0.95, reasoning: "Race/ethnicity from saved profile", source: "profile" };
               const dOpt = chooseOpt(f, /decline|prefer not|do not wish|choose not|rather not|not disclose|no answer/);
               if (dOpt && dOpt.label) return { id: f.id, optionLabels: [dOpt.label], skip: false, confidence: 0.99, reasoning: "EEO multi-select; declined per policy", source: "computed" };
