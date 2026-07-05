@@ -73,7 +73,7 @@
         "https://*.hcaptcha.com/*",
         "https://challenges.cloudflare.com/*"
       ],
-      "js": ["constants.js", "filler.js", "content.js"],
+      "js": ["constants.js", "filler.js", "dom.js", "content.js"],
       "run_at": "document_idle",
       "all_frames": true
     },
