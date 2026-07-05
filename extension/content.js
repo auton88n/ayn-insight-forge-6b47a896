@@ -1177,7 +1177,7 @@
         // radios must be excluded or groups get polluted and the wrong option is clicked.
         // Lazy below-fold radios are mounted by aynEnsureRendered() and then have a
         // non-null offsetParent, so this still catches Veteran / Disability on Gem.
-        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && (self.AYN_DOM ? self.AYN_DOM.visibleish(r) : r.offsetParent !== null));
         const containerOf = (r) => {
           let node = r.parentElement;
           for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
