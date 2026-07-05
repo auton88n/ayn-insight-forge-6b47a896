@@ -1010,115 +1010,16 @@
     for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
     return (h >>> 0).toString(36);
   }
-  function aynOptionTextSet(optionsOrEls) {
-    const set = new Set();
-    try {
-      (optionsOrEls || []).forEach(o => {
-        let t = '';
-        if (typeof o === 'string') t = o;
-        else if (o && typeof o.label === 'string') t = o.label;
-        else if (o && o.nodeType === 1) t = safeText(o) || o.getAttribute?.('aria-label') || '';
-        t = aynNormLine(t).toLowerCase();
-        if (t) set.add(t);
-      });
-    } catch (_) {}
-    return set;
-  }
-  function aynBadQuestionLine(line, optTexts) {
-    const t = aynNormLine(line);
-    const l = t.toLowerCase();
-    if (!t || t.length < 2 || t.length > 180) return true;
-    if (/^(question|select one|choose one|required|optional)$/i.test(t)) return true;
-    if (/^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|for\s+more\s+information|see\s+(below|above)|note[:\s]|learn more|description[:\s])/i.test(t)) return true;
-    if (/^(asian|black|hispanic|latino|white|male|female|non[- ]?binary|decline to self|prefer not|yes|no|oui|non|i identify as|i am not a|i do not wish)/i.test(t)) return true;
-    if (optTexts && optTexts.has(l)) return true;
-    if (optTexts) {
-      let hits = 0;
-      optTexts.forEach(o => { if (o && l.includes(o)) hits++; });
-      if (hits >= 2) return true;
-    }
-    return false;
-  }
-  function aynScoreQuestionCandidate(el, text, optTexts, anchor) {
-    const t = aynNormLine(text);
-    if (aynBadQuestionLine(t, optTexts)) return -1;
-    const tag = (el && el.tagName || '').toLowerCase();
-    const cls = String((el && el.className) || '');
-    const role = String((el && el.getAttribute && el.getAttribute('role')) || '').toLowerCase();
-    let score = 10;
-    if (/^(legend|h1|h2|h3|h4|h5)$/.test(tag) || role === 'heading') score += 60;
-    if (tag === 'label' || tag === 'strong') score += 38;
-    if (/question|label|title|heading|field/i.test(cls)) score += 30;
-    if (/\b(disability|veteran|gender|race|ethnic|self[- ]?identif|pronoun|authorization|sponsor|reside|relocat)/i.test(t)) score += 35;
-    if (/[?]$/.test(t)) score += 8;
-    try {
-      if (anchor && el && el.compareDocumentPosition) {
-        const pos = el.compareDocumentPosition(anchor);
-        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) score += 12;
-      }
-    } catch (_) {}
-    if (t.length <= 45) score += 10;
-    if (t.length > 110) score -= 20;
-    return score;
-  }
-  function aynCollectQuestionLines(el, optTexts, anchor, out) {
-    if (!el || !out) return;
-    try {
-      const candidates = [];
-      if (el.matches && el.matches('legend, label, h1, h2, h3, h4, h5, strong, [role="heading"], [class*="question" i], [class*="label" i], [class*="title" i], [class*="heading" i]')) candidates.push(el);
-      if (el.querySelectorAll) candidates.push(...Array.from(el.querySelectorAll('legend, label, h1, h2, h3, h4, h5, strong, [role="heading"], [class*="question" i], [class*="label" i], [class*="title" i], [class*="heading" i]')).slice(0, 20));
-      for (const c of candidates) {
-        if (!c || (anchor && c.contains && c.contains(anchor))) continue;
-        if (c.querySelector && c.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"], [role="checkbox"]')) continue;
-        const raw = safeText(c) || c.getAttribute?.('aria-label') || '';
-        const lines = String(raw).split(/[\n\r]+/).map(aynNormLine).filter(Boolean);
-        for (const line of lines.slice(0, 4)) {
-          const score = aynScoreQuestionCandidate(c, line, optTexts, anchor);
-          if (score >= 0) out.push({ text: line, score, source: 'heading' });
-        }
-      }
-      // Some ATS wrappers put useful labels as plain text siblings, not semantic headings.
-      const rawLines = String(safeText(el) || '').split(/[\n\r]+/).map(aynNormLine).filter(Boolean).slice(0, 10);
-      for (const line of rawLines) {
-        const score = aynScoreQuestionCandidate(el, line, optTexts, anchor) - 12;
-        if (score >= 0) out.push({ text: line, score, source: 'text-line' });
-      }
-    } catch (_) {}
-  }
+  // v2.0.0 — question resolution moved to dom.js (self.AYN_DOM), the single
+  // brain for label logic: page-global option-text exclusion plus proximity
+  // decay. This thin delegate keeps all nine call sites unchanged.
   function aynFindQuestionForOptionGroup(container, optionsOrEls, fallbackEl) {
-    const anchor = fallbackEl || container;
-    const optTexts = aynOptionTextSet(optionsOrEls);
-    const cands = [];
     try {
-      // 1) Real fieldset/radiogroup labels win.
-      let direct = container && container.querySelector && container.querySelector(':scope > legend, :scope > label, :scope > [role="heading"], :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > strong');
-      if (direct && !(anchor && direct.contains(anchor))) aynCollectQuestionLines(direct, optTexts, anchor, cands);
-    } catch (_) {}
-    try {
-      // 2) Preceding siblings of the group and its ancestors.
-      let node = container;
-      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
-        let sib = node.previousElementSibling;
-        for (let guard = 0; sib && guard < 8; guard++, sib = sib.previousElementSibling) {
-          if (sib.querySelector && sib.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"], [role="checkbox"]')) continue;
-          aynCollectQuestionLines(sib, optTexts, anchor, cands);
-        }
+      if (self.AYN_DOM && self.AYN_DOM.findQuestion) {
+        return self.AYN_DOM.findQuestion(container, optionsOrEls, fallbackEl, (container && container.ownerDocument) || document);
       }
     } catch (_) {}
-    try {
-      // 3) Ancestor headings and short text lines, useful for Gem/BioRender where
-      // helper text is between the title and options.
-      let node = container;
-      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
-        aynCollectQuestionLines(node, optTexts, anchor, cands);
-      }
-    } catch (_) {}
-    if (!cands.length) return { label: '', source: '' };
-    const seen = new Set();
-    const best = cands
-      .filter(c => { const k = c.text.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
-      .sort((a, b) => b.score - a.score)[0];
-    return { label: best ? best.text.slice(0, 240) : '', source: best ? best.source : '' };
+    return { label: '', source: '' };
   }
 
   function aynFingerprintField(field) {
