@@ -949,8 +949,34 @@ Deno.serve(async (req) => {
           const blob = fieldBlob(f);
           const group = String(f.group || "");
           const kind = String(f.kind || f.type || "").toLowerCase();
-          const isEeo = /^eeo\./.test(group) || /\b(gender|race|ethnic|veteran|disability status|self identify|self-identify|voluntary self identification)\b/.test(blob);
+          const isEeo = /^eeo\./.test(group) || /\b(gender|race|ethnic|veteran|disability status|self identify|self-identify|voluntary self identification|visible minority|indigenous|aboriginal)\b/.test(blob);
           if (isEeo && isOptionLike(f)) {
+            // v2.0.1 — the user's saved EEO answers (profile.default_answers.eeo)
+            // win. Decline remains the fallback for anything not stored, and for
+            // question types with no stored key (pronouns, orientation, etc).
+            const eeoPrefs = ((((profile as any)?.default_answers || {}).eeo) || {}) as Record<string, unknown>;
+            const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const matchOpt = (want: unknown) => {
+              const w = normText(String(want || ""));
+              if (!w) return undefined;
+              const opts = f.options || [];
+              return opts.find(o => normText(o.label || o.value || "") === w)
+                || opts.find(o => new RegExp(`(^|[^a-z0-9])${escRe(w)}([^a-z0-9]|$)`).test(normText(optText(o))));
+            };
+            const firstMatch = (v: unknown) => {
+              const wants = Array.isArray(v) ? v : [v];
+              for (const w of wants) { const m = matchOpt(w); if (m) return m; }
+              return undefined;
+            };
+            const lblBlob = normText([f.label, f.group, f.section].filter(Boolean).join(" "));
+            let saved;
+            if (/veteran/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).veteran);
+            else if (/disab/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).disability);
+            else if (/visible minority/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).visible_minority);
+            else if (/indigenous|aboriginal/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).indigenous);
+            else if (/gender|\bsex\b/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).gender);
+            else if (/race|ethnic/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).race);
+            if (saved) return emitOpt(f, saved, "EEO answered from your saved profile", 0.98, "profile");
             const decline = chooseOpt(f, /decline|prefer not|do not wish|choose not|rather not|not disclose|no answer/);
             if (decline) return emitOpt(f, decline, "EEO question; declined per policy", 0.99, "computed");
           }
