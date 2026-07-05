@@ -1334,6 +1334,55 @@
       } catch { /* never fail the scan */ }
 
 
+      // ── v2.0.0 COVERAGE PASS: no radio left behind ──────────────────
+      // Sweeps every visible radio atom the passes above did not claim into a
+      // group, and records a diagnostic that rides scanDiag into telemetry.
+      try {
+        if (self.AYN_DOM && self.AYN_DOM.coverageScan) {
+          const cov = self.AYN_DOM.coverageScan(doc, window.__AYN_USED_RADIOS__, processedCustomRadios);
+          cov.nativeGroups.forEach(({ container, radios }) => {
+            const options = radios.map(r => {
+              const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g, ' ').trim();
+              return { label: lbl, value: (r.value && r.value !== 'on') ? r.value : lbl };
+            });
+            const rq = aynFindQuestionForOptionGroup(container, options, radios[0]);
+            const q = (rq.label || 'Question').slice(0, 240);
+            const gid = `${prefix}__structradio__:g${aynFid(container)}`;
+            if (seenGroupKeys.has(gid)) return;
+            seenGroupKeys.add(gid);
+            window.__AYN_STRUCTRADIO_MAP__.set(gid, { container, radios });
+            radios.forEach(r => { window.__AYN_USED_RADIOS__.add(r); processedRadios.add(r); });
+            fields.push({
+              id: gid, kind: 'radio', type: 'radio', name: '', label: q, options,
+              required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
+              group: classifyField(`${q} ${options.map(o => o.label).join(' ')}`, '', 'radio'),
+              accRole: 'radio', labelSource: 'coverage', _frame: prefix,
+            });
+          });
+          cov.customGroups.forEach(({ container, els }) => {
+            const options = els.map(e => {
+              const lbl = (aynAccName(e) || safeText(e) || e.getAttribute('aria-label') || '').trim();
+              return { label: lbl, value: e.getAttribute('value') || lbl };
+            });
+            const rq = aynFindQuestionForOptionGroup(container, options, els[0]);
+            const q = (rq.label || 'Question').slice(0, 240);
+            const fieldId = `${prefix}__radio__:custom:g${aynFid(container)}`;
+            if (seenGroupKeys.has(fieldId)) return;
+            seenGroupKeys.add(fieldId);
+            window.__AYN_CUSTOM_RADIO_MAP__ = window.__AYN_CUSTOM_RADIO_MAP__ || new Map();
+            window.__AYN_CUSTOM_RADIO_MAP__.set(fieldId, els);
+            els.forEach(e => processedCustomRadios.add(e));
+            fields.push({
+              id: fieldId, kind: 'radio', type: 'radio', name: '', label: q, options,
+              required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
+              group: classifyField(`${q} ${options.map(o => o.label).join(' ')}`, '', 'radio'),
+              accRole: 'radio', labelSource: 'coverage', _frame: prefix,
+            });
+          });
+          window.__AYN_COVERAGE__ = cov.diag;
+        }
+      } catch (_) { /* never fail the scan */ }
+
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
         try {
