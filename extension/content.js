@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.0.0';
+  const AYN_BUILD = '2.1.0';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -37,10 +37,14 @@
   }
   function safeLen(el) { return safeText(el).length; }
 
-  // v1.9.65 — loop until scrollHeight stabilizes so IntersectionObserver-driven
-  // sections (Veteran / Disability on Gem, BioRender, etc.) get a chance to mount.
-  // Returns a restore() function; caller MUST call it in a finally after scanning
-  // so the user's original scroll position is preserved.
+  // v2.1.0 — reveal-and-settle pass. Two problems this solves:
+  //   1. Lazy sections (Workday step 2, Ashby demographics, Gem EEO) mount
+  //      after IntersectionObserver fires, so we scroll and wait for both
+  //      scrollHeight AND control count to stabilize for 2 ticks.
+  //   2. EEO / voluntary blocks are often collapsed behind a button
+  //      aria-expanded="false" whose name matches voluntary|self-identif|
+  //      demograph|eeo|additional|more|expand. We click those once.
+  // Returns restore() to put the scroll back after the caller finishes scanning.
   async function aynEnsureRendered() {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     let startY = 0;
@@ -48,6 +52,27 @@
       const se = document.scrollingElement || document.documentElement;
       if (!se) return () => {};
       startY = se.scrollTop || 0;
+
+      const countCtrls = () => {
+        try { return document.querySelectorAll('input,textarea,select,[role="radio"],[role="checkbox"],[role="combobox"]').length; }
+        catch { return 0; }
+      };
+      const revealCollapsibles = () => {
+        try {
+          const RE = /voluntary|self[- ]?identif|demograph|eeo|additional\s+questions|show\s+more|see\s+more|expand/i;
+          const btns = Array.from(document.querySelectorAll('button[aria-expanded="false"], [role="button"][aria-expanded="false"]'));
+          let clicked = 0;
+          for (const b of btns) {
+            if (clicked >= 4) break;
+            const name = ((b.innerText || b.getAttribute('aria-label') || '') + '').trim();
+            if (!name || name.length > 80) continue;
+            if (!RE.test(name)) continue;
+            try { b.click(); clicked++; } catch (_) {}
+          }
+          return clicked;
+        } catch (_) { return 0; }
+      };
+
       const max0 = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
       if (max0 > 100) {
         for (let step = 1; step <= 6; step++) {
@@ -55,17 +80,31 @@
           try { window.scrollTo(0, Math.floor(cur * (step / 6))); } catch (_) {}
           await sleep(200);
         }
-        // v2.0.0 — wait until lazy sections stop growing the page before scanning.
-        let lastH = se.scrollHeight || 0;
-        for (let i = 0; i < 4; i++) {
-          await sleep(250);
-          const h = se.scrollHeight || 0;
-          try { window.scrollTo(0, Math.max(0, h - (se.clientHeight || 0))); } catch (_) {}
-          if (Math.abs(h - lastH) < 8) break;
-          lastH = h;
-        }
-        await sleep(150);
       }
+      // Reveal collapsibles once we've paged through the document.
+      revealCollapsibles();
+      await sleep(200);
+      // Settle loop: stop only when scrollHeight AND control count are stable
+      // for two consecutive ticks (or 8 iterations, whichever first).
+      let lastH = se.scrollHeight || 0;
+      let lastC = countCtrls();
+      let stable = 0;
+      for (let i = 0; i < 8; i++) {
+        await sleep(250);
+        const h = se.scrollHeight || 0;
+        const c = countCtrls();
+        try { window.scrollTo(0, Math.max(0, h - (se.clientHeight || 0))); } catch (_) {}
+        if (Math.abs(h - lastH) < 8 && c === lastC) {
+          stable++;
+          if (stable >= 2) break;
+        } else {
+          stable = 0;
+          // If the page grew, a new collapsible may now be reachable.
+          if (c > lastC) revealCollapsibles();
+        }
+        lastH = h; lastC = c;
+      }
+      await sleep(150);
     } catch (_) {}
     return () => { try { window.scrollTo(0, startY); } catch (_) {} };
   }
