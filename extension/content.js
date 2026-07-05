@@ -1264,9 +1264,31 @@
           .filter(el => el.tagName !== 'INPUT' && !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
         const byGroup = new Map();
         customRadios.forEach(el => {
-          const g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
+          // v2.2.0 — three-tier grouping:
+          //   1. explicit ARIA/HTML group container (radiogroup/group/fieldset)
+          //   2. shared aria-labelledby target (Ashby/Super scattered radios)
+          //   3. shared parent element that contains ≥2 role=radio siblings
+          let g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
+          if (!g) {
+            const lb = el.getAttribute('aria-labelledby');
+            if (lb) {
+              const ref = doc.getElementById(lb);
+              if (ref) {
+                // group by all custom radios that share this labelledby id
+                g = ref.closest('div, section, form') || ref.parentElement || null;
+                if (g) g.__aynGroupKey = 'lb::' + lb;
+              }
+            }
+          }
+          if (!g) {
+            let p = el.parentElement;
+            for (let d = 0; d < 6 && p; d++, p = p.parentElement) {
+              const kids = p.querySelectorAll(':scope [role="radio"]');
+              if (kids.length >= 2) { g = p; break; }
+            }
+          }
           if (!g) return;
-          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + aynFid(g);
+          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = g.__aynGroupKey || ('cgrp::' + aynFid(g));
           const key = g.__aynCustomGroupKey;
           if (!byGroup.has(key)) byGroup.set(key, { group: g, els: [] });
           byGroup.get(key).els.push(el);
@@ -2708,31 +2730,40 @@
 
   async function aynFillTypeahead(el, value) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+    const val = String(value || '');
     el.focus();
     el.click();
-    aynSetNativeValue(el, value);
-    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: value.slice(-1) }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: value.slice(-1) }));
+    // v2.2.0 — Type first characters key-by-key so the ATS search API fires.
+    // Full-value sets never trigger per-char input listeners the typeahead
+    // debounces on (Greenhouse location, Ashby school, Workday country).
+    const trigger = val.slice(0, Math.min(6, val.length));
+    try { await aynTypeKeystrokes(el, trigger); } catch (_) { try { aynSetNativeValue(el, trigger); } catch(_) {} }
+    // Poll up to ~2.6s (200 * 13) with backoff; accept portal-rendered options
+    // whose offsetParent is null but which have a real bounding rect.
     let optionEls = [];
-    for (let i = 0; i < 8; i++) {
-      await aynSleep(150);
-      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] li, [class*="option"], [class*="menu"] li, [id*="option"]'))
-        .filter(o => o.offsetParent !== null && nrm(o.textContent).length);
+    const isVisibleOpt = (o) => {
+      if (o.offsetParent !== null) return true;
+      try { const r = o.getBoundingClientRect(); return r.width > 1 && r.height > 1; } catch (_) { return false; }
+    };
+    for (let i = 0; i < 13; i++) {
+      await aynSleep(i < 4 ? 150 : 250);
+      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
+        .filter(o => isVisibleOpt(o) && nrm(o.textContent).length && nrm(o.textContent).length < 200);
       if (optionEls.length) break;
     }
     if (optionEls.length) {
-      const want = value;
-      const match = optionEls.find(o => aynOptionMatches(o.textContent, want));
+      const match = optionEls.find(o => aynOptionMatches(o.textContent, val));
       const pick = match || optionEls[0];
-
       if (pick) {
         try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
         pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        pick.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         pick.click();
-        await aynSleep(60);
+        await aynSleep(80);
         return { ok: true, verified: true, picked: nrm(pick.textContent) };
       }
     }
+    // No listbox appeared — commit the raw typed value with Enter as last resort.
     el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
     await aynSleep(40);
     const ok = (el.value || '').trim().length > 0;
@@ -2975,14 +3006,18 @@
           const qLabel = getLabelFor(firstInput) || name;
           try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
           if (btn) {
-            // v2.1.0 — idempotency: if the button already reflects the wanted
-            // state, don't click (Ashby toggles on second click and undoes it).
+            // v2.2.0 — only short-circuit when the already-selected button IS
+            // the wanted answer. Previously we returned "already-set" whenever
+            // ANY button was selected (Ashby often pre-highlights "No"), which
+            // silently reported the wrong answer as verified.
+            const btnLabel = (safeText(btn) || btn.getAttribute('aria-label') || '').trim();
             const alreadySelected = bgIsSelected(btn);
-            if (alreadySelected) {
+            const alreadyCorrect = alreadySelected && aynOptionMatches(btnLabel, wantRaw);
+            if (alreadyCorrect) {
               filled++; results.push({ id, ok: true, verified: true, reason: 'proxy-already-set' });
               continue;
             }
-            const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
+            const okv = await clickOptionButton(btn, qLabel, norm(btnLabel));
             if (okv) { filled++; results.push({ id, ok: true, verified: true }); continue; }
           }
         }
