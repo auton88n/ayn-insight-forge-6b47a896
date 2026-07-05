@@ -3063,6 +3063,42 @@
       }
 
 
+      // v2.2.0 — multi-select unique-name checkbox group (Ashby race/ethnicity).
+      // id shape: "__checkbox__:multi:g<fid>"; look up boxes from __AYN_MULTICHECK_MAP__
+      // and click each whose label matches any of optionLabels[]. Never uncheck.
+      if (/^(?:frame\d+:)?__checkbox__:multi:/.test(id)) {
+        const boxes = (window.__AYN_MULTICHECK_MAP__ && window.__AYN_MULTICHECK_MAP__.get(id)) || [];
+        if (!boxes.length) { results.push({ id, ok: false, reason: 'multi-checkbox map missing' }); continue; }
+        const wants = Array.isArray(optionLabels) && optionLabels.length ? optionLabels
+                    : Array.isArray(optionValues) && optionValues.length ? optionValues
+                    : [optionLabel || optionValue || value].filter(Boolean);
+        if (!wants.length) { results.push({ id, ok: false, reason: 'no options for multi-check' }); continue; }
+        let clicked = 0;
+        for (const w of wants) {
+          const wantStr = String(w || '').trim();
+          if (!wantStr) continue;
+          const box = boxes.find(b => {
+            const lbl = (getLabelFor(b) || aynAccName(b) || b.value || '').trim();
+            return aynOptionMatches(lbl, wantStr) || aynOptionMatches(b.value || '', wantStr);
+          });
+          if (box && !box.checked) {
+            try {
+              const clickable = box.closest('label') || box;
+              try { box.scrollIntoView({ block: 'center' }); } catch {}
+              clickable.click();
+              await sleep(30);
+              if (!box.checked) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+              clicked++;
+            } catch {}
+          } else if (box && box.checked) {
+            clicked++;
+          }
+        }
+        if (clicked) { filled++; results.push({ id, ok: true, verified: true, picked: clicked }); }
+        else { results.push({ id, ok: false, reason: 'no multi-check option matched' }); }
+        continue;
+      }
+
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
       const groupMatch = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(id);
       if (groupMatch) {
