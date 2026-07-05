@@ -2159,12 +2159,52 @@
           res.verified = true;
         }
       }
-      // Recompute filled count from the truthful signal.
+      // Recompute filled count from the truthful signal, and expose the
+      // unverified id list so INJECT_VALUES can re-attempt each one once.
       try {
         injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
         injectResult.fillDiag = diag;
+        injectResult.unverifiedIds = diag.map(d => d && d.id).filter(Boolean);
       } catch (_) {}
     } catch (_) { /* never break the fill */ }
+  }
+
+  // v2.2.0 — one-shot re-attempt for controls that failed post-verify.
+  // Buttongroup / custom-radio / structradio / select get a second click
+  // (bg via findButtongroupOption's cached meta); text via page-world bridge.
+  async function aynRetryUnverified(values, injectResult) {
+    try {
+      const ids = (injectResult && injectResult.unverifiedIds) || [];
+      if (!ids.length) return;
+      const valById = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
+      for (const id of ids) {
+        const v = valById.get(id);
+        if (!v) continue;
+        const rawId = String(id);
+        try {
+          if (rawId.includes('__buttongroup__:')) {
+            const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
+            const want = v.optionLabel || v.optionValue || v.value;
+            if (meta && want) {
+              const { target } = findButtongroupOption(meta, want);
+              if (target) { try { fireFullClick(target); await aynSleep(120); } catch (_) {} }
+            }
+          } else if (rawId.includes('__radio__:custom:')) {
+            const els = (window.__AYN_CUSTOM_RADIO_MAP__ && window.__AYN_CUSTOM_RADIO_MAP__.get(rawId)) || [];
+            const want = v.optionLabel || v.optionValue || v.value;
+            const target = els.find(e => aynOptionMatches((e.innerText || e.getAttribute('aria-label') || ''), String(want || '')));
+            if (target) { try { fireFullClick(target.closest('label') || target); await aynSleep(120); } catch (_) {} }
+          } else {
+            const el = aynResolveFieldEl(id, v._frame);
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && typeof v.value === 'string') {
+              try { await aynFillViaPageWorld(el, v.value); await aynSleep(80); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+      // Re-run verification to update flags with post-retry state.
+      try { aynPostInjectVerify(values, injectResult); } catch (_) {}
+    } catch (_) {}
   }
 
 
