@@ -1444,11 +1444,63 @@
         }
       } catch (_) { /* never fail the scan */ }
 
+      // v2.2.0 — multi-select EEO checkbox groups (Ashby race/ethnicity).
+      // Each option is an <input type="checkbox"> with its own unique `name`,
+      // so the same-name grouping never fires and each was emitted individually
+      // → AI returned a single yes/no per box instead of an optionLabels[] array.
+      // Detect containers with ≥3 sibling visible unique-name checkboxes and
+      // emit them as one multi-select field. Marks them as processed so the
+      // individual loop below skips them.
+      const processedCheckboxes = new WeakSet();
+      try {
+        const allBoxes = Array.from(doc.querySelectorAll('input[type="checkbox"]')).filter(b => {
+          if (b.disabled || isElHidden(b)) return false;
+          const r = b.getBoundingClientRect();
+          return (r.width > 0 || r.height > 0);
+        });
+        const containerToBoxes = new Map();
+        for (const b of allBoxes) {
+          const c = b.closest('fieldset, [role="group"], [class*="field" i], [data-field-path], [class*="question" i]');
+          if (!c) continue;
+          if (!containerToBoxes.has(c)) containerToBoxes.set(c, []);
+          containerToBoxes.get(c).push(b);
+        }
+        containerToBoxes.forEach((boxes, container) => {
+          if (boxes.length < 3) return;
+          const names = new Set(boxes.map(b => b.name || ''));
+          // require unique names (or all-blank) — that's the pattern the per-name path can't handle
+          if (names.size < boxes.length - 1) return;
+          const options = boxes.map(b => {
+            const lbl = (getLabelFor(b) || aynAccName(b) || b.value || b.name || '').trim().slice(0, 100);
+            return { label: lbl, value: b.value || lbl };
+          }).filter(o => o.label);
+          if (options.length < 3) return;
+          const rq = aynFindQuestionForOptionGroup(container, options, boxes[0]);
+          let qLabel = (rq.label || '').slice(0, 240);
+          if (!qLabel) qLabel = 'Select all that apply';
+          const fieldId = `${prefix}__checkbox__:multi:g${aynFid(container)}`;
+          if (seenGroupKeys.has(fieldId)) return;
+          seenGroupKeys.add(fieldId);
+          boxes.forEach(b => processedCheckboxes.add(b));
+          window.__AYN_MULTICHECK_MAP__ = window.__AYN_MULTICHECK_MAP__ || new Map();
+          window.__AYN_MULTICHECK_MAP__.set(fieldId, boxes);
+          fields.push({
+            id: fieldId, kind: 'checkbox', type: 'checkbox', name: '', label: qLabel, options,
+            required: boxes.some(b => b.required || b.getAttribute('aria-required') === 'true'),
+            currentValue: '', multi: true,
+            group: classifyField(`${qLabel} ${options.map(o => o.label).join(' ')}`, '', 'checkbox'),
+            accRole: 'group', labelSource: rq.source || 'multi-checkbox',
+            _frame: prefix,
+          });
+        });
+      } catch (_) { /* never fail the scan */ }
+
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
         try {
           if (el.disabled) return;
           if (el.type === 'radio' && processedRadios.has(el)) return;
+          if (el.type === 'checkbox' && processedCheckboxes.has(el)) return;
           const rect = el.getBoundingClientRect();
           // PART A: never skip zero-size radio/checkbox — they're often hidden behind styled labels.
           const isCheckable = (el.type === 'radio' || el.type === 'checkbox');
