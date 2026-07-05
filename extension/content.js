@@ -2180,6 +2180,11 @@
               const lbl = ((checked.closest && checked.closest('label') || checked.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
               verified = !want || norm(lbl) === norm(want) || norm(checked.value || '') === norm(want);
             } else verified = false;
+          } else if (rawId.includes('__checkbox__:multi:')) {
+            // v2.2.0 — multi-select unique-name checkbox group
+            const boxes = (window.__AYN_MULTICHECK_MAP__ && window.__AYN_MULTICHECK_MAP__.get(rawId)) || [];
+            method = 'multi-checkbox';
+            verified = boxes.some(b => b && b.checked);
           } else {
             const m = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(rawId);
             if (m) {
