@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.2.0';
+  const AYN_BUILD = '2.2.1';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -2192,7 +2192,23 @@
               method = kind;
               const nodes = Array.from(document.querySelectorAll(`input[type="${kind}"][name="${CSS.escape(name)}"]`));
               const checked = nodes.filter(n => n.checked);
-              if (kind === 'radio') {
+              // v2.2.1 — hidden-checkbox proxy (Ashby): the native <input> is hidden
+              // and never toggles; the real answer lives in a visible Yes/No button.
+              // Reading input.checked here caused false "postverify-failed" on
+              // work-auth/sponsorship even though the correct button was selected.
+              // Verify the visible button state instead, matching the click path.
+              if (kind === 'checkbox' && nodes[0] && isElHidden(nodes[0])) {
+                method = 'checkbox-proxy';
+                const container = nodes[0].closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"]') || nodes[0].parentElement;
+                const btns = container ? Array.from(container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).filter(b => !b.disabled) : [];
+                const sel = btns.find(b => bgIsSelected(b));
+                if (sel) {
+                  const selTxt = norm(safeText(sel) || sel.getAttribute('aria-label') || '');
+                  verified = !want || selTxt === norm(want) || aynOptionMatches(selTxt, want);
+                } else {
+                  verified = false;
+                }
+              } else if (kind === 'radio') {
                 verified = checked.length === 1;
               } else {
                 verified = checked.length >= 1;

@@ -1185,7 +1185,19 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           },
         });
         const out = (r.structured as { values?: Array<{ id: string; value?: string; optionValue?: string; optionLabel?: string; optionLabels?: string[]; skip?: boolean; confidence?: number; reasoning?: string; source?: string; suggestion?: string }> }) || { values: [] };
-        const allValues = [...ruleValues, ...(out.values || [])];
+        // v2.2.1 — HARD id whitelist. The model occasionally invents field ids
+        // (or carries ids from prior context) that were never in this scan's
+        // fields[]. Those ids reach the injector, resolve to nothing, and log
+        // "not found or disabled". Drop any AI value whose id is not a real
+        // scanned field before it can leave the function. Rule values are always
+        // built from fieldArr, so they are inherently valid.
+        const knownIds = new Set(fieldArr.map(f => f.id));
+        const aiValuesRaw = (out.values || []).filter(v => {
+          if (v && knownIds.has(v.id)) return true;
+          try { console.warn("dropped hallucinated field id", v?.id); } catch (_) {}
+          return false;
+        });
+        const allValues = [...ruleValues, ...aiValuesRaw];
         const filtered = allValues.filter(v => {
           if (v.skip) return false;
           const hasAny = (v.value && v.value.trim()) || (v.optionValue && v.optionValue.trim()) || (v.optionLabel && v.optionLabel.trim()) || (Array.isArray(v.optionLabels) && v.optionLabels.length);
