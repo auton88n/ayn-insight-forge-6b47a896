@@ -976,6 +976,20 @@ Deno.serve(async (req) => {
             else if (/indigenous|aboriginal/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).indigenous);
             else if (/gender|\bsex\b/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).gender);
             else if (/race|ethnic/.test(lblBlob)) saved = firstMatch((eeoPrefs as any).race);
+            // v2.2.0 — multi-select race/ethnicity (Ashby "Select all that apply").
+            // Field.kind === 'checkbox' with options[] and multi:true → return
+            // optionLabels[] with every stored race value that matches, or the
+            // decline option as a single-item list.
+            const isMulti = (f as any).multi === true || (/checkbox/i.test(kind) && (f.options || []).length >= 3);
+            if (isMulti && /race|ethnic/.test(lblBlob)) {
+              const stored = (eeoPrefs as any).race;
+              const wants = Array.isArray(stored) ? stored : (stored ? [stored] : []);
+              const picked: string[] = [];
+              for (const w of wants) { const m = matchOpt(w); if (m && m.label) picked.push(m.label); }
+              if (picked.length) return { id: f.id, optionLabels: picked, skip: false, confidence: 0.95, reasoning: "Race/ethnicity from saved profile", source: "profile" };
+              const dOpt = chooseOpt(f, /decline|prefer not|do not wish|choose not|rather not|not disclose|no answer/);
+              if (dOpt && dOpt.label) return { id: f.id, optionLabels: [dOpt.label], skip: false, confidence: 0.99, reasoning: "EEO multi-select; declined per policy", source: "computed" };
+            }
             if (saved) return emitOpt(f, saved, "EEO answered from your saved profile", 0.98, "profile");
             const decline = chooseOpt(f, /decline|prefer not|do not wish|choose not|rather not|not disclose|no answer/);
             if (decline) return emitOpt(f, decline, "EEO question; declined per policy", 0.99, "computed");
@@ -1031,7 +1045,7 @@ OUTPUT one object per field you choose to answer:
 CRITICAL RULES:
 - For select/radio/buttongroup: SINGLE CHOICE. optionValue AND optionLabel MUST be copied verbatim from the field's options array. NEVER put a "value" string for these. If none of the offered options fits with high confidence, set skip:true. NEVER default to "No" just because you are unsure — skip instead, UNLESS the RESUME-BASED INFERENCE rule applies (routine background/industry/familiarity screening questions), in which case give the evidence-based answer.
 - For checkbox group: use optionLabels (array). Single checkbox: value "yes" or "no". If a single checkbox's label is actually a Yes/No question (work authorization, sponsorship, residence, or any "Are you…", "Do you…", "Will you…", "Have you…" question), DO NOT treat it as a passive tick. Apply the WORK AUTHORIZATION, SPONSORSHIP, RESIDENCE, EDUCATION rules below to decide, then return value "yes" or "no" accordingly. NEVER default to "no" out of caution — if the rule yields Yes, return "yes".
-- For typeahead: put a plain string in value (e.g. a city) the page can match against its suggestion list.
+- For typeahead: put a plain string in value (e.g. a city) the page can match against its suggestion list. For LOCATION typeaheads (city/location/where you live/where you're based), always emit the full "City, Region, Country" (e.g. "Toronto, ON, Canada") so the dropdown can match — a bare city name often fails.
 - For text/textarea: put the answer in value. No dashes of any kind ("-", "–", "—"). Use "to" for ranges and a comma for connectors.
 - Skip silently (skip:true) anything not derivable from the data, especially: SIN/SSN, full DOB, bank info, passwords, security questions.
 
