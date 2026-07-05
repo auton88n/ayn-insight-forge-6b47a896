@@ -2064,6 +2064,88 @@
     } catch (_) { return null; }
   }
 
+  // v2.1.0 — post-inject read-back verification. Independent of
+  // aynSettleReapply (which only handles text reversion). This function
+  // inspects the LIVE DOM for every result that was reported ok, and if the
+  // control's real state does not reflect what we intended, it flips the
+  // result to unverified and attaches a fillDiag record on the injectResult
+  // so telemetry captures which stage lied about success. It does NOT retry
+  // structural clicks itself (that responsibility stays in injectValues)
+  // because false-success signals were the actual failure mode we saw —
+  // knowing about them is more valuable than another blind click.
+  function aynPostInjectVerify(values, injectResult) {
+    const diag = [];
+    try {
+      if (!injectResult || !Array.isArray(injectResult.results)) return;
+      const wantById = new Map();
+      (values || []).forEach(v => {
+        if (!v || !v.id) return;
+        const want = v.optionLabel || v.optionValue || v.value || '';
+        wantById.set(v.id, String(want || '').trim());
+      });
+      const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      for (const res of injectResult.results) {
+        if (!res || !res.id || res.ok !== true) continue;
+        const want = wantById.get(res.id) || '';
+        let verified = null;
+        let method = '';
+        try {
+          const rawId = String(res.id);
+          // Custom (ARIA) radio group
+          if (rawId.includes('__radio__:custom:')) {
+            const els = (window.__AYN_CUSTOM_RADIO_MAP__ && window.__AYN_CUSTOM_RADIO_MAP__.get(rawId)) || [];
+            const target = els.find(e => norm((e.innerText || e.getAttribute('aria-label') || '')) === norm(want)) || els.find(e => e.getAttribute('aria-checked') === 'true');
+            method = 'custom-radio';
+            verified = !!(target && target.getAttribute('aria-checked') === 'true' && (!want || norm(target.innerText || target.getAttribute('aria-label') || '') === norm(want)));
+          } else if (rawId.includes('__structradio__:')) {
+            const entry = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId)) || null;
+            const radios = entry ? (Array.isArray(entry) ? entry : (entry.radios || [])) : [];
+            const checked = radios.find(r => r && r.checked);
+            method = 'struct-radio';
+            if (checked) {
+              const lbl = ((checked.closest && checked.closest('label') || checked.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
+              verified = !want || norm(lbl) === norm(want) || norm(checked.value || '') === norm(want);
+            } else verified = false;
+          } else {
+            const m = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(rawId);
+            if (m) {
+              const kind = m[1]; const name = m[2];
+              method = kind;
+              const nodes = Array.from(document.querySelectorAll(`input[type="${kind}"][name="${CSS.escape(name)}"]`));
+              const checked = nodes.filter(n => n.checked);
+              if (kind === 'radio') {
+                verified = checked.length === 1;
+              } else {
+                verified = checked.length >= 1;
+              }
+            } else {
+              const el = aynResolveFieldEl(res.id, res._frame);
+              if (el) {
+                const tag = (el.tagName || '').toUpperCase();
+                if (tag === 'SELECT') { method = 'select'; verified = norm(el.value) === norm(want) || norm(el.options[el.selectedIndex]?.text || '') === norm(want); }
+                else if (tag === 'INPUT' || tag === 'TEXTAREA') { method = 'text'; verified = !want || norm(el.value).includes(norm(want)) || norm(want).includes(norm(el.value)); }
+                else if (el.isContentEditable) { method = 'richedit'; verified = !want || norm(el.innerText || '').includes(norm(want)); }
+              }
+            }
+          }
+        } catch (_) { verified = null; }
+        if (verified === false) {
+          res.verified = false;
+          res.reason = (res.reason ? res.reason + '; ' : '') + 'postverify-failed';
+          diag.push({ id: res.id, method, want: want.slice(0, 60), status: 'unverified' });
+        } else if (verified === true) {
+          res.verified = true;
+        }
+      }
+      // Recompute filled count from the truthful signal.
+      try {
+        injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
+        injectResult.fillDiag = diag;
+      } catch (_) {}
+    } catch (_) { /* never break the fill */ }
+  }
+
+
   async function aynSettleReapply(values, injectResult) {
     try {
       const byId = new Map((values || []).filter(v => v && v.id && typeof v.value === 'string' && v.value.trim()).map(v => [v.id, v.value]));
