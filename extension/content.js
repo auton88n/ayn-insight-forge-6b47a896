@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.1.0';
+  const AYN_BUILD = '2.2.0';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -1264,9 +1264,31 @@
           .filter(el => el.tagName !== 'INPUT' && !el.hasAttribute('disabled') && el.getAttribute('aria-disabled') !== 'true');
         const byGroup = new Map();
         customRadios.forEach(el => {
-          const g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
+          // v2.2.0 — three-tier grouping:
+          //   1. explicit ARIA/HTML group container (radiogroup/group/fieldset)
+          //   2. shared aria-labelledby target (Ashby/Super scattered radios)
+          //   3. shared parent element that contains ≥2 role=radio siblings
+          let g = el.closest('[role="radiogroup"]') || el.closest('[role="group"], fieldset');
+          if (!g) {
+            const lb = el.getAttribute('aria-labelledby');
+            if (lb) {
+              const ref = doc.getElementById(lb);
+              if (ref) {
+                // group by all custom radios that share this labelledby id
+                g = ref.closest('div, section, form') || ref.parentElement || null;
+                if (g) g.__aynGroupKey = 'lb::' + lb;
+              }
+            }
+          }
+          if (!g) {
+            let p = el.parentElement;
+            for (let d = 0; d < 6 && p; d++, p = p.parentElement) {
+              const kids = p.querySelectorAll(':scope [role="radio"]');
+              if (kids.length >= 2) { g = p; break; }
+            }
+          }
           if (!g) return;
-          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = 'cgrp::' + aynFid(g);
+          if (!g.__aynCustomGroupKey) g.__aynCustomGroupKey = g.__aynGroupKey || ('cgrp::' + aynFid(g));
           const key = g.__aynCustomGroupKey;
           if (!byGroup.has(key)) byGroup.set(key, { group: g, els: [] });
           byGroup.get(key).els.push(el);
@@ -1422,11 +1444,63 @@
         }
       } catch (_) { /* never fail the scan */ }
 
+      // v2.2.0 — multi-select EEO checkbox groups (Ashby race/ethnicity).
+      // Each option is an <input type="checkbox"> with its own unique `name`,
+      // so the same-name grouping never fires and each was emitted individually
+      // → AI returned a single yes/no per box instead of an optionLabels[] array.
+      // Detect containers with ≥3 sibling visible unique-name checkboxes and
+      // emit them as one multi-select field. Marks them as processed so the
+      // individual loop below skips them.
+      const processedCheckboxes = new WeakSet();
+      try {
+        const allBoxes = Array.from(doc.querySelectorAll('input[type="checkbox"]')).filter(b => {
+          if (b.disabled || isElHidden(b)) return false;
+          const r = b.getBoundingClientRect();
+          return (r.width > 0 || r.height > 0);
+        });
+        const containerToBoxes = new Map();
+        for (const b of allBoxes) {
+          const c = b.closest('fieldset, [role="group"], [class*="field" i], [data-field-path], [class*="question" i]');
+          if (!c) continue;
+          if (!containerToBoxes.has(c)) containerToBoxes.set(c, []);
+          containerToBoxes.get(c).push(b);
+        }
+        containerToBoxes.forEach((boxes, container) => {
+          if (boxes.length < 3) return;
+          const names = new Set(boxes.map(b => b.name || ''));
+          // require unique names (or all-blank) — that's the pattern the per-name path can't handle
+          if (names.size < boxes.length - 1) return;
+          const options = boxes.map(b => {
+            const lbl = (getLabelFor(b) || aynAccName(b) || b.value || b.name || '').trim().slice(0, 100);
+            return { label: lbl, value: b.value || lbl };
+          }).filter(o => o.label);
+          if (options.length < 3) return;
+          const rq = aynFindQuestionForOptionGroup(container, options, boxes[0]);
+          let qLabel = (rq.label || '').slice(0, 240);
+          if (!qLabel) qLabel = 'Select all that apply';
+          const fieldId = `${prefix}__checkbox__:multi:g${aynFid(container)}`;
+          if (seenGroupKeys.has(fieldId)) return;
+          seenGroupKeys.add(fieldId);
+          boxes.forEach(b => processedCheckboxes.add(b));
+          window.__AYN_MULTICHECK_MAP__ = window.__AYN_MULTICHECK_MAP__ || new Map();
+          window.__AYN_MULTICHECK_MAP__.set(fieldId, boxes);
+          fields.push({
+            id: fieldId, kind: 'checkbox', type: 'checkbox', name: '', label: qLabel, options,
+            required: boxes.some(b => b.required || b.getAttribute('aria-required') === 'true'),
+            currentValue: '', multi: true,
+            group: classifyField(`${qLabel} ${options.map(o => o.label).join(' ')}`, '', 'checkbox'),
+            accRole: 'group', labelSource: rq.source || 'multi-checkbox',
+            _frame: prefix,
+          });
+        });
+      } catch (_) { /* never fail the scan */ }
+
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
         try {
           if (el.disabled) return;
           if (el.type === 'radio' && processedRadios.has(el)) return;
+          if (el.type === 'checkbox' && processedCheckboxes.has(el)) return;
           const rect = el.getBoundingClientRect();
           // PART A: never skip zero-size radio/checkbox — they're often hidden behind styled labels.
           const isCheckable = (el.type === 'radio' || el.type === 'checkbox');
@@ -2106,6 +2180,11 @@
               const lbl = ((checked.closest && checked.closest('label') || checked.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
               verified = !want || norm(lbl) === norm(want) || norm(checked.value || '') === norm(want);
             } else verified = false;
+          } else if (rawId.includes('__checkbox__:multi:')) {
+            // v2.2.0 — multi-select unique-name checkbox group
+            const boxes = (window.__AYN_MULTICHECK_MAP__ && window.__AYN_MULTICHECK_MAP__.get(rawId)) || [];
+            method = 'multi-checkbox';
+            verified = boxes.some(b => b && b.checked);
           } else {
             const m = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(rawId);
             if (m) {
@@ -2137,12 +2216,52 @@
           res.verified = true;
         }
       }
-      // Recompute filled count from the truthful signal.
+      // Recompute filled count from the truthful signal, and expose the
+      // unverified id list so INJECT_VALUES can re-attempt each one once.
       try {
         injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
         injectResult.fillDiag = diag;
+        injectResult.unverifiedIds = diag.map(d => d && d.id).filter(Boolean);
       } catch (_) {}
     } catch (_) { /* never break the fill */ }
+  }
+
+  // v2.2.0 — one-shot re-attempt for controls that failed post-verify.
+  // Buttongroup / custom-radio / structradio / select get a second click
+  // (bg via findButtongroupOption's cached meta); text via page-world bridge.
+  async function aynRetryUnverified(values, injectResult) {
+    try {
+      const ids = (injectResult && injectResult.unverifiedIds) || [];
+      if (!ids.length) return;
+      const valById = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
+      for (const id of ids) {
+        const v = valById.get(id);
+        if (!v) continue;
+        const rawId = String(id);
+        try {
+          if (rawId.includes('__buttongroup__:')) {
+            const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
+            const want = v.optionLabel || v.optionValue || v.value;
+            if (meta && want) {
+              const { target } = findButtongroupOption(meta, want);
+              if (target) { try { fireFullClick(target); await aynSleep(120); } catch (_) {} }
+            }
+          } else if (rawId.includes('__radio__:custom:')) {
+            const els = (window.__AYN_CUSTOM_RADIO_MAP__ && window.__AYN_CUSTOM_RADIO_MAP__.get(rawId)) || [];
+            const want = v.optionLabel || v.optionValue || v.value;
+            const target = els.find(e => aynOptionMatches((e.innerText || e.getAttribute('aria-label') || ''), String(want || '')));
+            if (target) { try { fireFullClick(target.closest('label') || target); await aynSleep(120); } catch (_) {} }
+          } else {
+            const el = aynResolveFieldEl(id, v._frame);
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && typeof v.value === 'string') {
+              try { await aynFillViaPageWorld(el, v.value); await aynSleep(80); } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+      // Re-run verification to update flags with post-retry state.
+      try { aynPostInjectVerify(values, injectResult); } catch (_) {}
+    } catch (_) {}
   }
 
 
@@ -2708,31 +2827,40 @@
 
   async function aynFillTypeahead(el, value) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+    const val = String(value || '');
     el.focus();
     el.click();
-    aynSetNativeValue(el, value);
-    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: value.slice(-1) }));
-    el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: value.slice(-1) }));
+    // v2.2.0 — Type first characters key-by-key so the ATS search API fires.
+    // Full-value sets never trigger per-char input listeners the typeahead
+    // debounces on (Greenhouse location, Ashby school, Workday country).
+    const trigger = val.slice(0, Math.min(6, val.length));
+    try { await aynTypeKeystrokes(el, trigger); } catch (_) { try { aynSetNativeValue(el, trigger); } catch(_) {} }
+    // Poll up to ~2.6s (200 * 13) with backoff; accept portal-rendered options
+    // whose offsetParent is null but which have a real bounding rect.
     let optionEls = [];
-    for (let i = 0; i < 8; i++) {
-      await aynSleep(150);
-      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] li, [class*="option"], [class*="menu"] li, [id*="option"]'))
-        .filter(o => o.offsetParent !== null && nrm(o.textContent).length);
+    const isVisibleOpt = (o) => {
+      if (o.offsetParent !== null) return true;
+      try { const r = o.getBoundingClientRect(); return r.width > 1 && r.height > 1; } catch (_) { return false; }
+    };
+    for (let i = 0; i < 13; i++) {
+      await aynSleep(i < 4 ? 150 : 250);
+      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
+        .filter(o => isVisibleOpt(o) && nrm(o.textContent).length && nrm(o.textContent).length < 200);
       if (optionEls.length) break;
     }
     if (optionEls.length) {
-      const want = value;
-      const match = optionEls.find(o => aynOptionMatches(o.textContent, want));
+      const match = optionEls.find(o => aynOptionMatches(o.textContent, val));
       const pick = match || optionEls[0];
-
       if (pick) {
         try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
         pick.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        pick.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         pick.click();
-        await aynSleep(60);
+        await aynSleep(80);
         return { ok: true, verified: true, picked: nrm(pick.textContent) };
       }
     }
+    // No listbox appeared — commit the raw typed value with Enter as last resort.
     el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
     await aynSleep(40);
     const ok = (el.value || '').trim().length > 0;
@@ -2940,6 +3068,42 @@
       }
 
 
+      // v2.2.0 — multi-select unique-name checkbox group (Ashby race/ethnicity).
+      // id shape: "__checkbox__:multi:g<fid>"; look up boxes from __AYN_MULTICHECK_MAP__
+      // and click each whose label matches any of optionLabels[]. Never uncheck.
+      if (/^(?:frame\d+:)?__checkbox__:multi:/.test(id)) {
+        const boxes = (window.__AYN_MULTICHECK_MAP__ && window.__AYN_MULTICHECK_MAP__.get(id)) || [];
+        if (!boxes.length) { results.push({ id, ok: false, reason: 'multi-checkbox map missing' }); continue; }
+        const wants = Array.isArray(optionLabels) && optionLabels.length ? optionLabels
+                    : Array.isArray(optionValues) && optionValues.length ? optionValues
+                    : [optionLabel || optionValue || value].filter(Boolean);
+        if (!wants.length) { results.push({ id, ok: false, reason: 'no options for multi-check' }); continue; }
+        let clicked = 0;
+        for (const w of wants) {
+          const wantStr = String(w || '').trim();
+          if (!wantStr) continue;
+          const box = boxes.find(b => {
+            const lbl = (getLabelFor(b) || aynAccName(b) || b.value || '').trim();
+            return aynOptionMatches(lbl, wantStr) || aynOptionMatches(b.value || '', wantStr);
+          });
+          if (box && !box.checked) {
+            try {
+              const clickable = box.closest('label') || box;
+              try { box.scrollIntoView({ block: 'center' }); } catch {}
+              clickable.click();
+              await sleep(30);
+              if (!box.checked) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+              clicked++;
+            } catch {}
+          } else if (box && box.checked) {
+            clicked++;
+          }
+        }
+        if (clicked) { filled++; results.push({ id, ok: true, verified: true, picked: clicked }); }
+        else { results.push({ id, ok: false, reason: 'no multi-check option matched' }); }
+        continue;
+      }
+
       // Radio/checkbox group ids look like "__radio__:<name>" or "frame0:__checkbox__:<name>"
       const groupMatch = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(id);
       if (groupMatch) {
@@ -2975,14 +3139,18 @@
           const qLabel = getLabelFor(firstInput) || name;
           try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
           if (btn) {
-            // v2.1.0 — idempotency: if the button already reflects the wanted
-            // state, don't click (Ashby toggles on second click and undoes it).
+            // v2.2.0 — only short-circuit when the already-selected button IS
+            // the wanted answer. Previously we returned "already-set" whenever
+            // ANY button was selected (Ashby often pre-highlights "No"), which
+            // silently reported the wrong answer as verified.
+            const btnLabel = (safeText(btn) || btn.getAttribute('aria-label') || '').trim();
             const alreadySelected = bgIsSelected(btn);
-            if (alreadySelected) {
+            const alreadyCorrect = alreadySelected && aynOptionMatches(btnLabel, wantRaw);
+            if (alreadyCorrect) {
               filled++; results.push({ id, ok: true, verified: true, reason: 'proxy-already-set' });
               continue;
             }
-            const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
+            const okv = await clickOptionButton(btn, qLabel, norm(btnLabel));
             if (okv) { filled++; results.push({ id, ok: true, verified: true }); continue; }
           }
         }
@@ -3944,6 +4112,7 @@
           }
           try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
           try { aynPostInjectVerify(message.values, injectResult); } catch (_) {}
+          try { await aynRetryUnverified(message.values, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);

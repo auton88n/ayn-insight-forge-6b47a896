@@ -138,13 +138,14 @@ async function getScannableFrames(tabId) {
     const byId = new Map(frames.map(f => [f.frameId, f]));
     const originOf = (u) => { try { return new URL(u).origin; } catch { return null; } };
     const out = [];
+    // v2.2.0 — include ALL non-error frames, not just cross-origin. Same-origin
+    // iframes still need explicit enumeration because the top-frame content
+    // script cannot always reach nested iframe DOM directly (Lever embeds,
+    // Ashby step-2 iframes). safeSendMessage lazily injects content.js.
     for (const f of frames) {
       if (f.frameId === 0) { out.push({ frameId: 0 }); continue; }
       if (f.errorOccurred) continue;
-      const parent = byId.get(f.parentFrameId);
-      const po = parent ? originOf(parent.url) : null;
-      const fo = originOf(f.url);
-      if (fo && fo !== po) out.push({ frameId: f.frameId });
+      out.push({ frameId: f.frameId });
     }
     return out.length ? out : [{ frameId: 0 }];
   } catch { return [{ frameId: 0 }]; }
@@ -542,13 +543,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         try {
           await new Promise(r => setTimeout(r, 700));
           let newFieldsAll = [];
+          // v2.2.0 — a field is resendable if it was NEVER given a value in pass 1
+          // (either not returned by AI, or skipped) AND is still empty in the DOM.
+          // Previously we only resent brand-new IDs, so previously-skipped fields
+          // that revealed themselves after lazy hydration were never retried.
+          const resolvedIds = new Set((values || []).map(v => v && v.id).filter(Boolean));
           for (const fr of frames) {
-            const prev = scanByFrame[fr.frameId];
             const s2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
-            const prevIds = new Set((prev?.fields || []).map(f => f.id));
             (s2?.fields || []).forEach(f => {
-              if (!prevIds.has(f.id) && !f.currentValue) {
-                const aggId = AGG(fr.frameId, f.id);
+              const aggId = AGG(fr.frameId, f.id);
+              if (!resolvedIds.has(aggId) && !f.currentValue) {
                 frameOfField.set(aggId, fr.frameId);
                 newFieldsAll.push({ ...f, id: aggId });
               }

@@ -1,6 +1,34 @@
 (function () {
   if (window.__aynPageWorldReady) return;
   window.__aynPageWorldReady = true;
+  // v2.2.0 — fire React's own onChange even on React 18 (fiber-based).
+  // React 16/17: element has `__reactProps$<hash>` with { onChange }.
+  // React 18 (Ashby/Workday/Super): only `__reactFiber$<hash>` is present;
+  // walk the fiber up until we find memoizedProps.onChange.
+  function fireReactChange(el) {
+    try {
+      const propKey = Object.keys(el).find(k => k.startsWith('__reactProps$') || k.startsWith('__reactEventHandlers$'));
+      if (propKey && el[propKey] && typeof el[propKey].onChange === 'function') {
+        el[propKey].onChange({ target: el, currentTarget: el, type: 'change', bubbles: true, preventDefault(){}, stopPropagation(){}, persist(){} });
+        return true;
+      }
+      const fibKey = Object.keys(el).find(k => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+      if (fibKey) {
+        let fiber = el[fibKey];
+        let hops = 0;
+        while (fiber && hops < 12) {
+          const mp = fiber.memoizedProps || fiber.pendingProps;
+          if (mp && typeof mp.onChange === 'function') {
+            mp.onChange({ target: el, currentTarget: el, type: 'change', bubbles: true, preventDefault(){}, stopPropagation(){}, persist(){} });
+            return true;
+          }
+          fiber = fiber.return;
+          hops++;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
   function setPowerfully(el, value) {
     try {
       el.focus();
@@ -17,12 +45,7 @@
       try { if (el._valueTracker && el._valueTracker.setValue) el._valueTracker.setValue(prev); } catch (_) {}
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
-      try {
-        const pk = Object.keys(el).find(k => k.startsWith('__reactProps$'));
-        if (pk && el[pk] && typeof el[pk].onChange === 'function') {
-          el[pk].onChange({ target: el, currentTarget: el, type: 'change', bubbles: true, preventDefault() {}, stopPropagation() {} });
-        }
-      } catch (_) {}
+      fireReactChange(el);
     } catch (_) {}
   }
   document.addEventListener('ayn-fill-request', function () {
