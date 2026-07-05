@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.0.0';
+  const AYN_BUILD = '2.1.0';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -37,10 +37,14 @@
   }
   function safeLen(el) { return safeText(el).length; }
 
-  // v1.9.65 — loop until scrollHeight stabilizes so IntersectionObserver-driven
-  // sections (Veteran / Disability on Gem, BioRender, etc.) get a chance to mount.
-  // Returns a restore() function; caller MUST call it in a finally after scanning
-  // so the user's original scroll position is preserved.
+  // v2.1.0 — reveal-and-settle pass. Two problems this solves:
+  //   1. Lazy sections (Workday step 2, Ashby demographics, Gem EEO) mount
+  //      after IntersectionObserver fires, so we scroll and wait for both
+  //      scrollHeight AND control count to stabilize for 2 ticks.
+  //   2. EEO / voluntary blocks are often collapsed behind a button
+  //      aria-expanded="false" whose name matches voluntary|self-identif|
+  //      demograph|eeo|additional|more|expand. We click those once.
+  // Returns restore() to put the scroll back after the caller finishes scanning.
   async function aynEnsureRendered() {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     let startY = 0;
@@ -48,6 +52,27 @@
       const se = document.scrollingElement || document.documentElement;
       if (!se) return () => {};
       startY = se.scrollTop || 0;
+
+      const countCtrls = () => {
+        try { return document.querySelectorAll('input,textarea,select,[role="radio"],[role="checkbox"],[role="combobox"]').length; }
+        catch { return 0; }
+      };
+      const revealCollapsibles = () => {
+        try {
+          const RE = /voluntary|self[- ]?identif|demograph|eeo|additional\s+questions|show\s+more|see\s+more|expand/i;
+          const btns = Array.from(document.querySelectorAll('button[aria-expanded="false"], [role="button"][aria-expanded="false"]'));
+          let clicked = 0;
+          for (const b of btns) {
+            if (clicked >= 4) break;
+            const name = ((b.innerText || b.getAttribute('aria-label') || '') + '').trim();
+            if (!name || name.length > 80) continue;
+            if (!RE.test(name)) continue;
+            try { b.click(); clicked++; } catch (_) {}
+          }
+          return clicked;
+        } catch (_) { return 0; }
+      };
+
       const max0 = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
       if (max0 > 100) {
         for (let step = 1; step <= 6; step++) {
@@ -55,17 +80,31 @@
           try { window.scrollTo(0, Math.floor(cur * (step / 6))); } catch (_) {}
           await sleep(200);
         }
-        // v2.0.0 — wait until lazy sections stop growing the page before scanning.
-        let lastH = se.scrollHeight || 0;
-        for (let i = 0; i < 4; i++) {
-          await sleep(250);
-          const h = se.scrollHeight || 0;
-          try { window.scrollTo(0, Math.max(0, h - (se.clientHeight || 0))); } catch (_) {}
-          if (Math.abs(h - lastH) < 8) break;
-          lastH = h;
-        }
-        await sleep(150);
       }
+      // Reveal collapsibles once we've paged through the document.
+      revealCollapsibles();
+      await sleep(200);
+      // Settle loop: stop only when scrollHeight AND control count are stable
+      // for two consecutive ticks (or 8 iterations, whichever first).
+      let lastH = se.scrollHeight || 0;
+      let lastC = countCtrls();
+      let stable = 0;
+      for (let i = 0; i < 8; i++) {
+        await sleep(250);
+        const h = se.scrollHeight || 0;
+        const c = countCtrls();
+        try { window.scrollTo(0, Math.max(0, h - (se.clientHeight || 0))); } catch (_) {}
+        if (Math.abs(h - lastH) < 8 && c === lastC) {
+          stable++;
+          if (stable >= 2) break;
+        } else {
+          stable = 0;
+          // If the page grew, a new collapsible may now be reachable.
+          if (c > lastC) revealCollapsibles();
+        }
+        lastH = h; lastC = c;
+      }
+      await sleep(150);
     } catch (_) {}
     return () => { try { window.scrollTo(0, startY); } catch (_) {} };
   }
@@ -2025,6 +2064,88 @@
     } catch (_) { return null; }
   }
 
+  // v2.1.0 — post-inject read-back verification. Independent of
+  // aynSettleReapply (which only handles text reversion). This function
+  // inspects the LIVE DOM for every result that was reported ok, and if the
+  // control's real state does not reflect what we intended, it flips the
+  // result to unverified and attaches a fillDiag record on the injectResult
+  // so telemetry captures which stage lied about success. It does NOT retry
+  // structural clicks itself (that responsibility stays in injectValues)
+  // because false-success signals were the actual failure mode we saw —
+  // knowing about them is more valuable than another blind click.
+  function aynPostInjectVerify(values, injectResult) {
+    const diag = [];
+    try {
+      if (!injectResult || !Array.isArray(injectResult.results)) return;
+      const wantById = new Map();
+      (values || []).forEach(v => {
+        if (!v || !v.id) return;
+        const want = v.optionLabel || v.optionValue || v.value || '';
+        wantById.set(v.id, String(want || '').trim());
+      });
+      const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      for (const res of injectResult.results) {
+        if (!res || !res.id || res.ok !== true) continue;
+        const want = wantById.get(res.id) || '';
+        let verified = null;
+        let method = '';
+        try {
+          const rawId = String(res.id);
+          // Custom (ARIA) radio group
+          if (rawId.includes('__radio__:custom:')) {
+            const els = (window.__AYN_CUSTOM_RADIO_MAP__ && window.__AYN_CUSTOM_RADIO_MAP__.get(rawId)) || [];
+            const target = els.find(e => norm((e.innerText || e.getAttribute('aria-label') || '')) === norm(want)) || els.find(e => e.getAttribute('aria-checked') === 'true');
+            method = 'custom-radio';
+            verified = !!(target && target.getAttribute('aria-checked') === 'true' && (!want || norm(target.innerText || target.getAttribute('aria-label') || '') === norm(want)));
+          } else if (rawId.includes('__structradio__:')) {
+            const entry = (window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId)) || null;
+            const radios = entry ? (Array.isArray(entry) ? entry : (entry.radios || [])) : [];
+            const checked = radios.find(r => r && r.checked);
+            method = 'struct-radio';
+            if (checked) {
+              const lbl = ((checked.closest && checked.closest('label') || checked.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
+              verified = !want || norm(lbl) === norm(want) || norm(checked.value || '') === norm(want);
+            } else verified = false;
+          } else {
+            const m = /^(?:frame\d+:)?__(radio|checkbox)__:(.+)$/.exec(rawId);
+            if (m) {
+              const kind = m[1]; const name = m[2];
+              method = kind;
+              const nodes = Array.from(document.querySelectorAll(`input[type="${kind}"][name="${CSS.escape(name)}"]`));
+              const checked = nodes.filter(n => n.checked);
+              if (kind === 'radio') {
+                verified = checked.length === 1;
+              } else {
+                verified = checked.length >= 1;
+              }
+            } else {
+              const el = aynResolveFieldEl(res.id, res._frame);
+              if (el) {
+                const tag = (el.tagName || '').toUpperCase();
+                if (tag === 'SELECT') { method = 'select'; verified = norm(el.value) === norm(want) || norm(el.options[el.selectedIndex]?.text || '') === norm(want); }
+                else if (tag === 'INPUT' || tag === 'TEXTAREA') { method = 'text'; verified = !want || norm(el.value).includes(norm(want)) || norm(want).includes(norm(el.value)); }
+                else if (el.isContentEditable) { method = 'richedit'; verified = !want || norm(el.innerText || '').includes(norm(want)); }
+              }
+            }
+          }
+        } catch (_) { verified = null; }
+        if (verified === false) {
+          res.verified = false;
+          res.reason = (res.reason ? res.reason + '; ' : '') + 'postverify-failed';
+          diag.push({ id: res.id, method, want: want.slice(0, 60), status: 'unverified' });
+        } else if (verified === true) {
+          res.verified = true;
+        }
+      }
+      // Recompute filled count from the truthful signal.
+      try {
+        injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
+        injectResult.fillDiag = diag;
+      } catch (_) {}
+    } catch (_) { /* never break the fill */ }
+  }
+
+
   async function aynSettleReapply(values, injectResult) {
     try {
       const byId = new Map((values || []).filter(v => v && v.id && typeof v.value === 'string' && v.value.trim()).map(v => [v.id, v.value]));
@@ -2854,6 +2975,13 @@
           const qLabel = getLabelFor(firstInput) || name;
           try { console.log('[AYN-BG] proxy detected; hiddenCheckbox; btnFound=', !!btn, 'want=', wantRaw); } catch {}
           if (btn) {
+            // v2.1.0 — idempotency: if the button already reflects the wanted
+            // state, don't click (Ashby toggles on second click and undoes it).
+            const alreadySelected = bgIsSelected(btn);
+            if (alreadySelected) {
+              filled++; results.push({ id, ok: true, verified: true, reason: 'proxy-already-set' });
+              continue;
+            }
             const okv = await clickOptionButton(btn, qLabel, norm(safeText(btn)));
             if (okv) { filled++; results.push({ id, ok: true, verified: true }); continue; }
           }
@@ -3815,6 +3943,7 @@
             return;
           }
           try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
+          try { aynPostInjectVerify(message.values, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);
