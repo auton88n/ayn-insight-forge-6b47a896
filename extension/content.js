@@ -3943,6 +3943,7 @@
             return;
           }
           try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
+          try { aynPostInjectVerify(message.values, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);
