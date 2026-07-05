@@ -1,51 +1,74 @@
-## Problem
+## Why it's inconsistent today (honest diagnosis)
 
-On Gem/BioRender-style forms, AYN fills Gender and Race but leaves Veteran Status and Disability Status empty. Root cause is in the scanner, not the resolver:
+AYN is not one autofill engine — it is a pipeline of ~6 stages, and each ATS breaks a different stage. Whichever stage is weakest on a given site is what you see fail.
 
-1. `aynEnsureRendered()` scrolls to the bottom in 4 quick steps and immediately returns to the original scroll position after only 80ms. Sections that mount via IntersectionObserver often haven't finished rendering before we scroll back up, and some ATS UIs unmount off-screen sections again (virtualization) — so by the time `SCAN_FORM` walks the DOM, Veteran / Disability radios are gone.
-2. The structural radio pass at `content.js:1247` filters with `r.offsetParent !== null`, i.e. it only registers radios currently visible on screen. Anything below the fold or inside a collapsed section is dropped even when it does exist in the DOM.
-3. There is no second scan pass. If a section mounts 200–500 ms after the first walk (common on React forms with Suspense), we never see it.
+```text
+1. detect     → is this an ATS apply page?
+2. reveal     → aynEnsureRendered scrolls + waits for lazy sections
+3. scan       → scanFormFields walks DOM, frames, shadow roots
+4. resolve    → backend (resume-hub) picks answers per field
+5. inject     → filler / page-world clicks + native-setter writes
+6. verify     → (does not exist today)
+```
 
-The AI backend already answers these three groups correctly (`ruleAnswer` returns "Decline" for EEO / Veteran / Disability). They just never reach the backend because the scanner didn't emit fields for them.
+Concrete failure modes mapped to stages, matching what you reported (Greenhouse / Lever / Workday / Ashby-Gem-BioRender, "fields skipped / wrong option / value doesn't stick"):
 
-## Fix (scanner only — no resolver / injector / backend changes)
+- **Fields skipped** → stage 2 or 3. Lazy sections (Workday step 2, Ashby demographics block, Gem EEO) mount after the scan. Custom radios (`role="radio"` styled buttons) get grouped only when 2+ share a container the walker recognizes.
+- **Wrong option clicked** → stage 4 or 5. Question label resolution picks a neighbor's option text as the "label" (dom.js helps, but only for grouped radios — comboboxes and Yes/No button pairs still use older logic). Ashby Yes/No hidden-checkbox proxy sometimes double-toggles.
+- **Value doesn't stick** → stage 5. React-controlled inputs on Lever/Workday reset when we write via native setter but don't fire the exact synthetic event React expects; typeahead comboboxes (Greenhouse location, Workday country) need a keystroke + option-click sequence, not a value write.
+- **Nothing fills** → usually stage 1 (URL not matched) or a same-origin iframe we didn't enumerate (Workday sometimes nests the app in a second iframe after SSO).
 
-Keep the containment rule from 1.9.63/1.9.64: only touch `extension/content.js`, bump version in `constants.js` and `manifest.json`, rebuild the zip.
+None of this is "AI didn't understand the form." The AI never got asked about the field, or was asked with the wrong label, or we clicked and React didn't hear it.
 
-### 1. Stronger `aynEnsureRendered`
+## Fix plan (no backend changes)
 
-- Replace the 4-step scroll with a loop that scrolls to `scrollHeight`, waits ~250 ms, re-reads `scrollHeight`, and repeats until the height is stable or 6 iterations pass (handles pages where mounting new sections extends the page further).
-- After reaching the bottom, wait one extra `requestAnimationFrame` + 300 ms so IntersectionObserver-driven mounts settle.
-- Do **not** scroll back to the top before scanning. Return the original `scrollTop` in a closure and restore it only after `SCAN_FORM` finishes (new step below).
-- Add a `try/finally` around the SCAN handler so the scroll position is always restored even on error.
+Contained to `extension/` + version bump + zip. No `resume-hub` or edge-function edits.
 
-### 2. Drop the visibility filter in structural radio grouping
+### 1. Add stage 6: post-inject verification and retry (`content.js`)
 
-In the `allRadios` filter at `content.js:1247`, remove `r.offsetParent !== null`. Keep the `!r.disabled` check. Off-screen but present radios (Veteran / Disability once the section is mounted) will then be grouped and emitted. The existing container-of walk already prevents grouping across unrelated sections.
+After `INJECT_VALUES` finishes, read back every field we claimed to fill:
 
-### 3. Second-pass rescan for late mounts
+- text/textarea: current `.value` equals what we wrote (trimmed)
+- native radio/checkbox: `checked === true` on the intended atom
+- custom `[role="radio"]`: `aria-checked === "true"` on the intended atom
+- select/combobox: selected option text matches (or the visible trigger text matches)
 
-After the main field-collection loop finishes but before returning the field list to the background, call a new helper `aynRescanIfChanged()`:
+For every mismatch, retry once with the alternate injection path (native → main-world bridge, or bridge → keystroke sequence for typeaheads). Emit a `fillDiag` record with `{fieldId, method, verified, retried, finalMethod}` that rides the existing telemetry channel. This alone converts "sometimes sticks" into "sticks or we know why not."
 
-- Snapshot `document.querySelectorAll('input,textarea,select,[role="radio"],[role="checkbox"],[role="combobox"]').length` before the scan.
-- After the scan, wait 400 ms and recount.
-- If the count grew, run the field-collection loop one more time and merge any *new* IDs (skip anything already in the field map). One extra pass is enough for React Suspense / lazy sections; more would just add latency.
+### 2. Harden stage 2 for all lazy patterns, not just Gem
 
-### 4. Version + build
+Extend `aynEnsureRendered` with:
+- A settle loop that runs until `document.body.scrollHeight` AND the count of `input,textarea,select,[role=radio],[role=checkbox],[role=combobox]` are both stable for 2 consecutive 250ms ticks (max 8 iterations).
+- A "reveal all collapsibles" pass: click any visible `button[aria-expanded="false"]` whose accessible name matches `/voluntary|self[- ]?identif|demograph|eeo|additional|more|expand/i`. Workday, Greenhouse, and Ashby all hide EEO behind exactly one of these.
+- Same-origin iframe recursion in the reveal step (today reveal runs top-doc only; scan already recurses).
 
-- `extension/constants.js`: `BUILD: '1.9.65'`.
-- `extension/manifest.json`: `"version": "1.9.65"`.
-- `extension/content.js`: `AYN_BUILD = '1.9.65'`.
-- Rebuild `public/ayn-extension.zip` from `extension/`.
+### 3. Widen stage 3 grouping
 
-## Out of scope
+Custom radios currently need 2+ siblings under a common container to become a group. Two additions:
+- **Fieldset/`role="radiogroup"` first**: if a `radiogroup` or `fieldset` wraps N atoms, use it as the container directly instead of walking up looking for a common ancestor.
+- **`aria-labelledby` shortcut**: if all atoms in a candidate group share the same `aria-labelledby`/`name`, group them regardless of container distance.
 
-- `SCAN_FORM` message shape, frame enumeration, `INJECT_VALUES`, the two-lane resolver, `ext_autofill`, and the `ruleAnswer` layer stay byte-identical.
-- No new permissions.
+This is the single biggest reason Workday and BioRender skip fields: the atoms are correctly grouped by ARIA but scattered in the DOM.
+
+### 4. Fix the two known injection bugs
+
+- **Typeahead comboboxes** (Greenhouse location, Workday country, Ashby school): stop writing `.value` directly. Sequence: focus → dispatch `input` for each character of the target → wait one frame → click the `[role="option"]` whose text matches. Falls back to the current native-setter path only if no listbox opens within 400ms.
+- **Ashby Yes/No hidden-checkbox proxy**: gate the click behind a "read current `aria-pressed`/`aria-checked` first, click only if it doesn't already match" check, so we never toggle a correct answer back off.
+
+### 5. Version + build
+
+- `extension/constants.js`: `BUILD: '2.1.0'`
+- `extension/content.js`: `AYN_BUILD = '2.1.0'`
+- `extension/manifest.json`: `"version": "2.1.0"`
+- `node --check` on every edited file, then rebuild `public/ayn-extension.zip`.
+
+## Explicitly out of scope
+
+- `resume-hub/index.ts`, prompts, EEO policy, rule layer — untouched.
+- `dom.js` public API — keep as is; changes in content.js only.
+- No new manifest permissions.
+- No changes to `sidepanel.js`, `deep-link.js`, `handoff-hydrate.js`, `resumeFormat.js`, `vendor/`.
 
 ## Verification
 
-After the user reloads the extension:
-- On the same BioRender/Gem form, sidepanel should now list Veteran Status and Disability Status as fields (previously absent).
-- Both should be filled with "Decline to self-identify" / "Decline to self-identify as a protected veteran" via the existing `ruleAnswer` path.
-- Fields telemetry in `autofill_runs` should show the two new group IDs with `source: 'ai'` and confidence ≥ 0.9.
+I'll drive Playwright against a saved snapshot of the Ashby URL you gave (`jobs.ashbyhq.com/Jerry.ai/ac7f85a8-...`) plus a Greenhouse and a Lever posting, run a fill, and confirm from telemetry that every emitted field either has `verified: true` or a specific `finalMethod` explaining the retry. That's the acceptance test — "verified or logged," never silently skipped.
