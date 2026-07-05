@@ -178,6 +178,25 @@
     const anchor = fallbackEl || container;
     const optTexts = optionTextSet(optionsOrEls);
     const globalIdx = currentOptionIndex() || buildOptionIndex(doc || (container && container.ownerDocument) || document);
+    // v2.2.0 — Priority 0: aria-labelledby on the group container or any atom.
+    // Ashby/Super gender/race groups label the question with an aria-labelledby
+    // pointer, not adjacent DOM text. This branch wins before proximity scoring.
+    try {
+      const d = (doc || (container && container.ownerDocument) || document);
+      const candSources = [];
+      if (container && container.getAttribute) candSources.push(container.getAttribute('aria-labelledby'));
+      if (fallbackEl && fallbackEl.getAttribute) candSources.push(fallbackEl.getAttribute('aria-labelledby'));
+      const ids = new Set();
+      candSources.filter(Boolean).forEach(s => String(s).split(/\s+/).forEach(id => id && ids.add(id)));
+      for (const id of ids) {
+        const ref = d.getElementById(id);
+        if (!ref) continue;
+        const t = normLine(textOf(ref));
+        if (t && !badQuestionLine(t, optTexts, globalIdx)) {
+          return { label: t.slice(0, 240), source: 'aria-labelledby' };
+        }
+      }
+    } catch (_) {}
     const cands = [];
     try {
       const direct = container && container.querySelector && container.querySelector(':scope > legend, :scope > label, :scope > [role="heading"], :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > strong');
