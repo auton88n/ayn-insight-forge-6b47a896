@@ -104,7 +104,7 @@ async function safeSendMessage(tabId, message, frameId = 0) {
   const direct = await tryOnce();
   if (direct !== null) return direct;
   try {
-    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['constants.js', 'filler.js', 'content.js'] });
+    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['constants.js', 'filler.js', 'dom.js', 'content.js'] });
     await new Promise(r => setTimeout(r, 300));
     return tryOnce();
   } catch { return null; }

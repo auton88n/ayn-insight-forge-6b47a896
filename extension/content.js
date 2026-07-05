@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '1.9.67';
+  const AYN_BUILD = '2.0.0';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -50,12 +50,21 @@
       startY = se.scrollTop || 0;
       const max0 = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
       if (max0 > 100) {
-        for (let step = 1; step <= 4; step++) {
+        for (let step = 1; step <= 6; step++) {
           const cur = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
-          try { window.scrollTo(0, Math.floor(cur * (step / 4))); } catch (_) {}
-          await sleep(130);
+          try { window.scrollTo(0, Math.floor(cur * (step / 6))); } catch (_) {}
+          await sleep(200);
         }
-        await sleep(120);
+        // v2.0.0 — wait until lazy sections stop growing the page before scanning.
+        let lastH = se.scrollHeight || 0;
+        for (let i = 0; i < 4; i++) {
+          await sleep(250);
+          const h = se.scrollHeight || 0;
+          try { window.scrollTo(0, Math.max(0, h - (se.clientHeight || 0))); } catch (_) {}
+          if (Math.abs(h - lastH) < 8) break;
+          lastH = h;
+        }
+        await sleep(150);
       }
     } catch (_) {}
     return () => { try { window.scrollTo(0, startY); } catch (_) {} };
@@ -1010,115 +1019,16 @@
     for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
     return (h >>> 0).toString(36);
   }
-  function aynOptionTextSet(optionsOrEls) {
-    const set = new Set();
-    try {
-      (optionsOrEls || []).forEach(o => {
-        let t = '';
-        if (typeof o === 'string') t = o;
-        else if (o && typeof o.label === 'string') t = o.label;
-        else if (o && o.nodeType === 1) t = safeText(o) || o.getAttribute?.('aria-label') || '';
-        t = aynNormLine(t).toLowerCase();
-        if (t) set.add(t);
-      });
-    } catch (_) {}
-    return set;
-  }
-  function aynBadQuestionLine(line, optTexts) {
-    const t = aynNormLine(line);
-    const l = t.toLowerCase();
-    if (!t || t.length < 2 || t.length > 180) return true;
-    if (/^(question|select one|choose one|required|optional)$/i.test(t)) return true;
-    if (/^(what\s+(is|are|do|does)\b|please\s+(select|choose|note)|for\s+(the\s+)?purpose|this\s+(question|section)|for\s+more\s+information|see\s+(below|above)|note[:\s]|learn more|description[:\s])/i.test(t)) return true;
-    if (/^(asian|black|hispanic|latino|white|male|female|non[- ]?binary|decline to self|prefer not|yes|no|oui|non|i identify as|i am not a|i do not wish)/i.test(t)) return true;
-    if (optTexts && optTexts.has(l)) return true;
-    if (optTexts) {
-      let hits = 0;
-      optTexts.forEach(o => { if (o && l.includes(o)) hits++; });
-      if (hits >= 2) return true;
-    }
-    return false;
-  }
-  function aynScoreQuestionCandidate(el, text, optTexts, anchor) {
-    const t = aynNormLine(text);
-    if (aynBadQuestionLine(t, optTexts)) return -1;
-    const tag = (el && el.tagName || '').toLowerCase();
-    const cls = String((el && el.className) || '');
-    const role = String((el && el.getAttribute && el.getAttribute('role')) || '').toLowerCase();
-    let score = 10;
-    if (/^(legend|h1|h2|h3|h4|h5)$/.test(tag) || role === 'heading') score += 60;
-    if (tag === 'label' || tag === 'strong') score += 38;
-    if (/question|label|title|heading|field/i.test(cls)) score += 30;
-    if (/\b(disability|veteran|gender|race|ethnic|self[- ]?identif|pronoun|authorization|sponsor|reside|relocat)/i.test(t)) score += 35;
-    if (/[?]$/.test(t)) score += 8;
-    try {
-      if (anchor && el && el.compareDocumentPosition) {
-        const pos = el.compareDocumentPosition(anchor);
-        if (pos & Node.DOCUMENT_POSITION_FOLLOWING) score += 12;
-      }
-    } catch (_) {}
-    if (t.length <= 45) score += 10;
-    if (t.length > 110) score -= 20;
-    return score;
-  }
-  function aynCollectQuestionLines(el, optTexts, anchor, out) {
-    if (!el || !out) return;
-    try {
-      const candidates = [];
-      if (el.matches && el.matches('legend, label, h1, h2, h3, h4, h5, strong, [role="heading"], [class*="question" i], [class*="label" i], [class*="title" i], [class*="heading" i]')) candidates.push(el);
-      if (el.querySelectorAll) candidates.push(...Array.from(el.querySelectorAll('legend, label, h1, h2, h3, h4, h5, strong, [role="heading"], [class*="question" i], [class*="label" i], [class*="title" i], [class*="heading" i]')).slice(0, 20));
-      for (const c of candidates) {
-        if (!c || (anchor && c.contains && c.contains(anchor))) continue;
-        if (c.querySelector && c.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"], [role="checkbox"]')) continue;
-        const raw = safeText(c) || c.getAttribute?.('aria-label') || '';
-        const lines = String(raw).split(/[\n\r]+/).map(aynNormLine).filter(Boolean);
-        for (const line of lines.slice(0, 4)) {
-          const score = aynScoreQuestionCandidate(c, line, optTexts, anchor);
-          if (score >= 0) out.push({ text: line, score, source: 'heading' });
-        }
-      }
-      // Some ATS wrappers put useful labels as plain text siblings, not semantic headings.
-      const rawLines = String(safeText(el) || '').split(/[\n\r]+/).map(aynNormLine).filter(Boolean).slice(0, 10);
-      for (const line of rawLines) {
-        const score = aynScoreQuestionCandidate(el, line, optTexts, anchor) - 12;
-        if (score >= 0) out.push({ text: line, score, source: 'text-line' });
-      }
-    } catch (_) {}
-  }
+  // v2.0.0 — question resolution moved to dom.js (self.AYN_DOM), the single
+  // brain for label logic: page-global option-text exclusion plus proximity
+  // decay. This thin delegate keeps all nine call sites unchanged.
   function aynFindQuestionForOptionGroup(container, optionsOrEls, fallbackEl) {
-    const anchor = fallbackEl || container;
-    const optTexts = aynOptionTextSet(optionsOrEls);
-    const cands = [];
     try {
-      // 1) Real fieldset/radiogroup labels win.
-      let direct = container && container.querySelector && container.querySelector(':scope > legend, :scope > label, :scope > [role="heading"], :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > strong');
-      if (direct && !(anchor && direct.contains(anchor))) aynCollectQuestionLines(direct, optTexts, anchor, cands);
-    } catch (_) {}
-    try {
-      // 2) Preceding siblings of the group and its ancestors.
-      let node = container;
-      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
-        let sib = node.previousElementSibling;
-        for (let guard = 0; sib && guard < 8; guard++, sib = sib.previousElementSibling) {
-          if (sib.querySelector && sib.querySelector('input:not([type="hidden"]), textarea, select, [role="radio"], [role="checkbox"]')) continue;
-          aynCollectQuestionLines(sib, optTexts, anchor, cands);
-        }
+      if (self.AYN_DOM && self.AYN_DOM.findQuestion) {
+        return self.AYN_DOM.findQuestion(container, optionsOrEls, fallbackEl, (container && container.ownerDocument) || document);
       }
     } catch (_) {}
-    try {
-      // 3) Ancestor headings and short text lines, useful for Gem/BioRender where
-      // helper text is between the title and options.
-      let node = container;
-      for (let d = 0; d < 7 && node; d++, node = node.parentElement) {
-        aynCollectQuestionLines(node, optTexts, anchor, cands);
-      }
-    } catch (_) {}
-    if (!cands.length) return { label: '', source: '' };
-    const seen = new Set();
-    const best = cands
-      .filter(c => { const k = c.text.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
-      .sort((a, b) => b.score - a.score)[0];
-    return { label: best ? best.text.slice(0, 240) : '', source: best ? best.source : '' };
+    return { label: '', source: '' };
   }
 
   function aynFingerprintField(field) {
@@ -1186,6 +1096,8 @@
 
 
     collectScannableDocs().forEach(({ doc, prefix }) => {
+      // v2.0.0 — page-global option-text index for this document's scan.
+      try { if (self.AYN_DOM && self.AYN_DOM.beginScan) self.AYN_DOM.beginScan(doc); } catch (_) {}
       // ── PRE-PASS: group native radios by shared name into ONE field per group ──
       const processedRadios = new WeakSet();
       try {
@@ -1265,7 +1177,7 @@
         // radios must be excluded or groups get polluted and the wrong option is clicked.
         // Lazy below-fold radios are mounted by aynEnsureRendered() and then have a
         // non-null offsetParent, so this still catches Veteran / Disability on Gem.
-        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && r.offsetParent !== null);
+        const allRadios = Array.from(doc.querySelectorAll('input[type="radio"]')).filter(r => !usedRadios.has(r) && !r.disabled && (self.AYN_DOM ? self.AYN_DOM.visibleish(r) : r.offsetParent !== null));
         const containerOf = (r) => {
           let node = r.parentElement;
           for (let d = 0; d < 10 && node; d++, node = node.parentElement) {
@@ -1421,6 +1333,55 @@
         });
       } catch { /* never fail the scan */ }
 
+
+      // ── v2.0.0 COVERAGE PASS: no radio left behind ──────────────────
+      // Sweeps every visible radio atom the passes above did not claim into a
+      // group, and records a diagnostic that rides scanDiag into telemetry.
+      try {
+        if (self.AYN_DOM && self.AYN_DOM.coverageScan) {
+          const cov = self.AYN_DOM.coverageScan(doc, window.__AYN_USED_RADIOS__, processedCustomRadios);
+          cov.nativeGroups.forEach(({ container, radios }) => {
+            const options = radios.map(r => {
+              const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g, ' ').trim();
+              return { label: lbl, value: (r.value && r.value !== 'on') ? r.value : lbl };
+            });
+            const rq = aynFindQuestionForOptionGroup(container, options, radios[0]);
+            const q = (rq.label || 'Question').slice(0, 240);
+            const gid = `${prefix}__structradio__:g${aynFid(container)}`;
+            if (seenGroupKeys.has(gid)) return;
+            seenGroupKeys.add(gid);
+            window.__AYN_STRUCTRADIO_MAP__.set(gid, { container, radios });
+            radios.forEach(r => { window.__AYN_USED_RADIOS__.add(r); processedRadios.add(r); });
+            fields.push({
+              id: gid, kind: 'radio', type: 'radio', name: '', label: q, options,
+              required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
+              group: classifyField(`${q} ${options.map(o => o.label).join(' ')}`, '', 'radio'),
+              accRole: 'radio', labelSource: 'coverage', _frame: prefix,
+            });
+          });
+          cov.customGroups.forEach(({ container, els }) => {
+            const options = els.map(e => {
+              const lbl = (aynAccName(e) || safeText(e) || e.getAttribute('aria-label') || '').trim();
+              return { label: lbl, value: e.getAttribute('value') || lbl };
+            });
+            const rq = aynFindQuestionForOptionGroup(container, options, els[0]);
+            const q = (rq.label || 'Question').slice(0, 240);
+            const fieldId = `${prefix}__radio__:custom:g${aynFid(container)}`;
+            if (seenGroupKeys.has(fieldId)) return;
+            seenGroupKeys.add(fieldId);
+            window.__AYN_CUSTOM_RADIO_MAP__ = window.__AYN_CUSTOM_RADIO_MAP__ || new Map();
+            window.__AYN_CUSTOM_RADIO_MAP__.set(fieldId, els);
+            els.forEach(e => processedCustomRadios.add(e));
+            fields.push({
+              id: fieldId, kind: 'radio', type: 'radio', name: '', label: q, options,
+              required: /\*|required/i.test((container.innerText || '').slice(0, 300)),
+              group: classifyField(`${q} ${options.map(o => o.label).join(' ')}`, '', 'radio'),
+              accRole: 'radio', labelSource: 'coverage', _frame: prefix,
+            });
+          });
+          window.__AYN_COVERAGE__ = cov.diag;
+        }
+      } catch (_) { /* never fail the scan */ }
 
       const elements = Array.from(doc.querySelectorAll('input, textarea, select'));
       elements.forEach((el, idx) => {
@@ -3827,6 +3788,7 @@
           const jobText = extractJobText();
           let scanDiag = [];
           try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+          try { if (window.__AYN_COVERAGE__) scanDiag.push({ note: 'coverage', cov: window.__AYN_COVERAGE__ }); } catch (_) {}
           // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
           try {
             const map = new Map();
