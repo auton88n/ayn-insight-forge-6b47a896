@@ -50,12 +50,21 @@
       startY = se.scrollTop || 0;
       const max0 = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
       if (max0 > 100) {
-        for (let step = 1; step <= 4; step++) {
+        for (let step = 1; step <= 6; step++) {
           const cur = Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0));
-          try { window.scrollTo(0, Math.floor(cur * (step / 4))); } catch (_) {}
-          await sleep(130);
+          try { window.scrollTo(0, Math.floor(cur * (step / 6))); } catch (_) {}
+          await sleep(200);
         }
-        await sleep(120);
+        // v2.0.0 — wait until lazy sections stop growing the page before scanning.
+        let lastH = se.scrollHeight || 0;
+        for (let i = 0; i < 4; i++) {
+          await sleep(250);
+          const h = se.scrollHeight || 0;
+          try { window.scrollTo(0, Math.max(0, h - (se.clientHeight || 0))); } catch (_) {}
+          if (Math.abs(h - lastH) < 8) break;
+          lastH = h;
+        }
+        await sleep(150);
       }
     } catch (_) {}
     return () => { try { window.scrollTo(0, startY); } catch (_) {} };
