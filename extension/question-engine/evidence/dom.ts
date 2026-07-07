@@ -135,7 +135,18 @@ function readOptions(el: Element, doc: Document | null): Array<{ value: string; 
   // ARIA listbox / combobox
   const role = el.getAttribute("role");
   if (role === "listbox" || role === "combobox") {
-    const optNodes = el.querySelectorAll('[role="option"]');
+    // v2.3.2 — Portal-mounted listboxes render outside the combobox. Resolve
+    // aria-controls / aria-owns first, then fall back to descendants, then
+    // document-wide (last resort).
+    const ctrl = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+    const portal = ctrl && doc ? doc.getElementById(ctrl) : null;
+    let optNodes: NodeListOf<Element> | Element[] = portal
+      ? portal.querySelectorAll('[role="option"]')
+      : el.querySelectorAll('[role="option"]');
+    if (!optNodes.length && doc) {
+      optNodes = Array.from(doc.querySelectorAll('[role="option"]'))
+        .filter((o) => !o.closest('[aria-hidden="true"]'));
+    }
     if (optNodes.length) {
       return Array.from(optNodes).map((o) => ({
         value: o.getAttribute("data-value") || normalize(o.textContent || ""),
@@ -143,6 +154,7 @@ function readOptions(el: Element, doc: Document | null): Array<{ value: string; 
       }));
     }
   }
+
 
   return null;
 }
