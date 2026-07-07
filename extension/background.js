@@ -459,7 +459,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (!self.AYN_RESOLVER.isSensitive(f)) {
                   const fp = await self.AYN_RESOLVER.fingerprint(f, host);
                   const mm = mem[fp];
-                  if (mm && (mm.value || mm.optionLabel)) {
+                  if (mm && (mm.value || mm.optionLabel) && (!self.AYN_RESOLVER.canReuseMemory || self.AYN_RESOLVER.canReuseMemory(f, mm))) {
                     hit = { id: f.id, ...(mm.optionLabel ? { optionLabel: mm.optionLabel, optionValue: mm.optionValue } : { value: mm.value }), confidence: 0.9, source: 'memory', reasoning: 'Reused a saved answer.' };
                   }
                 }
@@ -552,7 +552,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const s2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
             (s2?.fields || []).forEach(f => {
               const aggId = AGG(fr.frameId, f.id);
-              if (!resolvedIds.has(aggId) && !f.currentValue) {
+              const wasOk = mergedResults.some(r => r && r.id === aggId && r.ok === true && r.verified !== false);
+              if (!wasOk && !resolvedIds.has(aggId) && !f.currentValue) {
                 frameOfField.set(aggId, fr.frameId);
                 newFieldsAll.push({ ...f, id: aggId });
               }
@@ -633,7 +634,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const v = values.find(x => x.id === r.id);
             const f = fields.find(x => x.id === r.id);
             if (!v || !f) continue;
-            if (self.AYN_RESOLVER && self.AYN_RESOLVER.isSensitive(f)) continue;
+            if (self.AYN_RESOLVER && (self.AYN_RESOLVER.isSensitive(f) || (self.AYN_RESOLVER.isMemoryBlocked && self.AYN_RESOLVER.isMemoryBlocked(f)))) continue;
             if (!(v.value || v.optionLabel)) continue;
             const fp = self.AYN_RESOLVER ? await self.AYN_RESOLVER.fingerprint(f, host) : null;
             if (!fp) continue;
