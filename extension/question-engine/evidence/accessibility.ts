@@ -87,13 +87,16 @@ export function computeAccessibleName(
   if (ariaLabel && ariaLabel.trim()) return normalize(ariaLabel);
 
   const id = el.getAttribute("id");
-  if (id && doc) {
+  const GENERATED_ID_RE =
+    /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+  if (id && !GENERATED_ID_RE.test(id) && doc) {
     const forLabel = doc.querySelector(`label[for="${cssEscape(id)}"]`);
     if (forLabel) {
       const t = normalize(forLabel.textContent || "");
       if (t) return t;
     }
   }
+
   const wrap = el.closest("label");
   if (wrap) {
     const clone = wrap.cloneNode(true) as HTMLElement;
