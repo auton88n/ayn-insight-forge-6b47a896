@@ -1224,7 +1224,7 @@
         return [];
       }
       aynRegisterEngineGroups(rich);
-      return rich.map(function (q) {
+      const projected = rich.map(function (q) {
         let legacyKind, legacyType;
         switch (q.kind) {
           case 'single_choice': legacyKind = 'structradio'; legacyType = 'radio'; break;
@@ -1253,6 +1253,12 @@
           _engine: true
         };
       });
+      try {
+        projected._fileFields = projected.filter(function (f) {
+          return f && (f.kind === 'file' || f.type === 'file' || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
+        }).map(function (f) { return { ...f, isResume: /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')) }; });
+      } catch (_) { projected._fileFields = []; }
+      return projected;
     } catch (e) {
       try { console.log('[AYN-HYBRID] engine path threw:', e); } catch (_) {}
       return [];
