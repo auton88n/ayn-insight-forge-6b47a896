@@ -113,6 +113,11 @@ async function callAI(opts: {
 
       if (r.ok) {
         const data = await r.json();
+        const choice = data?.choices?.[0];
+        const finishReason = choice?.finish_reason || choice?.finishReason || data?.stop_reason;
+        if (finishReason === "length" || finishReason === "max_tokens") {
+          throw new Error("AI response truncated. Retry with fewer fields or more output tokens.");
+        }
         const msg = data?.choices?.[0]?.message;
         const tc = msg?.tool_calls?.[0]?.function?.arguments;
         if (tc) {
