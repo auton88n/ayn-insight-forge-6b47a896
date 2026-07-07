@@ -2601,8 +2601,8 @@
           // observe the page's own state change; otherwise the result is unverified.
 
           await sleep(60);
-          let verified = bgIsSelected(target);
-          if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+          let verified = aynChoiceMatchesWanted(scope, target, wantRaw);
+          if (!verified) { await sleep(140); verified = aynChoiceMatchesWanted(scope, target, wantRaw); }
           try {
             console.log('[AYN-BG] afterPlainClick verified=', verified, 'class=',
               (target && typeof target.className === 'string' ? target.className : ''));
@@ -2611,8 +2611,8 @@
             // Fallback 1: full pointer/mouse sequence
             fireFullClick(target);
             await sleep(60);
-            verified = bgIsSelected(target);
-            if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+            verified = aynChoiceMatchesWanted(scope, target, wantRaw);
+            if (!verified) { await sleep(140); verified = aynChoiceMatchesWanted(scope, target, wantRaw); }
             try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
           }
           if (!verified) {
@@ -2621,8 +2621,8 @@
             if (fallback && fallback !== target) {
               fireFullClick(fallback);
               await sleep(60);
-              verified = bgIsSelected(target) || bgIsSelected(fallback);
-              if (!verified) { await sleep(140); verified = bgIsSelected(target) || bgIsSelected(fallback); }
+              verified = aynChoiceMatchesWanted(scope || fallback.parentElement, target, wantRaw) || aynChoiceMatchesWanted(scope || fallback.parentElement, fallback, wantRaw);
+              if (!verified) { await sleep(140); verified = aynChoiceMatchesWanted(scope || fallback.parentElement, target, wantRaw) || aynChoiceMatchesWanted(scope || fallback.parentElement, fallback, wantRaw); }
               try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
             }
           }
@@ -2630,7 +2630,7 @@
             // Fallback 3: main-world click (isolated-world click may not reach React)
             mainWorldClickByText(meta.qLabel, optionLabel || optionValue || value);
             await sleep(150);
-            verified = bgIsSelected(target);
+            verified = aynChoiceMatchesWanted(scope, target, wantRaw);
             try { console.log('[AYN-BG] afterMainWorld verified=', verified); } catch {}
           }
           try { console.log('[AYN-BG] result', id, 'verified=', verified); } catch {}
