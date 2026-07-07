@@ -3561,6 +3561,11 @@
           const jobText = extractJobText();
           let scanDiag = [];
           try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+          try {
+            const fused = await aynFuseVisionIntoFields(fields, countCtrls());
+            fields = fused.fields || fields;
+            if (fused.diag) scanDiag.push(fused.diag);
+          } catch (_) {}
           try { if (window.__AYN_COVERAGE__) scanDiag.push({ note: 'coverage', cov: window.__AYN_COVERAGE__ }); } catch (_) {}
           // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
           try {
