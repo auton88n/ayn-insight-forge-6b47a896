@@ -1,8 +1,8 @@
 /**
  * index.ts
- * The public API of the Universal Question Engine. The whole engine reduces to
- * scanForm(root) -> Question[]. Pure with respect to the DOM: reads, never
- * writes. Never calls AI, never reads the profile, never fills.
+ * The public API of the Universal Question Engine. scanForm(root) -> Question[].
+ * Pure with respect to the DOM: reads, never writes (except stamping fids).
+ * Never calls AI, never reads the profile, never fills.
  */
 
 import type { Question } from "./question";
@@ -12,6 +12,11 @@ import { reconstruct } from "./question-reconstructor";
 import { build } from "./question-builder";
 import { selectAdapter, registerAdapter } from "./adapters/index";
 import { genericAdapter } from "./adapters/generic";
+import { workdayAdapter } from "./adapters/workday";
+import { ashbyAdapter } from "./adapters/ashby";
+import { greenhouseAdapter } from "./adapters/greenhouse";
+import { leverAdapter } from "./adapters/lever";
+import { icimsAdapter } from "./adapters/icims";
 import { projectToLegacy, projectFromLegacyAnswer } from "./legacy";
 import { nextGeneration } from "./refs";
 
@@ -23,6 +28,14 @@ export type { LearningEngine } from "./learning/interface";
 export type { LegacyDescriptor } from "./legacy";
 export { withAnswer, withVerification, projectToLegacy, projectFromLegacyAnswer, registerAdapter };
 
+// Registration order matters: non-generic adapters are probed first, generic
+// is the guaranteed fallback (registered last). detect() predicates for the
+// specific ATSes are disjoint by host/DOM signature.
+registerAdapter(workdayAdapter);
+registerAdapter(ashbyAdapter);
+registerAdapter(greenhouseAdapter);
+registerAdapter(leverAdapter);
+registerAdapter(icimsAdapter);
 registerAdapter(genericAdapter);
 
 export interface ScanOptions {
@@ -41,9 +54,9 @@ export function scanForm(root: Document | Element, opts: ScanOptions = {}): Ques
   void opts;
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
   const url = doc.location?.href ?? "";
-  void selectAdapter(doc, url);
+  const adapter = selectAdapter(doc, url);
   const raw = detect(root);
-  const detected = enrich(raw, root);
+  const detected = enrich(raw, root, adapter);
   const groups = reconstruct(detected, root);
   const questions = build(groups);
   return questions.map(freezeQuestion);
