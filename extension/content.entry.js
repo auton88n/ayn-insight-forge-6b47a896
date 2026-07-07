@@ -298,7 +298,11 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
       async run() {
         try {
           const detectedControls = new Set(
-            (window.__AYN_QUESTIONS__ || []).flatMap((q) => (q.controls || []).map((c) => c && c.node).filter(Boolean))
+            (window.__AYN_QUESTIONS__ || [])
+              .flatMap((q) => (q.controls || [])
+                .map((c) => c && c.fid ? document.querySelector(`[data-ayn-fid="${String(c.fid).replace(/"/g, '\\"')}"]`) : null)
+                .filter(Boolean))
+              .map((n) => n.closest('fieldset,[role="group"],[role="radiogroup"],[class*="field"],[class*="question"]') || n)
           );
           const zones = findVisualDeadZones(document, detectedControls);
           if (!zones.length) return { zones: 0, questions: [] };
