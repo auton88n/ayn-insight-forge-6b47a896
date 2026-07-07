@@ -11,10 +11,12 @@ import { cluster } from "./grouping";
 
 export function reconstruct(
   fields: ReadonlyArray<DetectedField>,
-  root: Document | Element
+  root: Document | Element,
+  adapter: import("./adapters/index").ATSPlugin | null = null
 ): QuestionGroup[] {
-  void root;
-  const clusters = cluster(fields);
+  const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+  const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
+  const clusters = cluster(fields, hints);
   return clusters.map((c) => {
     const groupingEvidence: Evidence[] = [
       makeEvidence("dom", "grouping", { reason: c.reason, size: c.members.length }, c.confidence),
