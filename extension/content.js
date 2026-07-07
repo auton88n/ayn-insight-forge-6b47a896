@@ -647,12 +647,14 @@
       }).join(' ');
       if (c(t)) return c(t);
     }
-    if (el.id) {
+    const sid2 = aynStableId(el);
+    if (sid2) {
       try {
-        const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        const l = document.querySelector(`label[for="${CSS.escape(sid2)}"]`);
         if (l && c(l.innerText)) return c(l.innerText);
       } catch (_) {}
     }
+
     const w = el.closest && el.closest('label');
     if (w) {
       const cl = w.cloneNode(true);
