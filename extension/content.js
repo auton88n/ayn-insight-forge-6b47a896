@@ -1818,20 +1818,21 @@
   }
 
   async function clickOptionButton(btn, qLabel, wantText) {
+    const scope = btn && (btn.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"],[class*="question"],[role="group"]') || btn.parentElement);
     try { btn.scrollIntoView({ block: 'center' }); } catch {}
     try { btn.focus && btn.focus(); } catch {}
     btn.click();
     await sleep(60);
-    let ok = bgIsSelected(btn);
-    if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+    let ok = aynChoiceMatchesWanted(scope, btn, wantText);
+    if (!ok) { await sleep(140); ok = aynChoiceMatchesWanted(scope, btn, wantText); }
     if (!ok) {
       fireFullClick(btn);
-      await sleep(60); ok = bgIsSelected(btn);
-      if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+      await sleep(60); ok = aynChoiceMatchesWanted(scope, btn, wantText);
+      if (!ok) { await sleep(140); ok = aynChoiceMatchesWanted(scope, btn, wantText); }
     }
     if (!ok) {
       mainWorldClickByText(qLabel, wantText);
-      await sleep(150); ok = bgIsSelected(btn);
+      await sleep(150); ok = aynChoiceMatchesWanted(scope, btn, wantText);
     }
     try { console.log('[AYN-BG] proxyClick', wantText, 'verified=', ok); } catch {}
     return ok;
