@@ -27,7 +27,7 @@ export const ashbyAdapter: ATSPlugin = {
   },
   collectEvidence(field: DetectedField): Evidence[] {
     const out: Evidence[] = [];
-    if (field.kind === "checkbox" || field.kind === "radio") {
+    if (field.kind === "checkbox" || field.kind === "radio" || field.kind === "custom") {
       const proxy = proxyLabelFor(field.node);
       if (proxy) {
         out.push(makeEvidence("adapter", "label", proxy, 0.9, { via: "ashby-proxy" }));
@@ -38,6 +38,13 @@ export const ashbyAdapter: ATSPlugin = {
       const legend = q.querySelector('[class*="_label_" i], label');
       const t = legend?.textContent?.replace(/\s+/g, " ").trim();
       if (t) out.push(makeEvidence("adapter", "label", t, 0.85, { via: "ashby-fieldentry" }));
+      const choiceTexts = Array.from(q.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]'))
+        .map((n) => n.textContent?.replace(/\s+/g, " ").trim() ?? "")
+        .filter((t) => t && t.length <= 120)
+        .slice(0, 12);
+      if (choiceTexts.length >= 2) {
+        out.push(makeEvidence("adapter", "options", choiceTexts.map((label) => ({ value: label, label })), 0.9, { via: "ashby-choice-buttons" }));
+      }
     }
     return out;
   },
@@ -54,8 +61,10 @@ export const ashbyAdapter: ATSPlugin = {
     const hints: GroupingHint[] = [];
     for (const [, arr] of buckets) {
       if (arr.length > 1) {
+        const customChoices = arr.filter((f) => f.kind === "custom" || f.kind === "radio");
+        const members = customChoices.length >= 2 ? customChoices : arr;
         hints.push({
-          memberFids: arr.map((f) => ensureFid(f.node)),
+          memberFids: members.map((f) => ensureFid(f.node)),
           confidence: 0.95,
           reason: "ashby:fieldEntry",
         });
