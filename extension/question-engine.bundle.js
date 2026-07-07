@@ -18,20 +18,28 @@ var AYNQuestionEngine = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // question-engine/index.ts
+  // extension/question-engine/index.ts
   var question_engine_exports = {};
   __export(question_engine_exports, {
+    classifyFailure: () => classifyFailure,
+    createDecisionLoop: () => createDecisionLoop,
+    createSupabaseLearning: () => createSupabaseLearning,
+    createVisionProvider: () => createVisionProvider,
+    findVisualDeadZones: () => findVisualDeadZones,
+    getLearningEngine: () => getLearningEngine,
     observeForm: () => observeForm,
     projectFromLegacyAnswer: () => projectFromLegacyAnswer,
     projectToLegacy: () => projectToLegacy,
+    questionSignature: () => questionSignature,
     registerAdapter: () => registerAdapter,
     scanForm: () => scanForm,
+    setLearningEngine: () => setLearningEngine,
     setVisionProvider: () => setVisionProvider,
     withAnswer: () => withAnswer,
     withVerification: () => withVerification
   });
 
-  // question-engine/question.ts
+  // extension/question-engine/question.ts
   function freezeQuestion(q) {
     Object.freeze(q.confidence);
     Object.freeze(q.options);
@@ -60,7 +68,7 @@ var AYNQuestionEngine = (() => {
     return q.history ? [...q.history, entry] : [entry];
   }
 
-  // question-engine/refs.ts
+  // extension/question-engine/refs.ts
   var ID_PREFIX = Object.freeze({
     text: "__textfield__",
     structradio: "__structradio__",
@@ -152,7 +160,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // question-engine/evidence.ts
+  // extension/question-engine/evidence.ts
   var WEIGHTS = Object.freeze({
     accessibility: {
       label: 0.9,
@@ -204,7 +212,7 @@ var AYNQuestionEngine = (() => {
     });
   }
 
-  // question-engine/evidence/dom.ts
+  // extension/question-engine/evidence/dom.ts
   function collect(el, root) {
     const out = [];
     const doc = root instanceof Document ? root : el.ownerDocument;
@@ -363,7 +371,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // question-engine/evidence/accessibility.ts
+  // extension/question-engine/evidence/accessibility.ts
   var IMPLICIT_ROLES = {
     input: "textbox",
     textarea: "textbox",
@@ -464,7 +472,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // question-engine/evidence/adapter.ts
+  // extension/question-engine/evidence/adapter.ts
   function collect3(field, root, adapter) {
     if (!adapter) return [];
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
@@ -475,7 +483,7 @@ var AYNQuestionEngine = (() => {
     }
   }
 
-  // question-engine/field-detector.ts
+  // extension/question-engine/field-detector.ts
   var CONTROL_ROLES = /* @__PURE__ */ new Set([
     "radio",
     "checkbox",
@@ -578,7 +586,7 @@ var AYNQuestionEngine = (() => {
     return true;
   }
 
-  // question-engine/grouping.ts
+  // extension/question-engine/grouping.ts
   function cluster(fields, hints = []) {
     const clusters = [];
     const claimed = /* @__PURE__ */ new Set();
@@ -658,7 +666,7 @@ var AYNQuestionEngine = (() => {
     return false;
   }
 
-  // question-engine/question-reconstructor.ts
+  // extension/question-engine/question-reconstructor.ts
   function reconstruct(fields, root, adapter = null) {
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
     const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
@@ -789,7 +797,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // question-engine/evidence/merge.ts
+  // extension/question-engine/evidence/merge.ts
   function fuse(evidence) {
     if (evidence.length === 0) {
       return { value: void 0, agreement: 0, winner: null, losers: [] };
@@ -844,7 +852,7 @@ var AYNQuestionEngine = (() => {
     return Math.max(0, Math.min(1, n));
   }
 
-  // question-engine/semantic-types.ts
+  // extension/question-engine/semantic-types.ts
   var RULES = [
     // ---- contact
     { type: "contact.email", patterns: [/\be-?mail\b/i], confidence: 0.98 },
@@ -917,7 +925,7 @@ var AYNQuestionEngine = (() => {
     return { semanticType: "unknown", confidence: 0 };
   }
 
-  // question-engine/confidence-engine.ts
+  // extension/question-engine/confidence-engine.ts
   function computeConfidence(input) {
     const labeling = clamp012(fuse(input.labelEvidence).agreement);
     const grouping = clamp012(input.groupConfidence);
@@ -935,7 +943,7 @@ var AYNQuestionEngine = (() => {
     visionGate: 0.7
   });
 
-  // question-engine/question-builder.ts
+  // extension/question-engine/question-builder.ts
   function build(groups) {
     const out = [];
     const seenIds = /* @__PURE__ */ new Set();
@@ -1060,7 +1068,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // question-engine/adapters/index.ts
+  // extension/question-engine/adapters/index.ts
   var registry = [];
   function registerAdapter(plugin) {
     registry.push(plugin);
@@ -1072,7 +1080,7 @@ var AYNQuestionEngine = (() => {
     return registry.find((p) => p.id === "generic") ?? null;
   }
 
-  // question-engine/adapters/generic.ts
+  // extension/question-engine/adapters/generic.ts
   var genericAdapter = {
     id: "generic",
     detect() {
@@ -1125,7 +1133,7 @@ var AYNQuestionEngine = (() => {
     return null;
   }
 
-  // question-engine/adapters/workday.ts
+  // extension/question-engine/adapters/workday.ts
   var WORKDAY_HOST_RE = /myworkday(?:jobs|site)?\.com$|\.wd\d+\.myworkday(?:jobs)?\.com$/i;
   var workdayAdapter = {
     id: "workday",
@@ -1184,7 +1192,7 @@ var AYNQuestionEngine = (() => {
     return aid.replace(/^formField-/, "").replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
   }
 
-  // question-engine/adapters/ashby.ts
+  // extension/question-engine/adapters/ashby.ts
   var ASHBY_HOST_RE = /ashbyhq\.com$|jobs\.ashbyhq\.com$/i;
   var ashbyAdapter = {
     id: "ashby",
@@ -1242,7 +1250,7 @@ var AYNQuestionEngine = (() => {
     return t || null;
   }
 
-  // question-engine/adapters/greenhouse.ts
+  // extension/question-engine/adapters/greenhouse.ts
   var GH_HOST_RE = /(?:^|\.)greenhouse\.io$|boards\.greenhouse\.io$|job-boards\.greenhouse\.io$/i;
   var greenhouseAdapter = {
     id: "greenhouse",
@@ -1289,7 +1297,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // question-engine/adapters/lever.ts
+  // extension/question-engine/adapters/lever.ts
   var LEVER_HOST_RE = /(?:^|\.)lever\.co$|jobs\.lever\.co$/i;
   var leverAdapter = {
     id: "lever",
@@ -1334,7 +1342,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // question-engine/adapters/icims.ts
+  // extension/question-engine/adapters/icims.ts
   var ICIMS_HOST_RE = /icims\.com$|jobs\.icims\.com$/i;
   var icimsAdapter = {
     id: "icims",
@@ -1381,7 +1389,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // question-engine/legacy.ts
+  // extension/question-engine/legacy.ts
   function projectToLegacy(q) {
     return {
       id: q.id,
@@ -1436,7 +1444,7 @@ var AYNQuestionEngine = (() => {
     }
   }
 
-  // question-engine/evidence/mutation.ts
+  // extension/question-engine/evidence/mutation.ts
   var OBSERVED_ATTRS = Object.freeze([
     "aria-hidden",
     "hidden",
@@ -1479,14 +1487,302 @@ var AYNQuestionEngine = (() => {
     return true;
   }
 
-  // question-engine/evidence/vision.ts
+  // extension/question-engine/evidence/vision.ts
   var noopProvider = async () => null;
   var activeProvider = noopProvider;
   function setVisionProvider(p) {
     activeProvider = p ?? noopProvider;
   }
 
-  // question-engine/index.ts
+  // extension/question-engine/learning/supabase-store.ts
+  function questionSignature(q) {
+    const label = normalizeLabel(q.label);
+    const opts = (q.options ?? []).map((o) => normalizeLabel(o.label)).sort().join("|");
+    return simpleHash(`${label}::${q.kind}::${opts}`);
+  }
+  function normalizeLabel(s) {
+    return (s ?? "").toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N} ]/gu, "").trim().slice(0, 240);
+  }
+  function simpleHash(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0");
+  }
+  function createSupabaseLearning(transport) {
+    const cache2 = /* @__PURE__ */ new Map();
+    async function headers() {
+      const token = await transport.getAccessToken();
+      if (!token) return null;
+      return {
+        Authorization: `Bearer ${token}`,
+        apikey: transport.anonKey,
+        "Content-Type": "application/json",
+        Prefer: "return=representation"
+      };
+    }
+    async function fetchRow(sig) {
+      if (cache2.has(sig)) return cache2.get(sig);
+      const h = await headers();
+      if (!h) return null;
+      try {
+        const url = `${transport.restBaseUrl}/ext_answer_memory?question_signature=eq.${encodeURIComponent(
+          sig
+        )}&select=question_signature,canonical_label,semantic_type,question_kind,answer_value,answer_option_label,answer_option_labels,ats_hint,times_used,verified_ok_count,verified_fail_count&limit=1`;
+        const r = await fetch(url, { headers: h });
+        if (!r.ok) {
+          cache2.set(sig, null);
+          return null;
+        }
+        const rows = await r.json();
+        const row = rows[0] ?? null;
+        cache2.set(sig, row);
+        return row;
+      } catch {
+        return null;
+      }
+    }
+    async function upsertRow(payload) {
+      const h = await headers();
+      if (!h) return;
+      try {
+        await fetch(
+          `${transport.restBaseUrl}/ext_answer_memory?on_conflict=user_id,question_signature`,
+          {
+            method: "POST",
+            headers: { ...h, Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify(payload)
+          }
+        );
+        cache2.delete(payload.question_signature);
+      } catch {
+      }
+    }
+    return {
+      remember(q) {
+        const a = q.answer;
+        if (!a || a.skip) return;
+        const sig = questionSignature(q);
+        void upsertRow({
+          question_signature: sig,
+          canonical_label: q.label,
+          semantic_type: q.semanticType,
+          question_kind: q.kind,
+          answer_value: a.value ?? null,
+          answer_option_label: a.optionLabel ?? null,
+          answer_option_labels: a.optionLabels ?? null
+        });
+      },
+      lookup(q) {
+        const sig = questionSignature(q);
+        const row = cache2.get(sig);
+        if (row === void 0) {
+          void fetchRow(sig);
+          return null;
+        }
+        if (!row) return null;
+        const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+        if (trust < 0.5) return null;
+        const answer = {
+          value: row.answer_value ?? void 0,
+          optionLabel: row.answer_option_label ?? void 0,
+          optionLabels: row.answer_option_labels ?? void 0,
+          confidence: 0.6 + Math.min(0.3, row.verified_ok_count * 0.03),
+          reasoning: "learned_from_previous_fills"
+        };
+        return { answer, confidence: answer.confidence ?? 0.6, source: "memory" };
+      },
+      promote(q) {
+        const sig = questionSignature(q);
+        void upsertRow({
+          question_signature: sig,
+          canonical_label: q.label,
+          semantic_type: q.semanticType,
+          question_kind: q.kind,
+          verified_ok_count: 1,
+          times_used: 1
+        });
+      },
+      forget(criteria) {
+      },
+      async recordVerified(q, verified, atsHint) {
+        const a = q.answer;
+        if (!a) return;
+        const sig = questionSignature(q);
+        await upsertRow({
+          question_signature: sig,
+          canonical_label: q.label,
+          semantic_type: q.semanticType,
+          question_kind: q.kind,
+          answer_value: a.value ?? null,
+          answer_option_label: a.optionLabel ?? null,
+          answer_option_labels: a.optionLabels ?? null,
+          ats_hint: atsHint ?? null,
+          times_used: 1,
+          verified_ok_count: verified ? 1 : 0,
+          verified_fail_count: verified ? 0 : 1
+        });
+      }
+    };
+  }
+  var activeLearning = null;
+  function setLearningEngine(e) {
+    activeLearning = e;
+  }
+  function getLearningEngine() {
+    return activeLearning;
+  }
+
+  // extension/question-engine/evidence/vision-provider.ts
+  var cache = /* @__PURE__ */ new Map();
+  var CACHE_TTL_MS = 30 * 60 * 1e3;
+  var stamps = /* @__PURE__ */ new Map();
+  function createVisionProvider(transport) {
+    return async (req) => {
+      const key = fingerprint(req.el);
+      const now = Date.now();
+      const stamp = stamps.get(key) ?? 0;
+      if (cache.has(key) && now - stamp < CACHE_TTL_MS) return cache.get(key);
+      try {
+        const b64 = await transport.screenshot(req.el);
+        if (!b64 || b64.length < 200) return null;
+        const res = await transport.discover(b64, {
+          needed: req.needed,
+          url: req.root.location?.href ?? ""
+        });
+        const first = res.questions?.[0];
+        if (!first) {
+          cache.set(key, null);
+          stamps.set(key, now);
+          return null;
+        }
+        const result = {
+          label: first.label,
+          options: first.options?.map((label) => ({ value: label, label })),
+          confidence: 0.65
+        };
+        cache.set(key, result);
+        stamps.set(key, now);
+        return result;
+      } catch {
+        return null;
+      }
+    };
+  }
+  function findVisualDeadZones(root, detectedControlContainers) {
+    const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+    const candidates = doc.querySelectorAll(
+      "form section, form fieldset, form [role='group'], form div[class*='question'], form div[class*='field']"
+    );
+    const zones = [];
+    const promptRe = /\?|(select|choose|how|are you|do you|have you|which|please|what)/i;
+    for (const el of Array.from(candidates)) {
+      if (detectedControlContainers.has(el)) continue;
+      const text = (el.textContent ?? "").trim();
+      if (text.length < 4 || text.length > 600) continue;
+      if (!promptRe.test(text)) continue;
+      const interactive = el.querySelector("input, textarea, select, [role='combobox'], [role='listbox'], [role='radiogroup'], [contenteditable='true']");
+      if (interactive) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 40 || rect.height < 20) continue;
+      zones.push(el);
+      if (zones.length >= 8) break;
+    }
+    return zones;
+  }
+  function fingerprint(el) {
+    const r = el.getBoundingClientRect?.();
+    const path = shortPath(el);
+    const rectKey = r ? `${Math.round(r.left)}x${Math.round(r.top)}x${Math.round(r.width)}x${Math.round(r.height)}` : "";
+    return `${path}#${rectKey}`;
+  }
+  function shortPath(el) {
+    const parts = [];
+    let cur = el;
+    while (cur && parts.length < 4) {
+      const idx = cur.parentElement ? Array.from(cur.parentElement.children).indexOf(cur) : 0;
+      parts.unshift(`${cur.tagName.toLowerCase()}[${idx}]`);
+      cur = cur.parentElement;
+    }
+    return parts.join(">");
+  }
+
+  // extension/question-engine/decision-loop.ts
+  function classifyFailure(q, domOptionsNow, answer, newFieldAppeared) {
+    if (newFieldAppeared) return "field_became_visible";
+    if (!answer) return "unknown";
+    if ((q.kind === "single_choice" || q.kind === "multi_choice") && answer.optionLabel) {
+      const want = normalize5(answer.optionLabel);
+      const hit = domOptionsNow.some((o) => normalize5(o.label) === want);
+      if (!hit) return "option_not_found";
+    }
+    if (q.validation?.pattern && answer.value) {
+      try {
+        const re = new RegExp(q.validation.pattern);
+        if (!re.test(answer.value)) return "validation_rejected";
+      } catch {
+      }
+    }
+    if (answer.value != null || answer.optionLabel != null || answer.optionLabels?.length) {
+      return "injection_failed";
+    }
+    return "unknown";
+  }
+  function createDecisionLoop(cfg) {
+    const maxRounds = Math.max(1, cfg.maxRoundsPerField ?? 2);
+    const budget = Math.max(1e3, cfg.totalTimeBudgetMs ?? 8e3);
+    return {
+      async replan(q, ctx, initialFailure) {
+        const start = Date.now();
+        const history = [initialFailure];
+        let current = q.answer ?? null;
+        let round = 0;
+        while (round < maxRounds && Date.now() - start < budget) {
+          try {
+            const { answer } = await cfg.transport.retry({
+              field: {
+                label: q.label,
+                kind: q.kind,
+                semanticType: q.semanticType,
+                required: q.required,
+                placeholder: q.placeholder,
+                helpText: q.helpText,
+                validation: q.validation
+              },
+              original_answer: current,
+              failure_class: history[history.length - 1] ?? "unknown",
+              options: ctx.options,
+              siblings: ctx.siblings,
+              ats: ctx.ats,
+              url: ctx.url
+            });
+            round += 1;
+            current = answer ?? current;
+            return { answer: current, rounds: round, failureHistory: history, timedOut: false };
+          } catch {
+            round += 1;
+            history.push("unknown");
+          }
+        }
+        return {
+          answer: current,
+          rounds: round,
+          failureHistory: history,
+          timedOut: Date.now() - start >= budget
+        };
+      },
+      pushFailure(prev, f) {
+        return { ...prev, failureHistory: [...prev.failureHistory, f] };
+      }
+    };
+  }
+  function normalize5(s) {
+    return (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  // extension/question-engine/index.ts
   registerAdapter(workdayAdapter);
   registerAdapter(ashbyAdapter);
   registerAdapter(greenhouseAdapter);
