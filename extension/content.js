@@ -1096,6 +1096,37 @@
     }
   }
 
+  // v2.3.1 — prefer the Question Engine's projected questions when present and
+  // the flag is on; otherwise fall back to the legacy scanner. The engine stamps
+  // data-ayn-fid on the same nodes the injector resolves, so ids stay valid.
+  function scanFormFieldsHybrid() {
+    if (AYN_QE_ENABLED) {
+      try {
+        const qs = window.__AYN_QUESTIONS_LEGACY__;
+        if (Array.isArray(qs) && qs.length) {
+          return qs.map(function (q) {
+            return {
+              id: q.id,
+              kind: q.kind,
+              type: q.type,
+              label: q.label,
+              name: q.name || '',
+              options: Array.isArray(q.options) ? q.options : [],
+              required: !!q.required,
+              group: q.group || '',
+              section: q.section || '',
+              placeholder: q.placeholder || '',
+              _frame: q._frame || '',
+              labelSource: q.labelSource || 'engine',
+              _engine: true
+            };
+          });
+        }
+      } catch (e) { /* fall through to legacy */ }
+    }
+    return scanFormFields();
+  }
+
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
     const SKIP_RE = /captcha|honeypot|csrf|token|utm_|_ga|bot|trap/i;
