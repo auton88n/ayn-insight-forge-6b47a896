@@ -3454,6 +3454,47 @@
     }
   }
 
+  async function aynFuseVisionIntoFields(fields, controlCount) {
+    try {
+      if (!AYN_VISION_ENABLED || !window.__AYN_VISION_DISCOVER__ || typeof window.__AYN_VISION_DISCOVER__.run !== 'function') {
+        return { fields, diag: null };
+      }
+      const weak = (fields || []).filter(f => !f.label || (typeof f.confidence === 'number' && f.confidence < 0.68)).length;
+      const shouldRun = (fields || []).length < Math.max(2, Math.floor((controlCount || 0) * 0.6)) || weak > 0;
+      if (!shouldRun) return { fields, diag: null };
+      const vr = await window.__AYN_VISION_DISCOVER__.run();
+      const qs = vr && Array.isArray(vr.questions) ? vr.questions : [];
+      if (!qs.length) return { fields, diag: { visionDiscover: vr || { questions: [] } } };
+      const used = new Set();
+      for (const q of qs) {
+        const label = String(q.label || '').trim();
+        if (!label) continue;
+        let best = null, bestScore = 0;
+        for (const f of fields) {
+          if (!f || used.has(f.id)) continue;
+          const current = String(f.label || '').trim();
+          let score = current ? aynQuestionScore(current, label) : 0.45;
+          const fKind = String(f.kind || f.type || '').toLowerCase();
+          const qKind = String(q.kind || '').toLowerCase();
+          if ((qKind.includes('choice') || qKind === 'boolean') && /(radio|checkbox|buttongroup|select)/.test(fKind)) score += 0.25;
+          if (qKind === 'text' && /text|textarea/.test(fKind)) score += 0.2;
+          if (score > bestScore) { bestScore = score; best = f; }
+        }
+        if (best && (bestScore >= 0.5 || !best.label)) {
+          best.label = label;
+          best.labelSource = 'vision+engine';
+          if ((!best.options || !best.options.length) && Array.isArray(q.options) && q.options.length) {
+            best.options = q.options.map(o => ({ label: String(o), value: String(o) }));
+          }
+          used.add(best.id);
+        }
+      }
+      return { fields, diag: { visionDiscover: { zones: vr.zones || 0, questions: qs.length, fused: used.size } } };
+    } catch (e) {
+      return { fields, diag: { visionDiscoverError: String(e && e.message || e) } };
+    }
+  }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 5. MESSAGE LISTENER
