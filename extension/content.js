@@ -588,13 +588,15 @@
     }
     const al = tryText(el.getAttribute('aria-label'));
     if (al) return al;
-    if (el.id) {
+    const sid = aynStableId(el);
+    if (sid) {
       try {
-        const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        const lbl = document.querySelector(`label[for="${CSS.escape(sid)}"]`);
         const t = lbl ? tryText(aynVisibleText(lbl)) : '';
         if (t) return t;
       } catch (_) {}
     }
+
     const wrap = el.closest('label');
     if (wrap) {
       const clone = wrap.cloneNode(true);
