@@ -1262,6 +1262,7 @@
           multi: q.kind === 'multi_choice',
           _frame: q.frame || '',
           labelSource: 'engine',
+          confidence: q.confidence && typeof q.confidence.overall === 'number' ? q.confidence.overall : undefined,
           _engine: true
         };
       });
