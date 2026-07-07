@@ -3953,7 +3953,7 @@
     try {
       if (!AYN_VISION_ENABLED) return;
       let fields;
-      try { fields = scanFormFields(); } catch { fields = []; }
+      try { fields = scanFormFieldsHybrid(); } catch { fields = []; }
       if (!Array.isArray(fields) || !fields.length) return;
       vdiag.scanned = fields.length;
 
@@ -4081,7 +4081,7 @@
     if (message.type === 'DETECT_PAGE') {
       if (!AYN_IS_TOP) return false;
       const job = extractJobText();
-      const fields = scanFormFields();
+      const fields = scanFormFieldsHybrid();
       const fileFields = fields._fileFields || [];
       const url = window.location.href;
       const isJobHost = JOB_PAGE_RE.test(url);
@@ -4117,12 +4117,12 @@
             catch { return 0; }
           };
           const before = countCtrls();
-          let fields = scanFormFields();
+          let fields = scanFormFieldsHybrid();
           // v1.9.65 — one extra pass if new controls mounted late (React Suspense / lazy sections)
           try {
             await new Promise(r => setTimeout(r, 400));
             if (countCtrls() > before) {
-              const extra = scanFormFields();
+              const extra = scanFormFieldsHybrid();
               const seen = new Set((fields || []).map(f => f && f.id).filter(Boolean));
               for (const f of (extra || [])) {
                 if (f && f.id && !seen.has(f.id)) { fields.push(f); seen.add(f.id); }
