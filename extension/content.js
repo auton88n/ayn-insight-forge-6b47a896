@@ -4248,12 +4248,17 @@
           try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
           try { aynPostInjectVerify(message.values, injectResult); } catch (_) {}
           try { await aynRetryUnverified(message.values, injectResult); } catch (_) {}
+          // v2.4 — closed-loop AI replan for anything still unverified.
+          try { await aynClosedLoopReplan(message.values, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);
             }
           } catch (_) { /* swallow — never break normal fill */ }
+          // v2.4 — record verified/unverified outcomes to learning memory.
+          try { aynRecordLearnedAnswers(message.values, injectResult); } catch (_) {}
           sendResponse(injectResult);
+
         } finally {
           aynShowActivityGlow(false);
         }
