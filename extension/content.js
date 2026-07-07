@@ -1158,26 +1158,57 @@
     try {
       window.__AYN_STRUCTRADIO_MAP__ = window.__AYN_STRUCTRADIO_MAP__ || new Map();
       window.__AYN_MULTICHECK_MAP__ = window.__AYN_MULTICHECK_MAP__ || new Map();
+      window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+      window.__AYN_TEXT_FIELD_MAP__ = window.__AYN_TEXT_FIELD_MAP__ || new Map();
       for (const q of rich) {
         const kind = q && q.kind;
-        if (kind !== 'single_choice' && kind !== 'multi_choice') continue;
         const controls = Array.isArray(q.controls) ? q.controls : [];
         if (controls.length < 1) continue;
         const nodes = controls
           .map(function (c) { return document.querySelector('[data-ayn-fid="' + (c && c.fid) + '"]'); })
           .filter(Boolean);
         if (!nodes.length) continue;
-        let container = nodes[0].closest('fieldset,[role="radiogroup"],[role="group"],[class*="fieldEntry"],[class*="field-entry"],[class*="field"]') || nodes[0].parentElement;
+        let container = nodes[0].closest('fieldset,[role="radiogroup"],[role="group"],[class*="fieldEntry"],[class*="field-entry"],[class*="field"],[class*="question"]') || nodes[0].parentElement;
         if (container && !nodes.every(function (n) { return container.contains(n); })) {
           container = nodes[0].parentElement;
         }
         if (kind === 'single_choice') {
           window.__AYN_STRUCTRADIO_MAP__.set(q.id, { container: container, radios: nodes });
-        } else {
+        } else if (kind === 'multi_choice') {
           window.__AYN_MULTICHECK_MAP__.set(q.id, nodes);
+        } else if (kind === 'boolean') {
+          const opts = (Array.isArray(q.options) && q.options.length ? q.options : [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }])
+            .map(function (o) { return String((o && (o.label || o.value)) || '').trim(); })
+            .filter(Boolean);
+          window.__AYN_BG_MAP__.set(q.id, {
+            qLabel: q.label || '',
+            optionTexts: opts.length ? opts : ['Yes', 'No'],
+            containerSelector: container ? aynBuildQuickSelector(container) : '',
+            fids: controls.map(function (c) { return c && c.fid; }).filter(Boolean),
+          });
+        } else if (kind === 'text' || kind === 'date' || kind === 'file') {
+          window.__AYN_TEXT_FIELD_MAP__.set(q.id, nodes[0]);
         }
       }
     } catch (e) { /* non-fatal */ }
+  }
+
+  function aynBuildQuickSelector(el) {
+    try {
+      if (!el || el.nodeType !== 1) return '';
+      if (el.id) return '#' + (CSS && CSS.escape ? CSS.escape(el.id) : el.id);
+      const fid = el.getAttribute && el.getAttribute('data-ayn-fid');
+      if (fid) return '[data-ayn-fid="' + String(fid).replace(/"/g, '\\"') + '"]';
+      const parts = [];
+      let n = el;
+      for (let i = 0; i < 4 && n && n.nodeType === 1; i++, n = n.parentElement) {
+        let part = n.tagName.toLowerCase();
+        const cls = String(n.getAttribute('class') || '').split(/\s+/).find(Boolean);
+        if (cls) part += '.' + cls.replace(/[^\w-]/g, '');
+        parts.unshift(part);
+      }
+      return parts.join(' > ');
+    } catch (_) { return ''; }
   }
 
   function scanFormFieldsHybrid() {
