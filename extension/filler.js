@@ -38,10 +38,33 @@
   }
 
   const SENSITIVE_RE = /gender|race|ethnic|disab|veteran|sexual|orientation|salary|compensation|desired pay|criminal|felony|conviction|date of birth|\bdob\b|\bage\b|religion|marital|pronoun/i;
+  const MEMORY_BLOCK_RE = /linkedin|work authorization|authorized to work|legally authorized|right to work|visa sponsorship|sponsor|currently reside|currently based|currently located|location eligibility|relocat|motivat|why.*role|why.*company|resume|cv|curriculum|upload|attach|cover letter/i;
   function isSensitive(field) {
     const g = (String((field && field.group) || '') + ' ' + String((field && field.section) || '')).toLowerCase();
     if (/eeo|demograph|self.?identif|voluntary|diversity/.test(g)) return true;
     return SENSITIVE_RE.test((field && field.label) || '') || SENSITIVE_RE.test((field && field.group) || '') || SENSITIVE_RE.test((field && field.section) || '');
+  }
+
+  function isMemoryBlocked(field) {
+    const blob = [field && field.label, field && field.group, field && field.section, field && field.name, field && field.placeholder].filter(Boolean).join(' ');
+    const kind = String((field && (field.kind || field.type)) || '').toLowerCase();
+    if (/file|textarea|opentext|richedit/.test(kind)) return true;
+    if (isSensitive(field)) return true;
+    return MEMORY_BLOCK_RE.test(blob);
+  }
+
+  function canReuseMemory(field, row) {
+    if (!row || isMemoryBlocked(field)) return false;
+    const kind = String((field && (field.kind || field.type)) || '').toLowerCase();
+    if (/select|dropdown|structradio|labelgroup|buttongroup|radio|checkbox/.test(kind)) {
+      const opts = Array.isArray(field && field.options) ? field.options : [];
+      const want = norm(row.optionLabel || row.optionValue || row.value || '');
+      if (!opts.length || !want) return false;
+      return opts.some(o => norm(o.label || o.value) === want || norm(o.label || o.value).includes(want) || want.includes(norm(o.label || o.value)));
+    }
+    const val = String(row.value || row.optionLabel || '').trim();
+    if (/linkedin/i.test(String((field && field.label) || '')) && !/^https:\/\/(www\.)?linkedin\.com\/in\/[a-z0-9][a-z0-9\-_%]+\/?$/i.test(val)) return false;
+    return !!val && val.length >= 2;
   }
 
   function optionsSignature(field) {
@@ -94,5 +117,5 @@
     return null;
   }
 
-  self.AYN_RESOLVER = { norm, isSensitive, fingerprint, optionsSignature, matchProfile };
+  self.AYN_RESOLVER = { norm, isSensitive, isMemoryBlocked, canReuseMemory, fingerprint, optionsSignature, matchProfile };
 })();
