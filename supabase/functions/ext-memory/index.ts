@@ -72,15 +72,18 @@ serve(async (req) => {
       const okBump = Number(row.verified_ok_count || 0);
       const failBump = Number(row.verified_fail_count || 0);
       if (existing) {
+        const valuePatch = okBump > 0 ? {
+          answer_value: row.answer_value ?? undefined,
+          answer_option_label: row.answer_option_label ?? undefined,
+          answer_option_labels: row.answer_option_labels ?? undefined,
+        } : {};
         await admin
           .from("ext_answer_memory")
           .update({
             canonical_label: row.canonical_label ?? undefined,
             semantic_type: row.semantic_type ?? undefined,
             question_kind: row.question_kind ?? undefined,
-            answer_value: row.answer_value ?? undefined,
-            answer_option_label: row.answer_option_label ?? undefined,
-            answer_option_labels: row.answer_option_labels ?? undefined,
+            ...valuePatch,
             ats_hint: row.ats_hint ?? undefined,
             times_used: (existing.times_used || 0) + 1,
             verified_ok_count: (existing.verified_ok_count || 0) + okBump,
