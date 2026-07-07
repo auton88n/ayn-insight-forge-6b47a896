@@ -438,7 +438,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         const topScan = scanByFrame[0] || {};
         const jobText = topScan.jobText || {};
-        if (fields.length === 0) { sendResponse({ ok: false, error: 'no_fields' }); return; }
+        const fileFields = fields.filter(f => /file/i.test(String(f.kind || f.type || '')) || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
+        fields = fields.filter(f => !(/file/i.test(String(f.kind || f.type || ''))));
+        if (fields.length === 0) {
+          if (fileFields.length > 0) {
+            sendResponse({ ok: true, filled: 0, total: 0, answered: 0, verified: 0, needsReview: 0, needsReviewCount: 0, resolvedLocally: 0, details: [], passes: 1, skipped: [], fileFieldCount: fileFields.length, needsResume: true });
+            return;
+          }
+          sendResponse({ ok: false, error: 'no_fields' }); return;
+        }
 
         // ── v1.9.55 two-lane resolver stage ─────────────────────────
         // Resolves standard identity/link/logic fields locally from the
