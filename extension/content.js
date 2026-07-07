@@ -728,10 +728,12 @@
 
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
-    if (el.id) {
-      const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    const sid3 = aynStableId(el);
+    if (sid3) {
+      const lbl = document.querySelector(`label[for="${CSS.escape(sid3)}"]`);
       if (lbl) return lbl.innerText.trim();
     }
+
     const wrap = el.closest('label');
     if (wrap) return wrap.innerText.replace(el.value || '', '').trim();
     const lblId = el.getAttribute('aria-labelledby');
