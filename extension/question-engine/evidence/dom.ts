@@ -75,13 +75,16 @@ export function collect(el: Element, root: Document | Element): Evidence[] {
 // ============ helpers ============
 
 function readNativeLabel(el: Element, doc: Document | null): string | null {
-  // <label for=id>
+  // <label for=id> — but reject framework-generated IDs so we don't collide.
   const id = el.getAttribute("id");
-  if (id && doc) {
+  const GENERATED_ID_RE =
+    /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+  if (id && !GENERATED_ID_RE.test(id) && doc) {
     const forLabel = doc.querySelector(`label[for="${cssEscape(id)}"]`);
     const t = textOf(forLabel);
     if (t) return t;
   }
+
   // wrapping <label>
   const wrap = el.closest("label");
   if (wrap) {
