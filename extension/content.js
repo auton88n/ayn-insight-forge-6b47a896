@@ -14,6 +14,7 @@
   const AYN_BUILD = '2.2.1';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
+  const AYN_QE_ENABLED = false; // v2.3.1 — when true, prefer Question Engine output over the legacy scanner
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
   const AYN_IS_TOP = (() => { try { return window === window.top; } catch (_) { return false; } })();
 
@@ -1093,6 +1094,37 @@
     } catch (_) {
       return Math.floor(Math.random() * 1e9);
     }
+  }
+
+  // v2.3.1 — prefer the Question Engine's projected questions when present and
+  // the flag is on; otherwise fall back to the legacy scanner. The engine stamps
+  // data-ayn-fid on the same nodes the injector resolves, so ids stay valid.
+  function scanFormFieldsHybrid() {
+    if (AYN_QE_ENABLED) {
+      try {
+        const qs = window.__AYN_QUESTIONS_LEGACY__;
+        if (Array.isArray(qs) && qs.length) {
+          return qs.map(function (q) {
+            return {
+              id: q.id,
+              kind: q.kind,
+              type: q.type,
+              label: q.label,
+              name: q.name || '',
+              options: Array.isArray(q.options) ? q.options : [],
+              required: !!q.required,
+              group: q.group || '',
+              section: q.section || '',
+              placeholder: q.placeholder || '',
+              _frame: q._frame || '',
+              labelSource: q.labelSource || 'engine',
+              _engine: true
+            };
+          });
+        }
+      } catch (e) { /* fall through to legacy */ }
+    }
+    return scanFormFields();
   }
 
   function scanFormFields() {
@@ -3921,7 +3953,7 @@
     try {
       if (!AYN_VISION_ENABLED) return;
       let fields;
-      try { fields = scanFormFields(); } catch { fields = []; }
+      try { fields = scanFormFieldsHybrid(); } catch { fields = []; }
       if (!Array.isArray(fields) || !fields.length) return;
       vdiag.scanned = fields.length;
 
@@ -4049,7 +4081,7 @@
     if (message.type === 'DETECT_PAGE') {
       if (!AYN_IS_TOP) return false;
       const job = extractJobText();
-      const fields = scanFormFields();
+      const fields = scanFormFieldsHybrid();
       const fileFields = fields._fileFields || [];
       const url = window.location.href;
       const isJobHost = JOB_PAGE_RE.test(url);
@@ -4085,12 +4117,12 @@
             catch { return 0; }
           };
           const before = countCtrls();
-          let fields = scanFormFields();
+          let fields = scanFormFieldsHybrid();
           // v1.9.65 — one extra pass if new controls mounted late (React Suspense / lazy sections)
           try {
             await new Promise(r => setTimeout(r, 400));
             if (countCtrls() > before) {
-              const extra = scanFormFields();
+              const extra = scanFormFieldsHybrid();
               const seen = new Set((fields || []).map(f => f && f.id).filter(Boolean));
               for (const f of (extra || [])) {
                 if (f && f.id && !seen.has(f.id)) { fields.push(f); seen.add(f.id); }
