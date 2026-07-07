@@ -3173,14 +3173,20 @@
         }
         if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
         const cands = [optionLabel, optionValue, value].map(s => String(s || '').trim()).filter(Boolean);
+        // v2.3.2 — Synthetic Workday values ("opt_1", "Yes_3847", raw hashes) drift
+        // per posting; visible label text is stable. Skip synthetic values so the
+        // AI can't accidentally lock the injector to a stale position.
+        const SYNTH_VALUE_RE = /^(on|off|true|false|\d+|opt[_-]?\d+|[a-f0-9]{8,}|.+_\d{3,})$/i;
         let target = null;
         outer:
         for (const want of cands) {
           for (const r of radios) {
             const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
-            if (aynOptionMatches(lbl, want) || (r.value && r.value !== 'on' && aynOptionMatches(r.value, want))) { target = r; break outer; }
+            if (aynOptionMatches(lbl, want)) { target = r; break outer; }
+            if (r.value && r.value !== 'on' && !SYNTH_VALUE_RE.test(r.value) && aynOptionMatches(r.value, want)) { target = r; break outer; }
           }
         }
+
         let ok = false;
         if (target) {
           try {
