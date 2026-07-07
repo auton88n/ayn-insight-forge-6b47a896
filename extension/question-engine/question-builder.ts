@@ -53,9 +53,9 @@ export function build(groups: ReadonlyArray<QuestionGroup>): Question[] {
     const controlKind = anchor.kind;
     const grouped = g.controls.length > 1;
 
-    const label = typeof labelFused.value === "string" ? labelFused.value : "";
-    const kind = questionKindFor(controlKind, grouped, optionsFused.value);
     const options = resolveOptions(g, optionsFused.value);
+    const label = typeof labelFused.value === "string" ? labelFused.value : "";
+    const kind = questionKindFor(controlKind, grouped, optionsFused.value, options);
 
     const classification = classify({
       label,
@@ -114,12 +114,15 @@ function bucketByKind(evidence: ReadonlyArray<Evidence>): Map<EvidenceKind, Evid
 function questionKindFor(
   control: ControlKind,
   grouped: boolean,
-  optionsValue: unknown
+  optionsValue: unknown,
+  options: ReadonlyArray<Option> = []
 ): QuestionKind {
   if (control === "file") return "file";
   if (control === "textarea") return "text";
   if (control === "radio") return "single_choice";
   if (control === "checkbox") return grouped ? "multi_choice" : "boolean";
+  if (control === "custom" && grouped) return "boolean";
+  if (control === "custom" && options.length > 0) return "boolean";
   if (control === "select") return "single_choice";
   if (control === "listbox") return "multi_choice";
   if (control === "combobox") return "single_choice";
@@ -165,7 +168,8 @@ function optionLabelFromControl(el: Element): string {
     return normalize(clone.textContent || "");
   }
   const aria = el.getAttribute("aria-label");
-  return aria ? normalize(aria) : "";
+  if (aria) return normalize(aria);
+  return normalize(el.textContent || "");
 }
 
 function normalize(s: string): string {
