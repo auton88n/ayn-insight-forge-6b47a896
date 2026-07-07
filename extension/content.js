@@ -14,7 +14,7 @@
   const AYN_BUILD = '2.3.1';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
-  const AYN_QE_ENABLED = true; // v2.3.1 — when true, prefer Question Engine output over the legacy scanner
+  // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
   const AYN_IS_TOP = (() => { try { return window === window.top; } catch (_) { return false; } })();
 
