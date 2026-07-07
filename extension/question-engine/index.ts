@@ -25,6 +25,14 @@ import {
   type QuestionDelta,
 } from "./evidence/mutation";
 import { setVisionProvider } from "./evidence/vision";
+import {
+  createSupabaseLearning,
+  setLearningEngine,
+  getLearningEngine,
+  questionSignature,
+} from "./learning/supabase-store";
+import { createVisionProvider, findVisualDeadZones } from "./evidence/vision-provider";
+import { createDecisionLoop, classifyFailure } from "./decision-loop";
 
 export type { Question, QuestionKind, SemanticType, Option, QuestionConfidence, Answer } from "./question";
 export type { Evidence } from "./evidence";
@@ -33,6 +41,9 @@ export type { ATSPlugin, AtsId } from "./adapters/index";
 export type { LearningEngine } from "./learning/interface";
 export type { LegacyDescriptor } from "./legacy";
 export type { QuestionDelta } from "./evidence/mutation";
+export type { FailureClass, RetryOutcome, RetryContext, RetryTransport } from "./decision-loop";
+export type { VisionTransport } from "./evidence/vision-provider";
+export type { LearningTransport } from "./learning/supabase-store";
 export {
   withAnswer,
   withVerification,
@@ -40,7 +51,16 @@ export {
   projectFromLegacyAnswer,
   registerAdapter,
   setVisionProvider,
+  setLearningEngine,
+  getLearningEngine,
+  createSupabaseLearning,
+  createVisionProvider,
+  findVisualDeadZones,
+  createDecisionLoop,
+  classifyFailure,
+  questionSignature,
 };
+
 
 // Registration order matters: non-generic adapters are probed first, generic
 // is the guaranteed fallback (registered last). detect() predicates for the
