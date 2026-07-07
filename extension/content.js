@@ -563,6 +563,18 @@
     return t.replace(/\s+/g, ' ').trim();
   }
 
+  // v2.3.2 — Reject framework-generated IDs before using them as label keys.
+  // Workday appends hash suffixes (--ab12cd), React uses :r0:, MUI/Radix/HeadlessUI
+  // use mui-*/rc-*/radix-*, some ATSes use raw UUIDs. If we hand any of these to
+  // querySelector('label[for=...]'), a stray match yields the WRONG label.
+  const AYN_GENERATED_ID_RE =
+    /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+  function aynStableId(el) {
+    const id = el && el.id;
+    return id && !AYN_GENERATED_ID_RE.test(id) ? id : '';
+  }
+
+
   function aynAccName(el) {
     const tryText = (s) => { const v = (s || '').replace(/\s+/g,' ').trim(); return v.length ? v : ''; };
     const labelledby = el.getAttribute('aria-labelledby');
