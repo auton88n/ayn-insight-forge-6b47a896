@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // extension/question-engine/question.ts
+  // question-engine/question.ts
   function freezeQuestion(q) {
     Object.freeze(q.confidence);
     Object.freeze(q.options);
@@ -10,7 +10,7 @@
     return Object.freeze(q);
   }
 
-  // extension/question-engine/refs.ts
+  // question-engine/refs.ts
   var ID_PREFIX = Object.freeze({
     text: "__textfield__",
     structradio: "__structradio__",
@@ -102,7 +102,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence.ts
+  // question-engine/evidence.ts
   var WEIGHTS = Object.freeze({
     accessibility: {
       label: 0.9,
@@ -154,7 +154,7 @@
     });
   }
 
-  // extension/question-engine/evidence/dom.ts
+  // question-engine/evidence/dom.ts
   function collect(el, root) {
     const out = [];
     const doc = root instanceof Document ? root : el.ownerDocument;
@@ -197,7 +197,8 @@
   }
   function readNativeLabel(el, doc) {
     const id = el.getAttribute("id");
-    if (id && doc) {
+    const GENERATED_ID_RE = /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+    if (id && !GENERATED_ID_RE.test(id) && doc) {
       const forLabel = doc.querySelector(`label[for="${cssEscape2(id)}"]`);
       const t = textOf(forLabel);
       if (t) return t;
@@ -241,7 +242,12 @@
     }
     const role = el.getAttribute("role");
     if (role === "listbox" || role === "combobox") {
-      const optNodes = el.querySelectorAll('[role="option"]');
+      const ctrl = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+      const portal = ctrl && doc ? doc.getElementById(ctrl) : null;
+      let optNodes = portal ? portal.querySelectorAll('[role="option"]') : el.querySelectorAll('[role="option"]');
+      if (!optNodes.length && doc) {
+        optNodes = Array.from(doc.querySelectorAll('[role="option"]')).filter((o) => !o.closest('[aria-hidden="true"]'));
+      }
       if (optNodes.length) {
         return Array.from(optNodes).map((o) => ({
           value: o.getAttribute("data-value") || normalize(o.textContent || ""),
@@ -307,7 +313,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/accessibility.ts
+  // question-engine/evidence/accessibility.ts
   var IMPLICIT_ROLES = {
     input: "textbox",
     textarea: "textbox",
@@ -357,7 +363,8 @@
     const ariaLabel = el.getAttribute("aria-label");
     if (ariaLabel && ariaLabel.trim()) return normalize2(ariaLabel);
     const id = el.getAttribute("id");
-    if (id && doc) {
+    const GENERATED_ID_RE = /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+    if (id && !GENERATED_ID_RE.test(id) && doc) {
       const forLabel = doc.querySelector(`label[for="${cssEscape3(id)}"]`);
       if (forLabel) {
         const t = normalize2(forLabel.textContent || "");
@@ -407,7 +414,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/adapter.ts
+  // question-engine/evidence/adapter.ts
   function collect3(field, root, adapter) {
     if (!adapter) return [];
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
@@ -418,7 +425,7 @@
     }
   }
 
-  // extension/question-engine/field-detector.ts
+  // question-engine/field-detector.ts
   var CONTROL_ROLES = /* @__PURE__ */ new Set([
     "radio",
     "checkbox",
@@ -521,7 +528,7 @@
     return true;
   }
 
-  // extension/question-engine/grouping.ts
+  // question-engine/grouping.ts
   function cluster(fields, hints = []) {
     const clusters = [];
     const claimed = /* @__PURE__ */ new Set();
@@ -601,7 +608,7 @@
     return false;
   }
 
-  // extension/question-engine/question-reconstructor.ts
+  // question-engine/question-reconstructor.ts
   function reconstruct(fields, root, adapter = null) {
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
     const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
@@ -732,7 +739,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/merge.ts
+  // question-engine/evidence/merge.ts
   function fuse(evidence) {
     if (evidence.length === 0) {
       return { value: void 0, agreement: 0, winner: null, losers: [] };
@@ -787,7 +794,7 @@
     return Math.max(0, Math.min(1, n));
   }
 
-  // extension/question-engine/semantic-types.ts
+  // question-engine/semantic-types.ts
   var RULES = [
     // ---- contact
     { type: "contact.email", patterns: [/\be-?mail\b/i], confidence: 0.98 },
@@ -860,7 +867,7 @@
     return { semanticType: "unknown", confidence: 0 };
   }
 
-  // extension/question-engine/confidence-engine.ts
+  // question-engine/confidence-engine.ts
   function computeConfidence(input) {
     const labeling = clamp012(fuse(input.labelEvidence).agreement);
     const grouping = clamp012(input.groupConfidence);
@@ -878,7 +885,7 @@
     visionGate: 0.7
   });
 
-  // extension/question-engine/question-builder.ts
+  // question-engine/question-builder.ts
   function build(groups) {
     const out = [];
     const seenIds = /* @__PURE__ */ new Set();
@@ -1003,7 +1010,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/adapters/index.ts
+  // question-engine/adapters/index.ts
   var registry = [];
   function registerAdapter(plugin) {
     registry.push(plugin);
@@ -1015,7 +1022,7 @@
     return registry.find((p) => p.id === "generic") ?? null;
   }
 
-  // extension/question-engine/adapters/generic.ts
+  // question-engine/adapters/generic.ts
   var genericAdapter = {
     id: "generic",
     detect() {
@@ -1068,7 +1075,7 @@
     return null;
   }
 
-  // extension/question-engine/adapters/workday.ts
+  // question-engine/adapters/workday.ts
   var WORKDAY_HOST_RE = /myworkday(?:jobs|site)?\.com$|\.wd\d+\.myworkday(?:jobs)?\.com$/i;
   var workdayAdapter = {
     id: "workday",
@@ -1127,7 +1134,7 @@
     return aid.replace(/^formField-/, "").replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
   }
 
-  // extension/question-engine/adapters/ashby.ts
+  // question-engine/adapters/ashby.ts
   var ASHBY_HOST_RE = /ashbyhq\.com$|jobs\.ashbyhq\.com$/i;
   var ashbyAdapter = {
     id: "ashby",
@@ -1185,7 +1192,7 @@
     return t || null;
   }
 
-  // extension/question-engine/adapters/greenhouse.ts
+  // question-engine/adapters/greenhouse.ts
   var GH_HOST_RE = /(?:^|\.)greenhouse\.io$|boards\.greenhouse\.io$|job-boards\.greenhouse\.io$/i;
   var greenhouseAdapter = {
     id: "greenhouse",
@@ -1232,7 +1239,7 @@
     }
   };
 
-  // extension/question-engine/adapters/lever.ts
+  // question-engine/adapters/lever.ts
   var LEVER_HOST_RE = /(?:^|\.)lever\.co$|jobs\.lever\.co$/i;
   var leverAdapter = {
     id: "lever",
@@ -1277,7 +1284,7 @@
     }
   };
 
-  // extension/question-engine/adapters/icims.ts
+  // question-engine/adapters/icims.ts
   var ICIMS_HOST_RE = /icims\.com$|jobs\.icims\.com$/i;
   var icimsAdapter = {
     id: "icims",
@@ -1324,7 +1331,7 @@
     }
   };
 
-  // extension/question-engine/legacy.ts
+  // question-engine/legacy.ts
   function projectToLegacy(q) {
     return {
       id: q.id,
@@ -1376,7 +1383,7 @@
     }
   }
 
-  // extension/question-engine/evidence/mutation.ts
+  // question-engine/evidence/mutation.ts
   var OBSERVED_ATTRS = Object.freeze([
     "aria-hidden",
     "hidden",
@@ -1419,7 +1426,7 @@
     return true;
   }
 
-  // extension/question-engine/index.ts
+  // question-engine/index.ts
   registerAdapter(workdayAdapter);
   registerAdapter(ashbyAdapter);
   registerAdapter(greenhouseAdapter);
@@ -1472,7 +1479,7 @@
     };
   }
 
-  // extension/content.entry.js
+  // content.entry.js
   (function initAynEngineBridge() {
     if (window.__AYN_ENGINE_BRIDGE__) return;
     window.__AYN_ENGINE_BRIDGE__ = true;

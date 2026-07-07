@@ -18,7 +18,7 @@ var AYNQuestionEngine = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // extension/question-engine/index.ts
+  // question-engine/index.ts
   var question_engine_exports = {};
   __export(question_engine_exports, {
     observeForm: () => observeForm,
@@ -31,7 +31,7 @@ var AYNQuestionEngine = (() => {
     withVerification: () => withVerification
   });
 
-  // extension/question-engine/question.ts
+  // question-engine/question.ts
   function freezeQuestion(q) {
     Object.freeze(q.confidence);
     Object.freeze(q.options);
@@ -60,7 +60,7 @@ var AYNQuestionEngine = (() => {
     return q.history ? [...q.history, entry] : [entry];
   }
 
-  // extension/question-engine/refs.ts
+  // question-engine/refs.ts
   var ID_PREFIX = Object.freeze({
     text: "__textfield__",
     structradio: "__structradio__",
@@ -152,7 +152,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence.ts
+  // question-engine/evidence.ts
   var WEIGHTS = Object.freeze({
     accessibility: {
       label: 0.9,
@@ -204,7 +204,7 @@ var AYNQuestionEngine = (() => {
     });
   }
 
-  // extension/question-engine/evidence/dom.ts
+  // question-engine/evidence/dom.ts
   function collect(el, root) {
     const out = [];
     const doc = root instanceof Document ? root : el.ownerDocument;
@@ -247,7 +247,8 @@ var AYNQuestionEngine = (() => {
   }
   function readNativeLabel(el, doc) {
     const id = el.getAttribute("id");
-    if (id && doc) {
+    const GENERATED_ID_RE = /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+    if (id && !GENERATED_ID_RE.test(id) && doc) {
       const forLabel = doc.querySelector(`label[for="${cssEscape2(id)}"]`);
       const t = textOf(forLabel);
       if (t) return t;
@@ -291,7 +292,12 @@ var AYNQuestionEngine = (() => {
     }
     const role = el.getAttribute("role");
     if (role === "listbox" || role === "combobox") {
-      const optNodes = el.querySelectorAll('[role="option"]');
+      const ctrl = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+      const portal = ctrl && doc ? doc.getElementById(ctrl) : null;
+      let optNodes = portal ? portal.querySelectorAll('[role="option"]') : el.querySelectorAll('[role="option"]');
+      if (!optNodes.length && doc) {
+        optNodes = Array.from(doc.querySelectorAll('[role="option"]')).filter((o) => !o.closest('[aria-hidden="true"]'));
+      }
       if (optNodes.length) {
         return Array.from(optNodes).map((o) => ({
           value: o.getAttribute("data-value") || normalize(o.textContent || ""),
@@ -357,7 +363,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/accessibility.ts
+  // question-engine/evidence/accessibility.ts
   var IMPLICIT_ROLES = {
     input: "textbox",
     textarea: "textbox",
@@ -407,7 +413,8 @@ var AYNQuestionEngine = (() => {
     const ariaLabel = el.getAttribute("aria-label");
     if (ariaLabel && ariaLabel.trim()) return normalize2(ariaLabel);
     const id = el.getAttribute("id");
-    if (id && doc) {
+    const GENERATED_ID_RE = /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+    if (id && !GENERATED_ID_RE.test(id) && doc) {
       const forLabel = doc.querySelector(`label[for="${cssEscape3(id)}"]`);
       if (forLabel) {
         const t = normalize2(forLabel.textContent || "");
@@ -457,7 +464,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/adapter.ts
+  // question-engine/evidence/adapter.ts
   function collect3(field, root, adapter) {
     if (!adapter) return [];
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
@@ -468,7 +475,7 @@ var AYNQuestionEngine = (() => {
     }
   }
 
-  // extension/question-engine/field-detector.ts
+  // question-engine/field-detector.ts
   var CONTROL_ROLES = /* @__PURE__ */ new Set([
     "radio",
     "checkbox",
@@ -571,7 +578,7 @@ var AYNQuestionEngine = (() => {
     return true;
   }
 
-  // extension/question-engine/grouping.ts
+  // question-engine/grouping.ts
   function cluster(fields, hints = []) {
     const clusters = [];
     const claimed = /* @__PURE__ */ new Set();
@@ -651,7 +658,7 @@ var AYNQuestionEngine = (() => {
     return false;
   }
 
-  // extension/question-engine/question-reconstructor.ts
+  // question-engine/question-reconstructor.ts
   function reconstruct(fields, root, adapter = null) {
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
     const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
@@ -782,7 +789,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/merge.ts
+  // question-engine/evidence/merge.ts
   function fuse(evidence) {
     if (evidence.length === 0) {
       return { value: void 0, agreement: 0, winner: null, losers: [] };
@@ -837,7 +844,7 @@ var AYNQuestionEngine = (() => {
     return Math.max(0, Math.min(1, n));
   }
 
-  // extension/question-engine/semantic-types.ts
+  // question-engine/semantic-types.ts
   var RULES = [
     // ---- contact
     { type: "contact.email", patterns: [/\be-?mail\b/i], confidence: 0.98 },
@@ -910,7 +917,7 @@ var AYNQuestionEngine = (() => {
     return { semanticType: "unknown", confidence: 0 };
   }
 
-  // extension/question-engine/confidence-engine.ts
+  // question-engine/confidence-engine.ts
   function computeConfidence(input) {
     const labeling = clamp012(fuse(input.labelEvidence).agreement);
     const grouping = clamp012(input.groupConfidence);
@@ -928,7 +935,7 @@ var AYNQuestionEngine = (() => {
     visionGate: 0.7
   });
 
-  // extension/question-engine/question-builder.ts
+  // question-engine/question-builder.ts
   function build(groups) {
     const out = [];
     const seenIds = /* @__PURE__ */ new Set();
@@ -1053,7 +1060,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/adapters/index.ts
+  // question-engine/adapters/index.ts
   var registry = [];
   function registerAdapter(plugin) {
     registry.push(plugin);
@@ -1065,7 +1072,7 @@ var AYNQuestionEngine = (() => {
     return registry.find((p) => p.id === "generic") ?? null;
   }
 
-  // extension/question-engine/adapters/generic.ts
+  // question-engine/adapters/generic.ts
   var genericAdapter = {
     id: "generic",
     detect() {
@@ -1118,7 +1125,7 @@ var AYNQuestionEngine = (() => {
     return null;
   }
 
-  // extension/question-engine/adapters/workday.ts
+  // question-engine/adapters/workday.ts
   var WORKDAY_HOST_RE = /myworkday(?:jobs|site)?\.com$|\.wd\d+\.myworkday(?:jobs)?\.com$/i;
   var workdayAdapter = {
     id: "workday",
@@ -1177,7 +1184,7 @@ var AYNQuestionEngine = (() => {
     return aid.replace(/^formField-/, "").replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
   }
 
-  // extension/question-engine/adapters/ashby.ts
+  // question-engine/adapters/ashby.ts
   var ASHBY_HOST_RE = /ashbyhq\.com$|jobs\.ashbyhq\.com$/i;
   var ashbyAdapter = {
     id: "ashby",
@@ -1235,7 +1242,7 @@ var AYNQuestionEngine = (() => {
     return t || null;
   }
 
-  // extension/question-engine/adapters/greenhouse.ts
+  // question-engine/adapters/greenhouse.ts
   var GH_HOST_RE = /(?:^|\.)greenhouse\.io$|boards\.greenhouse\.io$|job-boards\.greenhouse\.io$/i;
   var greenhouseAdapter = {
     id: "greenhouse",
@@ -1282,7 +1289,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // extension/question-engine/adapters/lever.ts
+  // question-engine/adapters/lever.ts
   var LEVER_HOST_RE = /(?:^|\.)lever\.co$|jobs\.lever\.co$/i;
   var leverAdapter = {
     id: "lever",
@@ -1327,7 +1334,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // extension/question-engine/adapters/icims.ts
+  // question-engine/adapters/icims.ts
   var ICIMS_HOST_RE = /icims\.com$|jobs\.icims\.com$/i;
   var icimsAdapter = {
     id: "icims",
@@ -1374,7 +1381,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // extension/question-engine/legacy.ts
+  // question-engine/legacy.ts
   function projectToLegacy(q) {
     return {
       id: q.id,
@@ -1429,7 +1436,7 @@ var AYNQuestionEngine = (() => {
     }
   }
 
-  // extension/question-engine/evidence/mutation.ts
+  // question-engine/evidence/mutation.ts
   var OBSERVED_ATTRS = Object.freeze([
     "aria-hidden",
     "hidden",
@@ -1472,14 +1479,14 @@ var AYNQuestionEngine = (() => {
     return true;
   }
 
-  // extension/question-engine/evidence/vision.ts
+  // question-engine/evidence/vision.ts
   var noopProvider = async () => null;
   var activeProvider = noopProvider;
   function setVisionProvider(p) {
     activeProvider = p ?? noopProvider;
   }
 
-  // extension/question-engine/index.ts
+  // question-engine/index.ts
   registerAdapter(workdayAdapter);
   registerAdapter(ashbyAdapter);
   registerAdapter(greenhouseAdapter);
