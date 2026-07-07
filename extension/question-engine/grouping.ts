@@ -25,14 +25,34 @@ export interface Cluster {
   confidence: number;
 }
 
-export function cluster(fields: ReadonlyArray<DetectedField>): Cluster[] {
+export function cluster(
+  fields: ReadonlyArray<DetectedField>,
+  hints: ReadonlyArray<import("./adapters/index").GroupingHint> = []
+): Cluster[] {
   const clusters: Cluster[] = [];
   const claimed = new Set<DetectedField>();
+
+  // v2.3.1 — adapter grouping hints win first. Ashby gives each radio a unique
+  // name, so name grouping splits the group; the adapter's _fieldEntry_ hint
+  // keeps it whole. Fields an adapter claims are removed before default passes.
+  if (hints.length) {
+    const byFid = new Map<string, DetectedField>();
+    for (const f of fields) byFid.set(f.ref.fid, f);
+    for (const h of hints) {
+      const members = h.memberFids
+        .map((fid) => byFid.get(fid))
+        .filter((f): f is DetectedField => !!f && !claimed.has(f));
+      if (members.length > 1) {
+        members.forEach((m) => claimed.add(m));
+        clusters.push({ members, reason: "adapter-hint", confidence: h.confidence });
+      }
+    }
+  }
 
   // 1) Radios sharing name attribute
   const radiosByName = new Map<string, DetectedField[]>();
   for (const f of fields) {
-    if (f.kind !== "radio") continue;
+    if (f.kind !== "radio" || claimed.has(f)) continue;
     const name = (f.node as HTMLInputElement).name;
     if (!name) continue;
     const arr = radiosByName.get(name) ?? [];
