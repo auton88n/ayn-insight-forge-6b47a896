@@ -487,6 +487,7 @@ var AYNQuestionEngine = (() => {
   var CONTROL_ROLES = /* @__PURE__ */ new Set([
     "radio",
     "checkbox",
+    "button",
     "combobox",
     "listbox",
     "switch",
@@ -547,12 +548,31 @@ var AYNQuestionEngine = (() => {
     if (role && CONTROL_ROLES.has(role)) {
       if (role === "radio") return "radio";
       if (role === "checkbox" || role === "switch") return "checkbox";
+      if (role === "button") return looksLikeChoiceButton(el) ? "custom" : null;
       if (role === "combobox") return "combobox";
       if (role === "listbox") return "listbox";
       if (role === "textbox" || role === "spinbutton") return "text";
       return "custom";
     }
+    if (tag === "button" && looksLikeChoiceButton(el)) return "custom";
     return null;
+  }
+  function looksLikeChoiceButton(el) {
+    const text = (el.textContent ?? el.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim();
+    if (!text || text.length > 120) return false;
+    if (/^(yes|no|true|false|oui|non|agree|disagree)$/i.test(text)) return true;
+    const container = el.closest(
+      '[data-field-path],[class*="fieldEntry" i],[class*="field-entry" i],[class*="field" i],[class*="question" i],fieldset,[role="group"]'
+    );
+    if (!container) return false;
+    const siblings = Array.from(
+      container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')
+    ).filter((b) => {
+      const t = (b.textContent ?? b.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim();
+      return t && t.length <= 120;
+    });
+    if (siblings.length < 2 || siblings.length > 8) return false;
+    return siblings.some((b) => /^(yes|oui|true|agree)$/i.test((b.textContent ?? "").trim())) && siblings.some((b) => /^(no|non|false|disagree)$/i.test((b.textContent ?? "").trim()));
   }
   function enrich(raw, root, adapter = null) {
     return raw.map((d) => {
@@ -964,9 +984,9 @@ var AYNQuestionEngine = (() => {
       const anchor = g.controls[0];
       const controlKind = anchor.kind;
       const grouped = g.controls.length > 1;
-      const label = typeof labelFused.value === "string" ? labelFused.value : "";
-      const kind = questionKindFor(controlKind, grouped, optionsFused.value);
       const options = resolveOptions(g, optionsFused.value);
+      const label = typeof labelFused.value === "string" ? labelFused.value : "";
+      const kind = questionKindFor(controlKind, grouped, optionsFused.value, options);
       const classification = classify({
         label,
         section: sectionFused.value ?? null,
@@ -1014,11 +1034,13 @@ var AYNQuestionEngine = (() => {
     }
     return m;
   }
-  function questionKindFor(control, grouped, optionsValue) {
+  function questionKindFor(control, grouped, optionsValue, options = []) {
     if (control === "file") return "file";
     if (control === "textarea") return "text";
     if (control === "radio") return "single_choice";
     if (control === "checkbox") return grouped ? "multi_choice" : "boolean";
+    if (control === "custom" && grouped) return "boolean";
+    if (control === "custom" && options.length > 0) return "boolean";
     if (control === "select") return "single_choice";
     if (control === "listbox") return "multi_choice";
     if (control === "combobox") return "single_choice";
@@ -1058,7 +1080,8 @@ var AYNQuestionEngine = (() => {
       return normalize4(clone.textContent || "");
     }
     const aria = el.getAttribute("aria-label");
-    return aria ? normalize4(aria) : "";
+    if (aria) return normalize4(aria);
+    return normalize4(el.textContent || "");
   }
   function normalize4(s) {
     return s.replace(/\s+/g, " ").trim();
@@ -1205,7 +1228,7 @@ var AYNQuestionEngine = (() => {
     },
     collectEvidence(field) {
       const out = [];
-      if (field.kind === "checkbox" || field.kind === "radio") {
+      if (field.kind === "checkbox" || field.kind === "radio" || field.kind === "custom") {
         const proxy = proxyLabelFor(field.node);
         if (proxy) {
           out.push(makeEvidence("adapter", "label", proxy, 0.9, { via: "ashby-proxy" }));
@@ -1216,6 +1239,10 @@ var AYNQuestionEngine = (() => {
         const legend = q.querySelector('[class*="_label_" i], label');
         const t = legend?.textContent?.replace(/\s+/g, " ").trim();
         if (t) out.push(makeEvidence("adapter", "label", t, 0.85, { via: "ashby-fieldentry" }));
+        const choiceTexts = Array.from(q.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).map((n) => n.textContent?.replace(/\s+/g, " ").trim() ?? "").filter((t2) => t2 && t2.length <= 120).slice(0, 12);
+        if (choiceTexts.length >= 2) {
+          out.push(makeEvidence("adapter", "options", choiceTexts.map((label) => ({ value: label, label })), 0.9, { via: "ashby-choice-buttons" }));
+        }
       }
       return out;
     },
@@ -1231,8 +1258,10 @@ var AYNQuestionEngine = (() => {
       const hints = [];
       for (const [, arr] of buckets) {
         if (arr.length > 1) {
+          const customChoices = arr.filter((f) => f.kind === "custom" || f.kind === "radio");
+          const members = customChoices.length >= 2 ? customChoices : arr;
           hints.push({
-            memberFids: arr.map((f) => ensureFid(f.node)),
+            memberFids: members.map((f) => ensureFid(f.node)),
             confidence: 0.95,
             reason: "ashby:fieldEntry"
           });
@@ -1836,4 +1865,3 @@ var AYNQuestionEngine = (() => {
   }
   return __toCommonJS(question_engine_exports);
 })();
-window.AYNQuestionEngine = AYNQuestionEngine;
