@@ -13,6 +13,8 @@ import type { RawDetection, DetectedField, ControlKind } from "./question";
 import { makeRef } from "./refs";
 import { collect as collectDom } from "./evidence/dom";
 import { collect as collectA11y } from "./evidence/accessibility";
+import { collect as collectAdapter } from "./evidence/adapter";
+import type { ATSPlugin } from "./adapters/index";
 
 export interface DetectOptions {
   pierceShadow?: boolean; // default true
@@ -119,16 +121,19 @@ export function controlKindOf(el: Element): ControlKind | null {
  */
 export function enrich(
   raw: ReadonlyArray<RawDetection>,
-  root: Document | Element
+  root: Document | Element,
+  adapter: ATSPlugin | null = null
 ): DetectedField[] {
   return raw.map((d) => {
-    const evidence = [...collectDom(d.node, root), ...collectA11y(d.node, root)];
-    return {
+    const base: DetectedField = {
       ...d,
-      evidence,
+      evidence: [...collectDom(d.node, root), ...collectA11y(d.node, root)],
       visible: isVisible(d.node),
       container: nearestContainer(d.node),
     };
+    // Adapter evidence sees the enriched field so it can reason about container.
+    const adapterEv = collectAdapter(base, root, adapter);
+    return { ...base, evidence: [...base.evidence, ...adapterEv] };
   });
 }
 
