@@ -2382,6 +2382,108 @@
     } catch (_) {}
   }
 
+  // v2.4 — closed-loop AI replan.
+  // After aynRetryUnverified() has done deterministic re-clicks, ask the
+  // decision-loop transport for a fresh answer per still-unverified field,
+  // classify why it failed, and re-inject. Bounded by the transport itself
+  // (2 rounds × 8s total). Safe no-op if the engine bridge isn't loaded.
+  async function aynClosedLoopReplan(values, injectResult) {
+    try {
+      const dl = window.__AYN_DECISION_LOOP__;
+      if (!dl || !dl.loop || !dl.classifyFailure) return;
+      const ids = (injectResult && injectResult.unverifiedIds) || [];
+      if (!ids.length) return;
+      const questions = window.__AYN_QUESTIONS__ || [];
+      const qById = new Map(questions.map((q) => [q.id, q]));
+      const valById = new Map((values || []).filter((v) => v && v.id).map((v) => [v.id, v]));
+      const ats = (window.__AYN_ATS_HINT__ || (location.hostname || '').split('.').slice(-2).join('.'));
+      let retried = 0;
+      const failureClasses = [];
+      const resolved = {};
+      for (const id of ids.slice(0, 12)) { // cap fanout per fill
+        const q = qById.get(id);
+        const v = valById.get(id);
+        if (!q) continue;
+        const domOptionsNow = (q.options || []).map((o) => ({ value: o.value, label: o.label }));
+        const originalAnswer = v ? {
+          value: v.value,
+          optionLabel: v.optionLabel,
+          optionValue: v.optionValue,
+          optionLabels: v.optionLabels,
+        } : (q.answer || null);
+        const qWithAnswer = { ...q, answer: originalAnswer };
+        let failure;
+        try { failure = dl.classifyFailure(qWithAnswer, domOptionsNow, originalAnswer, false); }
+        catch { failure = 'unknown'; }
+        failureClasses.push(failure);
+        let outcome;
+        try {
+          outcome = await dl.loop.replan(qWithAnswer, {
+            options: domOptionsNow,
+            siblings: [],
+            ats,
+            url: location.href,
+          }, failure);
+        } catch { continue; }
+        if (!outcome || !outcome.answer) continue;
+        retried++;
+        // Convert back to legacy value shape and re-inject just this field.
+        const newVal = {
+          id,
+          _frame: v && v._frame,
+          value: outcome.answer.value ?? (v && v.value),
+          optionLabel: outcome.answer.optionLabel ?? (v && v.optionLabel),
+          optionValue: outcome.answer.optionValue ?? (v && v.optionValue),
+          optionLabels: outcome.answer.optionLabels ?? (v && v.optionLabels),
+        };
+        try {
+          const singleRes = await injectValues([newVal]);
+          const okRow = (singleRes.results || []).find((r) => r && r.id === id && r.ok);
+          if (okRow) {
+            resolved[id] = 'decision_loop';
+            // Update the aggregate injectResult so downstream verification sees success.
+            const idx = (injectResult.results || []).findIndex((r) => r && r.id === id);
+            if (idx >= 0) injectResult.results[idx] = { ...injectResult.results[idx], ...okRow };
+          }
+        } catch (_) {}
+      }
+      // Refresh verification after the replan burst.
+      try { aynPostInjectVerify(values, injectResult); } catch (_) {}
+      injectResult.retry_count = (injectResult.retry_count || 0) + retried;
+      injectResult.failure_classes = [ ...(injectResult.failure_classes || []), ...failureClasses ];
+      injectResult.resolved_by = { ...(injectResult.resolved_by || {}), ...resolved };
+    } catch (_) { /* never break the fill */ }
+  }
+
+  // v2.4 — persist verified answers to learning memory (per user).
+  function aynRecordLearnedAnswers(values, injectResult) {
+    try {
+      const learning = window.__AYN_LEARNING__;
+      if (!learning || typeof learning.recordVerified !== 'function') return;
+      const questions = window.__AYN_QUESTIONS__ || [];
+      const qById = new Map(questions.map((q) => [q.id, q]));
+      const results = (injectResult && injectResult.results) || [];
+      const valById = new Map((values || []).filter((v) => v && v.id).map((v) => [v.id, v]));
+      const ats = window.__AYN_ATS_HINT__ || (location.hostname || '').split('.').slice(-2).join('.');
+      for (const r of results) {
+        if (!r || !r.id) continue;
+        const q = qById.get(r.id);
+        const v = valById.get(r.id);
+        if (!q || !v) continue;
+        const verified = r.ok === true && r.verified !== false;
+        const answer = {
+          value: v.value,
+          optionLabel: v.optionLabel,
+          optionValue: v.optionValue,
+          optionLabels: v.optionLabels,
+        };
+        void learning.recordVerified({ ...q, answer }, verified, ats);
+      }
+    } catch (_) {}
+  }
+
+
+
 
   async function aynSettleReapply(values, injectResult) {
     try {
