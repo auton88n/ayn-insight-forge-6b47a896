@@ -3168,9 +3168,7 @@
       collectScannableDocs().forEach(({ doc }) => {
         doc.querySelectorAll('input[type="file"]').forEach(el => {
           if (el.disabled) return;
-          const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
-          const accept = (el.accept || '').toLowerCase();
-          const isResume = /resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf|\.txt/.test(accept) || !el.accept;
+          const isResume = aynIsResumeFileInput(el);
           if (isResume) fileInputs.push(el);
         });
       });
