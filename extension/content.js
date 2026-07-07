@@ -1109,57 +1109,75 @@
       window.__AYN_STRUCTRADIO_MAP__ = window.__AYN_STRUCTRADIO_MAP__ || new Map();
       window.__AYN_MULTICHECK_MAP__ = window.__AYN_MULTICHECK_MAP__ || new Map();
       for (const q of rich) {
+        const kind = q && q.kind;
+        if (kind !== 'single_choice' && kind !== 'multi_choice') continue;
         const controls = Array.isArray(q.controls) ? q.controls : [];
         if (controls.length < 1) continue;
-        // Resolve member DOM nodes from their stamped fids.
         const nodes = controls
           .map(function (c) { return document.querySelector('[data-ayn-fid="' + (c && c.fid) + '"]'); })
           .filter(Boolean);
         if (!nodes.length) continue;
-        // Nearest shared container: the closest ancestor that contains all nodes.
         let container = nodes[0].closest('fieldset,[role="radiogroup"],[role="group"],[class*="fieldEntry"],[class*="field-entry"],[class*="field"]') || nodes[0].parentElement;
         if (container && !nodes.every(function (n) { return container.contains(n); })) {
           container = nodes[0].parentElement;
         }
-        const id = q.id;
-        if (typeof id === 'string' && id.indexOf('__structradio__:') !== -1) {
-          window.__AYN_STRUCTRADIO_MAP__.set(id, { container: container, radios: nodes });
-        } else if (typeof id === 'string' && id.indexOf('__checkbox__:multi:') !== -1) {
-          window.__AYN_MULTICHECK_MAP__.set(id, nodes);
+        if (kind === 'single_choice') {
+          window.__AYN_STRUCTRADIO_MAP__.set(q.id, { container: container, radios: nodes });
+        } else {
+          window.__AYN_MULTICHECK_MAP__.set(q.id, nodes);
         }
       }
     } catch (e) { /* non-fatal */ }
   }
 
   function scanFormFieldsHybrid() {
-    if (AYN_QE_ENABLED) {
-      try {
-        const rich = window.__AYN_QUESTIONS__;
-        const qs = window.__AYN_QUESTIONS_LEGACY__;
-        if (Array.isArray(qs) && qs.length) {
-          if (Array.isArray(rich) && rich.length) aynRegisterEngineGroups(rich);
-          return qs.map(function (q) {
-            return {
-              id: q.id,
-              kind: q.kind,
-              type: q.type,
-              label: q.label,
-              name: q.name || '',
-              options: Array.isArray(q.options) ? q.options : [],
-              required: !!q.required,
-              group: q.group || '',
-              section: q.section || '',
-              placeholder: q.placeholder || '',
-              _frame: q._frame || '',
-              labelSource: q.labelSource || 'engine',
-              _engine: true
-            };
-          });
+    if (!AYN_QE_ENABLED) return scanFormFields();
+    try {
+      const rich = window.__AYN_QUESTIONS__;
+      const legacy = window.__AYN_QUESTIONS_LEGACY__;
+      const rN = Array.isArray(rich) ? rich.length : 0;
+      const lN = Array.isArray(legacy) ? legacy.length : 0;
+      try { console.log('[AYN-HYBRID] rich=' + rN + ' legacy=' + lN); } catch (_) {}
+      if (rN === 0) {
+        try { console.log('[AYN-HYBRID] engine returned nothing — no fallback'); } catch (_) {}
+        return [];
+      }
+      aynRegisterEngineGroups(rich);
+      return rich.map(function (q) {
+        let legacyKind, legacyType;
+        switch (q.kind) {
+          case 'single_choice': legacyKind = 'structradio'; legacyType = 'radio'; break;
+          case 'multi_choice':  legacyKind = 'checkbox';    legacyType = 'checkbox'; break;
+          case 'boolean':       legacyKind = 'buttongroup'; legacyType = 'buttongroup'; break;
+          case 'file':          legacyKind = 'file';        legacyType = 'file'; break;
+          case 'date':          legacyKind = 'text';        legacyType = 'text'; break;
+          case 'text':
+          default:              legacyKind = 'text';        legacyType = 'text'; break;
         }
-      } catch (e) { /* fall through to legacy */ }
+        return {
+          id: q.id,
+          kind: legacyKind,
+          type: legacyType,
+          label: q.label || '',
+          name: '',
+          options: Array.isArray(q.options)
+            ? q.options.map(function (o) { return { value: o.value, label: o.label }; })
+            : [],
+          required: !!q.required,
+          group: q.semanticType || '',
+          section: q.section || '',
+          placeholder: q.placeholder || '',
+          _frame: q.frame || '',
+          labelSource: 'engine',
+          _engine: true
+        };
+      });
+    } catch (e) {
+      try { console.log('[AYN-HYBRID] engine path threw:', e); } catch (_) {}
+      return [];
     }
-    return scanFormFields();
   }
+
 
   function scanFormFields() {
     const SKIP_TYPES = new Set(['hidden','submit','button','image','reset']);
