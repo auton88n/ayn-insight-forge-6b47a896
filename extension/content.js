@@ -2960,12 +2960,23 @@
       if (o.offsetParent !== null) return true;
       try { const r = o.getBoundingClientRect(); return r.width > 1 && r.height > 1; } catch (_) { return false; }
     };
+    // v2.3.2 — Prefer the specific listbox the combobox owns via aria-controls/-owns.
+    // Falls back to document-wide poll when the attribute is missing.
+    const ctrlId = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
     for (let i = 0; i < 13; i++) {
       await aynSleep(i < 4 ? 150 : 250);
-      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
+      const listbox = ctrlId ? document.getElementById(ctrlId) : null;
+      const scope = (listbox && isVisibleOpt(listbox)) ? listbox : document;
+      optionEls = Array.from(scope.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
         .filter(o => isVisibleOpt(o) && nrm(o.textContent).length && nrm(o.textContent).length < 200);
+      if (!optionEls.length && scope !== document) {
+        // Portal listbox exists but empty this tick — try doc-wide fallback.
+        optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
+          .filter(o => isVisibleOpt(o) && nrm(o.textContent).length && nrm(o.textContent).length < 200);
+      }
       if (optionEls.length) break;
     }
+
     if (optionEls.length) {
       const match = optionEls.find(o => aynOptionMatches(o.textContent, val));
       const pick = match || optionEls[0];
