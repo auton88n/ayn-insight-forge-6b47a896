@@ -1608,6 +1608,68 @@
     } catch (_) { /* never break the fill */ }
   }
 
+  async function aynStabilizeAfterRender(values, injectResult) {
+    try {
+      if (!injectResult || !Array.isArray(injectResult.results)) return;
+      const byId = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
+      const delays = [350, 900, 1700, 2600];
+      for (const delay of delays) {
+        await aynSleep(delay);
+        let changed = false;
+        try { aynRegisterEngineGroups(window.__AYN_QUESTIONS__ || []); } catch (_) {}
+        for (const res of injectResult.results) {
+          if (!res || res.ok !== true || !res.id) continue;
+          const v = byId.get(res.id);
+          if (!v) continue;
+          const want = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
+          if (!want) continue;
+          const rawId = String(res.id);
+          try {
+            if (rawId.includes('__buttongroup__:')) {
+              const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
+              const found = meta ? findButtongroupOption(meta, want) : { target: null, scope: null };
+              if (!found.target || !aynChoiceMatchesWanted(found.scope, found.target, want)) {
+                res.verified = false;
+                res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-choice-mismatch';
+                if (found.target) {
+                  const ok = await clickOptionButton(found.target, meta && meta.qLabel, want);
+                  if (ok) { res.verified = true; res.ok = true; res.reason = 'rerender-reapplied'; }
+                }
+                changed = true;
+              }
+            } else if (rawId.includes('__structradio__:')) {
+              const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
+              const container = entry && entry.container;
+              const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')).filter(r => !r.disabled) : (entry && entry.radios) || [];
+              const checked = live.find(r => r.checked);
+              const lbl = checked ? ((checked.closest('label') || checked.parentElement)?.innerText || checked.value || '') : '';
+              if (!checked || !aynOptionMatches(lbl, want)) { res.verified = false; res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-radio-mismatch'; changed = true; }
+            } else {
+              const el = aynResolveFieldEl(res.id, v._frame);
+              if (el && el.type !== 'radio' && el.type !== 'checkbox') {
+                const cur = (el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '')).trim();
+                const ok = norm(cur) === norm(want) || (norm(want).length >= 6 && (norm(cur).includes(norm(want)) || norm(want).includes(norm(cur))));
+                if (!ok) {
+                  const r2 = await aynFillTextbox(el, String(want));
+                  res.reapplied = true;
+                  res.verified = !!(r2 && r2.verified);
+                  if (!res.verified) res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-text-mismatch';
+                  changed = true;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        try { aynPostInjectVerify(values, injectResult); } catch (_) {}
+        if (!changed) break;
+      }
+      try {
+        injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
+        injectResult.total = injectResult.results.length;
+      } catch (_) {}
+    } catch (_) {}
+  }
+
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
   function setNativeValue(el, value) {
