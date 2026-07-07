@@ -2,14 +2,13 @@
  * extension/content.entry.js
  * Bridge between the Universal Question Engine and the legacy content script.
  * Runs at document_idle in every frame; exposes the engine's Question[] via
- * window.__AYN_QUESTIONS__ and dispatches "ayn:questions-ready" so downstream
- * consumers (sidepanel, filler) can pick it up.
+ * window.__AYN_QUESTIONS__ and dispatches "ayn:questions-ready".
  *
- * Also wires the three v2.4 upgrades:
- *   1. Decision loop        -> window.__AYN_DECISION_LOOP__
- *   2. Learning memory      -> window.__AYN_LEARNING__
- *   3. Vision discovery     -> setVisionProvider(...) + window.__AYN_VISION_DISCOVER__
- * All transports fail gracefully offline and never block the base scanner.
+ * v2.4 upgrades wired here:
+ *   1. Decision loop     -> window.__AYN_DECISION_LOOP__
+ *   2. Learning memory   -> window.__AYN_LEARNING__ (routed via ext-memory fn)
+ *   3. Vision discovery  -> window.__AYN_VISION_DISCOVER__ + setVisionProvider
+ * All transports are best-effort; failures never break the base scanner.
  */
 import {
   scanForm,
@@ -17,11 +16,11 @@ import {
   projectToLegacy,
   setVisionProvider,
   setLearningEngine,
-  createSupabaseLearning,
   createVisionProvider,
   createDecisionLoop,
   findVisualDeadZones,
   classifyFailure,
+  questionSignature,
 } from "./question-engine/index";
 
 const SUPABASE_URL = "https://dfkoxuokfkttjhfjcecx.supabase.co";
@@ -30,6 +29,7 @@ const SUPABASE_ANON_KEY =
 const PROXY_SECRET = "ayn-proxy-2024";
 const FN_RETRY = `${SUPABASE_URL}/functions/v1/ext-fill-form-retry`;
 const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
+const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
 
 (function initAynEngineBridge() {
   if (window.__AYN_ENGINE_BRIDGE__) return;
@@ -43,10 +43,7 @@ const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
         new CustomEvent("ayn:questions-ready", {
           detail: {
             count: questions.length,
-            frame:
-              window.top === window
-                ? "top"
-                : (location && location.href) || "frame",
+            frame: window.top === window ? "top" : (location && location.href) || "frame",
           },
         })
       );
@@ -56,12 +53,8 @@ const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
   };
 
   const runOnce = () => {
-    try {
-      const qs = scanForm(document);
-      emit(qs);
-    } catch (e) {
-      console.warn("[AYN][engine-bridge] scan failed", e);
-    }
+    try { emit(scanForm(document)); }
+    catch (e) { console.warn("[AYN][engine-bridge] scan failed", e); }
   };
 
   setTimeout(runOnce, 0);
@@ -72,15 +65,9 @@ const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
       (delta) => {
         if (
           window.__AYN_QUESTIONS__ &&
-          !delta.added.length &&
-          !delta.changed.length &&
-          !delta.removedIds.length
-        )
-          return;
-        try {
-          const qs = scanForm(document);
-          emit(qs);
-        } catch (_) {}
+          !delta.added.length && !delta.changed.length && !delta.removedIds.length
+        ) return;
+        try { emit(scanForm(document)); } catch (_) {}
       },
       { debounceMs: 200 }
     );
@@ -88,30 +75,178 @@ const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
     console.warn("[AYN][engine-bridge] observe failed", e);
   }
 
-  // ────────────────────────────────────────────────────────────────────
-  // v2.4 upgrades: decision loop / learning / vision discovery
-  // ────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────
+  //  Helpers shared by the three v2.4 subsystems
+  // ────────────────────────────────────────────────────────────
 
-  /**
-   * Resolve the current user access token. The main content script maintains
-   * it on window.__AYN_ACCESS_TOKEN__ after auth handshake with the sidepanel.
-   */
-  const getAccessToken = async () => window.__AYN_ACCESS_TOKEN__ || null;
-
-  // — Part 2: learning store
-  try {
-    const learning = createSupabaseLearning({
-      getAccessToken,
-      restBaseUrl: `${SUPABASE_URL}/rest/v1`,
-      anonKey: SUPABASE_ANON_KEY,
+  const getExtToken = () =>
+    new Promise((resolve) => {
+      try {
+        chrome.storage.local.get(["ayn_token"], (d) => resolve((d && d.ayn_token) || null));
+      } catch { resolve(null); }
     });
+
+  // Cached html2canvas module. Loaded once via chrome.runtime.getURL so the
+  // extension's bundled vendor copy is used (same pattern as content.js's
+  // aynRunVisionFallback).
+  let _h2cPromise = null;
+  const loadH2C = () => {
+    if (_h2cPromise) return _h2cPromise;
+    _h2cPromise = (async () => {
+      try {
+        const url = chrome.runtime.getURL("vendor/html2canvas.esm.js");
+        const mod = await import(url);
+        return mod.default || mod.html2canvas || null;
+      } catch { return null; }
+    })();
+    return _h2cPromise;
+  };
+
+  const screenshotElement = async (el) => {
+    const h2c = await loadH2C();
+    if (typeof h2c !== "function") return "";
+    try {
+      const canvas = await h2c(el, {
+        backgroundColor: "#ffffff",
+        logging: false,
+        scale: 0.75,
+        useCORS: true,
+        allowTaint: false,
+      });
+      return (canvas.toDataURL("image/png").split(",")[1]) || "";
+    } catch { return ""; }
+  };
+
+  // ────────────────────────────────────────────────────────────
+  //  Part 2 — learning memory (routed through ext-memory edge fn)
+  // ────────────────────────────────────────────────────────────
+  try {
+    const cache = new Map(); // sig -> row | null
+    const memoryFetch = async (payload) => {
+      const token = await getExtToken();
+      if (!token) return null;
+      try {
+        const r = await fetch(FN_MEMORY, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_ANON_KEY,
+            "x-ayn-ext-token": token,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) return null;
+        return await r.json();
+      } catch { return null; }
+    };
+
+    const learning = {
+      remember(q) {
+        const a = q && q.answer;
+        if (!a || a.skip) return;
+        const sig = questionSignature(q);
+        void memoryFetch({
+          action: "remember",
+          row: {
+            question_signature: sig,
+            canonical_label: q.label,
+            semantic_type: q.semanticType,
+            question_kind: q.kind,
+            answer_value: a.value ?? null,
+            answer_option_label: a.optionLabel ?? null,
+            answer_option_labels: a.optionLabels ?? null,
+          },
+        });
+      },
+      lookup(q) {
+        const sig = questionSignature(q);
+        const row = cache.get(sig);
+        if (row === undefined) {
+          void memoryFetch({ action: "lookup", signature: sig }).then((res) => {
+            cache.set(sig, (res && res.row) || null);
+          });
+          return null;
+        }
+        if (!row) return null;
+        const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+        if (trust < 0.5) return null;
+        return {
+          answer: {
+            value: row.answer_value ?? undefined,
+            optionLabel: row.answer_option_label ?? undefined,
+            optionLabels: row.answer_option_labels ?? undefined,
+            confidence: 0.6 + Math.min(0.3, (row.verified_ok_count || 0) * 0.03),
+            reasoning: "learned_from_previous_fills",
+          },
+          confidence: 0.7,
+          source: "memory",
+        };
+      },
+      promote(q) {
+        const sig = questionSignature(q);
+        void memoryFetch({
+          action: "remember",
+          row: {
+            question_signature: sig,
+            canonical_label: q.label,
+            semantic_type: q.semanticType,
+            question_kind: q.kind,
+            verified_ok_count: 1,
+          },
+        });
+      },
+      forget() { /* UI-driven; not called by engine */ },
+      async recordVerified(q, verified, atsHint) {
+        const a = q && q.answer;
+        if (!a) return;
+        const sig = questionSignature(q);
+        cache.delete(sig);
+        await memoryFetch({
+          action: "remember",
+          row: {
+            question_signature: sig,
+            canonical_label: q.label,
+            semantic_type: q.semanticType,
+            question_kind: q.kind,
+            answer_value: a.value ?? null,
+            answer_option_label: a.optionLabel ?? null,
+            answer_option_labels: a.optionLabels ?? null,
+            ats_hint: atsHint || null,
+            verified_ok_count: verified ? 1 : 0,
+            verified_fail_count: verified ? 0 : 1,
+          },
+        });
+      },
+      /**
+       * Lightweight helper: look up an answer by a raw (label, kind, options)
+       * shape. Used by content.js for legacy field descriptors that never
+       * materialize into a full Question.
+       */
+      async lookupByShape(label, kind, options) {
+        const sig = questionSignature({ label: label || "", kind: kind || "text", options: options || [] });
+        if (cache.has(sig)) {
+          const row = cache.get(sig);
+          if (!row) return null;
+          const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+          return trust >= 0.5 ? row : null;
+        }
+        const res = await memoryFetch({ action: "lookup", signature: sig });
+        const row = (res && res.row) || null;
+        cache.set(sig, row);
+        if (!row) return null;
+        const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+        return trust >= 0.5 ? row : null;
+      },
+    };
     setLearningEngine(learning);
     window.__AYN_LEARNING__ = learning;
   } catch (e) {
     console.warn("[AYN][engine-bridge] learning wire failed", e);
   }
 
-  // — Part 1: decision loop
+  // ────────────────────────────────────────────────────────────
+  //  Part 1 — decision loop
+  // ────────────────────────────────────────────────────────────
   try {
     const loop = createDecisionLoop({
       transport: {
@@ -137,22 +272,10 @@ const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
     console.warn("[AYN][engine-bridge] decision loop wire failed", e);
   }
 
-  // — Part 3: vision discovery
+  // ────────────────────────────────────────────────────────────
+  //  Part 3 — vision discovery
+  // ────────────────────────────────────────────────────────────
   try {
-    const screenshot = async (el) => {
-      // html2canvas is bundled with the extension under vendor/ and loaded by
-      // content.js before this bridge; guard for the case where it isn't.
-      const h2c = window.html2canvas;
-      if (typeof h2c !== "function") return "";
-      const canvas = await h2c(el, {
-        backgroundColor: null,
-        logging: false,
-        scale: 1,
-        useCORS: true,
-      });
-      const dataUrl = canvas.toDataURL("image/png");
-      return dataUrl.split(",")[1] || "";
-    };
     const discover = async (image_base64, context) => {
       const r = await fetch(FN_VISION, {
         method: "POST",
@@ -166,25 +289,22 @@ const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
       if (!r.ok) throw new Error(`vision_${r.status}`);
       return r.json();
     };
-    const provider = createVisionProvider({ screenshot, discover });
+    const provider = createVisionProvider({
+      screenshot: screenshotElement,
+      discover,
+    });
     setVisionProvider(provider);
     window.__AYN_VISION_DISCOVER__ = {
-      /**
-       * Scan for visual dead zones and ask the model to describe questions.
-       * Called by content.js when scanForm() returned zero questions but the
-       * page visibly contains a form. Returns raw vision descriptors — merging
-       * them into __AYN_QUESTIONS__ is the caller's job.
-       */
       async run() {
         try {
-          const zones = findVisualDeadZones(
-            document,
-            new Set((window.__AYN_QUESTIONS__ || []).flatMap((q) => q.controls || []))
+          const detectedControls = new Set(
+            (window.__AYN_QUESTIONS__ || []).flatMap((q) => (q.controls || []).map((c) => c && c.node).filter(Boolean))
           );
+          const zones = findVisualDeadZones(document, detectedControls);
           if (!zones.length) return { zones: 0, questions: [] };
           const all = [];
           for (const zone of zones) {
-            const b64 = await screenshot(zone);
+            const b64 = await screenshotElement(zone);
             if (!b64) continue;
             try {
               const res = await discover(b64, { url: location.href });
