@@ -6,6 +6,7 @@
 
 import type { Evidence } from "./evidence";
 import type { QuestionConfidence } from "./question";
+import { fuse } from "./evidence/merge";
 
 export interface ConfidenceInput {
   labelEvidence: ReadonlyArray<Evidence>;
@@ -14,16 +15,16 @@ export interface ConfidenceInput {
 }
 
 export function computeConfidence(input: ConfidenceInput): QuestionConfidence {
-  const labeling = agreement(input.labelEvidence);
+  const labeling = clamp01(fuse(input.labelEvidence).agreement);
   const grouping = clamp01(input.groupConfidence);
   const typing = clamp01(input.typingConfidence);
   const overall = Math.min(grouping, labeling, typing);
   return { grouping, labeling, typing, overall };
 }
 
-function agreement(ev: ReadonlyArray<Evidence>): number {
-  if (ev.length === 0) return 0;
-  return 0;
+/** Public agreement helper. Delegates to the pure fuse() so math lives in one place. */
+export function agreement(ev: ReadonlyArray<Evidence>): number {
+  return clamp01(fuse(ev).agreement);
 }
 
 function clamp01(n: number): number {
