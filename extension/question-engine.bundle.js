@@ -572,12 +572,23 @@ var AYNQuestionEngine = (() => {
   }
 
   // extension/question-engine/grouping.ts
-  function cluster(fields) {
+  function cluster(fields, hints = []) {
     const clusters = [];
     const claimed = /* @__PURE__ */ new Set();
+    if (hints.length) {
+      const byFid = /* @__PURE__ */ new Map();
+      for (const f of fields) byFid.set(f.ref.fid, f);
+      for (const h of hints) {
+        const members = h.memberFids.map((fid) => byFid.get(fid)).filter((f) => !!f && !claimed.has(f));
+        if (members.length > 1) {
+          members.forEach((m) => claimed.add(m));
+          clusters.push({ members, reason: "adapter-hint", confidence: h.confidence });
+        }
+      }
+    }
     const radiosByName = /* @__PURE__ */ new Map();
     for (const f of fields) {
-      if (f.kind !== "radio") continue;
+      if (f.kind !== "radio" || claimed.has(f)) continue;
       const name = f.node.name;
       if (!name) continue;
       const arr = radiosByName.get(name) ?? [];
@@ -641,8 +652,10 @@ var AYNQuestionEngine = (() => {
   }
 
   // extension/question-engine/question-reconstructor.ts
-  function reconstruct(fields, root) {
-    const clusters = cluster(fields);
+  function reconstruct(fields, root, adapter = null) {
+    const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+    const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
+    const clusters = cluster(fields, hints);
     return clusters.map((c) => {
       const groupingEvidence = [
         makeEvidence("dom", "grouping", { reason: c.reason, size: c.members.length }, c.confidence)
@@ -1479,7 +1492,7 @@ var AYNQuestionEngine = (() => {
     const adapter = selectAdapter(doc, url);
     const raw = detect(root);
     const detected = enrich(raw, root, adapter);
-    const groups = reconstruct(detected, root);
+    const groups = reconstruct(detected, root, adapter);
     const questions = build(groups);
     return questions.map(freezeQuestion);
   }
