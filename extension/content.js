@@ -1633,6 +1633,28 @@
     return false;
   }
 
+  function aynSelectedLabelInScope(scope) {
+    try {
+      if (!scope) return '';
+      const choices = Array.from(scope.querySelectorAll('button,[role="radio"],[role="button"],[role="option"],label,a[role="button"]'));
+      const sel = choices.find(b => bgIsSelected(b));
+      return sel ? aynVisibleText(sel) || sel.getAttribute('aria-label') || '' : '';
+    } catch (_) { return ''; }
+  }
+
+  function aynChoiceMatchesWanted(scope, target, want) {
+    try {
+      const wanted = String(want || '').trim();
+      if (!wanted) return !!(target && bgIsSelected(target));
+      if (target && bgIsSelected(target)) {
+        const t = aynVisibleText(target) || target.getAttribute('aria-label') || '';
+        if (aynOptionMatches(t, wanted)) return true;
+      }
+      const selected = aynSelectedLabelInScope(scope || (target && target.parentElement));
+      return !!selected && aynOptionMatches(selected, wanted);
+    } catch (_) { return false; }
+  }
+
   function fireFullClick(target) {
     try { target.scrollIntoView({ block: 'center' }); } catch {}
     try { target.focus && target.focus(); } catch {}
@@ -1670,6 +1692,22 @@
         if (t.length >= qKey.length + 220) continue;
         if (t === qKey || t.includes(qKey)) { labelEl = c; break; }
       }
+    }
+
+    if (!labelEl && meta && meta.containerSelector) {
+      try {
+        const c = document.querySelector(meta.containerSelector);
+        if (c) labelEl = c;
+      } catch (_) {}
+    }
+
+    if (!labelEl && meta && Array.isArray(meta.fids)) {
+      try {
+        for (const fid of meta.fids) {
+          const node = document.querySelector('[data-ayn-fid="' + String(fid).replace(/"/g, '\\"') + '"]');
+          if (node) { labelEl = node.closest('[class*="fieldEntry"],[class*="field-entry"],[class*="field"],[class*="question"],fieldset,[role="group"]') || node.parentElement; break; }
+        }
+      } catch (_) {}
     }
 
     // Helper: pick best matching choice inside a root, restricted to known optionTexts
