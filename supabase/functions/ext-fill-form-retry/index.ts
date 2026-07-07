@@ -111,12 +111,32 @@ serve(async (req) => {
     }
 
     const data = await resp.json();
+    const finishReason = data?.choices?.[0]?.finish_reason || data?.stop_reason;
+    if (finishReason === "length" || finishReason === "max_tokens") {
+      return json({ error: "response_truncated" }, 502);
+    }
     const raw = data?.choices?.[0]?.message?.content ?? "{}";
     let answer: Record<string, unknown> = {};
     try {
       answer = JSON.parse(raw);
     } catch {
       answer = { skip: true, confidence: 0, reasoning: "model_returned_non_json" };
+    }
+
+    if ((field.kind === "single_choice" || field.kind === "multi_choice" || field.kind === "boolean") && options.length) {
+      const wanted = String((answer.optionLabel || answer.optionValue || "") as string).trim().toLowerCase();
+      if (wanted) {
+        const opt = options.find((o) =>
+          String(o.label || "").trim().toLowerCase() === wanted ||
+          String(o.value || "").trim().toLowerCase() === wanted
+        );
+        if (opt) {
+          answer.optionLabel = opt.label;
+          answer.optionValue = opt.value || opt.label;
+        } else {
+          answer = { skip: true, confidence: 0, reasoning: "retry_option_not_in_current_dom" };
+        }
+      }
     }
 
     return json({ answer });

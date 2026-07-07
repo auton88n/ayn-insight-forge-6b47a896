@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.3.1';
+  const AYN_BUILD = '2.4.1';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
@@ -37,6 +37,38 @@
     } catch { return ''; }
   }
   function safeLen(el) { return safeText(el).length; }
+
+  function aynVisibleText(el) {
+    return String(safeText(el) || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function aynFileContextText(input) {
+    try {
+      const parts = [];
+      const push = (v) => { const s = String(v || '').replace(/\s+/g, ' ').trim(); if (s) parts.push(s); };
+      push(getLabelFor(input));
+      push(input.name); push(input.id); push(input.getAttribute && input.getAttribute('aria-label'));
+      const labelledBy = input.getAttribute && input.getAttribute('aria-labelledby');
+      if (labelledBy) labelledBy.split(/\s+/).forEach(id => push(input.ownerDocument.getElementById(id)?.textContent));
+      let node = input.parentElement;
+      for (let i = 0; i < 5 && node; i++, node = node.parentElement) {
+        const t = aynVisibleText(node);
+        if (t && t.length < 900) push(t);
+      }
+      return parts.join(' ').toLowerCase();
+    } catch (_) { return ''; }
+  }
+
+  function aynIsResumeFileInput(input) {
+    try {
+      if (!input || input.disabled || String(input.type || '').toLowerCase() !== 'file') return false;
+      const accept = String(input.accept || '').toLowerCase();
+      const ctx = aynFileContextText(input);
+      if (/resume|cv|curriculum|cover letter|upload|attach|file|document/.test(ctx)) return true;
+      if (/\.pdf|\.docx?|\.rtf|\.txt|application\/pdf|wordprocessingml|msword/.test(accept)) return true;
+      return !accept;
+    } catch (_) { return false; }
+  }
 
   // v2.1.0 — reveal-and-settle pass. Two problems this solves:
   //   1. Lazy sections (Workday step 2, Ashby demographics, Gem EEO) mount
@@ -1126,26 +1158,57 @@
     try {
       window.__AYN_STRUCTRADIO_MAP__ = window.__AYN_STRUCTRADIO_MAP__ || new Map();
       window.__AYN_MULTICHECK_MAP__ = window.__AYN_MULTICHECK_MAP__ || new Map();
+      window.__AYN_BG_MAP__ = window.__AYN_BG_MAP__ || new Map();
+      window.__AYN_TEXT_FIELD_MAP__ = window.__AYN_TEXT_FIELD_MAP__ || new Map();
       for (const q of rich) {
         const kind = q && q.kind;
-        if (kind !== 'single_choice' && kind !== 'multi_choice') continue;
         const controls = Array.isArray(q.controls) ? q.controls : [];
         if (controls.length < 1) continue;
         const nodes = controls
           .map(function (c) { return document.querySelector('[data-ayn-fid="' + (c && c.fid) + '"]'); })
           .filter(Boolean);
         if (!nodes.length) continue;
-        let container = nodes[0].closest('fieldset,[role="radiogroup"],[role="group"],[class*="fieldEntry"],[class*="field-entry"],[class*="field"]') || nodes[0].parentElement;
+        let container = nodes[0].closest('fieldset,[role="radiogroup"],[role="group"],[class*="fieldEntry"],[class*="field-entry"],[class*="field"],[class*="question"]') || nodes[0].parentElement;
         if (container && !nodes.every(function (n) { return container.contains(n); })) {
           container = nodes[0].parentElement;
         }
         if (kind === 'single_choice') {
           window.__AYN_STRUCTRADIO_MAP__.set(q.id, { container: container, radios: nodes });
-        } else {
+        } else if (kind === 'multi_choice') {
           window.__AYN_MULTICHECK_MAP__.set(q.id, nodes);
+        } else if (kind === 'boolean') {
+          const opts = (Array.isArray(q.options) && q.options.length ? q.options : [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }])
+            .map(function (o) { return String((o && (o.label || o.value)) || '').trim(); })
+            .filter(Boolean);
+          window.__AYN_BG_MAP__.set(q.id, {
+            qLabel: q.label || '',
+            optionTexts: opts.length ? opts : ['Yes', 'No'],
+            containerSelector: container ? aynBuildQuickSelector(container) : '',
+            fids: controls.map(function (c) { return c && c.fid; }).filter(Boolean),
+          });
+        } else if (kind === 'text' || kind === 'date' || kind === 'file') {
+          window.__AYN_TEXT_FIELD_MAP__.set(q.id, nodes[0]);
         }
       }
     } catch (e) { /* non-fatal */ }
+  }
+
+  function aynBuildQuickSelector(el) {
+    try {
+      if (!el || el.nodeType !== 1) return '';
+      if (el.id) return '#' + (CSS && CSS.escape ? CSS.escape(el.id) : el.id);
+      const fid = el.getAttribute && el.getAttribute('data-ayn-fid');
+      if (fid) return '[data-ayn-fid="' + String(fid).replace(/"/g, '\\"') + '"]';
+      const parts = [];
+      let n = el;
+      for (let i = 0; i < 4 && n && n.nodeType === 1; i++, n = n.parentElement) {
+        let part = n.tagName.toLowerCase();
+        const cls = String(n.getAttribute('class') || '').split(/\s+/).find(Boolean);
+        if (cls) part += '.' + cls.replace(/[^\w-]/g, '');
+        parts.unshift(part);
+      }
+      return parts.join(' > ');
+    } catch (_) { return ''; }
   }
 
   function scanFormFieldsHybrid() {
@@ -1161,7 +1224,17 @@
         return [];
       }
       aynRegisterEngineGroups(rich);
-      return rich.map(function (q) {
+      const projected = rich.map(function (q) {
+        const firstRef = Array.isArray(q.controls) ? q.controls[0] : null;
+        const liveNode = firstRef && firstRef.fid ? document.querySelector('[data-ayn-fid="' + firstRef.fid + '"]') : null;
+        const currentValue = (() => {
+          try {
+            if (!liveNode) return '';
+            if (liveNode.type === 'checkbox' || liveNode.type === 'radio') return liveNode.checked ? (liveNode.value || 'checked') : '';
+            if (liveNode.tagName === 'SELECT') return liveNode.options[liveNode.selectedIndex]?.text || liveNode.value || '';
+            return liveNode.value || liveNode.innerText || '';
+          } catch (_) { return ''; }
+        })();
         let legacyKind, legacyType;
         switch (q.kind) {
           case 'single_choice': legacyKind = 'structradio'; legacyType = 'radio'; break;
@@ -1185,11 +1258,20 @@
           group: q.semanticType || '',
           section: q.section || '',
           placeholder: q.placeholder || '',
+          currentValue,
+          multi: q.kind === 'multi_choice',
           _frame: q.frame || '',
           labelSource: 'engine',
+          confidence: q.confidence && typeof q.confidence.overall === 'number' ? q.confidence.overall : undefined,
           _engine: true
         };
       });
+      try {
+        projected._fileFields = projected.filter(function (f) {
+          return f && (f.kind === 'file' || f.type === 'file' || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
+        }).map(function (f) { return { ...f, isResume: /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')) }; });
+      } catch (_) { projected._fileFields = []; }
+      return projected;
     } catch (e) {
       try { console.log('[AYN-HYBRID] engine path threw:', e); } catch (_) {}
       return [];
@@ -1489,6 +1571,7 @@
         const v = valById.get(r.id);
         if (!q || !v) continue;
         const verified = r.ok === true && r.verified !== false;
+        if (!verified) continue;
         const answer = {
           value: v.value,
           optionLabel: v.optionLabel,
@@ -1539,6 +1622,68 @@
     } catch (_) { /* never break the fill */ }
   }
 
+  async function aynStabilizeAfterRender(values, injectResult) {
+    try {
+      if (!injectResult || !Array.isArray(injectResult.results)) return;
+      const byId = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
+      const delays = [350, 900, 1700, 2600];
+      for (const delay of delays) {
+        await aynSleep(delay);
+        let changed = false;
+        try { aynRegisterEngineGroups(window.__AYN_QUESTIONS__ || []); } catch (_) {}
+        for (const res of injectResult.results) {
+          if (!res || res.ok !== true || !res.id) continue;
+          const v = byId.get(res.id);
+          if (!v) continue;
+          const want = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
+          if (!want) continue;
+          const rawId = String(res.id);
+          try {
+            if (rawId.includes('__buttongroup__:')) {
+              const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
+              const found = meta ? findButtongroupOption(meta, want) : { target: null, scope: null };
+              if (!found.target || !aynChoiceMatchesWanted(found.scope, found.target, want)) {
+                res.verified = false;
+                res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-choice-mismatch';
+                if (found.target) {
+                  const ok = await clickOptionButton(found.target, meta && meta.qLabel, want);
+                  if (ok) { res.verified = true; res.ok = true; res.reason = 'rerender-reapplied'; }
+                }
+                changed = true;
+              }
+            } else if (rawId.includes('__structradio__:')) {
+              const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
+              const container = entry && entry.container;
+              const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')).filter(r => !r.disabled) : (entry && entry.radios) || [];
+              const checked = live.find(r => r.checked);
+              const lbl = checked ? ((checked.closest('label') || checked.parentElement)?.innerText || checked.value || '') : '';
+              if (!checked || !aynOptionMatches(lbl, want)) { res.verified = false; res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-radio-mismatch'; changed = true; }
+            } else {
+              const el = aynResolveFieldEl(res.id, v._frame);
+              if (el && el.type !== 'radio' && el.type !== 'checkbox') {
+                const cur = (el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '')).trim();
+                const ok = norm(cur) === norm(want) || (norm(want).length >= 6 && (norm(cur).includes(norm(want)) || norm(want).includes(norm(cur))));
+                if (!ok) {
+                  const r2 = await aynFillTextbox(el, String(want));
+                  res.reapplied = true;
+                  res.verified = !!(r2 && r2.verified);
+                  if (!res.verified) res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-text-mismatch';
+                  changed = true;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+        try { aynPostInjectVerify(values, injectResult); } catch (_) {}
+        if (!changed) break;
+      }
+      try {
+        injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
+        injectResult.total = injectResult.results.length;
+      } catch (_) {}
+    } catch (_) {}
+  }
+
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
   function setNativeValue(el, value) {
@@ -1562,6 +1707,28 @@
       if (inp && inp.checked) return true;
     } catch {}
     return false;
+  }
+
+  function aynSelectedLabelInScope(scope) {
+    try {
+      if (!scope) return '';
+      const choices = Array.from(scope.querySelectorAll('button,[role="radio"],[role="button"],[role="option"],label,a[role="button"]'));
+      const sel = choices.find(b => bgIsSelected(b));
+      return sel ? aynVisibleText(sel) || sel.getAttribute('aria-label') || '' : '';
+    } catch (_) { return ''; }
+  }
+
+  function aynChoiceMatchesWanted(scope, target, want) {
+    try {
+      const wanted = String(want || '').trim();
+      if (!wanted) return !!(target && bgIsSelected(target));
+      if (target && bgIsSelected(target)) {
+        const t = aynVisibleText(target) || target.getAttribute('aria-label') || '';
+        if (aynOptionMatches(t, wanted)) return true;
+      }
+      const selected = aynSelectedLabelInScope(scope || (target && target.parentElement));
+      return !!selected && aynOptionMatches(selected, wanted);
+    } catch (_) { return false; }
   }
 
   function fireFullClick(target) {
@@ -1601,6 +1768,22 @@
         if (t.length >= qKey.length + 220) continue;
         if (t === qKey || t.includes(qKey)) { labelEl = c; break; }
       }
+    }
+
+    if (!labelEl && meta && meta.containerSelector) {
+      try {
+        const c = document.querySelector(meta.containerSelector);
+        if (c) labelEl = c;
+      } catch (_) {}
+    }
+
+    if (!labelEl && meta && Array.isArray(meta.fids)) {
+      try {
+        for (const fid of meta.fids) {
+          const node = document.querySelector('[data-ayn-fid="' + String(fid).replace(/"/g, '\\"') + '"]');
+          if (node) { labelEl = node.closest('[class*="fieldEntry"],[class*="field-entry"],[class*="field"],[class*="question"],fieldset,[role="group"]') || node.parentElement; break; }
+        }
+      } catch (_) {}
     }
 
     // Helper: pick best matching choice inside a root, restricted to known optionTexts
@@ -1711,20 +1894,21 @@
   }
 
   async function clickOptionButton(btn, qLabel, wantText) {
+    const scope = btn && (btn.closest('[data-field-path],[class*="fieldEntry"],[class*="field-entry"],fieldset,[class*="field"],[class*="question"],[role="group"]') || btn.parentElement);
     try { btn.scrollIntoView({ block: 'center' }); } catch {}
     try { btn.focus && btn.focus(); } catch {}
     btn.click();
     await sleep(60);
-    let ok = bgIsSelected(btn);
-    if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+    let ok = aynChoiceMatchesWanted(scope, btn, wantText);
+    if (!ok) { await sleep(140); ok = aynChoiceMatchesWanted(scope, btn, wantText); }
     if (!ok) {
       fireFullClick(btn);
-      await sleep(60); ok = bgIsSelected(btn);
-      if (!ok) { await sleep(140); ok = bgIsSelected(btn); }
+      await sleep(60); ok = aynChoiceMatchesWanted(scope, btn, wantText);
+      if (!ok) { await sleep(140); ok = aynChoiceMatchesWanted(scope, btn, wantText); }
     }
     if (!ok) {
       mainWorldClickByText(qLabel, wantText);
-      await sleep(150); ok = bgIsSelected(btn);
+      await sleep(150); ok = aynChoiceMatchesWanted(scope, btn, wantText);
     }
     try { console.log('[AYN-BG] proxyClick', wantText, 'verified=', ok); } catch {}
     return ok;
@@ -2494,8 +2678,8 @@
           // observe the page's own state change; otherwise the result is unverified.
 
           await sleep(60);
-          let verified = bgIsSelected(target);
-          if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+          let verified = aynChoiceMatchesWanted(scope, target, wantRaw);
+          if (!verified) { await sleep(140); verified = aynChoiceMatchesWanted(scope, target, wantRaw); }
           try {
             console.log('[AYN-BG] afterPlainClick verified=', verified, 'class=',
               (target && typeof target.className === 'string' ? target.className : ''));
@@ -2504,8 +2688,8 @@
             // Fallback 1: full pointer/mouse sequence
             fireFullClick(target);
             await sleep(60);
-            verified = bgIsSelected(target);
-            if (!verified) { await sleep(140); verified = bgIsSelected(target); }
+            verified = aynChoiceMatchesWanted(scope, target, wantRaw);
+            if (!verified) { await sleep(140); verified = aynChoiceMatchesWanted(scope, target, wantRaw); }
             try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
           }
           if (!verified) {
@@ -2514,8 +2698,8 @@
             if (fallback && fallback !== target) {
               fireFullClick(fallback);
               await sleep(60);
-              verified = bgIsSelected(target) || bgIsSelected(fallback);
-              if (!verified) { await sleep(140); verified = bgIsSelected(target) || bgIsSelected(fallback); }
+              verified = aynChoiceMatchesWanted(scope || fallback.parentElement, target, wantRaw) || aynChoiceMatchesWanted(scope || fallback.parentElement, fallback, wantRaw);
+              if (!verified) { await sleep(140); verified = aynChoiceMatchesWanted(scope || fallback.parentElement, target, wantRaw) || aynChoiceMatchesWanted(scope || fallback.parentElement, fallback, wantRaw); }
               try { console.log('[AYN-BG] afterFallback verified=', verified); } catch {}
             }
           }
@@ -2523,7 +2707,7 @@
             // Fallback 3: main-world click (isolated-world click may not reach React)
             mainWorldClickByText(meta.qLabel, optionLabel || optionValue || value);
             await sleep(150);
-            verified = bgIsSelected(target);
+            verified = aynChoiceMatchesWanted(scope, target, wantRaw);
             try { console.log('[AYN-BG] afterMainWorld verified=', verified); } catch {}
           }
           try { console.log('[AYN-BG] result', id, 'verified=', verified); } catch {}
@@ -2998,9 +3182,7 @@
       collectScannableDocs().forEach(({ doc }) => {
         doc.querySelectorAll('input[type="file"]').forEach(el => {
           if (el.disabled) return;
-          const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
-          const accept = (el.accept || '').toLowerCase();
-          const isResume = /resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf|\.txt/.test(accept) || !el.accept;
+          const isResume = aynIsResumeFileInput(el);
           if (isResume) fileInputs.push(el);
         });
       });
@@ -3273,6 +3455,47 @@
     }
   }
 
+  async function aynFuseVisionIntoFields(fields, controlCount) {
+    try {
+      if (!AYN_VISION_ENABLED || !window.__AYN_VISION_DISCOVER__ || typeof window.__AYN_VISION_DISCOVER__.run !== 'function') {
+        return { fields, diag: null };
+      }
+      const weak = (fields || []).filter(f => !f.label || (typeof f.confidence === 'number' && f.confidence < 0.68)).length;
+      const shouldRun = (fields || []).length < Math.max(2, Math.floor((controlCount || 0) * 0.6)) || weak > 0;
+      if (!shouldRun) return { fields, diag: null };
+      const vr = await window.__AYN_VISION_DISCOVER__.run();
+      const qs = vr && Array.isArray(vr.questions) ? vr.questions : [];
+      if (!qs.length) return { fields, diag: { visionDiscover: vr || { questions: [] } } };
+      const used = new Set();
+      for (const q of qs) {
+        const label = String(q.label || '').trim();
+        if (!label) continue;
+        let best = null, bestScore = 0;
+        for (const f of fields) {
+          if (!f || used.has(f.id)) continue;
+          const current = String(f.label || '').trim();
+          let score = current ? aynQuestionScore(current, label) : 0.45;
+          const fKind = String(f.kind || f.type || '').toLowerCase();
+          const qKind = String(q.kind || '').toLowerCase();
+          if ((qKind.includes('choice') || qKind === 'boolean') && /(radio|checkbox|buttongroup|select)/.test(fKind)) score += 0.25;
+          if (qKind === 'text' && /text|textarea/.test(fKind)) score += 0.2;
+          if (score > bestScore) { bestScore = score; best = f; }
+        }
+        if (best && (bestScore >= 0.5 || !best.label)) {
+          best.label = label;
+          best.labelSource = 'vision+engine';
+          if ((!best.options || !best.options.length) && Array.isArray(q.options) && q.options.length) {
+            best.options = q.options.map(o => ({ label: String(o), value: String(o) }));
+          }
+          used.add(best.id);
+        }
+      }
+      return { fields, diag: { visionDiscover: { zones: vr.zones || 0, questions: qs.length, fused: used.size } } };
+    } catch (e) {
+      return { fields, diag: { visionDiscoverError: String(e && e.message || e) } };
+    }
+  }
+
 
   // ══════════════════════════════════════════════════════════════════
   // 5. MESSAGE LISTENER
@@ -3339,6 +3562,11 @@
           const jobText = extractJobText();
           let scanDiag = [];
           try { scanDiag = aynScanDiag(); } catch (_) { scanDiag = []; }
+          try {
+            const fused = await aynFuseVisionIntoFields(fields, countCtrls());
+            fields = fused.fields || fields;
+            if (fused.diag) scanDiag.push(fused.diag);
+          } catch (_) {}
           try { if (window.__AYN_COVERAGE__) scanDiag.push({ note: 'coverage', cov: window.__AYN_COVERAGE__ }); } catch (_) {}
           // v1.9.43 — cache id -> label so injectValues can rehydrate .label when missing
           try {
@@ -3375,6 +3603,7 @@
               await aynRunVisionFallback(injectResult);
             }
           } catch (_) { /* swallow — never break normal fill */ }
+          try { await aynStabilizeAfterRender(message.values, injectResult); } catch (_) {}
           // v2.4 — record verified/unverified outcomes to learning memory.
           try { aynRecordLearnedAnswers(message.values, injectResult); } catch (_) {}
           sendResponse(injectResult);
@@ -3467,9 +3696,7 @@
         try {
           if (el.disabled) return;
           if (el.type === 'file') {
-            const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
-            const accept = (el.accept || '').toLowerCase();
-            if (/resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept) || !el.accept) hasResumeUpload = true;
+            if (aynIsResumeFileInput(el)) hasResumeUpload = true;
             return;
           }
           const rect = el.getBoundingClientRect();

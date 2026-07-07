@@ -438,7 +438,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         const topScan = scanByFrame[0] || {};
         const jobText = topScan.jobText || {};
-        if (fields.length === 0) { sendResponse({ ok: false, error: 'no_fields' }); return; }
+        const fileFields = fields.filter(f => /file/i.test(String(f.kind || f.type || '')) || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
+        fields = fields.filter(f => !(/file/i.test(String(f.kind || f.type || ''))));
+        if (fields.length === 0) {
+          if (fileFields.length > 0) {
+            sendResponse({ ok: true, filled: 0, total: 0, answered: 0, verified: 0, needsReview: 0, needsReviewCount: 0, resolvedLocally: 0, details: [], passes: 1, skipped: [], fileFieldCount: fileFields.length, needsResume: true });
+            return;
+          }
+          sendResponse({ ok: false, error: 'no_fields' }); return;
+        }
 
         // ── v1.9.55 two-lane resolver stage ─────────────────────────
         // Resolves standard identity/link/logic fields locally from the
@@ -459,7 +467,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (!self.AYN_RESOLVER.isSensitive(f)) {
                   const fp = await self.AYN_RESOLVER.fingerprint(f, host);
                   const mm = mem[fp];
-                  if (mm && (mm.value || mm.optionLabel)) {
+                  if (mm && (mm.value || mm.optionLabel) && (!self.AYN_RESOLVER.canReuseMemory || self.AYN_RESOLVER.canReuseMemory(f, mm))) {
                     hit = { id: f.id, ...(mm.optionLabel ? { optionLabel: mm.optionLabel, optionValue: mm.optionValue } : { value: mm.value }), confidence: 0.9, source: 'memory', reasoning: 'Reused a saved answer.' };
                   }
                 }
@@ -497,6 +505,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const runId = fillData?.run_id || null;
 
         const fieldMeta = new Map(fields.map(f => [f.id, f]));
+        const isUnsafeAnswer = (v) => {
+          const f = fieldMeta.get(v.id) || {};
+          const blob = [f.label, f.group, f.name, f.section, f.placeholder].filter(Boolean).join(' ');
+          const val = String(v.value || v.optionLabel || v.optionValue || '').trim();
+          if (/linkedin/i.test(blob)) {
+            return !/^https:\/\/(www\.)?linkedin\.com\/in\/[a-z0-9][a-z0-9\-_%]{2,}\/?$/i.test(val);
+          }
+          if ((v.optionLabel || v.optionValue) && Array.isArray(f.options) && f.options.length) {
+            const want = String(v.optionLabel || v.optionValue || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const hit = f.options.some(o => {
+              const opt = String(o.label || o.value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+              return opt === want || (opt && want && (opt.includes(want) || want.includes(opt)));
+            });
+            if (!hit) return true;
+          }
+          return false;
+        };
         const decorate = v => {
           const f = fieldMeta.get(v.id) || {};
           return {
@@ -514,8 +539,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         };
         const aiValues = (fillData.values || [])
           .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
+          .filter(v => !isUnsafeAnswer(v))
           .map(v => decorate({ ...v, source: v.source || 'ai' }));
-        const values = [...localValues.map(decorate), ...aiValues];
+        const values = [...localValues.filter(v => !isUnsafeAnswer(v)).map(decorate), ...aiValues];
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         // Group values by owning frame; translate ids back to frame-local for injection
@@ -552,7 +578,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const s2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
             (s2?.fields || []).forEach(f => {
               const aggId = AGG(fr.frameId, f.id);
-              if (!resolvedIds.has(aggId) && !f.currentValue) {
+              const wasOk = mergedResults.some(r => r && r.id === aggId && r.ok === true && r.verified !== false);
+              if ((!resolvedIds.has(aggId) || !wasOk) && !f.currentValue) {
                 frameOfField.set(aggId, fr.frameId);
                 newFieldsAll.push({ ...f, id: aggId });
               }
@@ -633,7 +660,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const v = values.find(x => x.id === r.id);
             const f = fields.find(x => x.id === r.id);
             if (!v || !f) continue;
-            if (self.AYN_RESOLVER && self.AYN_RESOLVER.isSensitive(f)) continue;
+            if (self.AYN_RESOLVER && (self.AYN_RESOLVER.isSensitive(f) || (self.AYN_RESOLVER.isMemoryBlocked && self.AYN_RESOLVER.isMemoryBlocked(f)))) continue;
             if (!(v.value || v.optionLabel)) continue;
             const fp = self.AYN_RESOLVER ? await self.AYN_RESOLVER.fingerprint(f, host) : null;
             if (!fp) continue;

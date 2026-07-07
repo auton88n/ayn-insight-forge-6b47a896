@@ -90,6 +90,10 @@ serve(async (req) => {
     }
 
     const data = await resp.json();
+    const finishReason = data?.choices?.[0]?.finish_reason || data?.stop_reason;
+    if (finishReason === "length" || finishReason === "max_tokens") {
+      return json({ questions: [], error: "response_truncated" }, 502);
+    }
     const raw = data?.choices?.[0]?.message?.content ?? "{}";
     let parsed: { questions?: unknown[] } = {};
     try {

@@ -24,6 +24,7 @@ export interface DetectOptions {
 const CONTROL_ROLES = new Set([
   "radio",
   "checkbox",
+  "button",
   "combobox",
   "listbox",
   "switch",
@@ -105,13 +106,37 @@ export function controlKindOf(el: Element): ControlKind | null {
   if (role && CONTROL_ROLES.has(role)) {
     if (role === "radio") return "radio";
     if (role === "checkbox" || role === "switch") return "checkbox";
+    if (role === "button") return looksLikeChoiceButton(el) ? "custom" : null;
     if (role === "combobox") return "combobox";
     if (role === "listbox") return "listbox";
     if (role === "textbox" || role === "spinbutton") return "text";
     return "custom";
   }
 
+  if (tag === "button" && looksLikeChoiceButton(el)) return "custom";
+
   return null;
+}
+
+function looksLikeChoiceButton(el: Element): boolean {
+  const text = (el.textContent ?? el.getAttribute("aria-label") ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text || text.length > 120) return false;
+  if (/^(yes|no|true|false|oui|non|agree|disagree)$/i.test(text)) return true;
+  const container = el.closest(
+    '[data-field-path],[class*="fieldEntry" i],[class*="field-entry" i],[class*="field" i],[class*="question" i],fieldset,[role="group"]'
+  );
+  if (!container) return false;
+  const siblings = Array.from(
+    container.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')
+  ).filter((b) => {
+    const t = (b.textContent ?? b.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim();
+    return t && t.length <= 120;
+  });
+  if (siblings.length < 2 || siblings.length > 8) return false;
+  return siblings.some((b) => /^(yes|oui|true|agree)$/i.test((b.textContent ?? "").trim())) &&
+    siblings.some((b) => /^(no|non|false|disagree)$/i.test((b.textContent ?? "").trim()));
 }
 
 /**
