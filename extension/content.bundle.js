@@ -1450,122 +1450,6 @@
     }
     return h.toString(16).padStart(8, "0");
   }
-  function createSupabaseLearning(transport) {
-    const cache2 = /* @__PURE__ */ new Map();
-    async function headers() {
-      const token = await transport.getAccessToken();
-      if (!token) return null;
-      return {
-        Authorization: `Bearer ${token}`,
-        apikey: transport.anonKey,
-        "Content-Type": "application/json",
-        Prefer: "return=representation"
-      };
-    }
-    async function fetchRow(sig) {
-      if (cache2.has(sig)) return cache2.get(sig);
-      const h = await headers();
-      if (!h) return null;
-      try {
-        const url = `${transport.restBaseUrl}/ext_answer_memory?question_signature=eq.${encodeURIComponent(
-          sig
-        )}&select=question_signature,canonical_label,semantic_type,question_kind,answer_value,answer_option_label,answer_option_labels,ats_hint,times_used,verified_ok_count,verified_fail_count&limit=1`;
-        const r = await fetch(url, { headers: h });
-        if (!r.ok) {
-          cache2.set(sig, null);
-          return null;
-        }
-        const rows = await r.json();
-        const row = rows[0] ?? null;
-        cache2.set(sig, row);
-        return row;
-      } catch {
-        return null;
-      }
-    }
-    async function upsertRow(payload) {
-      const h = await headers();
-      if (!h) return;
-      try {
-        await fetch(
-          `${transport.restBaseUrl}/ext_answer_memory?on_conflict=user_id,question_signature`,
-          {
-            method: "POST",
-            headers: { ...h, Prefer: "resolution=merge-duplicates,return=minimal" },
-            body: JSON.stringify(payload)
-          }
-        );
-        cache2.delete(payload.question_signature);
-      } catch {
-      }
-    }
-    return {
-      remember(q) {
-        const a = q.answer;
-        if (!a || a.skip) return;
-        const sig = questionSignature(q);
-        void upsertRow({
-          question_signature: sig,
-          canonical_label: q.label,
-          semantic_type: q.semanticType,
-          question_kind: q.kind,
-          answer_value: a.value ?? null,
-          answer_option_label: a.optionLabel ?? null,
-          answer_option_labels: a.optionLabels ?? null
-        });
-      },
-      lookup(q) {
-        const sig = questionSignature(q);
-        const row = cache2.get(sig);
-        if (row === void 0) {
-          void fetchRow(sig);
-          return null;
-        }
-        if (!row) return null;
-        const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
-        if (trust < 0.5) return null;
-        const answer = {
-          value: row.answer_value ?? void 0,
-          optionLabel: row.answer_option_label ?? void 0,
-          optionLabels: row.answer_option_labels ?? void 0,
-          confidence: 0.6 + Math.min(0.3, row.verified_ok_count * 0.03),
-          reasoning: "learned_from_previous_fills"
-        };
-        return { answer, confidence: answer.confidence ?? 0.6, source: "memory" };
-      },
-      promote(q) {
-        const sig = questionSignature(q);
-        void upsertRow({
-          question_signature: sig,
-          canonical_label: q.label,
-          semantic_type: q.semanticType,
-          question_kind: q.kind,
-          verified_ok_count: 1,
-          times_used: 1
-        });
-      },
-      forget(criteria) {
-      },
-      async recordVerified(q, verified, atsHint) {
-        const a = q.answer;
-        if (!a) return;
-        const sig = questionSignature(q);
-        await upsertRow({
-          question_signature: sig,
-          canonical_label: q.label,
-          semantic_type: q.semanticType,
-          question_kind: q.kind,
-          answer_value: a.value ?? null,
-          answer_option_label: a.optionLabel ?? null,
-          answer_option_labels: a.optionLabels ?? null,
-          ats_hint: atsHint ?? null,
-          times_used: 1,
-          verified_ok_count: verified ? 1 : 0,
-          verified_fail_count: verified ? 0 : 1
-        });
-      }
-    };
-  }
   var activeLearning = null;
   function setLearningEngine(e) {
     activeLearning = e;
@@ -1777,6 +1661,7 @@
   var PROXY_SECRET = "ayn-proxy-2024";
   var FN_RETRY = `${SUPABASE_URL}/functions/v1/ext-fill-form-retry`;
   var FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
+  var FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   (function initAynEngineBridge() {
     if (window.__AYN_ENGINE_BRIDGE__) return;
     window.__AYN_ENGINE_BRIDGE__ = true;
@@ -1798,8 +1683,7 @@
     };
     const runOnce = () => {
       try {
-        const qs = scanForm(document);
-        emit(qs);
+        emit(scanForm(document));
       } catch (e) {
         console.warn("[AYN][engine-bridge] scan failed", e);
       }
@@ -1809,11 +1693,9 @@
       observeForm(
         document,
         (delta) => {
-          if (window.__AYN_QUESTIONS__ && !delta.added.length && !delta.changed.length && !delta.removedIds.length)
-            return;
+          if (window.__AYN_QUESTIONS__ && !delta.added.length && !delta.changed.length && !delta.removedIds.length) return;
           try {
-            const qs = scanForm(document);
-            emit(qs);
+            emit(scanForm(document));
           } catch (_) {
           }
         },
@@ -1822,13 +1704,163 @@
     } catch (e) {
       console.warn("[AYN][engine-bridge] observe failed", e);
     }
-    const getAccessToken = async () => window.__AYN_ACCESS_TOKEN__ || null;
+    const getExtToken = () => new Promise((resolve) => {
+      try {
+        chrome.storage.local.get(["ayn_token"], (d) => resolve(d && d.ayn_token || null));
+      } catch {
+        resolve(null);
+      }
+    });
+    let _h2cPromise = null;
+    const loadH2C = () => {
+      if (_h2cPromise) return _h2cPromise;
+      _h2cPromise = (async () => {
+        try {
+          const url = chrome.runtime.getURL("vendor/html2canvas.esm.js");
+          const mod = await import(url);
+          return mod.default || mod.html2canvas || null;
+        } catch {
+          return null;
+        }
+      })();
+      return _h2cPromise;
+    };
+    const screenshotElement = async (el) => {
+      const h2c = await loadH2C();
+      if (typeof h2c !== "function") return "";
+      try {
+        const canvas = await h2c(el, {
+          backgroundColor: "#ffffff",
+          logging: false,
+          scale: 0.75,
+          useCORS: true,
+          allowTaint: false
+        });
+        return canvas.toDataURL("image/png").split(",")[1] || "";
+      } catch {
+        return "";
+      }
+    };
     try {
-      const learning = createSupabaseLearning({
-        getAccessToken,
-        restBaseUrl: `${SUPABASE_URL}/rest/v1`,
-        anonKey: SUPABASE_ANON_KEY
-      });
+      const cache2 = /* @__PURE__ */ new Map();
+      const memoryFetch = async (payload) => {
+        const token = await getExtToken();
+        if (!token) return null;
+        try {
+          const r = await fetch(FN_MEMORY, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_ANON_KEY,
+              "x-ayn-ext-token": token
+            },
+            body: JSON.stringify(payload)
+          });
+          if (!r.ok) return null;
+          return await r.json();
+        } catch {
+          return null;
+        }
+      };
+      const learning = {
+        remember(q) {
+          const a = q && q.answer;
+          if (!a || a.skip) return;
+          const sig = questionSignature(q);
+          void memoryFetch({
+            action: "remember",
+            row: {
+              question_signature: sig,
+              canonical_label: q.label,
+              semantic_type: q.semanticType,
+              question_kind: q.kind,
+              answer_value: a.value ?? null,
+              answer_option_label: a.optionLabel ?? null,
+              answer_option_labels: a.optionLabels ?? null
+            }
+          });
+        },
+        lookup(q) {
+          const sig = questionSignature(q);
+          const row = cache2.get(sig);
+          if (row === void 0) {
+            void memoryFetch({ action: "lookup", signature: sig }).then((res) => {
+              cache2.set(sig, res && res.row || null);
+            });
+            return null;
+          }
+          if (!row) return null;
+          const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+          if (trust < 0.5) return null;
+          return {
+            answer: {
+              value: row.answer_value ?? void 0,
+              optionLabel: row.answer_option_label ?? void 0,
+              optionLabels: row.answer_option_labels ?? void 0,
+              confidence: 0.6 + Math.min(0.3, (row.verified_ok_count || 0) * 0.03),
+              reasoning: "learned_from_previous_fills"
+            },
+            confidence: 0.7,
+            source: "memory"
+          };
+        },
+        promote(q) {
+          const sig = questionSignature(q);
+          void memoryFetch({
+            action: "remember",
+            row: {
+              question_signature: sig,
+              canonical_label: q.label,
+              semantic_type: q.semanticType,
+              question_kind: q.kind,
+              verified_ok_count: 1
+            }
+          });
+        },
+        forget() {
+        },
+        async recordVerified(q, verified, atsHint) {
+          const a = q && q.answer;
+          if (!a) return;
+          const sig = questionSignature(q);
+          cache2.delete(sig);
+          await memoryFetch({
+            action: "remember",
+            row: {
+              question_signature: sig,
+              canonical_label: q.label,
+              semantic_type: q.semanticType,
+              question_kind: q.kind,
+              answer_value: a.value ?? null,
+              answer_option_label: a.optionLabel ?? null,
+              answer_option_labels: a.optionLabels ?? null,
+              ats_hint: atsHint || null,
+              verified_ok_count: verified ? 1 : 0,
+              verified_fail_count: verified ? 0 : 1
+            }
+          });
+        },
+        /**
+         * Lightweight helper: look up an answer by a raw (label, kind, options)
+         * shape. Used by content.js for legacy field descriptors that never
+         * materialize into a full Question.
+         */
+        async lookupByShape(label, kind, options) {
+          const sig = questionSignature({ label: label || "", kind: kind || "text", options: options || [] });
+          if (cache2.has(sig)) {
+            const row2 = cache2.get(sig);
+            if (!row2) return null;
+            const trust2 = row2.verified_ok_count / Math.max(1, row2.verified_ok_count + row2.verified_fail_count);
+            return trust2 >= 0.5 ? row2 : null;
+          }
+          const res = await memoryFetch({ action: "lookup", signature: sig });
+          const row = res && res.row || null;
+          cache2.set(sig, row);
+          if (!row) return null;
+          const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+          return trust >= 0.5 ? row : null;
+        }
+      };
       setLearningEngine(learning);
       window.__AYN_LEARNING__ = learning;
     } catch (e) {
@@ -1859,18 +1891,6 @@
       console.warn("[AYN][engine-bridge] decision loop wire failed", e);
     }
     try {
-      const screenshot = async (el) => {
-        const h2c = window.html2canvas;
-        if (typeof h2c !== "function") return "";
-        const canvas = await h2c(el, {
-          backgroundColor: null,
-          logging: false,
-          scale: 1,
-          useCORS: true
-        });
-        const dataUrl = canvas.toDataURL("image/png");
-        return dataUrl.split(",")[1] || "";
-      };
       const discover = async (image_base64, context) => {
         const r = await fetch(FN_VISION, {
           method: "POST",
@@ -1884,25 +1904,22 @@
         if (!r.ok) throw new Error(`vision_${r.status}`);
         return r.json();
       };
-      const provider = createVisionProvider({ screenshot, discover });
+      const provider = createVisionProvider({
+        screenshot: screenshotElement,
+        discover
+      });
       setVisionProvider(provider);
       window.__AYN_VISION_DISCOVER__ = {
-        /**
-         * Scan for visual dead zones and ask the model to describe questions.
-         * Called by content.js when scanForm() returned zero questions but the
-         * page visibly contains a form. Returns raw vision descriptors — merging
-         * them into __AYN_QUESTIONS__ is the caller's job.
-         */
         async run() {
           try {
-            const zones = findVisualDeadZones(
-              document,
-              new Set((window.__AYN_QUESTIONS__ || []).flatMap((q) => q.controls || []))
+            const detectedControls = new Set(
+              (window.__AYN_QUESTIONS__ || []).flatMap((q) => (q.controls || []).map((c) => c && c.node).filter(Boolean))
             );
+            const zones = findVisualDeadZones(document, detectedControls);
             if (!zones.length) return { zones: 0, questions: [] };
             const all = [];
             for (const zone of zones) {
-              const b64 = await screenshot(zone);
+              const b64 = await screenshotElement(zone);
               if (!b64) continue;
               try {
                 const res = await discover(b64, { url: location.href });

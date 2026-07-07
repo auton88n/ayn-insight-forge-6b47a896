@@ -1276,7 +1276,15 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
 
       if (action === "ext_log_result") {
         try {
-          const { run_id, inject_results, filled, total } = payload as { run_id?: string; inject_results?: unknown; filled?: number; total?: number };
+          const { run_id, inject_results, filled, total, retry_count, failure_classes, resolved_by } = payload as {
+            run_id?: string;
+            inject_results?: unknown;
+            filled?: number;
+            total?: number;
+            retry_count?: number;
+            failure_classes?: unknown;
+            resolved_by?: unknown;
+          };
           if (!run_id) return json({ ok: false, error: "run_id required" });
           const f = Number(filled || 0);
           const t = Number(total || 0);
@@ -1284,6 +1292,9 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             inject_results: inject_results ?? [],
             filled: f,
             failed: Math.max(0, t - f),
+            retry_count: Number(retry_count || 0),
+            failure_classes: Array.isArray(failure_classes) ? failure_classes : [],
+            resolved_by: resolved_by && typeof resolved_by === "object" ? resolved_by : {},
             completed_at: new Date().toISOString(),
           }).eq("id", run_id);
           return json({ ok: true });
@@ -1292,6 +1303,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           return json({ ok: false });
         }
       }
+
 
       if (action === "ext_vision_fill") {
         try {
