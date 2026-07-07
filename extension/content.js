@@ -3636,9 +3636,7 @@
         try {
           if (el.disabled) return;
           if (el.type === 'file') {
-            const lbl = (getLabelFor(el) || el.name || '').toLowerCase();
-            const accept = (el.accept || '').toLowerCase();
-            if (/resume|cv|curriculum|attach/.test(lbl) || /\.pdf|\.docx?|\.rtf/.test(accept) || !el.accept) hasResumeUpload = true;
+            if (aynIsResumeFileInput(el)) hasResumeUpload = true;
             return;
           }
           const rect = el.getBoundingClientRect();
