@@ -1,113 +1,155 @@
-# Targeted Engine Patches from Open-Source Audit
+# Three-part upgrade: close the loop, remember, see
 
-Ran the reference research + audited our own code. Nothing in the open-source ecosystem justifies a rewrite — our scanner is already more capable than any of the projects surveyed. But the audit found **3 concrete gaps** that plausibly explain missed fields on Workday, Greenhouse, and portal-heavy ATS pages.
+Goal: turn the current "scan-continuous / decide-once / retry-same-answer" engine into "scan-continuous / decide-with-feedback / remember-across-forms / see-what-DOM-misses." Each part ships independently and produces measurable improvement on the Ashby URL and other ATSes.
 
-Each patch is small, surgical, and independently reversible. No engine architecture changes. `AYN_QE_ENABLED` stays `true`. Manifest stays `2.3.1`.
-
----
-
-## Patch 1 — Reject generated IDs before using `el.id` for label lookup
-
-**Why:** Workday appends hash suffixes (`--ab12cd`), React uses `:r0:`, MUI/Radix/HeadlessUI use `mui-*`/`rc-*`, and many ATS pages use raw UUIDs. Our code today calls `document.querySelector(\`label[for="${el.id}"]\`)` unconditionally. Most of the time this misses cleanly, but when a generated ID accidentally collides with a `label[for]` on a different field, we get the WRONG label attached — which produces a "scanned but mis-labeled" field the AI then answers incorrectly (or refuses to answer).
-
-**Change:** Add one shared regex + a guard at 5 call sites.
-
-```js
-// content.js — new helper near top of label utils
-const AYN_GENERATED_ID_RE =
-  /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
-function aynStableId(el) {
-  const id = el && el.id;
-  return id && !AYN_GENERATED_ID_RE.test(id) ? id : '';
-}
-```
-
-Files/lines to guard (replace `el.id` with `aynStableId(el)`):
-- `extension/content.js:579` (`aynAccName`)
-- `extension/content.js:636` (`aynFieldQuestion`)
-- `extension/content.js:715` (`getLabelFor`)
-- `extension/question-engine/evidence/dom.ts:79` (`readNativeLabel`)
-- `extension/question-engine/evidence/accessibility.ts:89` (`computeAccessibleName`)
-
-**Risk:** near-zero. Guard is opt-in — real stable IDs (`email`, `firstName`) pass through untouched.
+Order matters. Ship in this sequence — each part unlocks the next.
 
 ---
 
-## Patch 2 — Follow `aria-controls` / `aria-owns` before global option poll
+## Part 1 — Close the AI decision loop (~2 days)
 
-**Why:** Our detection side already resolves the listbox via `aria-controls` (`content.js:906`), but the injection side (`aynFillTypeahead` at `content.js:2947`) and the evidence collector (`evidence/dom.ts:134`) don't. Injection does a document-wide `querySelectorAll('[role="option"], …')` and hopes the first match is right. Evidence collection only looks at descendants, so **portal-rendered options are invisible to the scanner** — that's a real "field scanned, zero options" bug on Workday country pickers and Greenhouse "How did you hear about us."
+Right now: user clicks Fill → one AI call → inject → verify → retry the same answer. If the AI produced a bad answer, we retry the bad answer.
 
-**Change (injection, `content.js:2947`):** Before the global poll, prefer the specific listbox:
+**What we build:**
 
-```js
-const ctrlId = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
-const listbox = ctrlId ? document.getElementById(ctrlId) : null;
-const scope = listbox && listbox.offsetParent !== null ? listbox : document;
-optionEls = Array.from(scope.querySelectorAll(
-  '[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, ...'
-)).filter(o => isVisibleOpt(o) /* … */);
-```
+1. New module `extension/question-engine/decision-loop.ts` — orchestrates AI calls per question, not per form.
+2. New failure classifier in `content.js` after `aynPostInjectVerify`: for each unverified field, tag it as one of:
+   - `injection_failed` (DOM write didn't stick, React reverted, wrong selector)
+   - `option_not_found` (AI answer didn't match any option label)
+   - `validation_rejected` (input pattern/required rejected the value)
+   - `field_became_visible` (a new required field appeared after fill — very common on Ashby/Workday)
+3. Second AI call (`ext_fill_form_retry` edge function) receives: original field, original answer, failure class, current DOM options snapshot, sibling context. Returns a re-planned answer.
+4. Cap: max 2 re-plan rounds per field, max 8 seconds total. Then hand off to vision fallback (already exists).
+5. Every retry gets logged to `autofill_runs` table (already exists) with columns `retry_count`, `failure_class`, `resolved_by` so we can measure lift.
 
-**Change (evidence collection, `evidence/dom.ts:134`):** 3-tier chain instead of descendants-only:
+**Files touched:**
+- new: `extension/question-engine/decision-loop.ts`
+- new: `supabase/functions/ext_fill_form_retry/index.ts`
+- edit: `extension/content.js` — replace `aynRetryUnverified` inner loop with decision-loop call
+- edit: `extension/background.js` — route retry messages
+- migration: add `retry_count`, `failure_class`, `resolved_by` to `autofill_runs`
 
-```ts
-const ctrl = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
-const portalListbox = ctrl ? doc.getElementById(ctrl) : null;
-let optionEls: Element[] = [];
-if (portalListbox) optionEls = Array.from(portalListbox.querySelectorAll('[role="option"]'));
-if (!optionEls.length) optionEls = Array.from(el.querySelectorAll('[role="option"]'));
-if (!optionEls.length) optionEls = Array.from(doc.querySelectorAll('[role="option"]'))
-  .filter(o => !o.closest('[aria-hidden="true"]'));
-```
-
-**Risk:** low. Falls back to current behavior when `aria-controls` is absent.
+**Success metric:** on the Ashby URL, unverified field count after fill drops by ≥40%.
 
 ---
 
-## Patch 3 — Harden radio matching against synthetic `value` attributes
+## Part 2 — Turn on the learning interface (~3 days)
 
-**Why:** Injector at `content.js:3151` already prefers visible label first, then `r.value`. Correct for `value="Yes"`. But when Workday emits `value="opt_1"` and the AI happens to echo `"opt_1"` as `optionValue`, we match on synthetic value instead of visible label — locking in whatever position the AI guessed instead of the semantic answer.
+Right now: `question-engine/learning/interface.ts` defines `remember/lookup/promote` but only `noopLearning` ships. Every form is the first form.
 
-**Change:** Skip synthetic-looking values in the fallback branch.
+**What we build:**
 
-```js
-// content.js around line 3151
-const SYNTH_VALUE_RE = /^(on|off|true|false|\d+|opt[_-]?\d+|[a-f0-9]{8,})$/i;
-for (const want of cands) {
-  for (const r of radios) {
-    const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').trim();
-    if (aynOptionMatches(lbl, want)) { target = r; break outer; }
-    if (r.value && !SYNTH_VALUE_RE.test(r.value) && aynOptionMatches(r.value, want)) {
-      target = r; break outer;
-    }
-  }
-}
-```
+1. New table `ext_answer_memory` in Supabase:
+   ```
+   user_id, question_signature (hash of label+kind+options),
+   canonical_label, semantic_type, answer_value, answer_option_label,
+   ats_hint, times_used, last_used_at, verified_ok_count, verified_fail_count
+   ```
+   RLS: user reads/writes own rows only.
+2. New adapter `extension/question-engine/learning/supabase-store.ts` implementing `LearningEngine`:
+   - `lookup(question)` → hash the question, query top match by signature + semantic_type, return if `verified_ok_count > verified_fail_count`.
+   - `remember(question, answer)` → upsert on successful verification only.
+   - `promote(question, answer)` → increment `verified_ok_count`.
+3. Wire it in `content.entry.js`: call `setLearningEngine(supabaseLearning)` on init.
+4. New step in fill flow, **before** the AI call: for each question, `learning.lookup()`. If hit, use the memorized answer as the AI's default suggestion (AI can still override if confidence low). This preserves AI judgment while eliminating "asked this same question 30 times."
+5. After successful `aynPostInjectVerify`, `learning.remember()` writes the answer.
+6. UI in `src/components/resume-hub/ExtensionTab.tsx`: "Learned answers" table so the user can view, edit, or forget any stored answer (privacy control — required by your existing memory rules).
 
-Apply the same guard in the native radio group path (`content.js:3208`) if it uses `r.value` similarly.
+**Files touched:**
+- new: migration for `ext_answer_memory` table + GRANTs + RLS
+- new: `extension/question-engine/learning/supabase-store.ts`
+- new: `supabase/functions/ext_answer_memory/index.ts` (proxies through spine.aynn.io if that's the current pattern — needs confirmation)
+- edit: `extension/content.entry.js` — register learning engine
+- edit: `extension/content.js` — call `lookup` pre-AI, `remember` post-verify
+- edit: `src/components/resume-hub/ExtensionTab.tsx` — memory management UI
 
-**Risk:** near-zero. Only tightens an existing fallback; primary label match unchanged.
+**Success metric:** second fill of the same ATS uses ≥60% memorized answers, AI call latency drops proportionally.
 
 ---
 
-## Build + verify
+## Part 3 — Wire vision into the question layer (~4 days)
 
-1. Apply the 3 patches to `extension/content.js` + `evidence/dom.ts` + `evidence/accessibility.ts`.
-2. `node extension/build.mjs` — rebuilds bundles.
-3. Repack `public/ayn-extension.zip`.
-4. Reload extension, open a Workday or Greenhouse form, click Fill, check console:
-   - `[AYN-HYBRID] rich=N legacy=N` — count should be same or higher (Patch 2 recovers portal fields).
-   - `[AYN-BG]` question-match lines should show labels for fields that previously came through as empty or with hash-ID labels (Patch 1).
-   - Radio groups on Workday demographics should now flip to the correct option (Patch 3).
+Right now: `evidence/vision.ts` + `setVisionProvider` exists but is dormant. Vision only runs post-injection to click stray options. It never *discovers* fields the DOM scanner missed.
 
-## What this plan does NOT do
+**What we build:**
 
-- No changes to `AYN_QE_ENABLED`, no legacy fallback re-enabled.
-- No manifest bump.
-- No new files, no new dependencies.
-- No changes to the AI prompt, backend, or resume-hub function.
-- No architectural refactor of the question engine.
+1. New gate in `question-engine/index.ts:scanForm`: after `build()` produces `Question[]`, check for **visual dead zones** — form regions that contain visible text nodes suggesting a question (`?`, question mark, keywords like "Select", "Choose", "How", "Are you", "Do you") but produced zero detected fields.
+2. New evidence source `evidence/vision.ts` gets a real provider (`vision-provider.ts`): screenshots each dead zone with `html2canvas` (already loaded), sends to `ext_vision_discover` edge function (Gemini 2.5 Flash multimodal), receives back structured question descriptors:
+   ```
+   { label, kind: 'text'|'single_choice'|'multi_choice'|'boolean',
+     options?: string[], anchor_selector: string }
+   ```
+3. Vision-discovered questions are merged into `__AYN_QUESTIONS__` with `evidence.source: 'vision'` and reduced confidence (`labeling: 0.7`, `typing: 0.6`). They flow through the same AI decision + injection pipeline.
+4. For injection, vision provides an `anchor_selector` + expected label. The filler uses proximity matching from the anchor to find the actual interactive element (button, div-role-combobox, etc.). If it can't, it falls back to click-at-coordinates via `chrome.debugger` API (already permission-approved in manifest via `activeTab`).
+5. Gated by `confidence.visionGate: 0.7` threshold that's already defined — only fire vision when DOM confidence for the region is below 0.7. Prevents wasted screenshots on well-structured forms.
+6. Cache screenshots per URL hash for 30 minutes so repeated fills don't re-vision.
 
-## What to do if it still misses fields
+**Files touched:**
+- new: `extension/question-engine/vision-provider.ts` (real implementation)
+- new: `supabase/functions/ext_vision_discover/index.ts` (Gemini multimodal via Lovable AI Gateway)
+- edit: `extension/question-engine/index.ts` — dead-zone detection + `setVisionProvider(realProvider)`
+- edit: `extension/question-engine/evidence/vision.ts` — accept and merge vision-discovered questions
+- edit: `extension/filler.js` — anchor+label resolver, optional coordinate-click fallback
+- edit: `extension/manifest.json` — add `debugger` permission (only if coordinate-click needed)
 
-Send one real form URL where a field is missed. With Patches 1–2 in place, `window.__AYN_QUESTIONS__` and the new `[AYN-HYBRID]` breadcrumbs are enough to classify any remaining miss into one of six buckets (not-scanned / wrong-label / wrong-kind / no-options / no-AI-answer / injection-failed) in under 5 minutes. Then we fix the actual bucket.
+**Success metric:** on 5 previously-failing forms (Ashby + 4 others), vision layer discovers ≥3 fields per form that DOM missed, and ≥70% of those get filled.
+
+---
+
+## Foundation for all three: capture real forms first (~half day, done in Part 1)
+
+Currently `extension/question-engine/__corpus__/` has scaffolding but no captured forms. Before any of this ships, we snapshot the Ashby URL and 4 other failing ones into `__corpus__/fixtures/*.html` via `capture.ts`. This gives us:
+
+- A regression benchmark: `benchmark.ts` runs the engine against fixtures, asserts expected question counts and labels.
+- A way to unit-test the decision loop (Part 1), learning store (Part 2), and vision layer (Part 3) without hitting live ATS pages.
+- Honest measurement of "did we improve?" instead of vibes.
+
+Every part above adds its own benchmark assertions.
+
+---
+
+## Technical shape (for reference)
+
+```text
+                       ┌────────────────────────────────────┐
+                       │  Continuous scan loop (existing)   │
+                       │  observeForm → __AYN_QUESTIONS__   │
+                       └────────────────┬───────────────────┘
+                                        │
+                        [NEW Part 3] vision dead-zone pass ─┐
+                                        │                    │
+                                        ▼                    │
+                       ┌────────────────────────────────────┐│
+                       │  User clicks Fill                  ││
+                       └────────────────┬───────────────────┘│
+                                        │                    │
+                        [NEW Part 2] learning.lookup() ──────┤
+                                        │                    │
+                                        ▼                    │
+                       ┌────────────────────────────────────┐│
+                       │  AI call (with memory suggestions) ││
+                       └────────────────┬───────────────────┘│
+                                        │                    │
+                                        ▼                    │
+                       inject → verify → classify failures ──┤
+                                        │                    │
+                        [NEW Part 1] decision-loop re-plan ──┤
+                                        │                    │
+                                        ▼                    │
+                        vision-fallback clicks (existing) ◄──┘
+                                        │
+                        [NEW Part 2] learning.remember()
+```
+
+---
+
+## Order of implementation
+
+1. **Corpus capture + benchmark** (half day) — measurement floor
+2. **Part 1: decision loop** (2 days) — biggest immediate lift on Ashby
+3. **Part 2: learning store** (3 days) — compounding value over time
+4. **Part 3: vision discovery** (4 days) — catches the "invisible custom widget" class
+
+Total: ~10 working days. Each part is shippable independently — we don't need to wait for all three to see improvement.
+
+Approve this plan and I'll start with corpus capture + Part 1.
