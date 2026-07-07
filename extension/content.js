@@ -563,6 +563,18 @@
     return t.replace(/\s+/g, ' ').trim();
   }
 
+  // v2.3.2 — Reject framework-generated IDs before using them as label keys.
+  // Workday appends hash suffixes (--ab12cd), React uses :r0:, MUI/Radix/HeadlessUI
+  // use mui-*/rc-*/radix-*, some ATSes use raw UUIDs. If we hand any of these to
+  // querySelector('label[for=...]'), a stray match yields the WRONG label.
+  const AYN_GENERATED_ID_RE =
+    /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+  function aynStableId(el) {
+    const id = el && el.id;
+    return id && !AYN_GENERATED_ID_RE.test(id) ? id : '';
+  }
+
+
   function aynAccName(el) {
     const tryText = (s) => { const v = (s || '').replace(/\s+/g,' ').trim(); return v.length ? v : ''; };
     const labelledby = el.getAttribute('aria-labelledby');
@@ -576,13 +588,15 @@
     }
     const al = tryText(el.getAttribute('aria-label'));
     if (al) return al;
-    if (el.id) {
+    const sid = aynStableId(el);
+    if (sid) {
       try {
-        const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        const lbl = document.querySelector(`label[for="${CSS.escape(sid)}"]`);
         const t = lbl ? tryText(aynVisibleText(lbl)) : '';
         if (t) return t;
       } catch (_) {}
     }
+
     const wrap = el.closest('label');
     if (wrap) {
       const clone = wrap.cloneNode(true);
@@ -633,12 +647,14 @@
       }).join(' ');
       if (c(t)) return c(t);
     }
-    if (el.id) {
+    const sid2 = aynStableId(el);
+    if (sid2) {
       try {
-        const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        const l = document.querySelector(`label[for="${CSS.escape(sid2)}"]`);
         if (l && c(l.innerText)) return c(l.innerText);
       } catch (_) {}
     }
+
     const w = el.closest && el.closest('label');
     if (w) {
       const cl = w.cloneNode(true);
@@ -712,10 +728,12 @@
 
   function getLabelFor(el) {
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
-    if (el.id) {
-      const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    const sid3 = aynStableId(el);
+    if (sid3) {
+      const lbl = document.querySelector(`label[for="${CSS.escape(sid3)}"]`);
       if (lbl) return lbl.innerText.trim();
     }
+
     const wrap = el.closest('label');
     if (wrap) return wrap.innerText.replace(el.value || '', '').trim();
     const lblId = el.getAttribute('aria-labelledby');
@@ -2942,12 +2960,23 @@
       if (o.offsetParent !== null) return true;
       try { const r = o.getBoundingClientRect(); return r.width > 1 && r.height > 1; } catch (_) { return false; }
     };
+    // v2.3.2 — Prefer the specific listbox the combobox owns via aria-controls/-owns.
+    // Falls back to document-wide poll when the attribute is missing.
+    const ctrlId = el.getAttribute('aria-controls') || el.getAttribute('aria-owns');
     for (let i = 0; i < 13; i++) {
       await aynSleep(i < 4 ? 150 : 250);
-      optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
+      const listbox = ctrlId ? document.getElementById(ctrlId) : null;
+      const scope = (listbox && isVisibleOpt(listbox)) ? listbox : document;
+      optionEls = Array.from(scope.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
         .filter(o => isVisibleOpt(o) && nrm(o.textContent).length && nrm(o.textContent).length < 200);
+      if (!optionEls.length && scope !== document) {
+        // Portal listbox exists but empty this tick — try doc-wide fallback.
+        optionEls = Array.from(document.querySelectorAll('[role="option"], [role="listbox"] [role="option"], [role="listbox"] li, [class*="option" i], [class*="menu" i] li, [id*="option" i]'))
+          .filter(o => isVisibleOpt(o) && nrm(o.textContent).length && nrm(o.textContent).length < 200);
+      }
       if (optionEls.length) break;
     }
+
     if (optionEls.length) {
       const match = optionEls.find(o => aynOptionMatches(o.textContent, val));
       const pick = match || optionEls[0];
@@ -3144,14 +3173,20 @@
         }
         if (!radios || !radios.length) { results.push({ id, ok: false, reason: 'structradio group not found' }); continue; }
         const cands = [optionLabel, optionValue, value].map(s => String(s || '').trim()).filter(Boolean);
+        // v2.3.2 — Synthetic Workday values ("opt_1", "Yes_3847", raw hashes) drift
+        // per posting; visible label text is stable. Skip synthetic values so the
+        // AI can't accidentally lock the injector to a stale position.
+        const SYNTH_VALUE_RE = /^(on|off|true|false|\d+|opt[_-]?\d+|[a-f0-9]{8,}|.+_\d{3,})$/i;
         let target = null;
         outer:
         for (const want of cands) {
           for (const r of radios) {
             const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
-            if (aynOptionMatches(lbl, want) || (r.value && r.value !== 'on' && aynOptionMatches(r.value, want))) { target = r; break outer; }
+            if (aynOptionMatches(lbl, want)) { target = r; break outer; }
+            if (r.value && r.value !== 'on' && !SYNTH_VALUE_RE.test(r.value) && aynOptionMatches(r.value, want)) { target = r; break outer; }
           }
         }
+
         let ok = false;
         if (target) {
           try {

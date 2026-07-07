@@ -75,13 +75,16 @@ export function collect(el: Element, root: Document | Element): Evidence[] {
 // ============ helpers ============
 
 function readNativeLabel(el: Element, doc: Document | null): string | null {
-  // <label for=id>
+  // <label for=id> — but reject framework-generated IDs so we don't collide.
   const id = el.getAttribute("id");
-  if (id && doc) {
+  const GENERATED_ID_RE =
+    /^:[a-z0-9]+:$|^[0-9a-f]{8}-[0-9a-f]{4}-|--[a-f0-9]{6,}$|^(mui|rc|rdk|headlessui|radix)-[a-z0-9-]+$|^r[0-9]+$/i;
+  if (id && !GENERATED_ID_RE.test(id) && doc) {
     const forLabel = doc.querySelector(`label[for="${cssEscape(id)}"]`);
     const t = textOf(forLabel);
     if (t) return t;
   }
+
   // wrapping <label>
   const wrap = el.closest("label");
   if (wrap) {
@@ -132,7 +135,18 @@ function readOptions(el: Element, doc: Document | null): Array<{ value: string; 
   // ARIA listbox / combobox
   const role = el.getAttribute("role");
   if (role === "listbox" || role === "combobox") {
-    const optNodes = el.querySelectorAll('[role="option"]');
+    // v2.3.2 — Portal-mounted listboxes render outside the combobox. Resolve
+    // aria-controls / aria-owns first, then fall back to descendants, then
+    // document-wide (last resort).
+    const ctrl = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+    const portal = ctrl && doc ? doc.getElementById(ctrl) : null;
+    let optNodes: NodeListOf<Element> | Element[] = portal
+      ? portal.querySelectorAll('[role="option"]')
+      : el.querySelectorAll('[role="option"]');
+    if (!optNodes.length && doc) {
+      optNodes = Array.from(doc.querySelectorAll('[role="option"]'))
+        .filter((o) => !o.closest('[aria-hidden="true"]'));
+    }
     if (optNodes.length) {
       return Array.from(optNodes).map((o) => ({
         value: o.getAttribute("data-value") || normalize(o.textContent || ""),
@@ -140,6 +154,7 @@ function readOptions(el: Element, doc: Document | null): Array<{ value: string; 
       }));
     }
   }
+
 
   return null;
 }
