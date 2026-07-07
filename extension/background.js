@@ -692,14 +692,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         try {
           if (runId) {
+            // v2.4 — pipe closed-loop retry telemetry through when present.
+            const retry_count = fillResult?.retry_count || 0;
+            const failure_classes = fillResult?.failure_classes || [];
+            const resolved_by = fillResult?.resolved_by || {};
             callFunction('ext_log_result', {
               run_id: runId,
               inject_results: __allResults,
               filled: __filled,
               total: __total,
+              retry_count,
+              failure_classes,
+              resolved_by,
             }).catch(() => {});
           }
         } catch (_) { /* ignore */ }
+
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
