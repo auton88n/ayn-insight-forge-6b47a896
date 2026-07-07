@@ -65,7 +65,7 @@ export function scanForm(root: Document | Element, opts: ScanOptions = {}): Ques
   const adapter = selectAdapter(doc, url);
   const raw = detect(root);
   const detected = enrich(raw, root, adapter);
-  const groups = reconstruct(detected, root);
+  const groups = reconstruct(detected, root, adapter);
   const questions = build(groups);
   return questions.map(freezeQuestion);
 }
