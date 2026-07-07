@@ -106,7 +106,7 @@ export function controlKindOf(el: Element): ControlKind | null {
   if (role && CONTROL_ROLES.has(role)) {
     if (role === "radio") return "radio";
     if (role === "checkbox" || role === "switch") return "checkbox";
-    if (role === "button" && looksLikeChoiceButton(el)) return "custom";
+    if (role === "button") return looksLikeChoiceButton(el) ? "custom" : null;
     if (role === "combobox") return "combobox";
     if (role === "listbox") return "listbox";
     if (role === "textbox" || role === "spinbutton") return "text";
