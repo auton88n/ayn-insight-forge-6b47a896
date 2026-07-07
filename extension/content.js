@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.2.1';
+  const AYN_BUILD = '2.3.1';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   const AYN_QE_ENABLED = false; // v2.3.1 — when true, prefer Question Engine output over the legacy scanner
