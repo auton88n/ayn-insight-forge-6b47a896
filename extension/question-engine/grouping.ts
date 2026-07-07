@@ -15,7 +15,13 @@ import type { DetectedField } from "./question";
 
 export interface Cluster {
   members: DetectedField[];
-  reason: "shared-name" | "aria-radiogroup" | "fieldset" | "container+shared-label" | "singleton";
+  reason:
+    | "shared-name"
+    | "aria-radiogroup"
+    | "fieldset"
+    | "container+shared-label"
+    | "adapter-hint"
+    | "singleton";
   confidence: number;
 }
 
