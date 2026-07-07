@@ -1225,6 +1225,16 @@
       }
       aynRegisterEngineGroups(rich);
       const projected = rich.map(function (q) {
+        const firstRef = Array.isArray(q.controls) ? q.controls[0] : null;
+        const liveNode = firstRef && firstRef.fid ? document.querySelector('[data-ayn-fid="' + firstRef.fid + '"]') : null;
+        const currentValue = (() => {
+          try {
+            if (!liveNode) return '';
+            if (liveNode.type === 'checkbox' || liveNode.type === 'radio') return liveNode.checked ? (liveNode.value || 'checked') : '';
+            if (liveNode.tagName === 'SELECT') return liveNode.options[liveNode.selectedIndex]?.text || liveNode.value || '';
+            return liveNode.value || liveNode.innerText || '';
+          } catch (_) { return ''; }
+        })();
         let legacyKind, legacyType;
         switch (q.kind) {
           case 'single_choice': legacyKind = 'structradio'; legacyType = 'radio'; break;
@@ -1248,6 +1258,8 @@
           group: q.semanticType || '',
           section: q.section || '',
           placeholder: q.placeholder || '',
+          currentValue,
+          multi: q.kind === 'multi_choice',
           _frame: q.frame || '',
           labelSource: 'engine',
           _engine: true
