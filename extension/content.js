@@ -1571,6 +1571,7 @@
         const v = valById.get(r.id);
         if (!q || !v) continue;
         const verified = r.ok === true && r.verified !== false;
+        if (!verified) continue;
         const answer = {
           value: v.value,
           optionLabel: v.optionLabel,
