@@ -553,7 +553,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             (s2?.fields || []).forEach(f => {
               const aggId = AGG(fr.frameId, f.id);
               const wasOk = mergedResults.some(r => r && r.id === aggId && r.ok === true && r.verified !== false);
-              if (!wasOk && !resolvedIds.has(aggId) && !f.currentValue) {
+              if ((!resolvedIds.has(aggId) || !wasOk) && !f.currentValue) {
                 frameOfField.set(aggId, fr.frameId);
                 newFieldsAll.push({ ...f, id: aggId });
               }
