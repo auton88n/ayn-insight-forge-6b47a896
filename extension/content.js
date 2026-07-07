@@ -1149,7 +1149,7 @@
   }
 
   function scanFormFieldsHybrid() {
-    if (!AYN_QE_ENABLED) return scanFormFields();
+    // v2.4 — no legacy fallback. Question Engine is authoritative.
     try {
       const rich = window.__AYN_QUESTIONS__;
       const legacy = window.__AYN_QUESTIONS_LEGACY__;
