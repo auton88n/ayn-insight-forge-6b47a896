@@ -581,6 +581,7 @@ export type Database = {
           created_at: string
           ext_version: string | null
           failed: number | null
+          failure_classes: Json
           fields_scanned: Json | null
           fields_total: number | null
           filled: number | null
@@ -588,6 +589,8 @@ export type Database = {
           inject_results: Json | null
           job_title: string | null
           meta: Json | null
+          resolved_by: Json
+          retry_count: number
           skipped: Json | null
           url: string | null
           user_id: string | null
@@ -601,6 +604,7 @@ export type Database = {
           created_at?: string
           ext_version?: string | null
           failed?: number | null
+          failure_classes?: Json
           fields_scanned?: Json | null
           fields_total?: number | null
           filled?: number | null
@@ -608,6 +612,8 @@ export type Database = {
           inject_results?: Json | null
           job_title?: string | null
           meta?: Json | null
+          resolved_by?: Json
+          retry_count?: number
           skipped?: Json | null
           url?: string | null
           user_id?: string | null
@@ -621,6 +627,7 @@ export type Database = {
           created_at?: string
           ext_version?: string | null
           failed?: number | null
+          failure_classes?: Json
           fields_scanned?: Json | null
           fields_total?: number | null
           filled?: number | null
@@ -628,6 +635,8 @@ export type Database = {
           inject_results?: Json | null
           job_title?: string | null
           meta?: Json | null
+          resolved_by?: Json
+          retry_count?: number
           skipped?: Json | null
           url?: string | null
           user_id?: string | null
@@ -2110,6 +2119,63 @@ export type Database = {
           url?: string | null
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      ext_answer_memory: {
+        Row: {
+          answer_option_label: string | null
+          answer_option_labels: Json | null
+          answer_value: string | null
+          ats_hint: string | null
+          canonical_label: string
+          created_at: string
+          id: string
+          last_used_at: string
+          question_kind: string
+          question_signature: string
+          semantic_type: string
+          times_used: number
+          updated_at: string
+          user_id: string
+          verified_fail_count: number
+          verified_ok_count: number
+        }
+        Insert: {
+          answer_option_label?: string | null
+          answer_option_labels?: Json | null
+          answer_value?: string | null
+          ats_hint?: string | null
+          canonical_label: string
+          created_at?: string
+          id?: string
+          last_used_at?: string
+          question_kind?: string
+          question_signature: string
+          semantic_type?: string
+          times_used?: number
+          updated_at?: string
+          user_id: string
+          verified_fail_count?: number
+          verified_ok_count?: number
+        }
+        Update: {
+          answer_option_label?: string | null
+          answer_option_labels?: Json | null
+          answer_value?: string | null
+          ats_hint?: string | null
+          canonical_label?: string
+          created_at?: string
+          id?: string
+          last_used_at?: string
+          question_kind?: string
+          question_signature?: string
+          semantic_type?: string
+          times_used?: number
+          updated_at?: string
+          user_id?: string
+          verified_fail_count?: number
+          verified_ok_count?: number
         }
         Relationships: []
       }
