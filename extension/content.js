@@ -3545,6 +3545,7 @@
               await aynRunVisionFallback(injectResult);
             }
           } catch (_) { /* swallow — never break normal fill */ }
+          try { await aynStabilizeAfterRender(message.values, injectResult); } catch (_) {}
           // v2.4 — record verified/unverified outcomes to learning memory.
           try { aynRecordLearnedAnswers(message.values, injectResult); } catch (_) {}
           sendResponse(injectResult);
