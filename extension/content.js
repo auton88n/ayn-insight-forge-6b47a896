@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED__ = true;
-  const AYN_BUILD = '2.3.1';
+  const AYN_BUILD = '2.4.1';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
@@ -37,6 +37,38 @@
     } catch { return ''; }
   }
   function safeLen(el) { return safeText(el).length; }
+
+  function aynVisibleText(el) {
+    return String(safeText(el) || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function aynFileContextText(input) {
+    try {
+      const parts = [];
+      const push = (v) => { const s = String(v || '').replace(/\s+/g, ' ').trim(); if (s) parts.push(s); };
+      push(getLabelFor(input));
+      push(input.name); push(input.id); push(input.getAttribute && input.getAttribute('aria-label'));
+      const labelledBy = input.getAttribute && input.getAttribute('aria-labelledby');
+      if (labelledBy) labelledBy.split(/\s+/).forEach(id => push(input.ownerDocument.getElementById(id)?.textContent));
+      let node = input.parentElement;
+      for (let i = 0; i < 5 && node; i++, node = node.parentElement) {
+        const t = aynVisibleText(node);
+        if (t && t.length < 900) push(t);
+      }
+      return parts.join(' ').toLowerCase();
+    } catch (_) { return ''; }
+  }
+
+  function aynIsResumeFileInput(input) {
+    try {
+      if (!input || input.disabled || String(input.type || '').toLowerCase() !== 'file') return false;
+      const accept = String(input.accept || '').toLowerCase();
+      const ctx = aynFileContextText(input);
+      if (/resume|cv|curriculum|cover letter|upload|attach|file|document/.test(ctx)) return true;
+      if (/\.pdf|\.docx?|\.rtf|\.txt|application\/pdf|wordprocessingml|msword/.test(accept)) return true;
+      return !accept;
+    } catch (_) { return false; }
+  }
 
   // v2.1.0 — reveal-and-settle pass. Two problems this solves:
   //   1. Lazy sections (Workday step 2, Ashby demographics, Gem EEO) mount
