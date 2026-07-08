@@ -1451,10 +1451,18 @@
     try {
       const ids = (injectResult && injectResult.unverifiedIds) || [];
       if (!ids.length) return;
+      try { aynRebuildFieldMaps(); } catch (_) {}
       const valById = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
       for (const id of ids) {
         const v = valById.get(id);
         if (!v) continue;
+        // v2.4.2 — skip if the live DOM already matches what we wanted.
+        const wantNow = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
+        if (wantNow && aynLiveMatchesWanted(id, wantNow, v)) {
+          const r = (injectResult.results || []).find(x => x && x.id === id);
+          if (r) { r.ok = true; r.verified = true; r.reason = 'live-match-skip'; }
+          continue;
+        }
         const rawId = String(id);
         try {
           if (rawId.includes('__buttongroup__:')) {
@@ -1500,7 +1508,20 @@
       let retried = 0;
       const failureClasses = [];
       const resolved = {};
-      for (const id of ids.slice(0, 12)) { // cap fanout per fill
+      try { aynRebuildFieldMaps(); } catch (_) {}
+      // v2.4.2 — drop ids that are actually filled correctly (false unverified
+      // caused by rerender). Never ask AI to replan a field the user can see is right.
+      const trulyUnverified = ids.filter(id => {
+        const v = valById.get(id);
+        const want = v && (v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''));
+        if (want && aynLiveMatchesWanted(id, want, v)) {
+          const r = (injectResult.results || []).find(x => x && x.id === id);
+          if (r) { r.ok = true; r.verified = true; r.reason = 'live-match-skip'; }
+          return false;
+        }
+        return true;
+      });
+      for (const id of trulyUnverified.slice(0, 12)) { // cap fanout per fill
         const q = qById.get(id);
         const v = valById.get(id);
         if (!q) continue;
@@ -1638,6 +1659,13 @@
           const want = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
           if (!want) continue;
           const rawId = String(res.id);
+          // v2.4.2 — if the live DOM already shows the wanted value, don't
+          // touch it. Blocks the "reapply overwrites correct answer" bug
+          // when a rerender temporarily hides/replaces the target node.
+          if (aynLiveMatchesWanted(res.id, want, v)) {
+            res.verified = true; res.ok = true;
+            continue;
+          }
           try {
             if (rawId.includes('__buttongroup__:')) {
               const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
@@ -1685,6 +1713,60 @@
   }
 
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+  // v2.4.2 — rebuild BG/text maps from live DOM before any post-fill pass.
+  // Old node refs get invalidated by React rerenders; re-register keeps
+  // stabilize/retry from clicking dead nodes.
+  function aynRebuildFieldMaps() {
+    try {
+      if (Array.isArray(window.__AYN_QUESTIONS__)) {
+        aynRegisterEngineGroups(window.__AYN_QUESTIONS__);
+      }
+    } catch (_) {}
+  }
+
+  // v2.4.2 — read the live DOM value for a field id and compare against
+  // what we intended to fill. Used as a short-circuit so we never overwrite
+  // a correct answer after a rerender.
+  function aynLiveMatchesWanted(id, want, vRow) {
+    try {
+      if (!id || want == null || want === '') return false;
+      const wantStr = String(want);
+      const rawId = String(id);
+      if (rawId.includes('__buttongroup__:')) {
+        const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
+        if (!meta) return false;
+        try {
+          const scope = meta.containerSelector ? document.querySelector(meta.containerSelector) : null;
+          if (scope) {
+            const sel = aynSelectedLabelInScope(scope);
+            if (sel && aynOptionMatches(sel, wantStr)) return true;
+          }
+        } catch (_) {}
+        return false;
+      }
+      if (rawId.includes('__structradio__:')) {
+        const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
+        const container = entry && entry.container;
+        const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')) : (entry && entry.radios) || [];
+        const checked = live.find(r => r.checked);
+        if (!checked) return false;
+        const lbl = ((checked.closest('label') || checked.parentElement)?.innerText || checked.value || '').trim();
+        return aynOptionMatches(lbl, wantStr);
+      }
+      const el = aynResolveFieldEl(id, vRow && vRow._frame);
+      if (!el) return false;
+      if (el.type === 'checkbox' || el.type === 'radio') return !!el.checked;
+      const cur = (el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '')).trim();
+      if (!cur) return false;
+      const nc = norm(cur), nw = norm(wantStr);
+      if (nc === nw) return true;
+      if (nw.length >= 6 && (nc.includes(nw) || nw.includes(nc))) return true;
+      const d = (s) => String(s || '').replace(/\D+/g, '');
+      if (d(nw).length >= 7 && d(nc) === d(nw)) return true;
+      return false;
+    } catch (_) { return false; }
+  }
 
   function setNativeValue(el, value) {
     const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;

@@ -7,7 +7,7 @@
   if (self.AYN_CONST) return;
   const IS_TOP = (() => { try { return typeof window !== 'undefined' && window === window.top; } catch (_) { return false; } })();
   self.AYN_CONST = Object.freeze({
-    BUILD: '2.4.1',
+    BUILD: '2.4.2',
     MAX_JD_CHARS: 20000,
     VISION_ENABLED: true,
     RESOLVER_V2: true,
