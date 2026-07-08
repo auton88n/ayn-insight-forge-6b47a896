@@ -117,5 +117,74 @@
     return null;
   }
 
-  self.AYN_RESOLVER = { norm, isSensitive, isMemoryBlocked, canReuseMemory, fingerprint, optionsSignature, matchProfile };
+  // v2.5.0 — deterministic format validators. AI must not be trusted to
+  // format URLs/emails/phones; regex is cheap and unambiguous.
+  const FORMAT_VALIDATORS = {
+    linkedin: (v) => /^https?:\/\/(www\.)?linkedin\.com\/(in|pub)\/[\w\-%.]+\/?/i.test(String(v || '').trim()),
+    email:    (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()),
+    url:      (v) => /^https?:\/\/[^\s]+\.[^\s]+/i.test(String(v || '').trim()),
+    phone:    (v) => String(v || '').replace(/\D+/g, '').length >= 7,
+  };
+  function validateFormat(kind, value) {
+    const fn = FORMAT_VALIDATORS[String(kind || '').toLowerCase()];
+    return fn ? fn(value) : true;
+  }
+  function detectFormatKind(field) {
+    const label = String((field && field.label) || '').toLowerCase();
+    const name  = String((field && field.name)  || '').toLowerCase();
+    const ph    = String((field && field.placeholder) || '').toLowerCase();
+    const blob  = label + ' ' + name + ' ' + ph;
+    if (/linkedin/.test(blob)) return 'linkedin';
+    if (/email/.test(blob)) return 'email';
+    if (/phone|mobile|tel(?!l)/.test(blob)) return 'phone';
+    if (/website|portfolio|url|http/.test(blob)) return 'url';
+    return null;
+  }
+
+  // v2.5.0 — deterministic polarity for compliance questions the AI keeps
+  // getting wrong. Returns { answer: 'Yes'|'No', confidence } or null.
+  // Facts shape (from mergedBasics/profile):
+  //   work_auth: { countries: ['CA','US',...], authorized: true }
+  //   requires_sponsorship: boolean
+  const COUNTRY_TOKENS = {
+    us: ['us','usa','u.s.','u.s.a','united states','america','american'],
+    ca: ['ca','canada','canadian'],
+    uk: ['uk','u.k.','united kingdom','britain','british','england'],
+    eu: ['eu','european union','europe'],
+    au: ['au','australia','australian'],
+  };
+  function labelMentionsCountry(label, iso2) {
+    const l = String(label || '').toLowerCase();
+    const toks = COUNTRY_TOKENS[String(iso2 || '').toLowerCase()] || [];
+    return toks.some(t => new RegExp('\\b' + t.replace(/\./g,'\\.') + '\\b', 'i').test(l));
+  }
+  function resolveWorkAuthAnswer(field, facts) {
+    if (!field || !facts) return null;
+    const label = String(field.label || '').toLowerCase();
+    if (!/authoriz|legal(ly)?\s+(entitled|able)|right to work|eligible to work/i.test(label)) return null;
+    const wa = facts.work_auth || {};
+    const authorizedCountries = Array.isArray(wa.countries) ? wa.countries.map(c => String(c).toLowerCase()) : [];
+    if (!wa.authorized || !authorizedCountries.length) return null;
+    // Determine which countries the question is about
+    const mentioned = ['us','ca','uk','eu','au'].filter(c => labelMentionsCountry(label, c));
+    if (!mentioned.length) return null;
+    const overlap = mentioned.some(c => authorizedCountries.includes(c));
+    return { answer: overlap ? 'Yes' : 'No', confidence: 0.95, source: 'polarity:work_auth' };
+  }
+  function resolveSponsorshipAnswer(field, facts) {
+    if (!field || !facts) return null;
+    const label = String(field.label || '').toLowerCase();
+    if (!/sponsor|visa|work permit/i.test(label)) return null;
+    if (typeof facts.requires_sponsorship !== 'boolean') return null;
+    // Label polarity: "require sponsorship" => Yes if requires; "willing to sponsor" flipped
+    const flipped = /will(ing)? to sponsor|company sponsor|provide sponsorship/i.test(label);
+    const requires = !!facts.requires_sponsorship;
+    const yes = flipped ? !requires : requires;
+    return { answer: yes ? 'Yes' : 'No', confidence: 0.9, source: 'polarity:sponsorship' };
+  }
+
+  self.AYN_RESOLVER = {
+    norm, isSensitive, isMemoryBlocked, canReuseMemory, fingerprint, optionsSignature, matchProfile,
+    validateFormat, detectFormatKind, resolveWorkAuthAnswer, resolveSponsorshipAnswer,
+  };
 })();
