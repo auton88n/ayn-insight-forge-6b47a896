@@ -2490,6 +2490,17 @@
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
 
+      // v2.5.0 — universal short-circuit: never overwrite a correct live value.
+      // Kills the "AI writes right answer -> pipeline overwrites it" class of bugs.
+      try {
+        const wantForCheck = optionLabel || optionValue || value;
+        if (wantForCheck && aynLiveMatchesWanted(id, wantForCheck, v)) {
+          filled++;
+          results.push({ id, ok: true, verified: true, reason: 'already-correct' });
+          continue;
+        }
+      } catch (_) {}
+
       const { doc, rawId } = resolveDoc(id, _frame);
 
       // Label-based custom group click
