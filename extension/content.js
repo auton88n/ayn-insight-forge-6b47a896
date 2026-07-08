@@ -1659,6 +1659,13 @@
           const want = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
           if (!want) continue;
           const rawId = String(res.id);
+          // v2.4.2 — if the live DOM already shows the wanted value, don't
+          // touch it. Blocks the "reapply overwrites correct answer" bug
+          // when a rerender temporarily hides/replaces the target node.
+          if (aynLiveMatchesWanted(res.id, want, v)) {
+            res.verified = true; res.ok = true;
+            continue;
+          }
           try {
             if (rawId.includes('__buttongroup__:')) {
               const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
