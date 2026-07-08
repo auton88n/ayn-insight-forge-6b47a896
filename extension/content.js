@@ -2773,7 +2773,14 @@
 
           if (m && !m.disabled) {
             try {
-              if (!m.checked) { m.checked = true; m.click(); }
+              if (!m.checked) {
+                m.click();
+                if (!m.checked) {
+                  const optionAncestor = m.closest('[class*="option" i],[class*="Option" i],li,[role="checkbox"],[role="radio"]');
+                  if (optionAncestor && optionAncestor !== m) optionAncestor.click();
+                }
+                if (!m.checked) aynSetChecked(m, true);
+              }
               m.dispatchEvent(new Event('change', { bubbles: true }));
               any = true;
             } catch {}
