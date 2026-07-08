@@ -1686,6 +1686,60 @@
 
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
+  // v2.4.2 — rebuild BG/text maps from live DOM before any post-fill pass.
+  // Old node refs get invalidated by React rerenders; re-register keeps
+  // stabilize/retry from clicking dead nodes.
+  function aynRebuildFieldMaps() {
+    try {
+      if (Array.isArray(window.__AYN_QUESTIONS__)) {
+        aynRegisterEngineGroups(window.__AYN_QUESTIONS__);
+      }
+    } catch (_) {}
+  }
+
+  // v2.4.2 — read the live DOM value for a field id and compare against
+  // what we intended to fill. Used as a short-circuit so we never overwrite
+  // a correct answer after a rerender.
+  function aynLiveMatchesWanted(id, want, vRow) {
+    try {
+      if (!id || want == null || want === '') return false;
+      const wantStr = String(want);
+      const rawId = String(id);
+      if (rawId.includes('__buttongroup__:')) {
+        const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
+        if (!meta) return false;
+        try {
+          const scope = meta.containerSelector ? document.querySelector(meta.containerSelector) : null;
+          if (scope) {
+            const sel = aynSelectedLabelInScope(scope);
+            if (sel && aynOptionMatches(sel, wantStr)) return true;
+          }
+        } catch (_) {}
+        return false;
+      }
+      if (rawId.includes('__structradio__:')) {
+        const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
+        const container = entry && entry.container;
+        const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')) : (entry && entry.radios) || [];
+        const checked = live.find(r => r.checked);
+        if (!checked) return false;
+        const lbl = ((checked.closest('label') || checked.parentElement)?.innerText || checked.value || '').trim();
+        return aynOptionMatches(lbl, wantStr);
+      }
+      const el = aynResolveFieldEl(id, vRow && vRow._frame);
+      if (!el) return false;
+      if (el.type === 'checkbox' || el.type === 'radio') return !!el.checked;
+      const cur = (el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '')).trim();
+      if (!cur) return false;
+      const nc = norm(cur), nw = norm(wantStr);
+      if (nc === nw) return true;
+      if (nw.length >= 6 && (nc.includes(nw) || nw.includes(nc))) return true;
+      const d = (s) => String(s || '').replace(/\D+/g, '');
+      if (d(nw).length >= 7 && d(nc) === d(nw)) return true;
+      return false;
+    } catch (_) { return false; }
+  }
+
   function setNativeValue(el, value) {
     const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
