@@ -2742,10 +2742,22 @@
 
       // PART 2: buttongroup (custom Yes/No toggles) — re-resolve LIVE at click time
       if (/^__buttongroup__:/.test(id)) {
-        const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id);
+        let meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id);
+        // v2.5.0 — rebuild-and-retry when stale rerenders wipe the map entry
+        if (!meta || !meta.qLabel) {
+          try { aynRebuildFieldMaps(); } catch (_) {}
+          meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(id);
+        }
         if (!meta || !meta.qLabel) { results.push({ id, ok: false, reason: 'buttongroup meta missing' }); continue; }
         const wantRaw = optionLabel || optionValue || value;
         if (!wantRaw) { results.push({ id, ok: false, reason: 'no option' }); continue; }
+
+        // v2.5.0 — short-circuit if the live DOM already shows the wanted answer
+        if (aynLiveMatchesWanted(id, wantRaw, v)) {
+          filled++;
+          results.push({ id, ok: true, verified: true, reason: 'already-correct' });
+          continue;
+        }
 
         const { target, scope } = findButtongroupOption(meta, wantRaw);
         if (!target) { results.push({ id, ok: false, reason: 'buttongroup option not matched' }); continue; }
