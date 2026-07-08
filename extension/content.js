@@ -1508,7 +1508,20 @@
       let retried = 0;
       const failureClasses = [];
       const resolved = {};
-      for (const id of ids.slice(0, 12)) { // cap fanout per fill
+      try { aynRebuildFieldMaps(); } catch (_) {}
+      // v2.4.2 — drop ids that are actually filled correctly (false unverified
+      // caused by rerender). Never ask AI to replan a field the user can see is right.
+      const trulyUnverified = ids.filter(id => {
+        const v = valById.get(id);
+        const want = v && (v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''));
+        if (want && aynLiveMatchesWanted(id, want, v)) {
+          const r = (injectResult.results || []).find(x => x && x.id === id);
+          if (r) { r.ok = true; r.verified = true; r.reason = 'live-match-skip'; }
+          return false;
+        }
+        return true;
+      });
+      for (const id of trulyUnverified.slice(0, 12)) { // cap fanout per fill
         const q = qById.get(id);
         const v = valById.get(id);
         if (!q) continue;
