@@ -1451,10 +1451,18 @@
     try {
       const ids = (injectResult && injectResult.unverifiedIds) || [];
       if (!ids.length) return;
+      try { aynRebuildFieldMaps(); } catch (_) {}
       const valById = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
       for (const id of ids) {
         const v = valById.get(id);
         if (!v) continue;
+        // v2.4.2 — skip if the live DOM already matches what we wanted.
+        const wantNow = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
+        if (wantNow && aynLiveMatchesWanted(id, wantNow, v)) {
+          const r = (injectResult.results || []).find(x => x && x.id === id);
+          if (r) { r.ok = true; r.verified = true; r.reason = 'live-match-skip'; }
+          continue;
+        }
         const rawId = String(id);
         try {
           if (rawId.includes('__buttongroup__:')) {
