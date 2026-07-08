@@ -86,34 +86,41 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
       } catch { resolve(null); }
     });
 
-  // Cached html2canvas module. Loaded once via chrome.runtime.getURL so the
-  // extension's bundled vendor copy is used (same pattern as content.js's
-  // aynRunVisionFallback).
-  let _h2cPromise = null;
-  const loadH2C = () => {
-    if (_h2cPromise) return _h2cPromise;
-    _h2cPromise = (async () => {
+  // Cached SnapDOM module. Loaded once via chrome.runtime.getURL so the
+  // extension's bundled vendor copy is used. SnapDOM replaces html2canvas:
+  // faster, and handles Shadow DOM / custom Web Components (Ashby, Workday
+  // custom controls) that html2canvas is known to miss.
+  let _snapdomPromise = null;
+  const loadSnapdom = () => {
+    if (_snapdomPromise) return _snapdomPromise;
+    _snapdomPromise = (async () => {
       try {
-        const url = chrome.runtime.getURL("vendor/html2canvas.esm.js");
+        const url = chrome.runtime.getURL("vendor/snapdom.esm.js");
         const mod = await import(url);
-        return mod.default || mod.html2canvas || null;
+        return mod.snapdom || mod.default || null;
       } catch { return null; }
     })();
-    return _h2cPromise;
+    return _snapdomPromise;
   };
 
   const screenshotElement = async (el) => {
-    const h2c = await loadH2C();
-    if (typeof h2c !== "function") return "";
+    const snapdom = await loadSnapdom();
+    if (!snapdom) return "";
     try {
-      const canvas = await h2c(el, {
+      const img = await snapdom.toPng(el, {
         backgroundColor: "#ffffff",
-        logging: false,
         scale: 0.75,
-        useCORS: true,
-        allowTaint: false,
       });
-      return (canvas.toDataURL("image/png").split(",")[1]) || "";
+      // snapdom.toPng returns an HTMLImageElement whose src is a data URL.
+      const src = img && img.src ? img.src : "";
+      const b64 = src.split(",")[1] || "";
+      if (b64) return b64;
+      // Fallback path in case this build's API returns a canvas instead.
+      if (typeof snapdom.toCanvas === "function") {
+        const canvas = await snapdom.toCanvas(el, { backgroundColor: "#ffffff", scale: 0.75 });
+        return (canvas.toDataURL("image/png").split(",")[1]) || "";
+      }
+      return "";
     } catch { return ""; }
   };
 
