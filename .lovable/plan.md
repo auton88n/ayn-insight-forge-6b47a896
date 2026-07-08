@@ -1,49 +1,80 @@
-## Goal
-Make the autofill system more robust on pages like the Jerry Ashby application where fields are detected but then rerenders or weak DOM mapping cause wrong answers, missing button group metadata, and resume upload misses.
 
-## Plan
-1. **Fix local memory misuse**
-   - Stop the old local `chrome.storage` memory resolver from overriding sensitive or high risk fields.
-   - Do not reuse memory for LinkedIn, work authorization, sponsorship, residence eligibility, open text questions, or resume file fields unless the current options and semantic type match strongly.
-   - Keep the new verified Supabase memory, but only record positive memory after the final post rerender verification succeeds.
+## What's actually wrong
 
-2. **Make button groups first class DOM fields**
-   - Update the Question Engine and Ashby adapter so Yes and No segmented controls are detected as real `boolean` questions with live option metadata.
-   - Register `__AYN_BG_MAP__` from Question Engine output so `buttongroup meta missing` is eliminated.
-   - For Ashby hidden checkbox proxies, resolve the live container after every rerender instead of clicking stale nodes.
+Two distinct bugs, both caused by the post-fill pipeline treating each stage as independent:
 
-3. **Add rerender safe fill stabilization**
-   - Replace the current short settle pass with a guarded “fill transaction” that snapshots intended values, waits through React rerenders, rescans, re resolves fields, and only reports success after the final DOM state matches.
-   - For choices, verify the selected visible label equals the intended answer, not just that something is selected.
-   - Prevent a second pass from refilling already correct fields with stale memory answers.
+### Bug 1 — correct answer gets deleted after rerender
 
-4. **Improve invisible field discovery with vision plus DOM fusion**
-   - Auto run vision discovery when scan coverage is low, when visible prompts have no controls, or when required fields remain unanswered after injection.
-   - Convert vision discovered labels into candidate questions only when they can be anchored to a nearby live DOM control or upload input.
-   - Feed the discovered fields into the normal answer and injection pipeline instead of leaving vision as manual only.
+The pipeline runs in this order inside `INJECT_VALUES` (content.js ~3596):
 
-5. **Fix resume upload detection**
-   - Preserve file fields from the Question Engine scan and expose them correctly to the side panel and autofill flow.
-   - Expand upload detection beyond native visible `input[type=file]` to labels, dropzones, hidden file inputs, and Ashby style resume blocks.
-   - Return an explicit “manual upload required” state only when browser security blocks programmatic file assignment.
+```
+injectValues → settleReapply → postInjectVerify → retryUnverified → closedLoopReplan → visionFallback → stabilizeAfterRender
+```
 
-6. **Strengthen answer validation before injection**
-   - Validate AI and memory answers against current field options before clicking.
-   - Reject truncated or partial values like bare `https://www.linkedin.com/in/` unless the full profile URL exists.
-   - Replan answers only with the fresh current DOM snapshot, not stale field descriptors.
+Each stage rescans the DOM and rewrites fields. Two failure modes:
 
-7. **Rebuild extension bundle and zip**
-   - Update generated extension bundles after source changes.
-   - Keep only the new engine path active, with the legacy projection kept only as the compatibility adapter for the existing injector.
+1. **False "unverified"** — after React rerenders, `aynPostInjectVerify` re-resolves a field via `aynResolveFieldEl(id)`, but the DOM node was replaced. Verify can't find it (or finds a fresh empty twin), marks it unverified, and pushes its id into `unverifiedIds`. `aynClosedLoopReplan` then asks the AI for a *new* answer and re-injects — overwriting the value that was actually correct on screen.
+2. **No "current == want" short-circuit** — `retryUnverified`, `closedLoopReplan`, and `stabilizeAfterRender` all reapply without first checking the live DOM value. If a stale `__AYN_BG_MAP__` entry points at a dead node, they click the wrong button; if AI returns a slightly different label, they overwrite the correct one.
 
-## Technical targets
-- `extension/content.js`
-- `extension/content.entry.js`
-- `extension/background.js`
-- `extension/question-engine/*`
-- `extension/question-engine/adapters/ashby.ts`
-- `supabase/functions/resume-hub/index.ts`
-- generated extension bundles and `public/ayn-extension.zip`
+### Bug 2 — still-missing fields
 
-## Expected result
-The extension should detect each URL form more accurately, avoid stale memory mistakes after rerender, correctly handle Ashby Yes and No controls, discover missed visible fields with vision, and report resume upload separately instead of counting it as an unanswered text field.
+- `__AYN_BG_MAP__` / `__AYN_TEXT_FIELD_MAP__` are populated once at scan time. After a rerender, the stored node refs are dead, so buttongroups log `buttongroup meta missing` and get skipped forever.
+- `aynFuseVisionIntoFields` runs only during the initial scan (line 3566), never after a rerender reveals conditional fields (e.g. "Requires sponsorship?" only appears after picking a country).
+- Resume/file fields sometimes drop out because `probeFormOnce` counts them but the scan pipeline doesn't re-emit them as fillable when the dropzone rerenders.
+
+## Fix
+
+### 1. Live re-anchor before every write (content.js)
+
+Replace the stale-map lookup in `aynResolveFieldEl`, `findButtongroupOption`, and `retryUnverified` with a live-DOM re-anchor:
+
+- Rebuild `__AYN_BG_MAP__` / `__AYN_TEXT_FIELD_MAP__` from the current DOM at the start of each stabilization pass, keyed by question fingerprint (normalized label + option-signature hash), not by node ref.
+- If the fingerprint can't be re-anchored, mark the field `stale_dom` and skip — don't guess.
+
+### 2. Current-value guard on every reapply path
+
+At the top of `aynRetryUnverified`, `aynClosedLoopReplan`, and each `aynStabilizeAfterRender` pass:
+
+```js
+if (aynLiveMatchesWanted(id, want)) { res.ok = true; res.verified = true; continue; }
+```
+
+`aynLiveMatchesWanted` re-reads the live DOM (text input value OR selected buttongroup label OR checked radio) and compares against `want` with the same normalization used elsewhere. This kills the "AI overwrites correct answer" path completely.
+
+### 3. Filter unverifiedIds against live DOM before replan
+
+In `aynClosedLoopReplan`, drop any id whose live DOM value already matches its intended `want` before calling the AI. The AI only sees genuinely broken fields.
+
+### 4. Post-fill rescan for newly revealed fields
+
+After `aynStabilizeAfterRender` finishes, run one bounded rescan pass:
+
+- Re-run the Question Engine detector.
+- Diff against `window.__AYN_QUESTIONS__` — any new question ids are "revealed by rerender."
+- If any exist, request answers from the decision loop and inject just those (single pass, no recursion).
+
+### 5. Rebuild BG map on every rescan
+
+`aynRegisterEngineGroups` already exists but is only called once. Call it at the top of every stabilization pass AND after the post-fill rescan so buttongroup metadata never goes stale.
+
+### 6. Resume field persistence
+
+In the scan response (line 3577), keep `_fileFields` even when the dropzone rerendered mid-scan by merging with the previous scan's file fields (dedup by label). Add explicit `kind: 'resume-upload'` flag so the sidepanel shows a clear "manual upload required" state instead of dropping the field.
+
+### 7. Rebuild bundles
+
+Update `extension/content.bundle.js`, `extension/question-engine.bundle.js`, refresh `public/ayn-extension.zip`, bump version to `2.4.2`.
+
+## Files touched
+
+- `extension/content.js` — new `aynLiveMatchesWanted`, `aynRebuildFieldMaps`, `aynRescanForNewFields`; guards added to retry/replan/stabilize; scan merges file fields.
+- `extension/question-engine/field-detector.ts` — expose fingerprint (label + option-signature) used by re-anchor.
+- `extension/question-engine/adapters/ashby.ts` — surface stable question fingerprints on buttongroups.
+- `extension/manifest.json` + `extension/constants.js` — version bump.
+- `extension/content.bundle.js`, `extension/question-engine.bundle.js`, `public/ayn-extension.zip` — rebuild.
+
+## Explicitly NOT changing
+
+- Memory reuse rules (`filler.js canReuseMemory`) — already tightened in v2.4.1.
+- Edge functions — this bug is entirely in-browser pipeline ordering.
+- Vision provider — same reason.
