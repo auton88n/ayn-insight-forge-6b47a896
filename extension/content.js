@@ -2653,7 +2653,11 @@
               try { box.scrollIntoView({ block: 'center' }); } catch {}
               clickable.click();
               await sleep(30);
-              if (!box.checked) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+              if (!box.checked) {
+                const optionAncestor = box.closest('[class*="option" i],[class*="Option" i],li,[role="checkbox"]');
+                if (optionAncestor && optionAncestor !== box) { optionAncestor.click(); await sleep(30); }
+              }
+              if (!box.checked) { aynSetChecked(box, true); }
               clicked++;
             } catch {}
           } else if (box && box.checked) {
