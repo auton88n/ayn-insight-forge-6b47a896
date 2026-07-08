@@ -2611,7 +2611,15 @@
             const lab = target.closest('label') || (target.id && doc.querySelector(`label[for="${CSS.escape(target.id)}"]`)) || target.parentElement;
             target.click(); await aynSleep(30);
             if (!target.checked && lab) { lab.click(); await aynSleep(30); }
-            if (!target.checked) { target.checked = true; target.dispatchEvent(new Event('input',{bubbles:true})); target.dispatchEvent(new Event('change',{bubbles:true})); await aynSleep(20); }
+            // v2.5.2 — on Ashby-style custom widgets the real clickable surface is a
+            // styled wrapper div/span, not the input or its label. Try that before
+            // ever falling back to a DOM-only property assignment that React never
+            // sees (which is why some answers reverted after a later re-render).
+            if (!target.checked) {
+              const optionAncestor = target.closest('[class*="option" i],[class*="Option" i],li,[role="radio"]');
+              if (optionAncestor && optionAncestor !== target) { optionAncestor.click(); await aynSleep(30); }
+            }
+            if (!target.checked) { aynSetChecked(target, true); await aynSleep(20); }
             ok = !!target.checked;
           } catch (_) {}
         }
