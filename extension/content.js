@@ -2011,6 +2011,22 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Same React-controlled-input fix as aynSetNativeValue, but for radio/checkbox
+  // `checked`. Goes through the native property setter and resets _valueTracker
+  // so React detects a real change instead of silently reverting it on the next
+  // re-render. This is the LAST-RESORT path only, used when no real click
+  // (native or ancestor) could be made to register.
+  function aynSetChecked(el, value) {
+    const proto = el.type === 'checkbox' ? HTMLInputElement.prototype : HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, 'checked');
+    const prev = el.checked;
+    if (desc && desc.set) desc.set.call(el, value); else el.checked = value;
+    try { if (el._valueTracker && typeof el._valueTracker.setValue === 'function') el._valueTracker.setValue(prev); } catch (_) {}
+    el.dispatchEvent(new Event('click', { bubbles: true }));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function aynShowActivityGlow(on) {
     if (!AYN_IS_TOP) return;
     try {
