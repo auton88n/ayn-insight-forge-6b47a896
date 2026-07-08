@@ -2011,6 +2011,22 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Same React-controlled-input fix as aynSetNativeValue, but for radio/checkbox
+  // `checked`. Goes through the native property setter and resets _valueTracker
+  // so React detects a real change instead of silently reverting it on the next
+  // re-render. This is the LAST-RESORT path only, used when no real click
+  // (native or ancestor) could be made to register.
+  function aynSetChecked(el, value) {
+    const proto = el.type === 'checkbox' ? HTMLInputElement.prototype : HTMLInputElement.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, 'checked');
+    const prev = el.checked;
+    if (desc && desc.set) desc.set.call(el, value); else el.checked = value;
+    try { if (el._valueTracker && typeof el._valueTracker.setValue === 'function') el._valueTracker.setValue(prev); } catch (_) {}
+    el.dispatchEvent(new Event('click', { bubbles: true }));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function aynShowActivityGlow(on) {
     if (!AYN_IS_TOP) return;
     try {
@@ -2595,7 +2611,15 @@
             const lab = target.closest('label') || (target.id && doc.querySelector(`label[for="${CSS.escape(target.id)}"]`)) || target.parentElement;
             target.click(); await aynSleep(30);
             if (!target.checked && lab) { lab.click(); await aynSleep(30); }
-            if (!target.checked) { target.checked = true; target.dispatchEvent(new Event('input',{bubbles:true})); target.dispatchEvent(new Event('change',{bubbles:true})); await aynSleep(20); }
+            // v2.5.2 — on Ashby-style custom widgets the real clickable surface is a
+            // styled wrapper div/span, not the input or its label. Try that before
+            // ever falling back to a DOM-only property assignment that React never
+            // sees (which is why some answers reverted after a later re-render).
+            if (!target.checked) {
+              const optionAncestor = target.closest('[class*="option" i],[class*="Option" i],li,[role="radio"]');
+              if (optionAncestor && optionAncestor !== target) { optionAncestor.click(); await aynSleep(30); }
+            }
+            if (!target.checked) { aynSetChecked(target, true); await aynSleep(20); }
             ok = !!target.checked;
           } catch (_) {}
         }
@@ -2629,7 +2653,11 @@
               try { box.scrollIntoView({ block: 'center' }); } catch {}
               clickable.click();
               await sleep(30);
-              if (!box.checked) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+              if (!box.checked) {
+                const optionAncestor = box.closest('[class*="option" i],[class*="Option" i],li,[role="checkbox"]');
+                if (optionAncestor && optionAncestor !== box) { optionAncestor.click(); await sleep(30); }
+              }
+              if (!box.checked) { aynSetChecked(box, true); }
               clicked++;
             } catch {}
           } else if (box && box.checked) {
@@ -2745,7 +2773,14 @@
 
           if (m && !m.disabled) {
             try {
-              if (!m.checked) { m.checked = true; m.click(); }
+              if (!m.checked) {
+                m.click();
+                if (!m.checked) {
+                  const optionAncestor = m.closest('[class*="option" i],[class*="Option" i],li,[role="checkbox"],[role="radio"]');
+                  if (optionAncestor && optionAncestor !== m) optionAncestor.click();
+                }
+                if (!m.checked) aynSetChecked(m, true);
+              }
               m.dispatchEvent(new Event('change', { bubbles: true }));
               any = true;
             } catch {}
