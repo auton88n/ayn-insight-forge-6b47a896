@@ -2578,7 +2578,12 @@
         outer:
         for (const want of cands) {
           for (const r of radios) {
-            const lbl = ((r.closest('label') || r.parentElement)?.innerText || '').replace(/\s+/g,' ').trim();
+            // v2.5.1 — Ashby (and similar ATS) render <label for="id"> as a SIBLING of
+            // the input, never an ancestor. r.closest('label') returns null on that
+            // shape and previously fell back to an empty wrapper's innerText, which is
+            // why every option failed to match. Check label[for=id] FIRST.
+            const labelForEl = r.id ? (r.ownerDocument || document).querySelector('label[for="' + CSS.escape(r.id) + '"]') : null;
+            const lbl = (labelForEl?.innerText || (r.closest('label'))?.innerText || r.parentElement?.innerText || '').replace(/\s+/g,' ').trim();
             if (aynOptionMatches(lbl, want)) { target = r; break outer; }
             if (r.value && r.value !== 'on' && !SYNTH_VALUE_RE.test(r.value) && aynOptionMatches(r.value, want)) { target = r; break outer; }
           }
