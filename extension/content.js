@@ -27,6 +27,112 @@
     } catch { /* extension context invalidated, ignore */ }
   }
 
+  const AYN_RELOAD_SNAPSHOT_KEY = `ayn_reload_snapshot:${location.href}`;
+
+  function aynSnapshotValueKey(v) {
+    return String((v && v._frame) || '') + '::' + String((v && v.id) || '');
+  }
+
+  function aynSnapshotValue(v) {
+    try {
+      if (!v || !v.id || v.skip) return null;
+      const hasValue = v.value != null || v.optionValue != null || v.optionLabel != null || (Array.isArray(v.optionValues) && v.optionValues.length) || (Array.isArray(v.optionLabels) && v.optionLabels.length);
+      if (!hasValue) return null;
+      return {
+        id: v.id,
+        _frame: v._frame,
+        value: v.value,
+        optionValue: v.optionValue,
+        optionLabel: v.optionLabel,
+        optionValues: v.optionValues,
+        optionLabels: v.optionLabels,
+        source: v.source || 'injected-values',
+      };
+    } catch (_) { return null; }
+  }
+
+  function aynRememberInjectedValues(values) {
+    try {
+      const byId = new Map();
+      const prev = Array.isArray(window.__AYN_LAST_INJECTED_VALUES__) ? window.__AYN_LAST_INJECTED_VALUES__ : [];
+      for (const v of prev) {
+        const snap = aynSnapshotValue(v);
+        if (snap) byId.set(aynSnapshotValueKey(snap), snap);
+      }
+      for (const v of (Array.isArray(values) ? values : [])) {
+        const snap = aynSnapshotValue(v);
+        if (snap) byId.set(aynSnapshotValueKey(snap), snap);
+      }
+      const merged = Array.from(byId.values());
+      window.__AYN_LAST_INJECTED_VALUES__ = merged;
+      return merged;
+    } catch (_) { return []; }
+  }
+
+  function aynPersistInjectedSnapshot(values, reason) {
+    try {
+      const remembered = aynRememberInjectedValues(values);
+      if (!remembered.length || !chrome || !chrome.storage || !chrome.storage.local) return;
+      const snap = { url: location.href, savedAt: Date.now(), answers: remembered };
+      chrome.storage.local.set({ [AYN_RELOAD_SNAPSHOT_KEY]: snap }, () => {
+        try {
+          if (chrome.runtime.lastError) {
+            console.warn('[AYN][content] injected snapshot save failed:', chrome.runtime.lastError.message);
+            return;
+          }
+          console.log('[AYN][content] injected snapshot saved:', remembered.length, 'answers, reason=', reason || 'fill', 'key=', AYN_RELOAD_SNAPSHOT_KEY);
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  function aynRestoredSnapshotValues() {
+    try {
+      const raw = window.__AYN_RESTORED_ANSWERS__;
+      if (!Array.isArray(raw) || !raw.length) return [];
+      return raw.map(aynSnapshotValue).filter(Boolean);
+    } catch (_) { return []; }
+  }
+
+  function aynMergeRestoredValues(values) {
+    try {
+      const base = Array.isArray(values) ? values : [];
+      const restored = aynRestoredSnapshotValues();
+      if (!restored.length) return base;
+      const byId = new Map();
+      for (const v of restored) byId.set(aynSnapshotValueKey(v), v);
+      for (const v of base) byId.set(aynSnapshotValueKey(v), v);
+      const merged = Array.from(byId.values());
+      if (merged.length !== base.length) {
+        console.log('[AYN][content] merged restored reload snapshot values:', restored.length, 'restored,', merged.length, 'total');
+      }
+      return merged;
+    } catch (_) { return Array.isArray(values) ? values : []; }
+  }
+
+  let __aynRestoredReplayDone = false;
+  function aynScheduleRestoredReplay() {
+    try {
+      [700, 1800, 3600].forEach((delay) => {
+        setTimeout(async () => {
+          try {
+            if (__aynRestoredReplayDone) return;
+            const restored = aynRestoredSnapshotValues();
+            if (!restored.length) return;
+            console.log('[AYN][content] replaying restored reload snapshot:', restored.length, 'answers');
+            const result = await injectValues(restored);
+            const ok = !!(result && Array.isArray(result.results) && result.results.some((r) => r && r.ok));
+            console.log('[AYN][content] restored reload snapshot replay result:', ok ? 'ok' : 'no verified fills', restored.length, 'answers');
+            if (ok) {
+              __aynRestoredReplayDone = true;
+              try { window.__AYN_RESTORED_ANSWERS__ = null; } catch (_) {}
+            }
+          } catch (_) {}
+        }, delay);
+      });
+    } catch (_) {}
+  }
+
   // Safe text helper — never throws on weird/SVG/null nodes
   function safeText(el) {
     if (!el) return '';
@@ -2440,6 +2546,8 @@
     let filled = 0;
     const results = [];
 
+    try { aynPersistInjectedSnapshot(values, 'inject-start'); } catch (_) {}
+
     try {
       console.log('[AYN-BG] injecting', values.length, 'values; buttongroups=',
         values.filter(v => /^__buttongroup__:/.test(v.id || '')).length);
@@ -3767,26 +3875,27 @@
       (async () => {
         aynShowActivityGlow(true);
         let injectResult;
+        const fillValues = aynMergeRestoredValues(message.values || []);
         try {
           try {
-            injectResult = await injectValues(message.values);
+            injectResult = await injectValues(fillValues);
           } catch (e) {
             sendResponse({ filled: 0, total: 0, results: [], error: e.message });
             return;
           }
-          try { await aynSettleReapply(message.values, injectResult); } catch (_) {}
-          try { aynPostInjectVerify(message.values, injectResult); } catch (_) {}
-          try { await aynRetryUnverified(message.values, injectResult); } catch (_) {}
+          try { await aynSettleReapply(fillValues, injectResult); } catch (_) {}
+          try { aynPostInjectVerify(fillValues, injectResult); } catch (_) {}
+          try { await aynRetryUnverified(fillValues, injectResult); } catch (_) {}
           // v2.4 — closed-loop AI replan for anything still unverified.
-          try { await aynClosedLoopReplan(message.values, injectResult); } catch (_) {}
+          try { await aynClosedLoopReplan(fillValues, injectResult); } catch (_) {}
           try {
             if (AYN_VISION_ENABLED) {
               await aynRunVisionFallback(injectResult);
             }
           } catch (_) { /* swallow — never break normal fill */ }
-          try { await aynStabilizeAfterRender(message.values, injectResult); } catch (_) {}
+          try { await aynStabilizeAfterRender(fillValues, injectResult); } catch (_) {}
           // v2.4 — record verified/unverified outcomes to learning memory.
-          try { aynRecordLearnedAnswers(message.values, injectResult); } catch (_) {}
+          try { aynRecordLearnedAnswers(fillValues, injectResult); } catch (_) {}
           sendResponse(injectResult);
 
         } finally {
@@ -3857,6 +3966,8 @@
       return true;
     }
   });
+
+  aynScheduleRestoredReplay();
 
   // ══════════════════════════════════════════════════════════════════
   // 6. AUTO-DETECT JOB PAGES

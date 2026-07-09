@@ -94,21 +94,44 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   const buildSnapshot = () => {
     try {
       const qs = window.__AYN_QUESTIONS__;
-      if (!Array.isArray(qs) || !qs.length) return null;
       const answers = [];
-      for (const q of qs) {
-        if (!q || !q.answer) continue;
-        // If verified is present, require it to be successful.
-        // If not yet verified, accept the answer optimistically.
-        if (q.verified && q.verified.verified === false) continue;
-        try {
-          answers.push({
-            signature: questionSignature(q),
-            value: q.answer.value,
-            optionLabel: q.answer.optionLabel,
-            optionLabels: q.answer.optionLabels,
-          });
-        } catch (_) {}
+      if (Array.isArray(qs) && qs.length) {
+        for (const q of qs) {
+          if (!q || !q.answer) continue;
+          // If verified is present, require it to be successful.
+          // If not yet verified, accept the answer optimistically.
+          if (q.verified && q.verified.verified === false) continue;
+          try {
+            answers.push({
+              signature: questionSignature(q),
+              value: q.answer.value,
+              optionLabel: q.answer.optionLabel,
+              optionLabels: q.answer.optionLabels,
+            });
+          } catch (_) {}
+        }
+      }
+      if (!answers.length) {
+        const injected = window.__AYN_LAST_INJECTED_VALUES__;
+        if (Array.isArray(injected) && injected.length) {
+          for (const v of injected) {
+            if (!v || !v.id || v.skip) continue;
+            const hasValue = v.value != null || v.optionValue != null || v.optionLabel != null || (Array.isArray(v.optionValues) && v.optionValues.length) || (Array.isArray(v.optionLabels) && v.optionLabels.length);
+            if (!hasValue) continue;
+            try {
+              answers.push({
+                id: v.id,
+                _frame: v._frame,
+                value: v.value,
+                optionValue: v.optionValue,
+                optionLabel: v.optionLabel,
+                optionValues: v.optionValues,
+                optionLabels: v.optionLabels,
+                source: "injected-values",
+              });
+            } catch (_) {}
+          }
+        }
       }
       if (!answers.length) return null;
       return { url: location.href, savedAt: Date.now(), answers };
