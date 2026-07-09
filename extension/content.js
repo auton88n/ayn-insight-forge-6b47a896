@@ -3839,6 +3839,13 @@
     }
 
     if (message.type === 'SCAN_FORM') {
+      // v2.5.7 — collapse rapid duplicate SCAN_FORM requests
+      const nowTs = Date.now();
+      if (window.__aynScanInFlight) {
+        try { sendResponse({ fields: [], fileFields: [], jobText: {}, ats: '', url: window.location.href, scanDiag: [{ note: 'scan-inflight-skip' }] }); } catch (_) {}
+        return true;
+      }
+      window.__aynScanInFlight = true;
       (async () => {
         const restore = await aynEnsureRendered();
         try {
