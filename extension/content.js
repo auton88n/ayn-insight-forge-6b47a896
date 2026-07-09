@@ -3884,6 +3884,7 @@
           sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
         } finally {
           try { restore && restore(); } catch (_) {}
+          window.__aynScanInFlight = false;
         }
       })();
       return true;

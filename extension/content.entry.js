@@ -90,7 +90,9 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   //  so persist verified answers to chrome.storage.local keyed by
   //  the current URL, then restore them on startup.
   // ────────────────────────────────────────────────────────────
-  const SNAPSHOT_KEY = `ayn_reload_snapshot:${location.href}`;
+  // v2.5.7 — normalized key (origin + pathname). Iframes never save or restore.
+  const SNAPSHOT_KEY = `ayn_reload_snapshot:${location.origin}${location.pathname}`;
+  const IS_TOP_FRAME = (() => { try { return window.top === window; } catch (_) { return false; } })();
   const buildSnapshot = () => {
     try {
       const qs = window.__AYN_QUESTIONS__;
@@ -138,6 +140,7 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
     } catch { return null; }
   };
   const saveReloadSnapshot = () => {
+    if (!IS_TOP_FRAME) return; // v2.5.7 — only top frame persists
     try {
       const snap = buildSnapshot();
       if (!snap) {
@@ -155,7 +158,7 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
       });
     } catch (_) {}
   };
-  try { window.addEventListener("beforeunload", saveReloadSnapshot); } catch (_) {}
+  try { if (IS_TOP_FRAME) window.addEventListener("beforeunload", saveReloadSnapshot); } catch (_) {}
   try {
     setInterval(() => {
       try {
@@ -166,7 +169,11 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
 
   // Startup: restore a fresh (<2min) snapshot for this exact URL, expose
   // via window.__AYN_RESTORED_ANSWERS__, then delete so it's one-shot.
-  try {
+  // Startup: only the top frame reads the snapshot. Iframes (reCAPTCHA, etc.)
+  // never had a matching key and only produced noisy "found=false" logs.
+  if (!IS_TOP_FRAME) {
+    window.__AYN_RESTORED_ANSWERS__ = null;
+  } else try {
     chrome.storage.local.get([SNAPSHOT_KEY], (data) => {
       try {
         if (chrome.runtime.lastError) {
@@ -174,8 +181,11 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
         }
         const snap = data && data[SNAPSHOT_KEY];
         console.log("[AYN][engine-bridge] snapshot lookup for key=", SNAPSHOT_KEY, "found=", !!snap, snap ? { url: snap.url, age_ms: Date.now() - (snap.savedAt||0), count: (snap.answers||[]).length } : null);
+        // v2.5.7 — match by normalized pathname, not full href.
+        const snapPath = snap && snap.url ? (() => { try { const u = new URL(snap.url); return u.origin + u.pathname; } catch { return ''; } })() : '';
+        const curPath = location.origin + location.pathname;
         if (
-          snap && snap.url === location.href &&
+          snap && snapPath === curPath &&
           Array.isArray(snap.answers) && snap.answers.length &&
           (Date.now() - (snap.savedAt || 0)) < 120000
         ) {
