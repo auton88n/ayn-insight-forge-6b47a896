@@ -123,7 +123,10 @@
             const result = await injectValues(restored);
             const ok = !!(result && Array.isArray(result.results) && result.results.some((r) => r && r.ok));
             console.log('[AYN][content] restored reload snapshot replay result:', ok ? 'ok' : 'no verified fills', restored.length, 'answers');
-            if (ok) __aynRestoredReplayDone = true;
+            if (ok) {
+              __aynRestoredReplayDone = true;
+              try { window.__AYN_RESTORED_ANSWERS__ = null; } catch (_) {}
+            }
           } catch (_) {}
         }, delay);
       });
