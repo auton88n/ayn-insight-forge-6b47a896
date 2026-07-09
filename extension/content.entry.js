@@ -117,8 +117,19 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   const saveReloadSnapshot = () => {
     try {
       const snap = buildSnapshot();
-      if (!snap) return;
-      chrome.storage.local.set({ [SNAPSHOT_KEY]: snap });
+      if (!snap) {
+        console.log("[AYN][engine-bridge] snapshot save skipped — no answered questions yet");
+        return;
+      }
+      chrome.storage.local.set({ [SNAPSHOT_KEY]: snap }, () => {
+        try {
+          if (chrome.runtime.lastError) {
+            console.warn("[AYN][engine-bridge] snapshot save failed:", chrome.runtime.lastError.message);
+            return;
+          }
+          console.log("[AYN][engine-bridge] snapshot saved:", snap.answers.length, "answers, key=", SNAPSHOT_KEY);
+        } catch (_) {}
+      });
     } catch (_) {}
   };
   try { window.addEventListener("beforeunload", saveReloadSnapshot); } catch (_) {}
