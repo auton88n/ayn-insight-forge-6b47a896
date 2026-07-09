@@ -84,6 +84,73 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
     catch (e) { console.warn("[AYN][engine-bridge] scan failed", e); }
   };
 
+  // ────────────────────────────────────────────────────────────
+  //  Reload-snapshot: some ATS forms perform a genuine full page
+  //  reload mid-fill (bot-detection). In-memory state is wiped,
+  //  so persist verified answers to chrome.storage.local keyed by
+  //  the current URL, then restore them on startup.
+  // ────────────────────────────────────────────────────────────
+  const SNAPSHOT_KEY = `ayn_reload_snapshot:${location.href}`;
+  const buildSnapshot = () => {
+    try {
+      const qs = window.__AYN_QUESTIONS__;
+      if (!Array.isArray(qs) || !qs.length) return null;
+      const answers = [];
+      for (const q of qs) {
+        if (!q || !q.answer) continue;
+        // If verified is present, require it to be successful.
+        // If not yet verified, accept the answer optimistically.
+        if (q.verified && q.verified.verified === false) continue;
+        try {
+          answers.push({
+            signature: questionSignature(q),
+            value: q.answer.value,
+            optionLabel: q.answer.optionLabel,
+            optionLabels: q.answer.optionLabels,
+          });
+        } catch (_) {}
+      }
+      if (!answers.length) return null;
+      return { url: location.href, savedAt: Date.now(), answers };
+    } catch { return null; }
+  };
+  const saveReloadSnapshot = () => {
+    try {
+      const snap = buildSnapshot();
+      if (!snap) return;
+      chrome.storage.local.set({ [SNAPSHOT_KEY]: snap });
+    } catch (_) {}
+  };
+  try { window.addEventListener("beforeunload", saveReloadSnapshot); } catch (_) {}
+  try {
+    setInterval(() => {
+      try {
+        if (document.visibilityState === "visible") saveReloadSnapshot();
+      } catch (_) {}
+    }, 5000);
+  } catch (_) {}
+
+  // Startup: restore a fresh (<2min) snapshot for this exact URL, expose
+  // via window.__AYN_RESTORED_ANSWERS__, then delete so it's one-shot.
+  try {
+    chrome.storage.local.get([SNAPSHOT_KEY], (data) => {
+      try {
+        const snap = data && data[SNAPSHOT_KEY];
+        if (
+          snap && snap.url === location.href &&
+          Array.isArray(snap.answers) && snap.answers.length &&
+          (Date.now() - (snap.savedAt || 0)) < 120000
+        ) {
+          window.__AYN_RESTORED_ANSWERS__ = snap.answers;
+          console.log("[AYN][engine-bridge] restored", snap.answers.length, "answers from reload snapshot");
+        } else {
+          window.__AYN_RESTORED_ANSWERS__ = null;
+        }
+        try { chrome.storage.local.remove(SNAPSHOT_KEY); } catch (_) {}
+      } catch (_) {}
+    });
+  } catch (_) { window.__AYN_RESTORED_ANSWERS__ = null; }
+
   setTimeout(runOnce, 0);
 
   try {
