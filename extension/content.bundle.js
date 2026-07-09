@@ -1699,17 +1699,19 @@
       try {
         const prev = window.__AYN_QUESTIONS__;
         const prevHadContent = Array.isArray(prev) && prev.length > 0;
-        if (questions.length === 0 && prevHadContent && !_emitGuardPending) {
-          _emitGuardPending = true;
-          setTimeout(() => {
-            _emitGuardPending = false;
-            try {
-              const recheck = scanForm(document);
-              emit(recheck);
-            } catch (_) {
-            }
-          }, 350);
-          console.warn("[AYN][engine-bridge] empty scan after a populated one \u2014 holding previous result pending recheck");
+        if (questions.length === 0 && prevHadContent) {
+          if (!_emitGuardPending) {
+            _emitGuardPending = true;
+            setTimeout(() => {
+              _emitGuardPending = false;
+              try {
+                const recheck = scanForm(document);
+                emit(recheck);
+              } catch (_) {
+              }
+            }, 350);
+          }
+          console.warn("[AYN][engine-bridge] empty scan after a populated one \u2014 holding previous result");
           return;
         }
         window.__AYN_QUESTIONS__ = questions;
