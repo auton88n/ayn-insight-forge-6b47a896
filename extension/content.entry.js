@@ -146,7 +146,11 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   try {
     chrome.storage.local.get([SNAPSHOT_KEY], (data) => {
       try {
+        if (chrome.runtime.lastError) {
+          console.warn("[AYN][engine-bridge] snapshot lookup failed:", chrome.runtime.lastError.message);
+        }
         const snap = data && data[SNAPSHOT_KEY];
+        console.log("[AYN][engine-bridge] snapshot lookup for key=", SNAPSHOT_KEY, "found=", !!snap, snap ? { url: snap.url, age_ms: Date.now() - (snap.savedAt||0), count: (snap.answers||[]).length } : null);
         if (
           snap && snap.url === location.href &&
           Array.isArray(snap.answers) && snap.answers.length &&
