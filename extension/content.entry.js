@@ -35,8 +35,33 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   if (window.__AYN_ENGINE_BRIDGE__) return;
   window.__AYN_ENGINE_BRIDGE__ = true;
 
+  let _emitGuardPending = false;
+
+  // v2.5.3 — never let a scan that comes back empty silently wipe out a scan
+  // that previously succeeded. A React re-render (or a background reCAPTCHA
+  // check remounting the form) can cause exactly ONE transient scan to see
+  // nothing while the DOM is mid-swap. Without this guard that empty result
+  // instantly overwrote window.__AYN_QUESTIONS__, which then made the
+  // injector's group lookups fail for fields that were already answered.
+  // Rule: an empty result is only accepted if a re-scan ~350ms later is
+  // STILL empty (a genuinely cleared/navigated-away form). Otherwise the
+  // previous good result is kept in place and the retry's result is used.
   const emit = (questions) => {
     try {
+      const prev = window.__AYN_QUESTIONS__;
+      const prevHadContent = Array.isArray(prev) && prev.length > 0;
+      if (questions.length === 0 && prevHadContent && !_emitGuardPending) {
+        _emitGuardPending = true;
+        setTimeout(() => {
+          _emitGuardPending = false;
+          try {
+            const recheck = scanForm(document);
+            emit(recheck); // recheck.length === 0 falls through and IS accepted below
+          } catch (_) {}
+        }, 350);
+        console.warn("[AYN][engine-bridge] empty scan after a populated one — holding previous result pending recheck");
+        return; // do NOT overwrite yet
+      }
       window.__AYN_QUESTIONS__ = questions;
       window.__AYN_QUESTIONS_LEGACY__ = questions.map(projectToLegacy);
       window.dispatchEvent(
@@ -74,6 +99,7 @@ const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   } catch (e) {
     console.warn("[AYN][engine-bridge] observe failed", e);
   }
+
 
   // ────────────────────────────────────────────────────────────
   //  Helpers shared by the three v2.4 subsystems
