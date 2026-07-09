@@ -58,7 +58,7 @@ async function main() {
     .join(" ");
 
   execSync(
-    `nix run nixpkgs#zip -- -r "${zipPath}" . ${excludes}`,
+    `zip -r "${zipPath}" . ${excludes}`,
     { cwd: EXT, stdio: "inherit" }
   );
 

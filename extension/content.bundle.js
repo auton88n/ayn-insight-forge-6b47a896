@@ -1692,8 +1692,8 @@
   var FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
   var FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
   (function initAynEngineBridge() {
-    if (window.__AYN_ENGINE_BRIDGE__) return;
-    window.__AYN_ENGINE_BRIDGE__ = true;
+    if (window.__AYN_ENGINE_BRIDGE_V2__) return;
+    window.__AYN_ENGINE_BRIDGE_V2__ = true;
     let _emitGuardPending = false;
     const emit = (questions) => {
       try {

@@ -6,11 +6,11 @@
   'use strict';
 
   // ── Install guard: prevent double-injection from registering duplicate listeners ──
-  if (window.__AYN_CONTENT_LOADED__) {
+  if (window.__AYN_CONTENT_LOADED_V2__) {
     try { console.log('[AYN] content script already loaded, skipping re-init'); } catch {}
     return;
   }
-  window.__AYN_CONTENT_LOADED__ = true;
+  window.__AYN_CONTENT_LOADED_V2__ = true;
   const AYN_BUILD = '2.5.5';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
@@ -2615,19 +2615,48 @@
         let ok = false;
         if (target) {
           try {
+            // First attempt: try normal clicks
             const lab = target.closest('label') || (target.id && doc.querySelector(`label[for="${CSS.escape(target.id)}"]`)) || target.parentElement;
             target.click(); await aynSleep(30);
             if (!target.checked && lab) { lab.click(); await aynSleep(30); }
-            // v2.5.2 — on Ashby-style custom widgets the real clickable surface is a
-            // styled wrapper div/span, not the input or its label. Try that before
-            // ever falling back to a DOM-only property assignment that React never
-            // sees (which is why some answers reverted after a later re-render).
+            
             if (!target.checked) {
               const optionAncestor = target.closest('[class*="option" i],[class*="Option" i],li,[role="radio"]');
               if (optionAncestor && optionAncestor !== target) { optionAncestor.click(); await aynSleep(30); }
             }
-            if (!target.checked) { aynSetChecked(target, true); await aynSleep(20); }
-            ok = !!target.checked;
+            if (!target.checked && self.AYN_DOM && self.AYN_DOM.writeControlled) { 
+              self.AYN_DOM.writeControlled(target, true); 
+              await aynSleep(20); 
+            }
+            
+            // Wait for React to re-render and potentially drop our change
+            await aynSleep(150);
+            
+            // Re-acquire the target in case React replaced the DOM nodes
+            let liveTarget = target;
+            if (!liveTarget.isConnected && entry && entry.container) {
+              const liveRadios = Array.from(entry.container.querySelectorAll('input[type="radio"]'));
+              if (liveRadios.length) {
+                // Find the one with the same value or index
+                const originalIndex = radios.indexOf(target);
+                if (originalIndex >= 0 && originalIndex < liveRadios.length) {
+                  liveTarget = liveRadios[originalIndex];
+                }
+              }
+            }
+
+            // Verify and Retry if it dropped
+            if (!liveTarget.checked) {
+              console.log('[AYN-BG] structradio reverted after first pass, retrying via writeControlled');
+              if (self.AYN_DOM && self.AYN_DOM.writeControlled) {
+                self.AYN_DOM.writeControlled(liveTarget, true);
+              } else {
+                liveTarget.click();
+              }
+              await aynSleep(100);
+            }
+            
+            ok = !!liveTarget.checked;
           } catch (_) {}
         }
         results.push({ id, ok, verified: ok, reason: ok ? 'structradio-click' : 'structradio no match' });

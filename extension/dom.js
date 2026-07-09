@@ -290,6 +290,43 @@
     return out;
   }
 
+  // ── Canonical React Bypass ──────────────────────────────────────────
+  // One write primitive that safely sets values on controlled inputs
+  // (React 16+, Vue 3, Angular) without being wiped on the next render.
+  function writeControlled(el, value) {
+    if (!el) return;
+    try {
+      const type = String(el.type || '').toLowerCase();
+      const isCheckable = type === 'checkbox' || type === 'radio';
+      
+      const proto = isCheckable ? HTMLInputElement.prototype : 
+                    (el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype);
+      
+      const propName = isCheckable ? 'checked' : 'value';
+      const desc = Object.getOwnPropertyDescriptor(proto, propName);
+      const prev = el[propName];
+      
+      if (desc && desc.set) {
+        desc.set.call(el, value);
+      } else {
+        el[propName] = value;
+      }
+      
+      try {
+        if (el._valueTracker && typeof el._valueTracker.setValue === 'function') {
+          el._valueTracker.setValue(prev);
+        }
+      } catch (_) {}
+      
+      if (isCheckable) {
+        el.dispatchEvent(new Event('click', { bubbles: true }));
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.blur();
+    } catch (_) {}
+  }
+
   self.AYN_DOM = Object.freeze({
     VERSION: '2.0.0',
     beginScan,
@@ -297,5 +334,6 @@
     coverageScan,
     buildOptionIndex,
     visibleish,
+    writeControlled,
   });
 })();
