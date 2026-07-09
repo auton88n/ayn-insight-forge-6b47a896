@@ -27,7 +27,9 @@
     } catch { /* extension context invalidated, ignore */ }
   }
 
-  const AYN_RELOAD_SNAPSHOT_KEY = `ayn_reload_snapshot:${location.href}`;
+  // v2.5.7 — normalized snapshot key: origin + pathname only (strip query/hash so
+  // reCAPTCHA callbacks and Ashby source=... rewrites don't break restore).
+  const AYN_RELOAD_SNAPSHOT_KEY = `ayn_reload_snapshot:${location.origin}${location.pathname}`;
 
   function aynSnapshotValueKey(v) {
     return String((v && v._frame) || '') + '::' + String((v && v.id) || '');
@@ -1317,6 +1319,11 @@
     } catch (_) { return ''; }
   }
 
+  // v2.5.7 — dedupe rapid rescans. A successful scan populates
+  // __AYN_QUESTIONS__ and then subsequent DOM mutations often trigger empty
+  // rescans (rich=0). Those must not re-enter the pipeline or spam logs.
+  let __aynLastHybridN = -1;
+  let __aynLastHybridAt = 0;
   function scanFormFieldsHybrid() {
     // v2.4 — no legacy fallback. Question Engine is authoritative.
     try {
@@ -1324,9 +1331,13 @@
       const legacy = window.__AYN_QUESTIONS_LEGACY__;
       const rN = Array.isArray(rich) ? rich.length : 0;
       const lN = Array.isArray(legacy) ? legacy.length : 0;
-      try { console.log('[AYN-HYBRID] rich=' + rN + ' legacy=' + lN); } catch (_) {}
+      const now = Date.now();
+      const dupe = (rN === __aynLastHybridN) && (now - __aynLastHybridAt < 1500);
+      __aynLastHybridN = rN;
+      __aynLastHybridAt = now;
+      if (!dupe) { try { console.log('[AYN-HYBRID] rich=' + rN + ' legacy=' + lN); } catch (_) {} }
       if (rN === 0) {
-        try { console.log('[AYN-HYBRID] engine returned nothing — no fallback'); } catch (_) {}
+        // Silent: empty rescans right after a successful fill are expected.
         return [];
       }
       aynRegisterEngineGroups(rich);
@@ -3828,6 +3839,13 @@
     }
 
     if (message.type === 'SCAN_FORM') {
+      // v2.5.7 — collapse rapid duplicate SCAN_FORM requests
+      const nowTs = Date.now();
+      if (window.__aynScanInFlight) {
+        try { sendResponse({ fields: [], fileFields: [], jobText: {}, ats: '', url: window.location.href, scanDiag: [{ note: 'scan-inflight-skip' }] }); } catch (_) {}
+        return true;
+      }
+      window.__aynScanInFlight = true;
       (async () => {
         const restore = await aynEnsureRendered();
         try {
@@ -3866,6 +3884,7 @@
           sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
         } finally {
           try { restore && restore(); } catch (_) {}
+          window.__aynScanInFlight = false;
         }
       })();
       return true;
