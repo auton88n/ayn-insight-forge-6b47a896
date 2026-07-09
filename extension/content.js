@@ -2502,7 +2502,14 @@
 
 
 
+    let _injectIdx = 0;
     for (const v of values) {
+      // Human-like pacing between distinct fields (not inside a single
+      // field's retry logic). Reduces bot-detection reloads triggered by
+      // synchronous burst-fills. 60-180ms random jitter.
+      if (_injectIdx++ > 0) {
+        try { await aynSleep(60 + Math.floor(Math.random() * 120)); } catch (_) {}
+      }
       const { id, value, optionValue, optionLabel, optionValues, optionLabels, skip, _idx, _frame } = v;
       if (skip) { results.push({ id, ok: false, reason: 'skipped' }); continue; }
 
