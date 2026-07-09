@@ -1735,6 +1735,72 @@
         console.warn("[AYN][engine-bridge] scan failed", e);
       }
     };
+    const SNAPSHOT_KEY = `ayn_reload_snapshot:${location.href}`;
+    const buildSnapshot = () => {
+      try {
+        const qs = window.__AYN_QUESTIONS__;
+        if (!Array.isArray(qs) || !qs.length) return null;
+        const answers = [];
+        for (const q of qs) {
+          if (!q || !q.answer) continue;
+          if (q.verified && q.verified.verified === false) continue;
+          try {
+            answers.push({
+              signature: questionSignature(q),
+              value: q.answer.value,
+              optionLabel: q.answer.optionLabel,
+              optionLabels: q.answer.optionLabels
+            });
+          } catch (_) {
+          }
+        }
+        if (!answers.length) return null;
+        return { url: location.href, savedAt: Date.now(), answers };
+      } catch {
+        return null;
+      }
+    };
+    const saveReloadSnapshot = () => {
+      try {
+        const snap = buildSnapshot();
+        if (!snap) return;
+        chrome.storage.local.set({ [SNAPSHOT_KEY]: snap });
+      } catch (_) {
+      }
+    };
+    try {
+      window.addEventListener("beforeunload", saveReloadSnapshot);
+    } catch (_) {
+    }
+    try {
+      setInterval(() => {
+        try {
+          if (document.visibilityState === "visible") saveReloadSnapshot();
+        } catch (_) {
+        }
+      }, 5e3);
+    } catch (_) {
+    }
+    try {
+      chrome.storage.local.get([SNAPSHOT_KEY], (data) => {
+        try {
+          const snap = data && data[SNAPSHOT_KEY];
+          if (snap && snap.url === location.href && Array.isArray(snap.answers) && snap.answers.length && Date.now() - (snap.savedAt || 0) < 12e4) {
+            window.__AYN_RESTORED_ANSWERS__ = snap.answers;
+            console.log("[AYN][engine-bridge] restored", snap.answers.length, "answers from reload snapshot");
+          } else {
+            window.__AYN_RESTORED_ANSWERS__ = null;
+          }
+          try {
+            chrome.storage.local.remove(SNAPSHOT_KEY);
+          } catch (_) {
+          }
+        } catch (_) {
+        }
+      });
+    } catch (_) {
+      window.__AYN_RESTORED_ANSWERS__ = null;
+    }
     setTimeout(runOnce, 0);
     try {
       observeForm(
