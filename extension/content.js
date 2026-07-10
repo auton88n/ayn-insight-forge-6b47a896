@@ -3571,6 +3571,7 @@
           // v2.4 — record verified/unverified outcomes to learning memory (not
           // a page-writer; only persists to the backend memory store).
           try { aynRecordLearnedAnswers(fillValues, injectResult); } catch (_) {}
+          try { if (fs) fs.printReport(); } catch (_) {}
           sendResponse(injectResult);
 
         } finally {
