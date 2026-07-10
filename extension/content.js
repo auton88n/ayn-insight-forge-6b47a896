@@ -3541,7 +3541,7 @@
       (async () => {
         aynShowActivityGlow(true);
         window.__aynFillSessionActive = true;
-        const fs = (window.AYN_FILL_SESSION && window.AYN_FILL_SESSION.current) || null;
+        const fs = window.AYN_FILL_SESSION ? window.AYN_FILL_SESSION.start(location.href) : null;
         let injectResult;
         const fillValues = aynMergeRestoredValues(message.values || []);
         try {
