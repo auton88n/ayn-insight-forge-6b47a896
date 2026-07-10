@@ -1435,7 +1435,7 @@
         } catch (_) {}
       }
       if (!el) { try { el = doc.getElementById(rawId); } catch (_) {} }
-      if (!el) { try { el = doc.querySelector(`[name="${CSS.escape(rawId)}"]`); } catch (_) {} }
+      if (!el) { try { el = doc.querySelector(`[name="${CSS.escape(rawId)}"]`) }; catch (_) {} }
       if (!el) {
         const im = /^f(\d+)$/.exec(rawId);
         if (im) {
@@ -1449,6 +1449,33 @@
       }
       if (!el && rawId.includes('__richedit__:')) {
         el = (window.__AYN_RICH_EDITOR_MAP__ && (window.__AYN_RICH_EDITOR_MAP__.get(id) || window.__AYN_RICH_EDITOR_MAP__.get(rawId))) || null;
+      }
+      // v2.6.0 — fid-desync fallback (audit C1). If the fid stamp was lost
+      // because the element was replaced on re-render, everything above
+      // misses. The engine already computed a richer ElementRef (selector,
+      // xpath) for the same control at scan time; try that before giving up.
+      if (!el) {
+        try {
+          const anchorMatch = /:g(f?\d+[a-z0-9]*)$/.exec(rawId) || /^(f?\d+[a-z0-9]*)$/.exec(rawId);
+          const anchorFid = anchorMatch ? anchorMatch[1] : null;
+          const rich = window.__AYN_QUESTIONS__;
+          if (anchorFid && Array.isArray(rich)) {
+            for (const q of rich) {
+              const ctrl = (q.controls || []).find((c) => c && String(c.fid) === anchorFid);
+              if (!ctrl) continue;
+              if (ctrl.selector) {
+                try { el = doc.querySelector(ctrl.selector); } catch (_) {}
+              }
+              if (!el && ctrl.xpath) {
+                try {
+                  const r = doc.evaluate(ctrl.xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                  if (r.singleNodeValue && r.singleNodeValue.nodeType === 1) el = r.singleNodeValue;
+                } catch (_) {}
+              }
+              if (el) break;
+            }
+          }
+        } catch (_) {}
       }
       return el || null;
     } catch (_) { return null; }
