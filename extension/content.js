@@ -116,26 +116,16 @@
   function aynScheduleRestoredReplay() {
     try {
       [700, 1800, 3600].forEach((delay) => {
-        setTimeout(async () => {
+        setTimeout(() => {
           try {
             if (__aynRestoredReplayDone) return;
-            // v2.5.8 — never write while a real fill session is active; the main
-            // fill already merges restored values via aynMergeRestoredValues, so
-            // this scheduled replay only needs to act when nothing else is filling.
-            if (window.__aynFillSessionActive) {
-              console.log('[AYN][content] restored replay skipped — a fill session is active');
-              return;
-            }
             const restored = aynRestoredSnapshotValues();
             if (!restored.length) return;
-            console.log('[AYN][content] replaying restored reload snapshot:', restored.length, 'answers');
-            const result = await injectValues(restored);
-            const ok = !!(result && Array.isArray(result.results) && result.results.some((r) => r && r.ok));
-            console.log('[AYN][content] restored reload snapshot replay result:', ok ? 'ok' : 'no verified fills', restored.length, 'answers');
-            if (ok) {
-              __aynRestoredReplayDone = true;
-              try { window.__AYN_RESTORED_ANSWERS__ = null; } catch (_) {}
-            }
+            // v2.5.9 — no independent write path here anymore. Restored answers
+            // are available via aynMergeRestoredValues() for the next real
+            // INJECT_VALUES call; this function no longer injects on its own.
+            console.log('[AYN][content] restored snapshot available for next fill:', restored.length, 'answers (not injected independently)');
+            __aynRestoredReplayDone = true;
           } catch (_) {}
         }, delay);
       });
