@@ -1454,8 +1454,7 @@
     } catch (_) { return null; }
   }
 
-  // v2.1.0 — post-inject read-back verification. Independent of
-  // aynSettleReapply (which only handles text reversion). This function
+  // v2.1.0 — post-inject read-back verification. This function
   // inspects the LIVE DOM for every result that was reported ok, and if the
   // control's real state does not reflect what we intended, it flips the
   // result to unverified and attaches a fillDiag record on the injectResult
