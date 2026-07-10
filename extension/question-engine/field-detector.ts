@@ -79,8 +79,28 @@ function walk(
   });
 }
 
+/**
+ * Bot-check providers (reCAPTCHA, hCaptcha, Turnstile) inject their own
+ * internal, non-user-facing elements directly into the page (not just inside
+ * their challenge iframes) to hold verification tokens. These have no real
+ * question or label and must never be treated as a fillable field — confirmed
+ * live: Google's g-recaptcha-response textarea was being detected and then
+ * correctly-but-uselessly skipped as "cannot determine intent" on every run.
+ */
+function isBotCheckInternal(el: Element): boolean {
+  const id = (el.id || "").toLowerCase();
+  const name = ((el as HTMLInputElement).name || "").toLowerCase();
+  const cls = (typeof el.className === "string" ? el.className : "").toLowerCase();
+  const pattern = /(^|[-_])g-recaptcha-response|grecaptcha|h-captcha-response|hcaptcha|cf-turnstile-response|turnstile/;
+  if (pattern.test(id) || pattern.test(name) || pattern.test(cls)) return true;
+  if (el.closest('.grecaptcha-badge,[class*="grecaptcha" i],[class*="h-captcha" i],[class*="cf-turnstile" i]')) return true;
+  return false;
+}
+
 /** Classify an element into a ControlKind, or null if it is not a field. */
 export function controlKindOf(el: Element): ControlKind | null {
+  if (isBotCheckInternal(el)) return null;
+
   const tag = el.tagName.toLowerCase();
 
   if (tag === "textarea") return "textarea";
