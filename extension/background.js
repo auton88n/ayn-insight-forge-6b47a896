@@ -448,40 +448,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ ok: false, error: 'no_fields' }); return;
         }
 
-        // ── v1.9.55 two-lane resolver stage ─────────────────────────
-        // Resolves standard identity/link/logic fields locally from the
-        // cached profile vector + previously-saved answer memory, so only
-        // truly unknown fields go to the AI backend.
+        // v2.6.0 — removed: this used to fuzzy-match fields against stored
+        // profile aliases client-side before ever calling the backend, using
+        // a separate memory store from the one the backend's rule engine and
+        // AI already query. The backend's ext_autofill already answers every
+        // field (rule engine, memory, AI) against the real profile; letting
+        // it see ALL fields, not a pre-filtered subset, is strictly more
+        // reliable, not less, and removes an entire class of "two answers
+        // disagree" bugs.
         let localValues = [];
         let unknownFields = fields;
         let __resolvedSummary = [];
-        try {
-          if (self.AYN_CONST && self.AYN_CONST.RESOLVER_V2 && self.AYN_RESOLVER) {
-            const vector = await aynGetProfileVector();
-            if (vector) {
-              const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
-              const mem = await aynMemGet();
-              const unknown = [];
-              for (const f of fields) {
-                let hit = null;
-                if (!self.AYN_RESOLVER.isSensitive(f)) {
-                  const fp = await self.AYN_RESOLVER.fingerprint(f, host);
-                  const mm = mem[fp];
-                  if (mm && (mm.value || mm.optionLabel) && (!self.AYN_RESOLVER.canReuseMemory || self.AYN_RESOLVER.canReuseMemory(f, mm))) {
-                    hit = { id: f.id, ...(mm.optionLabel ? { optionLabel: mm.optionLabel, optionValue: mm.optionValue } : { value: mm.value }), confidence: 0.9, source: 'memory', reasoning: 'Reused a saved answer.' };
-                  }
-                }
-                if (!hit) {
-                  const m = self.AYN_RESOLVER.matchProfile(f, vector);
-                  if (m) hit = { id: f.id, ...(m.optionLabel ? { optionLabel: m.optionLabel, optionValue: m.optionValue } : { value: m.value }), confidence: m.confidence, source: 'profile', reasoning: 'Filled from your profile.' };
-                }
-                if (hit) { localValues.push(hit); __resolvedSummary.push({ id: f.id, source: hit.source, confidence: hit.confidence }); }
-                else unknown.push(f);
-              }
-              unknownFields = unknown;
-            }
-          }
-        } catch (e) { localValues = []; unknownFields = fields; __resolvedSummary = []; }
 
         const fillData = await callFunction('ext_autofill', {
           fields: unknownFields.map(f => ({
