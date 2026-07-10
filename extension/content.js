@@ -1560,7 +1560,7 @@
   // v2.2.0 — one-shot re-attempt for controls that failed post-verify.
   // Buttongroup / custom-radio / structradio / select get a second click
   // (bg via findButtongroupOption's cached meta); text via page-world bridge.
-  // v2.5.9 — aynRetryUnverified and aynClosedLoopReplan removed. The single
+  // v2.5.9 — deterministic retry and closed-loop AI replan removed. The single
   // writer is injectValues; aynPostInjectVerify reports failures without
   // re-injecting.
 
