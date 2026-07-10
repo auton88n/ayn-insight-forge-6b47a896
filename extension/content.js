@@ -3399,7 +3399,7 @@
     return false;
   }
 
-  // v2.5.9 — aynRunVisionFallback removed. Vision no longer has an independent
+  // v2.5.9 — vision fallback writer removed. Vision no longer has an independent
   // page-writing capability; injectValues is the only writer.
 
   async function aynFuseVisionIntoFields(fields, controlCount) {
