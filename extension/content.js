@@ -116,26 +116,16 @@
   function aynScheduleRestoredReplay() {
     try {
       [700, 1800, 3600].forEach((delay) => {
-        setTimeout(async () => {
+        setTimeout(() => {
           try {
             if (__aynRestoredReplayDone) return;
-            // v2.5.8 — never write while a real fill session is active; the main
-            // fill already merges restored values via aynMergeRestoredValues, so
-            // this scheduled replay only needs to act when nothing else is filling.
-            if (window.__aynFillSessionActive) {
-              console.log('[AYN][content] restored replay skipped — a fill session is active');
-              return;
-            }
             const restored = aynRestoredSnapshotValues();
             if (!restored.length) return;
-            console.log('[AYN][content] replaying restored reload snapshot:', restored.length, 'answers');
-            const result = await injectValues(restored);
-            const ok = !!(result && Array.isArray(result.results) && result.results.some((r) => r && r.ok));
-            console.log('[AYN][content] restored reload snapshot replay result:', ok ? 'ok' : 'no verified fills', restored.length, 'answers');
-            if (ok) {
-              __aynRestoredReplayDone = true;
-              try { window.__AYN_RESTORED_ANSWERS__ = null; } catch (_) {}
-            }
+            // v2.5.9 — no independent write path here anymore. Restored answers
+            // are available via aynMergeRestoredValues() for the next real
+            // INJECT_VALUES call; this function no longer injects on its own.
+            console.log('[AYN][content] restored snapshot available for next fill:', restored.length, 'answers (not injected independently)');
+            __aynRestoredReplayDone = true;
           } catch (_) {}
         }, delay);
       });
@@ -1464,8 +1454,7 @@
     } catch (_) { return null; }
   }
 
-  // v2.1.0 — post-inject read-back verification. Independent of
-  // aynSettleReapply (which only handles text reversion). This function
+  // v2.1.0 — post-inject read-back verification. This function
   // inspects the LIVE DOM for every result that was reported ok, and if the
   // control's real state does not reflect what we intended, it flips the
   // result to unverified and attaches a fillDiag record on the injectResult
@@ -1571,134 +1560,9 @@
   // v2.2.0 — one-shot re-attempt for controls that failed post-verify.
   // Buttongroup / custom-radio / structradio / select get a second click
   // (bg via findButtongroupOption's cached meta); text via page-world bridge.
-  async function aynRetryUnverified(values, injectResult) {
-    try {
-      const ids = (injectResult && injectResult.unverifiedIds) || [];
-      if (!ids.length) return;
-      try { aynRebuildFieldMaps(); } catch (_) {}
-      const valById = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
-      for (const id of ids) {
-        const v = valById.get(id);
-        if (!v) continue;
-        // v2.4.2 — skip if the live DOM already matches what we wanted.
-        const wantNow = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
-        if (wantNow && aynLiveMatchesWanted(id, wantNow, v)) {
-          const r = (injectResult.results || []).find(x => x && x.id === id);
-          if (r) { r.ok = true; r.verified = true; r.reason = 'live-match-skip'; }
-          continue;
-        }
-        const rawId = String(id);
-        try {
-          if (rawId.includes('__buttongroup__:')) {
-            const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
-            const want = v.optionLabel || v.optionValue || v.value;
-            if (meta && want) {
-              const { target } = findButtongroupOption(meta, want);
-              if (target) { try { fireFullClick(target); await aynSleep(120); } catch (_) {} }
-            }
-          } else if (rawId.includes('__radio__:custom:')) {
-            const els = (window.__AYN_CUSTOM_RADIO_MAP__ && window.__AYN_CUSTOM_RADIO_MAP__.get(rawId)) || [];
-            const want = v.optionLabel || v.optionValue || v.value;
-            const target = els.find(e => aynOptionMatches((e.innerText || e.getAttribute('aria-label') || ''), String(want || '')));
-            if (target) { try { fireFullClick(target.closest('label') || target); await aynSleep(120); } catch (_) {} }
-          } else {
-            const el = aynResolveFieldEl(id, v._frame);
-            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && typeof v.value === 'string') {
-              try { await aynFillViaPageWorld(el, v.value); await aynSleep(80); } catch (_) {}
-            }
-          }
-        } catch (_) {}
-      }
-      // Re-run verification to update flags with post-retry state.
-      try { aynPostInjectVerify(values, injectResult); } catch (_) {}
-    } catch (_) {}
-  }
-
-  // v2.4 — closed-loop AI replan.
-  // After aynRetryUnverified() has done deterministic re-clicks, ask the
-  // decision-loop transport for a fresh answer per still-unverified field,
-  // classify why it failed, and re-inject. Bounded by the transport itself
-  // (2 rounds × 8s total). Safe no-op if the engine bridge isn't loaded.
-  async function aynClosedLoopReplan(values, injectResult) {
-    try {
-      const dl = window.__AYN_DECISION_LOOP__;
-      if (!dl || !dl.loop || !dl.classifyFailure) return;
-      const ids = (injectResult && injectResult.unverifiedIds) || [];
-      if (!ids.length) return;
-      const questions = window.__AYN_QUESTIONS__ || [];
-      const qById = new Map(questions.map((q) => [q.id, q]));
-      const valById = new Map((values || []).filter((v) => v && v.id).map((v) => [v.id, v]));
-      const ats = (window.__AYN_ATS_HINT__ || (location.hostname || '').split('.').slice(-2).join('.'));
-      let retried = 0;
-      const failureClasses = [];
-      const resolved = {};
-      try { aynRebuildFieldMaps(); } catch (_) {}
-      // v2.4.2 — drop ids that are actually filled correctly (false unverified
-      // caused by rerender). Never ask AI to replan a field the user can see is right.
-      const trulyUnverified = ids.filter(id => {
-        const v = valById.get(id);
-        const want = v && (v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''));
-        if (want && aynLiveMatchesWanted(id, want, v)) {
-          const r = (injectResult.results || []).find(x => x && x.id === id);
-          if (r) { r.ok = true; r.verified = true; r.reason = 'live-match-skip'; }
-          return false;
-        }
-        return true;
-      });
-      for (const id of trulyUnverified.slice(0, 12)) { // cap fanout per fill
-        const q = qById.get(id);
-        const v = valById.get(id);
-        if (!q) continue;
-        const domOptionsNow = (q.options || []).map((o) => ({ value: o.value, label: o.label }));
-        const originalAnswer = v ? {
-          value: v.value,
-          optionLabel: v.optionLabel,
-          optionValue: v.optionValue,
-          optionLabels: v.optionLabels,
-        } : (q.answer || null);
-        const qWithAnswer = { ...q, answer: originalAnswer };
-        let failure;
-        try { failure = dl.classifyFailure(qWithAnswer, domOptionsNow, originalAnswer, false); }
-        catch { failure = 'unknown'; }
-        failureClasses.push(failure);
-        let outcome;
-        try {
-          outcome = await dl.loop.replan(qWithAnswer, {
-            options: domOptionsNow,
-            siblings: [],
-            ats,
-            url: location.href,
-          }, failure);
-        } catch { continue; }
-        if (!outcome || !outcome.answer) continue;
-        retried++;
-        // Convert back to legacy value shape and re-inject just this field.
-        const newVal = {
-          id,
-          _frame: v && v._frame,
-          value: outcome.answer.value ?? (v && v.value),
-          optionLabel: outcome.answer.optionLabel ?? (v && v.optionLabel),
-          optionValue: outcome.answer.optionValue ?? (v && v.optionValue),
-          optionLabels: outcome.answer.optionLabels ?? (v && v.optionLabels),
-        };
-        try {
-          const singleRes = await injectValues([newVal]);
-          const okRow = (singleRes.results || []).find((r) => r && r.id === id && r.ok);
-          if (okRow) {
-            resolved[id] = 'decision_loop';
-            // Update the aggregate injectResult so downstream verification sees success.
-            const idx = (injectResult.results || []).findIndex((r) => r && r.id === id);
-            if (idx >= 0) injectResult.results[idx] = { ...injectResult.results[idx], ...okRow };
-          }
-        } catch (_) {}
-      }
-      // Refresh verification after the replan burst.
-      try { aynPostInjectVerify(values, injectResult); } catch (_) {}
-      injectResult.retry_count = (injectResult.retry_count || 0) + retried;
-      injectResult.failure_classes = [ ...(injectResult.failure_classes || []), ...failureClasses ];
-      injectResult.resolved_by = { ...(injectResult.resolved_by || {}), ...resolved };
-    } catch (_) { /* never break the fill */ }
-  }
+  // v2.5.9 — deterministic retry and closed-loop AI replan removed. The single
+  // writer is injectValues; aynPostInjectVerify reports failures without
+  // re-injecting.
 
   // v2.4 — persist verified answers to learning memory (per user).
   function aynRecordLearnedAnswers(values, injectResult) {
@@ -1731,110 +1595,8 @@
 
 
 
-  async function aynSettleReapply(values, injectResult) {
-    try {
-      const byId = new Map((values || []).filter(v => v && v.id && typeof v.value === 'string' && v.value.trim()).map(v => [v.id, v.value]));
-      if (!byId.size) return;
-      const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-      const digits = (s) => String(s || '').replace(/\D+/g, '');
-      // v1.9.56 — 3 verification passes at 250 / 900 / 1800 ms handles Workday &
-      // slow-hydrating React forms that wipe values after our first reapply.
-      const DELAYS = [250, 900, 1800];
-      for (let pass = 0; pass < DELAYS.length; pass++) {
-        await aynSleep(DELAYS[pass]);
-        let reverted = 0;
-        for (const res of (injectResult.results || [])) {
-          if (!res || !res.ok || !byId.has(res.id)) continue;
-          const want = byId.get(res.id);
-          const el = aynResolveFieldEl(res.id, res._frame);
-          if (!el) continue;
-          const tag = (el.tagName || '').toUpperCase();
-          if (tag !== 'INPUT' && tag !== 'TEXTAREA') continue;
-          const cur = el.value || '';
-          const wantDigits = digits(want);
-          const stillThere = norm(cur) === norm(want) || (wantDigits.length >= 7 && digits(cur) === wantDigits) || (norm(want).length >= 6 && norm(cur).includes(norm(want)));
-          if (stillThere) continue;
-          reverted++;
-          try {
-            const r2 = await aynFillTextbox(el, want);
-            res.reapplied = true;
-            res.verified = !!(r2 && r2.verified);
-            if (!r2 || !r2.ok) res.reason = 'reverted after render, reapply failed';
-          } catch (_) { res.reason = 'reverted after render, reapply threw'; }
-        }
-        if (!reverted) break;
-      }
-    } catch (_) { /* never break the fill */ }
-  }
-
-  async function aynStabilizeAfterRender(values, injectResult) {
-    try {
-      if (!injectResult || !Array.isArray(injectResult.results)) return;
-      const byId = new Map((values || []).filter(v => v && v.id).map(v => [v.id, v]));
-      const delays = [350, 900, 1700, 2600];
-      for (const delay of delays) {
-        await aynSleep(delay);
-        let changed = false;
-        try { aynRegisterEngineGroups(window.__AYN_QUESTIONS__ || []); } catch (_) {}
-        for (const res of injectResult.results) {
-          if (!res || res.ok !== true || !res.id) continue;
-          const v = byId.get(res.id);
-          if (!v) continue;
-          const want = v.optionLabel || v.optionValue || v.value || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : '');
-          if (!want) continue;
-          const rawId = String(res.id);
-          // v2.4.2 — if the live DOM already shows the wanted value, don't
-          // touch it. Blocks the "reapply overwrites correct answer" bug
-          // when a rerender temporarily hides/replaces the target node.
-          if (aynLiveMatchesWanted(res.id, want, v)) {
-            res.verified = true; res.ok = true;
-            continue;
-          }
-          try {
-            if (rawId.includes('__buttongroup__:')) {
-              const meta = window.__AYN_BG_MAP__ && window.__AYN_BG_MAP__.get(rawId);
-              const found = meta ? findButtongroupOption(meta, want) : { target: null, scope: null };
-              if (!found.target || !aynChoiceMatchesWanted(found.scope, found.target, want)) {
-                res.verified = false;
-                res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-choice-mismatch';
-                if (found.target) {
-                  const ok = await clickOptionButton(found.target, meta && meta.qLabel, want);
-                  if (ok) { res.verified = true; res.ok = true; res.reason = 'rerender-reapplied'; }
-                }
-                changed = true;
-              }
-            } else if (rawId.includes('__structradio__:')) {
-              const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
-              const container = entry && entry.container;
-              const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')).filter(r => !r.disabled) : (entry && entry.radios) || [];
-              const checked = live.find(r => r.checked);
-              const lbl = checked ? ((checked.closest('label') || checked.parentElement)?.innerText || checked.value || '') : '';
-              if (!checked || !aynOptionMatches(lbl, want)) { res.verified = false; res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-radio-mismatch'; changed = true; }
-            } else {
-              const el = aynResolveFieldEl(res.id, v._frame);
-              if (el && el.type !== 'radio' && el.type !== 'checkbox') {
-                const cur = (el.isContentEditable ? (el.innerText || el.textContent || '') : (el.value || '')).trim();
-                const ok = norm(cur) === norm(want) || (norm(want).length >= 6 && (norm(cur).includes(norm(want)) || norm(want).includes(norm(cur))));
-                if (!ok) {
-                  const r2 = await aynFillTextbox(el, String(want));
-                  res.reapplied = true;
-                  res.verified = !!(r2 && r2.verified);
-                  if (!res.verified) res.reason = (res.reason ? res.reason + '; ' : '') + 'rerender-text-mismatch';
-                  changed = true;
-                }
-              }
-            }
-          } catch (_) {}
-        }
-        try { aynPostInjectVerify(values, injectResult); } catch (_) {}
-        if (!changed) break;
-      }
-      try {
-        injectResult.filled = injectResult.results.filter(r => r && r.ok === true && r.verified !== false).length;
-        injectResult.total = injectResult.results.length;
-      } catch (_) {}
-    } catch (_) {}
-  }
+  // v2.5.9 — post-fill settle/stabilize passes removed. Post-fill page-writing
+  // is gone; verification is report-only.
 
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
@@ -3637,130 +3399,8 @@
     return false;
   }
 
-  async function aynRunVisionFallback(injectResult) {
-    const results = (injectResult && injectResult.results) || [];
-    const vdiag = { enabled: AYN_VISION_ENABLED, scanned: 0, unresolved: 0, candQ: 0, candOpt: 0, sent: false, resp: 'none', captured: '', captureError: '', backendError: '', decisions: 0, clicks: 0 };
-    const pushDiag = () => {
-      try {
-        // v1.9.67 — diagnostics ride as metadata, never as a fake failed result row.
-        if (injectResult) { injectResult.visionDiag = vdiag; injectResult.results = results; }
-      } catch (_) {}
-    };
-    try {
-      if (!AYN_VISION_ENABLED) return;
-      let fields;
-      try { fields = scanFormFieldsHybrid(); } catch { fields = []; }
-      if (!Array.isArray(fields) || !fields.length) return;
-      vdiag.scanned = fields.length;
-
-      const resolvedIds = new Set(results.filter(r => r && (r.ok || r.verified)).map(r => r.id));
-      const unresolved = fields.filter(f => {
-        if (!f) return false;
-        const isOption = f.kind === 'radio' || f.kind === 'checkbox' || f.kind === 'buttongroup'
-          || (!f.kind && typeof f.label === 'string' && f.label.length < 48 && AYN_OPTION_WORD_RE.test(f.label));
-        if (!isOption) return false;
-        return !resolvedIds.has(f.id);
-      });
-      vdiag.unresolved = unresolved.length;
-      if (unresolved.length === 0) return;
-
-      const cand = aynCollectVisionCandidates(unresolved);
-      vdiag.candQ = cand.questions.length;
-      vdiag.candOpt = cand.options.length;
-      if (!cand.questions.length && !cand.options.length) return;
-      const candidates = { questions: cand.questions, options: cand.options };
-
-      let job;
-      try { job = extractJobText(); } catch { job = {}; }
-
-      let __img = '';
-      try {
-        const __url = chrome.runtime.getURL('vendor/html2canvas.esm.js');
-        const __mod = await import(__url);
-        const __h2c = __mod.default || __mod.html2canvas || (typeof html2canvas !== 'undefined' ? html2canvas : null);
-        if (__h2c) {
-          const __canvas = await __h2c(document.body, {
-            scale: 0.5, useCORS: true, allowTaint: false, logging: false,
-            backgroundColor: '#ffffff', windowWidth: document.documentElement.clientWidth,
-            height: Math.min(document.body.scrollHeight, 4000),
-            ignoreElements: (node) => node && node.id === 'ayn-activity-glow',
-          });
-          __img = __canvas.toDataURL('image/jpeg', 0.7);
-          vdiag.captured = 'html2canvas';
-        } else {
-          vdiag.captureError = 'html2canvas not loaded';
-        }
-      } catch (e) {
-        vdiag.captureError = 'html2canvas: ' + String((e && e.message) || 'render failed');
-      }
-
-      let vres;
-      try {
-        vres = await new Promise((resolve) => {
-          try {
-            chrome.runtime.sendMessage({
-              type: 'AYN_VISION_FILL',
-              image: __img,
-              candidates,
-              url: location.href,
-              jobTitle: job?.title || '',
-              company: job?.company || '',
-            }, (r) => { void chrome.runtime.lastError; resolve(r); });
-          } catch { resolve(null); }
-        });
-      } catch { vres = null; }
-
-
-      vdiag.sent = true;
-      vdiag.resp = vres ? 'got' : 'null';
-      if (vres && vres.diag) {
-        vdiag.captured = String(vres.diag.captured);
-        vdiag.captureError = vres.diag.captureError || '';
-        vdiag.backendError = vres.diag.backendError || '';
-      }
-      const decisions = (vres && Array.isArray(vres.decisions)) ? vres.decisions : [];
-      vdiag.decisions = decisions.length;
-      if (!decisions.length) return;
-
-      for (const d of decisions) {
-        const chosen = d && d.chosenOptionText;
-        if (!chosen) continue;
-        vdiag.clicks += 1;
-        let landed = false;
-        try {
-          const el = aynFindClickableByText(chosen);
-          if (el) {
-            try { el.scrollIntoView({ block: 'center' }); } catch {}
-            const target = (el.closest && el.closest('label')) || el;
-            try { target.click(); } catch {}
-            await new Promise(r => setTimeout(r, 60));
-            if (!aynLooksSelected(target) && !aynLooksSelected(el)) {
-              try { fireFullClick(target); } catch {}
-              await new Promise(r => setTimeout(r, 60));
-            }
-            landed = aynLooksSelected(target) || aynLooksSelected(el);
-          }
-        } catch (_) { landed = false; }
-
-        results.push({
-          id: 'vision:' + chosen,
-          ok: !!landed,
-          verified: !!landed,
-          reason: landed ? 'vision-click' : 'vision-click-unverified',
-        });
-      }
-      if (injectResult) {
-        injectResult.results = results;
-        // v1.9.52 — recompute using unified rule
-        injectResult.total = results.length;
-        injectResult.filled = results.filter(r => r && r.ok === true).length;
-      }
-    } catch (_) {
-      /* swallow */
-    } finally {
-      pushDiag();
-    }
-  }
+  // v2.5.9 — vision fallback writer removed. Vision no longer has an independent
+  // page-writing capability; injectValues is the only writer.
 
   async function aynFuseVisionIntoFields(fields, controlCount) {
     try {
@@ -3900,34 +3540,42 @@
     if (message.type === 'INJECT_VALUES') {
       (async () => {
         aynShowActivityGlow(true);
-        window.__aynFillSessionActive = true; // v2.5.8 — real fill session in progress
+        window.__aynFillSessionActive = true;
+        const fs = (window.AYN_FILL_SESSION && window.AYN_FILL_SESSION.current) || null;
         let injectResult;
         const fillValues = aynMergeRestoredValues(message.values || []);
         try {
+          const t0 = Date.now();
           try {
             injectResult = await injectValues(fillValues);
           } catch (e) {
             sendResponse({ filled: 0, total: 0, results: [], error: e.message });
             return;
           }
-          try { await aynSettleReapply(fillValues, injectResult); } catch (_) {}
+          if (fs) {
+            try {
+              (injectResult.results || []).forEach((r) => fs.recordWrite(r && r.id, r && r.ok, 'inject', r && r.reason));
+              fs.recordStage('execution', { ok: (injectResult.results || []).every((r) => r && r.ok !== false), count: (injectResult.results || []).length, ms: Date.now() - t0 });
+            } catch (_) {}
+          }
+          // v2.5.9 — single verification pass. It reports what failed; it does
+          // NOT re-click, re-type, or otherwise touch the page. Nothing after
+          // this point writes to the form.
           try { aynPostInjectVerify(fillValues, injectResult); } catch (_) {}
-          try { await aynRetryUnverified(fillValues, injectResult); } catch (_) {}
-          // v2.4 — closed-loop AI replan for anything still unverified.
-          try { await aynClosedLoopReplan(fillValues, injectResult); } catch (_) {}
-          try {
-            if (AYN_VISION_ENABLED) {
-              await aynRunVisionFallback(injectResult);
-            }
-          } catch (_) { /* swallow — never break normal fill */ }
-          try { await aynStabilizeAfterRender(fillValues, injectResult); } catch (_) {}
-          // v2.4 — record verified/unverified outcomes to learning memory.
+          if (fs) {
+            try {
+              (injectResult.results || []).forEach((r) => fs.recordVerification(r && r.id, r && r.verified !== false, 'postverify', r && r.reason));
+              fs.recordStage('verification', { ok: !(injectResult.unverifiedIds && injectResult.unverifiedIds.length), count: injectResult.filled || 0, note: injectResult.unverifiedIds && injectResult.unverifiedIds.length ? (injectResult.unverifiedIds.length + ' unverified') : null });
+            } catch (_) {}
+          }
+          // v2.4 — record verified/unverified outcomes to learning memory (not
+          // a page-writer; only persists to the backend memory store).
           try { aynRecordLearnedAnswers(fillValues, injectResult); } catch (_) {}
           sendResponse(injectResult);
 
         } finally {
           aynShowActivityGlow(false);
-          window.__aynFillSessionActive = false; // v2.5.8 — session ended
+          window.__aynFillSessionActive = false;
         }
       })();
       return true;
