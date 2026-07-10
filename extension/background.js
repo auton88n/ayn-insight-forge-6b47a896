@@ -538,7 +538,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             (s2?.fields || []).forEach(f => {
               const aggId = AGG(fr.frameId, f.id);
               const wasOk = mergedResults.some(r => r && r.id === aggId && r.ok === true && r.verified !== false);
-              if ((!resolvedIds.has(aggId) || !wasOk) && !f.currentValue) {
+              const wasExplicitlySkipped = (fillData?.skipped || []).some(s => s && s.id === aggId);
+              // v2.6.0 — a field the backend explicitly skipped (no matching
+              // profile data, ambiguous, etc.) is a deliberate decline, not a
+              // detection gap. Only resend fields that were never seen at all
+              // in pass 1 (genuinely revealed late) or that failed injection
+              // despite having an answer — never re-ask a field the AI or
+              // rule engine already declined on purpose.
+              if (((!resolvedIds.has(aggId) && !wasExplicitlySkipped) || (resolvedIds.has(aggId) && !wasOk)) && !f.currentValue) {
                 frameOfField.set(aggId, fr.frameId);
                 newFieldsAll.push({ ...f, id: aggId });
               }
