@@ -3541,34 +3541,42 @@
     if (message.type === 'INJECT_VALUES') {
       (async () => {
         aynShowActivityGlow(true);
-        window.__aynFillSessionActive = true; // v2.5.8 — real fill session in progress
+        window.__aynFillSessionActive = true;
+        const fs = (window.AYN_FILL_SESSION && window.AYN_FILL_SESSION.current) || null;
         let injectResult;
         const fillValues = aynMergeRestoredValues(message.values || []);
         try {
+          const t0 = Date.now();
           try {
             injectResult = await injectValues(fillValues);
           } catch (e) {
             sendResponse({ filled: 0, total: 0, results: [], error: e.message });
             return;
           }
-          try { await aynSettleReapply(fillValues, injectResult); } catch (_) {}
+          if (fs) {
+            try {
+              (injectResult.results || []).forEach((r) => fs.recordWrite(r && r.id, r && r.ok, 'inject', r && r.reason));
+              fs.recordStage('execution', { ok: (injectResult.results || []).every((r) => r && r.ok !== false), count: (injectResult.results || []).length, ms: Date.now() - t0 });
+            } catch (_) {}
+          }
+          // v2.5.9 — single verification pass. It reports what failed; it does
+          // NOT re-click, re-type, or otherwise touch the page. Nothing after
+          // this point writes to the form.
           try { aynPostInjectVerify(fillValues, injectResult); } catch (_) {}
-          try { await aynRetryUnverified(fillValues, injectResult); } catch (_) {}
-          // v2.4 — closed-loop AI replan for anything still unverified.
-          try { await aynClosedLoopReplan(fillValues, injectResult); } catch (_) {}
-          try {
-            if (AYN_VISION_ENABLED) {
-              await aynRunVisionFallback(injectResult);
-            }
-          } catch (_) { /* swallow — never break normal fill */ }
-          try { await aynStabilizeAfterRender(fillValues, injectResult); } catch (_) {}
-          // v2.4 — record verified/unverified outcomes to learning memory.
+          if (fs) {
+            try {
+              (injectResult.results || []).forEach((r) => fs.recordVerification(r && r.id, r && r.verified !== false, 'postverify', r && r.reason));
+              fs.recordStage('verification', { ok: !(injectResult.unverifiedIds && injectResult.unverifiedIds.length), count: injectResult.filled || 0, note: injectResult.unverifiedIds && injectResult.unverifiedIds.length ? (injectResult.unverifiedIds.length + ' unverified') : null });
+            } catch (_) {}
+          }
+          // v2.4 — record verified/unverified outcomes to learning memory (not
+          // a page-writer; only persists to the backend memory store).
           try { aynRecordLearnedAnswers(fillValues, injectResult); } catch (_) {}
           sendResponse(injectResult);
 
         } finally {
           aynShowActivityGlow(false);
-          window.__aynFillSessionActive = false; // v2.5.8 — session ended
+          window.__aynFillSessionActive = false;
         }
       })();
       return true;
