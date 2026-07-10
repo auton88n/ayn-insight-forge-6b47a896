@@ -499,9 +499,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         };
         const aiValues = (fillData.values || [])
           .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
-          .filter(v => !isUnsafeAnswer(v))
           .map(v => decorate({ ...v, source: v.source || 'ai' }));
-        const values = [...localValues.filter(v => !isUnsafeAnswer(v)).map(decorate), ...aiValues];
+        const values = [...localValues.map(decorate), ...aiValues];
         if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
 
         // Group values by owning frame; translate ids back to frame-local for injection
