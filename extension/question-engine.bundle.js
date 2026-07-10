@@ -527,7 +527,17 @@ var AYNQuestionEngine = (() => {
       }
     });
   }
+  function isBotCheckInternal(el) {
+    const id = (el.id || "").toLowerCase();
+    const name = (el.name || "").toLowerCase();
+    const cls = (typeof el.className === "string" ? el.className : "").toLowerCase();
+    const pattern = /(^|[-_])g-recaptcha-response|grecaptcha|h-captcha-response|hcaptcha|cf-turnstile-response|turnstile/;
+    if (pattern.test(id) || pattern.test(name) || pattern.test(cls)) return true;
+    if (el.closest('.grecaptcha-badge,[class*="grecaptcha" i],[class*="h-captcha" i],[class*="cf-turnstile" i]')) return true;
+    return false;
+  }
   function controlKindOf(el) {
+    if (isBotCheckInternal(el)) return null;
     const tag = el.tagName.toLowerCase();
     if (tag === "textarea") return "textarea";
     if (tag === "select") {
