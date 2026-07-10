@@ -482,23 +482,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const runId = fillData?.run_id || null;
 
         const fieldMeta = new Map(fields.map(f => [f.id, f]));
-        const isUnsafeAnswer = (v) => {
-          const f = fieldMeta.get(v.id) || {};
-          const blob = [f.label, f.group, f.name, f.section, f.placeholder].filter(Boolean).join(' ');
-          const val = String(v.value || v.optionLabel || v.optionValue || '').trim();
-          if (/linkedin/i.test(blob)) {
-            return !/^https:\/\/(www\.)?linkedin\.com\/in\/[a-z0-9][a-z0-9\-_%]{2,}\/?$/i.test(val);
-          }
-          if ((v.optionLabel || v.optionValue) && Array.isArray(f.options) && f.options.length) {
-            const want = String(v.optionLabel || v.optionValue || '').toLowerCase().replace(/\s+/g, ' ').trim();
-            const hit = f.options.some(o => {
-              const opt = String(o.label || o.value || '').toLowerCase().replace(/\s+/g, ' ').trim();
-              return opt === want || (opt && want && (opt.includes(want) || want.includes(opt)));
-            });
-            if (!hit) return true;
-          }
-          return false;
-        };
         const decorate = v => {
           const f = fieldMeta.get(v.id) || {};
           return {
