@@ -1595,8 +1595,8 @@
 
 
 
-  // v2.5.9 — aynSettleReapply and aynStabilizeAfterRender removed. Post-fill
-  // page-writing passes are gone; verification is report-only.
+  // v2.5.9 — post-fill settle/stabilize passes removed. Post-fill page-writing
+  // is gone; verification is report-only.
 
   function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 
