@@ -74,7 +74,7 @@
         "https://*.hcaptcha.com/*",
         "https://challenges.cloudflare.com/*"
       ],
-      "js": ["constants.js", "question-engine.bundle.js", "content.bundle.js", "filler.js", "dom.js", "content.js"],
+      "js": ["constants.js", "fill-session.js", "question-engine.bundle.js", "content.bundle.js", "filler.js", "dom.js", "content.js"],
       "run_at": "document_idle",
       "all_frames": true
     },
