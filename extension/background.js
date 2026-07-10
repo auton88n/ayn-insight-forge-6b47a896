@@ -617,33 +617,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const resultMap = {};
         (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
 
-        // v1.9.55 — write answer memory for non-sensitive AI/inferred fills
-        try {
-          const host = (() => { try { return new URL(topScan.url || '').host; } catch { return ''; } })();
-          const mem = await aynMemGet();
-          for (const r of mergedResults) {
-            if (!r || !r.ok || r.verified === false) continue;
-            const v = values.find(x => x.id === r.id);
-            const f = fields.find(x => x.id === r.id);
-            if (!v || !f) continue;
-            if (self.AYN_RESOLVER && (self.AYN_RESOLVER.isSensitive(f) || (self.AYN_RESOLVER.isMemoryBlocked && self.AYN_RESOLVER.isMemoryBlocked(f)))) continue;
-            if (!(v.value || v.optionLabel)) continue;
-            const fp = self.AYN_RESOLVER ? await self.AYN_RESOLVER.fingerprint(f, host) : null;
-            if (!fp) continue;
-            const prev = mem[fp] || { hits: 0 };
-            mem[fp] = {
-              label: f.label,
-              kind: f.kind || f.type || '',
-              value: v.value || '',
-              optionLabel: v.optionLabel || '',
-              optionValue: v.optionValue || '',
-              source: v.source || 'ai',
-              hits: (prev.hits || 0) + 1,
-              last_used_at: new Date().toISOString(),
-            };
-          }
-          await aynMemSet(mem);
-        } catch (_) {}
+        // v2.6.0 — removed: duplicate client-side memory store (ayn_answers). The backend's own memory/learning system is now the single source of truth.
 
         const details = values.map(v => {
           const f = fields.find(x => x.id === v.id);
