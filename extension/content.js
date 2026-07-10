@@ -119,6 +119,13 @@
         setTimeout(async () => {
           try {
             if (__aynRestoredReplayDone) return;
+            // v2.5.8 — never write while a real fill session is active; the main
+            // fill already merges restored values via aynMergeRestoredValues, so
+            // this scheduled replay only needs to act when nothing else is filling.
+            if (window.__aynFillSessionActive) {
+              console.log('[AYN][content] restored replay skipped — a fill session is active');
+              return;
+            }
             const restored = aynRestoredSnapshotValues();
             if (!restored.length) return;
             console.log('[AYN][content] replaying restored reload snapshot:', restored.length, 'answers');
@@ -3893,6 +3900,7 @@
     if (message.type === 'INJECT_VALUES') {
       (async () => {
         aynShowActivityGlow(true);
+        window.__aynFillSessionActive = true; // v2.5.8 — real fill session in progress
         let injectResult;
         const fillValues = aynMergeRestoredValues(message.values || []);
         try {
@@ -3919,6 +3927,7 @@
 
         } finally {
           aynShowActivityGlow(false);
+          window.__aynFillSessionActive = false; // v2.5.8 — session ended
         }
       })();
       return true;
