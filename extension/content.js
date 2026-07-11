@@ -35,6 +35,15 @@
     return String((v && v._frame) || '') + '::' + String((v && v.id) || '');
   }
 
+  // v2.6.1 — normalize a label+kind+group into a stable-ish signature so a
+  // restored answer can be re-matched against a FRESH scan's fields even
+  // though the DOM-stamped id changed. Not as strong as a real hash, but the
+  // scanner already resolves label/kind/group deterministically per field.
+  function aynFieldSignature(label, kind, group) {
+    const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return norm(label) + '::' + norm(kind) + '::' + norm(group);
+  }
+
   function aynSnapshotValue(v) {
     try {
       if (!v || !v.id || v.skip) return null;
@@ -49,6 +58,9 @@
         optionValues: v.optionValues,
         optionLabels: v.optionLabels,
         source: v.source || 'injected-values',
+        // v2.6.1 — content signature for re-matching after a re-render/reload
+        // mints new ids for the same visual field.
+        sig: aynFieldSignature(v.label, v.kind || v.type, v.group),
       };
     } catch (_) { return null; }
   }
@@ -96,17 +108,51 @@
     } catch (_) { return []; }
   }
 
+  // v2.6.1 — re-anchor restored answers to the CURRENT scan's live ids by
+  // content signature (label+kind+group) instead of trusting the id saved in
+  // the snapshot, which belongs to a prior scan generation and will not
+  // resolve to anything on a fresh page load. Any restored answer that can't
+  // be matched to a current field is dropped rather than injected against a
+  // dead reference (which only produced silent "not found" failures before).
+  function aynCurrentFieldsForSignatureMatch() {
+    try {
+      const legacy = window.__AYN_QUESTIONS_LEGACY__;
+      if (Array.isArray(legacy) && legacy.length) return legacy;
+    } catch (_) {}
+    return [];
+  }
+
   function aynMergeRestoredValues(values) {
     try {
       const base = Array.isArray(values) ? values : [];
       const restored = aynRestoredSnapshotValues();
       if (!restored.length) return base;
+
+      const currentFields = aynCurrentFieldsForSignatureMatch();
+      const sigIndex = new Map();
+      for (const f of currentFields) {
+        const sig = aynFieldSignature(f.label, f.kind || f.type, f.group);
+        if (sig && sig !== '::' ) sigIndex.set(sig, f);
+      }
+
+      const reanchored = [];
+      let dropped = 0;
+      for (const v of restored) {
+        if (!v.sig) { dropped++; continue; } // pre-v2.6.1 snapshot, no signature to trust
+        const match = sigIndex.get(v.sig);
+        if (!match) { dropped++; continue; } // field genuinely not on this page anymore
+        reanchored.push({ ...v, id: match.id, _frame: match._frame || '' });
+      }
+      if (dropped) {
+        console.log('[AYN][content] restored snapshot: dropped', dropped, 'of', restored.length, 'answers with no matching current field');
+      }
+
       const byId = new Map();
-      for (const v of restored) byId.set(aynSnapshotValueKey(v), v);
+      for (const v of reanchored) byId.set(aynSnapshotValueKey(v), v);
       for (const v of base) byId.set(aynSnapshotValueKey(v), v);
       const merged = Array.from(byId.values());
       if (merged.length !== base.length) {
-        console.log('[AYN][content] merged restored reload snapshot values:', restored.length, 'restored,', merged.length, 'total');
+        console.log('[AYN][content] merged restored reload snapshot values:', reanchored.length, 're-anchored of', restored.length, 'restored,', merged.length, 'total');
       }
       return merged;
     } catch (_) { return Array.isArray(values) ? values : []; }
