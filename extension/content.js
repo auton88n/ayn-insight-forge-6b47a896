@@ -58,9 +58,12 @@
         optionValues: v.optionValues,
         optionLabels: v.optionLabels,
         source: v.source || 'injected-values',
-        // v2.6.1 — content signature for re-matching after a re-render/reload
-        // mints new ids for the same visual field.
-        sig: aynFieldSignature(v.label, v.kind || v.type, v.group),
+        // v2.6.1a — preserve an existing sig (from a restored record pulled
+        // out of storage, which has sig but not label/kind/group) rather than
+        // recomputing it from fields that don't exist there — recomputing
+        // would silently produce an empty signature and overwrite the
+        // correct one, making every restored answer fail to match anything.
+        sig: v.sig || aynFieldSignature(v.label, v.kind || v.type, v.group),
       };
     } catch (_) { return null; }
   }
