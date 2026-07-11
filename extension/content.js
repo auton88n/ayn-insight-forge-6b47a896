@@ -35,6 +35,15 @@
     return String((v && v._frame) || '') + '::' + String((v && v.id) || '');
   }
 
+  // v2.6.1 — normalize a label+kind+group into a stable-ish signature so a
+  // restored answer can be re-matched against a FRESH scan's fields even
+  // though the DOM-stamped id changed. Not as strong as a real hash, but the
+  // scanner already resolves label/kind/group deterministically per field.
+  function aynFieldSignature(label, kind, group) {
+    const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return norm(label) + '::' + norm(kind) + '::' + norm(group);
+  }
+
   function aynSnapshotValue(v) {
     try {
       if (!v || !v.id || v.skip) return null;
@@ -49,6 +58,9 @@
         optionValues: v.optionValues,
         optionLabels: v.optionLabels,
         source: v.source || 'injected-values',
+        // v2.6.1 — content signature for re-matching after a re-render/reload
+        // mints new ids for the same visual field.
+        sig: aynFieldSignature(v.label, v.kind || v.type, v.group),
       };
     } catch (_) { return null; }
   }
