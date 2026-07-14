@@ -1631,6 +1631,23 @@
             }
           }
         } catch (_) { verified = null; }
+        // v2.6.2 — before trusting a failure, get a second opinion that does
+        // not depend on stored refs or fid stamps: rebuild maps once (cheap),
+        // then re-locate the question in the live DOM by its label text. A
+        // mid-fill partial rebuild detaches the nodes the checks above read
+        // from, so they report "empty" even when the answer stuck.
+        if (verified === false) {
+          try {
+            if (!__rebuiltOnce) { __rebuiltOnce = true; aynRebuildFieldMaps(); }
+            const row = rowById.get(res.id);
+            const live = aynReadLiveAnswerByContent(row, want);
+            if (live === true) {
+              verified = true;
+              res.reanchorVerified = true;
+              try { console.log('[AYN][verify] re-anchor by content confirmed answer stuck:', res.id); } catch (_) {}
+            }
+          } catch (_) {}
+        }
         if (verified === false) {
           res.verified = false;
           res.reason = (res.reason ? res.reason + '; ' : '') + 'postverify-failed';
