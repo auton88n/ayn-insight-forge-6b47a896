@@ -1700,6 +1700,98 @@
     } catch (_) {}
   }
 
+  // ── v2.6.2: mid-fill content re-anchoring ──
+  // Same idea as the v2.6.1 reload-snapshot signature match, applied to the
+  // moment right after a write: when a partial rebuild (no navigation) has
+  // replaced the subtree we just filled, every stored ref and fid stamp is
+  // dead. Instead of trusting the internal tag, re-locate the question in the
+  // LIVE DOM by what it says (label text) and read/write against that.
+
+  function aynLabelForValueRow(v) {
+    try {
+      if (!v) return '';
+      let label = String(v.label || v.question || '').trim();
+      if (label) return label;
+      const id = v.id;
+      const cache = window.__AYN_FIELD_LABELS__;
+      if (cache && cache.get) label = String(cache.get(id) || '').trim();
+      if (label) return label;
+      const rich = window.__AYN_QUESTIONS__;
+      if (Array.isArray(rich)) {
+        const q = rich.find((q) => q && q.id === id);
+        if (q && q.label) return String(q.label).trim();
+      }
+      const legacy = window.__AYN_QUESTIONS_LEGACY__;
+      if (Array.isArray(legacy)) {
+        const f = legacy.find((f) => f && f.id === id);
+        if (f && f.label) return String(f.label).trim();
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  // Locate the live question scope by label text: find the smallest visible
+  // element whose text matches the label, then walk up until the ancestor
+  // contains at least one form control. Mirrors findButtongroupOption's
+  // locator but generalized to any control kind.
+  function aynFindQuestionScopeByLabel(labelText) {
+    try {
+      const qKey = norm(labelText).slice(0, 60);
+      if (!qKey || qKey.length < 4) return null;
+      let labelEl = null;
+      const candidates = document.querySelectorAll('label, legend, p, h2, h3, h4, strong, div, span');
+      for (const c of candidates) {
+        const t = norm(safeText(c));
+        if (!t) continue;
+        if (t.length >= qKey.length + 220) continue; // question line, not a wrapper
+        if (t === qKey || t.includes(qKey)) { labelEl = c; break; }
+      }
+      if (!labelEl) return null;
+      const CTRL_SEL = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]), textarea, select, [role="radio"], [role="checkbox"], [role="combobox"], [role="textbox"], [contenteditable="true"], [contenteditable=""], button';
+      let node = labelEl;
+      for (let i = 0; i < 7 && node; i++, node = node.parentElement) {
+        try { if (node.querySelector && node.querySelector(CTRL_SEL)) return { labelEl, scope: node }; } catch (_) {}
+      }
+      return { labelEl, scope: labelEl.parentElement || null };
+    } catch (_) { return null; }
+  }
+
+  // Read the LIVE answer state for a value row by content only. Returns
+  // true (live DOM shows the wanted answer), false (located but not showing
+  // it / empty), or null (question not locatable by content — no opinion).
+  function aynReadLiveAnswerByContent(v, want) {
+    try {
+      const label = aynLabelForValueRow(v);
+      const found = aynFindQuestionScopeByLabel(label);
+      if (!found || !found.scope) return null;
+      const scope = found.scope;
+      const wantStr = String(want || '').trim();
+      if (!wantStr) return null;
+      // choice-style: any selected option in scope matching want
+      const sel = aynSelectedLabelInScope(scope);
+      if (sel && aynOptionMatches(sel, wantStr)) return true;
+      const checkedInput = scope.querySelector('input[type="radio"]:checked, input[type="checkbox"]:checked');
+      if (checkedInput) {
+        const lbl = (getLabelFor(checkedInput) || checkedInput.value || '').trim();
+        if (aynOptionMatches(lbl, wantStr)) return true;
+      }
+      // select
+      const selEl = scope.querySelector('select');
+      if (selEl && selEl.selectedIndex >= 0) {
+        const optTxt = (selEl.options[selEl.selectedIndex] && selEl.options[selEl.selectedIndex].text) || selEl.value || '';
+        if (aynOptionMatches(optTxt, wantStr)) return true;
+      }
+      // text-like
+      const txtEl = scope.querySelector('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]):not([type="submit"]):not([type="button"]):not([type="file"]), textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+      if (txtEl) {
+        const cur = norm(txtEl.isContentEditable ? (txtEl.innerText || '') : (txtEl.value || ''));
+        const nw = norm(wantStr);
+        if (cur && (cur === nw || (nw.length >= 6 && (cur.includes(nw) || nw.includes(cur))))) return true;
+      }
+      return false;
+    } catch (_) { return null; }
+  }
+
   // v2.4.2 — read the live DOM value for a field id and compare against
   // what we intended to fill. Used as a short-circuit so we never overwrite
   // a correct answer after a rerender.
