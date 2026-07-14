@@ -3884,14 +3884,21 @@
               fs.recordStage('execution', { ok: (injectResult.results || []).every((r) => r && r.ok !== false), count: (injectResult.results || []).length, ms: Date.now() - t0 });
             } catch (_) {}
           }
-          // v2.5.9 — single verification pass. It reports what failed; it does
-          // NOT re-click, re-type, or otherwise touch the page. Nothing after
-          // this point writes to the form.
+          // v2.5.9 — single verification pass; report-only.
+          // v2.6.2 — followed by exactly ONE content-anchored recovery pass
+          // (aynRecoverWipedAnswers) for answers verification confirmed were
+          // wiped by a mid-fill partial rebuild. Nothing loops.
           try { aynPostInjectVerify(fillValues, injectResult); } catch (_) {}
           if (fs) {
             try {
               (injectResult.results || []).forEach((r) => fs.recordVerification(r && r.id, r && r.verified !== false, 'postverify', r && r.reason));
               fs.recordStage('verification', { ok: !(injectResult.unverifiedIds && injectResult.unverifiedIds.length), count: injectResult.filled || 0, note: injectResult.unverifiedIds && injectResult.unverifiedIds.length ? (injectResult.unverifiedIds.length + ' unverified') : null });
+            } catch (_) {}
+          }
+          try { await aynRecoverWipedAnswers(fillValues, injectResult); } catch (_) {}
+          if (fs) {
+            try {
+              fs.recordStage('recovery', { ok: !(injectResult.unverifiedIds && injectResult.unverifiedIds.length), count: injectResult.recovered || 0, note: injectResult.recovered ? (injectResult.recovered + ' recovered after rebuild') : 'nothing to recover' });
             } catch (_) {}
           }
           // v2.4 — record verified/unverified outcomes to learning memory (not
