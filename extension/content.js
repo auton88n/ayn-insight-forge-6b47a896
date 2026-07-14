@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
-  const AYN_BUILD = '2.5.5';
+  const AYN_BUILD = '2.6.2';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
