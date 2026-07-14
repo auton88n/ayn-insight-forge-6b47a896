@@ -1959,7 +1959,9 @@
       }
       if (rawId.includes('__structradio__:')) {
         const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
-        const container = entry && entry.container;
+        // v2.6.2 — a detached container still answers querySelectorAll, but with
+        // stale nodes that read unchecked. Only trust it while connected.
+        const container = aynLiveEl(entry && entry.container);
         const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')) : (entry && entry.radios) || [];
         const checked = live.find(r => r.checked);
         if (!checked) return false;
