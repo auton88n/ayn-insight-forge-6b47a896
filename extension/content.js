@@ -1673,6 +1673,131 @@
   // writer is injectValues; aynPostInjectVerify reports failures without
   // re-injecting.
 
+  // v2.6.2 — one narrow exception to the no-rewrite rule: aynRecoverWipedAnswers.
+  // It runs exactly once per INJECT_VALUES, only for answers that post-verify
+  // (including the content re-anchor second opinion) confirmed are NOT on the
+  // page, and it resolves every target by live label text — never by stored
+  // refs or fid stamps. This is the mid-fill counterpart of the reload-snapshot
+  // restore: the page quietly rebuilt a piece of itself and wiped what we just
+  // wrote; write it once more against the rebuilt DOM.
+  async function aynRecoverWipedAnswers(values, injectResult) {
+    const MAX_RECOVER = 15;
+    try {
+      if (!injectResult || !Array.isArray(injectResult.results)) return;
+      const rowById = new Map((values || []).filter((v) => v && v.id).map((v) => [v.id, v]));
+      const candidates = injectResult.results.filter((r) => {
+        if (!r || !r.id) return false;
+        if (r.ok === true && r.verified !== false) return false;
+        const reason = String(r.reason || '');
+        if (/skipped|no value|no option$/.test(reason)) return false; // deliberate skips
+        const row = rowById.get(r.id);
+        if (!row) return false;
+        const want = row.optionLabel || row.optionValue || row.value;
+        return want != null && String(want).trim() !== '';
+      }).slice(0, MAX_RECOVER);
+      if (!candidates.length) return;
+
+      // Let the rebuild settle before touching the fresh DOM.
+      await aynSleep(300);
+      try { aynRebuildFieldMaps(); } catch (_) {}
+      try { console.log('[AYN][recover] attempting content-anchored recovery for', candidates.length, 'answers'); } catch (_) {}
+
+      let recovered = 0;
+      for (const res of candidates) {
+        const row = rowById.get(res.id);
+        const want = String(row.optionLabel || row.optionValue || row.value || '').trim();
+        try {
+          // Precheck: the write may have stuck after all (rebuild replayed
+          // React state) — never double-fire a click on a correct answer.
+          if (aynLiveMatchesWanted(res.id, want, row) || aynReadLiveAnswerByContent(row, want) === true) {
+            res.ok = true; res.verified = true;
+            res.reason = 'recovered-already-correct';
+            recovered++;
+            continue;
+          }
+          const label = aynLabelForValueRow(row);
+          const found = aynFindQuestionScopeByLabel(label);
+          if (!found || !found.scope) { res.recoverAttempt = 'scope-not-found'; continue; }
+          const scope = found.scope;
+          const kindHint = String(row.kind || row.type || '').toLowerCase();
+          const choiceLike = /radio|checkbox|boolean|choice|button/.test(kindHint)
+            || !!(row.optionLabel || (Array.isArray(row.optionLabels) && row.optionLabels.length));
+
+          let wrote = false;
+          // 1. native radio/checkbox inside the live scope
+          if (choiceLike || !wrote) {
+            const inputs = Array.from(scope.querySelectorAll('input[type="radio"], input[type="checkbox"]')).filter((i) => !i.disabled);
+            const match = inputs.find((i) => aynOptionMatches(getLabelFor(i) || i.value, want));
+            if (match) {
+              if (!match.checked) {
+                match.click(); await aynSleep(50);
+                if (!match.checked) { const lab = match.closest('label'); if (lab) { lab.click(); await aynSleep(50); } }
+                if (!match.checked) aynSetChecked(match, true);
+                await aynSleep(50);
+              }
+              wrote = true;
+            }
+          }
+          // 2. custom option buttons (Ashby Yes/No toggles, ARIA radios)
+          if (!wrote && choiceLike) {
+            const btns = Array.from(scope.querySelectorAll('button, [role="radio"], [role="checkbox"], [role="button"], [role="option"]')).filter((b) => !b.disabled);
+            const btn = btns.find((b) => aynOptionMatches(safeText(b) || b.getAttribute('aria-label') || '', want));
+            if (btn) { await clickOptionButton(btn, label, norm(want)); wrote = true; }
+          }
+          // 3. native select
+          if (!wrote) {
+            const selEl = scope.querySelector('select');
+            if (selEl) { await aynFillSelect(selEl, row.optionLabel, row.optionValue || row.value); wrote = true; }
+          }
+          // 4. text-like
+          if (!wrote) {
+            const txtEl = scope.querySelector('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]):not([type="submit"]):not([type="button"]):not([type="file"]), textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+            if (txtEl && !choiceLike) { await aynFillTextbox(txtEl, want); wrote = true; }
+          }
+          if (!wrote) { res.recoverAttempt = 'no-writable-control'; continue; }
+
+          await aynSleep(120);
+          const okNow = aynLiveMatchesWanted(res.id, want, row) || aynReadLiveAnswerByContent(row, want) === true;
+          res.recoverAttempt = okNow ? 'recovered' : 'recover-unverified';
+          if (okNow) {
+            res.ok = true; res.verified = true;
+            res.reason = 'recovered-after-rebuild';
+            recovered++;
+          }
+          // human-like pacing between recovered fields, same as injectValues
+          await aynSleep(60 + Math.floor(Math.random() * 120));
+        } catch (e) {
+          try { res.recoverAttempt = 'error: ' + (e && e.message ? e.message : 'unknown'); } catch (_) {}
+        }
+      }
+
+      // Recompute the truthful counters and keep the snapshot fresh so a
+      // subsequent full reload restores the recovered answers too.
+      try {
+        injectResult.filled = injectResult.results.filter((r) => r && r.ok === true && r.verified !== false).length;
+        injectResult.unverifiedIds = injectResult.results.filter((r) => r && (r.ok !== true || r.verified === false)).map((r) => r.id);
+        injectResult.recovered = recovered;
+      } catch (_) {}
+      if (recovered) {
+        try { aynPersistInjectedSnapshot(values, 'recovery'); } catch (_) {}
+      }
+      try { console.log('[AYN][recover] done:', recovered, 'of', candidates.length, 'recovered'); } catch (_) {}
+    } catch (_) { /* never break the fill */ }
+  }
+
+  // v2.6.2 — debug hooks, same spirit as window.AYN_FILL_SESSION: lets
+  // fill-session tooling drive verify/recovery directly against a live page.
+  try {
+    window.__AYN_TEST_HOOKS__ = {
+      aynPostInjectVerify,
+      aynRecoverWipedAnswers,
+      aynReadLiveAnswerByContent,
+      aynFindQuestionScopeByLabel,
+      aynResolveFieldEl,
+    };
+  } catch (_) {}
+
+
   // v2.4 — persist verified answers to learning memory (per user).
   function aynRecordLearnedAnswers(values, injectResult) {
     try {
