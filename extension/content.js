@@ -1472,6 +1472,13 @@
   // v1.9.51 — shared field-element resolver. MUST match injectValues' resolution
   // so the settle-and-reapply pass targets the exact same DOM node injection
   // wrote to. Handles: real ids, name= lookups, and index-scheme ids like "f4".
+  // v2.6.2 — a stored node ref is only trustworthy if it is still attached to
+  // the document. Mid-fill partial rebuilds (Ashby bot-check rerenders) detach
+  // subtrees without a navigation, leaving maps full of dead nodes that read
+  // as empty and produce false "postverify-failed" / silent wipes.
+  function aynLiveEl(el) {
+    try { return (el && el.isConnected) ? el : null; } catch (_) { return el || null; }
+  }
   function aynResolveFieldEl(id, _frame) {
     try {
       const { doc, rawId } = resolveDoc(id, _frame);
@@ -1480,7 +1487,7 @@
       if (!el && rawId.includes('__textfield__:')) {
         try {
           const map = window.__AYN_TEXT_FIELD_MAP__;
-          el = (map && (map.get(id) || map.get(rawId))) || null;
+          el = aynLiveEl(map && (map.get(id) || map.get(rawId)));
         } catch (_) {}
       }
       if (!el) { try { el = doc.getElementById(rawId); } catch (_) {} }
@@ -1494,10 +1501,10 @@
         }
       }
       if (!el && rawId.includes('__opentext__:')) {
-        el = (window.__AYN_OPEN_TEXT_MAP__ && (window.__AYN_OPEN_TEXT_MAP__.get(id) || window.__AYN_OPEN_TEXT_MAP__.get(rawId))) || null;
+        el = aynLiveEl(window.__AYN_OPEN_TEXT_MAP__ && (window.__AYN_OPEN_TEXT_MAP__.get(id) || window.__AYN_OPEN_TEXT_MAP__.get(rawId)));
       }
       if (!el && rawId.includes('__richedit__:')) {
-        el = (window.__AYN_RICH_EDITOR_MAP__ && (window.__AYN_RICH_EDITOR_MAP__.get(id) || window.__AYN_RICH_EDITOR_MAP__.get(rawId))) || null;
+        el = aynLiveEl(window.__AYN_RICH_EDITOR_MAP__ && (window.__AYN_RICH_EDITOR_MAP__.get(id) || window.__AYN_RICH_EDITOR_MAP__.get(rawId)));
       }
       // v2.6.0 — fid-desync fallback (audit C1). If the fid stamp was lost
       // because the element was replaced on re-render, everything above
