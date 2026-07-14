@@ -1528,7 +1528,13 @@
                   if (r.singleNodeValue && r.singleNodeValue.nodeType === 1) el = r.singleNodeValue;
                 } catch (_) {}
               }
-              if (el) break;
+              // v2.6.2 — the replaced node has no fid stamp, which is why every
+              // stamp-based lookup (maps, rebuilds) misses it. Re-stamp so the
+              // rest of this fill resolves it directly.
+              if (el) {
+                try { if (!el.getAttribute('data-ayn-fid')) el.setAttribute('data-ayn-fid', String(ctrl.fid)); } catch (_) {}
+                break;
+              }
             }
           }
         } catch (_) {}
