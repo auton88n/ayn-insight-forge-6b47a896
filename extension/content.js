@@ -11,7 +11,7 @@
     return;
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
-  const AYN_BUILD = '2.5.5';
+  const AYN_BUILD = '2.6.2';
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
@@ -1472,6 +1472,13 @@
   // v1.9.51 — shared field-element resolver. MUST match injectValues' resolution
   // so the settle-and-reapply pass targets the exact same DOM node injection
   // wrote to. Handles: real ids, name= lookups, and index-scheme ids like "f4".
+  // v2.6.2 — a stored node ref is only trustworthy if it is still attached to
+  // the document. Mid-fill partial rebuilds (Ashby bot-check rerenders) detach
+  // subtrees without a navigation, leaving maps full of dead nodes that read
+  // as empty and produce false "postverify-failed" / silent wipes.
+  function aynLiveEl(el) {
+    try { return (el && el.isConnected) ? el : null; } catch (_) { return el || null; }
+  }
   function aynResolveFieldEl(id, _frame) {
     try {
       const { doc, rawId } = resolveDoc(id, _frame);
@@ -1480,7 +1487,7 @@
       if (!el && rawId.includes('__textfield__:')) {
         try {
           const map = window.__AYN_TEXT_FIELD_MAP__;
-          el = (map && (map.get(id) || map.get(rawId))) || null;
+          el = aynLiveEl(map && (map.get(id) || map.get(rawId)));
         } catch (_) {}
       }
       if (!el) { try { el = doc.getElementById(rawId); } catch (_) {} }
@@ -1494,10 +1501,10 @@
         }
       }
       if (!el && rawId.includes('__opentext__:')) {
-        el = (window.__AYN_OPEN_TEXT_MAP__ && (window.__AYN_OPEN_TEXT_MAP__.get(id) || window.__AYN_OPEN_TEXT_MAP__.get(rawId))) || null;
+        el = aynLiveEl(window.__AYN_OPEN_TEXT_MAP__ && (window.__AYN_OPEN_TEXT_MAP__.get(id) || window.__AYN_OPEN_TEXT_MAP__.get(rawId)));
       }
       if (!el && rawId.includes('__richedit__:')) {
-        el = (window.__AYN_RICH_EDITOR_MAP__ && (window.__AYN_RICH_EDITOR_MAP__.get(id) || window.__AYN_RICH_EDITOR_MAP__.get(rawId))) || null;
+        el = aynLiveEl(window.__AYN_RICH_EDITOR_MAP__ && (window.__AYN_RICH_EDITOR_MAP__.get(id) || window.__AYN_RICH_EDITOR_MAP__.get(rawId)));
       }
       // v2.6.0 — fid-desync fallback (audit C1). If the fid stamp was lost
       // because the element was replaced on re-render, everything above
@@ -1521,7 +1528,13 @@
                   if (r.singleNodeValue && r.singleNodeValue.nodeType === 1) el = r.singleNodeValue;
                 } catch (_) {}
               }
-              if (el) break;
+              // v2.6.2 — the replaced node has no fid stamp, which is why every
+              // stamp-based lookup (maps, rebuilds) misses it. Re-stamp so the
+              // rest of this fill resolves it directly.
+              if (el) {
+                try { if (!el.getAttribute('data-ayn-fid')) el.setAttribute('data-ayn-fid', String(ctrl.fid)); } catch (_) {}
+                break;
+              }
             }
           }
         } catch (_) {}
@@ -1543,11 +1556,14 @@
     try {
       if (!injectResult || !Array.isArray(injectResult.results)) return;
       const wantById = new Map();
+      const rowById = new Map();
       (values || []).forEach(v => {
         if (!v || !v.id) return;
         const want = v.optionLabel || v.optionValue || v.value || '';
         wantById.set(v.id, String(want || '').trim());
+        rowById.set(v.id, v);
       });
+      let __rebuiltOnce = false;
       const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
       for (const res of injectResult.results) {
         if (!res || !res.id || res.ok !== true) continue;
@@ -1615,6 +1631,23 @@
             }
           }
         } catch (_) { verified = null; }
+        // v2.6.2 — before trusting a failure, get a second opinion that does
+        // not depend on stored refs or fid stamps: rebuild maps once (cheap),
+        // then re-locate the question in the live DOM by its label text. A
+        // mid-fill partial rebuild detaches the nodes the checks above read
+        // from, so they report "empty" even when the answer stuck.
+        if (verified === false) {
+          try {
+            if (!__rebuiltOnce) { __rebuiltOnce = true; aynRebuildFieldMaps(); }
+            const row = rowById.get(res.id);
+            const live = aynReadLiveAnswerByContent(row, want);
+            if (live === true) {
+              verified = true;
+              res.reanchorVerified = true;
+              try { console.log('[AYN][verify] re-anchor by content confirmed answer stuck:', res.id); } catch (_) {}
+            }
+          } catch (_) {}
+        }
         if (verified === false) {
           res.verified = false;
           res.reason = (res.reason ? res.reason + '; ' : '') + 'postverify-failed';
@@ -1639,6 +1672,131 @@
   // v2.5.9 — deterministic retry and closed-loop AI replan removed. The single
   // writer is injectValues; aynPostInjectVerify reports failures without
   // re-injecting.
+
+  // v2.6.2 — one narrow exception to the no-rewrite rule: aynRecoverWipedAnswers.
+  // It runs exactly once per INJECT_VALUES, only for answers that post-verify
+  // (including the content re-anchor second opinion) confirmed are NOT on the
+  // page, and it resolves every target by live label text — never by stored
+  // refs or fid stamps. This is the mid-fill counterpart of the reload-snapshot
+  // restore: the page quietly rebuilt a piece of itself and wiped what we just
+  // wrote; write it once more against the rebuilt DOM.
+  async function aynRecoverWipedAnswers(values, injectResult) {
+    const MAX_RECOVER = 15;
+    try {
+      if (!injectResult || !Array.isArray(injectResult.results)) return;
+      const rowById = new Map((values || []).filter((v) => v && v.id).map((v) => [v.id, v]));
+      const candidates = injectResult.results.filter((r) => {
+        if (!r || !r.id) return false;
+        if (r.ok === true && r.verified !== false) return false;
+        const reason = String(r.reason || '');
+        if (/skipped|no value|no option$/.test(reason)) return false; // deliberate skips
+        const row = rowById.get(r.id);
+        if (!row) return false;
+        const want = row.optionLabel || row.optionValue || row.value;
+        return want != null && String(want).trim() !== '';
+      }).slice(0, MAX_RECOVER);
+      if (!candidates.length) return;
+
+      // Let the rebuild settle before touching the fresh DOM.
+      await aynSleep(300);
+      try { aynRebuildFieldMaps(); } catch (_) {}
+      try { console.log('[AYN][recover] attempting content-anchored recovery for', candidates.length, 'answers'); } catch (_) {}
+
+      let recovered = 0;
+      for (const res of candidates) {
+        const row = rowById.get(res.id);
+        const want = String(row.optionLabel || row.optionValue || row.value || '').trim();
+        try {
+          // Precheck: the write may have stuck after all (rebuild replayed
+          // React state) — never double-fire a click on a correct answer.
+          if (aynLiveMatchesWanted(res.id, want, row) || aynReadLiveAnswerByContent(row, want) === true) {
+            res.ok = true; res.verified = true;
+            res.reason = 'recovered-already-correct';
+            recovered++;
+            continue;
+          }
+          const label = aynLabelForValueRow(row);
+          const found = aynFindQuestionScopeByLabel(label);
+          if (!found || !found.scope) { res.recoverAttempt = 'scope-not-found'; continue; }
+          const scope = found.scope;
+          const kindHint = String(row.kind || row.type || '').toLowerCase();
+          const choiceLike = /radio|checkbox|boolean|choice|button/.test(kindHint)
+            || !!(row.optionLabel || (Array.isArray(row.optionLabels) && row.optionLabels.length));
+
+          let wrote = false;
+          // 1. native radio/checkbox inside the live scope
+          if (choiceLike || !wrote) {
+            const inputs = Array.from(scope.querySelectorAll('input[type="radio"], input[type="checkbox"]')).filter((i) => !i.disabled);
+            const match = inputs.find((i) => aynOptionMatches(getLabelFor(i) || i.value, want));
+            if (match) {
+              if (!match.checked) {
+                match.click(); await aynSleep(50);
+                if (!match.checked) { const lab = match.closest('label'); if (lab) { lab.click(); await aynSleep(50); } }
+                if (!match.checked) aynSetChecked(match, true);
+                await aynSleep(50);
+              }
+              wrote = true;
+            }
+          }
+          // 2. custom option buttons (Ashby Yes/No toggles, ARIA radios)
+          if (!wrote && choiceLike) {
+            const btns = Array.from(scope.querySelectorAll('button, [role="radio"], [role="checkbox"], [role="button"], [role="option"]')).filter((b) => !b.disabled);
+            const btn = btns.find((b) => aynOptionMatches(safeText(b) || b.getAttribute('aria-label') || '', want));
+            if (btn) { await clickOptionButton(btn, label, norm(want)); wrote = true; }
+          }
+          // 3. native select
+          if (!wrote) {
+            const selEl = scope.querySelector('select');
+            if (selEl) { await aynFillSelect(selEl, row.optionLabel, row.optionValue || row.value); wrote = true; }
+          }
+          // 4. text-like
+          if (!wrote) {
+            const txtEl = scope.querySelector('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]):not([type="submit"]):not([type="button"]):not([type="file"]), textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+            if (txtEl && !choiceLike) { await aynFillTextbox(txtEl, want); wrote = true; }
+          }
+          if (!wrote) { res.recoverAttempt = 'no-writable-control'; continue; }
+
+          await aynSleep(120);
+          const okNow = aynLiveMatchesWanted(res.id, want, row) || aynReadLiveAnswerByContent(row, want) === true;
+          res.recoverAttempt = okNow ? 'recovered' : 'recover-unverified';
+          if (okNow) {
+            res.ok = true; res.verified = true;
+            res.reason = 'recovered-after-rebuild';
+            recovered++;
+          }
+          // human-like pacing between recovered fields, same as injectValues
+          await aynSleep(60 + Math.floor(Math.random() * 120));
+        } catch (e) {
+          try { res.recoverAttempt = 'error: ' + (e && e.message ? e.message : 'unknown'); } catch (_) {}
+        }
+      }
+
+      // Recompute the truthful counters and keep the snapshot fresh so a
+      // subsequent full reload restores the recovered answers too.
+      try {
+        injectResult.filled = injectResult.results.filter((r) => r && r.ok === true && r.verified !== false).length;
+        injectResult.unverifiedIds = injectResult.results.filter((r) => r && (r.ok !== true || r.verified === false)).map((r) => r.id);
+        injectResult.recovered = recovered;
+      } catch (_) {}
+      if (recovered) {
+        try { aynPersistInjectedSnapshot(values, 'recovery'); } catch (_) {}
+      }
+      try { console.log('[AYN][recover] done:', recovered, 'of', candidates.length, 'recovered'); } catch (_) {}
+    } catch (_) { /* never break the fill */ }
+  }
+
+  // v2.6.2 — debug hooks, same spirit as window.AYN_FILL_SESSION: lets
+  // fill-session tooling drive verify/recovery directly against a live page.
+  try {
+    window.__AYN_TEST_HOOKS__ = {
+      aynPostInjectVerify,
+      aynRecoverWipedAnswers,
+      aynReadLiveAnswerByContent,
+      aynFindQuestionScopeByLabel,
+      aynResolveFieldEl,
+    };
+  } catch (_) {}
+
 
   // v2.4 — persist verified answers to learning memory (per user).
   function aynRecordLearnedAnswers(values, injectResult) {
@@ -1687,6 +1845,98 @@
     } catch (_) {}
   }
 
+  // ── v2.6.2: mid-fill content re-anchoring ──
+  // Same idea as the v2.6.1 reload-snapshot signature match, applied to the
+  // moment right after a write: when a partial rebuild (no navigation) has
+  // replaced the subtree we just filled, every stored ref and fid stamp is
+  // dead. Instead of trusting the internal tag, re-locate the question in the
+  // LIVE DOM by what it says (label text) and read/write against that.
+
+  function aynLabelForValueRow(v) {
+    try {
+      if (!v) return '';
+      let label = String(v.label || v.question || '').trim();
+      if (label) return label;
+      const id = v.id;
+      const cache = window.__AYN_FIELD_LABELS__;
+      if (cache && cache.get) label = String(cache.get(id) || '').trim();
+      if (label) return label;
+      const rich = window.__AYN_QUESTIONS__;
+      if (Array.isArray(rich)) {
+        const q = rich.find((q) => q && q.id === id);
+        if (q && q.label) return String(q.label).trim();
+      }
+      const legacy = window.__AYN_QUESTIONS_LEGACY__;
+      if (Array.isArray(legacy)) {
+        const f = legacy.find((f) => f && f.id === id);
+        if (f && f.label) return String(f.label).trim();
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  // Locate the live question scope by label text: find the smallest visible
+  // element whose text matches the label, then walk up until the ancestor
+  // contains at least one form control. Mirrors findButtongroupOption's
+  // locator but generalized to any control kind.
+  function aynFindQuestionScopeByLabel(labelText) {
+    try {
+      const qKey = norm(labelText).slice(0, 60);
+      if (!qKey || qKey.length < 4) return null;
+      let labelEl = null;
+      const candidates = document.querySelectorAll('label, legend, p, h2, h3, h4, strong, div, span');
+      for (const c of candidates) {
+        const t = norm(safeText(c));
+        if (!t) continue;
+        if (t.length >= qKey.length + 220) continue; // question line, not a wrapper
+        if (t === qKey || t.includes(qKey)) { labelEl = c; break; }
+      }
+      if (!labelEl) return null;
+      const CTRL_SEL = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]), textarea, select, [role="radio"], [role="checkbox"], [role="combobox"], [role="textbox"], [contenteditable="true"], [contenteditable=""], button';
+      let node = labelEl;
+      for (let i = 0; i < 7 && node; i++, node = node.parentElement) {
+        try { if (node.querySelector && node.querySelector(CTRL_SEL)) return { labelEl, scope: node }; } catch (_) {}
+      }
+      return { labelEl, scope: labelEl.parentElement || null };
+    } catch (_) { return null; }
+  }
+
+  // Read the LIVE answer state for a value row by content only. Returns
+  // true (live DOM shows the wanted answer), false (located but not showing
+  // it / empty), or null (question not locatable by content — no opinion).
+  function aynReadLiveAnswerByContent(v, want) {
+    try {
+      const label = aynLabelForValueRow(v);
+      const found = aynFindQuestionScopeByLabel(label);
+      if (!found || !found.scope) return null;
+      const scope = found.scope;
+      const wantStr = String(want || '').trim();
+      if (!wantStr) return null;
+      // choice-style: any selected option in scope matching want
+      const sel = aynSelectedLabelInScope(scope);
+      if (sel && aynOptionMatches(sel, wantStr)) return true;
+      const checkedInput = scope.querySelector('input[type="radio"]:checked, input[type="checkbox"]:checked');
+      if (checkedInput) {
+        const lbl = (getLabelFor(checkedInput) || checkedInput.value || '').trim();
+        if (aynOptionMatches(lbl, wantStr)) return true;
+      }
+      // select
+      const selEl = scope.querySelector('select');
+      if (selEl && selEl.selectedIndex >= 0) {
+        const optTxt = (selEl.options[selEl.selectedIndex] && selEl.options[selEl.selectedIndex].text) || selEl.value || '';
+        if (aynOptionMatches(optTxt, wantStr)) return true;
+      }
+      // text-like
+      const txtEl = scope.querySelector('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]):not([type="submit"]):not([type="button"]):not([type="file"]), textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+      if (txtEl) {
+        const cur = norm(txtEl.isContentEditable ? (txtEl.innerText || '') : (txtEl.value || ''));
+        const nw = norm(wantStr);
+        if (cur && (cur === nw || (nw.length >= 6 && (cur.includes(nw) || nw.includes(cur))))) return true;
+      }
+      return false;
+    } catch (_) { return null; }
+  }
+
   // v2.4.2 — read the live DOM value for a field id and compare against
   // what we intended to fill. Used as a short-circuit so we never overwrite
   // a correct answer after a rerender.
@@ -1709,7 +1959,9 @@
       }
       if (rawId.includes('__structradio__:')) {
         const entry = window.__AYN_STRUCTRADIO_MAP__ && window.__AYN_STRUCTRADIO_MAP__.get(rawId);
-        const container = entry && entry.container;
+        // v2.6.2 — a detached container still answers querySelectorAll, but with
+        // stale nodes that read unchecked. Only trust it while connected.
+        const container = aynLiveEl(entry && entry.container);
         const live = container ? Array.from(container.querySelectorAll('input[type="radio"]')) : (entry && entry.radios) || [];
         const checked = live.find(r => r.checked);
         if (!checked) return false;
@@ -3634,14 +3886,21 @@
               fs.recordStage('execution', { ok: (injectResult.results || []).every((r) => r && r.ok !== false), count: (injectResult.results || []).length, ms: Date.now() - t0 });
             } catch (_) {}
           }
-          // v2.5.9 — single verification pass. It reports what failed; it does
-          // NOT re-click, re-type, or otherwise touch the page. Nothing after
-          // this point writes to the form.
+          // v2.5.9 — single verification pass; report-only.
+          // v2.6.2 — followed by exactly ONE content-anchored recovery pass
+          // (aynRecoverWipedAnswers) for answers verification confirmed were
+          // wiped by a mid-fill partial rebuild. Nothing loops.
           try { aynPostInjectVerify(fillValues, injectResult); } catch (_) {}
           if (fs) {
             try {
               (injectResult.results || []).forEach((r) => fs.recordVerification(r && r.id, r && r.verified !== false, 'postverify', r && r.reason));
               fs.recordStage('verification', { ok: !(injectResult.unverifiedIds && injectResult.unverifiedIds.length), count: injectResult.filled || 0, note: injectResult.unverifiedIds && injectResult.unverifiedIds.length ? (injectResult.unverifiedIds.length + ' unverified') : null });
+            } catch (_) {}
+          }
+          try { await aynRecoverWipedAnswers(fillValues, injectResult); } catch (_) {}
+          if (fs) {
+            try {
+              fs.recordStage('recovery', { ok: !(injectResult.unverifiedIds && injectResult.unverifiedIds.length), count: injectResult.recovered || 0, note: injectResult.recovered ? (injectResult.recovered + ' recovered after rebuild') : 'nothing to recover' });
             } catch (_) {}
           }
           // v2.4 — record verified/unverified outcomes to learning memory (not
