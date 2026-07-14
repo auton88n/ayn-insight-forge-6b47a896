@@ -1556,11 +1556,14 @@
     try {
       if (!injectResult || !Array.isArray(injectResult.results)) return;
       const wantById = new Map();
+      const rowById = new Map();
       (values || []).forEach(v => {
         if (!v || !v.id) return;
         const want = v.optionLabel || v.optionValue || v.value || '';
         wantById.set(v.id, String(want || '').trim());
+        rowById.set(v.id, v);
       });
+      let __rebuiltOnce = false;
       const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
       for (const res of injectResult.results) {
         if (!res || !res.id || res.ok !== true) continue;
