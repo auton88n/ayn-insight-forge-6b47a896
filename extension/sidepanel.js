@@ -1878,8 +1878,11 @@ chrome.runtime.onMessage.addListener((msg) => {
     chrome.runtime.sendMessage({ type: 'SET_MANUAL_JD', tabId: __jdTabId, text }, () => {
       void chrome.runtime.lastError;
       $('jd-paste-wrap')?.classList.add('hidden');
-      toast('JD saved — Autofill will use it now.', 'ok');
+      toast('JD saved · rescoring…', 'ok');
       window.aynResolveJdBanner(__jdTabId);
+      // v2.8.2 — use the pasted JD immediately for scoring.
+      try { SJ.jobText = text; } catch {}
+      try { runScoreFlow({ auto: false }); } catch {}
     });
   });
 })();
