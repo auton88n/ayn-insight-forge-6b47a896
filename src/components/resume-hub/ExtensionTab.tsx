@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Chrome, Download, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Chrome, Download, RefreshCw, ShieldCheck, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { resumeHubApi } from "@/lib/resumeHub";
+import { getInstalledVersion } from "@/lib/extension";
 import { useToast } from "@/hooks/use-toast";
 import manifest from "../../../extension/manifest.json";
 
@@ -23,9 +25,11 @@ export default function ExtensionTab({ userId: _userId }: Props) {
   const { toast } = useToast();
   const [tokens, setTokens] = useState<TokenRow[]>([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null);
 
   useEffect(() => {
     void loadTokens();
+    void getInstalledVersion().then(setInstalledVersion);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -80,7 +84,15 @@ export default function ExtensionTab({ userId: _userId }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-base">AYN Resume Tailor for Chrome</h3>
-            <p className="text-xs font-mono text-muted-foreground mt-0.5">v{manifest.version} · MV3</p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <p className="text-xs font-mono text-muted-foreground">Latest v{manifest.version} · MV3</p>
+              {installedVersion && installedVersion === manifest.version && (
+                <Badge variant="secondary" className="text-[10px] gap-1"><CheckCircle2 className="w-3 h-3" /> Installed v{installedVersion}</Badge>
+              )}
+              {installedVersion && installedVersion !== manifest.version && (
+                <Badge variant="destructive" className="text-[10px] gap-1"><AlertCircle className="w-3 h-3" /> Update available (installed v{installedVersion})</Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground mt-2">
               One click to sign in. Autofill any job application, score jobs while you browse, find recruiters, generate cover letters, track applications, and tailor your resume.
             </p>

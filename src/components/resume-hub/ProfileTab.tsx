@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-react";
+import { notifyProfileUpdated } from "@/lib/extension";
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import type { ResumeContent } from "@/lib/resumeHub";
@@ -180,6 +181,10 @@ export default function ProfileTab({ userId }: { userId: string }) {
       if (error) throw new Error(error.message);
       await canadianRef.current?.save();
       setHasProfile(true);
+      // v2.7.0 — invalidate the extension's profile cache so autofill picks up
+      // these edits on the very next form, not 30 minutes later. No-op if the
+      // extension isn't installed.
+      void notifyProfileUpdated();
       toast({ title: "Profile saved", description: "Career profile and application details updated." });
     } catch (e) {
       toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
