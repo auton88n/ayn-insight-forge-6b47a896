@@ -4280,11 +4280,13 @@
     if (result.text && result.text.length > 100) {
       if (location.href === _lastDetectedUrl) return; // already reported
       _lastDetectedUrl = location.href;
+      let __kind = 'other'; try { __kind = (classifyPage() || {}).kind || 'other'; } catch {}
       if (AYN_IS_TOP) sendQuiet({
         type: 'JOB_DETECTED',
         text: result.text,
         title: result.title,
         company: result.company || '',
+        kind: __kind,
       });
       // Card scoring will keep itself fresh via its MutationObserver
       return;
