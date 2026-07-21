@@ -3868,6 +3868,15 @@
       return true;
     }
 
+    // v2.8.0 — parse a raw HTML string fetched by the background (listing page)
+    // and return {text,title,company} using the same site selector map used live.
+    if (message.type === 'PARSE_JOB_HTML') {
+      try { sendResponse(parseBodyFromHtml(message.html || '', message.url || '')); }
+      catch (e) { sendResponse({ text: '', title: '', company: '', error: e?.message || 'parse_failed' }); }
+      return true;
+    }
+
+
     if (message.type === 'DETECT_PAGE') {
       if (!AYN_IS_TOP) return false;
       const job = extractJobText();
