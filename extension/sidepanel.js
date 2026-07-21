@@ -851,6 +851,38 @@ async function runScoreFlow({ auto = false } = {}) {
       fullJd: SJ.jobText.slice(0, 20000),
       jobSnippet: SJ.jobText.slice(0, 2000), // card-badge fallback
     }, { silent: auto });
+
+    // v2.8.2 — backend refuses to guess from tiny snippets. Ask for JD.
+    if (d && d.needsJd) {
+      $('score-num').innerHTML = `<small style="font-size:14px;font-weight:600">Needs JD</small>`;
+      $('score-num').className = 'score-num s-fair';
+      setHeroRing('score-hero-ring', 'score-hero-ring-num', 0);
+      $('score-label').textContent = 'Score needs the job description';
+      $('score-label').style.color = '#b45309';
+      // Reset downstream sections.
+      ['score-legend','score-verdict','score-meta-row','score-matched-kw','score-missing-kw','score-grounding']
+        .forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
+      const reqEl = $('score-requirements'); if (reqEl) reqEl.classList.add('hidden');
+      const sal = $('score-salary'); if (sal) sal.classList.add('hidden');
+      let ndc = $('score-needs-jd');
+      if (!ndc) { ndc = document.createElement('div'); ndc.id = 'score-needs-jd'; $('score-result').appendChild(ndc); }
+      ndc.style.cssText = 'margin-top:12px;padding:12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#78350f;font-size:12px;line-height:1.5;';
+      ndc.innerHTML = `
+        <div style="font-weight:700;color:#92400e;margin-bottom:4px;">Paste the job description to score honestly</div>
+        <div style="margin-bottom:8px;">AYN cannot score fairly from a short snippet. Paste the full JD and we will rescore automatically.</div>
+        <button class="btn btn-primary" id="score-open-paste" style="padding:6px 12px;font-size:12px"><i class="ti ti-clipboard"></i>Paste JD</button>`;
+      ndc.style.display = '';
+      $('score-result').classList.remove('hidden');
+      const openBtn = $('score-open-paste');
+      if (openBtn) openBtn.onclick = () => {
+        const w = $('jd-paste-wrap');
+        if (w) { w.classList.remove('hidden'); $('jd-paste-input')?.focus(); }
+      };
+      return;
+    }
+    // Hide the needs-JD prompt if it was shown previously.
+    { const ndc = $('score-needs-jd'); if (ndc) ndc.style.display = 'none'; }
+
     const score = d.score || 0;
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
@@ -860,6 +892,25 @@ async function runScoreFlow({ auto = false } = {}) {
     $('score-label').style.color = ({ 's-strong':'#15803d','s-good':'#65a30d','s-fair':'#d97706','s-poor':'#b91c1c' })[tier];
     const sal = $('score-salary');
     if (d.salaryEstimate) { sal.textContent = d.salaryEstimate; sal.classList.remove('hidden'); } else sal.classList.add('hidden');
+
+    // v2.8.2 — grounding line: what we actually scored (JD size, source, resume used).
+    let gWrap = $('score-grounding');
+    if (!gWrap) { gWrap = document.createElement('div'); gWrap.id = 'score-grounding'; $('score-result').appendChild(gWrap); }
+    const sa = d.scoredAgainst || null;
+    if (sa) {
+      const jt = (sa.jobTitle || SJ.jobTitle || 'This role').trim();
+      const co = (sa.company || SJ.company || 'Unknown company').trim();
+      const jdKind = sa.jdSource === 'full' ? 'full' : 'snippet';
+      const parts = [`${jt} at ${co}`, `JD ${Number(sa.jdChars || 0).toLocaleString()} chars (${jdKind})`, `vs ${sa.resumeLabel || 'Primary resume'}`];
+      const warn = jdKind === 'snippet'
+        ? ` <span style="color:#b45309;font-weight:600">· partial JD</span>` : '';
+      gWrap.style.cssText = 'margin-top:6px;font-size:11px;color:#6b7280;line-height:1.4;';
+      gWrap.innerHTML = parts.map(p => p.replace(/</g,'&lt;')).join(' · ') + warn;
+      gWrap.style.display = '';
+    } else {
+      gWrap.style.display = 'none';
+    }
+
 
     // v1.9.11: Score legend — spell out what the number means
     let legend = $('score-legend');
