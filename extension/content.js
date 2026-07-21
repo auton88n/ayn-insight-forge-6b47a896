@@ -4257,7 +4257,8 @@
       const key = `${url}|${fieldCount}|${hasResumeUpload}`;
       if (key === _lastFormReportKey) return true;
       _lastFormReportKey = key;
-      if (AYN_IS_TOP) sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
+      let __kind = 'other'; try { __kind = (classifyPage() || {}).kind || 'other'; } catch {}
+      if (AYN_IS_TOP) sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url, kind: __kind });
       return true;
     } catch { return false; }
   }
