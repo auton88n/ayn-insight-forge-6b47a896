@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "JD Resolver ladder", manifest v2.8.0, AYN_BUILD 2.8.0, July 21 2026.
+Last verified: commit "page classifier gate", manifest v2.8.1, AYN_BUILD 2.8.1, July 21 2026.
 
 ## What AYN is
 
