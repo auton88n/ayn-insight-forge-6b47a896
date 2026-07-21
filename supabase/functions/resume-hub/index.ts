@@ -1864,22 +1864,55 @@ RULES:
 
       // ext_save_application — save to tracker via extension token
       if (action === "ext_save_application") {
-        const { jobTitle, company, jobUrl, status, score, salaryEstimate, notes } = payload as {
+        const { jobTitle, company, jobUrl, status, score, match_score, job_id, salaryEstimate, notes } = payload as {
           jobTitle?: string; company?: string; jobUrl?: string;
-          status?: string; score?: number; salaryEstimate?: string; notes?: string;
+          status?: string; score?: number; match_score?: number; job_id?: string;
+          salaryEstimate?: string; notes?: string;
         };
         if (!company || !jobTitle) return json({ error: "company and jobTitle required" }, 400);
-        const { data, error } = await admin.from("job_applications").upsert({
+        // v2.8.0 — accept match_score / job_id from AUTO_TRACK_SUBMIT so the
+        // tracker row is enriched at capture time (previously we upserted just
+        // the URL and had to rely on later manual edits).
+        const finalScore = typeof match_score === "number" ? match_score
+                         : typeof score === "number" ? score : null;
+        const row: Record<string, unknown> = {
           user_id: userId, job_title: jobTitle, company,
           job_url: jobUrl || "", status: status || "saved",
-          match_score: score || null, salary_estimate: salaryEstimate || "",
+          match_score: finalScore, salary_estimate: salaryEstimate || "",
           notes: notes || "",
           applied_at: status === "applied" ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
+        };
+        if (job_id) row.job_id = job_id;
+        const { data, error } = await admin.from("job_applications").upsert(row,
+          { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true, id: data.id });
       }
+
+      // v2.8.0 — ext_job_lookup: JD Resolver's backend branch. Given host+path
+      // (or a URL), returns the most recent jobs-row with jd_text ≥ 400 chars.
+      if (action === "ext_job_lookup") {
+        const { host_path, url } = payload as { host_path?: string; url?: string };
+        let key = String(host_path || "").trim();
+        if (!key && url) {
+          try {
+            const u = new URL(url);
+            key = `${u.hostname.replace(/^www\./,"").toLowerCase()}${u.pathname.replace(/\/+$/,"")}`;
+          } catch { /* ignore */ }
+        }
+        if (!key) return json({ ok: true, job: null });
+        // Match jobs whose source_url contains this host+path (any protocol/query).
+        const like = `%${key}%`;
+        const { data } = await admin.from("jobs")
+          .select("id,title,company,source_url,jd_text,created_at")
+          .ilike("source_url", like)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        const best = (data || []).find(j => (j.jd_text || "").length >= 400) || null;
+        return json({ ok: true, job: best });
+      }
+
 
       if (action === "ext_get_applications") {
         const { data, error } = await admin.from("job_applications")
