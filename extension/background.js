@@ -179,8 +179,27 @@ chrome.tabs.onRemoved.addListener(tabId => {
   TAB_OPENER.delete(tabId);
   LAST_MATCH.delete(tabId);
   MANUAL_JD.delete(tabId);
+  TAB_KIND.delete(tabId);
+  TAB_OVERRIDE.delete(tabId);
 });
-chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) FORM_CACHE.delete(tabId); });
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.url) {
+    FORM_CACHE.delete(tabId);
+    // v2.8.1 — "Scan anyway" override is per tab AND per URL. On navigation
+    // we drop it so YouTube -> Ashby (same tab) doesn't inherit the bypass.
+    TAB_OVERRIDE.delete(tabId);
+    TAB_KIND.delete(tabId);
+  }
+});
+// v2.8.1 — a page is treated as a job page only when kind is 'apply' or 'listing',
+// unless the user explicitly clicked "Scan anyway" for this tab.
+function tabAllowsJobIntent(tabId) {
+  if (tabId == null) return true; // no tab context: leave to caller
+  if (TAB_OVERRIDE.get(tabId)) return true;
+  const k = TAB_KIND.get(tabId);
+  return k === 'apply' || k === 'listing';
+}
+
 
 // v2.8.0 — the JD Resolver ladder. Tries, in order:
 //   1. Manual paste override (user-provided JD)
