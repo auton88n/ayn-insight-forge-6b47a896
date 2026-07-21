@@ -403,6 +403,20 @@ function detectForFill() {
         // gates see the same classification the sidepanel is showing.
         try { chrome.runtime.sendMessage({ type: 'SET_TAB_KIND', tabId: tab.id, kind: r.kind }, () => void chrome.runtime.lastError); } catch {}
 
+        // v2.8.1 — honor a prior "Scan anyway" override. Without this, clicking
+        // Scan anyway would re-run DETECT_PAGE, classify as 'other' again, and
+        // loop forever on the empty state.
+        chrome.runtime.sendMessage({ type: 'GET_TAB_KIND', tabId: tab.id }, ov => {
+          void chrome.runtime.lastError;
+          if (ov && ov.override === true && r.kind === 'other') {
+            r.kind = 'apply';
+            F.kind = 'apply';
+          }
+          renderKindBranches(r, tab);
+        });
+        return;
+
+
 
       if (r.kind === 'ayn') {
         $('fill-empty-title').textContent = "You're on AYN, not a job page";
