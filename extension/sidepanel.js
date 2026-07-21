@@ -1718,3 +1718,68 @@ chrome.runtime.onMessage.addListener((msg) => {
     }
   });
 })();
+
+// ═══════════════════════════════════════════════════════════════════
+// v2.8.0 — JD Provenance banner + manual JD paste
+// ═══════════════════════════════════════════════════════════════════
+(function aynJdBannerInit() {
+  const $ = (id) => document.getElementById(id);
+  const SRC_LABEL = {
+    manual: 'Using your pasted JD',
+    current_page: 'Read from this page',
+    opener_tab: 'Read from the tab you came from',
+    registry: 'Recalled from a job you viewed earlier',
+    listing_fetch: 'Fetched from the listing page',
+    backend: 'Loaded from your AYN job history',
+  };
+  let __jdTabId = null;
+
+  window.aynResolveJdBanner = function (tabId) {
+    __jdTabId = tabId;
+    const banner = $('jd-provenance');
+    const label = $('jd-src-label');
+    const meta = $('jd-src-meta');
+    const warn = $('jd-src-warn');
+    if (!banner || !label) return;
+    label.textContent = 'Locating the job description…';
+    meta.textContent = '';
+    warn.classList.add('hidden');
+    banner.classList.remove('hidden');
+    chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
+      void chrome.runtime.lastError;
+      if (!r || !r.ok) {
+        label.textContent = 'No job description found';
+        meta.textContent = 'Paste it manually for a better fill.';
+        warn.classList.remove('hidden');
+        return;
+      }
+      const chars = (r.text || '').length;
+      label.textContent = SRC_LABEL[r.source] || 'JD ready';
+      meta.textContent = `· ${chars.toLocaleString()} chars · quality ${r.quality || 0}/100`;
+      // Warn when quality is low (short JD, missing sections).
+      if ((r.quality || 0) < 45 || chars < 600) warn.classList.remove('hidden');
+    });
+  };
+
+  $('jd-paste-toggle')?.addEventListener('click', () => {
+    const w = $('jd-paste-wrap');
+    if (!w) return;
+    w.classList.toggle('hidden');
+    if (!w.classList.contains('hidden')) $('jd-paste-input')?.focus();
+  });
+  $('jd-paste-cancel')?.addEventListener('click', () => {
+    $('jd-paste-wrap')?.classList.add('hidden');
+    $('jd-paste-input').value = '';
+  });
+  $('jd-paste-save')?.addEventListener('click', () => {
+    const text = ($('jd-paste-input').value || '').trim();
+    if (text.length < 100) { toast('Paste the full job description (100+ chars).', 'err'); return; }
+    if (__jdTabId == null) { toast('Open a page first, then paste.', 'err'); return; }
+    chrome.runtime.sendMessage({ type: 'SET_MANUAL_JD', tabId: __jdTabId, text }, () => {
+      void chrome.runtime.lastError;
+      $('jd-paste-wrap')?.classList.add('hidden');
+      toast('JD saved — Autofill will use it now.', 'ok');
+      window.aynResolveJdBanner(__jdTabId);
+    });
+  });
+})();
