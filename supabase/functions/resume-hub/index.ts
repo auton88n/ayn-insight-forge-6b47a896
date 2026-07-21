@@ -202,6 +202,33 @@ async function sha256Hex(s: string) {
   return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
+// v2.7.0 — resolve the resume content the extension should use.
+// If a specific tailored version was requested (resume_version_id) and it
+// belongs to this user, use that; otherwise fall back to the primary resume.
+async function resolveResumeContent(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  resumeVersionId?: string,
+): Promise<{ id: string | null; content: Record<string, unknown> | null; source: "version" | "primary" | "none" }> {
+  if (resumeVersionId && typeof resumeVersionId === "string" && resumeVersionId.length > 0) {
+    const { data: v } = await admin
+      .from("resume_versions")
+      .select("id, resume_id, content, user_id")
+      .eq("id", resumeVersionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (v?.content) return { id: v.resume_id as string, content: v.content as Record<string, unknown>, source: "version" };
+  }
+  const { data: primary } = await admin
+    .from("resumes")
+    .select("id, content")
+    .eq("user_id", userId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (primary?.content) return { id: primary.id as string, content: primary.content as Record<string, unknown>, source: "primary" };
+  return { id: null, content: null, source: "none" };
+}
+
 const EXT_ACTIONS = new Set([
   "ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor",
   "ext_cover_letter", "ext_cover_letter_text",
@@ -794,9 +821,10 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag, resolved } = payload as {
+        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag, resolved, resume_version_id } = payload as {
           fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string; scanDiag?: unknown;
           resolved?: Array<{ id: string; source: string; confidence?: number }>;
+          resume_version_id?: string;
         };
         const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
@@ -825,11 +853,12 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn("autofill_runs early insert failed", e); }
           return json({ values: [], skipped: [], run_id: earlyRunId, meta: { reason: "no_form_fields", resolved_by: { ...resolvedBySrc, ai: 0 } } });
         }
-        const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
+        const [{ data: profile }, resumeResolved, canonical] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          resolveResumeContent(admin, userId, resume_version_id),
           loadCanonical(admin, userId),
         ]);
+        const resume = resumeResolved.content ? { content: resumeResolved.content } : null;
         const canonicalText = canonicalDigest(canonical);
 
         const profileFieldsAvailable = profile
@@ -1866,10 +1895,12 @@ RULES:
         return json({ ok: true });
       }
 
-      // ext_download_resume_text — returns primary resume as ATS plain text for manual upload
+      // ext_download_resume_text — returns primary or tailored resume as ATS plain text
       if (action === "ext_download_resume_text") {
-        const { data: resume } = await admin.from("resumes").select("title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ error: "No primary resume saved in AYN" }, 404);
+        const { resume_version_id } = payload as { resume_version_id?: string };
+        const resolved = await resolveResumeContent(admin, userId, resume_version_id);
+        if (!resolved.content) return json({ error: "No primary resume saved in AYN" }, 404);
+        const resume = { content: resolved.content };
         const c = resume.content as Record<string, unknown>;
         const basics = (c.basics || {}) as Record<string, string>;
         const work = (c.work || []) as Array<Record<string, unknown>>;
@@ -1998,8 +2029,10 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
       // v1.4.0: ext_get_resume_blob — return resume as base64 .txt for programmatic file attach
       // ──────────────────────────────────────────────────────────────
       if (action === "ext_get_resume_blob") {
-        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ error: "No resume on file. Upload one at aynn.io first." }, 404);
+        const { resume_version_id } = payload as { resume_version_id?: string };
+        const resolved = await resolveResumeContent(admin, userId, resume_version_id);
+        if (!resolved.content) return json({ error: "No resume on file. Upload one at aynn.io first." }, 404);
+        const resume = { content: resolved.content };
         const rc = resume.content as Record<string, unknown>;
         const basics = (rc.basics || {}) as Record<string, string>;
         const work = (rc.work || []) as Array<Record<string, unknown>>;
@@ -2361,6 +2394,44 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       };
       const { error } = await adminForNew.from("user_profile_canonical")
         .upsert(row, { onConflict: "user_id" });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v2.7.0 — Learned Answers UI (dashboard, JWT-auth).
+    // Lets the user view / edit / delete the answers the extension
+    // memorised on their behalf (ext_answers table).
+    // ─────────────────────────────────────────────────────────────
+    if (action === "answers_list") {
+      const { data, error } = await adminForNew
+        .from("ext_answers")
+        .select("id, question_text, answer_text, use_count, last_company, last_used_at, updated_at")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      if (error) return json({ error: error.message }, 500);
+      return json({ answers: data ?? [] });
+    }
+    if (action === "answers_update") {
+      const { id, answer_text } = payload as { id?: string; answer_text?: string };
+      if (!id || typeof answer_text !== "string") return json({ error: "id and answer_text required" }, 400);
+      const { error } = await adminForNew
+        .from("ext_answers")
+        .update({ answer_text: answer_text.slice(0, 4000), updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", userId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+    if (action === "answers_delete") {
+      const { id } = payload as { id?: string };
+      if (!id) return json({ error: "id required" }, 400);
+      const { error } = await adminForNew
+        .from("ext_answers")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }

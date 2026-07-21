@@ -302,6 +302,15 @@ $('sign-out-btn').addEventListener('click', () => {
   });
 });
 
+// v2.7.0 — surface the dashboard handoff arrival so the user knows context
+// was restored and which tailored resume version is preselected.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === 'HANDOFF_ARRIVED') {
+    const label = msg.resumeId ? 'Tailored resume selected · ready to fill' : 'Context restored · ready to fill';
+    try { toast(label, 'ok'); } catch {}
+  }
+});
+
 // ════════════════════════════════════════════════════════════════
 // Helper: call backend via background (handles auth)
 // ════════════════════════════════════════════════════════════════
