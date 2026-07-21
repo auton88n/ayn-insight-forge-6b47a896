@@ -4300,6 +4300,18 @@
   // with backoff (up to 5x) until the JD actually renders.
   detectAndReport(0);
 
+  // v2.8.1 — push initial classification to background so the "not-a-job-page"
+  // gate can reject SCORE_JOB_CARD / JD_REGISTRY on pages that never emit
+  // FORM_DETECTED or JOB_DETECTED (youtube.com, gmail, etc.).
+  if (AYN_IS_TOP) {
+    const pushKind = () => {
+      try { const c = classifyPage(); sendQuiet({ type: 'SET_TAB_KIND', kind: c.kind }); } catch {}
+    };
+    setTimeout(pushKind, 800);
+    setTimeout(pushKind, 3000);
+  }
+
+
   // SPA navigation hooks — patch history + listen popstate so we re-detect
   // when LinkedIn / Indeed / Workday change job without a full reload.
   let _routeDebounce = null;
