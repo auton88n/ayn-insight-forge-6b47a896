@@ -1720,9 +1720,19 @@ ${fullJdResolved.slice(0, 15000)}`,
           aiOk = false;
         }
 
+        // v2.8.2 — grounding metadata so the UI can show WHAT was scored.
+        const scoredAgainst = {
+          jobTitle: jobTitle || cachedRow?.title || "",
+          company: company || cachedRow?.company || "",
+          jdChars: fullJdResolved.length,
+          jdSource: source === "full" ? "full" : source === "snippet" ? "snippet" : "snippet",
+          resumeLabel,
+          skillsCount: userSkillIndex.size,
+        };
+
         if (!aiOk) {
           const fb = keywordFallbackScore(canonical, fullJdResolved, parsedJob);
-          return json(fb);
+          return json({ ...fb, scoredAgainst });
         }
 
         // 4. HONESTY enforcement (server-side, never trust the model alone).
@@ -1774,6 +1784,7 @@ ${fullJdResolved.slice(0, 15000)}`,
           salaryEstimate: salaryDisplay,
           verdict: String(parsedAI.verdict || ""),
           source,
+          scoredAgainst,
         });
       }
 
