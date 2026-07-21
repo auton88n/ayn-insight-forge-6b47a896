@@ -480,9 +480,8 @@ function detectForFill() {
       const dlWrap = $('fill-resume-dl-wrap');
       if (dlWrap) dlWrap.classList.add('hidden');
   }
-
-  });
 }
+
 
 
 // Helpers to fetch the AYN resume text + base filename and save a Blob
