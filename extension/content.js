@@ -4088,7 +4088,8 @@
             (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
             window.__AYN_FIELD_LABELS__ = map;
           } catch (_) {}
-          sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
+          let classification = null; try { classification = classifyPage(); } catch {}
+          sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag, classification, kind: classification ? classification.kind : 'other' });
         } finally {
           try { restore && restore(); } catch (_) {}
           window.__aynScanInFlight = false;
