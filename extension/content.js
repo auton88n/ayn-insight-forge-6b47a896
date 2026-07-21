@@ -3706,13 +3706,20 @@
   // ══════════════════════════════════════════════════════════════════
   let submitNotified = false;
   function attachSubmitListener() {
+    // v2.8.1 — only arm the auto-tracker on real apply pages. On youtube.com,
+    // gmail, reddit search, clicking a "Send" button used to save junk to the
+    // Applications tracker. classifyPage gates it.
+    const isApplyKind = () => {
+      try { const c = classifyPage(); return c && c.kind === 'apply'; } catch { return false; }
+    };
     const handler = () => {
       if (submitNotified) return;
+      if (!isApplyKind()) return;
       submitNotified = true;
       const job = extractJobText();
       sendQuiet({
         type: 'AUTO_TRACK_SUBMIT',
-        title: job.title, company: job.company, url: window.location.href,
+        title: job.title, company: job.company, url: window.location.href, kind: 'apply',
       });
       // Reset after a while in case the submit failed
       setTimeout(() => { submitNotified = false; }, 8000);
@@ -3727,6 +3734,7 @@
     }, true);
   }
   attachSubmitListener();
+
 
   // ══════════════════════════════════════════════════════════════════
   // 4B. VISION FALLBACK (v1.9.30, Phase 3) — used ONLY when the normal
