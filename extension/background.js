@@ -418,7 +418,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const tabId = message.tabId;
         if (!tabId) { sendResponse({ ok: false, error: 'no_tab' }); return; }
-        const blob = await callFunction('ext_get_resume_blob', {});
+        let tabUrl = '';
+        try { const t = await chrome.tabs.get(tabId); tabUrl = t && t.url || ''; } catch {}
+        const resume_version_id = await aynReadPendingResumeVersion(tabUrl);
+        const blob = await callFunction('ext_get_resume_blob', resume_version_id ? { resume_version_id } : {});
         if (!blob?.base64) { sendResponse({ ok: false, error: 'no_resume' }); return; }
         const r = await safeSendMessage(tabId, { type: 'TRY_ATTACH_RESUME', payload: blob });
         if (!r) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
@@ -501,6 +504,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         let unknownFields = fields;
         let __resolvedSummary = [];
 
+        // v2.7.0 — thread the currently-selected tailored resume version, if any.
+        let __tabUrl = '';
+        try { const __t = await chrome.tabs.get(tabId); __tabUrl = __t && __t.url || ''; } catch {}
+        const resume_version_id = await aynReadPendingResumeVersion(__tabUrl);
+
         const fillData = await callFunction('ext_autofill', {
           fields: unknownFields.map(f => ({
             id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
@@ -519,6 +527,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           url: topScan.url || '',
           scanDiag: Array.isArray(topScan.scanDiag) ? topScan.scanDiag : [],
           extVersion: chrome.runtime.getManifest().version,
+          resume_version_id: resume_version_id || undefined,
         });
         const runId = fillData?.run_id || null;
 
@@ -606,6 +615,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
               ats: topScan.ats || 'unknown', url: topScan.url || '',
               extVersion: chrome.runtime.getManifest().version,
+              resume_version_id: resume_version_id || undefined,
             });
               const newFieldMeta = new Map(newFieldsAll.map(f => [f.id, f]));
               const newValues = (fill2.values || [])
