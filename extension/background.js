@@ -193,12 +193,18 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
 });
 // v2.8.1 — a page is treated as a job page only when kind is 'apply' or 'listing',
 // unless the user explicitly clicked "Scan anyway" for this tab.
+// v2.8.1 — a page is treated as a job page unless it was EXPLICITLY classified
+// as 'other'. Unknown (never classified) is treated as allow, so first-time
+// SCORE_JOB_CARD calls from listing search cards aren't blocked. The gate's
+// job is to stop known-bad pages (youtube), not to require pre-registration.
 function tabAllowsJobIntent(tabId) {
-  if (tabId == null) return true; // no tab context: leave to caller
+  if (tabId == null) return true;
   if (TAB_OVERRIDE.get(tabId)) return true;
   const k = TAB_KIND.get(tabId);
-  return k === 'apply' || k === 'listing';
+  if (!k) return true;
+  return k !== 'other';
 }
+
 
 
 // v2.8.0 — the JD Resolver ladder. Tries, in order:
