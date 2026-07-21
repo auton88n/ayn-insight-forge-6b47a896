@@ -423,6 +423,10 @@ function detectForFill() {
       try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
       renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
       $('autofill-now-btn').classList.remove('hidden');
+      // v2.8.0 — kick off the JD Resolver so the provenance banner shows
+      // where the JD came from BEFORE the user clicks Autofill.
+      try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
+
 
       // v1.9.8: default hidden; only revealed as a fallback after Fill fails to auto-attach
       const dlWrap = $('fill-resume-dl-wrap');
