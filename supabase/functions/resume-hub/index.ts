@@ -2398,6 +2398,44 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ ok: true });
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // v2.7.0 — Learned Answers UI (dashboard, JWT-auth).
+    // Lets the user view / edit / delete the answers the extension
+    // memorised on their behalf (ext_answers table).
+    // ─────────────────────────────────────────────────────────────
+    if (action === "answers_list") {
+      const { data, error } = await adminForNew
+        .from("ext_answers")
+        .select("id, question_text, answer_text, use_count, last_company, last_used_at, updated_at")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      if (error) return json({ error: error.message }, 500);
+      return json({ answers: data ?? [] });
+    }
+    if (action === "answers_update") {
+      const { id, answer_text } = payload as { id?: string; answer_text?: string };
+      if (!id || typeof answer_text !== "string") return json({ error: "id and answer_text required" }, 400);
+      const { error } = await adminForNew
+        .from("ext_answers")
+        .update({ answer_text: answer_text.slice(0, 4000), updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", userId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+    if (action === "answers_delete") {
+      const { id } = payload as { id?: string };
+      if (!id) return json({ error: "id required" }, 400);
+      const { error } = await adminForNew
+        .from("ext_answers")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("resume-hub error", e);
