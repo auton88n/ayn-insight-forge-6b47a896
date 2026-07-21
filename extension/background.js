@@ -507,7 +507,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'BG_FUNC') {
     (async () => {
       try {
-        const data = await callFunction(message.action, message.payload || {});
+        const payload = message.payload || {};
+        // v2.8.2 — auto-inject the tailored resume selection for the currently
+        // active tab into ext_job_score so the backend scores against the same
+        // resume the autofill would use.
+        if (message.action === 'ext_job_score' && !payload.resume_version_id) {
+          try {
+            const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const rvid = await aynReadPendingResumeVersion(t?.url || payload.url || '');
+            if (rvid) payload.resume_version_id = rvid;
+          } catch {}
+        }
+        const data = await callFunction(message.action, payload);
         sendResponse({ ok: true, data });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
@@ -657,17 +668,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (jd && jd.text && jd.quality >= 30) fullJd = jd.text;
           }
         } catch {}
+        // v2.8.2 — thread the tailored resume selection and echo title/company
+        // so the backend can return scoredAgainst grounding metadata.
+        const resume_version_id = await aynReadPendingResumeVersion(pageUrl);
         const data = await callFunction('ext_job_score', {
           jobTitle: message.jobTitle, company: message.company,
           jobSnippet: message.jobSnippet || (fullJd ? fullJd.slice(0, 2000) : ''),
           fullJd: fullJd || undefined,
           url: pageUrl,
+          resume_version_id: resume_version_id || undefined,
         });
         // v2.8.0 — remember the score per tab so AUTO_TRACK_SUBMIT can attach it.
         try { if (tabId != null && data && typeof data.score === 'number') LAST_MATCH.set(tabId, { score: data.score, jobId: data.job_id || '', ts: Date.now() }); } catch {}
         sendResponse({
-          score: data.score || 5, matchLabel: data.matchLabel || 'Fair',
+          score: data.score || 0, matchLabel: data.matchLabel || '',
           reasons: data.reasons || [], salaryEstimate: data.salaryEstimate || '',
+          scoredAgainst: data.scoredAgainst || null,
+          needsJd: !!data.needsJd,
+          source: data.source || '',
           key: message.key,
         });
       } catch { sendResponse(null); }
