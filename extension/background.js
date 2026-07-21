@@ -23,19 +23,37 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return;
   }
 
+  // v2.7.0 — dashboard tells us the user just saved their profile.
+  // Invalidate cached profile vector so the next autofill uses fresh data.
+  if (message.type === 'AYN_PROFILE_UPDATED') {
+    (async () => {
+      try { await chrome.storage.local.remove('ayn_profile_vector'); } catch {}
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
   if (message.type === 'AYN_TRIGGER_AUTOFILL') {
     (async () => {
       try {
         const jobUrl = String(message.jobUrl || '').trim();
         if (!jobUrl) { sendResponse({ ok: false, error: 'no_url' }); return; }
-        // Find existing tab with this URL, else open a new one.
         const tabs = await chrome.tabs.query({});
         const found = tabs.find(t => t.url === jobUrl);
         const tab = found || await chrome.tabs.create({ url: jobUrl, active: true });
         if (found) { try { await chrome.tabs.update(tab.id, { active: true }); } catch {} }
-        // Store handoff so hydrate script surfaces a toast if needed.
-        try { await chrome.storage.local.set({ 'ayn:pendingHandoff': { targetUrl: jobUrl, resumeId: message.resumeId || '', ts: Date.now() } }); } catch {}
-        // Wait for load, then dispatch AUTO_AUTOFILL to ourselves.
+        try {
+          await chrome.storage.local.set({
+            'ayn:pendingHandoff': { targetUrl: jobUrl, resumeId: message.resumeId || '', ts: Date.now() },
+          });
+          // v2.7.0 — remember which tailored resume version the user picked so
+          // subsequent autofill / attach calls target that version.
+          if (message.resumeVersionId) {
+            await chrome.storage.local.set({
+              ayn_pending_resume_version: { id: String(message.resumeVersionId), url: jobUrl, ts: Date.now() },
+            });
+          }
+        } catch {}
         await new Promise(r => setTimeout(r, 1500));
         chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, () => void chrome.runtime.lastError);
         sendResponse({ ok: true, tabId: tab.id });
@@ -46,6 +64,27 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 
   sendResponse({ ok: false, error: 'unknown_type' });
 });
+
+// v2.7.0 — read (and expire) the pending tailored-resume selection.
+// Only honoured when the current tab URL matches the URL that pinned it.
+async function aynReadPendingResumeVersion(tabUrl) {
+  try {
+    const d = await chrome.storage.local.get('ayn_pending_resume_version');
+    const p = d && d.ayn_pending_resume_version;
+    if (!p || !p.id) return '';
+    if (Date.now() - (p.ts || 0) > 30 * 60 * 1000) {
+      await chrome.storage.local.remove('ayn_pending_resume_version');
+      return '';
+    }
+    try {
+      if (p.url && tabUrl) {
+        const a = new URL(p.url), b = new URL(tabUrl);
+        if (a.origin !== b.origin || (a.pathname !== b.pathname && !b.pathname.startsWith(a.pathname))) return '';
+      }
+    } catch {}
+    return p.id;
+  } catch { return ''; }
+}
 
 // PART B: per-tab form-detection cache (tabId → { hasForm, fieldCount, hasResumeUpload, url, ts })
 const FORM_CACHE = new Map();
@@ -111,11 +150,13 @@ async function safeSendMessage(tabId, message, frameId = 0) {
 }
 
 // ── v1.9.55: profile vector + answer memory (two-lane resolver) ──────
+// v2.7.0 — cache window trimmed from 24h to 30m so recent Profile edits
+// on the dashboard show up in the extension without waiting a full day.
 async function aynGetProfileVector() {
   try {
     const r = await chrome.storage.local.get('ayn_profile_vector');
     const cached = r.ayn_profile_vector;
-    const fresh = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < 24 * 3600 * 1000);
+    const fresh = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < 30 * 60 * 1000);
     if (fresh && cached.vector) return cached.vector;
     const resp = await callFunction('ext_profile', {});
     if (resp && resp.facts) { await chrome.storage.local.set({ ayn_profile_vector: { vector: resp, fetchedAt: Date.now() } }); return resp; }
