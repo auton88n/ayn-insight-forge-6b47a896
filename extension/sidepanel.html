@@ -800,9 +800,27 @@
       </div>
     </div>
 
+    <!-- v2.8.0 — JD provenance banner: shows where AYN got the JD from. -->
+    <div id="jd-provenance" class="card hidden mt12" style="padding:10px;font-size:12px;display:flex;align-items:center;gap:8px">
+      <i class="ti ti-file-text" style="color:var(--ayn-blue,#3b82f6)"></i>
+      <div style="flex:1;line-height:1.35">
+        <div><b id="jd-src-label">JD ready</b> <span id="jd-src-meta" style="color:var(--ayn-muted)"></span></div>
+        <div id="jd-src-warn" class="hidden" style="color:#b45309;font-size:11px;margin-top:2px">This JD looks incomplete. Paste it below for a better fill.</div>
+      </div>
+      <button class="btn btn-outline" id="jd-paste-toggle" style="padding:4px 10px;font-size:11px"><i class="ti ti-clipboard"></i>Paste JD</button>
+    </div>
+    <div id="jd-paste-wrap" class="card hidden mt8" style="padding:10px">
+      <textarea id="jd-paste-input" placeholder="Paste the full job description here…" style="width:100%;min-height:120px;font-size:12px;padding:8px;border:1px solid var(--ayn-border);border-radius:6px;background:var(--ayn-card);color:var(--ayn-text);resize:vertical"></textarea>
+      <div class="btn-row mt8">
+        <button class="btn btn-outline" id="jd-paste-cancel" style="padding:6px 12px;font-size:12px">Cancel</button>
+        <button class="btn btn-primary" id="jd-paste-save" style="padding:6px 12px;font-size:12px"><i class="ti ti-check"></i>Use this JD</button>
+      </div>
+    </div>
+
     <button class="btn btn-primary hidden" id="autofill-now-btn">
       <i class="ti ti-bolt"></i>Autofill This Application
     </button>
+
 
     <div class="card mt12" style="padding:12px">
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
