@@ -4029,18 +4029,21 @@
       );
       const hasForm = fields.length >= 2 || fileFields.length > 0 || !!modalForm;
       const needsResume = fileFields.some(f => f.isResume);
-      let kind = 'other';
+      // v2.8.1 — classifier is the source of truth for kind. Legacy heuristics
+      // (isJobHost/hasJD) are preserved as fallbacks only for AYN-hosted pages.
+      const classification = (() => { try { return classifyPage(); } catch { return { kind: 'other', confidence: 0, signals: [] }; } })();
+      let kind = classification.kind; // 'apply' | 'listing' | 'other'
       if (isAynHost) kind = 'ayn';
-      else if (hasForm && (hasJD || isJobHost)) kind = 'application';
-      else if (hasJD || isJobHost) kind = 'job_listing';
       sendResponse({
-        kind, hasForm, hasJD, fieldCount: fields.length + (modalForm ? 1 : 0),
+        kind, classification,
+        hasForm, hasJD, fieldCount: fields.length + (modalForm ? 1 : 0),
         fileFieldCount: fileFields.length, needsResume,
         title: job.title, company: job.company,
         jdLength: (job.text || '').length, url,
       });
       return true;
     }
+
 
     if (message.type === 'SCAN_FORM') {
       // v2.5.7 — collapse rapid duplicate SCAN_FORM requests
