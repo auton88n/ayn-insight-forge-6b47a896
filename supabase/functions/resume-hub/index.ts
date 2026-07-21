@@ -202,6 +202,33 @@ async function sha256Hex(s: string) {
   return Array.from(new Uint8Array(h)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
+// v2.7.0 — resolve the resume content the extension should use.
+// If a specific tailored version was requested (resume_version_id) and it
+// belongs to this user, use that; otherwise fall back to the primary resume.
+async function resolveResumeContent(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  resumeVersionId?: string,
+): Promise<{ id: string | null; content: Record<string, unknown> | null; source: "version" | "primary" | "none" }> {
+  if (resumeVersionId && typeof resumeVersionId === "string" && resumeVersionId.length > 0) {
+    const { data: v } = await admin
+      .from("resume_versions")
+      .select("id, resume_id, content, user_id")
+      .eq("id", resumeVersionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (v?.content) return { id: v.resume_id as string, content: v.content as Record<string, unknown>, source: "version" };
+  }
+  const { data: primary } = await admin
+    .from("resumes")
+    .select("id, content")
+    .eq("user_id", userId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (primary?.content) return { id: primary.id as string, content: primary.content as Record<string, unknown>, source: "primary" };
+  return { id: null, content: null, source: "none" };
+}
+
 const EXT_ACTIONS = new Set([
   "ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor",
   "ext_cover_letter", "ext_cover_letter_text",
