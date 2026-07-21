@@ -498,13 +498,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Store detected job
   if (message.type === 'JOB_DETECTED') {
+    const url = sender.tab?.url || '';
     chrome.storage.local.set({
       lastJobText: message.text, lastJobTitle: message.title,
-      lastJobUrl: sender.tab?.url || '', lastJobCompany: message.company || '',
+      lastJobUrl: url, lastJobCompany: message.company || '',
       detectedAt: Date.now(),
     }, () => sendResponse({ ok: true }));
+    // v2.8.0 — every detection feeds the JD registry so a later navigation
+    // to the same job's apply page can recover the full JD by fuzzy match.
+    try { jdRegistrySet(url, { text: message.text || '', title: message.title || '', company: message.company || '' }, 'job_detected'); } catch {}
     return true;
   }
+
+  // v2.8.0 — JD Resolver: public entry point for the sidepanel.
+  if (message.type === 'RESOLVE_JD') {
+    (async () => {
+      try {
+        const tabId = message.tabId;
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        if (!tab) { sendResponse({ ok: false, error: 'no_tab' }); return; }
+        const jd = await resolveJdForTab(tabId, tab.url || '', message.hint || null);
+        if (!jd) { sendResponse({ ok: false, error: 'no_jd' }); return; }
+        sendResponse({ ok: true, text: jd.text, title: jd.title || '', company: jd.company || '', source: jd.source, quality: jd.quality || 0, listingUrl: jd.listingUrl || '' });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+  // v2.8.0 — user manually pasted a JD in the sidepanel.
+  if (message.type === 'SET_MANUAL_JD') {
+    const tabId = message.tabId;
+    if (tabId != null && message.text) {
+      MANUAL_JD.set(tabId, { text: String(message.text || ''), title: message.title || '', company: message.company || '', ts: Date.now() });
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+
 
   // PART B: cache form-detected events per tab so the sidepanel reads them instantly
   if (message.type === 'FORM_DETECTED') {
