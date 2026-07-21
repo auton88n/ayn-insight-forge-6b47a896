@@ -420,7 +420,7 @@ function detectForFill() {
 
       });
     });
-  });
+
 
   function renderKindBranches(r, tab) {
       if (r.kind === 'ayn') {
