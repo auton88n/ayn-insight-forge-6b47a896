@@ -1895,10 +1895,12 @@ RULES:
         return json({ ok: true });
       }
 
-      // ext_download_resume_text — returns primary resume as ATS plain text for manual upload
+      // ext_download_resume_text — returns primary or tailored resume as ATS plain text
       if (action === "ext_download_resume_text") {
-        const { data: resume } = await admin.from("resumes").select("title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ error: "No primary resume saved in AYN" }, 404);
+        const { resume_version_id } = payload as { resume_version_id?: string };
+        const resolved = await resolveResumeContent(admin, userId, resume_version_id);
+        if (!resolved.content) return json({ error: "No primary resume saved in AYN" }, 404);
+        const resume = { content: resolved.content };
         const c = resume.content as Record<string, unknown>;
         const basics = (c.basics || {}) as Record<string, string>;
         const work = (c.work || []) as Array<Record<string, unknown>>;
@@ -2027,8 +2029,10 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
       // v1.4.0: ext_get_resume_blob — return resume as base64 .txt for programmatic file attach
       // ──────────────────────────────────────────────────────────────
       if (action === "ext_get_resume_blob") {
-        const { data: resume } = await admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
-        if (!resume?.content) return json({ error: "No resume on file. Upload one at aynn.io first." }, 404);
+        const { resume_version_id } = payload as { resume_version_id?: string };
+        const resolved = await resolveResumeContent(admin, userId, resume_version_id);
+        if (!resolved.content) return json({ error: "No resume on file. Upload one at aynn.io first." }, 404);
+        const resume = { content: resolved.content };
         const rc = resume.content as Record<string, unknown>;
         const basics = (rc.basics || {}) as Record<string, string>;
         const work = (rc.work || []) as Array<Record<string, unknown>>;
