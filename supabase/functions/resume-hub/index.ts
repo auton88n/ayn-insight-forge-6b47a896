@@ -247,7 +247,12 @@ const EXT_ACTIONS = new Set([
   "ext_vision_fill",
   // v1.9.55: two-lane resolver — client-side profile vector
   "ext_profile",
+  // v2.7.0: learned answers CRUD
+  "answers_list", "answers_update", "answers_delete",
+  // v2.8.0: JD resolver — fetch previously-ingested JD by host+path
+  "ext_job_lookup",
 ]);
+
 
 // ──────────────────────────────────────────────────────────────
 // Phase 2 helpers: URL normalization, full-JD parse, fallback score
