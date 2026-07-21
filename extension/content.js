@@ -420,8 +420,92 @@
 
   function aynIsApplyPage(u) { return /\/(application|apply)\/?($|\?)/i.test(u || ''); }
   function aynListingUrlFromApply(u) {
-    try { const url = new URL(u); url.search=''; url.hash=''; url.pathname = url.pathname.replace(/\/(application|apply)\/?$/i, ''); const out = url.toString(); return out === u ? null : out; } catch { return null; }
+    try {
+      const url = new URL(u); url.search = ''; url.hash = '';
+      let p = url.pathname;
+      const host = url.hostname.toLowerCase();
+      // v2.8.0 — per-ATS strip rules for the listing URL derivation.
+      if (/ashbyhq\.com$/i.test(host)) p = p.replace(/\/application\/?$/i, '');
+      else if (/greenhouse\.io$/i.test(host)) p = p.replace(/\/application\/?$/i, '');
+      else if (/lever\.co$/i.test(host)) p = p.replace(/\/apply\/?$/i, '');
+      else if (/myworkdayjobs\.com$/i.test(host)) p = p.replace(/\/apply(\/.*)?$/i, '');
+      else if (/smartrecruiters\.com$/i.test(host)) p = p.replace(/\/apply\/?$/i, '');
+      else p = p.replace(/\/(application|apply)\/?$/i, '');
+      url.pathname = p;
+      const out = url.toString();
+      return out === u ? null : out;
+    } catch { return null; }
   }
+
+  // v2.8.0 — shared site selector map used by both the live DOM extractor
+  // and the parsed-HTML body extractor (PARSE_JOB_HTML). Returns null when
+  // no site-specific selectors apply; the caller falls back to generic.
+  function getSiteSelectors(url) {
+    const map = [
+      ['ca.indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]' }],
+      ['indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[class*="jobsearch-CompanyInfoContainer"], [data-testid="inlineHeader-companyName"]' }],
+      ['linkedin.com/jobs', { desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, [class*="jobs-description"]', title: '.job-details-jobs-unified-top-card__job-title, h1', company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]' }],
+      ['greenhouse.io', { desc: '#content, .job__description, [class*="description"]', title: 'h1', company: '.company-name, [class*="company"]' }],
+      ['jobs.lever.co', { desc: '.section-wrapper, [class*="description"], .posting-requirements', title: 'h2, h1', company: '.main-header-text .large-category-label' }],
+      ['jobs.ashbyhq.com', { desc: '[class*="description"], [class*="job-post"], .ashby-job-posting-right-pane', title: 'h1', company: '[class*="company"]' }],
+      ['glassdoor.com/job', { desc: '[class*="jobDescriptionContent"], [class*="JobDesc"]', title: '[class*="job-title"], h1', company: '[class*="employer-name"]' }],
+      ['myworkdayjobs.com', { desc: '[data-automation-id="jobPostingDescription"]', title: '[data-automation-id="jobPostingHeader"] h2, h1', company: '[data-automation-id="company-name"]' }],
+      ['smartrecruiters.com', { desc: '.job-description, [class*="description"]', title: 'h1', company: '[class*="company-name"]' }],
+    ].sort((a, b) => b[0].length - a[0].length);
+    const u = String(url || '').toLowerCase();
+    for (const [pat, sel] of map) { if (u.includes(pat)) return sel; }
+    return null;
+  }
+
+  // v2.8.0 — parse a raw HTML string (from FETCH_URL_TEXT) and extract the
+  // job description text, title, and company using the same site selector
+  // map as the live extractor, plus JSON-LD, meta, and largest-block fallback.
+  function parseBodyFromHtml(html, url) {
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const pickText = (selList) => {
+        try {
+          const parts = [];
+          (selList || '').split(',').forEach(s => {
+            doc.querySelectorAll(s.trim()).forEach(el => {
+              const t = (el.textContent || '').trim();
+              if (t && t.length > 20) parts.push(t);
+            });
+          });
+          return parts.join('\n\n').replace(/\s{3,}/g, '  ').trim();
+        } catch { return ''; }
+      };
+      let text = '', title = '', company = '';
+      const sel = getSiteSelectors(url || '');
+      if (sel) {
+        text = pickText(sel.desc);
+        const tEl = doc.querySelector(sel.title);
+        const cEl = doc.querySelector(sel.company);
+        title = (tEl && tEl.textContent || '').trim();
+        company = (cEl && cEl.textContent || '').trim();
+      }
+      if (!text || text.length < 400) {
+        let best = null, bestLen = 0;
+        doc.querySelectorAll('article, main, [class*="description"], [class*="job"], [id*="description"]').forEach(el => {
+          const t = (el.textContent || '').trim();
+          if (t.length > bestLen) { bestLen = t.length; best = t; }
+        });
+        if (best && best.length > text.length) text = best;
+      }
+      if (!title) title = (doc.querySelector('h1')?.textContent || doc.title || '').trim();
+      // JSON-LD + meta merge for missing pieces / longer text
+      try {
+        const j = parseJsonLdFromHtml(html);
+        if (j && j.text && j.text.length > text.length) { text = j.text; title = title || j.title; company = company || j.company; }
+      } catch {}
+      try {
+        const meta = parseMetaFromHtml(html);
+        if (meta && meta.length > text.length) text = meta;
+      } catch {}
+      return { text: (text || '').slice(0, MAX_JD_CHARS), title: cleanTitle(title || ''), company: (company || '').trim() };
+    } catch { return { text: '', title: '', company: '' }; }
+  }
+
 
   function extractJobTextRaw() {
     try {
