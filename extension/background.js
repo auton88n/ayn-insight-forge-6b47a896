@@ -99,7 +99,14 @@ const JD_REGISTRY = new Map();
 const TAB_OPENER = new Map();
 const LAST_MATCH = new Map();
 const MANUAL_JD = new Map();
+// v2.8.1 — per-tab page classification + manual "Scan anyway" override.
+// TAB_KIND: tabId → 'apply' | 'listing' | 'other' | 'ayn' (last known)
+// TAB_OVERRIDE: tabId → true when user clicked "Scan anyway" on a page
+// classified as 'other'. Reset on navigation (chrome.tabs.onUpdated info.url).
+const TAB_KIND = new Map();
+const TAB_OVERRIDE = new Map();
 const JD_TTL_MS = 45 * 60 * 1000; // 45 minutes
+
 
 function jdKey(url) {
   try { const u = new URL(url); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; }
