@@ -716,7 +716,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
         const topScan = scanByFrame[0] || {};
-        const jobText = topScan.jobText || {};
+        // v2.8.0 — JD RESOLVER LADDER. The apply page rarely contains the full
+        // JD; run the resolver ladder (current-page hint → opener tab → registry
+        // fuzzy → listing fetch → backend lookup) and use the best result. This
+        // is the difference between AI answering "why this company?" from a
+        // 30-word teaser vs. the real posting.
+        let jobText = topScan.jobText || {};
+        try {
+          const pageUrl = topScan.url || '';
+          const resolved = await resolveJdForTab(tabId, pageUrl, jobText);
+          if (resolved && resolved.text && jdQuality(resolved.text) > jdQuality(jobText.text || '')) {
+            jobText = { text: resolved.text, title: resolved.title || jobText.title || '', company: resolved.company || jobText.company || '' };
+            console.log('[AYN JD] resolved via', resolved.source, 'quality', resolved.quality, 'chars', resolved.text.length);
+          }
+        } catch (e) { console.warn('[AYN JD] resolve failed', e); }
+
         const fileFields = fields.filter(f => /file/i.test(String(f.kind || f.type || '')) || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
         fields = fields.filter(f => !(/file/i.test(String(f.kind || f.type || ''))));
         if (fields.length === 0) {
