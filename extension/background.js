@@ -578,8 +578,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fieldCount: message.fieldCount || 0,
         hasResumeUpload: !!message.hasResumeUpload,
         url: message.url || sender.tab?.url || '',
+        kind: message.kind || TAB_KIND.get(tabId) || 'other',
         ts: Date.now(),
       });
+      if (message.kind) TAB_KIND.set(tabId, message.kind);
       // Notify any open sidepanel
       try { chrome.runtime.sendMessage({ type: 'FORM_DETECTED_PUSH', tabId, ...FORM_CACHE.get(tabId) }, () => void chrome.runtime.lastError); } catch {}
     }
@@ -594,10 +596,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // v2.8.1 — sidepanel-facing per-tab kind + override.
+  if (message.type === 'GET_TAB_KIND') {
+    const tabId = message.tabId;
+    sendResponse({
+      kind: (tabId != null && TAB_KIND.get(tabId)) || 'unknown',
+      override: !!(tabId != null && TAB_OVERRIDE.get(tabId)),
+    });
+    return true;
+  }
+  if (message.type === 'SET_KIND_OVERRIDE') {
+    const tabId = message.tabId;
+    if (tabId != null) {
+      if (message.on) TAB_OVERRIDE.set(tabId, true);
+      else TAB_OVERRIDE.delete(tabId);
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (message.type === 'SET_TAB_KIND') {
+    // Content script can push its classification (e.g. from DETECT_PAGE via TAB_SEND)
+    const tabId = sender.tab?.id || message.tabId;
+    if (tabId != null && message.kind) TAB_KIND.set(tabId, message.kind);
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (message.type === 'GET_JOB') {
     chrome.storage.local.get(['lastJobText','lastJobTitle','lastJobUrl','lastJobCompany','detectedAt'], sendResponse);
     return true;
   }
+
 
   // Score a job card
   if (message.type === 'SCORE_JOB_CARD') {
