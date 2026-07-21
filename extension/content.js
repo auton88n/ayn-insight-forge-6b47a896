@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.8.0'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.8.1'; } })();
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
@@ -3706,13 +3706,20 @@
   // ══════════════════════════════════════════════════════════════════
   let submitNotified = false;
   function attachSubmitListener() {
+    // v2.8.1 — only arm the auto-tracker on real apply pages. On youtube.com,
+    // gmail, reddit search, clicking a "Send" button used to save junk to the
+    // Applications tracker. classifyPage gates it.
+    const isApplyKind = () => {
+      try { const c = classifyPage(); return c && c.kind === 'apply'; } catch { return false; }
+    };
     const handler = () => {
       if (submitNotified) return;
+      if (!isApplyKind()) return;
       submitNotified = true;
       const job = extractJobText();
       sendQuiet({
         type: 'AUTO_TRACK_SUBMIT',
-        title: job.title, company: job.company, url: window.location.href,
+        title: job.title, company: job.company, url: window.location.href, kind: 'apply',
       });
       // Reset after a while in case the submit failed
       setTimeout(() => { submitNotified = false; }, 8000);
@@ -3727,6 +3734,7 @@
     }, true);
   }
   attachSubmitListener();
+
 
   // ══════════════════════════════════════════════════════════════════
   // 4B. VISION FALLBACK (v1.9.30, Phase 3) — used ONLY when the normal
@@ -3858,10 +3866,145 @@
 
 
   // ══════════════════════════════════════════════════════════════════
+  // v2.8.1 — Page classifier gate. classifyPage() returns
+  //   { kind: 'apply' | 'listing' | 'other', confidence, signals }
+  // Prevents AYN from treating any page with inputs (youtube.com, gmail,
+  // reddit search…) as a job application. Consumer denylist is EXACT-host so
+  // careers subdomains (careers.google.com, www.amazon.jobs) still pass.
+  // ══════════════════════════════════════════════════════════════════
+  const AYN_ATS_HOST_RE = /(ashbyhq\.com|greenhouse\.io|boards\.greenhouse|lever\.co|myworkdayjobs\.com|workday\.com|icims\.com|smartrecruiters\.com|gem\.com|bamboohr\.com|workable\.com|jazzhr\.com|taleo\.net|recruitee\.com|teamtailor\.com|breezy\.hr|jobvite\.com|dover\.com|rippling-ats\.com|pinpointhq\.com)/i;
+  const AYN_APPLY_PATH_RE = /\/(apply|application|job|jobs|careers|career|position)s?(\/|$|\?)/i;
+  const AYN_CONSUMER_DENY = new Set([
+    'www.youtube.com','m.youtube.com','youtube.com',
+    'mail.google.com','www.google.com','google.com',
+    'www.facebook.com','facebook.com',
+    'www.instagram.com','instagram.com',
+    'x.com','twitter.com','www.twitter.com',
+    'www.reddit.com','reddit.com',
+    'www.netflix.com','netflix.com',
+    'www.tiktok.com','tiktok.com',
+    'web.whatsapp.com',
+    'open.spotify.com',
+    'www.amazon.com','amazon.com',
+  ]);
+
+  function classifyPage() {
+    const signals = [];
+    const add = (name, weight, target) => signals.push({ name, weight, target: target || 'apply' });
+    let text = '';
+    try { text = (document.body && (document.body.innerText || '')).slice(0, 60000); } catch {}
+
+    // STRONG APPLY (+3 each)
+    // File input for resume/CV
+    try {
+      const files = document.querySelectorAll('input[type="file"]');
+      for (const fi of files) {
+        const accept = String(fi.getAttribute('accept') || '').toLowerCase();
+        const hasResumeAccept = /pdf|doc|docx/.test(accept);
+        let nearby = '';
+        try {
+          const lbl = fi.id ? document.querySelector(`label[for="${CSS.escape(fi.id)}"]`) : null;
+          nearby = ((lbl && lbl.textContent) || fi.closest('label')?.textContent || fi.getAttribute('aria-label') || fi.name || '').slice(0, 200);
+        } catch {}
+        if (hasResumeAccept || /resume|cv/i.test(nearby)) { add('file_resume', 3); break; }
+      }
+    } catch {}
+    // Submit-style button copy
+    try {
+      const btns = document.querySelectorAll('button, [role="button"], input[type="submit"]');
+      for (const b of btns) {
+        const t = ((b.innerText || b.value || b.getAttribute('aria-label') || '')).trim();
+        if (/submit application|apply now|apply for this (job|position|role)|send application/i.test(t)) { add('submit_button', 3); break; }
+      }
+    } catch {}
+    // EEO block (>=2 phrases)
+    try {
+      const eeoRe = /gender identity|race|ethnicity|veteran status|disability|voluntary self.identification/i;
+      let hits = 0;
+      const parts = text.split(/\n+/);
+      const seen = new Set();
+      for (const line of parts) {
+        const m = line.match(eeoRe);
+        if (m && !seen.has(m[0].toLowerCase())) { seen.add(m[0].toLowerCase()); hits++; if (hits >= 2) break; }
+      }
+      if (hits >= 2) add('eeo_block', 3);
+    } catch {}
+
+    // MEDIUM (+2 each)
+    let host = '', pathname = '';
+    try { const u = new URL(location.href); host = u.hostname.toLowerCase(); pathname = u.pathname; } catch {}
+    if (host && AYN_ATS_HOST_RE.test(host)) add('ats_host', 2);
+    if (pathname && AYN_APPLY_PATH_RE.test(pathname)) add('apply_path', 2);
+    // Contact-field cluster: at least 3 of first name, last name, email, phone in one form/fieldset
+    let hasContactCluster = false;
+    try {
+      const scopes = Array.from(document.querySelectorAll('form, fieldset, [role="form"]'));
+      if (!scopes.length) scopes.push(document.body);
+      const rxs = [/first.?name|given.?name/i, /last.?name|family.?name|surname/i, /e.?mail/i, /phone|mobile|tel/i];
+      for (const scope of scopes) {
+        if (!scope) continue;
+        const labels = Array.from(scope.querySelectorAll('label, [aria-label], input[placeholder]'))
+          .map(el => (el.textContent || el.getAttribute('aria-label') || el.getAttribute('placeholder') || '').trim())
+          .filter(Boolean);
+        let hit = 0;
+        for (const rx of rxs) { if (labels.some(l => rx.test(l))) hit++; }
+        if (hit >= 3) { hasContactCluster = true; break; }
+      }
+      if (hasContactCluster) add('contact_cluster', 2);
+    } catch {}
+
+    // LISTING signals (+2 each, target 'listing')
+    let hasResumeFileInput = false;
+    try { hasResumeFileInput = signals.some(s => s.name === 'file_resume'); } catch {}
+    try {
+      const jd = extractJobText();
+      const jdLen = String(jd && jd.text || '').length;
+      const jdQual = jdLen > 600 && /responsibilit|requirement|qualif|what you.?ll do|we.?re looking/i.test(jd.text || '');
+      if (jdQual && !hasContactCluster && !hasResumeFileInput) add('jd_no_form', 2, 'listing');
+    } catch {}
+    try {
+      const applyLinks = Array.from(document.querySelectorAll('a[href]')).filter(a => /apply|application/i.test(a.textContent || '') || /apply|application/i.test(a.getAttribute('aria-label') || ''));
+      for (const a of applyLinks) {
+        const href = a.getAttribute('href') || '';
+        if (!href || href.startsWith('#')) continue;
+        try {
+          const u = new URL(href, location.href);
+          if (u.origin !== location.origin || u.pathname !== location.pathname) { add('apply_link_away', 2, 'listing'); break; }
+        } catch {}
+      }
+    } catch {}
+
+    // NEGATIVE (-4): consumer denylist exact host, unless a STRONG APPLY fired.
+    // LinkedIn: denylist EXCEPT /jobs paths.
+    let denylist = false;
+    if (host && AYN_CONSUMER_DENY.has(host)) denylist = true;
+    if (host && /(^|\.)linkedin\.com$/i.test(host) && !/^\/jobs/i.test(pathname)) denylist = true;
+    const strongApply = signals.some(s => s.weight >= 3);
+    if (denylist && !strongApply) add('consumer_deny', -4);
+
+    // Aggregate
+    let applyScore = 0, listingScore = 0;
+    for (const s of signals) {
+      if (s.target === 'listing') listingScore += s.weight;
+      else applyScore += s.weight;
+    }
+    const total = applyScore + listingScore;
+    let kind = 'other';
+    if (applyScore >= 5 && (hasContactCluster || hasResumeFileInput)) kind = 'apply';
+    else if (listingScore >= 2) kind = 'listing';
+    else if (total >= 4) kind = 'listing';
+    const confidence = Math.max(0, Math.min(100, total * 10));
+    return { kind, confidence, signals, applyScore, listingScore };
+  }
+  // expose for background gates and debugging
+  try { window.__AYN_CLASSIFY__ = classifyPage; } catch {}
+
+  // ══════════════════════════════════════════════════════════════════
   // 5. MESSAGE LISTENER
   // ══════════════════════════════════════════════════════════════════
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+
 
     if (message.type === 'EXTRACT_JOB_TEXT') {
       extractJobTextDeep().then(res => sendResponse(res)).catch(() => { try { sendResponse(extractJobText()); } catch {} });
@@ -3894,18 +4037,21 @@
       );
       const hasForm = fields.length >= 2 || fileFields.length > 0 || !!modalForm;
       const needsResume = fileFields.some(f => f.isResume);
-      let kind = 'other';
+      // v2.8.1 — classifier is the source of truth for kind. Legacy heuristics
+      // (isJobHost/hasJD) are preserved as fallbacks only for AYN-hosted pages.
+      const classification = (() => { try { return classifyPage(); } catch { return { kind: 'other', confidence: 0, signals: [] }; } })();
+      let kind = classification.kind; // 'apply' | 'listing' | 'other'
       if (isAynHost) kind = 'ayn';
-      else if (hasForm && (hasJD || isJobHost)) kind = 'application';
-      else if (hasJD || isJobHost) kind = 'job_listing';
       sendResponse({
-        kind, hasForm, hasJD, fieldCount: fields.length + (modalForm ? 1 : 0),
+        kind, classification,
+        hasForm, hasJD, fieldCount: fields.length + (modalForm ? 1 : 0),
         fileFieldCount: fileFields.length, needsResume,
         title: job.title, company: job.company,
         jdLength: (job.text || '').length, url,
       });
       return true;
     }
+
 
     if (message.type === 'SCAN_FORM') {
       // v2.5.7 — collapse rapid duplicate SCAN_FORM requests
@@ -3950,7 +4096,8 @@
             (fields || []).forEach(f => { if (f && f.id) map.set(f.id, f.label || ''); });
             window.__AYN_FIELD_LABELS__ = map;
           } catch (_) {}
-          sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag });
+          let classification = null; try { classification = classifyPage(); } catch {}
+          sendResponse({ fields, fileFields: fields._fileFields || [], jobText, ats: detectATS(), url: window.location.href, scanDiag, classification, kind: classification ? classification.kind : 'other' });
         } finally {
           try { restore && restore(); } catch (_) {}
           window.__aynScanInFlight = false;
@@ -4110,7 +4257,8 @@
       const key = `${url}|${fieldCount}|${hasResumeUpload}`;
       if (key === _lastFormReportKey) return true;
       _lastFormReportKey = key;
-      if (AYN_IS_TOP) sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url });
+      let __kind = 'other'; try { __kind = (classifyPage() || {}).kind || 'other'; } catch {}
+      if (AYN_IS_TOP) sendQuiet({ type: 'FORM_DETECTED', hasForm: true, fieldCount, hasResumeUpload, url, kind: __kind });
       return true;
     } catch { return false; }
   }
@@ -4132,11 +4280,13 @@
     if (result.text && result.text.length > 100) {
       if (location.href === _lastDetectedUrl) return; // already reported
       _lastDetectedUrl = location.href;
+      let __kind = 'other'; try { __kind = (classifyPage() || {}).kind || 'other'; } catch {}
       if (AYN_IS_TOP) sendQuiet({
         type: 'JOB_DETECTED',
         text: result.text,
         title: result.title,
         company: result.company || '',
+        kind: __kind,
       });
       // Card scoring will keep itself fresh via its MutationObserver
       return;
@@ -4149,6 +4299,18 @@
   // First-load detection — kick off immediately; detectAndReport retries
   // with backoff (up to 5x) until the JD actually renders.
   detectAndReport(0);
+
+  // v2.8.1 — push initial classification to background so the "not-a-job-page"
+  // gate can reject SCORE_JOB_CARD / JD_REGISTRY on pages that never emit
+  // FORM_DETECTED or JOB_DETECTED (youtube.com, gmail, etc.).
+  if (AYN_IS_TOP) {
+    const pushKind = () => {
+      try { const c = classifyPage(); sendQuiet({ type: 'SET_TAB_KIND', kind: c.kind }); } catch {}
+    };
+    setTimeout(pushKind, 800);
+    setTimeout(pushKind, 3000);
+  }
+
 
   // SPA navigation hooks — patch history + listen popstate so we re-detect
   // when LinkedIn / Indeed / Workday change job without a full reload.

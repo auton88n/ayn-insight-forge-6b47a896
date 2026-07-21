@@ -99,7 +99,14 @@ const JD_REGISTRY = new Map();
 const TAB_OPENER = new Map();
 const LAST_MATCH = new Map();
 const MANUAL_JD = new Map();
+// v2.8.1 — per-tab page classification + manual "Scan anyway" override.
+// TAB_KIND: tabId → 'apply' | 'listing' | 'other' | 'ayn' (last known)
+// TAB_OVERRIDE: tabId → true when user clicked "Scan anyway" on a page
+// classified as 'other'. Reset on navigation (chrome.tabs.onUpdated info.url).
+const TAB_KIND = new Map();
+const TAB_OVERRIDE = new Map();
 const JD_TTL_MS = 45 * 60 * 1000; // 45 minutes
+
 
 function jdKey(url) {
   try { const u = new URL(url); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; }
@@ -172,8 +179,33 @@ chrome.tabs.onRemoved.addListener(tabId => {
   TAB_OPENER.delete(tabId);
   LAST_MATCH.delete(tabId);
   MANUAL_JD.delete(tabId);
+  TAB_KIND.delete(tabId);
+  TAB_OVERRIDE.delete(tabId);
 });
-chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) FORM_CACHE.delete(tabId); });
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.url) {
+    FORM_CACHE.delete(tabId);
+    // v2.8.1 — "Scan anyway" override is per tab AND per URL. On navigation
+    // we drop it so YouTube -> Ashby (same tab) doesn't inherit the bypass.
+    TAB_OVERRIDE.delete(tabId);
+    TAB_KIND.delete(tabId);
+  }
+});
+// v2.8.1 — a page is treated as a job page only when kind is 'apply' or 'listing',
+// unless the user explicitly clicked "Scan anyway" for this tab.
+// v2.8.1 — a page is treated as a job page unless it was EXPLICITLY classified
+// as 'other'. Unknown (never classified) is treated as allow, so first-time
+// SCORE_JOB_CARD calls from listing search cards aren't blocked. The gate's
+// job is to stop known-bad pages (youtube), not to require pre-registration.
+function tabAllowsJobIntent(tabId) {
+  if (tabId == null) return true;
+  if (TAB_OVERRIDE.get(tabId)) return true;
+  const k = TAB_KIND.get(tabId);
+  if (!k) return true;
+  return k !== 'other';
+}
+
+
 
 // v2.8.0 — the JD Resolver ladder. Tries, in order:
 //   1. Manual paste override (user-provided JD)
@@ -499,16 +531,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Store detected job
   if (message.type === 'JOB_DETECTED') {
     const url = sender.tab?.url || '';
+    const tabId = sender.tab?.id;
+    const kind = message.kind || null;
+    if (tabId != null && kind) TAB_KIND.set(tabId, kind);
     chrome.storage.local.set({
       lastJobText: message.text, lastJobTitle: message.title,
       lastJobUrl: url, lastJobCompany: message.company || '',
       detectedAt: Date.now(),
     }, () => sendResponse({ ok: true }));
-    // v2.8.0 — every detection feeds the JD registry so a later navigation
-    // to the same job's apply page can recover the full JD by fuzzy match.
-    try { jdRegistrySet(url, { text: message.text || '', title: message.title || '', company: message.company || '' }, 'job_detected'); } catch {}
+    // v2.8.1 — JD_REGISTRY only stores entries whose page classified as a real
+    // job page ('listing' or 'apply'). Random pages with detectable text
+    // (blogs, news articles) must not poison the fuzzy-match registry.
+    const allowRegistry = kind === 'listing' || kind === 'apply' || (tabId != null && TAB_OVERRIDE.get(tabId));
+    if (allowRegistry) {
+      try { jdRegistrySet(url, { text: message.text || '', title: message.title || '', company: message.company || '' }, 'job_detected'); } catch {}
+    }
     return true;
   }
+
 
   // v2.8.0 — JD Resolver: public entry point for the sidepanel.
   if (message.type === 'RESOLVE_JD') {
@@ -544,8 +584,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fieldCount: message.fieldCount || 0,
         hasResumeUpload: !!message.hasResumeUpload,
         url: message.url || sender.tab?.url || '',
+        kind: message.kind || TAB_KIND.get(tabId) || 'other',
         ts: Date.now(),
       });
+      if (message.kind) TAB_KIND.set(tabId, message.kind);
       // Notify any open sidepanel
       try { chrome.runtime.sendMessage({ type: 'FORM_DETECTED_PUSH', tabId, ...FORM_CACHE.get(tabId) }, () => void chrome.runtime.lastError); } catch {}
     }
@@ -560,10 +602,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // v2.8.1 — sidepanel-facing per-tab kind + override.
+  if (message.type === 'GET_TAB_KIND') {
+    const tabId = message.tabId;
+    sendResponse({
+      kind: (tabId != null && TAB_KIND.get(tabId)) || 'unknown',
+      override: !!(tabId != null && TAB_OVERRIDE.get(tabId)),
+    });
+    return true;
+  }
+  if (message.type === 'SET_KIND_OVERRIDE') {
+    const tabId = message.tabId;
+    if (tabId != null) {
+      if (message.on) TAB_OVERRIDE.set(tabId, true);
+      else TAB_OVERRIDE.delete(tabId);
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (message.type === 'SET_TAB_KIND') {
+    // Content script can push its classification (e.g. from DETECT_PAGE via TAB_SEND)
+    const tabId = sender.tab?.id || message.tabId;
+    if (tabId != null && message.kind) TAB_KIND.set(tabId, message.kind);
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (message.type === 'GET_JOB') {
     chrome.storage.local.get(['lastJobText','lastJobTitle','lastJobUrl','lastJobCompany','detectedAt'], sendResponse);
     return true;
   }
+
 
   // Score a job card
   if (message.type === 'SCORE_JOB_CARD') {
@@ -571,6 +640,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const tabId = sender.tab?.id;
         const pageUrl = sender.tab?.url || message.url || '';
+        // v2.8.1 — refuse to score on pages classified as 'other' unless the
+        // user has explicitly opted in via "Scan anyway". Prevents youtube.com
+        // / gmail / reddit-search from burning ext_job_score credits.
+        if (tabId != null && !tabAllowsJobIntent(tabId)) {
+          sendResponse({ skipped: true, reason: 'not-a-job-page' });
+          return;
+        }
         // v2.8.0 — if this is a real "score this job" (from the sidepanel or an
         // apply page), acquire the FULL JD via the resolver ladder BEFORE calling
         // the backend, so the score is against the actual JD, not just a snippet.
@@ -598,6 +674,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+
 
   // Application tracker
   if (['SAVE_APPLICATION','GET_APPLICATIONS','UPDATE_APPLICATION'].includes(message.type)) {
