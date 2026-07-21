@@ -47,8 +47,27 @@ export async function isExtensionInstalled(): Promise<boolean> {
   return !!r.ok;
 }
 
-export async function triggerAutofill(jobUrl: string, resumeId?: string): Promise<ExtResponse> {
-  return send({ type: "AYN_TRIGGER_AUTOFILL", jobUrl, resumeId });
+/** v2.7.0 — installed extension version, or null if not installed. */
+export async function getInstalledVersion(): Promise<string | null> {
+  const r = await send({ type: "AYN_PING" });
+  return r.ok && r.version ? r.version : null;
+}
+
+export async function triggerAutofill(
+  jobUrl: string,
+  resumeId?: string,
+  resumeVersionId?: string,
+): Promise<ExtResponse> {
+  return send({ type: "AYN_TRIGGER_AUTOFILL", jobUrl, resumeId, resumeVersionId });
+}
+
+/**
+ * v2.7.0 — tell the installed extension that the user's profile just changed
+ * so it drops its cached profile vector on the next autofill.
+ * No-op when the extension is not installed.
+ */
+export async function notifyProfileUpdated(): Promise<void> {
+  await send({ type: "AYN_PROFILE_UPDATED" });
 }
 
 /**

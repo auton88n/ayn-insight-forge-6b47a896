@@ -8,7 +8,7 @@
  */
 import { build } from "esbuild";
 import { execSync } from "node:child_process";
-import { rmSync, existsSync } from "node:fs";
+import { rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,10 +43,22 @@ async function main() {
     outfile: resolve(EXT, "content.bundle.js"),
   });
 
-  const zipPath = resolve(ROOT, "public/ayn-extension.zip");
+  // v2.7.0 — manifest.json is the single source of truth for extension version.
+  const manifest = JSON.parse(readFileSync(resolve(EXT, "manifest.json"), "utf8"));
+  const version = manifest.version;
+
+  // Publish a lightweight version manifest the dashboard can fetch to
+  // detect out-of-date installs without downloading the whole zip.
+  const publicDir = resolve(ROOT, "public");
+  mkdirSync(publicDir, { recursive: true });
+  writeFileSync(
+    resolve(publicDir, "ayn-extension-version.json"),
+    JSON.stringify({ version, updatedAt: new Date().toISOString() }, null, 2),
+  );
+
+  const zipPath = resolve(publicDir, "ayn-extension.zip");
   if (existsSync(zipPath)) rmSync(zipPath);
 
-  // Zip the extension folder, excluding source-only files that don't need to ship.
   const excludes = [
     "question-engine/*",
     "question-engine/**/*",
@@ -62,7 +74,7 @@ async function main() {
     { cwd: EXT, stdio: "inherit" }
   );
 
-  console.log(`\n✔ Built ${zipPath}`);
+  console.log(`\n✔ Built ${zipPath} (v${version})`);
 }
 
 main().catch((err) => {
