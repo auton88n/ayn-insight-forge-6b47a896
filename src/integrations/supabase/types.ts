@@ -2490,6 +2490,7 @@ export type Database = {
           company: string
           created_at: string
           id: string
+          job_id: string | null
           job_title: string
           job_url: string | null
           match_score: number | null
@@ -2504,6 +2505,7 @@ export type Database = {
           company: string
           created_at?: string
           id?: string
+          job_id?: string | null
           job_title: string
           job_url?: string | null
           match_score?: number | null
@@ -2518,6 +2520,7 @@ export type Database = {
           company?: string
           created_at?: string
           id?: string
+          job_id?: string | null
           job_title?: string
           job_url?: string | null
           match_score?: number | null
