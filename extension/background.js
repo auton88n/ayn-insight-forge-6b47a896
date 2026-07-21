@@ -525,16 +525,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Store detected job
   if (message.type === 'JOB_DETECTED') {
     const url = sender.tab?.url || '';
+    const tabId = sender.tab?.id;
+    const kind = message.kind || null;
+    if (tabId != null && kind) TAB_KIND.set(tabId, kind);
     chrome.storage.local.set({
       lastJobText: message.text, lastJobTitle: message.title,
       lastJobUrl: url, lastJobCompany: message.company || '',
       detectedAt: Date.now(),
     }, () => sendResponse({ ok: true }));
-    // v2.8.0 — every detection feeds the JD registry so a later navigation
-    // to the same job's apply page can recover the full JD by fuzzy match.
-    try { jdRegistrySet(url, { text: message.text || '', title: message.title || '', company: message.company || '' }, 'job_detected'); } catch {}
+    // v2.8.1 — JD_REGISTRY only stores entries whose page classified as a real
+    // job page ('listing' or 'apply'). Random pages with detectable text
+    // (blogs, news articles) must not poison the fuzzy-match registry.
+    const allowRegistry = kind === 'listing' || kind === 'apply' || (tabId != null && TAB_OVERRIDE.get(tabId));
+    if (allowRegistry) {
+      try { jdRegistrySet(url, { text: message.text || '', title: message.title || '', company: message.company || '' }, 'job_detected'); } catch {}
+    }
     return true;
   }
+
 
   // v2.8.0 — JD Resolver: public entry point for the sidepanel.
   if (message.type === 'RESOLVE_JD') {
