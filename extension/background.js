@@ -657,17 +657,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (jd && jd.text && jd.quality >= 30) fullJd = jd.text;
           }
         } catch {}
+        // v2.8.2 — thread the tailored resume selection and echo title/company
+        // so the backend can return scoredAgainst grounding metadata.
+        const resume_version_id = await aynReadPendingResumeVersion(pageUrl);
         const data = await callFunction('ext_job_score', {
           jobTitle: message.jobTitle, company: message.company,
           jobSnippet: message.jobSnippet || (fullJd ? fullJd.slice(0, 2000) : ''),
           fullJd: fullJd || undefined,
           url: pageUrl,
+          resume_version_id: resume_version_id || undefined,
         });
         // v2.8.0 — remember the score per tab so AUTO_TRACK_SUBMIT can attach it.
         try { if (tabId != null && data && typeof data.score === 'number') LAST_MATCH.set(tabId, { score: data.score, jobId: data.job_id || '', ts: Date.now() }); } catch {}
         sendResponse({
-          score: data.score || 5, matchLabel: data.matchLabel || 'Fair',
+          score: data.score || 0, matchLabel: data.matchLabel || '',
           reasons: data.reasons || [], salaryEstimate: data.salaryEstimate || '',
+          scoredAgainst: data.scoredAgainst || null,
+          needsJd: !!data.needsJd,
+          source: data.source || '',
           key: message.key,
         });
       } catch { sendResponse(null); }
