@@ -399,6 +399,9 @@ function detectForFill() {
         F.jobTitle = r.title || '';
         F.company = deriveCompany(r.company, tab.url, r.title);
         F.kind = r.kind;
+        // v2.8.1 — mirror kind into background so SCORE_JOB_CARD/JD_REGISTRY
+        // gates see the same classification the sidepanel is showing.
+        try { chrome.runtime.sendMessage({ type: 'SET_TAB_KIND', tabId: tab.id, kind: r.kind }, () => void chrome.runtime.lastError); } catch {}
 
 
       if (r.kind === 'ayn') {
@@ -407,14 +410,40 @@ function detectForFill() {
         $('fill-empty').classList.remove('hidden');
         return;
       }
-      if (!r.hasForm) {
-        $('fill-empty-title').textContent = r.kind === 'job_listing'
-          ? 'This looks like a job listing, not the application form'
-          : 'No application form detected on this page';
-        $('fill-empty-sub').textContent = r.kind === 'job_listing'
-          ? 'Click "Apply" / "Easy Apply" first, then come back here.'
-          : 'Open the actual apply form (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby, SmartRecruiters…) and click Scan again.';
+      // v2.8.1 — page classifier gate. On pages classified as 'other'
+      // (youtube.com, gmail, reddit…) hide the company card, score ring,
+      // fields-ready count, and Fill button. Offer "Scan anyway" as an
+      // explicit per-tab bypass for edge cases where classifier misfires.
+      if (r.kind === 'other') {
+        $('fill-job-banner').classList.add('hidden');
+        $('autofill-now-btn').classList.add('hidden');
+        $('fill-empty-title').textContent = "This doesn't look like a job application page.";
+        $('fill-empty-sub').innerHTML = 'AYN is designed for job applications. <a href="#" id="fill-scan-anyway" style="color:var(--ayn-orange);text-decoration:underline;cursor:pointer">Scan anyway</a>';
         $('fill-empty').classList.remove('hidden');
+        setTimeout(() => {
+          const a = document.getElementById('fill-scan-anyway');
+          if (a) a.addEventListener('click', (e) => {
+            e.preventDefault();
+            chrome.runtime.sendMessage({ type: 'SET_KIND_OVERRIDE', tabId: tab.id, on: true }, () => {
+              void chrome.runtime.lastError;
+              // Treat this tab as apply and re-run the fill flow.
+              F.kind = 'apply';
+              detectForFill();
+            });
+          });
+        }, 0);
+        return;
+      }
+      if (r.kind === 'listing' || !r.hasForm) {
+        // Listing page: allow scoring/JD banner but replace fill CTA.
+        let host = '';
+        try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
+        renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount || 0, host, url: tab.url });
+        $('autofill-now-btn').classList.add('hidden');
+        $('fill-empty-title').textContent = 'This looks like a job listing, not the application form';
+        $('fill-empty-sub').textContent = 'Open the application first (Apply / Easy Apply), then come back here to fill.';
+        $('fill-empty').classList.remove('hidden');
+        try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
         return;
       }
 
@@ -434,6 +463,7 @@ function detectForFill() {
     });
   });
 }
+
 
 // Helpers to fetch the AYN resume text + base filename and save a Blob
 async function fetchAynResume() {
