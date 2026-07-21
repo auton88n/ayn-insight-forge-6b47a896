@@ -1525,17 +1525,42 @@ Return ONLY JSON, no code fences, no prose:
       // Inputs: { urlHash?, url?, jobTitle?, company?, fullJd?, jobSnippet? }
       // Lookup order: cache by urlHash → ingest inline using fullJd → snippet-only fallback.
       if (action === "ext_job_score") {
-        const { urlHash, url, jobTitle, company, fullJd, jobSnippet } = payload as {
+        const { urlHash, url, jobTitle, company, fullJd, jobSnippet, resume_version_id } = payload as {
           urlHash?: string; url?: string; jobTitle?: string; company?: string;
-          fullJd?: string; jobSnippet?: string;
+          fullJd?: string; jobSnippet?: string; resume_version_id?: string;
         };
 
-        const [{ data: resume }, canonical] = await Promise.all([
-          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        // v2.8.2 — honor tailored resume selection (same path as ext_autofill).
+        const [resolvedResume, canonical] = await Promise.all([
+          resolveResumeContent(admin, userId, resume_version_id),
           loadCanonical(admin, userId),
         ]);
+        const resume = resolvedResume.content ? { content: resolvedResume.content } : null;
         if (!resume?.content && !canonical) {
           return json({ score: 0, matchLabel: "No resume", reasons: [], salaryEstimate: "", missingSkills: [], missingKeywords: [], matchedSkills: [], source: "no_profile" });
+        }
+
+        // v2.8.2 — human-readable label for what resume was actually scored.
+        let resumeLabel = "Resume";
+        if (resolvedResume.source === "primary") resumeLabel = "Primary resume";
+        else if (resolvedResume.source === "version") {
+          resumeLabel = "Resume version";
+          try {
+            if (resume_version_id) {
+              const { data: v } = await admin
+                .from("resume_versions")
+                .select("created_for_job_id")
+                .eq("id", resume_version_id)
+                .eq("user_id", userId)
+                .maybeSingle();
+              const jobRef = (v?.created_for_job_id as string | undefined) || "";
+              if (jobRef) {
+                const { data: j } = await admin.from("jobs").select("title").eq("id", jobRef).maybeSingle();
+                const t = (j?.title as string | undefined)?.trim();
+                if (t) resumeLabel = `Tailored for ${t}`;
+              }
+            }
+          } catch { /* keep default */ }
         }
 
         // 1. Resolve full JD: cache → inline ingest → snippet-only fallback.
@@ -1578,8 +1603,23 @@ Return ONLY JSON, no code fences, no prose:
           // No full JD available — fall back to the snippet (card-badge path).
           fullJdResolved = (jobSnippet || "").slice(0, 4000);
           source = "snippet";
-          if (!fullJdResolved) {
-            return json({ score: 0, matchLabel: "Unknown", reasons: [], salaryEstimate: "", missingSkills: [], missingKeywords: [], matchedSkills: [], source: "no_jd" });
+          // v2.8.2 — refuse to guess from tiny snippets; ask for JD instead.
+          if (fullJdResolved.length < 300) {
+            return json({
+              needsJd: true,
+              score: 0,
+              matchLabel: "Needs JD",
+              reasons: [],
+              source: "no_jd",
+              scoredAgainst: {
+                jobTitle: jobTitle || cachedRow?.title || "",
+                company: company || cachedRow?.company || "",
+                jdChars: fullJdResolved.length,
+                jdSource: source,
+                resumeLabel,
+                skillsCount: 0,
+              },
+            });
           }
         }
 
