@@ -418,6 +418,11 @@ function detectForFill() {
 
 
 
+      });
+    });
+  });
+
+  function renderKindBranches(r, tab) {
       if (r.kind === 'ayn') {
         $('fill-empty-title').textContent = "You're on AYN, not a job page";
         $('fill-empty-sub').textContent = 'Open a job application form in another tab (LinkedIn Easy Apply, Workday, Greenhouse, Lever…) then come back here.';
@@ -455,7 +460,7 @@ function detectForFill() {
         renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount || 0, host, url: tab.url });
         $('autofill-now-btn').classList.add('hidden');
         $('fill-empty-title').textContent = 'This looks like a job listing, not the application form';
-        $('fill-empty-sub').textContent = 'Open the application first (Apply / Easy Apply), then come back here to fill.';
+        $('fill-empty-sub').textContent = 'Open the application first (Apply or Easy Apply), then come back here to fill.';
         $('fill-empty').classList.remove('hidden');
         try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
         return;
@@ -474,7 +479,8 @@ function detectForFill() {
       // v1.9.8: default hidden; only revealed as a fallback after Fill fails to auto-attach
       const dlWrap = $('fill-resume-dl-wrap');
       if (dlWrap) dlWrap.classList.add('hidden');
-    });
+  }
+
   });
 }
 
