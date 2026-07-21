@@ -1,5 +1,7 @@
 # AYN AI Platform
 
+AI collaborators: read CLAUDE.md first. It is the system map index.
+
 AYN AI is a perceptive artificial intelligence that learns your habits, understands your goals, and helps you succeed.
 
 ## Technology Stack
