@@ -15,7 +15,7 @@ export default function OverviewTab({ userId, onOpenBuilder, onOpenJobs }: Props
       const [{ count: resumes }, { count: jobs }, { count: applications }, { data: primary }] = await Promise.all([
         supabase.from("resumes").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("jobs").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("applications").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("job_applications").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("resumes").select("title, ats_score").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
       ]);
       setStats({
