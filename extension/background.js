@@ -569,9 +569,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SCORE_JOB_CARD') {
     (async () => {
       try {
+        const tabId = sender.tab?.id;
+        const pageUrl = sender.tab?.url || message.url || '';
+        // v2.8.0 — if this is a real "score this job" (from the sidepanel or an
+        // apply page), acquire the FULL JD via the resolver ladder BEFORE calling
+        // the backend, so the score is against the actual JD, not just a snippet.
+        let fullJd = '';
+        try {
+          if (tabId != null && pageUrl && (!message.jobSnippet || message.jobSnippet.length < 600)) {
+            const jd = await resolveJdForTab(tabId, pageUrl, null);
+            if (jd && jd.text && jd.quality >= 30) fullJd = jd.text;
+          }
+        } catch {}
         const data = await callFunction('ext_job_score', {
-          jobTitle: message.jobTitle, company: message.company, jobSnippet: message.jobSnippet,
+          jobTitle: message.jobTitle, company: message.company,
+          jobSnippet: message.jobSnippet || (fullJd ? fullJd.slice(0, 2000) : ''),
+          fullJd: fullJd || undefined,
+          url: pageUrl,
         });
+        // v2.8.0 — remember the score per tab so AUTO_TRACK_SUBMIT can attach it.
+        try { if (tabId != null && data && typeof data.score === 'number') LAST_MATCH.set(tabId, { score: data.score, jobId: data.job_id || '', ts: Date.now() }); } catch {}
         sendResponse({
           score: data.score || 5, matchLabel: data.matchLabel || 'Fair',
           reasons: data.reasons || [], salaryEstimate: data.salaryEstimate || '',
@@ -614,14 +631,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!token) { sendResponse({ ok: false }); return; }
         const company = message.company || '';
         const title = (message.title || '').split(/\s+at\s+|\s+[-|@]\s+/i)[0].trim() || 'Job';
+        const tabId = sender.tab?.id;
+        // v2.8.0 — attach the last-known match score and job id so the tracker
+        // row surfaces "you applied and scored 82%" immediately.
+        const lm = tabId != null ? LAST_MATCH.get(tabId) : null;
         await callFunction('ext_save_application', {
           jobTitle: title, company: company || 'Unknown', jobUrl: message.url || '', status: 'applied',
+          match_score: lm && typeof lm.score === 'number' ? lm.score : undefined,
+          job_id: lm && lm.jobId ? lm.jobId : undefined,
         });
         sendResponse({ ok: true });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
   }
+
 
   // v1.4.0: Programmatic resume attach — fetch resume bytes then attach in-page
   if (message.type === 'ATTACH_RESUME') {
