@@ -821,9 +821,10 @@ Deno.serve(async (req) => {
       }
 
       if (action === "ext_autofill") {
-        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag, resolved } = payload as {
+        const { fields, jobText, jobTitle, company, ats, url, extVersion, scanDiag, resolved, resume_version_id } = payload as {
           fields?: unknown; jobText?: string; jobTitle?: string; company?: string; ats?: string; url?: string; extVersion?: string; scanDiag?: unknown;
           resolved?: Array<{ id: string; source: string; confidence?: number }>;
+          resume_version_id?: string;
         };
         const jd = await resolveJobJd(admin, url, jobText);
         if (!Array.isArray(fields)) return json({ error: "fields required" }, 400);
@@ -852,11 +853,12 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn("autofill_runs early insert failed", e); }
           return json({ values: [], skipped: [], run_id: earlyRunId, meta: { reason: "no_form_fields", resolved_by: { ...resolvedBySrc, ai: 0 } } });
         }
-        const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
+        const [{ data: profile }, resumeResolved, canonical] = await Promise.all([
           admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+          resolveResumeContent(admin, userId, resume_version_id),
           loadCanonical(admin, userId),
         ]);
+        const resume = resumeResolved.content ? { content: resumeResolved.content } : null;
         const canonicalText = canonicalDigest(canonical);
 
         const profileFieldsAvailable = profile
