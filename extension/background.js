@@ -88,8 +88,190 @@ async function aynReadPendingResumeVersion(tabUrl) {
 
 // PART B: per-tab form-detection cache (tabId → { hasForm, fieldCount, hasResumeUpload, url, ts })
 const FORM_CACHE = new Map();
-chrome.tabs.onRemoved.addListener(tabId => FORM_CACHE.delete(tabId));
+
+// v2.8.0 — JD Resolver infrastructure.
+// JD_REGISTRY: origin+pathname → { text, title, company, url, ts, source }
+// TAB_OPENER: tabId → openerTabId (captured at tab creation time)
+// LAST_MATCH: tabId → { score, jobId, ts } — populated by SCORE_JOB_CARD so
+// AUTO_TRACK_SUBMIT can enrich the tracker row with the score at submit time.
+// MANUAL_JD: tabId → { text, title, company, ts } — user-pasted override.
+const JD_REGISTRY = new Map();
+const TAB_OPENER = new Map();
+const LAST_MATCH = new Map();
+const MANUAL_JD = new Map();
+const JD_TTL_MS = 45 * 60 * 1000; // 45 minutes
+
+function jdKey(url) {
+  try { const u = new URL(url); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; }
+  catch { return String(url || ''); }
+}
+function jdKeyHostPath(url) {
+  try { const u = new URL(url); return `${u.hostname.replace(/^www\./,'').toLowerCase()}${u.pathname.replace(/\/+$/, '')}`; }
+  catch { return String(url || ''); }
+}
+// v2.8.0 — heuristic JD quality score. Real job descriptions have >600 chars,
+// section markers, and bullet lists. Apply-page "job title only" text scores low.
+function jdQuality(text) {
+  const t = String(text || '');
+  if (t.length < 200) return 0;
+  let score = Math.min(50, Math.floor(t.length / 40)); // up to 50 for length (~2000+ chars)
+  if (/responsibilit|requirement|qualif|about (the|us|the role|the team)|what you.?ll do|you.?ll (be|work|have)|we.?re looking|nice to have|preferred/i.test(t)) score += 25;
+  if (/•|·|\n\s*[-*]\s|\n\s*\d+\.\s/.test(t)) score += 15;
+  if (/salary|compensation|benefits|equity|401k|rrsp|remote|hybrid|onsite/i.test(t)) score += 10;
+  return Math.min(100, score);
+}
+function jdRegistrySet(url, payload, source) {
+  if (!payload || !payload.text) return;
+  const key = jdKey(url);
+  const prev = JD_REGISTRY.get(key);
+  const q = jdQuality(payload.text);
+  if (prev && jdQuality(prev.text) >= q && (Date.now() - (prev.ts || 0) < JD_TTL_MS)) return;
+  JD_REGISTRY.set(key, { text: payload.text, title: payload.title || (prev && prev.title) || '', company: payload.company || (prev && prev.company) || '', url, ts: Date.now(), source: source || 'unknown', quality: q });
+  // gc
+  if (JD_REGISTRY.size > 60) {
+    const cutoff = Date.now() - JD_TTL_MS;
+    for (const [k, v] of JD_REGISTRY) if ((v.ts || 0) < cutoff) JD_REGISTRY.delete(k);
+  }
+}
+function jdRegistryGet(url) {
+  const v = JD_REGISTRY.get(jdKey(url));
+  if (!v) return null;
+  if (Date.now() - (v.ts || 0) > JD_TTL_MS) { JD_REGISTRY.delete(jdKey(url)); return null; }
+  return v;
+}
+// Fuzzy match: same host + path prefix (apply URL is listing URL + /application).
+function jdRegistryFuzzy(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./,'').toLowerCase();
+    const path = u.pathname.replace(/\/+$/, '');
+    let best = null, bestQ = -1;
+    for (const v of JD_REGISTRY.values()) {
+      try {
+        const vu = new URL(v.url);
+        const vh = vu.hostname.replace(/^www\./,'').toLowerCase();
+        if (vh !== host) continue;
+        const vp = vu.pathname.replace(/\/+$/, '');
+        // Either path shares prefix with vp, or vp is a prefix of path (apply page under listing).
+        if (!(path.startsWith(vp) || vp.startsWith(path))) continue;
+        if (Date.now() - (v.ts || 0) > JD_TTL_MS) continue;
+        const q = jdQuality(v.text);
+        if (q > bestQ) { bestQ = q; best = v; }
+      } catch {}
+    }
+    return best;
+  } catch { return null; }
+}
+
+// v2.8.0 — capture tab opener for the "opener tab" branch of the JD ladder.
+chrome.tabs.onCreated.addListener(t => {
+  try { if (t && t.id != null && t.openerTabId != null) TAB_OPENER.set(t.id, t.openerTabId); } catch {}
+});
+chrome.tabs.onRemoved.addListener(tabId => {
+  FORM_CACHE.delete(tabId);
+  TAB_OPENER.delete(tabId);
+  LAST_MATCH.delete(tabId);
+  MANUAL_JD.delete(tabId);
+});
 chrome.tabs.onUpdated.addListener((tabId, info) => { if (info.url) FORM_CACHE.delete(tabId); });
+
+// v2.8.0 — the JD Resolver ladder. Tries, in order:
+//   1. Manual paste override (user-provided JD)
+//   2. Current page (from an already-run SCAN_FORM / EXTRACT_JOB_TEXT)
+//   3. Opener tab (chrome.tabs.get openerTabId, ask its content script)
+//   4. Registry fuzzy match (same host + prefix path, from JOB_DETECTED history)
+//   5. Fetch listing URL (aynListingUrlFromApply then PARSE_JOB_HTML)
+//   6. Backend lookup (ext_job_lookup by host+path)
+// Returns { text, title, company, source, quality, listingUrl? } or null.
+async function resolveJdForTab(tabId, pageUrl, hint) {
+  const threshold = 45; // below this, keep climbing the ladder
+  const results = [];
+  const push = (r, source) => { if (r && r.text && r.text.length > 120) results.push({ ...r, source, quality: jdQuality(r.text) }); };
+
+  // 1. manual
+  const manual = MANUAL_JD.get(tabId);
+  if (manual && manual.text && (Date.now() - manual.ts < JD_TTL_MS)) {
+    return { ...manual, source: 'manual', quality: jdQuality(manual.text) };
+  }
+  // 2. current page (hint from a fresh scan) or ask content script
+  if (hint && hint.text) push(hint, 'current_page');
+  else {
+    const live = await safeSendMessage(tabId, { type: 'EXTRACT_JOB_TEXT' });
+    if (live && live.text) push(live, 'current_page');
+  }
+  // 3. opener tab
+  try {
+    const opener = TAB_OPENER.get(tabId);
+    if (opener != null) {
+      const oTab = await chrome.tabs.get(opener).catch(() => null);
+      if (oTab && oTab.id != null) {
+        const o = await safeSendMessage(oTab.id, { type: 'EXTRACT_JOB_TEXT' });
+        if (o && o.text) { push(o, 'opener_tab'); jdRegistrySet(oTab.url || '', o, 'opener_tab'); }
+      }
+    }
+  } catch {}
+  // 4. registry fuzzy
+  const fuzzy = jdRegistryFuzzy(pageUrl);
+  if (fuzzy) push(fuzzy, 'registry');
+
+  // Short-circuit if we already have a strong one.
+  let best = results.sort((a,b) => b.quality - a.quality)[0] || null;
+  if (best && best.quality >= threshold) return best;
+
+  // 5. fetch listing URL
+  try {
+    const listing = aynListingUrlFromApply_bg(pageUrl);
+    if (listing) {
+      const html = await fetchText(listing);
+      if (html) {
+        const parsed = await safeSendMessage(tabId, { type: 'PARSE_JOB_HTML', html, url: listing });
+        if (parsed && parsed.text) {
+          push({ ...parsed, url: listing }, 'listing_fetch');
+          jdRegistrySet(listing, parsed, 'listing_fetch');
+        }
+      }
+    }
+  } catch {}
+
+  best = results.sort((a,b) => b.quality - a.quality)[0] || null;
+  if (best && best.quality >= threshold) return { ...best, listingUrl: best.url };
+
+  // 6. backend lookup
+  try {
+    const data = await callFunction('ext_job_lookup', { host_path: jdKeyHostPath(pageUrl), url: pageUrl });
+    if (data && data.job && data.job.jd_text) {
+      push({ text: data.job.jd_text, title: data.job.title || '', company: data.job.company || '', url: data.job.source_url || pageUrl }, 'backend');
+    }
+  } catch {}
+
+  best = results.sort((a,b) => b.quality - a.quality)[0] || null;
+  return best;
+}
+function aynListingUrlFromApply_bg(u) {
+  try {
+    const url = new URL(u); url.search = ''; url.hash = '';
+    const host = url.hostname.toLowerCase();
+    let p = url.pathname;
+    if (/ashbyhq\.com$/i.test(host)) p = p.replace(/\/application\/?$/i, '');
+    else if (/greenhouse\.io$/i.test(host)) p = p.replace(/\/application\/?$/i, '');
+    else if (/lever\.co$/i.test(host)) p = p.replace(/\/apply\/?$/i, '');
+    else if (/myworkdayjobs\.com$/i.test(host)) p = p.replace(/\/apply(\/.*)?$/i, '');
+    else if (/smartrecruiters\.com$/i.test(host)) p = p.replace(/\/apply\/?$/i, '');
+    else p = p.replace(/\/(application|apply)\/?$/i, '');
+    url.pathname = p;
+    const out = url.toString();
+    return out === u ? null : out;
+  } catch { return null; }
+}
+async function fetchText(url) {
+  try {
+    const r = await fetch(url, { credentials: 'omit' });
+    if (!r.ok) return '';
+    const t = await r.text();
+    return t.slice(0, 400000);
+  } catch { return ''; }
+}
+
 
 async function getToken() {
   const d = await chrome.storage.local.get(['ayn_token']);
@@ -316,13 +498,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Store detected job
   if (message.type === 'JOB_DETECTED') {
+    const url = sender.tab?.url || '';
     chrome.storage.local.set({
       lastJobText: message.text, lastJobTitle: message.title,
-      lastJobUrl: sender.tab?.url || '', lastJobCompany: message.company || '',
+      lastJobUrl: url, lastJobCompany: message.company || '',
       detectedAt: Date.now(),
     }, () => sendResponse({ ok: true }));
+    // v2.8.0 — every detection feeds the JD registry so a later navigation
+    // to the same job's apply page can recover the full JD by fuzzy match.
+    try { jdRegistrySet(url, { text: message.text || '', title: message.title || '', company: message.company || '' }, 'job_detected'); } catch {}
     return true;
   }
+
+  // v2.8.0 — JD Resolver: public entry point for the sidepanel.
+  if (message.type === 'RESOLVE_JD') {
+    (async () => {
+      try {
+        const tabId = message.tabId;
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        if (!tab) { sendResponse({ ok: false, error: 'no_tab' }); return; }
+        const jd = await resolveJdForTab(tabId, tab.url || '', message.hint || null);
+        if (!jd) { sendResponse({ ok: false, error: 'no_jd' }); return; }
+        sendResponse({ ok: true, text: jd.text, title: jd.title || '', company: jd.company || '', source: jd.source, quality: jd.quality || 0, listingUrl: jd.listingUrl || '' });
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
+    return true;
+  }
+  // v2.8.0 — user manually pasted a JD in the sidepanel.
+  if (message.type === 'SET_MANUAL_JD') {
+    const tabId = message.tabId;
+    if (tabId != null && message.text) {
+      MANUAL_JD.set(tabId, { text: String(message.text || ''), title: message.title || '', company: message.company || '', ts: Date.now() });
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+
 
   // PART B: cache form-detected events per tab so the sidepanel reads them instantly
   if (message.type === 'FORM_DETECTED') {
@@ -358,9 +569,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SCORE_JOB_CARD') {
     (async () => {
       try {
+        const tabId = sender.tab?.id;
+        const pageUrl = sender.tab?.url || message.url || '';
+        // v2.8.0 — if this is a real "score this job" (from the sidepanel or an
+        // apply page), acquire the FULL JD via the resolver ladder BEFORE calling
+        // the backend, so the score is against the actual JD, not just a snippet.
+        let fullJd = '';
+        try {
+          if (tabId != null && pageUrl && (!message.jobSnippet || message.jobSnippet.length < 600)) {
+            const jd = await resolveJdForTab(tabId, pageUrl, null);
+            if (jd && jd.text && jd.quality >= 30) fullJd = jd.text;
+          }
+        } catch {}
         const data = await callFunction('ext_job_score', {
-          jobTitle: message.jobTitle, company: message.company, jobSnippet: message.jobSnippet,
+          jobTitle: message.jobTitle, company: message.company,
+          jobSnippet: message.jobSnippet || (fullJd ? fullJd.slice(0, 2000) : ''),
+          fullJd: fullJd || undefined,
+          url: pageUrl,
         });
+        // v2.8.0 — remember the score per tab so AUTO_TRACK_SUBMIT can attach it.
+        try { if (tabId != null && data && typeof data.score === 'number') LAST_MATCH.set(tabId, { score: data.score, jobId: data.job_id || '', ts: Date.now() }); } catch {}
         sendResponse({
           score: data.score || 5, matchLabel: data.matchLabel || 'Fair',
           reasons: data.reasons || [], salaryEstimate: data.salaryEstimate || '',
@@ -403,14 +631,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!token) { sendResponse({ ok: false }); return; }
         const company = message.company || '';
         const title = (message.title || '').split(/\s+at\s+|\s+[-|@]\s+/i)[0].trim() || 'Job';
+        const tabId = sender.tab?.id;
+        // v2.8.0 — attach the last-known match score and job id so the tracker
+        // row surfaces "you applied and scored 82%" immediately.
+        const lm = tabId != null ? LAST_MATCH.get(tabId) : null;
         await callFunction('ext_save_application', {
           jobTitle: title, company: company || 'Unknown', jobUrl: message.url || '', status: 'applied',
+          match_score: lm && typeof lm.score === 'number' ? lm.score : undefined,
+          job_id: lm && lm.jobId ? lm.jobId : undefined,
         });
         sendResponse({ ok: true });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
   }
+
 
   // v1.4.0: Programmatic resume attach — fetch resume bytes then attach in-page
   if (message.type === 'ATTACH_RESUME') {
@@ -481,7 +716,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
         }
         const topScan = scanByFrame[0] || {};
-        const jobText = topScan.jobText || {};
+        // v2.8.0 — JD RESOLVER LADDER. The apply page rarely contains the full
+        // JD; run the resolver ladder (current-page hint → opener tab → registry
+        // fuzzy → listing fetch → backend lookup) and use the best result. This
+        // is the difference between AI answering "why this company?" from a
+        // 30-word teaser vs. the real posting.
+        let jobText = topScan.jobText || {};
+        try {
+          const pageUrl = topScan.url || '';
+          const resolved = await resolveJdForTab(tabId, pageUrl, jobText);
+          if (resolved && resolved.text && jdQuality(resolved.text) > jdQuality(jobText.text || '')) {
+            jobText = { text: resolved.text, title: resolved.title || jobText.title || '', company: resolved.company || jobText.company || '' };
+            console.log('[AYN JD] resolved via', resolved.source, 'quality', resolved.quality, 'chars', resolved.text.length);
+          }
+        } catch (e) { console.warn('[AYN JD] resolve failed', e); }
+
         const fileFields = fields.filter(f => /file/i.test(String(f.kind || f.type || '')) || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
         fields = fields.filter(f => !(/file/i.test(String(f.kind || f.type || ''))));
         if (fields.length === 0) {
