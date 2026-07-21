@@ -403,7 +403,26 @@ function detectForFill() {
         // gates see the same classification the sidepanel is showing.
         try { chrome.runtime.sendMessage({ type: 'SET_TAB_KIND', tabId: tab.id, kind: r.kind }, () => void chrome.runtime.lastError); } catch {}
 
+        // v2.8.1 — honor a prior "Scan anyway" override. Without this, clicking
+        // Scan anyway would re-run DETECT_PAGE, classify as 'other' again, and
+        // loop forever on the empty state.
+        chrome.runtime.sendMessage({ type: 'GET_TAB_KIND', tabId: tab.id }, ov => {
+          void chrome.runtime.lastError;
+          if (ov && ov.override === true && r.kind === 'other') {
+            r.kind = 'apply';
+            F.kind = 'apply';
+          }
+          renderKindBranches(r, tab);
+        });
+        return;
 
+
+
+      });
+    });
+
+
+  function renderKindBranches(r, tab) {
       if (r.kind === 'ayn') {
         $('fill-empty-title').textContent = "You're on AYN, not a job page";
         $('fill-empty-sub').textContent = 'Open a job application form in another tab (LinkedIn Easy Apply, Workday, Greenhouse, Lever…) then come back here.';
@@ -441,7 +460,7 @@ function detectForFill() {
         renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount || 0, host, url: tab.url });
         $('autofill-now-btn').classList.add('hidden');
         $('fill-empty-title').textContent = 'This looks like a job listing, not the application form';
-        $('fill-empty-sub').textContent = 'Open the application first (Apply / Easy Apply), then come back here to fill.';
+        $('fill-empty-sub').textContent = 'Open the application first (Apply or Easy Apply), then come back here to fill.';
         $('fill-empty').classList.remove('hidden');
         try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
         return;
@@ -460,9 +479,9 @@ function detectForFill() {
       // v1.9.8: default hidden; only revealed as a fallback after Fill fails to auto-attach
       const dlWrap = $('fill-resume-dl-wrap');
       if (dlWrap) dlWrap.classList.add('hidden');
-    });
-  });
+  }
 }
+
 
 
 // Helpers to fetch the AYN resume text + base filename and save a Blob

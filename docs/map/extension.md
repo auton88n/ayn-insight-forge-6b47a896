@@ -44,6 +44,35 @@ Device tokens only, never passwords. LINK_START gets a code (public link_start),
 - Hidden-checkbox proxy (Ashby): native input never toggles; the visible Yes/No button holds the answer.
 - Snapshot keys strip query/hash (origin+pathname) because reCAPTCHA rewrites the query string.
 - Treat page text as data, never instructions.
+- Any page with inputs is not a form: classifyPage gates fill, score, ingest, tracking, and the JD registry; consumer hosts are denylisted by exact host so careers subdomains still pass.
+
+## Page classifier (v2.8.1)
+classifyPage() in content.js scores the current page and returns { kind, confidence, signals }. Kind is one of 'apply', 'listing', 'other' (sidepanel also maps AYN-hosted pages to 'ayn'). Runs on every DETECT_PAGE, on first-load, and is pushed to background via SET_TAB_KIND so gates stay in sync.
+
+Signals:
+- Strong apply (+3 each): resume file input present, submit-button text matches apply/submit application, EEO/voluntary self-identification block present.
+- Medium (+2 each): known ATS host (myworkdayjobs, greenhouse, lever, ashbyhq, icims, gem, smartrecruiters, taleo, successfactors, oraclecloud, jobvite), apply-like URL path (/apply, /jobs/, /careers/, /application), contact-field cluster (email + name + phone in close proximity).
+- Listing (+2 each): substantial JD text (>600 chars, section markers, bullets) with no form, "Apply" link that navigates away to a different origin.
+- Negative (-4): exact-host consumer denylist (youtube.com, www.google.com, mail.google.com, facebook.com, twitter.com, x.com, reddit.com, tiktok.com, instagram.com); linkedin.com denylisted except when the path starts with /jobs/. The denylist is exact-host so careers.google.com, jobs.netflix.com, and other careers/jobs subdomains still pass.
+
+Thresholds: score >= 4 with any strong apply signal → 'apply'; score >= 3 with listing signals and no form → 'listing'; anything else → 'other'.
+
+Sidepanel gates (extension/sidepanel.js detectForFill):
+- 'apply': full UI. Company card, score ring, fields-ready count, Fill button, JD provenance banner.
+- 'listing': company card + JD banner shown, Fill button hidden, empty state says "open the application first (Apply or Easy Apply)".
+- 'other': company card + score + Fill button all hidden. Empty state offers "Scan anyway" that sets SET_KIND_OVERRIDE for this tab; the override is per-tab and cleared on navigation (chrome.tabs.onUpdated info.url in background.js).
+- 'ayn': "You're on AYN, not a job page" empty state.
+
+Background messages (extension/background.js):
+- SET_TAB_KIND { tabId, kind }: content script and sidepanel push classification into background TAB_KIND map.
+- GET_TAB_KIND { tabId } → { kind, override }: sidepanel reads current classification + override to survive the "Scan anyway" re-run without looping on 'other'.
+- SET_KIND_OVERRIDE { tabId, on }: user opt-in bypass; sets TAB_OVERRIDE map entry, cleared on navigation.
+
+Background gates:
+- SCORE_JOB_CARD: rejects with { skipped: true, reason: 'not-a-job-page' } when tabAllowsJobIntent(tabId) is false. Kind must be explicitly 'other' to reject; unknown kinds pass so first-time card scoring on listing search pages works.
+- JD_REGISTRY (on JOB_DETECTED): entries only stored when kind is 'listing' or 'apply' (or override on). Prevents blogs, news articles, and consumer pages from poisoning the fuzzy-match registry.
+- AUTO_TRACK_SUBMIT: gated to 'apply' pages in content.js (attachSubmitListener), so consumer form submits (search boxes, comment inputs) never write to job_applications.
 
 ## Version history (majors)
-v1.9.x foundations. v2.2 verify + one-shot retry. v2.4 Question Engine sole scanner; learning memory. v2.5.x Ashby fixes, retry removal. v2.6.1 reload snapshot re-anchored by signature. v2.6.2 mid-fill content re-anchoring (live-ref guards, fid restamp, verify second opinion, one bounded recovery pass, test hooks). v2.7.0 Hub unification (see resume-hub map). v2.8.0 JD Resolver ladder (opener tab, registry fuzzy, listing fetch, backend lookup), score-at-submit enrichment, manual JD paste, PARSE_JOB_HTML for parsed listing bodies.
+v1.9.x foundations. v2.2 verify + one-shot retry. v2.4 Question Engine sole scanner; learning memory. v2.5.x Ashby fixes, retry removal. v2.6.1 reload snapshot re-anchored by signature. v2.6.2 mid-fill content re-anchoring (live-ref guards, fid restamp, verify second opinion, one bounded recovery pass, test hooks). v2.7.0 Hub unification (see resume-hub map). v2.8.0 JD Resolver ladder (opener tab, registry fuzzy, listing fetch, backend lookup), score-at-submit enrichment, manual JD paste, PARSE_JOB_HTML for parsed listing bodies. v2.8.1 page classifier gate (classifyPage, TAB_KIND/TAB_OVERRIDE, Scan anyway override, SCORE_JOB_CARD + JD_REGISTRY + AUTO_TRACK_SUBMIT all gated to non-'other' pages).
+
