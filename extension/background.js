@@ -507,7 +507,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'BG_FUNC') {
     (async () => {
       try {
-        const data = await callFunction(message.action, message.payload || {});
+        const payload = message.payload || {};
+        // v2.8.2 — auto-inject the tailored resume selection for the currently
+        // active tab into ext_job_score so the backend scores against the same
+        // resume the autofill would use.
+        if (message.action === 'ext_job_score' && !payload.resume_version_id) {
+          try {
+            const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const rvid = await aynReadPendingResumeVersion(t?.url || payload.url || '');
+            if (rvid) payload.resume_version_id = rvid;
+          } catch {}
+        }
+        const data = await callFunction(message.action, payload);
         sendResponse({ ok: true, data });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
