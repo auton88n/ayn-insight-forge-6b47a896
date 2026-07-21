@@ -634,6 +634,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const tabId = sender.tab?.id;
         const pageUrl = sender.tab?.url || message.url || '';
+        // v2.8.1 — refuse to score on pages classified as 'other' unless the
+        // user has explicitly opted in via "Scan anyway". Prevents youtube.com
+        // / gmail / reddit-search from burning ext_job_score credits.
+        if (tabId != null && !tabAllowsJobIntent(tabId)) {
+          sendResponse({ skipped: true, reason: 'not-a-job-page' });
+          return;
+        }
         // v2.8.0 — if this is a real "score this job" (from the sidepanel or an
         // apply page), acquire the FULL JD via the resolver ladder BEFORE calling
         // the backend, so the score is against the actual JD, not just a snippet.
@@ -661,6 +668,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+
 
   // Application tracker
   if (['SAVE_APPLICATION','GET_APPLICATIONS','UPDATE_APPLICATION'].includes(message.type)) {
