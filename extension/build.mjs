@@ -27,6 +27,9 @@ const common = {
 };
 
 async function main() {
+  // v2.8.4 — wiring self-check runs FIRST. Fails the build on any seam mismatch.
+  execSync(`node ${resolve(ROOT, "scripts/check-wiring.mjs")}`, { stdio: "inherit" });
+
   await build({
     ...common,
     entryPoints: [resolve(EXT, "question-engine/index.ts")],
