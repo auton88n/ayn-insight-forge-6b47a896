@@ -941,7 +941,7 @@ async function runScoreFlow({ auto = false } = {}) {
     let vWrap = $('score-verdict');
     if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; $('score-result').appendChild(vWrap); }
     vWrap.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:13px;font-weight:600;color:#111827;line-height:1.45;';
-    vWrap.textContent = d.verdict || '';
+    vWrap.innerHTML = d.verdict ? aynFormatAiText(d.verdict) : '';
     vWrap.style.display = d.verdict ? 'block' : 'none';
 
     // Phase 2: seniority fit + scoring source badge (placed right after verdict)
