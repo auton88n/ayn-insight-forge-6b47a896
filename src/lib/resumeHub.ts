@@ -54,12 +54,9 @@ export const resumeHubApi = {
   tailor: (resume: ResumeContent, jdText: string) =>
     call<{ resume: ResumeContent }>("resume-hub", { action: "tailor", resume, jdText }),
 
-  smartTailor: (resumeText: string, jdText: string, jobTitle?: string, company?: string) =>
-    call<{ keywords: Array<{ text: string; inResume: boolean }>; tailoredText: string; changes: string[] }>(
-      "resume-hub", { action: "smart_tailor", resumeText, jdText, jobTitle, company }
-    ),
   coverLetter: (resume: ResumeContent, jdText: string, opts?: { tone?: string; company?: string }) =>
     call<{ body: string }>("resume-hub", { action: "cover_letter", resume, jdText, ...opts }),
+
 
   ingestJob: (payload: { source_url?: string; html?: string; text?: string; company?: string; title?: string; location?: string; jd_text?: string; source?: string }) =>
     call<{ job_id: string; deduped: boolean }>("resume-hub", { action: "ext_ingest_job", ...payload }),
