@@ -24,21 +24,17 @@ export function useUserRole(userId: string | undefined): UserRoleState {
   const load = async () => {
     if (!userId) { setLoading(false); return; }
     try {
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-      const r = ((prof as { role?: UserRole } | null)?.role ?? 'job_seeker') as UserRole;
+      // Cast: profiles.role and employer_accounts are absent from generated
+      // types until the migration is applied and types.ts is regenerated.
+      const profQ = supabase.from('profiles').select('role').eq('user_id', userId).maybeSingle();
+      const { data: prof } = await (profQ as unknown as Promise<{ data: { role?: UserRole } | null }>);
+      const r = (prof?.role ?? 'job_seeker') as UserRole;
       setRole(r);
       if (r === 'employer') {
-        const { data: emp } = await supabase
-          .from('employer_accounts')
-          .select('status, company_name')
-          .eq('user_id', userId)
-          .maybeSingle();
-        setEmployerStatus(((emp as { status?: EmployerStatus } | null)?.status ?? 'pending_approval'));
-        setCompanyName(((emp as { company_name?: string } | null)?.company_name ?? null));
+        const empQ = supabase.from('employer_accounts' as never).select('status, company_name').eq('user_id', userId).maybeSingle();
+        const { data: emp } = await (empQ as unknown as Promise<{ data: { status?: EmployerStatus; company_name?: string } | null }>);
+        setEmployerStatus(emp?.status ?? 'pending_approval');
+        setCompanyName(emp?.company_name ?? null);
       } else {
         setEmployerStatus(null);
         setCompanyName(null);

@@ -17,13 +17,10 @@ const EmployerPending = () => {
   const check = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/'); return; }
-    const { data } = await supabase
-      .from('employer_accounts')
-      .select('company_name, status')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const q = supabase.from('employer_accounts' as never).select('company_name, status').eq('user_id', user.id).maybeSingle();
+    const { data } = await (q as unknown as Promise<{ data: { company_name?: string; status?: 'pending_approval'|'approved'|'suspended' } | null }>);
     setCompany(data?.company_name || '');
-    setStatus((data?.status as typeof status) ?? 'pending_approval');
+    setStatus(data?.status ?? 'pending_approval');
     setChecking(false);
     if (data?.status === 'approved') navigate('/', { replace: true });
   };

@@ -122,6 +122,7 @@ const AnimatedRoutes = () => {
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/handoff" element={<Suspense fallback={<PageLoader />}><Handoff /></Suspense>} />
+      <Route path="/employer/pending" element={<Suspense fallback={<PageLoader />}><EmployerPending /></Suspense>} />
       <Route path="/support" element={<Support />} />
       <Route path="/approval-result" element={<ApprovalResult />} />
       <Route path="/subscription-success" element={<SubscriptionSuccess />} />
