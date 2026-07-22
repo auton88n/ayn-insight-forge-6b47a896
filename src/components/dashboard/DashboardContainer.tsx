@@ -28,7 +28,8 @@ import { analyzeResponseEmotion } from '@/lib/emotionMapping';
 import { hapticFeedback } from '@/lib/haptics';
 
 // Import icons for modes
-import { Menu, Brain, FlaskConical, MessageSquare, Sparkles } from 'lucide-react';
+import { Menu, Brain, FlaskConical, MessageSquare, Sparkles, Building2 } from 'lucide-react';
+import EmployerChatPanel from '@/components/dashboard/EmployerChatPanel';
 
 interface DashboardContainerProps {
   user: User;
@@ -323,6 +324,7 @@ const DashboardContent = ({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [replyPrefill, setReplyPrefill] = useState<string>('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [hiringOpen, setHiringOpen] = useState(false);
 
   const { setEmotion, setIsResponding } = useAYNEmotion();
   
@@ -535,6 +537,25 @@ const DashboardContent = ({
       >
         <Menu className="w-5 h-5" />
       </Button>
+
+      {/* Hiring mode entry — top right, desktop */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setHiringOpen(true)}
+        className={cn(
+          "fixed top-4 right-4 z-50 hidden md:flex",
+          "h-10 rounded-xl px-3 gap-2",
+          "bg-background/90 backdrop-blur-lg border border-border/60",
+          "shadow-lg hover:shadow-xl hover:bg-background transition-all"
+        )}
+        title="Switch to hiring mode"
+      >
+        <Building2 className="w-4 h-4" />
+        <span className="text-xs font-medium">Hiring mode</span>
+      </Button>
+
+      {hiringOpen && <EmployerChatPanel onClose={() => setHiringOpen(false)} />}
 
       <main 
         dir="ltr"

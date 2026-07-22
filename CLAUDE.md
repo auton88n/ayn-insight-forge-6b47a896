@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.9.0-A talent pool data layer (consent + candidate index + skills with provenance)", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
+Last verified: commit "v2.9.0-B employer marketplace (hiring mode chat + hybrid matcher + reveal flow)", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
 
 ## What AYN is
 
@@ -15,7 +15,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 | Chrome extension | Sideloaded MV3 extension: scans and autofills job application forms (Ashby, Greenhouse, Lever, Workday, iCIMS, Gem, generic), scores job cards, tracks applications, attaches resumes. Code: extension/. | docs/map/extension.md |
 | Resume Hub | Web workspace at /resume-hub: profile, resume builder and tailoring, saved jobs, application tracker, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
 | AI platform | Signed-in chat dashboard (emotional eye UI, streaming chat via ayn-ai-proxy), World Intelligence swarm simulator, agent society, cc-generate report tools, subscriptions and credits, support system, NDA and contract signing, admin panel, landing page, i18n (en/ar/fr). Code: src/components/dashboard, eye, admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
-| Talent Pool | Employer marketplace. Phase A data layer shipped (talent_pool_consent, candidate_index with pgvector, candidate_skills with extracted/inferred provenance). Phase B employer mode in dashboard chat pending. | docs/map/resume-hub.md (talent pool section) |
+| Talent Pool | Employer marketplace. Phase A (data layer) and Phase B (hiring mode in dashboard chat + hybrid matcher + reveal flow) shipped. | docs/map/resume-hub.md (talent pool + employer marketplace sections) |
 
 ## Routes (src/App.tsx)
 
@@ -54,6 +54,7 @@ Five loops carry everything. If you understand these, you understand AYN:
 3. SYNC LOOP: profile edited in the Hub -> AYN_PROFILE_UPDATED clears the extension's cached fact vector -> next fill refetches. 24h TTL is the fallback for closed browsers.
 4. TRACKING LOOP: submit detected on the page -> job_applications upsert -> Tracker board; fill telemetry attaches to the same view. The user's pipeline builds itself.
 5. HANDOFF LOOP: Hub tailors a resume for a job -> deep link or external message carries resumeId -> sidepanel preselects it -> ext_autofill resolves that resume_versions row instead of the primary. The tailoring work actually reaches the form.
+6. MATCH LOOP (v2.9.0-B): seeker opts in -> indexCandidate builds anonymized profile_text + 768d embedding + extracted/inferred skills -> employer opens hiring mode in the dashboard chat -> employer_intake_chat distills a JobSpec -> employer_match runs extracted-only prefilter (must-haves), pgvector recall (top 12), then a single grounded rerank on opaque refs (inferred capped at 10 pts) -> top 3 anonymized cards -> employer requests intro -> candidate approves in ProfileTab intro requests -> contact revealed only then. The ref_map that binds refs to real users never leaves the edge function.
 
 ## Honest assessment (strengths, weaknesses, what is actually smart)
 

@@ -2725,6 +2725,287 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ ok: true, opted_in });
     }
 
+
+    // ─────────────────────────────────────────────────────────────
+    // v2.9.0-B — Employer marketplace (Phase B)
+    // Two-step noise cancellation:
+    //   1. Deterministic prefilter: EVERY must-have must match an
+    //      'extracted' skill (skill_norm or ≥0.8 token overlap).
+    //      Inferred skills cannot rescue a missing must-have.
+    //   2. AI rerank on ≤12 vector-recalled candidates, with opaque
+    //      refs (no user_id/name/email), scored 1-100, inferred cap
+    //      10 pts, "why" grounded in provided fields only.
+    // ─────────────────────────────────────────────────────────────
+    async function assertOrgMember(orgId: string): Promise<boolean> {
+      const { data } = await adminForNew.from("org_members")
+        .select("org_id").eq("org_id", orgId).eq("user_id", userId).maybeSingle();
+      return !!data;
+    }
+
+    if (action === "employer_org_create") {
+      const { name, website } = payload as { name?: string; website?: string };
+      if (!name || !name.trim()) return json({ error: "name required" }, 400);
+      const { data: org, error } = await adminForNew.from("orgs").insert({
+        name: name.trim(), website: website?.trim() || null, created_by: userId,
+      }).select("id, name, website").single();
+      if (error || !org) return json({ error: error?.message || "insert failed" }, 500);
+      const { error: mErr } = await adminForNew.from("org_members").insert({
+        org_id: org.id, user_id: userId, role: "admin",
+      });
+      if (mErr) return json({ error: mErr.message }, 500);
+      return json({ org });
+    }
+
+    if (action === "employer_org_get") {
+      const { data: mem } = await adminForNew.from("org_members")
+        .select("org_id, role").eq("user_id", userId).limit(1).maybeSingle();
+      if (!mem) return json({ org: null });
+      const { data: org } = await adminForNew.from("orgs")
+        .select("id, name, website").eq("id", mem.org_id).maybeSingle();
+      return json({ org: org || null, role: mem.role });
+    }
+
+    if (action === "employer_intake_chat") {
+      const { org_id, messages } = payload as { org_id?: string; messages?: Array<{ role: string; content: string }> };
+      if (!org_id || !Array.isArray(messages)) return json({ error: "org_id and messages required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const sys = `You are AYN's recruiting intake assistant. The user is an employer describing a role they need to fill. Ask AT MOST 3 short clarifying questions, one at a time, ONLY about genuinely missing fields (title, seniority, must-have skills, nice-to-have skills, location/remote, min years, notes). When you have enough to search, output ONLY JSON: {"done":true,"job_spec":{"title":"","seniority":"","must_have_skills":[],"nice_to_have_skills":[],"location_preference":"","remote_ok":false,"min_years":0,"notes":""}}. seniority must be one of: intern, entry, mid, senior, staff, principal, manager, director. Cap must_have_skills and nice_to_have_skills at 6 each. Otherwise output ONLY JSON: {"done":false,"question":"..."}. Questions must be plain prose. Never use em dashes, en dashes, or markdown symbols. Use the word "to" for ranges.`;
+      const userTurn = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+      const r = await callAI({ system: sys, user: userTurn });
+      let parsed: Record<string, unknown> = {};
+      try { parsed = JSON.parse(r.text); }
+      catch {
+        const m = r.text.match(/\{[\s\S]*\}/);
+        try { parsed = m ? JSON.parse(m[0]) : { done: false, question: "Could you tell me a bit more about the role?" }; }
+        catch { parsed = { done: false, question: "Could you tell me a bit more about the role?" }; }
+      }
+      return json(parsed);
+    }
+
+    if (action === "employer_match") {
+      const { org_id, job_spec } = payload as { org_id?: string; job_spec?: Record<string, unknown> };
+      if (!org_id || !job_spec) return json({ error: "org_id and job_spec required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+
+      const mustHaves = Array.isArray(job_spec.must_have_skills) ? (job_spec.must_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
+      const niceToHaves = Array.isArray(job_spec.nice_to_have_skills) ? (job_spec.nice_to_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
+
+      // Load opted-in candidates.
+      const { data: consented } = await adminForNew.from("talent_pool_consent")
+        .select("user_id").eq("opted_in", true);
+      const candidateIds = (consented || []).map(r => r.user_id);
+      if (candidateIds.length === 0) {
+        return json({ search_id: null, results: [], pool_note: "No candidates are in the pool yet." });
+      }
+
+      // Load their extracted skills (only extracted can satisfy must-haves).
+      const { data: skillRows } = await adminForNew.from("candidate_skills")
+        .select("user_id, skill_norm, provenance").in("user_id", candidateIds);
+      const extractedByUser = new Map<string, Set<string>>();
+      const inferredByUser = new Map<string, Set<string>>();
+      for (const r of (skillRows || [])) {
+        const bag = r.provenance === "extracted" ? extractedByUser : inferredByUser;
+        if (!bag.has(r.user_id)) bag.set(r.user_id, new Set());
+        bag.get(r.user_id)!.add(r.skill_norm);
+      }
+
+      const tokenOverlap = (a: string, b: string): number => {
+        const ta = new Set(a.split(/[^a-z0-9]+/).filter(t => t.length >= 2));
+        const tb = new Set(b.split(/[^a-z0-9]+/).filter(t => t.length >= 2));
+        if (!ta.size || !tb.size) return 0;
+        let inter = 0;
+        for (const t of ta) if (tb.has(t)) inter++;
+        return inter / Math.max(ta.size, tb.size);
+      };
+      const hasMust = (mh: string, bag: Set<string>): boolean => {
+        if (bag.has(mh)) return true;
+        for (const s of bag) if (tokenOverlap(mh, s) >= 0.8) return true;
+        return false;
+      };
+      const eligibleIds = candidateIds.filter(uid => {
+        const bag = extractedByUser.get(uid) || new Set<string>();
+        return mustHaves.every(mh => hasMust(mh, bag));
+      });
+      if (eligibleIds.length === 0) {
+        return json({ search_id: null, results: [], pool_note: "No candidates in the pool cover every must-have skill yet. The pool grows as job seekers opt in." });
+      }
+
+      // Vector recall.
+      const specText = [job_spec.title, job_spec.notes, mustHaves.join(", "), niceToHaves.join(", ")].filter(Boolean).join("\n");
+      const specEmbedding = await deterministicEmbed(String(specText || ""));
+      const { data: indexRows } = await adminForNew.from("candidate_index")
+        .select("user_id, headline, seniority, years_experience, location, profile_text, embedding")
+        .in("user_id", eligibleIds);
+      const cosine = (a: number[], b: number[]): number => {
+        let dot = 0, na = 0, nb = 0;
+        const n = Math.min(a.length, b.length);
+        for (let i = 0; i < n; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+        const d = Math.sqrt(na) * Math.sqrt(nb);
+        return d === 0 ? 0 : dot / d;
+      };
+      const parseEmbedding = (v: unknown): number[] => {
+        if (Array.isArray(v)) return v as number[];
+        if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
+        return [];
+      };
+      const ranked = (indexRows || []).map(r => ({
+        ...r,
+        sim: cosine(parseEmbedding(r.embedding), specEmbedding),
+      })).sort((a, b) => b.sim - a.sim).slice(0, 12);
+
+      // Build anonymized rerank input.
+      const refMap: Record<string, string> = {};
+      const rerankInput = ranked.map((row, i) => {
+        const ref = `c${i + 1}`;
+        refMap[ref] = row.user_id;
+        return {
+          ref,
+          profile_text: (row.profile_text || "").slice(0, 4000),
+          seniority: row.seniority || "",
+          years_experience: row.years_experience ?? null,
+          location: row.location || "",
+          skills: {
+            extracted: Array.from(extractedByUser.get(row.user_id) || []),
+            inferred: Array.from(inferredByUser.get(row.user_id) || []),
+          },
+          headline: row.headline || "",
+        };
+      });
+
+      const rerankSys = `You are AYN's employer-side hiring judge. Score each candidate 1-100 for THIS job_spec. Rules, strict:
+- must_have coverage may ONLY cite skills from candidate.skills.extracted. Never let an inferred skill satisfy a must-have.
+- Inferred skills may contribute AT MOST 10 total points across nice-to-haves.
+- Every sentence in "why" must reference something literally present in the candidate's provided data (profile_text, seniority, years_experience, location, or extracted/inferred skills). No speculation.
+- If fewer than 3 candidates are genuinely strong, return fewer and explain in pool_note. Do not pad.
+- Never mention refs, ids, names, or emails you were not given. Never invent skills.
+- Output ONLY JSON: {"results":[{"ref":"c1","score":87,"why":["...","...","..."],"matched_must_haves":[],"gaps":[]}],"pool_note":""}
+- Plain prose only. No markdown, no em dashes, no en dashes. Use the word "to" for ranges.`;
+      const rerankUser = JSON.stringify({ job_spec: { title: job_spec.title, seniority: job_spec.seniority, must_have_skills: mustHaves, nice_to_have_skills: niceToHaves, min_years: job_spec.min_years, location_preference: job_spec.location_preference, remote_ok: job_spec.remote_ok, notes: job_spec.notes }, candidates: rerankInput });
+      const rr = await callAI({ system: rerankSys, user: rerankUser.slice(0, 40000) });
+      let rrParsed: { results?: Array<{ ref: string; score: number; why?: string[]; matched_must_haves?: string[]; gaps?: string[] }>; pool_note?: string } = {};
+      try { rrParsed = JSON.parse(rr.text); }
+      catch {
+        const m = rr.text.match(/\{[\s\S]*\}/);
+        try { rrParsed = m ? JSON.parse(m[0]) : { results: [], pool_note: "The rerank step returned an unreadable response." }; }
+        catch { rrParsed = { results: [], pool_note: "The rerank step returned an unreadable response." }; }
+      }
+      const rrResults = Array.isArray(rrParsed.results) ? rrParsed.results : [];
+
+      // Merge with anonymized card data, take top 3.
+      const cardByRef = new Map(rerankInput.map(r => [r.ref, r]));
+      const top = rrResults
+        .filter(r => cardByRef.has(r.ref))
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, 3)
+        .map(r => {
+          const c = cardByRef.get(r.ref)!;
+          return {
+            ref: r.ref,
+            score: r.score,
+            headline: c.headline,
+            seniority: c.seniority,
+            years_experience: c.years_experience,
+            location: c.location,
+            matched_must_haves: r.matched_must_haves || [],
+            gaps: r.gaps || [],
+            why: r.why || [],
+          };
+        });
+
+      const { data: search, error: sErr } = await adminForNew.from("employer_searches").insert({
+        org_id, created_by: userId, job_spec, results: top, ref_map: refMap,
+      }).select("id").single();
+      if (sErr) return json({ error: sErr.message }, 500);
+
+      return json({ search_id: search.id, results: top, pool_note: rrParsed.pool_note || "" });
+    }
+
+    if (action === "employer_reveal_request") {
+      const { search_id, ref } = payload as { search_id?: string; ref?: string };
+      if (!search_id || !ref) return json({ error: "search_id and ref required" }, 400);
+      const { data: search } = await adminForNew.from("employer_searches")
+        .select("id, org_id, ref_map").eq("id", search_id).maybeSingle();
+      if (!search) return json({ error: "search not found" }, 404);
+      if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+      const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
+      if (!candidateUserId) return json({ error: "unknown ref" }, 400);
+      // Idempotent: skip if a pending or approved row exists for this (search, candidate).
+      const { data: existing } = await adminForNew.from("reveal_requests")
+        .select("id, status").eq("search_id", search_id).eq("candidate_user_id", candidateUserId).maybeSingle();
+      if (existing) return json({ ok: true, status: existing.status, already: true });
+      const { error: iErr } = await adminForNew.from("reveal_requests").insert({
+        org_id: search.org_id, candidate_user_id: candidateUserId, search_id, candidate_ref: ref,
+      });
+      if (iErr) return json({ error: iErr.message }, 500);
+      return json({ ok: true, status: "pending" });
+    }
+
+    if (action === "reveal_list") {
+      const { data: rows } = await adminForNew.from("reveal_requests")
+        .select("id, org_id, search_id, status, created_at, decided_at")
+        .eq("candidate_user_id", userId)
+        .order("created_at", { ascending: false });
+      const enriched: Array<Record<string, unknown>> = [];
+      for (const r of (rows || [])) {
+        const [{ data: org }, { data: s }] = await Promise.all([
+          adminForNew.from("orgs").select("name").eq("id", r.org_id).maybeSingle(),
+          r.search_id
+            ? adminForNew.from("employer_searches").select("job_spec").eq("id", r.search_id).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+        enriched.push({
+          id: r.id,
+          org_name: org?.name || "A company",
+          job_title: (s?.job_spec as { title?: string } | null)?.title || "",
+          status: r.status,
+          created_at: r.created_at,
+          decided_at: r.decided_at,
+        });
+      }
+      return json({ requests: enriched });
+    }
+
+    if (action === "reveal_decide") {
+      const { id, approve } = payload as { id?: string; approve?: boolean };
+      if (!id || typeof approve !== "boolean") return json({ error: "id and approve required" }, 400);
+      const status = approve ? "approved" : "declined";
+      const { error } = await adminForNew.from("reveal_requests")
+        .update({ status, decided_at: new Date().toISOString() })
+        .eq("id", id).eq("candidate_user_id", userId);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, status });
+    }
+
+    if (action === "employer_reveal_status") {
+      const { search_id } = payload as { search_id?: string };
+      if (!search_id) return json({ error: "search_id required" }, 400);
+      const { data: search } = await adminForNew.from("employer_searches")
+        .select("org_id, ref_map").eq("id", search_id).maybeSingle();
+      if (!search) return json({ error: "not found" }, 404);
+      if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+      const { data: rows } = await adminForNew.from("reveal_requests")
+        .select("id, candidate_user_id, candidate_ref, status, created_at, decided_at")
+        .eq("search_id", search_id);
+      const refByUser = new Map<string, string>();
+      for (const [ref, uid] of Object.entries((search.ref_map as Record<string, string> | null) || {})) refByUser.set(uid, ref);
+      const enriched: Array<Record<string, unknown>> = [];
+      for (const r of (rows || [])) {
+        const base: Record<string, unknown> = {
+          id: r.id, ref: r.candidate_ref || refByUser.get(r.candidate_user_id) || "",
+          status: r.status, created_at: r.created_at, decided_at: r.decided_at,
+        };
+        if (r.status === "approved") {
+          const { data: prof } = await adminForNew.from("user_profile_data")
+            .select("legal_first_name, legal_last_name, email").eq("user_id", r.candidate_user_id).maybeSingle();
+          const { data: authUser } = await adminForNew.auth.admin.getUserById(r.candidate_user_id);
+          base.name = [prof?.legal_first_name, prof?.legal_last_name].filter(Boolean).join(" ") || null;
+          base.email = prof?.email || authUser?.user?.email || null;
+        }
+        enriched.push(base);
+      }
+      return json({ requests: enriched });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("resume-hub error", e);

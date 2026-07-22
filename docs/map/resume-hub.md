@@ -59,3 +59,29 @@ Indexing routine indexCandidate(admin, userId):
 Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
 
 Hub UI (ProfileTab.tsx): "Let employers find me" Card wired to resumeHubApi.talentPoolGet / talentPoolSet. Shows "In the pool · N skills indexed" when on.
+
+## Employer marketplace (v2.9.0-B)
+
+Employer experience lives inside the AYN dashboard. Top-right "Hiring mode" button opens `src/components/dashboard/EmployerChatPanel.tsx` as a full-surface overlay. All employer calls are session-JWT web-lane actions in `supabase/functions/resume-hub/index.ts`, gated on `org_members` membership.
+
+Tables:
+- **orgs** (id, name, website, created_by, created_at). RLS: members select their own org rows; creator inserts.
+- **org_members** (org_id, user_id, role, pk (org_id, user_id)). RLS: members select their own rows.
+- **employer_searches** (id, org_id, created_by, job_spec jsonb, results jsonb, ref_map jsonb, created_at). RLS: NO client select policy. All reads go through the edge function via service role. **ref_map (opaque ref → user_id) never leaves the server.**
+- **reveal_requests** (id, org_id, candidate_user_id, search_id, candidate_ref, status pending|approved|declined, created_at, decided_at). RLS: candidates select/update rows where candidate_user_id = auth.uid(); employer reads go only through the edge function.
+
+Web-lane actions:
+- **employer_org_create** { name, website }: creates org + admin membership.
+- **employer_org_get**: caller's first org (or null) plus role.
+- **employer_intake_chat** { org_id, messages[] }: intake agent. System prompt asks at most 3 clarifying questions, then returns either `{done:false, question}` or `{done:true, job_spec:{ title, seniority ∈ intern|entry|mid|senior|staff|principal|manager|director, must_have_skills[≤6], nice_to_have_skills[≤6], location_preference, remote_ok, min_years, notes }}`. No markdown, no em/en dashes, ranges use "to".
+- **employer_match** { org_id, job_spec }: THE HYBRID MATCHER. Two-step noise cancellation:
+  1. **Deterministic extracted-only prefilter (zero AI).** Load opted-in candidates → for each, EVERY must_have_skill must match a `candidate_skills` row with `provenance='extracted'` (skill_norm equality OR token-overlap ≥ 0.8). Inferred edges cannot rescue a missing must-have.
+  2. **Vector recall.** Embed the job spec text with the same `deterministicEmbed` used by indexCandidate; rank eligible candidates by cosine similarity against `candidate_index.embedding`; take top 12.
+  3. **Grounded AI rerank (one call).** Anonymized payload only: opaque refs (c1, c2…), profile_text, seniority, years_experience, location, skills split into extracted[]/inferred[], headline. Never user_ids, names, or emails. Rules baked into the system prompt: score 1-100; must_have coverage may only cite extracted skills; inferred skills contribute at most 10 total points via nice-to-haves; every sentence in "why" must reference something literally in the provided data; if fewer than 3 candidates are genuinely strong, return fewer with a `pool_note` instead of padding.
+  4. Persist to `employer_searches` (job_spec, top-3 results, ref_map). Return `{ search_id, results[≤3], pool_note }`. The ref_map stays server-side.
+- **employer_reveal_request** { search_id, ref }: resolves ref → user_id via the server-side ref_map, inserts `reveal_requests` (idempotent per search+candidate).
+- **reveal_list** (candidate side): pending + decided requests enriched with org name and job title (from the search's job_spec).
+- **reveal_decide** { id, approve } (candidate side): updates status + decided_at, own rows only.
+- **employer_reveal_status** { search_id }: for org members. Includes name + email ONLY for rows where status='approved' (pulled from user_profile_data and auth.users). Otherwise no PII.
+
+Hub UI (ProfileTab.tsx): "Intro requests" card appears when the seeker is opted in and has any reveal requests. Share contact / Decline buttons call reveal_decide; contact details are shared only after approval.
