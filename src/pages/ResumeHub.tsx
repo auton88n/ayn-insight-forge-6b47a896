@@ -34,12 +34,22 @@ export default function ResumeHub() {
   const [pendingIntros, setPendingIntros] = useState(0);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) {
         toast({ title: "Sign in required", description: "Please sign in to use Resume Hub." });
         navigate("/");
         return;
       }
+      // v2.10.0 — employers must not access Resume Hub. Bounce them home.
+      try {
+        const q = supabase.from('profiles').select('role').eq('user_id', data.user.id).maybeSingle();
+        const { data: prof } = await (q as unknown as Promise<{ data: { role?: string } | null }>);
+        if (prof?.role === 'employer') {
+          toast({ title: "Not available", description: "Resume Hub is for job seekers." });
+          navigate("/");
+          return;
+        }
+      } catch { /* silent */ }
       setUserId(data.user.id);
       setLoading(false);
       // v2.9.1 — surface a badge on the Profile tab when employers want an intro.
