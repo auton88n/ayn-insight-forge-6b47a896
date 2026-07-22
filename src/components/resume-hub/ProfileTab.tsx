@@ -308,7 +308,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      {/* v2.9.0-A — Talent Pool consent */}
+      {/* v2.9.0-A / v2.9.1 — Talent Pool consent */}
       <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm">
@@ -318,12 +318,33 @@ export default function ProfileTab({ userId }: { userId: string }) {
               ? <Badge variant="secondary">On</Badge>
               : <Badge variant="outline">Off</Badge>}
           </div>
+          {poolOptedIn && reveals.filter(r => r.status === "pending").length > 0 && (
+            <p className="text-xs font-medium text-primary mt-1">
+              {reveals.filter(r => r.status === "pending").length} {reveals.filter(r => r.status === "pending").length === 1 ? "company wants" : "companies want"} an intro
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
             When on, AYN can present your anonymized profile (skills, experience, seniority) to verified employers searching for candidates. Your name and contact details are never shared until you approve a specific request. Turn this off anytime and your data leaves the pool immediately.
           </p>
           {poolOptedIn && !poolLoading && (
             <p className="text-xs text-muted-foreground mt-2">
               In the pool · {poolSkillsCount} skills indexed{poolIndexed ? "" : " (indexing…)"}
+              {" · "}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const r = await resumeHubApi.talentPoolReindexSelf();
+                    await loadPool();
+                    toast({ title: "Profile re-indexed", description: `${r.skills_count} skills, ${r.model}` });
+                  } catch (e) {
+                    toast({ title: "Couldn't re-index", description: (e as Error).message, variant: "destructive" });
+                  }
+                }}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Re-index my profile
+              </button>
             </p>
           )}
         </div>
@@ -332,6 +353,7 @@ export default function ProfileTab({ userId }: { userId: string }) {
           <Switch checked={poolOptedIn} disabled={poolLoading || poolSaving} onCheckedChange={togglePool} />
         </div>
       </Card>
+
 
       {/* v2.9.0-B — Intro requests from employers */}
       {poolOptedIn && reveals.length > 0 && (
