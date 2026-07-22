@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.9.0-A talent pool data layer (consent + candidate index + skills with provenance)", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
+Last verified: commit "v2.9.0-B employer marketplace (hiring mode chat + hybrid matcher + reveal flow)", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
 
 ## What AYN is
 
