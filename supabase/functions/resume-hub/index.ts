@@ -820,7 +820,9 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
     const { error: sErr } = await admin.from("candidate_skills").insert(rows);
     if (sErr) throw sErr;
   }
+  return { model: embedding_model, skills_count: rows.length };
 }
+
 
 function reindexIfOptedIn(admin: SupabaseClient<any, any, any>, userId: string): void {
   // Non-blocking. Employer pool freshness is best-effort; caller shouldn't wait.
