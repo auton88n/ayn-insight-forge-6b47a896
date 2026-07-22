@@ -592,6 +592,26 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
             </div>
             
             <form onSubmit={handleSignUp} className="space-y-4">
+              {/* v2.10.0 — Role picker. Determines access model post-signup. */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSignupRole('job_seeker')}
+                  className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'job_seeker' ? 'border-primary bg-primary/10' : 'border-white/15 bg-neutral-900/60 hover:border-white/30'}`}
+                >
+                  <div className="text-sm font-semibold text-white">I'm looking for a job</div>
+                  <div className="text-[11px] text-white/60 leading-tight mt-1">Resume Hub, autofill, 3 free credits/day</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSignupRole('employer')}
+                  className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'employer' ? 'border-primary bg-primary/10' : 'border-white/15 bg-neutral-900/60 hover:border-white/30'}`}
+                >
+                  <div className="text-sm font-semibold text-white">I'm hiring</div>
+                  <div className="text-[11px] text-white/60 leading-tight mt-1">Search talent through AYN chat (approval required)</div>
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name" className="auth-label">{t('auth.fullName')} *</Label>
@@ -610,7 +630,9 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-company" className="auth-label">{t('auth.company')} *</Label>
+                  <Label htmlFor="signup-company" className="auth-label">
+                    {signupRole === 'employer' ? 'Company name *' : `${t('auth.company')} (optional)`}
+                  </Label>
                   <div className="relative">
                     <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -625,6 +647,21 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                   </div>
                 </div>
               </div>
+
+              {signupRole === 'employer' && (
+                <div className="space-y-2">
+                  <Label htmlFor="signup-website" className="auth-label">Company website</Label>
+                  <Input
+                    id="signup-website"
+                    type="url"
+                    placeholder="https://acme.com"
+                    value={companyWebsite}
+                    onChange={(e) => setCompanyWebsite(e.target.value)}
+                    disabled={isLoading}
+                    className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 auth-input-text"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="signup-email" className="auth-label">{t('auth.businessEmail')} *</Label>
