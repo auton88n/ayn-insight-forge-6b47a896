@@ -649,14 +649,18 @@ RULES:
 const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
 
 // ─────────────────────────────────────────────────────────────
-// v2.9.0-A — Talent Pool indexing (Phase A).
+// v2.9.0-A / v2.9.1 — Talent Pool indexing.
 // Anonymous profile_text (no email/phone/name), 768-dim embedding,
 // candidate_skills rebuilt with provenance ('extracted' vs 'inferred').
-// TODO: swap deterministicEmbed for the AI gateway's embeddings API
-// once wired in this environment; the pipeline works end to end today
-// so Phase B semantic search doesn't block on that swap.
+//
+// v2.9.1: real embeddings via the AI gateway (768-dim), with a
+// deterministicEmbed fallback and model tagging so employer_match
+// never cosine-compares vectors across different models.
 // ─────────────────────────────────────────────────────────────
 const EMBED_DIMS = 768;
+const REAL_EMBED_MODEL = "openai/text-embedding-3-small";
+const FALLBACK_EMBED_MODEL = "deterministic-v1";
+const EMBED_ENDPOINT = "https://ai.gateway.lovable.dev/v1/embeddings";
 
 function tokenizeForEmbed(text: string): string[] {
   return (text || "").toLowerCase().match(/[a-z0-9+.#-]{2,}/g) || [];
@@ -682,6 +686,54 @@ async function deterministicEmbed(text: string): Promise<number[]> {
   for (let i = 0; i < v.length; i++) v[i] = v[i] / norm;
   return v;
 }
+
+/**
+ * Call the AI gateway embeddings endpoint with a 768-dim OpenAI model
+ * (text-embedding-3-small supports the `dimensions` param so we don't
+ * need to change the vector(768) column). On any failure — missing key,
+ * network, non-2xx, malformed body — fall back to deterministicEmbed
+ * and tag the row with 'deterministic-v1' so employer_match knows not
+ * to mix these vectors with real ones.
+ */
+async function embedText(text: string): Promise<{ vector: number[]; model: string }> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  const input = (text || "").slice(0, 8000);
+  if (!apiKey || !input) {
+    console.log(`[embedText] fallback path (${apiKey ? "empty input" : "no LOVABLE_API_KEY"})`);
+    return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+  }
+  try {
+    const r = await fetch(EMBED_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: REAL_EMBED_MODEL,
+        input,
+        dimensions: EMBED_DIMS,
+      }),
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      console.log(`[embedText] fallback path (gateway ${r.status}: ${body.slice(0, 200)})`);
+      return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+    }
+    const data = await r.json() as { data?: Array<{ embedding?: number[] }> };
+    const vec = data?.data?.[0]?.embedding;
+    if (!Array.isArray(vec) || vec.length !== EMBED_DIMS) {
+      console.log(`[embedText] fallback path (bad response shape, len=${vec?.length ?? "n/a"})`);
+      return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+    }
+    console.log(`[embedText] real path (${REAL_EMBED_MODEL}, ${vec.length}d)`);
+    return { vector: vec, model: REAL_EMBED_MODEL };
+  } catch (e) {
+    console.log(`[embedText] fallback path (exception: ${(e as Error).message})`);
+    return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+  }
+}
+
 
 function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unknown> | null): string {
   const skills = c.skills.map(s => s.name).filter(Boolean).join(", ");
