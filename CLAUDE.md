@@ -54,6 +54,7 @@ Five loops carry everything. If you understand these, you understand AYN:
 3. SYNC LOOP: profile edited in the Hub -> AYN_PROFILE_UPDATED clears the extension's cached fact vector -> next fill refetches. 24h TTL is the fallback for closed browsers.
 4. TRACKING LOOP: submit detected on the page -> job_applications upsert -> Tracker board; fill telemetry attaches to the same view. The user's pipeline builds itself.
 5. HANDOFF LOOP: Hub tailors a resume for a job -> deep link or external message carries resumeId -> sidepanel preselects it -> ext_autofill resolves that resume_versions row instead of the primary. The tailoring work actually reaches the form.
+6. MATCH LOOP (v2.9.0-B): seeker opts in -> indexCandidate builds anonymized profile_text + 768d embedding + extracted/inferred skills -> employer opens hiring mode in the dashboard chat -> employer_intake_chat distills a JobSpec -> employer_match runs extracted-only prefilter (must-haves), pgvector recall (top 12), then a single grounded rerank on opaque refs (inferred capped at 10 pts) -> top 3 anonymized cards -> employer requests intro -> candidate approves in ProfileTab intro requests -> contact revealed only then. The ref_map that binds refs to real users never leaves the edge function.
 
 ## Honest assessment (strengths, weaknesses, what is actually smart)
 
