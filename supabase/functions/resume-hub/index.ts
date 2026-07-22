@@ -2883,7 +2883,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const rerankUser = JSON.stringify({ job_spec: { title: job_spec.title, seniority: job_spec.seniority, must_have_skills: mustHaves, nice_to_have_skills: niceToHaves, min_years: job_spec.min_years, location_preference: job_spec.location_preference, remote_ok: job_spec.remote_ok, notes: job_spec.notes }, candidates: rerankInput });
       const rr = await callAI({ system: rerankSys, user: rerankUser.slice(0, 40000) });
       let rrParsed: { results?: Array<{ ref: string; score: number; why?: string[]; matched_must_haves?: string[]; gaps?: string[] }>; pool_note?: string } = {};
-      try { rrParsed = JSON.parse(rr.text); } catch { rrParsed = { results: [], pool_note: "The rerank step returned an unreadable response." }; }
+      try { rrParsed = JSON.parse(rr.text); }
+      catch {
+        const m = rr.text.match(/\{[\s\S]*\}/);
+        try { rrParsed = m ? JSON.parse(m[0]) : { results: [], pool_note: "The rerank step returned an unreadable response." }; }
+        catch { rrParsed = { results: [], pool_note: "The rerank step returned an unreadable response." }; }
+      }
       const rrResults = Array.isArray(rrParsed.results) ? rrParsed.results : [];
 
       // Merge with anonymized card data, take top 3.
