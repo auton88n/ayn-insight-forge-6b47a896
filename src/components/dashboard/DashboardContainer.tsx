@@ -28,7 +28,8 @@ import { analyzeResponseEmotion } from '@/lib/emotionMapping';
 import { hapticFeedback } from '@/lib/haptics';
 
 // Import icons for modes
-import { Menu, Brain, FlaskConical, MessageSquare, Sparkles } from 'lucide-react';
+import { Menu, Brain, FlaskConical, MessageSquare, Sparkles, Building2 } from 'lucide-react';
+import EmployerChatPanel from '@/components/dashboard/EmployerChatPanel';
 
 interface DashboardContainerProps {
   user: User;
