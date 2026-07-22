@@ -2551,6 +2551,50 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ ok: true });
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // v2.9.0-A — Talent Pool (Phase A: data layer)
+    // Seeker-side consent + indexing. Employer search lives in Phase B
+    // and runs via the service role, gated on opted_in.
+    // ─────────────────────────────────────────────────────────────
+    if (action === "talent_pool_get") {
+      const [{ data: consent }, { data: idx }, { count: skillsCount }] = await Promise.all([
+        adminForNew.from("talent_pool_consent").select("opted_in, consented_at").eq("user_id", userId).maybeSingle(),
+        adminForNew.from("candidate_index").select("indexed_at").eq("user_id", userId).maybeSingle(),
+        adminForNew.from("candidate_skills").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      ]);
+      return json({
+        opted_in: !!consent?.opted_in,
+        consented_at: consent?.consented_at ?? null,
+        indexed: !!idx,
+        skills_count: skillsCount ?? 0,
+      });
+    }
+
+    if (action === "talent_pool_set") {
+      const { opted_in } = payload as { opted_in?: boolean };
+      if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
+      const now = new Date().toISOString();
+      const row = {
+        user_id: userId,
+        opted_in,
+        consented_at: opted_in ? now : null,
+        revoked_at: opted_in ? null : now,
+        updated_at: now,
+      };
+      const { error } = await adminForNew.from("talent_pool_consent").upsert(row, { onConflict: "user_id" });
+      if (error) return json({ error: error.message }, 500);
+      if (opted_in) {
+        try { await indexCandidate(adminForNew, userId); }
+        catch (e) { console.error("indexCandidate failed", (e as Error).message); }
+      } else {
+        await Promise.all([
+          adminForNew.from("candidate_index").delete().eq("user_id", userId),
+          adminForNew.from("candidate_skills").delete().eq("user_id", userId),
+        ]);
+      }
+      return json({ ok: true, opted_in });
+    }
+
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("resume-hub error", e);
