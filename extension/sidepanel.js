@@ -462,17 +462,18 @@ function detectForFill() {
         return;
       }
       if (r.kind === 'listing' || !r.hasForm) {
-        // Listing page: allow scoring/JD banner but replace fill CTA.
+        // v2.8.4 — ONE unified listing card: hero + JD status row + Open the application.
+        // No separate empty state, no separate JD provenance card.
         let host = '';
         try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-        renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount || 0, host, url: tab.url });
+        renderFillHero({ title: r.title, company: F.company, fieldCount: 0, host, url: tab.url, kind: 'listing' });
         $('autofill-now-btn').classList.add('hidden');
-        $('fill-empty-title').textContent = 'This looks like a job listing, not the application form';
-        $('fill-empty-sub').textContent = 'Open the application first (Apply or Easy Apply), then come back here to fill.';
-        $('fill-empty').classList.remove('hidden');
-        try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
+        $('fill-empty').classList.add('hidden');
+        $('jd-provenance')?.classList.add('hidden');
+        try { window.aynRenderListingExtras && window.aynRenderListingExtras(tab.id); } catch {}
         return;
       }
+
 
       // Form found — show hero (always) + ready state
       let host = '';
