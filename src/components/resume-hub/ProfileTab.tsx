@@ -289,6 +289,31 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </div>
       </Card>
 
+      {/* v2.9.0-A — Talent Pool consent */}
+      <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="font-medium">Let employers find me</span>
+            {poolOptedIn
+              ? <Badge variant="secondary">On</Badge>
+              : <Badge variant="outline">Off</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+            When on, AYN can present your anonymized profile (skills, experience, seniority) to verified employers searching for candidates. Your name and contact details are never shared until you approve a specific request. Turn this off anytime and your data leaves the pool immediately.
+          </p>
+          {poolOptedIn && !poolLoading && (
+            <p className="text-xs text-muted-foreground mt-2">
+              In the pool · {poolSkillsCount} skills indexed{poolIndexed ? "" : " (indexing…)"}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {poolSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          <Switch checked={poolOptedIn} disabled={poolLoading || poolSaving} onCheckedChange={togglePool} />
+        </div>
+      </Card>
+
       {/* Completeness meter */}
       {(() => {
         const { pct, checks } = computeCompleteness(profile);
