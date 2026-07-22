@@ -8,11 +8,11 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-react";
+import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp, Users } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import type { ResumeContent } from "@/lib/resumeHub";
+import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import CanadianProfileForm, { type CanadianProfileFormHandle } from "./CanadianProfileForm";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
