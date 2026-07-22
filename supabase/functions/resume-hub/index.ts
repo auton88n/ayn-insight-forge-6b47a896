@@ -2782,6 +2782,25 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ ok: true, opted_in });
     }
 
+    // v2.9.1 — manual re-index (Talent Pool card "Re-index my profile" link).
+    // Only useful when opted in; refreshes the caller's candidate_index row
+    // with the current embedding model.
+    if (action === "talent_pool_reindex_self") {
+      const { data: consent } = await adminForNew.from("talent_pool_consent")
+        .select("opted_in").eq("user_id", userId).maybeSingle();
+      if (!consent?.opted_in) return json({ error: "Opt in first" }, 400);
+      try {
+        const result = await indexCandidate(adminForNew, userId);
+        if (!result) return json({ error: "No profile to index" }, 400);
+        return json(result);
+      } catch (e) {
+        return json({ error: (e as Error).message }, 500);
+      }
+    }
+
+
+
+
 
     // ─────────────────────────────────────────────────────────────
     // v2.9.0-B — Employer marketplace (Phase B)
