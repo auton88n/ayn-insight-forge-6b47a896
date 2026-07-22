@@ -34,3 +34,28 @@ resumes (content jsonb, is_primary), resume_versions (content, created_for_job_i
 | AUTO_TRACK_SUBMIT enrichment | v2.8.0: LAST_MATCH per tab (set by SCORE_JOB_CARD) attaches match_score + job_id at submit | CONNECTED |
 | JD Resolver (full JD before AI) | v2.8.0: manual paste → current page → opener tab → registry fuzzy → listing fetch (PARSE_JOB_HTML) → ext_job_lookup; sidepanel provenance banner shows source + quality | CONNECTED |
 | Preview-domain bridge | externally_connectable gates aynn.io | PARTIAL: on lovable.app previews AYN_PING falls back to handoff. Expected, but confusing in testing. |
+
+## Talent pool (v2.9.0-A, Phase A data layer)
+
+Foundation for a two-sided marketplace. Phase A ships schema, consent, and indexing only; Phase B (employer mode inside the dashboard chat) is pending.
+
+Tables:
+- **talent_pool_consent** (user_id pk → auth.users, opted_in, consented_at, revoked_at, updated_at). RLS: users manage only their own row.
+- **candidate_index** (user_id pk → auth.users, headline, summary, seniority, location, years_experience, embedding vector(768), profile_text, indexed_at). RLS: users can read only their own row. NO cross-user select policy. Employer search in Phase B runs via the service role and MUST filter on talent_pool_consent.opted_in.
+- **candidate_skills** (id, user_id → auth.users, skill, skill_norm lowercased, provenance 'extracted'|'inferred', source, unique(user_id, skill_norm, provenance)). RLS: users can read and delete only their own rows.
+- pgvector HNSW cosine index on candidate_index.embedding.
+
+Web-lane actions (session JWT, in supabase/functions/resume-hub/index.ts):
+- **talent_pool_get**: returns { opted_in, consented_at, indexed, skills_count } for the caller.
+- **talent_pool_set** { opted_in: boolean }: upserts consent (consented_at/revoked_at). Turning ON runs indexCandidate() synchronously; turning OFF deletes the caller's candidate_index and candidate_skills rows immediately.
+
+Indexing routine indexCandidate(admin, userId):
+1. Loads canonical profile (loadCanonical) + primary resume.
+2. Builds profile_text: seniority, function, YoE, current title, skills, experience bullets, education, certifications, resume summary. **Excludes name, email, phone, address, links** — matching is anonymous until a Phase B reveal.
+3. Embedding: deterministicEmbed(profile_text) — 768-dim signed hashed bag-of-words, l2-normalized. TODO in code: swap for the AI gateway embeddings endpoint once available; the pipeline works end to end today so Phase B semantic search doesn't block on that swap.
+4. Upserts candidate_index.
+5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule.
+
+Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
+
+Hub UI (ProfileTab.tsx): "Let employers find me" Card wired to resumeHubApi.talentPoolGet / talentPoolSet. Shows "In the pool · N skills indexed" when on.
