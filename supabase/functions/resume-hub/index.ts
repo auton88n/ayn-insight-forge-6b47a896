@@ -2887,12 +2887,35 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         return json({ search_id: null, results: [], pool_note: "No candidates in the pool cover every must-have skill yet. The pool grows as job seekers opt in." });
       }
 
-      // Vector recall.
+      // v2.9.1 — embed the spec with the real model when available and
+      // ONLY cosine-compare against candidate_index rows produced by that
+      // same model. Mixing models yields meaningless scores. If some
+      // eligible candidates are still on the fallback model, re-index up
+      // to 25 of them inline before ranking; the rest will catch up on
+      // their next profile save or manual re-index (non-blocking to the
+      // user, nothing surfaced in the UI).
       const specText = [job_spec.title, job_spec.notes, mustHaves.join(", "), niceToHaves.join(", ")].filter(Boolean).join("\n");
-      const specEmbedding = await deterministicEmbed(String(specText || ""));
-      const { data: indexRows } = await adminForNew.from("candidate_index")
-        .select("user_id, headline, seniority, years_experience, location, profile_text, embedding")
+      const { vector: specEmbedding, model: specModel } = await embedText(String(specText || ""));
+
+      const { data: rawIndexRows } = await adminForNew.from("candidate_index")
+        .select("user_id, headline, seniority, years_experience, location, profile_text, embedding, embedding_model")
         .in("user_id", eligibleIds);
+      let indexRows = rawIndexRows || [];
+
+      if (specModel !== FALLBACK_EMBED_MODEL) {
+        const stale = indexRows.filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) !== specModel).slice(0, 25);
+        for (const r of stale) {
+          try { await indexCandidate(adminForNew, r.user_id); }
+          catch (e) { console.error("inline reindex failed", r.user_id, (e as Error).message); }
+        }
+        if (stale.length) {
+          const { data: refreshed } = await adminForNew.from("candidate_index")
+            .select("user_id, headline, seniority, years_experience, location, profile_text, embedding, embedding_model")
+            .in("user_id", eligibleIds);
+          if (refreshed) indexRows = refreshed;
+        }
+      }
+
       const cosine = (a: number[], b: number[]): number => {
         let dot = 0, na = 0, nb = 0;
         const n = Math.min(a.length, b.length);
@@ -2905,10 +2928,13 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
         return [];
       };
-      const ranked = (indexRows || []).map(r => ({
+      // Same-model filter — never compare vectors across different embedding models.
+      const comparable = indexRows.filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) === specModel);
+      const ranked = comparable.map(r => ({
         ...r,
         sim: cosine(parseEmbedding(r.embedding), specEmbedding),
       })).sort((a, b) => b.sim - a.sim).slice(0, 12);
+
 
       // Build anonymized rerank input.
       const refMap: Record<string, string> = {};
