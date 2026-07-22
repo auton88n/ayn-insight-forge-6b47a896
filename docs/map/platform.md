@@ -26,3 +26,13 @@ src/contexts/SubscriptionContext: tiers (free plus paid; paid gives unlimited cr
 
 ## Servers
 server.js: express static host for dist/ with SPA fallback and cache headers (/assets immutable, /frames 7 days). backend/server.py: FastAPI health stub only. Real backend = Supabase edge functions + RLS tables.
+
+## Employer mode (v2.9.0-B)
+
+`src/components/dashboard/EmployerChatPanel.tsx` is a full-surface overlay opened from a "Hiring mode" button in the top right of the dashboard shell. It is entirely separate from the seeker chat pipeline: it does not go through `useAYN` / `ayn-ai-proxy`. All calls hit `src/lib/employer.ts`, which is a thin session-JWT wrapper around `supabase/functions/resume-hub` employer actions.
+
+Flow inside the panel:
+1. On open, `employer_org_get`. If no org, render an inline register card; `employer_org_create` sets up the org + admin membership.
+2. Free-text chat → `employer_intake_chat` (at most 3 clarifying questions, then a JobSpec).
+3. When JobSpec lands, an editable spec card exposes a "Find candidates" button → `employer_match`.
+4. Results render as anonymized candidate cards with score ring, matched must-haves, gaps, and grounded "why" bullets. "Request intro" calls `employer_reveal_request`; contact reveal happens only after the candidate approves in ProfileTab.
