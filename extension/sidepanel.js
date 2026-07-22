@@ -1950,3 +1950,67 @@ chrome.runtime.onMessage.addListener((msg) => {
     });
   });
 })();
+
+// ═══════════════════════════════════════════════════════════════════
+// v2.8.4 — Listing-state extras (JD status + Open the application button)
+// One coherent card. Replaces the old empty-state + JD banner stack.
+// ═══════════════════════════════════════════════════════════════════
+(function aynListingExtrasInit() {
+  const $ = (id) => document.getElementById(id);
+  let __listingTabId = null;
+
+  window.aynRenderListingExtras = function (tabId) {
+    __listingTabId = tabId;
+    const jdEl = $('fill-listing-jd');
+    const btn = $('fill-listing-open');
+    const btnLabel = $('fill-listing-open-label');
+    if (!jdEl || !btn) return;
+    jdEl.textContent = 'Locating the job description…';
+    btn.disabled = false;
+    btnLabel.textContent = 'Open the application';
+
+    chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
+      void chrome.runtime.lastError;
+      if (r && r.ok && (r.text || '').length > 0) {
+        jdEl.textContent = `JD ready · ${(r.text || '').length.toLocaleString()} chars`;
+      } else {
+        jdEl.textContent = 'No JD found yet · paste it if you have it';
+      }
+    });
+
+    // Probe the page for an Apply link so we can label the button honestly.
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId, payload: { type: 'CLICK_APPLY_LINK', probe: true } },
+      () => void chrome.runtime.lastError,
+    );
+  };
+
+  $('fill-listing-open')?.addEventListener('click', () => {
+    if (__listingTabId == null) return;
+    const btn = $('fill-listing-open');
+    const btnLabel = $('fill-listing-open-label');
+    btn.disabled = true;
+    btnLabel.textContent = 'Opening…';
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId: __listingTabId, payload: { type: 'CLICK_APPLY_LINK' } },
+      r => {
+        void chrome.runtime.lastError;
+        if (r && r.ok) {
+          btnLabel.textContent = 'Opened · switch to the form';
+        } else {
+          btn.disabled = true;
+          btnLabel.textContent = 'Find the Apply button on the page';
+        }
+      },
+    );
+  });
+
+  $('fill-listing-replace-jd')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const w = $('jd-paste-wrap');
+    if (!w) return;
+    w.classList.remove('hidden');
+    $('jd-paste-input')?.focus();
+  });
+})();
+
