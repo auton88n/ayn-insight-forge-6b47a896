@@ -130,6 +130,24 @@ export default function ProfileTab({ userId }: { userId: string }) {
     } finally { setPoolSaving(false); }
   };
 
+  // v2.9.0-B — Intro requests from employers who searched the pool.
+  const [reveals, setReveals] = useState<RevealRequest[]>([]);
+  const [revealBusy, setRevealBusy] = useState<Record<string, boolean>>({});
+  const loadReveals = useCallback(async () => {
+    try { const r = await employerApi.revealList(); setReveals(r.requests || []); } catch { /* silent */ }
+  }, []);
+  useEffect(() => { if (poolOptedIn) loadReveals(); }, [poolOptedIn, loadReveals]);
+  const decideReveal = async (id: string, approve: boolean) => {
+    setRevealBusy(p => ({ ...p, [id]: true }));
+    try {
+      await employerApi.revealDecide(id, approve);
+      toast({ title: approve ? "Contact shared" : "Declined" });
+      await loadReveals();
+    } catch (e) {
+      toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
+    } finally { setRevealBusy(p => ({ ...p, [id]: false })); }
+  };
+
   const loadPrimary = useCallback(async () => {
     const { data } = await supabase
       .from("resumes")
