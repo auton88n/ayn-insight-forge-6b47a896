@@ -801,13 +801,18 @@
     </div>
 
     <!-- v2.8.0 — JD provenance banner: shows where AYN got the JD from. -->
-    <div id="jd-provenance" class="card hidden mt12" style="padding:10px;font-size:12px;display:flex;align-items:center;gap:8px">
-      <i class="ti ti-file-text" style="color:var(--ayn-blue,#3b82f6)"></i>
-      <div style="flex:1;line-height:1.35">
-        <div><b id="jd-src-label">JD ready</b> <span id="jd-src-meta" style="color:var(--ayn-muted)"></span></div>
-        <div id="jd-src-warn" class="hidden" style="color:#b45309;font-size:11px;margin-top:2px">This JD looks incomplete. Paste it below for a better fill.</div>
+    <div id="jd-provenance" class="card hidden mt12" style="padding:10px;font-size:12px">
+      <div style="display:flex;align-items:flex-start;gap:8px;line-height:1.4">
+        <i class="ti ti-file-text" style="color:var(--ayn-blue,#3b82f6);margin-top:2px"></i>
+        <div style="flex:1;min-width:0">
+          <div><b id="jd-src-label">JD ready</b> <span id="jd-src-meta" style="color:var(--ayn-muted)"></span></div>
+          <div id="jd-src-warn" class="hidden" style="color:#b45309;font-size:11px;margin-top:2px">This JD looks incomplete. Paste it below for a better fill.</div>
+        </div>
       </div>
-      <button class="btn btn-outline" id="jd-paste-toggle" style="padding:4px 10px;font-size:11px"><i class="ti ti-clipboard"></i>Paste JD</button>
+      <div style="margin-top:8px;display:flex;justify-content:flex-end">
+        <button class="btn btn-outline hidden" id="jd-paste-toggle" style="padding:4px 10px;font-size:11px"><i class="ti ti-clipboard"></i>Paste JD</button>
+        <a href="#" id="jd-replace-link" class="hidden" style="font-size:11px;color:var(--ayn-muted);text-decoration:underline;cursor:pointer">Replace JD</a>
+      </div>
     </div>
     <div id="jd-paste-wrap" class="card hidden mt8" style="padding:10px">
       <textarea id="jd-paste-input" placeholder="Paste the full job description here…" style="width:100%;min-height:120px;font-size:12px;padding:8px;border:1px solid var(--ayn-border);border-radius:6px;background:var(--ayn-card);color:var(--ayn-text);resize:vertical"></textarea>
