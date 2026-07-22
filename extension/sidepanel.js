@@ -1263,7 +1263,7 @@ async function generateCoverLetter() {
       resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl,
     });
     if (data.error) throw new Error(data.error);
-    $('cover-out').textContent = data.body || '';
+    { const out = $('cover-out'); out.dataset.raw = data.body || ''; out.innerHTML = aynFormatAiText(data.body || ''); }
     $('cover-result').classList.remove('hidden');
   } catch (e) {
     err.textContent = e.message || 'Failed to generate. Make sure your resume is saved at aynn.io.';
