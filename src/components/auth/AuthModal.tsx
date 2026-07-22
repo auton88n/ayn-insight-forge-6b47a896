@@ -34,6 +34,10 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  // v2.10.0 — role picker on signup. job_seekers get instant access; employers
+  // sit in pending_approval until the AYN team activates them.
+  const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>('job_seeker');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
   // New states for reset confirmation view
