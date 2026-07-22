@@ -82,4 +82,8 @@ export const resumeHubApi = {
     ),
   talentPoolSet: (opted_in: boolean) =>
     call<{ ok: true; opted_in: boolean }>("resume-hub", { action: "talent_pool_set", opted_in }),
+
+  // v2.9.1 — manual re-index for the caller (link in Talent Pool card).
+  talentPoolReindexSelf: () =>
+    call<{ model: string; skills_count: number }>("resume-hub", { action: "talent_pool_reindex_self" }),
 };
