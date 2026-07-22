@@ -750,15 +750,15 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
     .filter(Boolean).join("\n\n");
 }
 
-async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<void> {
+async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<{ model: string; skills_count: number } | null> {
   const [canonical, { data: primary }] = await Promise.all([
     loadCanonical(admin, userId),
     admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
   ]);
-  if (!canonical) return;
+  if (!canonical) return null;
   const resumeContent = (primary?.content as Record<string, unknown> | null) || null;
   const profile_text = buildProfileText(canonical, resumeContent);
-  const embedding = await deterministicEmbed(profile_text);
+  const { vector: embedding, model: embedding_model } = await embedText(profile_text);
 
   const headline = canonical.derived.current_title || canonical.experiences[0]?.title || "";
   const summary = (resumeContent as { basics?: { summary?: string } })?.basics?.summary?.toString().slice(0, 2000) || "";
@@ -772,10 +772,13 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
     location,
     years_experience: canonical.derived.total_yoe ?? null,
     embedding: embedding as unknown as number[],
+    embedding_model,
+    embedded_at: new Date().toISOString(),
     profile_text,
     indexed_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (upErr) throw upErr;
+
 
   // Rebuild candidate_skills. Extracted = literally present in canonical
   // skills or the primary resume skills. Inferred = in derived.top_skills
