@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import { AYNLoader, DashboardLoader } from '@/components/ui/page-loader';
 import { lazy, Suspense } from 'react';
+import { useUserRole } from '@/hooks/useUserRole';
+import { Navigate } from 'react-router-dom';
 
 // Lazy load Dashboard (authenticated users), direct import LandingPage (most common first view)
 import LandingPage from '@/components/LandingPage';
@@ -105,13 +107,23 @@ const Index = () => {
     return <AYNLoader />;
   }
 
-  // Show dashboard if authenticated, landing page otherwise
-  return user && session ? (
+  if (user && session) {
+    return <AuthedShell user={user} session={session} />;
+  }
+  return <LandingPage />;
+};
+
+// v2.10.0 — Route employers through the pending gate until an admin approves.
+const AuthedShell = ({ user, session }: { user: User; session: Session }) => {
+  const { loading, role, employerStatus } = useUserRole(user.id);
+  if (loading) return <AYNLoader />;
+  if (role === 'employer' && employerStatus !== 'approved') {
+    return <Navigate to="/employer/pending" replace />;
+  }
+  return (
     <Suspense fallback={<DashboardLoader />}>
       <Dashboard user={user} session={session} />
     </Suspense>
-  ) : (
-    <LandingPage />
   );
 };
 
