@@ -10,7 +10,9 @@ import JobsTab from "@/components/resume-hub/JobsTab";
 import TrackerTab from "@/components/resume-hub/TrackerTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
+import { employerApi } from "@/lib/employer";
 import "@/styles/resume-hub.css";
+
 
 type TabKey = "overview" | "profile" | "builder" | "jobs" | "tracker" | "extension";
 
