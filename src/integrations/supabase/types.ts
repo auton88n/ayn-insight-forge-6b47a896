@@ -2089,6 +2089,44 @@ export type Database = {
         }
         Relationships: []
       }
+      employer_searches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          job_spec: Json
+          org_id: string
+          ref_map: Json | null
+          results: Json | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_spec: Json
+          org_id: string
+          ref_map?: Json | null
+          results?: Json | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_spec?: Json
+          org_id?: string
+          ref_map?: Json | null
+          results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employer_searches_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       error_group_resolutions: {
         Row: {
           created_at: string | null
@@ -3084,6 +3122,59 @@ export type Database = {
         }
         Relationships: []
       }
+      org_members: {
+        Row: {
+          created_at: string
+          org_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orgs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          website: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          website?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       pending_pin_changes: {
         Row: {
           approval_token: string
@@ -3287,6 +3378,54 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      reveal_requests: {
+        Row: {
+          candidate_ref: string | null
+          candidate_user_id: string
+          created_at: string
+          decided_at: string | null
+          id: string
+          org_id: string
+          search_id: string | null
+          status: string
+        }
+        Insert: {
+          candidate_ref?: string | null
+          candidate_user_id: string
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          org_id: string
+          search_id?: string | null
+          status?: string
+        }
+        Update: {
+          candidate_ref?: string | null
+          candidate_user_id?: string
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          org_id?: string
+          search_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reveal_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reveal_requests_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "employer_searches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       security_audit_logs: {
         Row: {
