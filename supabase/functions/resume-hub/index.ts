@@ -2773,7 +2773,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const userTurn = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
       const r = await callAI({ system: sys, user: userTurn });
       let parsed: Record<string, unknown> = {};
-      try { parsed = JSON.parse(r.text); } catch { parsed = { done: false, question: "Could you tell me a bit more about the role?" }; }
+      try { parsed = JSON.parse(r.text); }
+      catch {
+        const m = r.text.match(/\{[\s\S]*\}/);
+        try { parsed = m ? JSON.parse(m[0]) : { done: false, question: "Could you tell me a bit more about the role?" }; }
+        catch { parsed = { done: false, question: "Could you tell me a bit more about the role?" }; }
+      }
       return json(parsed);
     }
 
