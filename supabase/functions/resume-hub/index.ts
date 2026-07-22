@@ -648,6 +648,134 @@ RULES:
 // Public link-flow actions (no auth required for start/poll)
 const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
 
+// ─────────────────────────────────────────────────────────────
+// v2.9.0-A — Talent Pool indexing (Phase A).
+// Anonymous profile_text (no email/phone/name), 768-dim embedding,
+// candidate_skills rebuilt with provenance ('extracted' vs 'inferred').
+// TODO: swap deterministicEmbed for the AI gateway's embeddings API
+// once wired in this environment; the pipeline works end to end today
+// so Phase B semantic search doesn't block on that swap.
+// ─────────────────────────────────────────────────────────────
+const EMBED_DIMS = 768;
+
+function tokenizeForEmbed(text: string): string[] {
+  return (text || "").toLowerCase().match(/[a-z0-9+.#-]{2,}/g) || [];
+}
+
+async function hashToken(tok: string): Promise<number> {
+  const bytes = new TextEncoder().encode(tok);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
+  return ((digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]) >>> 0;
+}
+
+async function deterministicEmbed(text: string): Promise<number[]> {
+  const v = new Array<number>(EMBED_DIMS).fill(0);
+  for (const tok of tokenizeForEmbed(text)) {
+    const h = await hashToken(tok);
+    const dim = h % EMBED_DIMS;
+    const sign = ((h >>> 16) & 1) === 0 ? 1 : -1;
+    v[dim] += sign;
+  }
+  let norm = 0;
+  for (const x of v) norm += x * x;
+  norm = Math.sqrt(norm) || 1;
+  for (let i = 0; i < v.length; i++) v[i] = v[i] / norm;
+  return v;
+}
+
+function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unknown> | null): string {
+  const skills = c.skills.map(s => s.name).filter(Boolean).join(", ");
+  const exp = c.experiences.map(e => {
+    const bullets = (e.bullets || []).slice(0, 4).join(" | ");
+    return `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")} ${bullets}`.trim();
+  }).join("\n");
+  const edu = c.education.map(e => `${e.degree || ""} ${e.field || ""} at ${e.school || ""}`.trim()).join("; ");
+  const certs = c.certifications.map(c => c.name).filter(Boolean).join(", ");
+  const derived = `Seniority: ${c.derived.seniority || ""}. Function: ${c.derived.primary_function || ""}. YoE: ${c.derived.total_yoe ?? ""}. Current title: ${c.derived.current_title || ""}.`;
+  const resumeSummary = ((resumeContent as { basics?: { summary?: string } })?.basics?.summary || "").toString();
+  // Deliberately excludes name, email, phone, address, links to keep matching anonymous.
+  return [derived, `Skills: ${skills}`, `Experience:\n${exp}`, `Education: ${edu}`, certs ? `Certifications: ${certs}` : "", resumeSummary ? `Summary: ${resumeSummary}` : ""]
+    .filter(Boolean).join("\n\n");
+}
+
+async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<void> {
+  const [canonical, { data: primary }] = await Promise.all([
+    loadCanonical(admin, userId),
+    admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+  ]);
+  if (!canonical) return;
+  const resumeContent = (primary?.content as Record<string, unknown> | null) || null;
+  const profile_text = buildProfileText(canonical, resumeContent);
+  const embedding = await deterministicEmbed(profile_text);
+
+  const headline = canonical.derived.current_title || canonical.experiences[0]?.title || "";
+  const summary = (resumeContent as { basics?: { summary?: string } })?.basics?.summary?.toString().slice(0, 2000) || "";
+  const location = (resumeContent as { basics?: { location?: string } })?.basics?.location?.toString() || "";
+
+  const { error: upErr } = await admin.from("candidate_index").upsert({
+    user_id: userId,
+    headline,
+    summary,
+    seniority: canonical.derived.seniority || null,
+    location,
+    years_experience: canonical.derived.total_yoe ?? null,
+    embedding: embedding as unknown as number[],
+    profile_text,
+    indexed_at: new Date().toISOString(),
+  }, { onConflict: "user_id" });
+  if (upErr) throw upErr;
+
+  // Rebuild candidate_skills. Extracted = literally present in canonical
+  // skills or the primary resume skills. Inferred = in derived.top_skills
+  // but NOT in either extracted set. Must-have matching in Phase B is
+  // restricted to extracted edges.
+  const norm = (s: string) => s.toLowerCase().trim();
+  const canonicalSkillNames = canonical.skills.map(s => s.name).filter(Boolean);
+  const resumeSkills = Array.isArray((resumeContent as { skills?: unknown })?.skills)
+    ? ((resumeContent as { skills: unknown[] }).skills.filter(x => typeof x === "string") as string[])
+    : [];
+
+  const extracted = new Map<string, { skill: string; source: string }>();
+  for (const s of canonicalSkillNames) {
+    const n = norm(s);
+    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "canonical_profile" });
+  }
+  for (const s of resumeSkills) {
+    const n = norm(s);
+    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "resume" });
+  }
+
+  const inferred = new Map<string, { skill: string; source: string }>();
+  for (const s of (canonical.derived.top_skills || [])) {
+    const name = String(s);
+    const n = norm(name);
+    if (n && !extracted.has(n) && !inferred.has(n)) inferred.set(n, { skill: name, source: "canonical_profile" });
+  }
+
+  await admin.from("candidate_skills").delete().eq("user_id", userId);
+  const rows = [
+    ...Array.from(extracted.entries()).map(([skill_norm, v]) => ({
+      user_id: userId, skill: v.skill, skill_norm, provenance: "extracted", source: v.source,
+    })),
+    ...Array.from(inferred.entries()).map(([skill_norm, v]) => ({
+      user_id: userId, skill: v.skill, skill_norm, provenance: "inferred", source: v.source,
+    })),
+  ];
+  if (rows.length) {
+    const { error: sErr } = await admin.from("candidate_skills").insert(rows);
+    if (sErr) throw sErr;
+  }
+}
+
+function reindexIfOptedIn(admin: SupabaseClient<any, any, any>, userId: string): void {
+  // Non-blocking. Employer pool freshness is best-effort; caller shouldn't wait.
+  admin.from("talent_pool_consent").select("opted_in").eq("user_id", userId).maybeSingle()
+    .then(({ data }) => {
+      if (data?.opted_in) return indexCandidate(admin, userId);
+    })
+    .then(undefined, (e: unknown) => console.error("reindexIfOptedIn failed", (e as Error)?.message));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -2510,6 +2638,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const { error } = await adminForNew.from("user_profile_canonical")
         .upsert(row, { onConflict: "user_id" });
       if (error) return json({ error: error.message }, 500);
+      // v2.9.0-A: re-index this user for the talent pool if they've opted in.
+      reindexIfOptedIn(adminForNew, userId);
       return json({ ok: true });
     }
 
@@ -2549,6 +2679,50 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         .eq("user_id", userId);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v2.9.0-A — Talent Pool (Phase A: data layer)
+    // Seeker-side consent + indexing. Employer search lives in Phase B
+    // and runs via the service role, gated on opted_in.
+    // ─────────────────────────────────────────────────────────────
+    if (action === "talent_pool_get") {
+      const [{ data: consent }, { data: idx }, { count: skillsCount }] = await Promise.all([
+        adminForNew.from("talent_pool_consent").select("opted_in, consented_at").eq("user_id", userId).maybeSingle(),
+        adminForNew.from("candidate_index").select("indexed_at").eq("user_id", userId).maybeSingle(),
+        adminForNew.from("candidate_skills").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      ]);
+      return json({
+        opted_in: !!consent?.opted_in,
+        consented_at: consent?.consented_at ?? null,
+        indexed: !!idx,
+        skills_count: skillsCount ?? 0,
+      });
+    }
+
+    if (action === "talent_pool_set") {
+      const { opted_in } = payload as { opted_in?: boolean };
+      if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
+      const now = new Date().toISOString();
+      const row = {
+        user_id: userId,
+        opted_in,
+        consented_at: opted_in ? now : null,
+        revoked_at: opted_in ? null : now,
+        updated_at: now,
+      };
+      const { error } = await adminForNew.from("talent_pool_consent").upsert(row, { onConflict: "user_id" });
+      if (error) return json({ error: error.message }, 500);
+      if (opted_in) {
+        try { await indexCandidate(adminForNew, userId); }
+        catch (e) { console.error("indexCandidate failed", (e as Error).message); }
+      } else {
+        await Promise.all([
+          adminForNew.from("candidate_index").delete().eq("user_id", userId),
+          adminForNew.from("candidate_skills").delete().eq("user_id", userId),
+        ]);
+      }
+      return json({ ok: true, opted_in });
     }
 
     return json({ error: "Unknown action" }, 400);

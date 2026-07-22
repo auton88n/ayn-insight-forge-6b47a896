@@ -4,17 +4,18 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.8.4 dual-auth actions, unified listing card, wiring self-check", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
+Last verified: commit "v2.9.0-A talent pool data layer (consent + candidate index + skills with provenance)", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
 
 ## What AYN is
 
-One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), three product areas plus shared infrastructure. Solo founder: Ghazi. Site aynn.io. Deployed via Lovable (project a2fa8496-aed3-4f21-93fc-bbbabc069583) which pushes to this GitHub repo.
+One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product areas plus shared infrastructure. Solo founder: Ghazi. Site aynn.io. Deployed via Lovable (project a2fa8496-aed3-4f21-93fc-bbbabc069583) which pushes to this GitHub repo.
 
 | Area | What it is | Map file |
 |---|---|---|
 | Chrome extension | Sideloaded MV3 extension: scans and autofills job application forms (Ashby, Greenhouse, Lever, Workday, iCIMS, Gem, generic), scores job cards, tracks applications, attaches resumes. Code: extension/. | docs/map/extension.md |
 | Resume Hub | Web workspace at /resume-hub: profile, resume builder and tailoring, saved jobs, application tracker, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
 | AI platform | Signed-in chat dashboard (emotional eye UI, streaming chat via ayn-ai-proxy), World Intelligence swarm simulator, agent society, cc-generate report tools, subscriptions and credits, support system, NDA and contract signing, admin panel, landing page, i18n (en/ar/fr). Code: src/components/dashboard, eye, admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
+| Talent Pool | Employer marketplace. Phase A data layer shipped (talent_pool_consent, candidate_index with pgvector, candidate_skills with extracted/inferred provenance). Phase B employer mode in dashboard chat pending. | docs/map/resume-hub.md (talent pool section) |
 
 ## Routes (src/App.tsx)
 

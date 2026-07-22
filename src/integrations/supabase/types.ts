@@ -1546,6 +1546,72 @@ export type Database = {
         }
         Relationships: []
       }
+      candidate_index: {
+        Row: {
+          embedding: string | null
+          headline: string | null
+          indexed_at: string
+          location: string | null
+          profile_text: string | null
+          seniority: string | null
+          summary: string | null
+          user_id: string
+          years_experience: number | null
+        }
+        Insert: {
+          embedding?: string | null
+          headline?: string | null
+          indexed_at?: string
+          location?: string | null
+          profile_text?: string | null
+          seniority?: string | null
+          summary?: string | null
+          user_id: string
+          years_experience?: number | null
+        }
+        Update: {
+          embedding?: string | null
+          headline?: string | null
+          indexed_at?: string
+          location?: string | null
+          profile_text?: string | null
+          seniority?: string | null
+          summary?: string | null
+          user_id?: string
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
+      candidate_skills: {
+        Row: {
+          created_at: string
+          id: string
+          provenance: string
+          skill: string
+          skill_norm: string
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          provenance: string
+          skill: string
+          skill_norm: string
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          provenance?: string
+          skill?: string
+          skill_norm?: string
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       cc_inbox: {
         Row: {
           body: string
@@ -3620,6 +3686,30 @@ export type Database = {
           shutdown_initiated_at?: string | null
           shutdown_initiated_by?: string | null
           shutdown_reason?: string | null
+        }
+        Relationships: []
+      }
+      talent_pool_consent: {
+        Row: {
+          consented_at: string | null
+          opted_in: boolean
+          revoked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          consented_at?: string | null
+          opted_in?: boolean
+          revoked_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          consented_at?: string | null
+          opted_in?: boolean
+          revoked_at?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

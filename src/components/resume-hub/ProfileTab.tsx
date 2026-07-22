@@ -8,11 +8,11 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp } from "lucide-react";
+import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp, Users } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import type { ResumeContent } from "@/lib/resumeHub";
+import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import CanadianProfileForm, { type CanadianProfileFormHandle } from "./CanadianProfileForm";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
@@ -94,6 +94,40 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [parsedResume, setParsedResume] = useState<ResumeContent | null>(null);
   const [uploading, setUploading] = useState(false);
   const canadianRef = useRef<CanadianProfileFormHandle>(null);
+
+  // v2.9.0-A — Talent Pool consent state.
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [poolSaving, setPoolSaving] = useState(false);
+  const [poolOptedIn, setPoolOptedIn] = useState(false);
+  const [poolSkillsCount, setPoolSkillsCount] = useState(0);
+  const [poolIndexed, setPoolIndexed] = useState(false);
+  const loadPool = useCallback(async () => {
+    try {
+      const r = await resumeHubApi.talentPoolGet();
+      setPoolOptedIn(!!r.opted_in);
+      setPoolSkillsCount(r.skills_count || 0);
+      setPoolIndexed(!!r.indexed);
+    } catch { /* silent */ }
+    finally { setPoolLoading(false); }
+  }, []);
+  useEffect(() => { loadPool(); }, [loadPool]);
+  const togglePool = async (next: boolean) => {
+    setPoolSaving(true);
+    try {
+      await resumeHubApi.talentPoolSet(next);
+      setPoolOptedIn(next);
+      toast({
+        title: next ? "You're in the pool" : "Left the pool",
+        description: next
+          ? "Employers can discover your anonymized profile."
+          : "Your data left the pool.",
+      });
+      await loadPool();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      toast({ title: "Couldn't update", description: msg, variant: "destructive" });
+    } finally { setPoolSaving(false); }
+  };
 
   const loadPrimary = useCallback(async () => {
     const { data } = await supabase
@@ -252,6 +286,31 @@ export default function ProfileTab({ userId }: { userId: string }) {
             {extracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
             {hasProfile ? "Re-extract from resume" : "Draft from my resume"}
           </Button>
+        </div>
+      </Card>
+
+      {/* v2.9.0-A — Talent Pool consent */}
+      <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="font-medium">Let employers find me</span>
+            {poolOptedIn
+              ? <Badge variant="secondary">On</Badge>
+              : <Badge variant="outline">Off</Badge>}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+            When on, AYN can present your anonymized profile (skills, experience, seniority) to verified employers searching for candidates. Your name and contact details are never shared until you approve a specific request. Turn this off anytime and your data leaves the pool immediately.
+          </p>
+          {poolOptedIn && !poolLoading && (
+            <p className="text-xs text-muted-foreground mt-2">
+              In the pool · {poolSkillsCount} skills indexed{poolIndexed ? "" : " (indexing…)"}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {poolSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          <Switch checked={poolOptedIn} disabled={poolLoading || poolSaving} onCheckedChange={togglePool} />
         </div>
       </Card>
 
