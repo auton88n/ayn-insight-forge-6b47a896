@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "scoring transparency and grounding", manifest v2.8.2, AYN_BUILD 2.8.2, July 21 2026.
+Last verified: commit "v2.8.3 JD banner UX and AI text rendering", manifest v2.8.3, AYN_BUILD 2.8.3, July 22 2026.
 
 ## What AYN is
 

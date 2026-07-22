@@ -941,7 +941,7 @@ async function runScoreFlow({ auto = false } = {}) {
     let vWrap = $('score-verdict');
     if (!vWrap) { vWrap = document.createElement('div'); vWrap.id = 'score-verdict'; $('score-result').appendChild(vWrap); }
     vWrap.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa;font-size:13px;font-weight:600;color:#111827;line-height:1.45;';
-    vWrap.textContent = d.verdict || '';
+    vWrap.innerHTML = d.verdict ? aynFormatAiText(d.verdict) : '';
     vWrap.style.display = d.verdict ? 'block' : 'none';
 
     // Phase 2: seniority fit + scoring source badge (placed right after verdict)
@@ -1263,7 +1263,7 @@ async function generateCoverLetter() {
       resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl,
     });
     if (data.error) throw new Error(data.error);
-    $('cover-out').textContent = data.body || '';
+    { const out = $('cover-out'); out.dataset.raw = data.body || ''; out.innerHTML = aynFormatAiText(data.body || ''); }
     $('cover-result').classList.remove('hidden');
   } catch (e) {
     err.textContent = e.message || 'Failed to generate. Make sure your resume is saved at aynn.io.';
@@ -1274,7 +1274,7 @@ async function generateCoverLetter() {
 $('gen-cover-btn').addEventListener('click', generateCoverLetter);
 $('cover-regen-btn').addEventListener('click', generateCoverLetter);
 $('cover-copy-btn').addEventListener('click', () => {
-  const text = $('cover-out').textContent;
+  const text = $('cover-out').dataset.raw || $('cover-out').textContent;
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => { $('cover-copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('cover-copy-btn').textContent='Copy',1800); });
 });
@@ -1294,7 +1294,7 @@ function coverHeaderFromResume(resumeText) {
 }
 
 $('cover-download-pdf-btn').addEventListener('click', async () => {
-  const body = $('cover-out').textContent || '';
+  const body = $('cover-out').dataset.raw || $('cover-out').textContent || '';
   if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
   const btn = $('cover-download-pdf-btn'); const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<div class="spinner dk"></div>PDF...';
@@ -1659,13 +1659,49 @@ async function detectForAsk() {
   }
 }
 
+// v2.8.3 — Render AI text safely: HTML-escape, then apply markdown-lite
+// (bold, bullet lists, paragraphs). No external libraries.
+function aynFormatAiText(text) {
+  const raw = String(text == null ? '' : text);
+  const esc = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = esc.split(/\r?\n/);
+  const out = [];
+  let listBuf = [];
+  const flushList = () => {
+    if (listBuf.length) {
+      out.push('<ul style="margin:6px 0 6px 18px;padding:0">' +
+        listBuf.map(li => `<li style="margin:2px 0">${li}</li>`).join('') + '</ul>');
+      listBuf = [];
+    }
+  };
+  let paraBuf = [];
+  const flushPara = () => {
+    if (paraBuf.length) {
+      out.push('<p style="margin:0 0 8px 0">' + paraBuf.join('<br>') + '</p>');
+      paraBuf = [];
+    }
+  };
+  for (const line of lines) {
+    const m = line.match(/^\s*(?:\*|-|•)\s+(.*)$/);
+    if (m) { flushPara(); listBuf.push(m[1]); continue; }
+    if (line.trim() === '') { flushList(); flushPara(); continue; }
+    flushList();
+    paraBuf.push(line);
+  }
+  flushList();
+  flushPara();
+  return out.join('').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
 function askAddBubble(role, text, opts = {}) {
   $('ask-empty')?.classList.add('hidden');
   const msgs = $('ask-msgs');
   const b = document.createElement('div');
   b.className = `ask-bubble ${role}` + (opts.thinking ? ' thinking' : '');
   if (opts.thinking) {
-    b.innerHTML = `<div class="spinner"></div>${text}`;
+    b.innerHTML = `<div class="spinner"></div>${aynFormatAiText(text)}`;
+  } else if (role === 'assistant') {
+    b.innerHTML = aynFormatAiText(text);
   } else {
     b.textContent = text;
   }
@@ -1840,10 +1876,14 @@ chrome.runtime.onMessage.addListener((msg) => {
     const label = $('jd-src-label');
     const meta = $('jd-src-meta');
     const warn = $('jd-src-warn');
+    const pasteBtn = $('jd-paste-toggle');
+    const replaceLink = $('jd-replace-link');
     if (!banner || !label) return;
     label.textContent = 'Locating the job description…';
     meta.textContent = '';
     warn.classList.add('hidden');
+    pasteBtn?.classList.add('hidden');
+    replaceLink?.classList.add('hidden');
     banner.classList.remove('hidden');
     chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
       void chrome.runtime.lastError;
@@ -1851,15 +1891,30 @@ chrome.runtime.onMessage.addListener((msg) => {
         label.textContent = 'No job description found';
         meta.textContent = 'Paste it manually for a better fill.';
         warn.classList.remove('hidden');
+        pasteBtn?.classList.remove('hidden');
         return;
       }
       const chars = (r.text || '').length;
+      const quality = r.quality || 0;
       label.textContent = SRC_LABEL[r.source] || 'JD ready';
-      meta.textContent = `· ${chars.toLocaleString()} chars · quality ${r.quality || 0}/100`;
-      // Warn when quality is low (short JD, missing sections).
-      if ((r.quality || 0) < 45 || chars < 600) warn.classList.remove('hidden');
+      meta.textContent = `· ${chars.toLocaleString()} chars · quality ${quality}/100`;
+      const lowQuality = quality < 45 || chars < 600;
+      if (lowQuality) {
+        warn.classList.remove('hidden');
+        pasteBtn?.classList.remove('hidden');
+      } else {
+        replaceLink?.classList.remove('hidden');
+      }
     });
   };
+
+  $('jd-replace-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const w = $('jd-paste-wrap');
+    if (!w) return;
+    w.classList.remove('hidden');
+    $('jd-paste-input')?.focus();
+  });
 
   $('jd-paste-toggle')?.addEventListener('click', () => {
     const w = $('jd-paste-wrap');
