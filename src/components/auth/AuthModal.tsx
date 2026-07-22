@@ -300,7 +300,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !fullName || !companyName) {
+    if (!email || !password || !fullName || (signupRole === 'employer' && !companyName)) {
       toast({
         title: t('auth.missingInfo'),
         description: t('auth.missingInfoDesc'),
@@ -612,7 +612,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className={signupRole === 'employer' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : ''}>
                 <div className="space-y-2">
                   <Label htmlFor="signup-name" className="auth-label">{t('auth.fullName')} *</Label>
                   <div className="relative">
@@ -629,23 +629,23 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-company" className="auth-label">
-                    {signupRole === 'employer' ? 'Company name *' : `${t('auth.company')} (optional)`}
-                  </Label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-company"
-                      type="text"
-                      placeholder="Company Name"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      disabled={isLoading}
-                      className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 pl-10 auth-input-text"
-                    />
+                {signupRole === 'employer' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-company" className="auth-label">Company name *</Label>
+                    <div className="relative">
+                      <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signup-company"
+                        type="text"
+                        placeholder="Company Name"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        disabled={isLoading}
+                        className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 pl-10 auth-input-text"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {signupRole === 'employer' && (
@@ -664,11 +664,13 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="signup-email" className="auth-label">{t('auth.businessEmail')} *</Label>
+                <Label htmlFor="signup-email" className="auth-label">
+                  {signupRole === 'employer' ? `${t('auth.businessEmail')} *` : `${t('auth.email')} *`}
+                </Label>
                 <Input
                   id="signup-email"
                   type="email"
-                  placeholder="john@company.com"
+                  placeholder={signupRole === 'employer' ? 'john@company.com' : 'you@example.com'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
