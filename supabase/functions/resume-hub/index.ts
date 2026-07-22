@@ -2510,6 +2510,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const { error } = await adminForNew.from("user_profile_canonical")
         .upsert(row, { onConflict: "user_id" });
       if (error) return json({ error: error.message }, 500);
+      // v2.9.0-A: re-index this user for the talent pool if they've opted in.
+      reindexIfOptedIn(adminForNew, userId);
       return json({ ok: true });
     }
 
