@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { usePinnedChats } from '@/hooks/usePinnedChats';
+import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 
 // Moved outside to prevent recreation on each render
