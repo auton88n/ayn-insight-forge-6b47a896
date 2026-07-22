@@ -142,6 +142,8 @@ export const Sidebar = ({
   
   // Use database-synced pinned chats hook instead of localStorage
   const { pinnedChats, togglePin } = usePinnedChats(userId, accessToken);
+  // v2.10.0 — role determines whether Resume Hub entry is shown.
+  const { role: userRole } = useUserRole(userId);
   
   // Use props from DashboardContainer (single source of truth)
   
@@ -392,23 +394,25 @@ export const Sidebar = ({
 
 
 
-        {/* Resume Hub entry */}
-        <SidebarGroup className="flex-shrink-0 px-4 pb-3">
-          <SidebarGroupContent>
-            <button
-              onClick={() => navigate('/resume-hub')}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 border border-border/50 hover:border-border/70 transition-all duration-200 group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <FileText className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-sm font-semibold text-foreground">Resume Hub</div>
-                <div className="text-[10px] text-muted-foreground">Resumes, jobs, autofill</div>
-              </div>
-            </button>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* v2.10.0 — Resume Hub entry hidden for employers. */}
+        {userRole !== 'employer' && (
+          <SidebarGroup className="flex-shrink-0 px-4 pb-3">
+            <SidebarGroupContent>
+              <button
+                onClick={() => navigate('/resume-hub')}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 border border-border/50 hover:border-border/70 transition-all duration-200 group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-semibold text-foreground">Resume Hub</div>
+                  <div className="text-[10px] text-muted-foreground">Resumes, jobs, autofill</div>
+                </div>
+              </button>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Search Input */}
         <div className="px-4 pb-3 flex-shrink-0">
