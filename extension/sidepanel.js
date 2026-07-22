@@ -478,7 +478,7 @@ function detectForFill() {
       // Form found — show hero (always) + ready state
       let host = '';
       try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
+      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url, kind: 'apply' });
       $('autofill-now-btn').classList.remove('hidden');
       // v2.8.0 — kick off the JD Resolver so the provenance banner shows
       // where the JD came from BEFORE the user clicks Autofill.
