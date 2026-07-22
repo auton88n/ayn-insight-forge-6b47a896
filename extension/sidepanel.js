@@ -1840,10 +1840,14 @@ chrome.runtime.onMessage.addListener((msg) => {
     const label = $('jd-src-label');
     const meta = $('jd-src-meta');
     const warn = $('jd-src-warn');
+    const pasteBtn = $('jd-paste-toggle');
+    const replaceLink = $('jd-replace-link');
     if (!banner || !label) return;
     label.textContent = 'Locating the job description…';
     meta.textContent = '';
     warn.classList.add('hidden');
+    pasteBtn?.classList.add('hidden');
+    replaceLink?.classList.add('hidden');
     banner.classList.remove('hidden');
     chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
       void chrome.runtime.lastError;
@@ -1851,15 +1855,30 @@ chrome.runtime.onMessage.addListener((msg) => {
         label.textContent = 'No job description found';
         meta.textContent = 'Paste it manually for a better fill.';
         warn.classList.remove('hidden');
+        pasteBtn?.classList.remove('hidden');
         return;
       }
       const chars = (r.text || '').length;
+      const quality = r.quality || 0;
       label.textContent = SRC_LABEL[r.source] || 'JD ready';
-      meta.textContent = `· ${chars.toLocaleString()} chars · quality ${r.quality || 0}/100`;
-      // Warn when quality is low (short JD, missing sections).
-      if ((r.quality || 0) < 45 || chars < 600) warn.classList.remove('hidden');
+      meta.textContent = `· ${chars.toLocaleString()} chars · quality ${quality}/100`;
+      const lowQuality = quality < 45 || chars < 600;
+      if (lowQuality) {
+        warn.classList.remove('hidden');
+        pasteBtn?.classList.remove('hidden');
+      } else {
+        replaceLink?.classList.remove('hidden');
+      }
     });
   };
+
+  $('jd-replace-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const w = $('jd-paste-wrap');
+    if (!w) return;
+    w.classList.remove('hidden');
+    $('jd-paste-input')?.focus();
+  });
 
   $('jd-paste-toggle')?.addEventListener('click', () => {
     const w = $('jd-paste-wrap');
