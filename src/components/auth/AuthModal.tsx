@@ -351,16 +351,20 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         // the profile row; we stamp role + create employer_accounts here.
         if (data.user) {
           try {
-            await supabase.from('profiles').update({ role: signupRole }).eq('user_id', data.user.id);
+            // Cast: types.ts is regenerated after migration approval — until then
+            // 'role' on profiles and the employer_accounts table are unknown to TS.
+            await (supabase.from('profiles') as unknown as { update: (v: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<unknown> } })
+              .update({ role: signupRole }).eq('user_id', data.user.id);
             if (signupRole === 'employer') {
-              await supabase.from('employer_accounts').insert({
-                user_id: data.user.id,
-                company_name: companyName || 'Unnamed company',
-                website: companyWebsite || null,
-                contact_name: fullName || null,
-                contact_email: email,
-                status: 'pending_approval',
-              });
+              await (supabase.from('employer_accounts' as never) as unknown as { insert: (v: Record<string, unknown>) => Promise<unknown> })
+                .insert({
+                  user_id: data.user.id,
+                  company_name: companyName || 'Unnamed company',
+                  website: companyWebsite || null,
+                  contact_name: fullName || null,
+                  contact_email: email,
+                  status: 'pending_approval',
+                });
             }
           } catch (roleErr) {
             console.warn('[AuthModal] role setup failed:', roleErr);
