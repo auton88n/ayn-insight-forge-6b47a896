@@ -1294,7 +1294,7 @@ function coverHeaderFromResume(resumeText) {
 }
 
 $('cover-download-pdf-btn').addEventListener('click', async () => {
-  const body = $('cover-out').textContent || '';
+  const body = $('cover-out').dataset.raw || $('cover-out').textContent || '';
   if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
   const btn = $('cover-download-pdf-btn'); const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<div class="spinner dk"></div>PDF...';
