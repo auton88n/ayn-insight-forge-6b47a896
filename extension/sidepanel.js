@@ -326,7 +326,7 @@ const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
 // v1.9.5: always show the Fill hero card the moment a form is detected,
 // using whatever job context we have (or tab fallbacks).
-function renderFillHero({ title, company, fieldCount, host, url } = {}) {
+function renderFillHero({ title, company, fieldCount, host, url, kind } = {}) {
   const t = cleanLabel(title) || 'Job application detected';
   // v1.9.7: never fall back to a raw host like "boards.greenhouse.io" — derive a real name.
   const derived = deriveCompany(company, url || host, title);
@@ -334,11 +334,19 @@ function renderFillHero({ title, company, fieldCount, host, url } = {}) {
   $('fill-job-title').textContent = t;
   $('fill-job-sub').textContent = c;
   setCompanyLogo('fill-job-logo', c, title);
+  // v2.8.4 — fields-ready badge is meaningless on listing pages and confusing at 0.
+  const countWrap = $('fill-field-count-wrap');
+  const showCount = kind !== 'listing' && typeof fieldCount === 'number' && fieldCount > 0;
   if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
+  if (countWrap) countWrap.classList.toggle('hidden', !showCount);
+  // v2.8.4 — listing extras (JD status + Open button) only render on listing.
+  const extras = $('fill-listing-extras');
+  if (extras) extras.classList.toggle('hidden', kind !== 'listing');
   const banner = $('fill-job-banner');
   banner.classList.remove('hidden');
   banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
 }
+
 
 
 function applyFormReady(r, tab) {
