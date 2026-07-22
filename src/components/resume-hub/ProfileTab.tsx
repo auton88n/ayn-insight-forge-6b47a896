@@ -95,6 +95,40 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [uploading, setUploading] = useState(false);
   const canadianRef = useRef<CanadianProfileFormHandle>(null);
 
+  // v2.9.0-A — Talent Pool consent state.
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [poolSaving, setPoolSaving] = useState(false);
+  const [poolOptedIn, setPoolOptedIn] = useState(false);
+  const [poolSkillsCount, setPoolSkillsCount] = useState(0);
+  const [poolIndexed, setPoolIndexed] = useState(false);
+  const loadPool = useCallback(async () => {
+    try {
+      const r = await resumeHubApi.talentPoolGet();
+      setPoolOptedIn(!!r.opted_in);
+      setPoolSkillsCount(r.skills_count || 0);
+      setPoolIndexed(!!r.indexed);
+    } catch { /* silent */ }
+    finally { setPoolLoading(false); }
+  }, []);
+  useEffect(() => { loadPool(); }, [loadPool]);
+  const togglePool = async (next: boolean) => {
+    setPoolSaving(true);
+    try {
+      await resumeHubApi.talentPoolSet(next);
+      setPoolOptedIn(next);
+      toast({
+        title: next ? "You're in the pool" : "Left the pool",
+        description: next
+          ? "Employers can discover your anonymized profile."
+          : "Your data left the pool.",
+      });
+      await loadPool();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      toast({ title: "Couldn't update", description: msg, variant: "destructive" });
+    } finally { setPoolSaving(false); }
+  };
+
   const loadPrimary = useCallback(async () => {
     const { data } = await supabase
       .from("resumes")
