@@ -2095,6 +2095,51 @@ export type Database = {
         }
         Relationships: []
       }
+      employer_accounts: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          company_name: string
+          company_size: string | null
+          created_at: string
+          hiring_need: string | null
+          id: string
+          package_notes: string | null
+          phone: string | null
+          status: Database["public"]["Enums"]["employer_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_name: string
+          company_size?: string | null
+          created_at?: string
+          hiring_need?: string | null
+          id?: string
+          package_notes?: string | null
+          phone?: string | null
+          status?: Database["public"]["Enums"]["employer_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_name?: string
+          company_size?: string | null
+          created_at?: string
+          hiring_need?: string | null
+          id?: string
+          package_notes?: string | null
+          phone?: string | null
+          status?: Database["public"]["Enums"]["employer_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       employer_searches: {
         Row: {
           created_at: string
@@ -3253,6 +3298,7 @@ export type Database = {
           created_at: string
           id: string
           last_login: string | null
+          role: Database["public"]["Enums"]["user_role"]
           total_sessions: number | null
           updated_at: string
           user_id: string
@@ -3268,6 +3314,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_login?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
           total_sessions?: number | null
           updated_at?: string
           user_id: string
@@ -3283,6 +3330,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_login?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
           total_sessions?: number | null
           updated_at?: string
           user_id?: string
@@ -5175,6 +5223,7 @@ export type Database = {
         | "interview"
         | "offer"
         | "rejected"
+      employer_status: "pending_approval" | "approved" | "suspended"
       support_ticket_category:
         | "general"
         | "billing"
@@ -5189,6 +5238,7 @@ export type Database = {
         | "resolved"
         | "closed"
       ticket_sender_type: "user" | "admin" | "ai_bot"
+      user_role: "job_seeker" | "employer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5324,6 +5374,7 @@ export const Constants = {
         "offer",
         "rejected",
       ],
+      employer_status: ["pending_approval", "approved", "suspended"],
       support_ticket_category: [
         "general",
         "billing",
@@ -5340,6 +5391,7 @@ export const Constants = {
         "closed",
       ],
       ticket_sender_type: ["user", "admin", "ai_bot"],
+      user_role: ["job_seeker", "employer"],
     },
   },
 } as const
