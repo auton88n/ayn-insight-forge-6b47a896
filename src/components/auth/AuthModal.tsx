@@ -327,7 +327,8 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: fullName,
-            company_name: companyName
+            company_name: companyName,
+            role: signupRole,
           }
         }
       });
@@ -346,24 +347,44 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           variant: "destructive"
         });
       } else {
+        // v2.10.0 — best-effort role setup. Trigger handle_new_user creates
+        // the profile row; we stamp role + create employer_accounts here.
+        if (data.user) {
+          try {
+            await supabase.from('profiles').update({ role: signupRole }).eq('user_id', data.user.id);
+            if (signupRole === 'employer') {
+              await supabase.from('employer_accounts').insert({
+                user_id: data.user.id,
+                company_name: companyName || 'Unnamed company',
+                website: companyWebsite || null,
+                contact_name: fullName || null,
+                contact_email: email,
+                status: 'pending_approval',
+              });
+            }
+          } catch (roleErr) {
+            console.warn('[AuthModal] role setup failed:', roleErr);
+          }
+        }
+
         // Send welcome email (async, don't block signup)
         try {
           await supabase.functions.invoke('send-email', {
             body: {
               to: email,
               emailType: 'welcome',
-              data: { userName: fullName || 'there' }
+              data: { userName: fullName || 'there', role: signupRole }
             }
           });
-          console.log('[AuthModal] Welcome email sent');
         } catch (emailError) {
           console.warn('[AuthModal] Welcome email failed:', emailError);
-          // Don't block signup if email fails
         }
 
         toast({
           title: t('auth.registrationSuccess'),
-          description: t('auth.registrationSuccessDesc')
+          description: signupRole === 'employer'
+            ? "Account created. Our team will review and reach out shortly."
+            : t('auth.registrationSuccessDesc')
         });
         onOpenChange(false);
         // Reset form
@@ -371,6 +392,8 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
         setPassword('');
         setFullName('');
         setCompanyName('');
+        setCompanyWebsite('');
+        setSignupRole('job_seeker');
         setAcceptedTerms(false);
       }
     } catch (error) {
