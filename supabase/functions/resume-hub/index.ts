@@ -2771,7 +2771,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
       const sys = `You are AYN's recruiting intake assistant. The user is an employer describing a role they need to fill. Ask AT MOST 3 short clarifying questions, one at a time, ONLY about genuinely missing fields (title, seniority, must-have skills, nice-to-have skills, location/remote, min years, notes). When you have enough to search, output ONLY JSON: {"done":true,"job_spec":{"title":"","seniority":"","must_have_skills":[],"nice_to_have_skills":[],"location_preference":"","remote_ok":false,"min_years":0,"notes":""}}. seniority must be one of: intern, entry, mid, senior, staff, principal, manager, director. Cap must_have_skills and nice_to_have_skills at 6 each. Otherwise output ONLY JSON: {"done":false,"question":"..."}. Questions must be plain prose. Never use em dashes, en dashes, or markdown symbols. Use the word "to" for ranges.`;
       const userTurn = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
-      const r = await callAI({ system: sys, user: userTurn, forceJson: true });
+      const r = await callAI({ system: sys, user: userTurn });
       let parsed: Record<string, unknown> = {};
       try { parsed = JSON.parse(r.text); } catch { parsed = { done: false, question: "Could you tell me a bit more about the role?" }; }
       return json(parsed);
@@ -2876,7 +2876,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 - Output ONLY JSON: {"results":[{"ref":"c1","score":87,"why":["...","...","..."],"matched_must_haves":[],"gaps":[]}],"pool_note":""}
 - Plain prose only. No markdown, no em dashes, no en dashes. Use the word "to" for ranges.`;
       const rerankUser = JSON.stringify({ job_spec: { title: job_spec.title, seniority: job_spec.seniority, must_have_skills: mustHaves, nice_to_have_skills: niceToHaves, min_years: job_spec.min_years, location_preference: job_spec.location_preference, remote_ok: job_spec.remote_ok, notes: job_spec.notes }, candidates: rerankInput });
-      const rr = await callAI({ system: rerankSys, user: rerankUser.slice(0, 40000), forceJson: true });
+      const rr = await callAI({ system: rerankSys, user: rerankUser.slice(0, 40000) });
       let rrParsed: { results?: Array<{ ref: string; score: number; why?: string[]; matched_must_haves?: string[]; gaps?: string[] }>; pool_note?: string } = {};
       try { rrParsed = JSON.parse(rr.text); } catch { rrParsed = { results: [], pool_note: "The rerank step returned an unreadable response." }; }
       const rrResults = Array.isArray(rrParsed.results) ? rrParsed.results : [];
