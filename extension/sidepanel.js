@@ -1274,7 +1274,7 @@ async function generateCoverLetter() {
 $('gen-cover-btn').addEventListener('click', generateCoverLetter);
 $('cover-regen-btn').addEventListener('click', generateCoverLetter);
 $('cover-copy-btn').addEventListener('click', () => {
-  const text = $('cover-out').textContent;
+  const text = $('cover-out').dataset.raw || $('cover-out').textContent;
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => { $('cover-copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('cover-copy-btn').textContent='Copy',1800); });
 });
