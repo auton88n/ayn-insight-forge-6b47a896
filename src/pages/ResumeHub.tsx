@@ -31,6 +31,7 @@ export default function ResumeHub() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingIntros, setPendingIntros] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -41,8 +42,13 @@ export default function ResumeHub() {
       }
       setUserId(data.user.id);
       setLoading(false);
+      // v2.9.1 — surface a badge on the Profile tab when employers want an intro.
+      employerApi.revealList()
+        .then(r => setPendingIntros((r.requests || []).filter(x => x.status === "pending").length))
+        .catch(() => { /* silent */ });
     });
   }, [navigate, toast]);
+
 
   const goJob = useCallback((jobId: string) => {
     setTab("jobs");
