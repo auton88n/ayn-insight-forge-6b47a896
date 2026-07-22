@@ -48,13 +48,20 @@ Tables:
 Web-lane actions (session JWT, in supabase/functions/resume-hub/index.ts):
 - **talent_pool_get**: returns { opted_in, consented_at, indexed, skills_count } for the caller.
 - **talent_pool_set** { opted_in: boolean }: upserts consent (consented_at/revoked_at). Turning ON runs indexCandidate() synchronously; turning OFF deletes the caller's candidate_index and candidate_skills rows immediately.
+- **talent_pool_reindex_self** (v2.9.1): re-runs indexCandidate for the caller (must be opted in) and returns { model, skills_count }. Wired to a "Re-index my profile" text link in the Talent Pool card in ProfileTab so a seeker can refresh after editing their profile.
+
+Embedding provider (v2.9.1):
+- **embedText(text)** returns `{ vector, model }`. Calls the AI gateway `/v1/embeddings` with `openai/text-embedding-3-small` and `dimensions: 768` so the existing `vector(768)` column is unchanged. On any error (missing LOVABLE_API_KEY, non-2xx, malformed body, network) it falls back to `deterministicEmbed` and returns model `'deterministic-v1'`. Logs which path was used once per call at debug level.
+- `candidate_index` now carries `embedding_model text not null default 'deterministic-v1'` and `embedded_at timestamptz`, so a row can be traced back to the model that produced its vector.
+- indexCandidate uses embedText and stores both `embedding` and `embedding_model`.
 
 Indexing routine indexCandidate(admin, userId):
 1. Loads canonical profile (loadCanonical) + primary resume.
 2. Builds profile_text: seniority, function, YoE, current title, skills, experience bullets, education, certifications, resume summary. **Excludes name, email, phone, address, links** — matching is anonymous until a Phase B reveal.
-3. Embedding: deterministicEmbed(profile_text) — 768-dim signed hashed bag-of-words, l2-normalized. TODO in code: swap for the AI gateway embeddings endpoint once available; the pipeline works end to end today so Phase B semantic search doesn't block on that swap.
-4. Upserts candidate_index.
+3. Embedding: `embedText(profile_text)` (see above). Real model when the gateway is reachable, `deterministicEmbed` fallback otherwise; the returned model tag is stored on the row.
+4. Upserts candidate_index (vector, model, embedded_at).
 5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule.
+
 
 Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
 
