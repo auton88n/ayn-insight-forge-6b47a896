@@ -117,12 +117,29 @@ export default function ResumeHub() {
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label}
+                    aria-label={item.label + (item.key === "profile" && pendingIntros > 0 ? ` (${pendingIntros} intro requests)` : "")}
+                    style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    <span className="rh-tip" role="tooltip">{item.label}</span>
+                    {item.key === "profile" && pendingIntros > 0 && (
+                      <span
+                        aria-hidden
+                        style={{
+                          position: "absolute", top: 4, right: 4,
+                          minWidth: 16, height: 16, padding: "0 4px",
+                          borderRadius: 999, background: "hsl(var(--primary))",
+                          color: "hsl(var(--primary-foreground))",
+                          fontSize: 10, fontWeight: 600, lineHeight: "16px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >{pendingIntros > 9 ? "9+" : pendingIntros}</span>
+                    )}
+                    <span className="rh-tip" role="tooltip">
+                      {item.label}{item.key === "profile" && pendingIntros > 0 ? ` · ${pendingIntros} intro${pendingIntros === 1 ? "" : "s"}` : ""}
+                    </span>
                   </button>
                 );
+
               })}
             </nav>
           </aside>
