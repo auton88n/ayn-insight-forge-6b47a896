@@ -1,56 +1,60 @@
-## What the logs actually show
 
-From your AYN-only lines on the Ashby application page:
+# v2.10.0 Two-role platform
 
-```
-[AYN-HYBRID] rich=21 legacy=21          <- first scan, real questions
-[AYN-HYBRID] rich=0  legacy=0           <- second scan, empty
-[AYN-HYBRID] engine returned nothing — no fallback
-[AYN-HYBRID] rich=0  legacy=0           <- third scan, empty
-[AYN-HYBRID] engine returned nothing — no fallback
-snapshot saved: 16 answers, key= ayn_reload_snapshot:https://jobs.ashbyhq.com/.../application
-snapshot lookup for key= ayn_reload_snapshot:https://www.recaptcha.net/recaptcha/api2/anchor?... found= false
-```
+Turn AYN into a two-sided product with distinct signup, distinct dashboards, and a candidate-hunter chat that replaces the Hiring mode toggle.
 
-Two concrete bugs, nothing more:
+## Roles
 
-### Bug A — pipeline runs 3x per page (the "AI answers three times")
-There is no guard preventing the hybrid scan → answer → inject cycle from re-running on every DOM mutation. First run finds 21 fields and fills them. The DOM changes as a result. Two follow-up runs fire, both find 0 fields, and each one still hits the "no fallback" path (which in prior builds was itself capable of triggering an AI call). This is what's burning credits and causing the "answered three times" symptom.
+- job_seeker (default): sees Resume Hub + AYN dashboard. Gets 3 free autofill credits/day only if they opt in to the talent pool.
+- employer: sees AYN dashboard only, no Resume Hub, no autofill. Chats with AYN naturally to find candidates. Fully gated until an admin approves; before approval sees a waiting screen.
 
-### Bug B — reload snapshot key includes the full URL
-`saveReloadSnapshot` keys the snapshot by `location.href`. On the Ashby page that's `.../application`. On reload, restore runs in every frame — including the reCAPTCHA iframe, whose `location.href` is `https://www.recaptcha.net/recaptcha/api2/anchor?...`. That lookup always misses. Worse, if the top frame's URL gained/lost a query param or hash between save and restore, the top-frame lookup misses too. Result: snapshot is saved every time, restored never.
+## 1. Signup and auth
 
-## Fix plan (extension only, no UI changes)
+- Single /signup with a role toggle: "I'm looking for a job" vs "I'm hiring".
+- Job seeker path creates an instant account and lands in Resume Hub with an onboarding card explaining 3/day credits and the talent pool opt-in.
+- Employer path collects company name, size, hiring need, and contact phone. Creates the auth user with role=employer and status=pending_approval, and notifies the team via the existing admin notification pipeline.
+- Post-login redirect: seekers to /resume-hub, approved employers to / (AYN dashboard), pending employers to /employer/pending.
 
-### Fix A — one scan per stable form, per page load
-In `extension/content.js`, around the `[AYN-HYBRID]` scan block:
+## 2. Data model
 
-1. Add a module-level `__aynScanInFlight` boolean and `__aynLastScanSignature` string.
-2. Compute a cheap form signature (count of visible inputs + concatenated field names, hashed).
-3. Skip the scan if `__aynScanInFlight === true` OR the signature equals the last one that already produced a fill within the last 8s.
-4. When the scan runs, set in-flight true, clear it in `finally`.
-5. When a scan returns `rich=0 legacy=0`, do NOT log "engine returned nothing — no fallback" and do NOT re-enter the pipeline; return silently — an empty rescan after a successful fill is expected, not an error.
-6. Keep the existing MutationObserver but wrap its callback in a 600ms trailing debounce so a burst of React re-renders collapses to one scan.
+- profiles.role enum: job_seeker or employer, default job_seeker.
+- New employer_accounts table with user_id, company_name, company_size, hiring_need, phone, status (pending_approval, approved, suspended), approved_at, approved_by, package_notes. RLS: owner reads own row, admins read/write all.
+- talent_pool_consent becomes the gate for daily seeker credits (see section 4).
+- Route guards read profiles.role and employer_accounts.status.
 
-### Fix B — snapshot key that survives reload and iframes
-In `extension/content.entry.js`, replace the current key derivation:
+## 3. AYN chat as candidate hunter (replaces Hiring mode UI)
 
-- Compute key from `location.origin + location.pathname` only. Strip query string and hash. That keeps `/application` stable across reCAPTCHA callbacks and Ashby's own `?source=...` rewrites.
-- On save, additionally persist under the top-frame's origin+pathname (via `window.top.location` guarded by a try/catch for cross-origin frames). Iframes then save nothing; only the top frame writes.
-- On restore, only the top frame reads. Skip restore entirely when `window.top !== window`. That kills the reCAPTCHA-iframe "found=false" line.
-- Log the normalized key on both save and lookup so we can eyeball a match next run.
+- Delete EmployerChatPanel overlay and the mode toggle. Employers use the same dashboard chat as everyone else.
+- In the chat edge function, branch on profiles.role:
+  - employer: candidate-hunter system prompt. AYN is warm and consultative, asks about the role, must-haves, nice-to-haves, seniority, location, comp. When it has enough signal, it silently calls the existing employer_intake_chat then employer_match pipeline and streams anonymized candidate cards inline in chat. No separate mode, no separate UI.
+  - job_seeker: unchanged assistant behavior.
+- Interview invite: employer clicks Invite to interview on a card in chat. Creates an in-app pending request the candidate sees in Resume Hub Profile via the existing intro-request UI, and an email via the existing Resend flow. Candidate approval reveals contact, decline is silent.
 
-### Verification after build
+## 4. Credits and talent pool coupling
 
-1. Rebuild extension, reload it, confirm version bumps to 2.5.7.
-2. On the Ashby page with only AYN enabled, expected AYN log sequence:
-   - one `[AYN-HYBRID] rich=N legacy=N` with N>0
-   - one `snapshot saved: N answers, key= ayn_reload_snapshot:https://jobs.ashbyhq.com/.../application` (no query string)
-   - zero `engine returned nothing` lines
-   - on a manual reload: one `snapshot lookup ... found= true` on the top frame, zero lookups from reCAPTCHA/other iframes
-3. Paste the AYN-only log lines back so we can confirm.
+- Seeker 3/day free autofill credits granted only while talent_pool_consent.is_active is true. Turning consent off drops free credits to 0/day; paid plans are unaffected.
+- ProfileTab consent toggle copy updated to make the exchange explicit.
+- Employers get no autofill credits and no Resume Hub nav.
 
-## Out of scope for this turn
+## 5. UI removals and additions
 
-- The `ObjectMultiplex` / `MaxListenersExceededWarning` / `share-modal.js` / `html2canvas` CORS lines. Those are other extensions and Ashby's own page. We cannot fix them from our extension and they are not what's breaking fills.
-- No changes to the resolver, EEO rules, or vision fallback.
+- Remove: Hiring mode toggle, EmployerChatPanel.tsx, employer-only chat overlay entry point.
+- Add: /signup role selector, /employer/pending waiting screen, admin approval controls in a new Employers admin tab (approve, suspend, set package notes), inline candidate-card renderer in the main chat message list reusing the existing match card component.
+- Nav: hide Resume Hub link for employers, hide employer-only affordances for seekers.
+
+## 6. Docs and wiring
+
+- Update CLAUDE.md, docs/map/platform.md, and docs/map/resume-hub.md (Talent pool section) with the new roles, gating, and chat-embedded matcher flow.
+- Extend scripts/check-wiring.mjs with role-based routing assertions and a check confirming EmployerChatPanel is gone.
+
+## Out of scope
+
+- Billing/package UI for employers; the team handles pricing offline, package_notes is free text.
+- Any extension change.
+- New matcher algorithm; reuses v2.9.1 pipeline unchanged, only the entry point moves.
+
+## Technical notes
+
+- Migration adds profiles.role, employer_accounts table with RLS and grants, and a trigger seeding employer_accounts.status=pending_approval when a user signs up as employer.
+- Chat edge function receives role from its existing session lookup; the branch is a single conditional around the system prompt and tool set.
+- Candidate cards in chat use a new message part type (type: candidate_card) rendered by the dashboard chat renderer.
