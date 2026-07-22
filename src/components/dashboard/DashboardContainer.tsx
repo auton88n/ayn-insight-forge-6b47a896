@@ -324,6 +324,7 @@ const DashboardContent = ({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [replyPrefill, setReplyPrefill] = useState<string>('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [hiringOpen, setHiringOpen] = useState(false);
 
   const { setEmotion, setIsResponding } = useAYNEmotion();
   
