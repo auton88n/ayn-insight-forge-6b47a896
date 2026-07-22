@@ -47,6 +47,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ApprovalResult = lazy(() => import("./pages/ApprovalResult"));
+const EmployerPending = lazy(() => import("./pages/EmployerPending"));
 
 // const AIEmployee = lazy(() => import("./pages/services/AIEmployee"));
 // const AIEmployeeApply = lazy(() => import("./pages/services/AIEmployeeApply"));
