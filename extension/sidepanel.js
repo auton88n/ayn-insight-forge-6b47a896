@@ -1659,13 +1659,49 @@ async function detectForAsk() {
   }
 }
 
+// v2.8.3 — Render AI text safely: HTML-escape, then apply markdown-lite
+// (bold, bullet lists, paragraphs). No external libraries.
+function aynFormatAiText(text) {
+  const raw = String(text == null ? '' : text);
+  const esc = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = esc.split(/\r?\n/);
+  const out = [];
+  let listBuf = [];
+  const flushList = () => {
+    if (listBuf.length) {
+      out.push('<ul style="margin:6px 0 6px 18px;padding:0">' +
+        listBuf.map(li => `<li style="margin:2px 0">${li}</li>`).join('') + '</ul>');
+      listBuf = [];
+    }
+  };
+  let paraBuf = [];
+  const flushPara = () => {
+    if (paraBuf.length) {
+      out.push('<p style="margin:0 0 8px 0">' + paraBuf.join('<br>') + '</p>');
+      paraBuf = [];
+    }
+  };
+  for (const line of lines) {
+    const m = line.match(/^\s*(?:\*|-|•)\s+(.*)$/);
+    if (m) { flushPara(); listBuf.push(m[1]); continue; }
+    if (line.trim() === '') { flushList(); flushPara(); continue; }
+    flushList();
+    paraBuf.push(line);
+  }
+  flushList();
+  flushPara();
+  return out.join('').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
 function askAddBubble(role, text, opts = {}) {
   $('ask-empty')?.classList.add('hidden');
   const msgs = $('ask-msgs');
   const b = document.createElement('div');
   b.className = `ask-bubble ${role}` + (opts.thinking ? ' thinking' : '');
   if (opts.thinking) {
-    b.innerHTML = `<div class="spinner"></div>${text}`;
+    b.innerHTML = `<div class="spinner"></div>${aynFormatAiText(text)}`;
+  } else if (role === 'assistant') {
+    b.innerHTML = aynFormatAiText(text);
   } else {
     b.textContent = text;
   }
