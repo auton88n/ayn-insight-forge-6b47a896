@@ -13,6 +13,7 @@ import { notifyProfileUpdated } from "@/lib/extension";
 import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
+import { employerApi, type RevealRequest } from "@/lib/employer";
 import CanadianProfileForm, { type CanadianProfileFormHandle } from "./CanadianProfileForm";
 
 // Canonical profile types must mirror the edge-function CanonicalProfile.
