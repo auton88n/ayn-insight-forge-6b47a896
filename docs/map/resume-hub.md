@@ -48,13 +48,20 @@ Tables:
 Web-lane actions (session JWT, in supabase/functions/resume-hub/index.ts):
 - **talent_pool_get**: returns { opted_in, consented_at, indexed, skills_count } for the caller.
 - **talent_pool_set** { opted_in: boolean }: upserts consent (consented_at/revoked_at). Turning ON runs indexCandidate() synchronously; turning OFF deletes the caller's candidate_index and candidate_skills rows immediately.
+- **talent_pool_reindex_self** (v2.9.1): re-runs indexCandidate for the caller (must be opted in) and returns { model, skills_count }. Wired to a "Re-index my profile" text link in the Talent Pool card in ProfileTab so a seeker can refresh after editing their profile.
+
+Embedding provider (v2.9.1):
+- **embedText(text)** returns `{ vector, model }`. Calls the AI gateway `/v1/embeddings` with `openai/text-embedding-3-small` and `dimensions: 768` so the existing `vector(768)` column is unchanged. On any error (missing LOVABLE_API_KEY, non-2xx, malformed body, network) it falls back to `deterministicEmbed` and returns model `'deterministic-v1'`. Logs which path was used once per call at debug level.
+- `candidate_index` now carries `embedding_model text not null default 'deterministic-v1'` and `embedded_at timestamptz`, so a row can be traced back to the model that produced its vector.
+- indexCandidate uses embedText and stores both `embedding` and `embedding_model`.
 
 Indexing routine indexCandidate(admin, userId):
 1. Loads canonical profile (loadCanonical) + primary resume.
 2. Builds profile_text: seniority, function, YoE, current title, skills, experience bullets, education, certifications, resume summary. **Excludes name, email, phone, address, links** — matching is anonymous until a Phase B reveal.
-3. Embedding: deterministicEmbed(profile_text) — 768-dim signed hashed bag-of-words, l2-normalized. TODO in code: swap for the AI gateway embeddings endpoint once available; the pipeline works end to end today so Phase B semantic search doesn't block on that swap.
-4. Upserts candidate_index.
+3. Embedding: `embedText(profile_text)` (see above). Real model when the gateway is reachable, `deterministicEmbed` fallback otherwise; the returned model tag is stored on the row.
+4. Upserts candidate_index (vector, model, embedded_at).
 5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule.
+
 
 Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
 
@@ -76,9 +83,10 @@ Web-lane actions:
 - **employer_intake_chat** { org_id, messages[] }: intake agent. System prompt asks at most 3 clarifying questions, then returns either `{done:false, question}` or `{done:true, job_spec:{ title, seniority ∈ intern|entry|mid|senior|staff|principal|manager|director, must_have_skills[≤6], nice_to_have_skills[≤6], location_preference, remote_ok, min_years, notes }}`. No markdown, no em/en dashes, ranges use "to".
 - **employer_match** { org_id, job_spec }: THE HYBRID MATCHER. Two-step noise cancellation:
   1. **Deterministic extracted-only prefilter (zero AI).** Load opted-in candidates → for each, EVERY must_have_skill must match a `candidate_skills` row with `provenance='extracted'` (skill_norm equality OR token-overlap ≥ 0.8). Inferred edges cannot rescue a missing must-have.
-  2. **Vector recall.** Embed the job spec text with the same `deterministicEmbed` used by indexCandidate; rank eligible candidates by cosine similarity against `candidate_index.embedding`; take top 12.
+  2. **Vector recall (v2.9.1 same-model guard).** Embed the job spec text with `embedText`. Cosine-compare ONLY against `candidate_index` rows whose `embedding_model` equals the spec's model — mixing models produces meaningless scores. If some eligible candidates are still on `'deterministic-v1'` while the spec is on the real model, re-index up to 25 of them inline (bounded, non-blocking to the user, nothing surfaced) before ranking, then reload the index rows. Rank the same-model subset by cosine similarity; take top 12.
   3. **Grounded AI rerank (one call).** Anonymized payload only: opaque refs (c1, c2…), profile_text, seniority, years_experience, location, skills split into extracted[]/inferred[], headline. Never user_ids, names, or emails. Rules baked into the system prompt: score 1-100; must_have coverage may only cite extracted skills; inferred skills contribute at most 10 total points via nice-to-haves; every sentence in "why" must reference something literally in the provided data; if fewer than 3 candidates are genuinely strong, return fewer with a `pool_note` instead of padding.
   4. Persist to `employer_searches` (job_spec, top-3 results, ref_map). Return `{ search_id, results[≤3], pool_note }`. The ref_map stays server-side.
+
 - **employer_reveal_request** { search_id, ref }: resolves ref → user_id via the server-side ref_map, inserts `reveal_requests` (idempotent per search+candidate).
 - **reveal_list** (candidate side): pending + decided requests enriched with org name and job title (from the search's job_spec).
 - **reveal_decide** { id, approve } (candidate side): updates status + decided_at, own rows only.

@@ -32,7 +32,10 @@ server.js: express static host for dist/ with SPA fallback and cache headers (/a
 `src/components/dashboard/EmployerChatPanel.tsx` is a full-surface overlay opened from a "Hiring mode" button in the top right of the dashboard shell. It is entirely separate from the seeker chat pipeline: it does not go through `useAYN` / `ayn-ai-proxy`. All calls hit `src/lib/employer.ts`, which is a thin session-JWT wrapper around `supabase/functions/resume-hub` employer actions.
 
 Flow inside the panel:
-1. On open, `employer_org_get`. If no org, render an inline register card; `employer_org_create` sets up the org + admin membership.
+1. On open, `employer_org_get`. If no org, the assistant greets with the sales-oriented line "Search AYN's talent pool for candidates who match your open role. First, register your company so I can start finding candidates." above the inline register card; `employer_org_create` sets up the org + admin membership. (v2.9.1: same "Hiring mode" button in the dashboard shell, no separate route — clicking it just opens the panel directly on the register card for a user with no org.)
 2. Free-text chat → `employer_intake_chat` (at most 3 clarifying questions, then a JobSpec).
 3. When JobSpec lands, an editable spec card exposes a "Find candidates" button → `employer_match`.
 4. Results render as anonymized candidate cards with score ring, matched must-haves, gaps, and grounded "why" bullets. "Request intro" calls `employer_reveal_request`; contact reveal happens only after the candidate approves in ProfileTab.
+
+Seeker-side surface (v2.9.1): `src/pages/ResumeHub.tsx` fetches `reveal_list` on mount and, if any request is pending, shows a small primary-colored count badge on the Profile rail icon (aria-labeled "N intro requests") and a "<n> companies want an intro" line at the top of the Talent Pool card in `ProfileTab.tsx`, so a seeker notices an incoming request without hunting for it.
+

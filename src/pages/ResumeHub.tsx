@@ -10,7 +10,9 @@ import JobsTab from "@/components/resume-hub/JobsTab";
 import TrackerTab from "@/components/resume-hub/TrackerTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
+import { employerApi } from "@/lib/employer";
 import "@/styles/resume-hub.css";
+
 
 type TabKey = "overview" | "profile" | "builder" | "jobs" | "tracker" | "extension";
 
@@ -29,6 +31,7 @@ export default function ResumeHub() {
   const [tab, setTab] = useState<TabKey>("overview");
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingIntros, setPendingIntros] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -39,8 +42,13 @@ export default function ResumeHub() {
       }
       setUserId(data.user.id);
       setLoading(false);
+      // v2.9.1 — surface a badge on the Profile tab when employers want an intro.
+      employerApi.revealList()
+        .then(r => setPendingIntros((r.requests || []).filter(x => x.status === "pending").length))
+        .catch(() => { /* silent */ });
     });
   }, [navigate, toast]);
+
 
   const goJob = useCallback((jobId: string) => {
     setTab("jobs");
@@ -109,12 +117,29 @@ export default function ResumeHub() {
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label}
+                    aria-label={item.label + (item.key === "profile" && pendingIntros > 0 ? ` (${pendingIntros} intro requests)` : "")}
+                    style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    <span className="rh-tip" role="tooltip">{item.label}</span>
+                    {item.key === "profile" && pendingIntros > 0 && (
+                      <span
+                        aria-hidden
+                        style={{
+                          position: "absolute", top: 4, right: 4,
+                          minWidth: 16, height: 16, padding: "0 4px",
+                          borderRadius: 999, background: "hsl(var(--primary))",
+                          color: "hsl(var(--primary-foreground))",
+                          fontSize: 10, fontWeight: 600, lineHeight: "16px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >{pendingIntros > 9 ? "9+" : pendingIntros}</span>
+                    )}
+                    <span className="rh-tip" role="tooltip">
+                      {item.label}{item.key === "profile" && pendingIntros > 0 ? ` · ${pendingIntros} intro${pendingIntros === 1 ? "" : "s"}` : ""}
+                    </span>
                   </button>
                 );
+
               })}
             </nav>
           </aside>

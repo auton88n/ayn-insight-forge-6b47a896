@@ -649,14 +649,18 @@ RULES:
 const LINK_PUBLIC_ACTIONS = new Set(["link_start", "link_poll"]);
 
 // ─────────────────────────────────────────────────────────────
-// v2.9.0-A — Talent Pool indexing (Phase A).
+// v2.9.0-A / v2.9.1 — Talent Pool indexing.
 // Anonymous profile_text (no email/phone/name), 768-dim embedding,
 // candidate_skills rebuilt with provenance ('extracted' vs 'inferred').
-// TODO: swap deterministicEmbed for the AI gateway's embeddings API
-// once wired in this environment; the pipeline works end to end today
-// so Phase B semantic search doesn't block on that swap.
+//
+// v2.9.1: real embeddings via the AI gateway (768-dim), with a
+// deterministicEmbed fallback and model tagging so employer_match
+// never cosine-compares vectors across different models.
 // ─────────────────────────────────────────────────────────────
 const EMBED_DIMS = 768;
+const REAL_EMBED_MODEL = "openai/text-embedding-3-small";
+const FALLBACK_EMBED_MODEL = "deterministic-v1";
+const EMBED_ENDPOINT = "https://ai.gateway.lovable.dev/v1/embeddings";
 
 function tokenizeForEmbed(text: string): string[] {
   return (text || "").toLowerCase().match(/[a-z0-9+.#-]{2,}/g) || [];
@@ -683,6 +687,54 @@ async function deterministicEmbed(text: string): Promise<number[]> {
   return v;
 }
 
+/**
+ * Call the AI gateway embeddings endpoint with a 768-dim OpenAI model
+ * (text-embedding-3-small supports the `dimensions` param so we don't
+ * need to change the vector(768) column). On any failure — missing key,
+ * network, non-2xx, malformed body — fall back to deterministicEmbed
+ * and tag the row with 'deterministic-v1' so employer_match knows not
+ * to mix these vectors with real ones.
+ */
+async function embedText(text: string): Promise<{ vector: number[]; model: string }> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  const input = (text || "").slice(0, 8000);
+  if (!apiKey || !input) {
+    console.log(`[embedText] fallback path (${apiKey ? "empty input" : "no LOVABLE_API_KEY"})`);
+    return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+  }
+  try {
+    const r = await fetch(EMBED_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: REAL_EMBED_MODEL,
+        input,
+        dimensions: EMBED_DIMS,
+      }),
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      console.log(`[embedText] fallback path (gateway ${r.status}: ${body.slice(0, 200)})`);
+      return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+    }
+    const data = await r.json() as { data?: Array<{ embedding?: number[] }> };
+    const vec = data?.data?.[0]?.embedding;
+    if (!Array.isArray(vec) || vec.length !== EMBED_DIMS) {
+      console.log(`[embedText] fallback path (bad response shape, len=${vec?.length ?? "n/a"})`);
+      return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+    }
+    console.log(`[embedText] real path (${REAL_EMBED_MODEL}, ${vec.length}d)`);
+    return { vector: vec, model: REAL_EMBED_MODEL };
+  } catch (e) {
+    console.log(`[embedText] fallback path (exception: ${(e as Error).message})`);
+    return { vector: await deterministicEmbed(input), model: FALLBACK_EMBED_MODEL };
+  }
+}
+
+
 function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unknown> | null): string {
   const skills = c.skills.map(s => s.name).filter(Boolean).join(", ");
   const exp = c.experiences.map(e => {
@@ -698,15 +750,15 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
     .filter(Boolean).join("\n\n");
 }
 
-async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<void> {
+async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<{ model: string; skills_count: number } | null> {
   const [canonical, { data: primary }] = await Promise.all([
     loadCanonical(admin, userId),
     admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
   ]);
-  if (!canonical) return;
+  if (!canonical) return null;
   const resumeContent = (primary?.content as Record<string, unknown> | null) || null;
   const profile_text = buildProfileText(canonical, resumeContent);
-  const embedding = await deterministicEmbed(profile_text);
+  const { vector: embedding, model: embedding_model } = await embedText(profile_text);
 
   const headline = canonical.derived.current_title || canonical.experiences[0]?.title || "";
   const summary = (resumeContent as { basics?: { summary?: string } })?.basics?.summary?.toString().slice(0, 2000) || "";
@@ -720,10 +772,13 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
     location,
     years_experience: canonical.derived.total_yoe ?? null,
     embedding: embedding as unknown as number[],
+    embedding_model,
+    embedded_at: new Date().toISOString(),
     profile_text,
     indexed_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (upErr) throw upErr;
+
 
   // Rebuild candidate_skills. Extracted = literally present in canonical
   // skills or the primary resume skills. Inferred = in derived.top_skills
@@ -765,7 +820,9 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
     const { error: sErr } = await admin.from("candidate_skills").insert(rows);
     if (sErr) throw sErr;
   }
+  return { model: embedding_model, skills_count: rows.length };
 }
+
 
 function reindexIfOptedIn(admin: SupabaseClient<any, any, any>, userId: string): void {
   // Non-blocking. Employer pool freshness is best-effort; caller shouldn't wait.
@@ -2725,6 +2782,25 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ ok: true, opted_in });
     }
 
+    // v2.9.1 — manual re-index (Talent Pool card "Re-index my profile" link).
+    // Only useful when opted in; refreshes the caller's candidate_index row
+    // with the current embedding model.
+    if (action === "talent_pool_reindex_self") {
+      const { data: consent } = await adminForNew.from("talent_pool_consent")
+        .select("opted_in").eq("user_id", userId).maybeSingle();
+      if (!consent?.opted_in) return json({ error: "Opt in first" }, 400);
+      try {
+        const result = await indexCandidate(adminForNew, userId);
+        if (!result) return json({ error: "No profile to index" }, 400);
+        return json(result);
+      } catch (e) {
+        return json({ error: (e as Error).message }, 500);
+      }
+    }
+
+
+
+
 
     // ─────────────────────────────────────────────────────────────
     // v2.9.0-B — Employer marketplace (Phase B)
@@ -2830,12 +2906,35 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         return json({ search_id: null, results: [], pool_note: "No candidates in the pool cover every must-have skill yet. The pool grows as job seekers opt in." });
       }
 
-      // Vector recall.
+      // v2.9.1 — embed the spec with the real model when available and
+      // ONLY cosine-compare against candidate_index rows produced by that
+      // same model. Mixing models yields meaningless scores. If some
+      // eligible candidates are still on the fallback model, re-index up
+      // to 25 of them inline before ranking; the rest will catch up on
+      // their next profile save or manual re-index (non-blocking to the
+      // user, nothing surfaced in the UI).
       const specText = [job_spec.title, job_spec.notes, mustHaves.join(", "), niceToHaves.join(", ")].filter(Boolean).join("\n");
-      const specEmbedding = await deterministicEmbed(String(specText || ""));
-      const { data: indexRows } = await adminForNew.from("candidate_index")
-        .select("user_id, headline, seniority, years_experience, location, profile_text, embedding")
+      const { vector: specEmbedding, model: specModel } = await embedText(String(specText || ""));
+
+      const { data: rawIndexRows } = await adminForNew.from("candidate_index")
+        .select("user_id, headline, seniority, years_experience, location, profile_text, embedding, embedding_model")
         .in("user_id", eligibleIds);
+      let indexRows = rawIndexRows || [];
+
+      if (specModel !== FALLBACK_EMBED_MODEL) {
+        const stale = indexRows.filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) !== specModel).slice(0, 25);
+        for (const r of stale) {
+          try { await indexCandidate(adminForNew, r.user_id); }
+          catch (e) { console.error("inline reindex failed", r.user_id, (e as Error).message); }
+        }
+        if (stale.length) {
+          const { data: refreshed } = await adminForNew.from("candidate_index")
+            .select("user_id, headline, seniority, years_experience, location, profile_text, embedding, embedding_model")
+            .in("user_id", eligibleIds);
+          if (refreshed) indexRows = refreshed;
+        }
+      }
+
       const cosine = (a: number[], b: number[]): number => {
         let dot = 0, na = 0, nb = 0;
         const n = Math.min(a.length, b.length);
@@ -2848,10 +2947,13 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
         return [];
       };
-      const ranked = (indexRows || []).map(r => ({
+      // Same-model filter — never compare vectors across different embedding models.
+      const comparable = indexRows.filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) === specModel);
+      const ranked = comparable.map(r => ({
         ...r,
         sim: cosine(parseEmbedding(r.embedding), specEmbedding),
       })).sort((a, b) => b.sim - a.sim).slice(0, 12);
+
 
       // Build anonymized rerank input.
       const refMap: Record<string, string> = {};

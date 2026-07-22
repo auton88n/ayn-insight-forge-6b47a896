@@ -47,8 +47,9 @@ export default function EmployerChatPanel({ onClose }: { onClose: () => void }) 
         if (r.org) {
           setBubbles([{ kind: "text", role: "assistant", text: `Hiring mode is on for ${r.org.name}. Tell me about the role you need to fill.` }]);
         } else {
-          setBubbles([{ kind: "text", role: "assistant", text: "Welcome to hiring mode. First, let's register your company so I can start finding candidates." },
+          setBubbles([{ kind: "text", role: "assistant", text: "Search AYN's talent pool for candidates who match your open role. First, register your company so I can start finding candidates." },
             { kind: "register", text: "Company details" }]);
+
         }
       } catch { /* silent */ } finally { setOrgLoading(false); }
     })();

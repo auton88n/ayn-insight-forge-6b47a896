@@ -1548,7 +1548,9 @@ export type Database = {
       }
       candidate_index: {
         Row: {
+          embedded_at: string | null
           embedding: string | null
+          embedding_model: string
           headline: string | null
           indexed_at: string
           location: string | null
@@ -1559,7 +1561,9 @@ export type Database = {
           years_experience: number | null
         }
         Insert: {
+          embedded_at?: string | null
           embedding?: string | null
+          embedding_model?: string
           headline?: string | null
           indexed_at?: string
           location?: string | null
@@ -1570,7 +1574,9 @@ export type Database = {
           years_experience?: number | null
         }
         Update: {
+          embedded_at?: string | null
           embedding?: string | null
+          embedding_model?: string
           headline?: string | null
           indexed_at?: string
           location?: string | null
