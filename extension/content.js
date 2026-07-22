@@ -4218,7 +4218,36 @@
       sendResponse(tryAttachResume(message.payload || {}));
       return true;
     }
+
+    // v2.8.4 — Find and click the page's apply link/button from a listing page.
+    if (message.type === 'CLICK_APPLY_LINK') {
+      try {
+        const APPLY_RE = /^(apply(\s+now)?|easy\s*apply|start\s+application|apply\s+for\s+this\s+job)$/i;
+        const NEG_RE = /submit\s+application|submitting|already\s+applied/i;
+        const nodes = Array.from(document.querySelectorAll('a, button, [role="button"]'));
+        let hit = null;
+        for (const el of nodes) {
+          try {
+            const txt = (el.innerText || el.textContent || '').trim();
+            if (!txt || txt.length > 40) continue;
+            if (NEG_RE.test(txt)) continue;
+            if (!APPLY_RE.test(txt)) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 4 || r.height < 4) continue;
+            const style = getComputedStyle(el);
+            if (style.visibility === 'hidden' || style.display === 'none') continue;
+            hit = el; break;
+          } catch {}
+        }
+        if (!hit) { sendResponse({ ok: false, reason: 'no_apply_link' }); return true; }
+        try { hit.scrollIntoView({ block: 'center' }); } catch {}
+        try { hit.click(); } catch {}
+        sendResponse({ ok: true });
+      } catch (e) { sendResponse({ ok: false, reason: String(e && e.message || e) }); }
+      return true;
+    }
   });
+
 
   aynScheduleRestoredReplay();
 
