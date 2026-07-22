@@ -697,20 +697,46 @@ Deno.serve(async (req) => {
     }
 
     // ============ EXTENSION-AUTH ACTIONS (x-ayn-ext-token) ============
+    // v2.8.4 — DUAL_AUTH_ACTIONS may also be reached from the web dashboard
+    // with a session JWT (no ext token). All other EXT_ACTIONS keep the
+    // strict ext-token requirement.
+    const DUAL_AUTH_ACTIONS = new Set([
+      "answers_list", "answers_update", "answers_delete", "ext_ingest_job",
+    ]);
     if (typeof action === "string" && EXT_ACTIONS.has(action)) {
       const token = req.headers.get("x-ayn-ext-token");
-      if (!token) return json({ error: "x-ayn-ext-token required" }, 401);
-      const tokenHash = await sha256Hex(token);
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const bearerJwt = authHeader.replace(/^Bearer\s+/i, "");
       const admin = createClient(supabaseUrl, serviceKey);
-      const { data: tok } = await admin
-        .from("extension_tokens")
-        .select("user_id, revoked_at, device_label")
-        .eq("token_hash", tokenHash)
-        .maybeSingle();
-      if (!tok) return json({ error: "Invalid token" }, 401);
-      if (tok.revoked_at) return json({ error: "Token revoked" }, 401);
-      const userId = tok.user_id as string;
-      admin.from("extension_tokens").update({ last_used_at: new Date().toISOString() }).eq("token_hash", tokenHash).then(() => {});
+      let userId: string | null = null;
+      let deviceLabel: string | null = null;
+
+      if (token) {
+        const tokenHash = await sha256Hex(token);
+        const { data: tok } = await admin
+          .from("extension_tokens")
+          .select("user_id, revoked_at, device_label")
+          .eq("token_hash", tokenHash)
+          .maybeSingle();
+        if (!tok) return json({ error: "Invalid token" }, 401);
+        if (tok.revoked_at) return json({ error: "Token revoked" }, 401);
+        userId = tok.user_id as string;
+        deviceLabel = (tok.device_label as string) ?? null;
+        admin.from("extension_tokens").update({ last_used_at: new Date().toISOString() }).eq("token_hash", tokenHash).then(() => {});
+      } else if (DUAL_AUTH_ACTIONS.has(action) && bearerJwt) {
+        const supaWeb = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: `Bearer ${bearerJwt}` } },
+        });
+        const { data: u } = await supaWeb.auth.getUser();
+        if (!u?.user) return json({ error: "Invalid session" }, 401);
+        userId = u.user.id;
+        deviceLabel = "web-session";
+      } else {
+        return json({ error: "x-ayn-ext-token required" }, 401);
+      }
+
+      const tok = { device_label: deviceLabel };
+
 
       if (action === "ext_bootstrap") {
         const [{ data: profile }, { data: resume }, authUserRes] = await Promise.all([

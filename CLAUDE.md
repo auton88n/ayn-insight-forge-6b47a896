@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.8.3 JD banner UX and AI text rendering", manifest v2.8.3, AYN_BUILD 2.8.3, July 22 2026.
+Last verified: commit "v2.8.4 dual-auth actions, unified listing card, wiring self-check", manifest v2.8.4, AYN_BUILD 2.8.4, July 22 2026.
 
 ## What AYN is
 
@@ -29,6 +29,8 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), three product are
 5. User-facing writing style: no em dashes, no en dashes, ranges use "to". This rule is also baked into the AI system prompts in cc-generate and resume-match.
 6. servers: server.js is the express static host for dist/ (SPA fallback, caching for /assets and /frames). backend/server.py is a FastAPI health stub only, not a real backend. The real backend is Supabase edge functions.
 7. memory/PRD.md describes an older platform-era snapshot; trust the docs/map files over it.
+8. scripts/check-wiring.mjs must pass; it verifies sidepanel messages have handlers, extension actions are registered, and Hub actions are session-reachable.
+
 
 ## The nervous system (how signals actually flow)
 

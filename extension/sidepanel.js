@@ -326,7 +326,7 @@ const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
 
 // v1.9.5: always show the Fill hero card the moment a form is detected,
 // using whatever job context we have (or tab fallbacks).
-function renderFillHero({ title, company, fieldCount, host, url } = {}) {
+function renderFillHero({ title, company, fieldCount, host, url, kind } = {}) {
   const t = cleanLabel(title) || 'Job application detected';
   // v1.9.7: never fall back to a raw host like "boards.greenhouse.io" — derive a real name.
   const derived = deriveCompany(company, url || host, title);
@@ -334,11 +334,19 @@ function renderFillHero({ title, company, fieldCount, host, url } = {}) {
   $('fill-job-title').textContent = t;
   $('fill-job-sub').textContent = c;
   setCompanyLogo('fill-job-logo', c, title);
+  // v2.8.4 — fields-ready badge is meaningless on listing pages and confusing at 0.
+  const countWrap = $('fill-field-count-wrap');
+  const showCount = kind !== 'listing' && typeof fieldCount === 'number' && fieldCount > 0;
   if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
+  if (countWrap) countWrap.classList.toggle('hidden', !showCount);
+  // v2.8.4 — listing extras (JD status + Open button) only render on listing.
+  const extras = $('fill-listing-extras');
+  if (extras) extras.classList.toggle('hidden', kind !== 'listing');
   const banner = $('fill-job-banner');
   banner.classList.remove('hidden');
   banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
 }
+
 
 
 function applyFormReady(r, tab) {
@@ -454,22 +462,23 @@ function detectForFill() {
         return;
       }
       if (r.kind === 'listing' || !r.hasForm) {
-        // Listing page: allow scoring/JD banner but replace fill CTA.
+        // v2.8.4 — ONE unified listing card: hero + JD status row + Open the application.
+        // No separate empty state, no separate JD provenance card.
         let host = '';
         try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-        renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount || 0, host, url: tab.url });
+        renderFillHero({ title: r.title, company: F.company, fieldCount: 0, host, url: tab.url, kind: 'listing' });
         $('autofill-now-btn').classList.add('hidden');
-        $('fill-empty-title').textContent = 'This looks like a job listing, not the application form';
-        $('fill-empty-sub').textContent = 'Open the application first (Apply or Easy Apply), then come back here to fill.';
-        $('fill-empty').classList.remove('hidden');
-        try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
+        $('fill-empty').classList.add('hidden');
+        $('jd-provenance')?.classList.add('hidden');
+        try { window.aynRenderListingExtras && window.aynRenderListingExtras(tab.id); } catch {}
         return;
       }
+
 
       // Form found — show hero (always) + ready state
       let host = '';
       try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url });
+      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url, kind: 'apply' });
       $('autofill-now-btn').classList.remove('hidden');
       // v2.8.0 — kick off the JD Resolver so the provenance banner shows
       // where the JD came from BEFORE the user clicks Autofill.
@@ -1941,3 +1950,67 @@ chrome.runtime.onMessage.addListener((msg) => {
     });
   });
 })();
+
+// ═══════════════════════════════════════════════════════════════════
+// v2.8.4 — Listing-state extras (JD status + Open the application button)
+// One coherent card. Replaces the old empty-state + JD banner stack.
+// ═══════════════════════════════════════════════════════════════════
+(function aynListingExtrasInit() {
+  const $ = (id) => document.getElementById(id);
+  let __listingTabId = null;
+
+  window.aynRenderListingExtras = function (tabId) {
+    __listingTabId = tabId;
+    const jdEl = $('fill-listing-jd');
+    const btn = $('fill-listing-open');
+    const btnLabel = $('fill-listing-open-label');
+    if (!jdEl || !btn) return;
+    jdEl.textContent = 'Locating the job description…';
+    btn.disabled = false;
+    btnLabel.textContent = 'Open the application';
+
+    chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
+      void chrome.runtime.lastError;
+      if (r && r.ok && (r.text || '').length > 0) {
+        jdEl.textContent = `JD ready · ${(r.text || '').length.toLocaleString()} chars`;
+      } else {
+        jdEl.textContent = 'No JD found yet · paste it if you have it';
+      }
+    });
+
+    // Probe the page for an Apply link so we can label the button honestly.
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId, payload: { type: 'CLICK_APPLY_LINK', probe: true } },
+      () => void chrome.runtime.lastError,
+    );
+  };
+
+  $('fill-listing-open')?.addEventListener('click', () => {
+    if (__listingTabId == null) return;
+    const btn = $('fill-listing-open');
+    const btnLabel = $('fill-listing-open-label');
+    btn.disabled = true;
+    btnLabel.textContent = 'Opening…';
+    chrome.runtime.sendMessage(
+      { type: 'TAB_SEND', tabId: __listingTabId, payload: { type: 'CLICK_APPLY_LINK' } },
+      r => {
+        void chrome.runtime.lastError;
+        if (r && r.ok) {
+          btnLabel.textContent = 'Opened · switch to the form';
+        } else {
+          btn.disabled = true;
+          btnLabel.textContent = 'Find the Apply button on the page';
+        }
+      },
+    );
+  });
+
+  $('fill-listing-replace-jd')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const w = $('jd-paste-wrap');
+    if (!w) return;
+    w.classList.remove('hidden');
+    $('jd-paste-input')?.focus();
+  });
+})();
+
