@@ -74,4 +74,12 @@ export const resumeHubApi = {
     call<{ ok: true }>("resume-hub", { action: "answers_update", id, answer_text }),
   deleteAnswer: (id: string) =>
     call<{ ok: true }>("resume-hub", { action: "answers_delete", id }),
+
+  // v2.9.0-A — Talent pool consent + status.
+  talentPoolGet: () =>
+    call<{ opted_in: boolean; consented_at: string | null; indexed: boolean; skills_count: number }>(
+      "resume-hub", { action: "talent_pool_get" }
+    ),
+  talentPoolSet: (opted_in: boolean) =>
+    call<{ ok: true; opted_in: boolean }>("resume-hub", { action: "talent_pool_set", opted_in }),
 };
