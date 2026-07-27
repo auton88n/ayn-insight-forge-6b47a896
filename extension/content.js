@@ -828,11 +828,8 @@
     return '';
   }
 
-  function aynVisibleText(node) {
-    if (!node) return '';
-    const t = (node.innerText != null ? node.innerText : node.textContent) || '';
-    return t.replace(/\s+/g, ' ').trim();
-  }
+  // v2.10.1 — duplicate aynVisibleText removed. The safeText-based definition
+  // near line 196 is the single source of truth (adds null guard + try/catch).
 
   // v2.3.2 — Reject framework-generated IDs before using them as label keys.
   // Workday appends hash suffixes (--ab12cd), React uses :r0:, MUI/Radix/HeadlessUI
