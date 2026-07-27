@@ -2498,6 +2498,18 @@
     }
 
     // real input/textarea
+    // v2.10.0 — bot-blocker resilience: on humanTypingHosts, textareas, or
+    // long values, run per-character typing FIRST. Otherwise use the fast
+    // native-setter path exactly as before.
+    if (aynShouldTypeHumanly(el, value)) {
+      try {
+        window.__aynHumanTypingUsed = true;
+        window.__aynHumanTypedCount = (window.__aynHumanTypedCount || 0) + 1;
+        await aynTypeKeystrokes(el, value);
+      } catch (_) {}
+      if (matches()) return { ok: true, verified: true, reason: 'human-typed' };
+    }
+
     el.focus();
     if (!el.isContentEditable) { aynSetNativeValue(el, ''); }
     aynSetNativeValue(el, value);
