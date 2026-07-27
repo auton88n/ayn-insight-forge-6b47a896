@@ -2710,7 +2710,34 @@
   }
 
 
-  async function aynFillTypeahead(el, value) {
+  // v2.10.1 — sensitive intents where a confident wrong answer is worse than
+  // a blank. Covers work authorization, sponsorship (now and future), EEO/
+  // self-identification (gender, race, ethnicity, veteran, disability),
+  // salary/compensation, and notice period. Matched against the resolved
+  // question engine semantic type OR, when unavailable, against the visible
+  // question text via regex.
+  const AYN_SENSITIVE_NO_GUESS_TYPES = new Set([
+    'work_authorization', 'work_auth', 'authorized_to_work',
+    'sponsorship', 'sponsorship_now', 'sponsorship_future', 'require_sponsorship',
+    'gender', 'race', 'ethnicity', 'hispanic_latino', 'veteran', 'veteran_status',
+    'disability', 'disability_status', 'self_identification',
+    'salary', 'salary_expectation', 'compensation', 'desired_salary',
+    'notice_period', 'notice',
+  ]);
+  const AYN_SENSITIVE_NO_GUESS_RE = /(work\s*auth|authori[sz]ed\s+to\s+work|legally\s+authori[sz]ed|require\s+sponsor|sponsorship|visa\s+sponsor|gender|race|ethnic|hispanic|latino|veteran|disab(?:le|il)|self[-\s]?identif|salary|compensation|expected\s+pay|desired\s+pay|pay\s+expectation|notice\s+period)/i;
+  function aynIsSensitiveNoGuess(field, el) {
+    try {
+      const st = field && (field.semanticType || field.semantic_type || field.intent || field.intentKey);
+      if (st && AYN_SENSITIVE_NO_GUESS_TYPES.has(String(st).toLowerCase())) return true;
+      let text = '';
+      try { text = (aynAccName && aynAccName(el)) || ''; } catch (_) {}
+      if (!text) { try { text = (aynGroupName && aynGroupName(el)) || ''; } catch (_) {} }
+      if (!text && field) text = String(field.label || field.question || '');
+      return !!(text && AYN_SENSITIVE_NO_GUESS_RE.test(text));
+    } catch (_) { return false; }
+  }
+
+  async function aynFillTypeahead(el, value, field) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
     const val = String(value || '');
     el.focus();
@@ -2746,6 +2773,14 @@
 
     if (optionEls.length) {
       const match = optionEls.find(o => aynOptionMatches(o.textContent, val));
+      // v2.10.1 — never guess on discrete sensitive questions. Free-form
+      // typeaheads (city, school, university, discipline) keep the
+      // first-option fallback; work auth / sponsorship / EEO / salary /
+      // notice period do not. Blank is safer than confidently wrong.
+      const sensitive = aynIsSensitiveNoGuess(field, el);
+      if (!match && sensitive) {
+        return { ok: false, skip: true, verified: false, reason: 'no-confident-option' };
+      }
       const pick = match || optionEls[0];
       if (pick) {
         try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
@@ -2757,6 +2792,11 @@
       }
     }
     // No listbox appeared — commit the raw typed value with Enter as last resort.
+    // v2.10.1 — but not on sensitive discrete questions, where committing a
+    // typed value the ATS didn't confirm is still a guess.
+    if (aynIsSensitiveNoGuess(field, el)) {
+      return { ok: false, skip: true, verified: false, reason: 'no-confident-option' };
+    }
     el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
     await aynSleep(40);
     const ok = (el.value || '').trim().length > 0;
