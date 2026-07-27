@@ -2833,7 +2833,7 @@
         return await aynFillSelect(el, wantLabel, wantValue);
       }
       if (kind === 'typeahead' || role === 'combobox' || (typeof isTypeahead === 'function' && isTypeahead(el))) {
-        return await aynFillTypeahead(el, wantText || wantLabel);
+        return await aynFillTypeahead(el, wantText || wantLabel, field);
       }
       return await aynFillTextbox(el, wantText);
     } catch (e) {
