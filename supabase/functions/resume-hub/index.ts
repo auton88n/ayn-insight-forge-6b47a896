@@ -251,6 +251,8 @@ const EXT_ACTIONS = new Set([
   "answers_list", "answers_update", "answers_delete",
   // v2.8.0: JD resolver — fetch previously-ingested JD by host+path
   "ext_job_lookup",
+  // v2.10.0: server-driven adapter config for the question engine.
+  "ats_config_get",
 ]);
 
 
@@ -878,6 +880,25 @@ Deno.serve(async (req) => {
           return json({ status: "approved", token: data.token });
         }
         return json({ status: data.status || "pending" });
+      }
+    }
+
+    // v2.10.0 — public read of ats_config. Available BEFORE the ext-auth gate
+    // because the payload is non-sensitive server-driven adapter config that
+    // both the extension and (potentially) an anon caller need. Still listed
+    // in EXT_ACTIONS so scripts/check-wiring.mjs sees the registration.
+    if (action === "ats_config_get") {
+      try {
+        const admin = createClient(supabaseUrl, serviceKey);
+        const { data, error } = await admin
+          .from("ats_config")
+          .select("config, version")
+          .eq("id", "registry")
+          .maybeSingle();
+        if (error || !data) return json({ config: null, version: 0 });
+        return json({ config: data.config, version: data.version });
+      } catch (e) {
+        return json({ config: null, version: 0, error: (e as Error).message });
       }
     }
 
@@ -1526,7 +1547,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
 
       if (action === "ext_log_result") {
         try {
-          const { run_id, inject_results, filled, total, retry_count, failure_classes, resolved_by } = payload as {
+          const { run_id, inject_results, filled, total, retry_count, failure_classes, resolved_by, human_typing_used, human_typed_count } = payload as {
             run_id?: string;
             inject_results?: unknown;
             filled?: number;
@@ -1534,6 +1555,8 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             retry_count?: number;
             failure_classes?: unknown;
             resolved_by?: unknown;
+            human_typing_used?: boolean;
+            human_typed_count?: number;
           };
           if (!run_id) return json({ ok: false, error: "run_id required" });
           const f = Number(filled || 0);
@@ -1545,6 +1568,8 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             retry_count: Number(retry_count || 0),
             failure_classes: Array.isArray(failure_classes) ? failure_classes : [],
             resolved_by: resolved_by && typeof resolved_by === "object" ? resolved_by : {},
+            human_typing_used: !!human_typing_used,
+            human_typed_count: Number(human_typed_count || 0),
             completed_at: new Date().toISOString(),
           }).eq("id", run_id);
           return json({ ok: true });

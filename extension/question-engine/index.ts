@@ -44,6 +44,7 @@ export type { QuestionDelta } from "./evidence/mutation";
 export type { FailureClass, RetryOutcome, RetryContext, RetryTransport } from "./decision-loop";
 export type { VisionTransport } from "./evidence/vision-provider";
 export type { LearningTransport } from "./learning/supabase-store";
+export type { AdapterConfig } from "./adapter-config";
 export {
   withAnswer,
   withVerification,
@@ -60,6 +61,8 @@ export {
   classifyFailure,
   questionSignature,
 };
+// v2.10.0 — server-driven adapter config surface.
+export { applyAdapterConfig, getAdapterConfig, getConfigVersion, BUILT_IN as BUILT_IN_ADAPTER_CONFIG } from "./adapter-config";
 
 
 // Registration order matters: non-generic adapters are probed first, generic

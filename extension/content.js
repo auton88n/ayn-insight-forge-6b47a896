@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.8.4'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.10.0'; } })();
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
@@ -2379,28 +2379,69 @@
   }
 
 
+  // v2.10.0 — human-grade typing. Bot-blockers (Cloudflare, DataDome, Akamai)
+  // flag zero-latency value writes on sensitive ATS hosts. This helper is
+  // consulted by aynFillTextbox to decide whether to reorder the ladder so
+  // per-character typing runs FIRST for the risky fields, without slowing
+  // down normal Greenhouse-style pages.
+  function aynShouldTypeHumanly(el, value) {
+    try {
+      if (window.__aynFillFieldCount > 40) { /* still allow, but skip chunk pauses below */ }
+      // Trigger (c): textarea.
+      if (el && el.tagName === 'TEXTAREA') return true;
+      // Trigger (b): long values (>120 chars).
+      if (String(value || '').length > 120) return true;
+      // Trigger (a): host list served in ats_config.humanTypingHosts.
+      const list = (window.__AYN_HUMAN_TYPING_HOSTS__ && Array.isArray(window.__AYN_HUMAN_TYPING_HOSTS__))
+        ? window.__AYN_HUMAN_TYPING_HOSTS__ : [];
+      const host = (location.hostname || '').toLowerCase();
+      for (let i = 0; i < list.length; i++) {
+        const needle = String(list[i] || '').toLowerCase();
+        if (needle && (host === needle || host.endsWith('.' + needle))) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function aynRand(min, max) { return min + Math.random() * (max - min); }
+
   async function aynTypeKeystrokes(el, value) {
     el.focus();
+    // Randomized pre-type pause (30-120ms) so the first char isn't instant.
+    await aynSleep(Math.round(aynRand(30, 120)));
     // clear existing
     aynSetNativeValue(el, '');
-    for (const ch of String(value)) {
+    const s = String(value);
+    const bigJob = (window.__aynFillFieldCount || 0) > 40;
+    const longVal = s.length > 120;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
       const opts = { bubbles: true, cancelable: true, key: ch };
       el.dispatchEvent(new KeyboardEvent('keydown', opts));
       el.dispatchEvent(new KeyboardEvent('keypress', opts));
-      // append char via native setter so frameworks observe each step
       const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       const desc = Object.getOwnPropertyDescriptor(proto, 'value');
       const next = (el.value || '') + ch;
       if (desc && desc.set) desc.set.call(el, next); else el.value = next;
       el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' }));
       el.dispatchEvent(new KeyboardEvent('keyup', opts));
-      await aynSleep(8);
+      // Randomized 12-45ms per-character delay.
+      await aynSleep(Math.round(aynRand(12, 45)));
+      // Natural break chunk pauses for long values, skipped in big fill sessions.
+      if (longVal && !bigJob) {
+        const sentenceEnd = ch === '.' || ch === '!' || ch === '?';
+        const boundaryHit = (i > 0) && (i % Math.round(aynRand(40, 70)) === 0);
+        if (sentenceEnd || boundaryHit) {
+          await aynSleep(Math.round(aynRand(80, 200)));
+        }
+      }
     }
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.blur();
     await aynSleep(40);
     return (el.value || '').trim() === String(value).trim();
   }
+
 
   function aynReadValue(el) {
     if (el.isContentEditable) return String(el.innerText || el.textContent || '').trim();
@@ -2457,6 +2498,18 @@
     }
 
     // real input/textarea
+    // v2.10.0 — bot-blocker resilience: on humanTypingHosts, textareas, or
+    // long values, run per-character typing FIRST. Otherwise use the fast
+    // native-setter path exactly as before.
+    if (aynShouldTypeHumanly(el, value)) {
+      try {
+        window.__aynHumanTypingUsed = true;
+        window.__aynHumanTypedCount = (window.__aynHumanTypedCount || 0) + 1;
+        await aynTypeKeystrokes(el, value);
+      } catch (_) {}
+      if (matches()) return { ok: true, verified: true, reason: 'human-typed' };
+    }
+
     el.focus();
     if (!el.isContentEditable) { aynSetNativeValue(el, ''); }
     aynSetNativeValue(el, value);
@@ -4003,7 +4056,35 @@
   // 5. MESSAGE LISTENER
   // ══════════════════════════════════════════════════════════════════
 
+  // v2.10.0 — apply cached adapter config on boot so the first scan uses the
+  // most recent server-driven selectors, then listen for live updates.
+  function aynApplyAtsConfig(p) {
+    try {
+      if (!p || !p.config) return;
+      if (window.AYNQuestionEngine && window.AYNQuestionEngine.applyAdapterConfig) {
+        window.AYNQuestionEngine.applyAdapterConfig(p.config, p.version || 0);
+      }
+      const hosts = (p.config && Array.isArray(p.config.humanTypingHosts)) ? p.config.humanTypingHosts : null;
+      if (hosts) window.__AYN_HUMAN_TYPING_HOSTS__ = hosts.slice();
+      window.__AYN_ATS_CFG_VERSION__ = Number(p.version || 0);
+    } catch (_) {}
+  }
+  try {
+    if (chrome && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get('ayn_ats_config', (d) => { aynApplyAtsConfig(d && d.ayn_ats_config); });
+    }
+  } catch (_) {}
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+
+    // v2.10.0 — background pushes an updated ats_config payload.
+    if (message && message.type === 'SET_ATS_CONFIG') {
+      aynApplyAtsConfig(message.payload || null);
+      try { sendResponse({ ok: true, version: window.__AYN_ATS_CFG_VERSION__ || 0 }); } catch (_) {}
+      return false;
+    }
+
+
 
 
     if (message.type === 'EXTRACT_JOB_TEXT') {
@@ -4110,6 +4191,12 @@
       (async () => {
         aynShowActivityGlow(true);
         window.__aynFillSessionActive = true;
+        // v2.10.0 — reset human-typing telemetry counters per session and record
+        // the total field count so aynTypeKeystrokes can skip chunk pauses in
+        // big-batch fills (>40 fields).
+        window.__aynHumanTypingUsed = false;
+        window.__aynHumanTypedCount = 0;
+        window.__aynFillFieldCount = Array.isArray(message.values) ? message.values.length : 0;
         const fs = window.AYN_FILL_SESSION ? window.AYN_FILL_SESSION.start(location.href) : null;
         let injectResult;
         const fillValues = aynMergeRestoredValues(message.values || []);
@@ -4148,6 +4235,11 @@
           // a page-writer; only persists to the backend memory store).
           try { aynRecordLearnedAnswers(fillValues, injectResult); } catch (_) {}
           try { if (fs) fs.printReport(); } catch (_) {}
+          // v2.10.0 — surface human-typing telemetry to background.
+          try {
+            injectResult.humanTypingUsed = !!window.__aynHumanTypingUsed;
+            injectResult.humanTypedCount = Number(window.__aynHumanTypedCount || 0);
+          } catch (_) {}
           sendResponse(injectResult);
 
         } finally {

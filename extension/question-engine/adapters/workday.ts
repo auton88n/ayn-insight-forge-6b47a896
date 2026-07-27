@@ -1,58 +1,48 @@
 /**
  * adapters/workday.ts
- * Workday ATS. Detects Workday via host / DOM signatures and uses
- * `data-automation-id` as the canonical label anchor. Groups repeating
- * work-history sections and Workday's custom "Select One" combobox by their
- * automation ids.
  */
-
 import type { ATSPlugin, GroupingHint } from "./index";
 import type { DetectedField } from "../question";
 import { makeEvidence, type Evidence } from "../evidence";
 import { ensureFid } from "../refs";
-
-const WORKDAY_HOST_RE = /myworkday(?:jobs|site)?\.com$|\.wd\d+\.myworkday(?:jobs)?\.com$/i;
+import { getAdapterConfig, hostRe, joinSelector } from "../adapter-config";
 
 export const workdayAdapter: ATSPlugin = {
   id: "workday",
   detect(doc: Document, url: string): boolean {
-    try {
-      const u = new URL(url);
-      if (WORKDAY_HOST_RE.test(u.hostname)) return true;
-    } catch {
-      // fall through
-    }
-    return !!doc.querySelector("[data-automation-id]");
+    const cfg = getAdapterConfig().workday;
+    try { if (hostRe("workday").test(new URL(url).hostname)) return true; } catch {}
+    return !!doc.querySelector(joinSelector(cfg.detectSelectors));
   },
   collectEvidence(field: DetectedField, doc: Document): Evidence[] {
     void doc;
+    const cfg = getAdapterConfig().workday;
     const out: Evidence[] = [];
     const el = field.node;
-    const aid = el.getAttribute("data-automation-id");
+    const aid = el.getAttribute(cfg.automationAttr);
     if (aid) {
-      const humanized = humanize(aid);
+      const humanized = humanize(aid, cfg.humanizeStripPrefix);
       if (humanized) {
         out.push(
           makeEvidence("adapter", "label", humanized, 0.9, { via: "data-automation-id", aid })
         );
       }
     }
-    // "Select One" button-based comboboxes: label sits on the button's aria-label.
-    const parent = el.closest("[data-automation-id]");
+    const parent = el.closest(`[${cfg.automationAttr}]`);
     if (parent && parent !== el) {
-      const paid = parent.getAttribute("data-automation-id");
-      if (paid) out.push(makeEvidence("adapter", "section", humanize(paid), 0.8));
+      const paid = parent.getAttribute(cfg.automationAttr);
+      if (paid) out.push(makeEvidence("adapter", "section", humanize(paid, cfg.humanizeStripPrefix), 0.8));
     }
-    // required marker used by Workday
-    const req = el.closest("[data-automation-id-prompt]")?.getAttribute("data-required");
+    const req = el.closest(`[${cfg.promptAttr}]`)?.getAttribute(cfg.requiredAttr);
     if (req === "true") out.push(makeEvidence("adapter", "required", true, 0.95));
     return out;
   },
   groupingHints(fields: ReadonlyArray<DetectedField>): GroupingHint[] {
-    // Group repeating work-history rows by their nearest [data-automation-id*="row"] container.
+    const cfg = getAdapterConfig().workday;
+    const sel = joinSelector(cfg.rowSelectors);
     const rows = new Map<Element, DetectedField[]>();
     for (const f of fields) {
-      const row = f.node.closest('[data-automation-id*="row" i],[data-automation-id*="Row"]');
+      const row = f.node.closest(sel);
       if (!row) continue;
       const arr = rows.get(row) ?? [];
       arr.push(f);
@@ -72,9 +62,12 @@ export const workdayAdapter: ATSPlugin = {
   },
 };
 
-function humanize(aid: string): string {
-  return aid
-    .replace(/^formField-/, "")
+function humanize(aid: string, stripPrefix: string): string {
+  let s = aid;
+  if (stripPrefix) {
+    try { s = s.replace(new RegExp("^" + stripPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), ""); } catch {}
+  }
+  return s
     .replace(/[-_]/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/\s+/g, " ")
