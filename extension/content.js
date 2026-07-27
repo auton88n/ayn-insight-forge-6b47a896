@@ -4191,6 +4191,12 @@
       (async () => {
         aynShowActivityGlow(true);
         window.__aynFillSessionActive = true;
+        // v2.10.0 — reset human-typing telemetry counters per session and record
+        // the total field count so aynTypeKeystrokes can skip chunk pauses in
+        // big-batch fills (>40 fields).
+        window.__aynHumanTypingUsed = false;
+        window.__aynHumanTypedCount = 0;
+        window.__aynFillFieldCount = Array.isArray(message.values) ? message.values.length : 0;
         const fs = window.AYN_FILL_SESSION ? window.AYN_FILL_SESSION.start(location.href) : null;
         let injectResult;
         const fillValues = aynMergeRestoredValues(message.values || []);
