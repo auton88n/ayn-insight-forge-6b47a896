@@ -1106,6 +1106,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const retry_count = fillResult?.retry_count || 0;
             const failure_classes = fillResult?.failure_classes || [];
             const resolved_by = fillResult?.resolved_by || {};
+            // v2.10.0 — humanTyping telemetry aggregated across first pass +
+            // any second pass results.
+            const human_typing_used = !!(fillResult?.humanTypingUsed) || (Array.isArray(secondResults) && secondResults.some(r => r && r.reason === 'human-typed'));
+            const human_typed_count = Number(fillResult?.humanTypedCount || 0);
             callFunction('ext_log_result', {
               run_id: runId,
               inject_results: __allResults,
@@ -1114,6 +1118,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               retry_count,
               failure_classes,
               resolved_by,
+              human_typing_used,
+              human_typed_count,
             }).catch(() => {});
           }
         } catch (_) { /* ignore */ }
