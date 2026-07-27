@@ -4235,6 +4235,11 @@
           // a page-writer; only persists to the backend memory store).
           try { aynRecordLearnedAnswers(fillValues, injectResult); } catch (_) {}
           try { if (fs) fs.printReport(); } catch (_) {}
+          // v2.10.0 — surface human-typing telemetry to background.
+          try {
+            injectResult.humanTypingUsed = !!window.__aynHumanTypingUsed;
+            injectResult.humanTypedCount = Number(window.__aynHumanTypedCount || 0);
+          } catch (_) {}
           sendResponse(injectResult);
 
         } finally {
