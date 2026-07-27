@@ -2381,20 +2381,36 @@
   // consulted by aynFillTextbox to decide whether to reorder the ladder so
   // per-character typing runs FIRST for the risky fields, without slowing
   // down normal Greenhouse-style pages.
+  // v2.10.1 — built-in host list guarantees Workday/iCIMS/Taleo are protected
+  // even before the first ats_config fetch (fresh install, offline, backend
+  // down). Remote config ADDS hosts on top; it can never remove built-ins.
+  const AYN_BUILTIN_HUMAN_TYPING_HOSTS = [
+    'myworkdayjobs.com', 'workday.com', 'icims.com', 'taleo.net',
+    'brassring.com', 'successfactors.com', 'successfactors.eu',
+  ];
   function aynShouldTypeHumanly(el, value) {
     try {
-      if (window.__aynFillFieldCount > 40) { /* still allow, but skip chunk pauses below */ }
       // Trigger (c): textarea.
       if (el && el.tagName === 'TEXTAREA') return true;
       // Trigger (b): long values (>120 chars).
       if (String(value || '').length > 120) return true;
-      // Trigger (a): host list served in ats_config.humanTypingHosts.
-      const list = (window.__AYN_HUMAN_TYPING_HOSTS__ && Array.isArray(window.__AYN_HUMAN_TYPING_HOSTS__))
+      // Trigger (a): union of built-in bot-sensitive hosts and any extras
+      // pushed via SET_ATS_CONFIG. Remote adds, never replaces.
+      const remote = (window.__AYN_HUMAN_TYPING_HOSTS__ && Array.isArray(window.__AYN_HUMAN_TYPING_HOSTS__))
         ? window.__AYN_HUMAN_TYPING_HOSTS__ : [];
       const host = (location.hostname || '').toLowerCase();
-      for (let i = 0; i < list.length; i++) {
-        const needle = String(list[i] || '').toLowerCase();
-        if (needle && (host === needle || host.endsWith('.' + needle))) return true;
+      const seen = new Set();
+      const check = (needle) => {
+        const n = String(needle || '').toLowerCase();
+        if (!n || seen.has(n)) return false;
+        seen.add(n);
+        return host === n || host.endsWith('.' + n);
+      };
+      for (let i = 0; i < AYN_BUILTIN_HUMAN_TYPING_HOSTS.length; i++) {
+        if (check(AYN_BUILTIN_HUMAN_TYPING_HOSTS[i])) return true;
+      }
+      for (let i = 0; i < remote.length; i++) {
+        if (check(remote[i])) return true;
       }
     } catch (_) {}
     return false;
