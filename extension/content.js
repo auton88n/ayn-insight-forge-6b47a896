@@ -4058,14 +4058,20 @@
 
   // v2.10.0 — apply cached adapter config on boot so the first scan uses the
   // most recent server-driven selectors, then listen for live updates.
+  function aynApplyAtsConfig(p) {
+    try {
+      if (!p || !p.config) return;
+      if (window.AYNQuestionEngine && window.AYNQuestionEngine.applyAdapterConfig) {
+        window.AYNQuestionEngine.applyAdapterConfig(p.config, p.version || 0);
+      }
+      const hosts = (p.config && Array.isArray(p.config.humanTypingHosts)) ? p.config.humanTypingHosts : null;
+      if (hosts) window.__AYN_HUMAN_TYPING_HOSTS__ = hosts.slice();
+      window.__AYN_ATS_CFG_VERSION__ = Number(p.version || 0);
+    } catch (_) {}
+  }
   try {
-    if (chrome && chrome.storage && chrome.storage.local && window.AYNQuestionEngine && window.AYNQuestionEngine.applyAdapterConfig) {
-      chrome.storage.local.get('ayn_ats_config', (d) => {
-        try {
-          const p = d && d.ayn_ats_config;
-          if (p && p.config) window.AYNQuestionEngine.applyAdapterConfig(p.config, p.version || 0);
-        } catch (_) {}
-      });
+    if (chrome && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get('ayn_ats_config', (d) => { aynApplyAtsConfig(d && d.ayn_ats_config); });
     }
   } catch (_) {}
 
@@ -4073,15 +4079,11 @@
 
     // v2.10.0 — background pushes an updated ats_config payload.
     if (message && message.type === 'SET_ATS_CONFIG') {
-      try {
-        const p = message.payload || {};
-        if (p.config && window.AYNQuestionEngine && window.AYNQuestionEngine.applyAdapterConfig) {
-          window.AYNQuestionEngine.applyAdapterConfig(p.config, p.version || 0);
-        }
-      } catch (_) {}
-      try { sendResponse({ ok: true }); } catch (_) {}
+      aynApplyAtsConfig(message.payload || null);
+      try { sendResponse({ ok: true, version: window.__AYN_ATS_CFG_VERSION__ || 0 }); } catch (_) {}
       return false;
     }
+
 
 
 
