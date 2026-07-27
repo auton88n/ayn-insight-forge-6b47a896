@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.10.0'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.10.1'; } })();
   const MAX_JD_CHARS = 20000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
@@ -828,11 +828,8 @@
     return '';
   }
 
-  function aynVisibleText(node) {
-    if (!node) return '';
-    const t = (node.innerText != null ? node.innerText : node.textContent) || '';
-    return t.replace(/\s+/g, ' ').trim();
-  }
+  // v2.10.1 — duplicate aynVisibleText removed. The safeText-based definition
+  // near line 196 is the single source of truth (adds null guard + try/catch).
 
   // v2.3.2 — Reject framework-generated IDs before using them as label keys.
   // Workday appends hash suffixes (--ab12cd), React uses :r0:, MUI/Radix/HeadlessUI
@@ -2384,20 +2381,36 @@
   // consulted by aynFillTextbox to decide whether to reorder the ladder so
   // per-character typing runs FIRST for the risky fields, without slowing
   // down normal Greenhouse-style pages.
+  // v2.10.1 — built-in host list guarantees Workday/iCIMS/Taleo are protected
+  // even before the first ats_config fetch (fresh install, offline, backend
+  // down). Remote config ADDS hosts on top; it can never remove built-ins.
+  const AYN_BUILTIN_HUMAN_TYPING_HOSTS = [
+    'myworkdayjobs.com', 'workday.com', 'icims.com', 'taleo.net',
+    'brassring.com', 'successfactors.com', 'successfactors.eu',
+  ];
   function aynShouldTypeHumanly(el, value) {
     try {
-      if (window.__aynFillFieldCount > 40) { /* still allow, but skip chunk pauses below */ }
       // Trigger (c): textarea.
       if (el && el.tagName === 'TEXTAREA') return true;
       // Trigger (b): long values (>120 chars).
       if (String(value || '').length > 120) return true;
-      // Trigger (a): host list served in ats_config.humanTypingHosts.
-      const list = (window.__AYN_HUMAN_TYPING_HOSTS__ && Array.isArray(window.__AYN_HUMAN_TYPING_HOSTS__))
+      // Trigger (a): union of built-in bot-sensitive hosts and any extras
+      // pushed via SET_ATS_CONFIG. Remote adds, never replaces.
+      const remote = (window.__AYN_HUMAN_TYPING_HOSTS__ && Array.isArray(window.__AYN_HUMAN_TYPING_HOSTS__))
         ? window.__AYN_HUMAN_TYPING_HOSTS__ : [];
       const host = (location.hostname || '').toLowerCase();
-      for (let i = 0; i < list.length; i++) {
-        const needle = String(list[i] || '').toLowerCase();
-        if (needle && (host === needle || host.endsWith('.' + needle))) return true;
+      const seen = new Set();
+      const check = (needle) => {
+        const n = String(needle || '').toLowerCase();
+        if (!n || seen.has(n)) return false;
+        seen.add(n);
+        return host === n || host.endsWith('.' + n);
+      };
+      for (let i = 0; i < AYN_BUILTIN_HUMAN_TYPING_HOSTS.length; i++) {
+        if (check(AYN_BUILTIN_HUMAN_TYPING_HOSTS[i])) return true;
+      }
+      for (let i = 0; i < remote.length; i++) {
+        if (check(remote[i])) return true;
       }
     } catch (_) {}
     return false;
@@ -2697,7 +2710,34 @@
   }
 
 
-  async function aynFillTypeahead(el, value) {
+  // v2.10.1 — sensitive intents where a confident wrong answer is worse than
+  // a blank. Covers work authorization, sponsorship (now and future), EEO/
+  // self-identification (gender, race, ethnicity, veteran, disability),
+  // salary/compensation, and notice period. Matched against the resolved
+  // question engine semantic type OR, when unavailable, against the visible
+  // question text via regex.
+  const AYN_SENSITIVE_NO_GUESS_TYPES = new Set([
+    'work_authorization', 'work_auth', 'authorized_to_work',
+    'sponsorship', 'sponsorship_now', 'sponsorship_future', 'require_sponsorship',
+    'gender', 'race', 'ethnicity', 'hispanic_latino', 'veteran', 'veteran_status',
+    'disability', 'disability_status', 'self_identification',
+    'salary', 'salary_expectation', 'compensation', 'desired_salary',
+    'notice_period', 'notice',
+  ]);
+  const AYN_SENSITIVE_NO_GUESS_RE = /(work\s*auth|authori[sz]ed\s+to\s+work|legally\s+authori[sz]ed|require\s+sponsor|sponsorship|visa\s+sponsor|gender|race|ethnic|hispanic|latino|veteran|disab(?:le|il)|self[-\s]?identif|salary|compensation|expected\s+pay|desired\s+pay|pay\s+expectation|notice\s+period)/i;
+  function aynIsSensitiveNoGuess(field, el) {
+    try {
+      const st = field && (field.semanticType || field.semantic_type || field.intent || field.intentKey);
+      if (st && AYN_SENSITIVE_NO_GUESS_TYPES.has(String(st).toLowerCase())) return true;
+      let text = '';
+      try { text = (aynAccName && aynAccName(el)) || ''; } catch (_) {}
+      if (!text) { try { text = (aynGroupName && aynGroupName(el)) || ''; } catch (_) {} }
+      if (!text && field) text = String(field.label || field.question || '');
+      return !!(text && AYN_SENSITIVE_NO_GUESS_RE.test(text));
+    } catch (_) { return false; }
+  }
+
+  async function aynFillTypeahead(el, value, field) {
     const nrm = (s) => String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
     const val = String(value || '');
     el.focus();
@@ -2733,6 +2773,14 @@
 
     if (optionEls.length) {
       const match = optionEls.find(o => aynOptionMatches(o.textContent, val));
+      // v2.10.1 — never guess on discrete sensitive questions. Free-form
+      // typeaheads (city, school, university, discipline) keep the
+      // first-option fallback; work auth / sponsorship / EEO / salary /
+      // notice period do not. Blank is safer than confidently wrong.
+      const sensitive = aynIsSensitiveNoGuess(field, el);
+      if (!match && sensitive) {
+        return { ok: false, skip: true, verified: false, reason: 'no-confident-option' };
+      }
       const pick = match || optionEls[0];
       if (pick) {
         try { pick.scrollIntoView({ block: 'nearest' }); } catch {}
@@ -2744,6 +2792,11 @@
       }
     }
     // No listbox appeared — commit the raw typed value with Enter as last resort.
+    // v2.10.1 — but not on sensitive discrete questions, where committing a
+    // typed value the ATS didn't confirm is still a guess.
+    if (aynIsSensitiveNoGuess(field, el)) {
+      return { ok: false, skip: true, verified: false, reason: 'no-confident-option' };
+    }
     el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter', keyCode: 13 }));
     await aynSleep(40);
     const ok = (el.value || '').trim().length > 0;
@@ -2780,7 +2833,7 @@
         return await aynFillSelect(el, wantLabel, wantValue);
       }
       if (kind === 'typeahead' || role === 'combobox' || (typeof isTypeahead === 'function' && isTypeahead(el))) {
-        return await aynFillTypeahead(el, wantText || wantLabel);
+        return await aynFillTypeahead(el, wantText || wantLabel, field);
       }
       return await aynFillTextbox(el, wantText);
     } catch (e) {

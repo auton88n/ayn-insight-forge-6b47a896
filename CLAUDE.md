@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.10.0 server-driven adapter config (ats_config table + ats_config_get public action + 6h chrome.alarms refresh + SET_ATS_CONFIG broadcast + Field rules v<version> in sidepanel header) and human-grade typing (aynTypeKeystrokes reordered first on Workday/iCIMS/Ashby/Greenhouse/Lever/Ripplematch with randomized 30-120ms/12-45ms/80-200ms cadence, human_typing_used + human_typed_count telemetry on autofill_runs)", manifest v2.10.0, AYN_BUILD 2.10.0, July 27 2026.
+Last verified: commit "v2.10.1 audit fixes (built-in AYN_BUILTIN_HUMAN_TYPING_HOSTS for Workday/iCIMS/Taleo/BrassRing/SuccessFactors with remote-adds-only union so offline installs still get bot-blocker protection, duplicate aynVisibleText removed, dead empty-if in aynShouldTypeHumanly deleted, AYN_SENSITIVE_NO_GUESS gate on aynFillTypeahead so work-auth/sponsorship/EEO/salary/notice-period return skip 'no-confident-option' instead of picking a wrong first option)", manifest v2.10.1, AYN_BUILD 2.10.1, July 27 2026.
 
 ## What AYN is
 
