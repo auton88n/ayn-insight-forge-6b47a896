@@ -2014,3 +2014,23 @@ chrome.runtime.onMessage.addListener((msg) => {
   });
 })();
 
+
+// v2.10.0 — show server-driven field-rules version in the header.
+(function aynShowCfgVersion(){
+  try {
+    const el = document.getElementById('ayn-cfg-version');
+    if (!el) return;
+    const render = (v) => { el.textContent = v ? ('Field rules v' + v) : ''; };
+    chrome.storage.local.get('ayn_ats_config', d => {
+      const p = d && d.ayn_ats_config;
+      render(p && p.version ? p.version : 0);
+    });
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes.ayn_ats_config) return;
+        const nv = changes.ayn_ats_config.newValue;
+        render(nv && nv.version ? nv.version : 0);
+      });
+    } catch (_) {}
+  } catch (_) {}
+})();
