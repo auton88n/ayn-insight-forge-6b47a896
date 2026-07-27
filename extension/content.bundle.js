@@ -1108,43 +1108,115 @@
     return null;
   }
 
+  // extension/question-engine/adapter-config.ts
+  var BUILT_IN = {
+    greenhouse: {
+      hostRe: "(?:^|\\.)greenhouse\\.io$|boards\\.greenhouse\\.io$|job-boards\\.greenhouse\\.io$",
+      detectSelectors: ['form[id="application_form"]', '[id^="job_application_"]'],
+      idPrefix: "job_application_",
+      idPrefixStripRe: "^job_application_(answers_attributes_\\d+_)?",
+      wrapperSelectors: [".field", ".application-question", "li"],
+      groupingSelectors: [".application-question", ".field"],
+      requiredSelectors: [".required", ".asterisk"]
+    },
+    lever: {
+      hostRe: "(?:^|\\.)lever\\.co$|jobs\\.lever\\.co$",
+      detectSelectors: [".application-question", ".lever-apply"],
+      wrapperSelectors: [".application-question", ".application-field"],
+      labelSelectors: [".application-label", ".question-label", "label"],
+      groupingSelectors: [".application-question", ".application-field"],
+      requiredSelectors: [".required"]
+    },
+    workday: {
+      hostRe: "myworkday(?:jobs|site)?\\.com$|\\.wd\\d+\\.myworkday(?:jobs)?\\.com$",
+      detectSelectors: ["[data-automation-id]"],
+      automationAttr: "data-automation-id",
+      promptAttr: "data-automation-id-prompt",
+      requiredAttr: "data-required",
+      rowSelectors: ['[data-automation-id*="row" i]', '[data-automation-id*="Row"]'],
+      humanizeStripPrefix: "formField-"
+    },
+    icims: {
+      hostRe: "icims\\.com$|jobs\\.icims\\.com$",
+      detectSelectors: ['[class^="iCIMS_"]', '[id^="iCIMS_"]'],
+      wrapperSelectors: [".iCIMS_TableRow", '[class*="iCIMS_InfoField"]'],
+      labelSelectors: [".iCIMS_InfoField_Label", "label", ".iCIMS_Label"],
+      groupingSelectors: [".iCIMS_TableRow", '[class*="iCIMS_InfoField"]'],
+      requiredSelectors: [".iCIMS_Required", '[class*="Required"]']
+    },
+    ashby: {
+      hostRe: "ashbyhq\\.com$|jobs\\.ashbyhq\\.com$",
+      detectSelectors: ['[class*="ashby-application" i]', '[data-testid^="ashby"]'],
+      wrapperSelectors: ['[class*="_fieldEntry_" i]', '[class*="fieldEntry" i]'],
+      labelSelectors: ['[class*="_label_" i]', "label"],
+      groupingSelectors: ['[class*="_fieldEntry_" i]', '[class*="fieldEntry" i]'],
+      choiceButtonSelectors: ["button", '[role="button"]', '[role="radio"]', '[role="option"]']
+    }
+  };
+  var effective = BUILT_IN;
+  function getAdapterConfig() {
+    return effective;
+  }
+  var reCache = /* @__PURE__ */ new WeakMap();
+  function hostRe(adapterKey) {
+    const cfg = getAdapterConfig();
+    let per = reCache.get(cfg);
+    if (!per) {
+      per = {};
+      reCache.set(cfg, per);
+    }
+    if (!per[adapterKey]) {
+      try {
+        per[adapterKey] = new RegExp(cfg[adapterKey].hostRe, "i");
+      } catch {
+        per[adapterKey] = new RegExp(BUILT_IN[adapterKey].hostRe, "i");
+      }
+    }
+    return per[adapterKey];
+  }
+  function joinSelector(list) {
+    return list.join(", ");
+  }
+
   // extension/question-engine/adapters/workday.ts
-  var WORKDAY_HOST_RE = /myworkday(?:jobs|site)?\.com$|\.wd\d+\.myworkday(?:jobs)?\.com$/i;
   var workdayAdapter = {
     id: "workday",
     detect(doc, url) {
+      const cfg = getAdapterConfig().workday;
       try {
-        const u = new URL(url);
-        if (WORKDAY_HOST_RE.test(u.hostname)) return true;
+        if (hostRe("workday").test(new URL(url).hostname)) return true;
       } catch {
       }
-      return !!doc.querySelector("[data-automation-id]");
+      return !!doc.querySelector(joinSelector(cfg.detectSelectors));
     },
     collectEvidence(field, doc) {
+      const cfg = getAdapterConfig().workday;
       const out = [];
       const el = field.node;
-      const aid = el.getAttribute("data-automation-id");
+      const aid = el.getAttribute(cfg.automationAttr);
       if (aid) {
-        const humanized = humanize(aid);
+        const humanized = humanize(aid, cfg.humanizeStripPrefix);
         if (humanized) {
           out.push(
             makeEvidence("adapter", "label", humanized, 0.9, { via: "data-automation-id", aid })
           );
         }
       }
-      const parent = el.closest("[data-automation-id]");
+      const parent = el.closest(`[${cfg.automationAttr}]`);
       if (parent && parent !== el) {
-        const paid = parent.getAttribute("data-automation-id");
-        if (paid) out.push(makeEvidence("adapter", "section", humanize(paid), 0.8));
+        const paid = parent.getAttribute(cfg.automationAttr);
+        if (paid) out.push(makeEvidence("adapter", "section", humanize(paid, cfg.humanizeStripPrefix), 0.8));
       }
-      const req = el.closest("[data-automation-id-prompt]")?.getAttribute("data-required");
+      const req = el.closest(`[${cfg.promptAttr}]`)?.getAttribute(cfg.requiredAttr);
       if (req === "true") out.push(makeEvidence("adapter", "required", true, 0.95));
       return out;
     },
     groupingHints(fields) {
+      const cfg = getAdapterConfig().workday;
+      const sel = joinSelector(cfg.rowSelectors);
       const rows = /* @__PURE__ */ new Map();
       for (const f of fields) {
-        const row = f.node.closest('[data-automation-id*="row" i],[data-automation-id*="Row"]');
+        const row = f.node.closest(sel);
         if (!row) continue;
         const arr = rows.get(row) ?? [];
         arr.push(f);
@@ -1163,22 +1235,30 @@
       return hints;
     }
   };
-  function humanize(aid) {
-    return aid.replace(/^formField-/, "").replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
+  function humanize(aid, stripPrefix) {
+    let s = aid;
+    if (stripPrefix) {
+      try {
+        s = s.replace(new RegExp("^" + stripPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "");
+      } catch {
+      }
+    }
+    return s.replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
   }
 
   // extension/question-engine/adapters/ashby.ts
-  var ASHBY_HOST_RE = /ashbyhq\.com$|jobs\.ashbyhq\.com$/i;
   var ashbyAdapter = {
     id: "ashby",
     detect(doc, url) {
+      const cfg = getAdapterConfig().ashby;
       try {
-        if (ASHBY_HOST_RE.test(new URL(url).hostname)) return true;
+        if (hostRe("ashby").test(new URL(url).hostname)) return true;
       } catch {
       }
-      return !!doc.querySelector('[class*="ashby-application" i], [data-testid^="ashby"]');
+      return !!doc.querySelector(joinSelector(cfg.detectSelectors));
     },
     collectEvidence(field) {
+      const cfg = getAdapterConfig().ashby;
       const out = [];
       if (field.kind === "checkbox" || field.kind === "radio" || field.kind === "custom") {
         const proxy = proxyLabelFor(field.node);
@@ -1186,12 +1266,12 @@
           out.push(makeEvidence("adapter", "label", proxy, 0.9, { via: "ashby-proxy" }));
         }
       }
-      const q = field.node.closest('[class*="_fieldEntry_" i], [class*="fieldEntry" i]');
+      const q = field.node.closest(joinSelector(cfg.wrapperSelectors));
       if (q) {
-        const legend = q.querySelector('[class*="_label_" i], label');
+        const legend = q.querySelector(joinSelector(cfg.labelSelectors));
         const t = legend?.textContent?.replace(/\s+/g, " ").trim();
         if (t) out.push(makeEvidence("adapter", "label", t, 0.85, { via: "ashby-fieldentry" }));
-        const choiceTexts = Array.from(q.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]')).map((n) => n.textContent?.replace(/\s+/g, " ").trim() ?? "").filter((t2) => t2 && t2.length <= 120).slice(0, 12);
+        const choiceTexts = Array.from(q.querySelectorAll(joinSelector(cfg.choiceButtonSelectors))).map((n) => n.textContent?.replace(/\s+/g, " ").trim() ?? "").filter((t2) => t2 && t2.length <= 120).slice(0, 12);
         if (choiceTexts.length >= 2) {
           out.push(makeEvidence("adapter", "options", choiceTexts.map((label) => ({ value: label, label })), 0.9, { via: "ashby-choice-buttons" }));
         }
@@ -1199,9 +1279,11 @@
       return out;
     },
     groupingHints(fields) {
+      const cfg = getAdapterConfig().ashby;
+      const sel = joinSelector(cfg.groupingSelectors);
       const buckets = /* @__PURE__ */ new Map();
       for (const f of fields) {
-        const c = f.node.closest('[class*="_fieldEntry_" i], [class*="fieldEntry" i]');
+        const c = f.node.closest(sel);
         if (!c) continue;
         const arr = buckets.get(c) ?? [];
         arr.push(f);
@@ -1232,33 +1314,42 @@
   }
 
   // extension/question-engine/adapters/greenhouse.ts
-  var GH_HOST_RE = /(?:^|\.)greenhouse\.io$|boards\.greenhouse\.io$|job-boards\.greenhouse\.io$/i;
   var greenhouseAdapter = {
     id: "greenhouse",
     detect(doc, url) {
+      const cfg = getAdapterConfig().greenhouse;
       try {
-        if (GH_HOST_RE.test(new URL(url).hostname)) return true;
+        if (hostRe("greenhouse").test(new URL(url).hostname)) return true;
       } catch {
       }
-      return !!doc.querySelector('form[id="application_form"], [id^="job_application_"]');
+      return !!doc.querySelector(joinSelector(cfg.detectSelectors));
     },
     collectEvidence(field) {
+      const cfg = getAdapterConfig().greenhouse;
       const out = [];
       const id = field.node.getAttribute("id") || "";
-      if (id.startsWith("job_application_")) {
-        const label = id.replace(/^job_application_(answers_attributes_\d+_)?/, "").replace(/_/g, " ").trim();
+      if (id.startsWith(cfg.idPrefix)) {
+        let stripRe;
+        try {
+          stripRe = new RegExp(cfg.idPrefixStripRe);
+        } catch {
+          stripRe = /^job_application_(answers_attributes_\d+_)?/;
+        }
+        const label = id.replace(stripRe, "").replace(/_/g, " ").trim();
         if (label) out.push(makeEvidence("adapter", "label", label, 0.75, { via: "gh-id" }));
       }
-      const wrap = field.node.closest(".field, .application-question, li");
-      if (wrap?.querySelector(".required, .asterisk")) {
+      const wrap = field.node.closest(joinSelector(cfg.wrapperSelectors));
+      if (wrap?.querySelector(joinSelector(cfg.requiredSelectors))) {
         out.push(makeEvidence("adapter", "required", true, 0.9));
       }
       return out;
     },
     groupingHints(fields) {
+      const cfg = getAdapterConfig().greenhouse;
+      const sel = joinSelector(cfg.groupingSelectors);
       const buckets = /* @__PURE__ */ new Map();
       for (const f of fields) {
-        const c = f.node.closest(".application-question, .field");
+        const c = f.node.closest(sel);
         if (!c) continue;
         const arr = buckets.get(c) ?? [];
         arr.push(f);
@@ -1279,31 +1370,36 @@
   };
 
   // extension/question-engine/adapters/lever.ts
-  var LEVER_HOST_RE = /(?:^|\.)lever\.co$|jobs\.lever\.co$/i;
   var leverAdapter = {
     id: "lever",
     detect(doc, url) {
+      const cfg = getAdapterConfig().lever;
       try {
-        if (LEVER_HOST_RE.test(new URL(url).hostname)) return true;
+        if (hostRe("lever").test(new URL(url).hostname)) return true;
       } catch {
       }
-      return !!doc.querySelector(".application-question, .lever-apply");
+      return !!doc.querySelector(joinSelector(cfg.detectSelectors));
     },
     collectEvidence(field) {
+      const cfg = getAdapterConfig().lever;
       const out = [];
-      const q = field.node.closest(".application-question, .application-field");
+      const q = field.node.closest(joinSelector(cfg.wrapperSelectors));
       if (q) {
-        const label = q.querySelector(".application-label, .question-label, label");
+        const label = q.querySelector(joinSelector(cfg.labelSelectors));
         const t = label?.textContent?.replace(/\s+/g, " ").trim();
         if (t) out.push(makeEvidence("adapter", "label", t, 0.9, { via: "lever-app-label" }));
-        if (q.querySelector(".required")) out.push(makeEvidence("adapter", "required", true, 0.9));
+        if (q.querySelector(joinSelector(cfg.requiredSelectors))) {
+          out.push(makeEvidence("adapter", "required", true, 0.9));
+        }
       }
       return out;
     },
     groupingHints(fields) {
+      const cfg = getAdapterConfig().lever;
+      const sel = joinSelector(cfg.groupingSelectors);
       const buckets = /* @__PURE__ */ new Map();
       for (const f of fields) {
-        const c = f.node.closest(".application-question, .application-field");
+        const c = f.node.closest(sel);
         if (!c) continue;
         const arr = buckets.get(c) ?? [];
         arr.push(f);
@@ -1324,33 +1420,36 @@
   };
 
   // extension/question-engine/adapters/icims.ts
-  var ICIMS_HOST_RE = /icims\.com$|jobs\.icims\.com$/i;
   var icimsAdapter = {
     id: "icims",
     detect(doc, url) {
+      const cfg = getAdapterConfig().icims;
       try {
-        if (ICIMS_HOST_RE.test(new URL(url).hostname)) return true;
+        if (hostRe("icims").test(new URL(url).hostname)) return true;
       } catch {
       }
-      return !!doc.querySelector('[class^="iCIMS_"], [id^="iCIMS_"]');
+      return !!doc.querySelector(joinSelector(cfg.detectSelectors));
     },
     collectEvidence(field) {
+      const cfg = getAdapterConfig().icims;
       const out = [];
-      const row = field.node.closest('.iCIMS_TableRow, [class*="iCIMS_InfoField"]');
+      const row = field.node.closest(joinSelector(cfg.wrapperSelectors));
       if (row) {
-        const lbl = row.querySelector(".iCIMS_InfoField_Label, label, .iCIMS_Label");
+        const lbl = row.querySelector(joinSelector(cfg.labelSelectors));
         const t = lbl?.textContent?.replace(/\s+/g, " ").trim();
         if (t) out.push(makeEvidence("adapter", "label", t, 0.85, { via: "icims-row" }));
-        if (row.querySelector('.iCIMS_Required, [class*="Required"]')) {
+        if (row.querySelector(joinSelector(cfg.requiredSelectors))) {
           out.push(makeEvidence("adapter", "required", true, 0.85));
         }
       }
       return out;
     },
     groupingHints(fields) {
+      const cfg = getAdapterConfig().icims;
+      const sel = joinSelector(cfg.groupingSelectors);
       const buckets = /* @__PURE__ */ new Map();
       for (const f of fields) {
-        const c = f.node.closest('.iCIMS_TableRow, [class*="iCIMS_InfoField"]');
+        const c = f.node.closest(sel);
         if (!c) continue;
         const arr = buckets.get(c) ?? [];
         arr.push(f);
