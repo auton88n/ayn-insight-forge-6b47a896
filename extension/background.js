@@ -343,6 +343,54 @@ async function callPublic(action, body) {
   return r.json().catch(() => ({}));
 }
 
+// ── v2.10.0: server-driven adapter config ─────────────────────────
+// Fetch ats_config from the edge function on startup + every 6h. Storage
+// key 'ayn_ats_config' = { config, version, fetchedAt }. Broadcasts to
+// active tabs so content scripts hot-swap without a reload. All failures
+// are silent — content scripts fall back to BUILT_IN defaults.
+const AYN_ATS_CFG_KEY = 'ayn_ats_config';
+const AYN_ATS_CFG_ALARM = 'ayn_ats_config_refresh';
+const AYN_ATS_CFG_INTERVAL_MIN = 6 * 60; // 6 hours
+
+async function aynFetchAtsConfig() {
+  try {
+    const resp = await callPublic('ats_config_get', {});
+    if (!resp || !resp.config) return null;
+    const version = Number(resp.version || 0);
+    const prev = (await chrome.storage.local.get(AYN_ATS_CFG_KEY))[AYN_ATS_CFG_KEY];
+    if (prev && Number(prev.version || 0) > version) return prev;
+    const payload = { config: resp.config, version, fetchedAt: Date.now() };
+    await chrome.storage.local.set({ [AYN_ATS_CFG_KEY]: payload });
+    aynBroadcastAtsConfig(payload).catch(() => {});
+    return payload;
+  } catch { return null; }
+}
+
+async function aynBroadcastAtsConfig(payload) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const t of tabs) {
+      if (!t.id) continue;
+      try { chrome.tabs.sendMessage(t.id, { type: 'SET_ATS_CONFIG', payload }, () => void chrome.runtime.lastError); } catch {}
+    }
+  } catch {}
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  aynFetchAtsConfig().catch(() => {});
+  try { chrome.alarms.create(AYN_ATS_CFG_ALARM, { periodInMinutes: AYN_ATS_CFG_INTERVAL_MIN }); } catch {}
+});
+chrome.runtime.onStartup.addListener(() => {
+  aynFetchAtsConfig().catch(() => {});
+  try { chrome.alarms.create(AYN_ATS_CFG_ALARM, { periodInMinutes: AYN_ATS_CFG_INTERVAL_MIN }); } catch {}
+});
+try {
+  chrome.alarms.onAlarm.addListener((a) => {
+    if (a && a.name === AYN_ATS_CFG_ALARM) aynFetchAtsConfig().catch(() => {});
+  });
+} catch {}
+
+
 // Inject content script if not loaded
 async function safeSendMessage(tabId, message, frameId = 0) {
   const opts = { frameId };

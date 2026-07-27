@@ -1,31 +1,21 @@
 /**
- * adapters/ashby.ts
- * Ashby ATS. THE HIDDEN-CHECKBOX PROXY FIX LIVES HERE.
- *
- * Ashby renders many custom controls where the real <input type=checkbox> is
- * visually hidden and a sibling clickable div carries the label. We must:
- *   1) Group by container, never by shared `name`.
- *   2) Emit label evidence from the clickable proxy's text.
+ * adapters/ashby.ts — hidden-checkbox proxy handling preserved.
  */
-
 import type { ATSPlugin, GroupingHint } from "./index";
 import type { DetectedField } from "../question";
 import { makeEvidence, type Evidence } from "../evidence";
 import { ensureFid } from "../refs";
-
-const ASHBY_HOST_RE = /ashbyhq\.com$|jobs\.ashbyhq\.com$/i;
+import { getAdapterConfig, hostRe, joinSelector } from "../adapter-config";
 
 export const ashbyAdapter: ATSPlugin = {
   id: "ashby",
   detect(doc: Document, url: string): boolean {
-    try {
-      if (ASHBY_HOST_RE.test(new URL(url).hostname)) return true;
-    } catch {
-      // fall through
-    }
-    return !!doc.querySelector('[class*="ashby-application" i], [data-testid^="ashby"]');
+    const cfg = getAdapterConfig().ashby;
+    try { if (hostRe("ashby").test(new URL(url).hostname)) return true; } catch {}
+    return !!doc.querySelector(joinSelector(cfg.detectSelectors));
   },
   collectEvidence(field: DetectedField): Evidence[] {
+    const cfg = getAdapterConfig().ashby;
     const out: Evidence[] = [];
     if (field.kind === "checkbox" || field.kind === "radio" || field.kind === "custom") {
       const proxy = proxyLabelFor(field.node);
@@ -33,12 +23,12 @@ export const ashbyAdapter: ATSPlugin = {
         out.push(makeEvidence("adapter", "label", proxy, 0.9, { via: "ashby-proxy" }));
       }
     }
-    const q = field.node.closest('[class*="_fieldEntry_" i], [class*="fieldEntry" i]');
+    const q = field.node.closest(joinSelector(cfg.wrapperSelectors));
     if (q) {
-      const legend = q.querySelector('[class*="_label_" i], label');
+      const legend = q.querySelector(joinSelector(cfg.labelSelectors));
       const t = legend?.textContent?.replace(/\s+/g, " ").trim();
       if (t) out.push(makeEvidence("adapter", "label", t, 0.85, { via: "ashby-fieldentry" }));
-      const choiceTexts = Array.from(q.querySelectorAll('button,[role="button"],[role="radio"],[role="option"]'))
+      const choiceTexts = Array.from(q.querySelectorAll(joinSelector(cfg.choiceButtonSelectors)))
         .map((n) => n.textContent?.replace(/\s+/g, " ").trim() ?? "")
         .filter((t) => t && t.length <= 120)
         .slice(0, 12);
@@ -49,10 +39,11 @@ export const ashbyAdapter: ATSPlugin = {
     return out;
   },
   groupingHints(fields: ReadonlyArray<DetectedField>): GroupingHint[] {
-    // Group by nearest _fieldEntry_ container — ignores shared `name`.
+    const cfg = getAdapterConfig().ashby;
+    const sel = joinSelector(cfg.groupingSelectors);
     const buckets = new Map<Element, DetectedField[]>();
     for (const f of fields) {
-      const c = f.node.closest('[class*="_fieldEntry_" i], [class*="fieldEntry" i]');
+      const c = f.node.closest(sel);
       if (!c) continue;
       const arr = buckets.get(c) ?? [];
       arr.push(f);
@@ -75,7 +66,6 @@ export const ashbyAdapter: ATSPlugin = {
 };
 
 function proxyLabelFor(el: Element): string | null {
-  // sibling text container of the hidden input
   const parent = el.parentElement;
   if (!parent) return null;
   const clone = parent.cloneNode(true) as HTMLElement;

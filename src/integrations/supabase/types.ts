@@ -571,6 +571,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ats_config: {
+        Row: {
+          config: Json
+          id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          config: Json
+          id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          config?: Json
+          id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       autofill_runs: {
         Row: {
           ai_answered: number | null
@@ -585,6 +606,8 @@ export type Database = {
           fields_scanned: Json | null
           fields_total: number | null
           filled: number | null
+          human_typed_count: number
+          human_typing_used: boolean
           id: string
           inject_results: Json | null
           job_title: string | null
@@ -608,6 +631,8 @@ export type Database = {
           fields_scanned?: Json | null
           fields_total?: number | null
           filled?: number | null
+          human_typed_count?: number
+          human_typing_used?: boolean
           id?: string
           inject_results?: Json | null
           job_title?: string | null
@@ -631,6 +656,8 @@ export type Database = {
           fields_scanned?: Json | null
           fields_total?: number | null
           filled?: number | null
+          human_typed_count?: number
+          human_typing_used?: boolean
           id?: string
           inject_results?: Json | null
           job_title?: string | null

@@ -1,43 +1,39 @@
 /**
  * adapters/icims.ts
- * iCIMS ATS. Legacy Prototype-style DOM with `iCIMS_TableRow` layouts. Labels
- * are in a sibling <label> or a preceding .iCIMS_InfoField_Label cell.
  */
-
 import type { ATSPlugin, GroupingHint } from "./index";
 import type { DetectedField } from "../question";
 import { makeEvidence, type Evidence } from "../evidence";
 import { ensureFid } from "../refs";
-
-const ICIMS_HOST_RE = /icims\.com$|jobs\.icims\.com$/i;
+import { getAdapterConfig, hostRe, joinSelector } from "../adapter-config";
 
 export const icimsAdapter: ATSPlugin = {
   id: "icims",
   detect(doc: Document, url: string): boolean {
-    try {
-      if (ICIMS_HOST_RE.test(new URL(url).hostname)) return true;
-    } catch {
-      // fall through
-    }
-    return !!doc.querySelector('[class^="iCIMS_"], [id^="iCIMS_"]');
+    const cfg = getAdapterConfig().icims;
+    try { if (hostRe("icims").test(new URL(url).hostname)) return true; } catch {}
+    return !!doc.querySelector(joinSelector(cfg.detectSelectors));
   },
   collectEvidence(field: DetectedField): Evidence[] {
+    const cfg = getAdapterConfig().icims;
     const out: Evidence[] = [];
-    const row = field.node.closest('.iCIMS_TableRow, [class*="iCIMS_InfoField"]');
+    const row = field.node.closest(joinSelector(cfg.wrapperSelectors));
     if (row) {
-      const lbl = row.querySelector('.iCIMS_InfoField_Label, label, .iCIMS_Label');
+      const lbl = row.querySelector(joinSelector(cfg.labelSelectors));
       const t = lbl?.textContent?.replace(/\s+/g, " ").trim();
       if (t) out.push(makeEvidence("adapter", "label", t, 0.85, { via: "icims-row" }));
-      if (row.querySelector('.iCIMS_Required, [class*="Required"]')) {
+      if (row.querySelector(joinSelector(cfg.requiredSelectors))) {
         out.push(makeEvidence("adapter", "required", true, 0.85));
       }
     }
     return out;
   },
   groupingHints(fields: ReadonlyArray<DetectedField>): GroupingHint[] {
+    const cfg = getAdapterConfig().icims;
+    const sel = joinSelector(cfg.groupingSelectors);
     const buckets = new Map<Element, DetectedField[]>();
     for (const f of fields) {
-      const c = f.node.closest('.iCIMS_TableRow, [class*="iCIMS_InfoField"]');
+      const c = f.node.closest(sel);
       if (!c) continue;
       const arr = buckets.get(c) ?? [];
       arr.push(f);
