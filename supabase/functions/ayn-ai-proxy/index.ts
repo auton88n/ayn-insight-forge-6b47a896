@@ -1,27 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { authenticateExtOrSession } from "../_shared/ext-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-source, x-proxy-secret",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-source, x-ayn-ext-token",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const source = req.headers.get("x-source");
-    const secret = req.headers.get("x-proxy-secret");
-    const PROXY_SECRET = Deno.env.get("AYN_PROXY_SECRET") || "ayn-proxy-2024";
-
-    if (secret !== PROXY_SECRET) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+    const auth = await authenticateExtOrSession(req);
+    if (!auth.ok) {
+      return new Response(JSON.stringify({ error: auth.error }), {
+        status: auth.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const body = await req.json();
-    const { messages, model, max_tokens, temperature, stream } = body;
+    const { messages, model, max_tokens, temperature } = body;
 
     const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -47,13 +45,14 @@ serve(async (req) => {
     }
 
     const data = await response.json();
+    console.log(`[ayn-ai-proxy] user=${auth.userId} via=${auth.via} model=${model || "default"}`);
 
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
+    return new Response(JSON.stringify({ error: (e as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
