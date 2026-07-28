@@ -1591,6 +1591,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           values: filtered,
           skipped,
           run_id: runId,
+          sourceDigest,
           meta,
         });
       }
