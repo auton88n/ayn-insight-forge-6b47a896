@@ -1715,8 +1715,74 @@ var AYNQuestionEngine = (() => {
     }
     return h.toString(16).padStart(8, "0");
   }
+  var STOPWORDS = /* @__PURE__ */ new Set([
+    "the",
+    "a",
+    "an",
+    "of",
+    "to",
+    "for",
+    "in",
+    "on",
+    "at",
+    "is",
+    "are",
+    "do",
+    "you",
+    "your",
+    "our",
+    "we",
+    "please",
+    "describe",
+    "tell",
+    "us",
+    "this",
+    "that",
+    "and",
+    "or",
+    "with",
+    "would",
+    "will",
+    "have",
+    "has",
+    "any",
+    "about"
+  ]);
+  function normalizeForFuzzy(s) {
+    return (s ?? "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+  }
+  function tokenize(s) {
+    const out = /* @__PURE__ */ new Set();
+    for (const t of normalizeForFuzzy(s).split(" ")) {
+      if (t.length >= 3 && !STOPWORDS.has(t)) out.add(t);
+    }
+    return out;
+  }
+  var SENSITIVE_SEMANTIC_TYPES = /* @__PURE__ */ new Set([
+    "work_authorization",
+    "sponsorship",
+    "visa_status",
+    "eeo_gender",
+    "eeo_race",
+    "eeo_ethnicity",
+    "eeo_veteran",
+    "eeo_disability",
+    "eeo_self_identification",
+    "salary_expectation",
+    "desired_compensation",
+    "current_salary",
+    "notice_period"
+  ]);
+  var SENSITIVE_RE = /work\s*auth|authoriz|sponsor|visa|eeo|gender|race|ethnic|veteran|disabil|salary|compensat|desired\s*pay|notice\s*period/i;
+  function isSensitive(q) {
+    const t = String(q.semanticType || "").toLowerCase();
+    if (SENSITIVE_SEMANTIC_TYPES.has(t)) return true;
+    return SENSITIVE_RE.test(q.label || "");
+  }
   function createSupabaseLearning(transport) {
     const cache2 = /* @__PURE__ */ new Map();
+    let sessionRows = null;
+    let sessionRowsPromise = null;
     async function headers() {
       const token = await transport.getAccessToken();
       if (!token) return null;
@@ -1748,6 +1814,44 @@ var AYNQuestionEngine = (() => {
         return null;
       }
     }
+    async function fetchSessionRows() {
+      if (sessionRows) return sessionRows;
+      if (sessionRowsPromise) return sessionRowsPromise;
+      sessionRowsPromise = (async () => {
+        const h = await headers();
+        if (!h) return [];
+        try {
+          const url = `${transport.restBaseUrl}/ext_answer_memory?select=question_signature,canonical_label,semantic_type,question_kind,answer_value,answer_option_label,answer_option_labels,ats_hint,times_used,verified_ok_count,verified_fail_count&order=times_used.desc&limit=200`;
+          const r = await fetch(url, { headers: h });
+          if (!r.ok) return [];
+          const rows = await r.json();
+          sessionRows = rows;
+          return rows;
+        } catch {
+          return [];
+        }
+      })();
+      return sessionRowsPromise;
+    }
+    function fuzzyMatch(q, rows) {
+      if (isSensitive(q)) return null;
+      const incoming = tokenize(q.label || "");
+      if (incoming.size < 3) return null;
+      let best = null;
+      for (const row of rows) {
+        if ((row.question_kind || "").toLowerCase() !== (q.kind || "").toLowerCase()) continue;
+        const rowTokens = tokenize(row.canonical_label || "");
+        if (rowTokens.size === 0) continue;
+        let overlap = 0;
+        for (const t of incoming) if (rowTokens.has(t)) overlap++;
+        const smaller = Math.min(incoming.size, rowTokens.size);
+        const score = smaller === 0 ? 0 : overlap / smaller;
+        if (overlap >= 3 && score >= 0.7 && (!best || score > best.score)) {
+          best = { row, score };
+        }
+      }
+      return best;
+    }
     async function upsertRow(payload) {
       const h = await headers();
       if (!h) return;
@@ -1761,8 +1865,20 @@ var AYNQuestionEngine = (() => {
           }
         );
         cache2.delete(payload.question_signature);
+        sessionRows = null;
+        sessionRowsPromise = null;
       } catch {
       }
+    }
+    function rowToSuggestion(row, matchType) {
+      const answer = {
+        value: row.answer_value ?? void 0,
+        optionLabel: row.answer_option_label ?? void 0,
+        optionLabels: row.answer_option_labels ?? void 0,
+        confidence: 0.6 + Math.min(0.3, row.verified_ok_count * 0.03),
+        reasoning: matchType === "fuzzy" ? `Reused your answer to: ${row.canonical_label}` : "learned_from_previous_fills"
+      };
+      return { answer, confidence: answer.confidence ?? 0.6, source: "memory" };
     }
     return {
       remember(q) {
@@ -1781,22 +1897,22 @@ var AYNQuestionEngine = (() => {
       },
       lookup(q) {
         const sig = questionSignature(q);
-        const row = cache2.get(sig);
-        if (row === void 0) {
+        const cached = cache2.get(sig);
+        if (cached === void 0) {
           void fetchRow(sig);
+        } else if (cached) {
+          const trust2 = cached.verified_ok_count / Math.max(1, cached.verified_ok_count + cached.verified_fail_count);
+          if (trust2 >= 0.5) return rowToSuggestion(cached, "exact");
+        }
+        if (!sessionRows) {
+          void fetchSessionRows();
           return null;
         }
-        if (!row) return null;
-        const trust = row.verified_ok_count / Math.max(1, row.verified_ok_count + row.verified_fail_count);
+        const hit = fuzzyMatch(q, sessionRows);
+        if (!hit) return null;
+        const trust = hit.row.verified_ok_count / Math.max(1, hit.row.verified_ok_count + hit.row.verified_fail_count);
         if (trust < 0.5) return null;
-        const answer = {
-          value: row.answer_value ?? void 0,
-          optionLabel: row.answer_option_label ?? void 0,
-          optionLabels: row.answer_option_labels ?? void 0,
-          confidence: 0.6 + Math.min(0.3, row.verified_ok_count * 0.03),
-          reasoning: "learned_from_previous_fills"
-        };
-        return { answer, confidence: answer.confidence ?? 0.6, source: "memory" };
+        return rowToSuggestion(hit.row, "fuzzy");
       },
       promote(q) {
         const sig = questionSignature(q);
