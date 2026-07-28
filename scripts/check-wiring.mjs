@@ -105,7 +105,11 @@ for (const a of hubActionsUsed) {
 // D) REVERSE (v2.12.0): every registered EXT_ACTION must have at least one
 // caller in extension/ or src/. A dead handler is an audit blind spot —
 // duplicated logic can sit unnoticed and diverge from the live twin.
-const extCallerHaystack = [sidepanelJs, backgroundJs, contentJs].join('\n');
+let extCallerHaystack = [sidepanelJs, backgroundJs, contentJs, resumeHubTs].join('\n');
+try {
+  const { execSync } = await import('node:child_process');
+  extCallerHaystack += '\n' + execSync(`grep -RhoE "action[\\"' :]+[a-z_]+" ${resolve(ROOT, 'src')} 2>/dev/null || true`, { encoding: 'utf8' });
+} catch { /* ignore */ }
 for (const a of extActionsRegistry) {
   const re = new RegExp(`['"\`]${a.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}['"\`]`);
   if (!re.test(extCallerHaystack)) {
