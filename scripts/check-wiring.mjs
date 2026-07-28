@@ -88,6 +88,7 @@ const hubActionsUsed = uniq(
 
 // ── Report ───────────────────────────────────────────────────────────
 const errors = [];
+const warnings = [];
 
 for (const t of sentTypes) {
   if (META_TYPES.has(t)) continue;
@@ -101,6 +102,31 @@ for (const a of hubActionsUsed) {
   if (!reachable) errors.push(`C) src/lib/resumeHub.ts uses action "${a}" that is not reachable with a session JWT (not in web lane, not in DUAL_AUTH_ACTIONS)`);
 }
 
+// D) REVERSE (v2.12.0): every registered EXT_ACTION must have at least one
+// caller in extension/ or src/. A dead handler is an audit blind spot —
+// duplicated logic can sit unnoticed and diverge from the live twin.
+const extCallerHaystack = [sidepanelJs, backgroundJs, contentJs].join('\n');
+for (const a of extActionsRegistry) {
+  const re = new RegExp(`['"\`]${a.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}['"\`]`);
+  if (!re.test(extCallerHaystack)) {
+    errors.push(`D) EXT_ACTIONS registers "${a}" but no caller references it in extension/ or src/ (dead handler)`);
+  }
+}
+
+// E) WARN (v2.12.0): report direct PostgREST table access from extension code
+// so the direct lane stays visible to future audits. Not a failure — the
+// learning store intentionally uses PostgREST for hot-path speed.
+try {
+  const { execSync } = await import('node:child_process');
+  const out = execSync(`grep -RhoE "restBaseUrl}?/[a-z_][a-z0-9_]*" ${resolve(ROOT, 'extension')} 2>/dev/null || true`, { encoding: 'utf8' });
+  const tables = uniq(out.split(/\n/).map(l => (l.match(/\/([a-z_][a-z0-9_]*)/) || [])[1]).filter(Boolean));
+  for (const t of tables) warnings.push(`direct PostgREST access to public.${t} from extension/`);
+} catch { /* grep unavailable */ }
+
+if (warnings.length) {
+  console.warn('⚠ check-wiring: ' + warnings.length + ' direct-lane note(s):');
+  for (const w of warnings) console.warn('  - ' + w);
+}
 if (errors.length) {
   console.error('\n✗ check-wiring: ' + errors.length + ' mismatch(es):');
   for (const e of errors) console.error('  - ' + e);
