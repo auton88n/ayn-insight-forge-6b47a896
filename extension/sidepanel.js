@@ -899,6 +899,9 @@ async function runScoreFlow({ auto = false } = {}) {
     { const ndc = $('score-needs-jd'); if (ndc) ndc.style.display = 'none'; }
 
     const score = d.score || 0;
+    SJ.matchedSkills = Array.isArray(d.matchedSkills) ? d.matchedSkills.slice(0, 20) : [];
+    SJ.missingSkills = Array.isArray(d.missingSkills) ? d.missingSkills.slice(0, 20)
+                       : (Array.isArray(d.missingKeywords) ? d.missingKeywords.slice(0, 20) : []);
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
     $('score-num').className = 'score-num ' + tier;
