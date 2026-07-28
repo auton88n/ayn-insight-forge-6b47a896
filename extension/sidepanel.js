@@ -1313,6 +1313,19 @@ function coverHeaderFromResume(resumeText) {
   return { name, contact };
 }
 
+// v2.12.0 — standardized filename: <FirstLast>-<Company>-<Role>.<ext>.
+// Illegal chars stripped, spaces → single hyphens, capped at 80 chars.
+function aynFileName(name, company, role, ext, fallback) {
+  const clean = (s) => String(s || '').replace(/[\\/:*?"<>|\r\n\t]+/g, '').replace(/\s+/g, ' ').trim();
+  const first = clean(name).split(' ').filter(Boolean);
+  const person = first.length ? (first[0] + (first[first.length - 1] && first.length > 1 ? first[first.length - 1] : '')) : '';
+  const parts = [person, clean(company), clean(role)].filter(Boolean);
+  let base = parts.join('-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (!base) base = clean(fallback) || 'AYN';
+  if (base.length > 80) base = base.slice(0, 80).replace(/-+$/, '');
+  return `${base}.${ext}`;
+}
+
 $('cover-download-pdf-btn').addEventListener('click', async () => {
   const body = $('cover-out').dataset.raw || $('cover-out').textContent || '';
   if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
@@ -1322,9 +1335,23 @@ $('cover-download-pdf-btn').addEventListener('click', async () => {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterPdfBlob) throw new Error('Formatter not loaded');
     const { name, contact } = coverHeaderFromResume(CL.resumeText);
     const blob = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
-    const co = (cleanLabel(CL.company) || 'Company').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Company';
-    saveBlob(blob, `Cover_Letter_${co}.pdf`);
+    saveBlob(blob, aynFileName(name, CL.company, CL.jobTitle, 'pdf', 'Cover-Letter'));
     toast('Cover letter PDF downloaded ✓', 'ok');
+  } catch (e) { toast(e.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+});
+
+$('cover-download-docx-btn')?.addEventListener('click', async () => {
+  const body = $('cover-out').dataset.raw || $('cover-out').textContent || '';
+  if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
+  const btn = $('cover-download-docx-btn'); const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Word...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterDocxBlob) throw new Error('Formatter not loaded');
+    const { name, contact } = coverHeaderFromResume(CL.resumeText);
+    const blob = await window.AYNResumeFormat.buildCoverLetterDocxBlob(body, { name, contact, company: CL.company });
+    saveBlob(blob, aynFileName(name, CL.company, CL.jobTitle, 'docx', 'Cover-Letter'));
+    toast('Cover letter Word downloaded ✓', 'ok');
   } catch (e) { toast(e.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
 });
@@ -1532,17 +1559,33 @@ $('copy-btn').addEventListener('click', () => {
   if (!S.tailoredText) return;
   navigator.clipboard.writeText(S.tailoredText).then(() => { $('copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('copy-btn').textContent='Copy Resume',1800); });
 });
+function aynTailoredName() {
+  const first = String(CL.resumeText || '').split('\n').map(s => s.trim()).find(Boolean) || '';
+  return first;
+}
 $('tailor-download-docx-btn')?.addEventListener('click', async (e) => {
   if (!S.tailoredText) { toast('Tailor a resume first', 'err'); return; }
   const btn = e.currentTarget; const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>DOCX...';
   try {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumeDocxBlob) throw new Error('Formatter not loaded');
-    const co = (S.company || 'AYN').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'AYN';
-    const fileBase = `Tailored_Resume_${co}`;
-    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(S.tailoredText, fileBase);
-    saveBlob(blob, `${fileBase}.docx`);
+    const name = aynTailoredName();
+    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(S.tailoredText, 'Tailored_Resume');
+    saveBlob(blob, aynFileName(name, S.company, S.jobTitle, 'docx', 'Tailored-Resume'));
     toast('Tailored resume downloaded ✓', 'ok');
+  } catch (err) { toast(err.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+});
+$('tailor-download-pdf-btn')?.addEventListener('click', async (e) => {
+  if (!S.tailoredText) { toast('Tailor a resume first', 'err'); return; }
+  const btn = e.currentTarget; const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner dk"></div>PDF...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumePdfBlob) throw new Error('Formatter not loaded');
+    const name = aynTailoredName();
+    const blob = window.AYNResumeFormat.buildResumePdfBlob(S.tailoredText, 'Tailored_Resume');
+    saveBlob(blob, aynFileName(name, S.company, S.jobTitle, 'pdf', 'Tailored-Resume'));
+    toast('Tailored resume PDF downloaded ✓', 'ok');
   } catch (err) { toast(err.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
 });

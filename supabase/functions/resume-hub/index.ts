@@ -230,17 +230,15 @@ async function resolveResumeContent(
 }
 
 const EXT_ACTIONS = new Set([
-  "ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor",
-  "ext_cover_letter", "ext_cover_letter_text",
+  "ext_bootstrap", "ext_ingest_job", "ext_autofill",
+  "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
-  "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
+  "ext_get_resume_blob",
   // v1.5.0 Phase 1: canonical profile read for extension
   "ext_profile_canonical_get",
-  // v1.5.0 Phase 2: server-side full-JD cache + scoring
-  "ext_job_ingest",
   // v1.9.19: autofill telemetry
   "ext_log_result",
   // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
@@ -1689,96 +1687,10 @@ Return ONLY JSON, no code fences, no prose:
         }
       }
 
-      if (action === "ext_tailor") {
-        const jobId = (payload as { job_id?: string }).job_id;
-        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
-          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
-        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
-          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
-        if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
-          admin.from("jobs").select("id, jd_text, company, title").eq("user_id", userId).eq("id", jobId).maybeSingle(),
-          admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          loadCanonical(admin, userId),
-        ]);
-        if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
-        const userPayload: Record<string, unknown> = { resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text };
-        if (matchedSkills) userPayload.matchedSkills = matchedSkills;
-        if (missingSkills) userPayload.missingSkills = missingSkills;
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema. Voice: write bullets the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.
+      // v2.12.0 — ext_tailor, ext_cover_letter, ext_job_ingest removed.
+      // Live twins are smart_tailor (tailoring) and ext_cover_letter_text
+      // (cover letters). JD ingest/cache lives inline in ext_job_score.
 
-You may be given matchedSkills (already evident in the resume) and missingSkills (required by the JD but not evident). For missingSkills, look for genuinely related experience already present in the resume or canonicalProfile and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis for a missing skill, leave it out and do not imply it. Never add a skill to the skills section that is not supported by the resume or canonicalProfile. Prefer promoting relevant existing bullets over rewriting unrelated ones.
-
-Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.`,
-          user: JSON.stringify(userPayload).slice(0, 45000),
-          toolName: "emit_resume",
-          toolSchema: RESUME_SCHEMA,
-        });
-        await admin.from("resume_versions").insert({ user_id: userId, resume_id: resume.id, content: r.structured, created_for_job_id: jobId });
-        return json({ resume: r.structured, company: job.company, title: job.title });
-      }
-
-      if (action === "ext_cover_letter") {
-        const jobId = (payload as { job_id?: string }).job_id;
-        const tone = (payload as { tone?: string }).tone || "professional, warm";
-        const lengthKey = (payload as { length?: string }).length || "standard";
-        const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
-        const guidanceRaw = String((payload as { guidance?: string }).guidance || "").trim().slice(0, 200);
-        if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
-          admin.from("jobs").select("id, jd_text, company").eq("user_id", userId).eq("id", jobId).maybeSingle(),
-          admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          loadCanonical(admin, userId),
-        ]);
-        if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
-        const guidanceLine = guidanceRaw
-          ? ` The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the resume or canonicalProfile supports it; if it is not supported, ignore the request rather than inventing anything.`
-          : "";
-        const r = await callAI({
-          system: `Write a concise (under ${wordCap} words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés ("I am excited to", "leverage", "passionate"). Ground every claim in the canonicalProfile or resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.${guidanceLine}`,
-          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
-        });
-        await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
-        return json({ body: r.text });
-      }
-
-      // ──────────────────────────────────────────────────────────────
-      // Phase 2: ext_job_ingest — cache the FULL JD per URL hash and
-      // parse it once into skills/seniority/salary/location/work_mode.
-      // ──────────────────────────────────────────────────────────────
-      if (action === "ext_job_ingest") {
-        const { url, urlHash, title, company, fullJd } = payload as {
-          url?: string; urlHash?: string; title?: string; company?: string; fullJd?: string;
-        };
-        if (!fullJd || fullJd.trim().length < 40) return json({ error: "fullJd required" }, 400);
-        const normalized = normalizeUrlForHash(url || "");
-        const hash = (urlHash && urlHash.length >= 16) ? urlHash : await sha256Hex(normalized || fullJd.slice(0, 400));
-
-        // Cache hit + still fresh? Return as-is.
-        const { data: cached } = await admin.from("job_cache")
-          .select("url_hash, url, title, company, full_jd, parsed, created_at, expires_at")
-          .eq("url_hash", hash).maybeSingle();
-        if (cached && new Date(cached.expires_at).getTime() > Date.now()) {
-          return json({ cached: true, urlHash: hash, title: cached.title, company: cached.company, parsed: cached.parsed });
-        }
-
-        const parsed = await parseJobMeta(fullJd, url || "", title || "", company || "");
-        const row = {
-          url_hash: hash,
-          url: normalized || url || null,
-          title: title || cached?.title || null,
-          company: company || cached?.company || null,
-          full_jd: fullJd.slice(0, 30000),
-          parsed,
-          created_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        };
-        const { error } = await admin.from("job_cache").upsert(row, { onConflict: "url_hash" });
-        if (error) console.warn("job_cache upsert failed", error.message);
-        return json({ cached: false, urlHash: hash, title: row.title, company: row.company, parsed });
-      }
 
       // ext_job_score: full-JD scoring with HONESTY rule + AI-failure fallback.
       // Inputs: { urlHash?, url?, jobTitle?, company?, fullJd?, jobSnippet? }
@@ -2360,89 +2272,11 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
 
 
 
-      // ──────────────────────────────────────────────────────────────
-      // v1.4.0: ANSWER MEMORY — remember good open-text answers
-      // so they auto-reuse on future similar questions across apps.
-      // ──────────────────────────────────────────────────────────────
-      if (action === "ext_save_answer") {
-        const { questionText, answerText, company, role, fieldKind } = payload as { questionText?: string; answerText?: string; company?: string; role?: string; fieldKind?: string };
-        if (!questionText || !answerText) return json({ error: "questionText + answerText required" }, 400);
-        const normalized = questionText.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
-        const hash = await sha256Hex(normalized);
-        const { error } = await admin.from("ext_answers").upsert({
-          user_id: userId, question_hash: hash, question_text: questionText.slice(0, 500), answer_text: answerText.slice(0, 4000),
-          last_company: company || null, last_role: role || null, use_count: 1, updated_at: new Date().toISOString(),
-          field_kind: fieldKind ? String(fieldKind).slice(0, 32) : null,
-        }, { onConflict: "user_id,question_hash" });
-        if (error) return json({ error: error.message }, 500);
-        return json({ ok: true });
-      }
+      // v2.12.0 — ext_save_answer + ext_lookup_answer removed. The live
+      // learning lane is extension/question-engine/learning/supabase-store.ts,
+      // which reads/writes public.ext_answer_memory over PostgREST directly
+      // (with the same fuzzy-match + sensitive-question rules baked in).
 
-      // v2.11.0 — fuzzy answer memory. Never fuzzy-match on sensitive
-      // discrete questions (work auth, sponsorship, EEO, salary, notice
-      // period). Only compare rows whose stored field kind matches the
-      // incoming one (legacy rows with a null kind are treated as text).
-      if (action === "ext_lookup_answer") {
-        const { questionText, fieldKind } = payload as { questionText?: string; fieldKind?: string };
-        if (!questionText) return json({ error: "questionText required" }, 400);
-        const normalize = (s: string) =>
-          s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-        const normalized = normalize(questionText).slice(0, 240);
-        const incomingKind = fieldKind ? String(fieldKind).toLowerCase() : "text";
-        const hash = await sha256Hex(normalized);
-
-        // Exact hash match first — cheapest, no kind check needed since
-        // identical normalized text is definitionally the same question.
-        const { data: exact } = await admin.from("ext_answers")
-          .select("answer_text, use_count, last_company, question_text, field_kind")
-          .eq("user_id", userId).eq("question_hash", hash).maybeSingle();
-        if (exact) {
-          admin.from("ext_answers").update({ use_count: (exact.use_count || 0) + 1, updated_at: new Date().toISOString() })
-            .eq("user_id", userId).eq("question_hash", hash).then(() => {});
-          return json({ found: true, matchType: "exact", answer: exact.answer_text, useCount: exact.use_count, lastCompany: exact.last_company, sourceQuestion: exact.question_text });
-        }
-
-        const SENSITIVE_RE = /work\s*auth|authoriz|sponsor|visa|eeo|gender|race|ethnic|veteran|disabil|salary|compensat|desired\s*pay|notice\s*period/i;
-        if (SENSITIVE_RE.test(questionText)) return json({ found: false });
-
-        const incomingTokens = new Set(normalized.split(" ").filter((t) => t.length >= 3));
-        if (incomingTokens.size < 3) return json({ found: false });
-
-        const { data: candidates } = await admin.from("ext_answers")
-          .select("answer_text, use_count, last_company, question_text, field_kind, question_hash")
-          .eq("user_id", userId)
-          .order("use_count", { ascending: false })
-          .limit(200);
-
-        let best: { row: typeof exact; score: number; overlap: number } | null = null;
-        for (const row of candidates || []) {
-          const rowKind = (row.field_kind || "text").toLowerCase();
-          if (rowKind !== incomingKind) continue;
-          const rowNorm = normalize(row.question_text || "");
-          if (!rowNorm) continue;
-          const rowTokens = new Set(rowNorm.split(" ").filter((t) => t.length >= 3));
-          if (rowTokens.size === 0) continue;
-          let overlap = 0;
-          for (const t of incomingTokens) if (rowTokens.has(t)) overlap++;
-          const smaller = Math.min(incomingTokens.size, rowTokens.size);
-          const score = smaller === 0 ? 0 : overlap / smaller;
-          if (overlap >= 3 && score >= 0.7 && (!best || score > best.score)) {
-            best = { row: row as typeof exact, score, overlap };
-          }
-        }
-        if (!best || !best.row) return json({ found: false });
-        admin.from("ext_answers").update({ use_count: (best.row.use_count || 0) + 1, updated_at: new Date().toISOString() })
-          .eq("user_id", userId).eq("question_hash", (best.row as { question_hash: string }).question_hash).then(() => {});
-        return json({
-          found: true,
-          matchType: "fuzzy",
-          answer: best.row.answer_text,
-          useCount: best.row.use_count,
-          lastCompany: best.row.last_company,
-          sourceQuestion: best.row.question_text,
-          fuzzyScore: Number(best.score.toFixed(3)),
-        });
-      }
 
 
       // ──────────────────────────────────────────────────────────────
