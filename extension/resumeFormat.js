@@ -383,5 +383,41 @@
     return doc.output('blob');
   }
 
-  window.AYNResumeFormat = { parseResume, buildResumePdfBlob, buildResumeDocxBlob, buildCoverLetterPdfBlob, blobToBase64 };
+  // ─── Cover Letter DOCX (docx UMD) ─────────────────────────────────
+  // Single column, standard font, no images/tables. ATS-safe.
+  function buildCoverLetterDocxBlob(bodyText, opts) {
+    opts = opts || {};
+    const D = window.docx;
+    if (!D) throw new Error('docx not loaded');
+    const { Document, Packer, Paragraph, TextRun, AlignmentType } = D;
+    const FONT = 'Times New Roman';
+    const run = (text, o = {}) => new TextRun({ text: String(text || ''), bold: !!o.bold, size: o.size || 22, font: FONT });
+    const para = (children, o = {}) => new Paragraph({ children, alignment: o.align, spacing: { after: o.after != null ? o.after : 120, line: 300 } });
+    const blocks = [];
+    const name = (opts.name || '').trim();
+    const contact = (opts.contact || '').trim();
+    if (name) blocks.push(para([run(name, { bold: true, size: 28 })], { after: 40 }));
+    if (contact) blocks.push(para([run(contact, { size: 20 })], { after: 160 }));
+    const date = opts.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    blocks.push(para([run(date, { size: 22 })], { after: 200 }));
+    const rawLines = String(bodyText || '').replace(/\r/g, '').split('\n');
+    let buf = [];
+    const flushPara = () => { if (buf.length) { blocks.push(para([run(buf.join(' '), { size: 22 })], { after: 160 })); buf = []; } };
+    for (const raw of rawLines) {
+      const t = raw.trim();
+      if (!t) { flushPara(); continue; }
+      buf.push(t);
+    }
+    flushPara();
+    const doc = new Document({
+      styles: { default: { document: { run: { font: FONT, size: 22 } } } },
+      sections: [{
+        properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+        children: blocks,
+      }],
+    });
+    return Packer.toBlob(doc);
+  }
+
+  window.AYNResumeFormat = { parseResume, buildResumePdfBlob, buildResumeDocxBlob, buildCoverLetterPdfBlob, buildCoverLetterDocxBlob, blobToBase64 };
 })();
