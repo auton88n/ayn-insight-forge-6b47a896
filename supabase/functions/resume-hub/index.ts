@@ -1691,6 +1691,10 @@ Return ONLY JSON, no code fences, no prose:
 
       if (action === "ext_tailor") {
         const jobId = (payload as { job_id?: string }).job_id;
+        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
+          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
+        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
+          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
         if (!jobId) return json({ error: "job_id required" }, 400);
         const [{ data: job }, { data: resume }, canonical] = await Promise.all([
           admin.from("jobs").select("id, jd_text, company, title").eq("user_id", userId).eq("id", jobId).maybeSingle(),
@@ -1698,10 +1702,17 @@ Return ONLY JSON, no code fences, no prose:
           loadCanonical(admin, userId),
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
+        const userPayload: Record<string, unknown> = { resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text };
+        if (matchedSkills) userPayload.matchedSkills = matchedSkills;
+        if (missingSkills) userPayload.missingSkills = missingSkills;
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: `Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema. Voice: write bullets the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text }).slice(0, 45000),
+          system: `Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema. Voice: write bullets the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.
+
+You may be given matchedSkills (already evident in the resume) and missingSkills (required by the JD but not evident). For missingSkills, look for genuinely related experience already present in the resume or canonicalProfile and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis for a missing skill, leave it out and do not imply it. Never add a skill to the skills section that is not supported by the resume or canonicalProfile. Prefer promoting relevant existing bullets over rewriting unrelated ones.
+
+Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.`,
+          user: JSON.stringify(userPayload).slice(0, 45000),
           toolName: "emit_resume",
           toolSchema: RESUME_SCHEMA,
         });
@@ -1712,6 +1723,9 @@ Return ONLY JSON, no code fences, no prose:
       if (action === "ext_cover_letter") {
         const jobId = (payload as { job_id?: string }).job_id;
         const tone = (payload as { tone?: string }).tone || "professional, warm";
+        const lengthKey = (payload as { length?: string }).length || "standard";
+        const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
+        const guidanceRaw = String((payload as { guidance?: string }).guidance || "").trim().slice(0, 200);
         if (!jobId) return json({ error: "job_id required" }, 400);
         const [{ data: job }, { data: resume }, canonical] = await Promise.all([
           admin.from("jobs").select("id, jd_text, company").eq("user_id", userId).eq("id", jobId).maybeSingle(),
@@ -1719,8 +1733,11 @@ Return ONLY JSON, no code fences, no prose:
           loadCanonical(admin, userId),
         ]);
         if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
+        const guidanceLine = guidanceRaw
+          ? ` The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the resume or canonicalProfile supports it; if it is not supported, ignore the request rather than inventing anything.`
+          : "";
         const r = await callAI({
-          system: `Write a concise (under 280 words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés ("I am excited to", "leverage", "passionate"). Ground every claim in the canonicalProfile or resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
+          system: `Write a concise (under ${wordCap} words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés ("I am excited to", "leverage", "passionate"). Ground every claim in the canonicalProfile or resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.${guidanceLine}`,
           user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
         });
         await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
@@ -2133,11 +2150,17 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
         const { resumeText, jdText, tone, company, jobTitle, url } = payload as {
           resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string; url?: string;
         };
+        const lengthKey = String((payload as { length?: string }).length || "standard");
+        const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
+        const guidanceRaw = String((payload as { guidance?: string }).guidance || "").trim().slice(0, 200);
+        const guidanceLine = guidanceRaw
+          ? `\n- The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the resume supports it; if it is not supported, ignore the request rather than inventing anything.`
+          : "";
         const jd = await resolveJobJd(admin, url, jdText);
         if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
         const r = await callAI({
           model: QUALITY_MODEL,
-          system: `Write a cover letter under 280 words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
+          system: `Write a cover letter under ${wordCap} words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
 
 STRUCTURE (4 short paragraphs):
 1) Opening: who you are + the specific role + the ONE thing about ${company || "this team"} that pulled you in (from the JD).
@@ -2147,9 +2170,10 @@ STRUCTURE (4 short paragraphs):
 
 RULES:
 - Use ONLY facts from the resume. Never invent companies, metrics, or dates.
+- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear exactly as in the resume.
 - No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
 - Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to' (for example $90K to $120K CAD).
-- Plain text, no markdown.`,
+- Plain text, no markdown.${guidanceLine}`,
           user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0, 6000)}`,
         });
         return json({ body: r.text });
@@ -2279,8 +2303,15 @@ RULES:
       // smart_tailor (extension path) — same as JWT smart_tailor below
       if (action === "smart_tailor") {
         const { resumeText, jdText, jobTitle, company, url } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string; url?: string };
+        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
+          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
+        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
+          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
         const jd = await resolveJobJd(admin, url, jdText);
         if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
+        const gapBlock = (matchedSkills || missingSkills)
+          ? `\n\nGAP HINTS (from scorer):\nmatchedSkills: ${JSON.stringify(matchedSkills || [])}\nmissingSkills: ${JSON.stringify(missingSkills || [])}\nFor each missingSkill, look for genuinely related experience already present in the resume and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis, leave it out. Never add a skill to the skills section that is not supported by the resume.`
+          : "";
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
@@ -2298,17 +2329,18 @@ KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodol
 
 TAILORED RESUME:
 - Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
+- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.
 - Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
 - Re-order skills to surface JD-matching ones first.
 - Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify when numbers exist in original. Never fabricate numbers.
 - Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
 
-CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme — already implied by 'container orchestration'.").
+CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme, already implied by 'container orchestration'.").
 
 ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
 VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {

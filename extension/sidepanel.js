@@ -899,6 +899,9 @@ async function runScoreFlow({ auto = false } = {}) {
     { const ndc = $('score-needs-jd'); if (ndc) ndc.style.display = 'none'; }
 
     const score = d.score || 0;
+    SJ.matchedSkills = Array.isArray(d.matchedSkills) ? d.matchedSkills.slice(0, 20) : [];
+    SJ.missingSkills = Array.isArray(d.missingSkills) ? d.missingSkills.slice(0, 20)
+                       : (Array.isArray(d.missingKeywords) ? d.missingKeywords.slice(0, 20) : []);
     const tier = scoreTier(score);
     $('score-num').innerHTML = `${score}<small>/10</small>`;
     $('score-num').className = 'score-num ' + tier;
@@ -1274,8 +1277,10 @@ async function generateCoverLetter() {
   const btn = $('gen-cover-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Writing...';
   try {
     const tone = $('cover-tone').value;
+    const lengthSel = $('cover-length'); const length = lengthSel ? lengthSel.value : 'standard';
+    const guidanceInp = $('cover-guidance'); const guidance = guidanceInp ? String(guidanceInp.value || '').trim().slice(0, 200) : '';
     const data = await bgFunc('ext_cover_letter_text', {
-      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl,
+      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl, length, guidance,
     });
     if (data.error) throw new Error(data.error);
     { const out = $('cover-out'); out.dataset.raw = data.body || ''; out.innerHTML = aynFormatAiText(data.body || ''); }
@@ -1464,7 +1469,7 @@ $('analyze-btn').addEventListener('click', async () => {
   S.resume = resume; S.job = job;
   const btn = $('analyze-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Analysing...';
   try {
-    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl });
+    const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
@@ -1505,7 +1510,7 @@ $('tailor-btn').addEventListener('click', async () => {
   if (S.tailoredText) { renderResult(S.tailoredText, S.changes); show('v-t3'); return; }
   const btn = $('tailor-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Tailoring...';
   try {
-    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl });
+    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
     S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     renderResult(S.tailoredText, S.changes); show('v-t3');

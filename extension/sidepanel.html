@@ -1133,10 +1133,24 @@
       </select>
     </div>
 
+    <div class="field">
+      <label class="field-label">Length</label>
+      <select id="cover-length">
+        <option value="short">Short (~180 words)</option>
+        <option value="standard" selected>Standard (~280 words)</option>
+        <option value="detailed">Detailed (~400 words)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field-label">Anything to emphasize? <span style="color:#9ca3af;font-weight:400;">(optional)</span></label>
+      <input id="cover-guidance" type="text" maxlength="200" placeholder="e.g. lead with the Shopify migration; keep it humble" />
+    </div>
+
     <button class="btn btn-primary" id="gen-cover-btn">
       <i class="ti ti-sparkles"></i>Generate Cover Letter
     </button>
-    <div class="cta-hint">Tailored to this role · under 280 words</div>
+    <div class="cta-hint">Tailored to this role · length and emphasis honored</div>
 
     <div class="err hidden mt10" id="err-cover"></div>
 
