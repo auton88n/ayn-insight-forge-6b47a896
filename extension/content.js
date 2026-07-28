@@ -506,16 +506,30 @@
   function parseBodyFromHtml(html, url) {
     try {
       const doc = new DOMParser().parseFromString(html, 'text/html');
+      // v2.11.2 — descendant-drop + noise-strip + line cleaner. Same rules
+      // as the live combinedText, so a Greenhouse page fetched by the
+      // listing-fetch branch scores the same as one read live.
       const pickText = (selList) => {
         try {
-          const parts = [];
+          const nodes = [];
           (selList || '').split(',').forEach(s => {
-            doc.querySelectorAll(s.trim()).forEach(el => {
-              const t = (el.textContent || '').trim();
-              if (t && t.length > 20) parts.push(t);
-            });
+            const q = s.trim(); if (!q) return;
+            doc.querySelectorAll(q).forEach(el => nodes.push(el));
           });
-          return parts.join('\n\n').replace(/\s{3,}/g, '  ').trim();
+          if (!nodes.length) return '';
+          const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
+          const seen = new Set();
+          const parts = [];
+          for (const n of top) {
+            const cleanNode = aynStripNoiseFromNode(n) || n;
+            const t = (cleanNode.textContent || '').trim();
+            if (!t || t.length <= 20) continue;
+            const key = t.slice(0, 120).toLowerCase().replace(/\s+/g, ' ');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            parts.push(t);
+          }
+          return aynCleanJdText(parts.join('\n\n'));
         } catch { return ''; }
       };
       let text = '', title = '', company = '';
