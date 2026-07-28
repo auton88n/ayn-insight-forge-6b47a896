@@ -695,9 +695,16 @@ $('autofill-now-btn').addEventListener('click', () => {
           </div>`;
       });
 
+      // v2.12.2 — surface ungrounded (provenance-dropped) values BEFORE the
+      // generic "add to profile" list. These are values the AI produced that
+      // could not be verified against the user's real profile/resume, so they
+      // were never written to the page.
+      if (ungroundedCount > 0) {
+        list.innerHTML += `<div class="fi" style="border-top:1px solid var(--ayn-border);margin-top:8px;padding-top:10px;"><div class="fl" style="font-weight:700;color:#b45309;display:flex;align-items:center;gap:6px;"><i class="ti ti-shield-lock"></i>${ungroundedCount} answers were not written because AYN could not verify them against your profile.</div></div>`;
+      }
       const skippedFields = response.skipped || [];
       if (skippedFields.length) {
-        list.innerHTML += `<div class="fi" style="border-top:1px solid var(--ayn-border);margin-top:8px;padding-top:10px;"><div class="fl" style="font-weight:700;color:#92400e;display:flex;align-items:center;gap:6px;"><i class="ti ti-bulb"></i>Couldn't answer ${skippedFields.length} — add to your profile</div></div>`;
+        list.innerHTML += `<div class="fi" style="border-top:1px solid var(--ayn-border);margin-top:8px;padding-top:10px;"><div class="fl" style="font-weight:700;color:#92400e;display:flex;align-items:center;gap:6px;"><i class="ti ti-bulb"></i>Couldn't answer ${skippedFields.length} of your questions</div></div>`;
         skippedFields.forEach(s => {
           list.innerHTML += `
             <div class="fi">
