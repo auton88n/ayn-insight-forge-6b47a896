@@ -2332,7 +2332,7 @@
         if (!document.getElementById('ayn-activity-glow-style')) {
           const st = document.createElement('style');
           st.id = 'ayn-activity-glow-style';
-          st.textContent = '@keyframes aynGlowPulse{0%,100%{opacity:.5}50%{opacity:1}}#ayn-activity-glow{position:fixed;inset:0;pointer-events:none;z-index:2147483646;box-shadow:inset 0 0 0 3px rgba(34,197,94,.75), inset 0 0 26px 7px rgba(34,197,94,.32);animation:aynGlowPulse 1.4s ease-in-out infinite;transition:opacity .2s}';
+          st.textContent = '@keyframes aynGlowPulse{0%,100%{opacity:.5}50%{opacity:1}}#ayn-activity-glow{position:fixed;inset:0;pointer-events:none;z-index:2147483646;box-shadow:inset 0 0 0 3px rgba(249,115,22,.75), inset 0 0 26px 7px rgba(234,88,12,.32);animation:aynGlowPulse 1.4s ease-in-out infinite;transition:opacity .2s}';
           (document.head || document.documentElement).appendChild(st);
         }
         if (!el) { el = document.createElement('div'); el.id = ID; el.setAttribute('aria-hidden','true'); (document.body || document.documentElement).appendChild(el); }
