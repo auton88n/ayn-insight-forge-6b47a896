@@ -116,17 +116,37 @@ function jdKeyHostPath(url) {
   try { const u = new URL(url); return `${u.hostname.replace(/^www\./,'').toLowerCase()}${u.pathname.replace(/\/+$/, '')}`; }
   catch { return String(url || ''); }
 }
-// v2.8.0 — heuristic JD quality score. Real job descriptions have >600 chars,
-// section markers, and bullet lists. Apply-page "job title only" text scores low.
-function jdQuality(text) {
+// v2.11.2 — relevance-weighted quality score. Length is only 25% of the total,
+// so a 12k-char page of nav/cookie chrome no longer beats a lean 800-char JD.
+// Components (all 0..100 before weighting):
+//   length      25%   sigmoid on character count, saturates near 2500 chars
+//   sections    30%   presence of standard JD section markers
+//   bullets     15%   presence of bullet/enumeration structure
+//   roleSignal  15%   role/comp/team/seniority vocabulary
+//   noise      -25%   penalty for cookie/nav/legal boilerplate density
+function jdQualityDetail(text) {
   const t = String(text || '');
-  if (t.length < 200) return 0;
-  let score = Math.min(50, Math.floor(t.length / 40)); // up to 50 for length (~2000+ chars)
-  if (/responsibilit|requirement|qualif|about (the|us|the role|the team)|what you.?ll do|you.?ll (be|work|have)|we.?re looking|nice to have|preferred/i.test(t)) score += 25;
-  if (/•|·|\n\s*[-*]\s|\n\s*\d+\.\s/.test(t)) score += 15;
-  if (/salary|compensation|benefits|equity|401k|rrsp|remote|hybrid|onsite/i.test(t)) score += 10;
-  return Math.min(100, score);
+  if (t.length < 200) return { score: 0, length: 0, sections: 0, bullets: 0, roleSignal: 0, noise: 0, reason: 'too_short' };
+  const len = t.length;
+  // Length component — smooth curve, ~50 at 1000 chars, ~85 at 2500, cap 100.
+  const length = Math.round(Math.min(100, 100 * (1 - Math.exp(-len / 1400))));
+  const sections = /responsibilit|requirement|qualif|about (the|us|the role|the team)|what you.?ll do|you.?ll (be|work|have)|we.?re looking|nice to have|preferred|minimum qualif|basic qualif|preferred qualif/i.test(t) ? 100 : 0;
+  const bulletHits = (t.match(/(^|\n)\s*(?:[•·▪●\-*]|\d+\.)\s+\S/g) || []).length;
+  const bullets = Math.round(Math.min(100, bulletHits * 20));
+  const roleHits = (t.match(/salary|compensation|benefits|equity|401k|rrsp|remote|hybrid|on[- ]?site|senior|junior|lead|manager|engineer|designer|analyst|team|reporting to|years? of experience/gi) || []).length;
+  const roleSignal = Math.round(Math.min(100, roleHits * 12));
+  // Noise density — fraction of lines that look like page chrome, cookie
+  // consent, footers, or nav lists. Clamp so a couple of hits don't nuke a
+  // real JD; only sustained boilerplate crosses ~50.
+  const lines = t.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const noiseRe = /^(cookies?|we use cookies|privacy (notice|policy)|terms( of (service|use))?|accept all|manage preferences|share (this )?job|apply now|back to (jobs|search|listings)|©\s*\d{4}|all rights reserved|equal (employment )?opportunity employer|powered by|sign in|log in|create( an)? account|home|about|contact|careers|blog|help|support)$/i;
+  const noiseLines = lines.filter(l => noiseRe.test(l) || (l.length < 24 && /^[A-Z][A-Za-z ]{0,22}$/.test(l))).length;
+  const noise = lines.length ? Math.round(Math.min(100, (noiseLines / lines.length) * 200)) : 0;
+  const raw = 0.25 * length + 0.30 * sections + 0.15 * bullets + 0.15 * roleSignal - 0.25 * noise;
+  const score = Math.max(0, Math.min(100, Math.round(raw)));
+  return { score, length, sections, bullets, roleSignal, noise };
 }
+function jdQuality(text) { return jdQualityDetail(text).score; }
 function jdRegistrySet(url, payload, source) {
   if (!payload || !payload.text) return;
   const key = jdKey(url);
@@ -685,7 +705,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tab) { sendResponse({ ok: false, error: 'no_tab' }); return; }
         const jd = await resolveJdForTab(tabId, tab.url || '', message.hint || null);
         if (!jd) { sendResponse({ ok: false, error: 'no_jd' }); return; }
-        sendResponse({ ok: true, text: jd.text, title: jd.title || '', company: jd.company || '', source: jd.source, quality: jd.quality || 0, listingUrl: jd.listingUrl || '' });
+        sendResponse({ ok: true, text: jd.text, title: jd.title || '', company: jd.company || '', source: jd.source, quality: jd.quality || 0, qualityDetail: jdQualityDetail(jd.text || ''), listingUrl: jd.listingUrl || '' });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;

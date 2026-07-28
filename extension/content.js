@@ -12,8 +12,11 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.11.1'; } })();
-  const MAX_JD_CHARS = 20000;
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.11.2'; } })();
+  // v2.11.2 — hard cap the JD payload we ship out to backend/scoring. Bigger
+  // payloads were mostly boilerplate (nav/footer/cookie banners) and pushed
+  // real role signal out of the model's window.
+  const MAX_JD_CHARS = 12000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
@@ -305,29 +308,69 @@
     return String(t || '').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
   }
 
-  // Concatenate text from ALL matching nodes, dropping nodes nested inside another match.
+  // v2.11.2 — shared JD noise cleaners. Used by BOTH the live extractor
+  // (combinedText) and the parsed-HTML extractor (parseBodyFromHtml).
+  // Rule of thumb: strip anything a human reading the JD would ignore
+  // (chrome, cookie/consent, "share this job", legal footers) BEFORE we
+  // measure length or ship the text to the model.
+  const AYN_JD_NOISE_SEL = [
+    'script','style','noscript','svg','iframe','template','link','meta',
+    'nav','header','footer','aside','form',
+    '[role="navigation"]','[role="banner"]','[role="contentinfo"]','[role="search"]',
+    '[aria-hidden="true"]',
+    '[class*="cookie" i]','[id*="cookie" i]',
+    '[class*="consent" i]','[id*="consent" i]',
+    '[class*="banner" i]','[class*="skip-link" i]',
+    '[class*="social" i][class*="share" i]',
+  ].join(',');
+  const AYN_JD_NOISE_LINE_RE = /^(cookies?|we use cookies|privacy (notice|policy)|terms( of (service|use))?|accept all|manage preferences|share (this )?job|apply now|back to (jobs|search|listings)|©\s*\d{4}|all rights reserved|equal (employment )?opportunity employer|powered by)/i;
+  function aynStripNoiseFromNode(node) {
+    if (!node) return null;
+    let clone;
+    try { clone = node.cloneNode(true); } catch { return node; }
+    try { clone.querySelectorAll(AYN_JD_NOISE_SEL).forEach(el => { try { el.remove(); } catch {} }); } catch {}
+    return clone;
+  }
+  function aynCleanJdText(raw) {
+    let s = String(raw || '').replace(/\r/g, '');
+    // Drop pure-noise lines and collapse dupes.
+    const lines = s.split(/\n+/).map(l => l.trim());
+    const kept = [];
+    let prev = '';
+    for (const line of lines) {
+      if (!line) { if (prev !== '') kept.push(''); prev = ''; continue; }
+      if (AYN_JD_NOISE_LINE_RE.test(line)) continue;
+      if (line === prev) continue;
+      kept.push(line);
+      prev = line;
+    }
+    return kept.join('\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
+  }
+
+  // Concatenate text from ALL matching nodes, dropping nodes nested inside another
+  // match, stripping chrome/cookie noise per node, and running a final line cleaner.
   function combinedText(selector) {
     if (!selector) return '';
     let nodes;
     try { nodes = Array.from(document.querySelectorAll(selector)); } catch { return ''; }
     if (!nodes.length) return '';
-    // Drop nodes nested inside another match so we don't duplicate text
     const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
     const seen = new Set();
     const parts = [];
     let total = 0;
     for (const n of top) {
-      const t = safeText(n).trim();
+      const cleanNode = aynStripNoiseFromNode(n) || n;
+      const t = safeText(cleanNode).trim();
       if (!t) continue;
       const key = t.slice(0, 120).toLowerCase().replace(/\s+/g, ' ');
       if (seen.has(key)) continue;
       seen.add(key);
       parts.push(t);
       total += t.length + 2;
-      if (total >= MAX_JD_CHARS) break;
+      if (total >= MAX_JD_CHARS * 1.5) break; // give the cleaner some slack
     }
-    const joined = parts.join('\n\n').trim();
-    return joined.length > MAX_JD_CHARS ? joined.slice(0, MAX_JD_CHARS) : joined;
+    const cleaned = aynCleanJdText(parts.join('\n\n'));
+    return cleaned.length > MAX_JD_CHARS ? cleaned.slice(0, MAX_JD_CHARS) : cleaned;
   }
 
   // Click "See more / Show more / Read more" controls so the full JD is in the DOM
@@ -445,7 +488,7 @@
       ['ca.indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]' }],
       ['indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[class*="jobsearch-CompanyInfoContainer"], [data-testid="inlineHeader-companyName"]' }],
       ['linkedin.com/jobs', { desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, [class*="jobs-description"]', title: '.job-details-jobs-unified-top-card__job-title, h1', company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]' }],
-      ['greenhouse.io', { desc: '#content, .job__description, [class*="description"]', title: 'h1', company: '.company-name, [class*="company"]' }],
+      ['greenhouse.io', { desc: '.job__description, .app-body [class*="description"], .content-intro, #content .prose', title: 'h1', company: '.company-name, [class*="company"]' }],
       ['jobs.lever.co', { desc: '.section-wrapper, [class*="description"], .posting-requirements', title: 'h2, h1', company: '.main-header-text .large-category-label' }],
       ['jobs.ashbyhq.com', { desc: '[class*="description"], [class*="job-post"], .ashby-job-posting-right-pane', title: 'h1', company: '[class*="company"]' }],
       ['glassdoor.com/job', { desc: '[class*="jobDescriptionContent"], [class*="JobDesc"]', title: '[class*="job-title"], h1', company: '[class*="employer-name"]' }],
@@ -463,16 +506,30 @@
   function parseBodyFromHtml(html, url) {
     try {
       const doc = new DOMParser().parseFromString(html, 'text/html');
+      // v2.11.2 — descendant-drop + noise-strip + line cleaner. Same rules
+      // as the live combinedText, so a Greenhouse page fetched by the
+      // listing-fetch branch scores the same as one read live.
       const pickText = (selList) => {
         try {
-          const parts = [];
+          const nodes = [];
           (selList || '').split(',').forEach(s => {
-            doc.querySelectorAll(s.trim()).forEach(el => {
-              const t = (el.textContent || '').trim();
-              if (t && t.length > 20) parts.push(t);
-            });
+            const q = s.trim(); if (!q) return;
+            doc.querySelectorAll(q).forEach(el => nodes.push(el));
           });
-          return parts.join('\n\n').replace(/\s{3,}/g, '  ').trim();
+          if (!nodes.length) return '';
+          const top = nodes.filter(n => !nodes.some(o => o !== n && o.contains(n)));
+          const seen = new Set();
+          const parts = [];
+          for (const n of top) {
+            const cleanNode = aynStripNoiseFromNode(n) || n;
+            const t = (cleanNode.textContent || '').trim();
+            if (!t || t.length <= 20) continue;
+            const key = t.slice(0, 120).toLowerCase().replace(/\s+/g, ' ');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            parts.push(t);
+          }
+          return aynCleanJdText(parts.join('\n\n'));
         } catch { return ''; }
       };
       let text = '', title = '', company = '';
@@ -578,7 +635,7 @@
         company: '[class*="company"]',
       },
       'greenhouse.io': {
-        desc: '#content, .job__description, [class*="description"]',
+        desc: '.job__description, .app-body [class*="description"], .content-intro, #content .prose',
         title: 'h1',
         company: '.company-name, [class*="company"]',
       },
