@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AYN Resume Tailor",
-  "version": "2.11.2",
+  "version": "2.11.3",
   "description": "On any job posting in the US or Canada, instantly see your match score, autofill the application, find the recruiter, and tailor your resume. Powered by AYN AI.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2+nbca2st6hqvaGZ/ozoQMYrNQ2sBmLFaEHidi59M+Mb4YX3ffEH35vgrcx4NEcjKHC4faturMksyHZuIY68/A5ItGwmcjXY5zus912adaR3Tp3z1aQzNg4n9FjulollWthQnjboBYfBw9WI50499mMncIgvxJpR4xePV1/61EC/b5blIkXPPAtFR+S7lb6SAqp5MHZ9pwPuEkjgchByD++ryybaijRLigkvwClsFxZKtbUlX9UacdqqH8URNkkB7hD9axOTF0uPUKOqGn/kM/cY9R5HHEQvYUJSP0i627FOPUrPWNfoMhlupBenCklP0CsZgKR/PhlMP/IxJVj3jQIDAQAB",
   "permissions": [
