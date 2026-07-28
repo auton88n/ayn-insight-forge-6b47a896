@@ -595,6 +595,7 @@ export type Database = {
       autofill_runs: {
         Row: {
           ai_answered: number | null
+          ai_resolved_count: number
           ai_values: Json | null
           ats: string | null
           company: string | null
@@ -611,6 +612,8 @@ export type Database = {
           id: string
           inject_results: Json | null
           job_title: string | null
+          memory_exact_count: number
+          memory_fuzzy_count: number
           meta: Json | null
           resolved_by: Json
           retry_count: number
@@ -620,6 +623,7 @@ export type Database = {
         }
         Insert: {
           ai_answered?: number | null
+          ai_resolved_count?: number
           ai_values?: Json | null
           ats?: string | null
           company?: string | null
@@ -636,6 +640,8 @@ export type Database = {
           id?: string
           inject_results?: Json | null
           job_title?: string | null
+          memory_exact_count?: number
+          memory_fuzzy_count?: number
           meta?: Json | null
           resolved_by?: Json
           retry_count?: number
@@ -645,6 +651,7 @@ export type Database = {
         }
         Update: {
           ai_answered?: number | null
+          ai_resolved_count?: number
           ai_values?: Json | null
           ats?: string | null
           company?: string | null
@@ -661,6 +668,8 @@ export type Database = {
           id?: string
           inject_results?: Json | null
           job_title?: string | null
+          memory_exact_count?: number
+          memory_fuzzy_count?: number
           meta?: Json | null
           resolved_by?: Json
           retry_count?: number
@@ -2365,6 +2374,7 @@ export type Database = {
         Row: {
           answer_text: string
           created_at: string
+          field_kind: string | null
           id: string
           last_company: string | null
           last_role: string | null
@@ -2377,6 +2387,7 @@ export type Database = {
         Insert: {
           answer_text: string
           created_at?: string
+          field_kind?: string | null
           id?: string
           last_company?: string | null
           last_role?: string | null
@@ -2389,6 +2400,7 @@ export type Database = {
         Update: {
           answer_text?: string
           created_at?: string
+          field_kind?: string | null
           id?: string
           last_company?: string | null
           last_role?: string | null

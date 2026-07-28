@@ -1,22 +1,15 @@
 /**
  * ext-vision-discover
  *
- * Part 3 of the "wire vision into the question layer" upgrade. The extension
- * sends a screenshot (base64) of a form region the DOM scanner produced no
- * fields for, and we ask a multimodal model to describe the questions it
- * visually sees. Returned descriptors are merged as (source: 'vision') evidence
- * back into the question layer.
- *
- * Contract:
- *   POST { image_base64, image_mime?, context?: { url, ats, section_label } }
- *   ->   { questions: Array<{ label, kind, options?, anchor_hint }> }
+ * v2.11.0 — auth via extension token or web session (see _shared/ext-auth.ts).
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { authenticateExtOrSession } from "../_shared/ext-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-source, x-proxy-secret",
+    "authorization, x-client-info, apikey, content-type, x-source, x-ayn-ext-token",
 };
 
 const MODEL = "google/gemini-2.5-flash";
@@ -24,9 +17,8 @@ const MODEL = "google/gemini-2.5-flash";
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const secret = req.headers.get("x-proxy-secret");
-    const PROXY_SECRET = Deno.env.get("AYN_PROXY_SECRET") || "ayn-proxy-2024";
-    if (secret !== PROXY_SECRET) return json({ error: "Unauthorized" }, 401);
+    const auth = await authenticateExtOrSession(req);
+    if (!auth.ok) return json({ error: auth.error }, auth.status);
 
     const body = await req.json();
     const image_base64: string = String(body?.image_base64 ?? "");
@@ -35,7 +27,6 @@ serve(async (req) => {
       return json({ error: "image_base64 required" }, 400);
     }
     if (image_base64.length > 3_500_000) {
-      // ~2.5MB decoded; anything larger is almost certainly the whole page.
       return json({ error: "image too large" }, 413);
     }
 
@@ -116,6 +107,7 @@ serve(async (req) => {
           }))
       : [];
 
+    console.log(`[ext-vision-discover] user=${auth.userId} via=${auth.via} found=${questions.length}`);
     return json({ questions });
   } catch (e) {
     return json({ error: (e as Error).message ?? String(e) }, 500);

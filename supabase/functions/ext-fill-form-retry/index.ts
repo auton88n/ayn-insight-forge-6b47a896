@@ -1,21 +1,17 @@
 /**
  * ext-fill-form-retry
  *
- * Part 1 of the "close the AI decision loop" upgrade. The extension calls this
- * per-field after inject+verify detects a failure. We take the original field,
- * original answer, failure classification, and the current DOM snapshot, and
- * ask the model to re-plan one answer.
- *
- * Contract:
- *   POST { field, original_answer, failure_class, options?, siblings?, ats?, url? }
- *   ->   { answer: { value?, optionValue?, optionLabel?, optionLabels?, skip?, confidence, reasoning } }
+ * v2.11.0 — auth via extension token or web session (see _shared/ext-auth.ts).
+ * The x-proxy-secret header is gone; that "secret" shipped inside the public
+ * extension bundle and was not actually secret.
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { authenticateExtOrSession } from "../_shared/ext-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-source, x-proxy-secret",
+    "authorization, x-client-info, apikey, content-type, x-source, x-ayn-ext-token",
 };
 
 const MODEL = "google/gemini-2.5-flash";
@@ -30,11 +26,8 @@ type FailureClass =
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const secret = req.headers.get("x-proxy-secret");
-    const PROXY_SECRET = Deno.env.get("AYN_PROXY_SECRET") || "ayn-proxy-2024";
-    if (secret !== PROXY_SECRET) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+    const auth = await authenticateExtOrSession(req);
+    if (!auth.ok) return json({ error: auth.error }, auth.status);
 
     const body = await req.json();
     const field = body?.field;
@@ -139,6 +132,7 @@ serve(async (req) => {
       }
     }
 
+    console.log(`[ext-fill-form-retry] user=${auth.userId} via=${auth.via} ats=${ats} class=${failure_class}`);
     return json({ answer });
   } catch (e) {
     return json({ error: (e as Error).message ?? String(e) }, 500);

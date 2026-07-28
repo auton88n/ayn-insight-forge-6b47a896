@@ -652,12 +652,18 @@ $('autofill-now-btn').addEventListener('click', () => {
         const srcBadge = srcLbl ? `<span style="margin-left:6px;font-size:10px;color:var(--ayn-muted,#6b7280);font-weight:600;">${esc(srcLbl)}</span>` : '';
         const reviewBadge = d.needsReview ? `<span style="margin-left:6px;font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-weight:600;">Review</span>` : '';
         const reason = d.reasoning ? `<div class="fr">${esc(String(d.reasoning).slice(0,90))}</div>` : '';
+        // v2.11.0 — surface fuzzy reuse of a past answer so the seeker sees
+        // what memory of theirs was borrowed, and can correct it in Profile.
+        const fuzzyNote = (d.matchType === 'fuzzy' && d.sourceQuestion)
+          ? `<div class="fr" style="color:var(--ayn-muted,#6b7280);font-style:italic;">Reused your answer to: ${esc(String(d.sourceQuestion).slice(0,80))}</div>`
+          : '';
         list.innerHTML += `
           <div class="fi">
             <div class="fd ${d.ok ? 'on' : 'off'}"></div>
             <div class="fl">${esc(fillDisplayLabel(d))} ${confBadge}${srcBadge}${reviewBadge}</div>
             <div class="fv">${d.ok ? esc((d.value||'').slice(0,28)) : esc(d.reason||'skipped')}</div>
             ${reason}
+            ${fuzzyNote}
           </div>`;
       });
 

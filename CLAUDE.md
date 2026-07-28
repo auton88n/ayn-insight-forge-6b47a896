@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.10.1 audit fixes (built-in AYN_BUILTIN_HUMAN_TYPING_HOSTS for Workday/iCIMS/Taleo/BrassRing/SuccessFactors with remote-adds-only union so offline installs still get bot-blocker protection, duplicate aynVisibleText removed, dead empty-if in aynShouldTypeHumanly deleted, AYN_SENSITIVE_NO_GUESS gate on aynFillTypeahead so work-auth/sponsorship/EEO/salary/notice-period return skip 'no-confident-option' instead of picking a wrong first option)", manifest v2.10.1, AYN_BUILD 2.10.1, July 27 2026.
+Last verified: commit "v2.11.0 seeker real answer memory + proper edge auth (shared x-proxy-secret retired; ayn-ai-proxy, ext-fill-form-retry and ext-vision-discover now authenticate via x-ayn-ext-token or session Bearer through supabase/functions/_shared/ext-auth.ts; content.entry.js routes retry+vision through background.js so the token stays out of the public bundle; ext_lookup_answer gained token-overlap fuzzy matching gated by matching field_kind and a hard sensitive-topic exclusion, returning matchType exact|fuzzy|none; sidepanel shows a muted 'Reused your answer to' note on fuzzy hits; autofill_runs gained memory_exact_count/memory_fuzzy_count/ai_resolved_count columns; ext_answers gained field_kind)", manifest v2.11.0, AYN_BUILD 2.11.0, July 28 2026.
 
 ## What AYN is
 
