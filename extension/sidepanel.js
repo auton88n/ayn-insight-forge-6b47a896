@@ -1510,7 +1510,7 @@ $('tailor-btn').addEventListener('click', async () => {
   if (S.tailoredText) { renderResult(S.tailoredText, S.changes); show('v-t3'); return; }
   const btn = $('tailor-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Tailoring...';
   try {
-    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl });
+    const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
     S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     renderResult(S.tailoredText, S.changes); show('v-t3');
