@@ -488,7 +488,7 @@
       ['ca.indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]' }],
       ['indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[class*="jobsearch-CompanyInfoContainer"], [data-testid="inlineHeader-companyName"]' }],
       ['linkedin.com/jobs', { desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, [class*="jobs-description"]', title: '.job-details-jobs-unified-top-card__job-title, h1', company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]' }],
-      ['greenhouse.io', { desc: '#content, .job__description, [class*="description"]', title: 'h1', company: '.company-name, [class*="company"]' }],
+      ['greenhouse.io', { desc: '.job__description, .app-body [class*="description"], .content-intro, #content .prose', title: 'h1', company: '.company-name, [class*="company"]' }],
       ['jobs.lever.co', { desc: '.section-wrapper, [class*="description"], .posting-requirements', title: 'h2, h1', company: '.main-header-text .large-category-label' }],
       ['jobs.ashbyhq.com', { desc: '[class*="description"], [class*="job-post"], .ashby-job-posting-right-pane', title: 'h1', company: '[class*="company"]' }],
       ['glassdoor.com/job', { desc: '[class*="jobDescriptionContent"], [class*="JobDesc"]', title: '[class*="job-title"], h1', company: '[class*="employer-name"]' }],
