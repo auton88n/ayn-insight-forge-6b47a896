@@ -2272,89 +2272,11 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
 
 
 
-      // ──────────────────────────────────────────────────────────────
-      // v1.4.0: ANSWER MEMORY — remember good open-text answers
-      // so they auto-reuse on future similar questions across apps.
-      // ──────────────────────────────────────────────────────────────
-      if (action === "ext_save_answer") {
-        const { questionText, answerText, company, role, fieldKind } = payload as { questionText?: string; answerText?: string; company?: string; role?: string; fieldKind?: string };
-        if (!questionText || !answerText) return json({ error: "questionText + answerText required" }, 400);
-        const normalized = questionText.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
-        const hash = await sha256Hex(normalized);
-        const { error } = await admin.from("ext_answers").upsert({
-          user_id: userId, question_hash: hash, question_text: questionText.slice(0, 500), answer_text: answerText.slice(0, 4000),
-          last_company: company || null, last_role: role || null, use_count: 1, updated_at: new Date().toISOString(),
-          field_kind: fieldKind ? String(fieldKind).slice(0, 32) : null,
-        }, { onConflict: "user_id,question_hash" });
-        if (error) return json({ error: error.message }, 500);
-        return json({ ok: true });
-      }
+      // v2.12.0 — ext_save_answer + ext_lookup_answer removed. The live
+      // learning lane is extension/question-engine/learning/supabase-store.ts,
+      // which reads/writes public.ext_answer_memory over PostgREST directly
+      // (with the same fuzzy-match + sensitive-question rules baked in).
 
-      // v2.11.0 — fuzzy answer memory. Never fuzzy-match on sensitive
-      // discrete questions (work auth, sponsorship, EEO, salary, notice
-      // period). Only compare rows whose stored field kind matches the
-      // incoming one (legacy rows with a null kind are treated as text).
-      if (action === "ext_lookup_answer") {
-        const { questionText, fieldKind } = payload as { questionText?: string; fieldKind?: string };
-        if (!questionText) return json({ error: "questionText required" }, 400);
-        const normalize = (s: string) =>
-          s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-        const normalized = normalize(questionText).slice(0, 240);
-        const incomingKind = fieldKind ? String(fieldKind).toLowerCase() : "text";
-        const hash = await sha256Hex(normalized);
-
-        // Exact hash match first — cheapest, no kind check needed since
-        // identical normalized text is definitionally the same question.
-        const { data: exact } = await admin.from("ext_answers")
-          .select("answer_text, use_count, last_company, question_text, field_kind")
-          .eq("user_id", userId).eq("question_hash", hash).maybeSingle();
-        if (exact) {
-          admin.from("ext_answers").update({ use_count: (exact.use_count || 0) + 1, updated_at: new Date().toISOString() })
-            .eq("user_id", userId).eq("question_hash", hash).then(() => {});
-          return json({ found: true, matchType: "exact", answer: exact.answer_text, useCount: exact.use_count, lastCompany: exact.last_company, sourceQuestion: exact.question_text });
-        }
-
-        const SENSITIVE_RE = /work\s*auth|authoriz|sponsor|visa|eeo|gender|race|ethnic|veteran|disabil|salary|compensat|desired\s*pay|notice\s*period/i;
-        if (SENSITIVE_RE.test(questionText)) return json({ found: false });
-
-        const incomingTokens = new Set(normalized.split(" ").filter((t) => t.length >= 3));
-        if (incomingTokens.size < 3) return json({ found: false });
-
-        const { data: candidates } = await admin.from("ext_answers")
-          .select("answer_text, use_count, last_company, question_text, field_kind, question_hash")
-          .eq("user_id", userId)
-          .order("use_count", { ascending: false })
-          .limit(200);
-
-        let best: { row: typeof exact; score: number; overlap: number } | null = null;
-        for (const row of candidates || []) {
-          const rowKind = (row.field_kind || "text").toLowerCase();
-          if (rowKind !== incomingKind) continue;
-          const rowNorm = normalize(row.question_text || "");
-          if (!rowNorm) continue;
-          const rowTokens = new Set(rowNorm.split(" ").filter((t) => t.length >= 3));
-          if (rowTokens.size === 0) continue;
-          let overlap = 0;
-          for (const t of incomingTokens) if (rowTokens.has(t)) overlap++;
-          const smaller = Math.min(incomingTokens.size, rowTokens.size);
-          const score = smaller === 0 ? 0 : overlap / smaller;
-          if (overlap >= 3 && score >= 0.7 && (!best || score > best.score)) {
-            best = { row: row as typeof exact, score, overlap };
-          }
-        }
-        if (!best || !best.row) return json({ found: false });
-        admin.from("ext_answers").update({ use_count: (best.row.use_count || 0) + 1, updated_at: new Date().toISOString() })
-          .eq("user_id", userId).eq("question_hash", (best.row as { question_hash: string }).question_hash).then(() => {});
-        return json({
-          found: true,
-          matchType: "fuzzy",
-          answer: best.row.answer_text,
-          useCount: best.row.use_count,
-          lastCompany: best.row.last_company,
-          sourceQuestion: best.row.question_text,
-          fuzzyScore: Number(best.score.toFixed(3)),
-        });
-      }
 
 
       // ──────────────────────────────────────────────────────────────
