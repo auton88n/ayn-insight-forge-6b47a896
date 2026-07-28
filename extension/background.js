@@ -1262,18 +1262,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const __total = __allResults.length;
         const __needsReviewCount = details.filter(d => d.needsReview).length;
 
+        // v2.12.2 — honest progress reporting. Only values that survived the
+        // provenance gate AND verified in the live DOM count as filled. The
+        // sidepanel is responsible for translating this into
+        // "N filled, M skipped, K need review".
+        const _backendSkipped = fillData?.skipped || [];
+        const _mergedSkipped = [..._backendSkipped, ...ungroundedDrops];
+        const _skippedCount = _mergedSkipped.length;
+        const _ungroundedCount = ungroundedDrops.length;
         sendResponse({
           ok: true,
           filled: __filled,
           total: __total,
           answered: values.length,
           verified: __filled,
-          needsReview: Math.max(0, values.length - __filled) + ((fillData?.skipped || []).length),
+          needsReview: Math.max(0, values.length - __filled),
           needsReviewCount: __needsReviewCount,
+          skippedCount: _skippedCount,
+          ungroundedCount: _ungroundedCount,
           resolvedLocally: localValues.length,
           details,
           passes: secondPassFilled > 0 ? 2 : 1,
-          skipped: fillData?.skipped || [],
+          skipped: _mergedSkipped,
         });
 
         try {
