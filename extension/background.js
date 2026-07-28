@@ -705,7 +705,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tab) { sendResponse({ ok: false, error: 'no_tab' }); return; }
         const jd = await resolveJdForTab(tabId, tab.url || '', message.hint || null);
         if (!jd) { sendResponse({ ok: false, error: 'no_jd' }); return; }
-        sendResponse({ ok: true, text: jd.text, title: jd.title || '', company: jd.company || '', source: jd.source, quality: jd.quality || 0, listingUrl: jd.listingUrl || '' });
+        sendResponse({ ok: true, text: jd.text, title: jd.title || '', company: jd.company || '', source: jd.source, quality: jd.quality || 0, qualityDetail: jdQualityDetail(jd.text || ''), listingUrl: jd.listingUrl || '' });
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
