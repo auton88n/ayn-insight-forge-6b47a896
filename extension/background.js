@@ -164,7 +164,7 @@ function jdQualityDetail(text) {
   }
   const noiseLines = noiseFlags.filter(Boolean).length;
   const noise = lines.length ? Math.round(Math.min(100, (noiseLines / lines.length) * 200)) : 0;
-  const raw = 0.25 * length + 0.30 * sections + 0.15 * bullets + 0.15 * roleSignal - 0.25 * noise;
+  const raw = 0.15 * length + 0.30 * sections + 0.20 * bullets + 0.25 * roleSignal - 0.25 * noise;
   const score = Math.max(0, Math.min(100, Math.round(raw)));
   return { score, length, sections, bullets, roleSignal, noise };
 }
