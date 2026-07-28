@@ -436,31 +436,6 @@ function bgSend(type, payload) {
   try {
     const discover = async (image_base64, context) =>
       bgSend("AYN_FN_VISION", { image_base64, image_mime: "image/png", context });
-      maxRoundsPerField: 2,
-      totalTimeBudgetMs: 8000,
-    });
-    window.__AYN_DECISION_LOOP__ = { loop, classifyFailure };
-  } catch (e) {
-    console.warn("[AYN][engine-bridge] decision loop wire failed", e);
-  }
-
-  // ────────────────────────────────────────────────────────────
-  //  Part 3 — vision discovery
-  // ────────────────────────────────────────────────────────────
-  try {
-    const discover = async (image_base64, context) => {
-      const r = await fetch(FN_VISION, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-proxy-secret": PROXY_SECRET,
-          "x-source": "ext",
-        },
-        body: JSON.stringify({ image_base64, image_mime: "image/png", context }),
-      });
-      if (!r.ok) throw new Error(`vision_${r.status}`);
-      return r.json();
-    };
     const provider = createVisionProvider({
       screenshot: screenshotElement,
       discover,
