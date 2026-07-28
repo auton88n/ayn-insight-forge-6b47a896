@@ -1605,8 +1605,9 @@ $('tailor-download-pdf-btn')?.addEventListener('click', async (e) => {
   try {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumePdfBlob) throw new Error('Formatter not loaded');
     const name = aynTailoredName();
-    const blob = window.AYNResumeFormat.buildResumePdfBlob(S.tailoredText, 'Tailored_Resume');
-    saveBlob(blob, aynFileName(name, S.company, S.jobTitle, 'pdf', 'Tailored-Resume'));
+    const out = window.AYNResumeFormat.buildResumePdfBlob(S.tailoredText, 'Tailored_Resume');
+    saveBlob(out.blob, aynFileName(name, S.company, S.jobTitle, 'pdf', 'Tailored-Resume'));
+    aynShowOverflowHint(document.getElementById('tailor-fit-hint'), out);
     toast('Tailored resume PDF downloaded ✓', 'ok');
   } catch (err) { toast(err.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
