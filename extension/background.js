@@ -615,6 +615,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // v2.11.1 — in-page FAB asks background to open the side panel and
+  // signal the sidepanel to focus the Fill tab. chrome.sidePanel.open
+  // must run in the service worker in response to a user gesture; the
+  // click that produced this message counts as that gesture.
+  if (message.type === 'OPEN_SIDE_PANEL') {
+    (async () => {
+      const focusTab = (message && message.focusTab) || 'fill';
+      try {
+        // Persist the focus target so sidepanels that open fresh pick it up
+        // on init; already-open sidepanels also receive the broadcast below.
+        try { await chrome.storage.local.set({ ayn_focus_tab: { tab: focusTab, at: Date.now() } }); } catch {}
+        const tabId = sender && sender.tab && sender.tab.id;
+        const windowId = sender && sender.tab && sender.tab.windowId;
+        try {
+          if (tabId != null) await chrome.sidePanel.open({ tabId });
+          else if (windowId != null) await chrome.sidePanel.open({ windowId });
+        } catch (e) { /* already open or gesture too old */ }
+        try { chrome.runtime.sendMessage({ type: 'FOCUS_SIDEPANEL_TAB', tab: focusTab }, () => { void chrome.runtime.lastError; }); } catch {}
+        sendResponse({ ok: true });
+      } catch (e) { sendResponse({ ok: false, error: e && e.message }); }
+    })();
+    return true;
+  }
+
 
   // v1.9.7: relay a message to a tab and auto-inject content.js if missing.
   if (message.type === 'TAB_SEND') {
