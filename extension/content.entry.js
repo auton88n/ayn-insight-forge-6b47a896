@@ -26,10 +26,30 @@ import {
 const SUPABASE_URL = "https://dfkoxuokfkttjhfjcecx.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw";
-const PROXY_SECRET = "ayn-proxy-2024";
-const FN_RETRY = `${SUPABASE_URL}/functions/v1/ext-fill-form-retry`;
-const FN_VISION = `${SUPABASE_URL}/functions/v1/ext-vision-discover`;
 const FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
+
+// v2.11.0 — retry and vision now route through background.js so the
+// authenticated extension token stays out of the content-script bundle.
+// The old shared "x-proxy-secret" shipped inside the public zip and was
+// removed. If chrome.runtime is unavailable (e.g. detached test frame),
+// the request is skipped rather than sent unauthenticated.
+function bgSend(type, payload) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+        return reject(new Error("no_runtime"));
+      }
+      chrome.runtime.sendMessage({ type, payload }, (resp) => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        if (!resp || !resp.ok) return reject(new Error((resp && resp.error) || "bg_error"));
+        resolve(resp.data);
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 
 (function initAynEngineBridge() {
   if (window.__AYN_ENGINE_BRIDGE_V2__) return;
