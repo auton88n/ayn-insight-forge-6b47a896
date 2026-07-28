@@ -1313,6 +1313,19 @@ function coverHeaderFromResume(resumeText) {
   return { name, contact };
 }
 
+// v2.12.0 — standardized filename: <FirstLast>-<Company>-<Role>.<ext>.
+// Illegal chars stripped, spaces → single hyphens, capped at 80 chars.
+function aynFileName(name, company, role, ext, fallback) {
+  const clean = (s) => String(s || '').replace(/[\\/:*?"<>|\r\n\t]+/g, '').replace(/\s+/g, ' ').trim();
+  const first = clean(name).split(' ').filter(Boolean);
+  const person = first.length ? (first[0] + (first[first.length - 1] && first.length > 1 ? first[first.length - 1] : '')) : '';
+  const parts = [person, clean(company), clean(role)].filter(Boolean);
+  let base = parts.join('-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (!base) base = clean(fallback) || 'AYN';
+  if (base.length > 80) base = base.slice(0, 80).replace(/-+$/, '');
+  return `${base}.${ext}`;
+}
+
 $('cover-download-pdf-btn').addEventListener('click', async () => {
   const body = $('cover-out').dataset.raw || $('cover-out').textContent || '';
   if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
@@ -1322,9 +1335,23 @@ $('cover-download-pdf-btn').addEventListener('click', async () => {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterPdfBlob) throw new Error('Formatter not loaded');
     const { name, contact } = coverHeaderFromResume(CL.resumeText);
     const blob = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
-    const co = (cleanLabel(CL.company) || 'Company').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Company';
-    saveBlob(blob, `Cover_Letter_${co}.pdf`);
+    saveBlob(blob, aynFileName(name, CL.company, CL.jobTitle, 'pdf', 'Cover-Letter'));
     toast('Cover letter PDF downloaded ✓', 'ok');
+  } catch (e) { toast(e.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+});
+
+$('cover-download-docx-btn')?.addEventListener('click', async () => {
+  const body = $('cover-out').dataset.raw || $('cover-out').textContent || '';
+  if (!body.trim()) { toast('Generate a cover letter first', 'err'); return; }
+  const btn = $('cover-download-docx-btn'); const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Word...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterDocxBlob) throw new Error('Formatter not loaded');
+    const { name, contact } = coverHeaderFromResume(CL.resumeText);
+    const blob = await window.AYNResumeFormat.buildCoverLetterDocxBlob(body, { name, contact, company: CL.company });
+    saveBlob(blob, aynFileName(name, CL.company, CL.jobTitle, 'docx', 'Cover-Letter'));
+    toast('Cover letter Word downloaded ✓', 'ok');
   } catch (e) { toast(e.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
 });
