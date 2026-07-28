@@ -4643,6 +4643,7 @@
   if (AYN_IS_TOP) {
     const pushKind = () => {
       try { const c = classifyPage(); sendQuiet({ type: 'SET_TAB_KIND', kind: c.kind }); } catch {}
+      try { aynSyncFab(); } catch {}
     };
     setTimeout(pushKind, 800);
     setTimeout(pushKind, 3000);
