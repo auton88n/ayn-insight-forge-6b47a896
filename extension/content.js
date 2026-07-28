@@ -621,7 +621,7 @@
         company: '[class*="company"]',
       },
       'greenhouse.io': {
-        desc: '#content, .job__description, [class*="description"]',
+        desc: '.job__description, .app-body [class*="description"], .content-intro, #content .prose',
         title: 'h1',
         company: '.company-name, [class*="company"]',
       },
