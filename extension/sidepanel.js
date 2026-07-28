@@ -1813,7 +1813,38 @@ chrome.runtime.onMessage.addListener((msg) => {
       if (t && t.id === msg.tabId) applyFormReady(msg);
     });
   }
+  // v2.11.1 — in-page FAB requested a tab focus.
+  if (msg && msg.type === 'FOCUS_SIDEPANEL_TAB' && msg.tab) {
+    try { switchTab(msg.tab); } catch {}
+  }
 });
+
+// v2.11.1 — On sidepanel load, if the FAB set a pending focus target, honor it.
+(function initPendingFocusTab() {
+  try {
+    chrome.storage.local.get(['ayn_focus_tab'], (d) => {
+      const p = d && d.ayn_focus_tab;
+      if (p && p.tab && (Date.now() - (p.at || 0)) < 8000) {
+        try { switchTab(p.tab); } catch {}
+      }
+      try { chrome.storage.local.remove('ayn_focus_tab'); } catch {}
+    });
+  } catch {}
+})();
+
+// v2.11.1 — Master toggle for the in-page floating button.
+(function initFabToggle() {
+  const el = document.getElementById('fab-enabled-toggle');
+  if (!el) return;
+  try {
+    chrome.storage.local.get(['ayn_fab_enabled'], (d) => {
+      el.checked = !(d && d.ayn_fab_enabled === false);
+    });
+  } catch {}
+  el.addEventListener('change', () => {
+    try { chrome.storage.local.set({ ayn_fab_enabled: !!el.checked }); } catch {}
+  });
+})();
 
 // v1.9.38 — Opt-in high-accuracy vision (screenshot) toggle
 (function initVisionHQ() {
