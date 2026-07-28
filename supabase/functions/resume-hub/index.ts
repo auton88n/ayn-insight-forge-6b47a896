@@ -230,17 +230,15 @@ async function resolveResumeContent(
 }
 
 const EXT_ACTIONS = new Set([
-  "ext_bootstrap", "ext_ingest_job", "ext_autofill", "ext_tailor",
-  "ext_cover_letter", "ext_cover_letter_text",
+  "ext_bootstrap", "ext_ingest_job", "ext_autofill",
+  "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
-  "ext_save_answer", "ext_lookup_answer", "ext_get_resume_blob",
+  "ext_get_resume_blob",
   // v1.5.0 Phase 1: canonical profile read for extension
   "ext_profile_canonical_get",
-  // v1.5.0 Phase 2: server-side full-JD cache + scoring
-  "ext_job_ingest",
   // v1.9.19: autofill telemetry
   "ext_log_result",
   // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
