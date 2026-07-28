@@ -1277,8 +1277,10 @@ async function generateCoverLetter() {
   const btn = $('gen-cover-btn'); btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>Writing...';
   try {
     const tone = $('cover-tone').value;
+    const lengthSel = $('cover-length'); const length = lengthSel ? lengthSel.value : 'standard';
+    const guidanceInp = $('cover-guidance'); const guidance = guidanceInp ? String(guidanceInp.value || '').trim().slice(0, 200) : '';
     const data = await bgFunc('ext_cover_letter_text', {
-      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl,
+      resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl, length, guidance,
     });
     if (data.error) throw new Error(data.error);
     { const out = $('cover-out'); out.dataset.raw = data.body || ''; out.innerHTML = aynFormatAiText(data.body || ''); }
