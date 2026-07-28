@@ -2303,8 +2303,15 @@ RULES:
       // smart_tailor (extension path) — same as JWT smart_tailor below
       if (action === "smart_tailor") {
         const { resumeText, jdText, jobTitle, company, url } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string; url?: string };
+        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
+          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
+        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
+          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
         const jd = await resolveJobJd(admin, url, jdText);
         if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
+        const gapBlock = (matchedSkills || missingSkills)
+          ? `\n\nGAP HINTS (from scorer):\nmatchedSkills: ${JSON.stringify(matchedSkills || [])}\nmissingSkills: ${JSON.stringify(missingSkills || [])}\nFor each missingSkill, look for genuinely related experience already present in the resume and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis, leave it out. Never add a skill to the skills section that is not supported by the resume.`
+          : "";
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
@@ -2322,17 +2329,18 @@ KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodol
 
 TAILORED RESUME:
 - Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
+- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.
 - Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
 - Re-order skills to surface JD-matching ones first.
 - Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify when numbers exist in original. Never fabricate numbers.
 - Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
 
-CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme — already implied by 'container orchestration'.").
+CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme, already implied by 'container orchestration'.").
 
 ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
 VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {
