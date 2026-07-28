@@ -116,13 +116,13 @@ function jdKeyHostPath(url) {
   try { const u = new URL(url); return `${u.hostname.replace(/^www\./,'').toLowerCase()}${u.pathname.replace(/\/+$/, '')}`; }
   catch { return String(url || ''); }
 }
-// v2.11.2 — relevance-weighted quality score. Length is only 25% of the total,
-// so a 12k-char page of nav/cookie chrome no longer beats a lean 800-char JD.
+// v2.11.3 — relevance-weighted quality score. Length is a small factor so a
+// 12k-char page of nav/cookie chrome cannot beat a lean structured JD.
 // Components (all 0..100 before weighting):
-//   length      25%   sigmoid on character count, saturates near 2500 chars
+//   length      15%   sigmoid on character count, saturates near 2500 chars
 //   sections    30%   presence of standard JD section markers
-//   bullets     15%   presence of bullet/enumeration structure
-//   roleSignal  15%   role/comp/team/seniority vocabulary
+//   bullets     20%   presence of bullet/enumeration structure
+//   roleSignal  25%   role/comp/team/seniority vocabulary
 //   noise      -25%   penalty for cookie/nav/legal boilerplate density
 function jdQualityDetail(text) {
   const t = String(text || '');
