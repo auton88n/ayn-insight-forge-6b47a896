@@ -2345,6 +2345,169 @@
     } catch (_) {}
   }
 
+  // ────────────────────────────────────────────────────────────────
+  //  v2.11.1 — Floating in-page trigger (FAB).
+  //  Injected only on top frame of pages classifyPage() calls 'apply'.
+  //  Never on aynn.io. Isolated inside a closed shadow root so page CSS
+  //  cannot alter it. Clicking asks background to open the side panel
+  //  and focus the Fill tab. Never starts a fill directly.
+  // ────────────────────────────────────────────────────────────────
+  const AYN_FAB_HOST_ID = '__ayn_fab_host__';
+  const AYN_FAB_DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
+
+  function aynFabHostBlocked() {
+    try {
+      const h = location.hostname || '';
+      return h === 'aynn.io' || h.endsWith('.aynn.io');
+    } catch { return true; }
+  }
+
+  function aynFabReadPrefs() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get(['ayn_fab_enabled', 'ayn_fab_dismissed'], (d) => {
+          const enabled = d && d.ayn_fab_enabled !== false; // default on
+          const dismissed = (d && d.ayn_fab_dismissed) || {};
+          resolve({ enabled, dismissed });
+        });
+      } catch { resolve({ enabled: true, dismissed: {} }); }
+    });
+  }
+
+  function aynFabSetDismissed(host) {
+    try {
+      chrome.storage.local.get(['ayn_fab_dismissed'], (d) => {
+        const map = (d && d.ayn_fab_dismissed) || {};
+        map[host] = Date.now() + AYN_FAB_DISMISS_MS;
+        try { chrome.storage.local.set({ ayn_fab_dismissed: map }); } catch {}
+      });
+    } catch {}
+  }
+
+  function aynRemoveFab() {
+    try {
+      const h = document.getElementById(AYN_FAB_HOST_ID);
+      if (h) h.remove();
+      window.__AYN_FAB__ = false;
+    } catch {}
+  }
+
+  function aynInjectFab() {
+    try {
+      if (!AYN_IS_TOP) return;
+      if (window.__AYN_FAB__) return;
+      if (!document.body) return;
+      if (aynFabHostBlocked()) return;
+
+      const host = document.createElement('div');
+      host.id = AYN_FAB_HOST_ID;
+      // Host itself carries only positioning + z-index. Everything visible
+      // lives inside the closed shadow root below.
+      host.style.cssText = 'all:initial;position:fixed;right:24px;bottom:24px;z-index:2147483645;';
+      const root = host.attachShadow({ mode: 'closed' });
+
+      const style = document.createElement('style');
+      style.textContent = `
+        :host, * { box-sizing: border-box; }
+        .wrap { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .btn {
+          display: inline-flex; align-items: center; gap: 8px;
+          height: 48px; min-width: 48px; padding: 0 14px;
+          border-radius: 24px; border: 0; cursor: pointer;
+          background: #f97316; color: #ffffff;
+          box-shadow: 0 6px 20px rgba(234,88,12,.35), 0 2px 6px rgba(0,0,0,.15);
+          transition: transform .18s ease, box-shadow .18s ease, padding .18s ease;
+          font-weight: 700; font-size: 13px; letter-spacing: .2px;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(234,88,12,.45), 0 3px 8px rgba(0,0,0,.2); }
+        .btn:focus { outline: 2px solid #ffffff; outline-offset: 2px; }
+        .glyph { width: 22px; height: 22px; flex: 0 0 22px; display: inline-flex; align-items: center; justify-content: center; }
+        .label { display: none; white-space: nowrap; }
+        .wrap:hover .label { display: inline; }
+        .close {
+          position: absolute; top: -6px; right: -6px;
+          width: 20px; height: 20px; border-radius: 50%;
+          background: #1f2937; color: #ffffff; border: 0; cursor: pointer;
+          display: none; align-items: center; justify-content: center;
+          font-size: 12px; line-height: 1; font-weight: 700;
+          box-shadow: 0 2px 6px rgba(0,0,0,.3);
+        }
+        .wrap:hover .close { display: inline-flex; }
+        @media (prefers-reduced-motion: reduce) {
+          .btn { transition: none; }
+          .btn:hover { transform: none; }
+        }
+      `;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'wrap';
+      wrap.style.cssText = 'position:relative;';
+
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.type = 'button';
+      btn.setAttribute('aria-label', 'Fill with AYN');
+      btn.innerHTML = `
+        <span class="glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"/>
+          </svg>
+        </span>
+        <span class="label">Fill with AYN</span>
+      `;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        try {
+          chrome.runtime.sendMessage({ type: 'OPEN_SIDE_PANEL', focusTab: 'fill' }, () => {
+            try { void chrome.runtime.lastError; } catch {}
+          });
+        } catch {}
+      });
+
+      const close = document.createElement('button');
+      close.className = 'close';
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Hide floating button on this site for 7 days');
+      close.textContent = '\u00d7';
+      close.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        try { aynFabSetDismissed(location.hostname || ''); } catch {}
+        aynRemoveFab();
+      });
+
+      wrap.appendChild(btn);
+      wrap.appendChild(close);
+      root.appendChild(style);
+      root.appendChild(wrap);
+      document.body.appendChild(host);
+      window.__AYN_FAB__ = true;
+    } catch {}
+  }
+
+  async function aynSyncFab() {
+    try {
+      if (!AYN_IS_TOP) return;
+      let kind = 'other';
+      try { kind = (classifyPage() || {}).kind || 'other'; } catch {}
+      if (kind !== 'apply' || aynFabHostBlocked()) { aynRemoveFab(); return; }
+      const { enabled, dismissed } = await aynFabReadPrefs();
+      if (!enabled) { aynRemoveFab(); return; }
+      const host = location.hostname || '';
+      const until = dismissed && dismissed[host];
+      if (until && Date.now() < until) { aynRemoveFab(); return; }
+      aynInjectFab();
+    } catch {}
+  }
+
+  try { window.addEventListener('pagehide', aynRemoveFab); } catch {}
+  try { window.addEventListener('beforeunload', aynRemoveFab); } catch {}
+  try {
+    chrome.storage.onChanged && chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return;
+      if (changes.ayn_fab_enabled || changes.ayn_fab_dismissed) aynSyncFab();
+    });
+  } catch {}
+
   // Option-text normalizer: lenient about dashes, punctuation, whitespace
   function aynNormOpt(s) {
     return String(s || '')
