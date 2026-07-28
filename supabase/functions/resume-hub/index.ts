@@ -1547,7 +1547,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
 
       if (action === "ext_log_result") {
         try {
-          const { run_id, inject_results, filled, total, retry_count, failure_classes, resolved_by, human_typing_used, human_typed_count } = payload as {
+          const { run_id, inject_results, filled, total, retry_count, failure_classes, resolved_by, human_typing_used, human_typed_count, memory_exact_count, memory_fuzzy_count, ai_resolved_count } = payload as {
             run_id?: string;
             inject_results?: unknown;
             filled?: number;
@@ -1557,6 +1557,9 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             resolved_by?: unknown;
             human_typing_used?: boolean;
             human_typed_count?: number;
+            memory_exact_count?: number;
+            memory_fuzzy_count?: number;
+            ai_resolved_count?: number;
           };
           if (!run_id) return json({ ok: false, error: "run_id required" });
           const f = Number(filled || 0);
@@ -1570,6 +1573,9 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
             resolved_by: resolved_by && typeof resolved_by === "object" ? resolved_by : {},
             human_typing_used: !!human_typing_used,
             human_typed_count: Number(human_typed_count || 0),
+            memory_exact_count: Math.max(0, Number(memory_exact_count || 0)),
+            memory_fuzzy_count: Math.max(0, Number(memory_fuzzy_count || 0)),
+            ai_resolved_count: Math.max(0, Number(ai_resolved_count || 0)),
             completed_at: new Date().toISOString(),
           }).eq("id", run_id);
           return json({ ok: true });
