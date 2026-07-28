@@ -514,6 +514,22 @@ function markDownloadDone() {
   document.getElementById('fill-dl-success')?.classList.remove('hidden');
 }
 
+// v2.12.1: surface honest overflow hint under a download button.
+function aynShowOverflowHint(hintEl, report) {
+  if (!hintEl) return;
+  if (!report || report.fitsOnePage) { hintEl.textContent = ''; hintEl.classList.add('hidden'); return; }
+  const secs = (report.longestSections || []).filter(Boolean);
+  const which = secs.length >= 2 ? `${secs[0]} or ${secs[1]}` : (secs[0] || 'the longest section');
+  hintEl.textContent = `This resume needs about ${report.overflowLines} more lines than one page. Trim ${which} to fit.`;
+  hintEl.classList.remove('hidden');
+}
+function aynShowCoverOverflowHint(hintEl, report) {
+  if (!hintEl) return;
+  if (!report || report.fitsOnePage) { hintEl.textContent = ''; hintEl.classList.add('hidden'); return; }
+  hintEl.textContent = `This cover letter is about ${report.overflowLines} lines too long for one page. Shorten the guidance or pick a shorter length.`;
+  hintEl.classList.remove('hidden');
+}
+
 async function downloadResumeAs(kind, btn) {
   const orig = btn.innerHTML;
   btn.disabled = true;
@@ -521,11 +537,16 @@ async function downloadResumeAs(kind, btn) {
   try {
     const { text, fileBase } = await fetchAynResume();
     if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
-    const blob = kind === 'pdf'
-      ? window.AYNResumeFormat.buildResumePdfBlob(text, fileBase)
-      : await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
+    let blob, report = null;
+    if (kind === 'pdf') {
+      const out = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
+      blob = out.blob; report = out;
+    } else {
+      blob = await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
+    }
     saveBlob(blob, `${fileBase}.${kind === 'pdf' ? 'pdf' : 'docx'}`);
     markDownloadDone();
+    aynShowOverflowHint(document.getElementById('fill-fit-hint'), report);
     toast(`${kind === 'pdf' ? 'PDF' : 'Word'} downloaded ✓ — attach it on the form`, 'ok');
   } catch (err) {
     toast(err.message || 'Download failed', 'err');
@@ -1334,8 +1355,9 @@ $('cover-download-pdf-btn').addEventListener('click', async () => {
   try {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterPdfBlob) throw new Error('Formatter not loaded');
     const { name, contact } = coverHeaderFromResume(CL.resumeText);
-    const blob = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
-    saveBlob(blob, aynFileName(name, CL.company, CL.jobTitle, 'pdf', 'Cover-Letter'));
+    const out = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
+    saveBlob(out.blob, aynFileName(name, CL.company, CL.jobTitle, 'pdf', 'Cover-Letter'));
+    aynShowCoverOverflowHint(document.getElementById('cover-fit-hint'), out);
     toast('Cover letter PDF downloaded ✓', 'ok');
   } catch (e) { toast(e.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
@@ -1583,8 +1605,9 @@ $('tailor-download-pdf-btn')?.addEventListener('click', async (e) => {
   try {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumePdfBlob) throw new Error('Formatter not loaded');
     const name = aynTailoredName();
-    const blob = window.AYNResumeFormat.buildResumePdfBlob(S.tailoredText, 'Tailored_Resume');
-    saveBlob(blob, aynFileName(name, S.company, S.jobTitle, 'pdf', 'Tailored-Resume'));
+    const out = window.AYNResumeFormat.buildResumePdfBlob(S.tailoredText, 'Tailored_Resume');
+    saveBlob(out.blob, aynFileName(name, S.company, S.jobTitle, 'pdf', 'Tailored-Resume'));
+    aynShowOverflowHint(document.getElementById('tailor-fit-hint'), out);
     toast('Tailored resume PDF downloaded ✓', 'ok');
   } catch (err) { toast(err.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
