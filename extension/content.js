@@ -4662,6 +4662,7 @@
       _lastFormReportKey = '';
       submitNotified = false;
       detectAndReport(0);
+      try { aynSyncFab(); } catch {}
     }, 120);
   }
   try {
