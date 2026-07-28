@@ -1687,96 +1687,10 @@ Return ONLY JSON, no code fences, no prose:
         }
       }
 
-      if (action === "ext_tailor") {
-        const jobId = (payload as { job_id?: string }).job_id;
-        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
-          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
-        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
-          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
-        if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
-          admin.from("jobs").select("id, jd_text, company, title").eq("user_id", userId).eq("id", jobId).maybeSingle(),
-          admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          loadCanonical(admin, userId),
-        ]);
-        if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
-        const userPayload: Record<string, unknown> = { resume: resume.content, canonicalProfile: canonical, jdText: job.jd_text };
-        if (matchedSkills) userPayload.matchedSkills = matchedSkills;
-        if (missingSkills) userPayload.missingSkills = missingSkills;
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `Tailor the resume to maximize relevance to the JD. Preserve facts; reorder and rephrase. Use canonicalProfile as the ground truth for skills/YoE/titles. Return same schema. Voice: write bullets the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.
+      // v2.12.0 — ext_tailor, ext_cover_letter, ext_job_ingest removed.
+      // Live twins are smart_tailor (tailoring) and ext_cover_letter_text
+      // (cover letters). JD ingest/cache lives inline in ext_job_score.
 
-You may be given matchedSkills (already evident in the resume) and missingSkills (required by the JD but not evident). For missingSkills, look for genuinely related experience already present in the resume or canonicalProfile and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis for a missing skill, leave it out and do not imply it. Never add a skill to the skills section that is not supported by the resume or canonicalProfile. Prefer promoting relevant existing bullets over rewriting unrelated ones.
-
-Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.`,
-          user: JSON.stringify(userPayload).slice(0, 45000),
-          toolName: "emit_resume",
-          toolSchema: RESUME_SCHEMA,
-        });
-        await admin.from("resume_versions").insert({ user_id: userId, resume_id: resume.id, content: r.structured, created_for_job_id: jobId });
-        return json({ resume: r.structured, company: job.company, title: job.title });
-      }
-
-      if (action === "ext_cover_letter") {
-        const jobId = (payload as { job_id?: string }).job_id;
-        const tone = (payload as { tone?: string }).tone || "professional, warm";
-        const lengthKey = (payload as { length?: string }).length || "standard";
-        const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
-        const guidanceRaw = String((payload as { guidance?: string }).guidance || "").trim().slice(0, 200);
-        if (!jobId) return json({ error: "job_id required" }, 400);
-        const [{ data: job }, { data: resume }, canonical] = await Promise.all([
-          admin.from("jobs").select("id, jd_text, company").eq("user_id", userId).eq("id", jobId).maybeSingle(),
-          admin.from("resumes").select("id, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          loadCanonical(admin, userId),
-        ]);
-        if (!job || !resume) return json({ error: "Missing job or primary resume" }, 404);
-        const guidanceLine = guidanceRaw
-          ? ` The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the resume or canonicalProfile supports it; if it is not supported, ignore the request rather than inventing anything.`
-          : "";
-        const r = await callAI({
-          system: `Write a concise (under ${wordCap} words) cover letter. Tone: ${tone}. Address ${job.company}. No clichés ("I am excited to", "leverage", "passionate"). Ground every claim in the canonicalProfile or resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.${guidanceLine}`,
-          user: JSON.stringify({ resume: resume.content, canonicalProfile: canonical, canonicalSummary: canonicalDigest(canonical), jdText: job.jd_text }).slice(0, 35000),
-        });
-        await admin.from("cover_letters").insert({ user_id: userId, job_id: jobId, resume_id: resume.id, body: r.text, tone });
-        return json({ body: r.text });
-      }
-
-      // ──────────────────────────────────────────────────────────────
-      // Phase 2: ext_job_ingest — cache the FULL JD per URL hash and
-      // parse it once into skills/seniority/salary/location/work_mode.
-      // ──────────────────────────────────────────────────────────────
-      if (action === "ext_job_ingest") {
-        const { url, urlHash, title, company, fullJd } = payload as {
-          url?: string; urlHash?: string; title?: string; company?: string; fullJd?: string;
-        };
-        if (!fullJd || fullJd.trim().length < 40) return json({ error: "fullJd required" }, 400);
-        const normalized = normalizeUrlForHash(url || "");
-        const hash = (urlHash && urlHash.length >= 16) ? urlHash : await sha256Hex(normalized || fullJd.slice(0, 400));
-
-        // Cache hit + still fresh? Return as-is.
-        const { data: cached } = await admin.from("job_cache")
-          .select("url_hash, url, title, company, full_jd, parsed, created_at, expires_at")
-          .eq("url_hash", hash).maybeSingle();
-        if (cached && new Date(cached.expires_at).getTime() > Date.now()) {
-          return json({ cached: true, urlHash: hash, title: cached.title, company: cached.company, parsed: cached.parsed });
-        }
-
-        const parsed = await parseJobMeta(fullJd, url || "", title || "", company || "");
-        const row = {
-          url_hash: hash,
-          url: normalized || url || null,
-          title: title || cached?.title || null,
-          company: company || cached?.company || null,
-          full_jd: fullJd.slice(0, 30000),
-          parsed,
-          created_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        };
-        const { error } = await admin.from("job_cache").upsert(row, { onConflict: "url_hash" });
-        if (error) console.warn("job_cache upsert failed", error.message);
-        return json({ cached: false, urlHash: hash, title: row.title, company: row.company, parsed });
-      }
 
       // ext_job_score: full-JD scoring with HONESTY rule + AI-failure fallback.
       // Inputs: { urlHash?, url?, jobTitle?, company?, fullJd?, jobSnippet? }
