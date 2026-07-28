@@ -1355,8 +1355,9 @@ $('cover-download-pdf-btn').addEventListener('click', async () => {
   try {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildCoverLetterPdfBlob) throw new Error('Formatter not loaded');
     const { name, contact } = coverHeaderFromResume(CL.resumeText);
-    const blob = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
-    saveBlob(blob, aynFileName(name, CL.company, CL.jobTitle, 'pdf', 'Cover-Letter'));
+    const out = window.AYNResumeFormat.buildCoverLetterPdfBlob(body, { name, contact, company: CL.company });
+    saveBlob(out.blob, aynFileName(name, CL.company, CL.jobTitle, 'pdf', 'Cover-Letter'));
+    aynShowCoverOverflowHint(document.getElementById('cover-fit-hint'), out);
     toast('Cover letter PDF downloaded ✓', 'ok');
   } catch (e) { toast(e.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
