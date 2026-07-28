@@ -1032,6 +1032,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         const runId = fillData?.run_id || null;
 
+        // v2.12.2 — LAYER 1: refuse to inject anything when the backend reports
+        // the caller has no profile. This prevents the AI from being asked to
+        // guess identity fields and prevents any writes to the page.
+        if (fillData && fillData.error === 'no_profile') {
+          sendResponse({ ok: false, error: 'no_profile' });
+          return;
+        }
+
         const fieldMeta = new Map(fields.map(f => [f.id, f]));
         const decorate = v => {
           const f = fieldMeta.get(v.id) || {};
@@ -1048,11 +1056,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             _frame: f._frame || '',
           };
         };
-        const aiValues = (fillData.values || [])
+        const aiValuesRaw = (fillData.values || [])
           .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
           .map(v => decorate({ ...v, source: v.source || 'ai' }));
+
+        // v2.12.2 — LAYER 3: PROVENANCE GATE. Every identity-type text value the
+        // backend proposes must appear in the source data that produced it, or
+        // it is dropped and never written to the page. This is the structural
+        // guard against hallucinated identities like "isha.sharma@example.com"
+        // reaching a real application form. Free-text answers (open.*/textarea)
+        // are legitimately generated, so they bypass the gate.
+        const _digestRaw = String(fillData.sourceDigest || '');
+        const _normStr = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s\-_.,;:'"()/\\]+/g, '').trim();
+        const _digitsOnly = s => String(s || '').replace(/\D+/g, '');
+        const _digestNorm = _normStr(_digestRaw);
+        const _digestLower = _digestRaw.toLowerCase();
+        const _digestDigits = _digitsOnly(_digestRaw);
+        const _isFreeText = v => {
+          const kind = String(v.kind || v.type || '').toLowerCase();
+          const group = String(v.group || '');
+          return /textarea|richedit|opentext/.test(kind) || /^open\./.test(group);
+        };
+        const _isEmailField = v => {
+          const s = `${v.kind || ''} ${v.type || ''} ${v.label || ''} ${v.group || ''}`.toLowerCase();
+          return /email/.test(s);
+        };
+        const _isPhoneField = v => {
+          const s = `${v.kind || ''} ${v.type || ''} ${v.label || ''} ${v.group || ''}`.toLowerCase();
+          return /phone|mobile|\btel\b/.test(s);
+        };
+        const _isUrlValue = s => /^https?:\/\//i.test(String(s || ''));
+        const ungroundedDrops = [];
+        const aiValues = [];
+        for (const v of aiValuesRaw) {
+          const textValue = String(v.value || '').trim();
+          // Option-based answers (radio/checkbox/select) come from the field's
+          // own options list; the AI cannot invent values there, so no gate.
+          if (!textValue) { aiValues.push(v); continue; }
+          if (_isFreeText(v)) { aiValues.push(v); continue; }
+          // Digest empty means either no profile (should have hit Layer 2) or
+          // legacy backend. Fail safe: drop identity-shaped writes.
+          if (!_digestRaw) {
+            ungroundedDrops.push({ id: v.id, label: v.label || v.id, reason: 'ungrounded_value', shape: `${textValue.length}ch`, suggestion: 'AYN could not verify this value against your profile.' });
+            continue;
+          }
+          let matched = false;
+          if (_isPhoneField(v)) {
+            const d = _digitsOnly(textValue);
+            matched = d.length >= 6 && _digestDigits.includes(d);
+          } else if (_isEmailField(v) || _isUrlValue(textValue)) {
+            matched = _digestLower.includes(textValue.toLowerCase());
+          } else {
+            const n = _normStr(textValue);
+            matched = n.length >= 2 && _digestNorm.includes(n);
+          }
+          if (matched) {
+            aiValues.push(v);
+          } else {
+            ungroundedDrops.push({ id: v.id, label: v.label || v.id, reason: 'ungrounded_value', shape: `${textValue.length}ch`, suggestion: 'AYN could not verify this value against your profile.' });
+            try { console.warn('[AYN provenance] dropped ungrounded value', v.label || v.id, `${textValue.length}ch`); } catch (_) {}
+          }
+        }
         const values = [...localValues.map(decorate), ...aiValues];
-        if (values.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
+        if (values.length === 0 && ungroundedDrops.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
+
 
         // Group values by owning frame; translate ids back to frame-local for injection
         const byFrame = new Map();
@@ -1195,18 +1262,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const __total = __allResults.length;
         const __needsReviewCount = details.filter(d => d.needsReview).length;
 
+        // v2.12.2 — honest progress reporting. Only values that survived the
+        // provenance gate AND verified in the live DOM count as filled. The
+        // sidepanel is responsible for translating this into
+        // "N filled, M skipped, K need review".
+        const _backendSkipped = fillData?.skipped || [];
+        const _mergedSkipped = [..._backendSkipped, ...ungroundedDrops];
+        const _skippedCount = _mergedSkipped.length;
+        const _ungroundedCount = ungroundedDrops.length;
         sendResponse({
           ok: true,
           filled: __filled,
           total: __total,
           answered: values.length,
           verified: __filled,
-          needsReview: Math.max(0, values.length - __filled) + ((fillData?.skipped || []).length),
+          needsReview: Math.max(0, values.length - __filled),
           needsReviewCount: __needsReviewCount,
+          skippedCount: _skippedCount,
+          ungroundedCount: _ungroundedCount,
           resolvedLocally: localValues.length,
           details,
           passes: secondPassFilled > 0 ? 2 : 1,
-          skipped: fillData?.skipped || [],
+          skipped: _mergedSkipped,
         });
 
         try {

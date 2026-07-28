@@ -1169,6 +1169,58 @@ Deno.serve(async (req) => {
                             : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined,
         };
 
+        // v2.12.2 — LAYER 2: refuse to run the AI when identity is missing.
+        // A confirmed hallucinated-identity incident (Greenhouse: filled a fake
+        // name/email/phone from an empty profile payload) means the backend
+        // must never spend a token guessing. Require at minimum a first or
+        // full name PLUS one of email or phone before proceeding.
+        const _identFirst = String(merged.first_name || "").trim();
+        const _identFull = String(merged.full_name || basics.name || "").trim();
+        const _identEmail = String(merged.email || "").trim();
+        const _identPhone = String(merged.phone || "").trim();
+        const hasIdentity = (_identFirst.length > 0 || _identFull.length > 0) && (_identEmail.length > 0 || _identPhone.length > 0);
+        if (!hasIdentity) {
+          let earlyRunId: string | null = null;
+          try {
+            const { data: runRow } = await admin.from("autofill_runs").insert({
+              user_id: userId || null, url: url || null, ats: ats || null, company: company || null, job_title: jobTitle || null,
+              ext_version: extVersion || "", fields_total: Array.isArray(fields) ? fields.length : 0,
+              ai_answered: 0, fields_scanned: [], ai_values: [], skipped: [],
+              meta: { reason: "no_profile" },
+            }).select("id").single();
+            earlyRunId = runRow?.id || null;
+          } catch (e) { console.warn("no_profile telemetry insert failed", e); }
+          return json({ error: "no_profile", values: [], skipped: [], sourceDigest: "", run_id: earlyRunId, meta: { reason: "no_profile" } });
+        }
+
+        // v2.12.2 — LAYER 3: build a source digest the extension will use as the
+        // provenance haystack. Identity-type values (name, email, phone, address,
+        // links, employer, title, dates, etc.) must appear here as a normalized
+        // substring before the extension will inject them.
+        const _digestParts: string[] = [];
+        const _push = (v: unknown) => { const s = String(v == null ? "" : v).trim(); if (s) _digestParts.push(s); };
+        _push(merged.first_name); _push(merged.last_name); _push(merged.full_name);
+        _push(merged.email); _push(merged.phone);
+        _push(merged.city); _push(merged.region); _push((merged as any).region_full);
+        _push(merged.country); _push(merged.location);
+        _push((merged as any).linkedin_url); _push((merged as any).portfolio_url); _push((merged as any).github_url);
+        _push((addr as any).line1); _push((addr as any).line2); _push((addr as any).street);
+        _push((addr as any).postal || (addr as any).postal_code || (addr as any).zip);
+        _push(basics.name); _push(basics.email); _push(basics.phone); _push(basics.title); _push(basics.location); _push(basics.summary);
+        for (const w of work) {
+          const wa = w as any;
+          _push(wa.company); _push(wa.title); _push(wa.location); _push(wa.start); _push(wa.end); _push(wa.summary);
+          if (Array.isArray(wa.highlights)) wa.highlights.forEach(_push);
+        }
+        for (const e of edu) {
+          const ea = e as any;
+          _push(ea.institution); _push(ea.school); _push(ea.degree); _push(ea.field); _push(ea.area);
+          _push(ea.start); _push(ea.end);
+        }
+        if (Array.isArray((rb as any)?.skills)) (rb as any).skills.forEach(_push);
+        try { if (canonical) _push(JSON.stringify(canonical)); } catch { /* ignore */ }
+        const sourceDigest = _digestParts.join(" \n ");
+
         // v1.9.62 — deterministic answer layer before AI.
         // The root reliability issue was AI-first routing for fields that should
         // never be guessed: EEO decline, work authorization, sponsorship,
@@ -1300,6 +1352,9 @@ Deno.serve(async (req) => {
         const r = await callAI({
           model: DEFAULT_MODEL,
           system: `You are a senior career coach filling a real job application. Use ONLY the user's profile, resume, and canonical data. Never invent personal facts.
+
+ABSOLUTE PROVENANCE RULE (v2.12.2): You are given the applicant's real data in profile, mergedBasics, canonical, and resume. Use ONLY values present in that data. Never invent, guess, or use example or placeholder values. NEVER output sample names, sample emails, or sample phone numbers such as "example.com", "isha.sharma", "John Doe", "Jane Smith", "+1234567890", "555-0100", or any similar synthetic identity. If a field has no supporting value in the provided data, return skip:true for that field. Returning skip is always correct and never penalized. Any identity-type value (name, email, phone, address, LinkedIn, portfolio, employer, job title, school, degree, dates) that does not appear verbatim in the provided data will be DROPPED downstream, so guessing costs you accuracy with no benefit.
+
 
 You receive an array of "fields". Each field has: id, kind (text|textarea|select|radio|checkbox|buttongroup|typeahead), label, name, group, required, currentValue, options[{label,value}], and optionally singleChoice:true (means the checkbox group is really "pick exactly one" — return optionLabels with a single element). Fields may also carry CONTEXT: section (the surrounding section heading, e.g. "References", "Salary expectations", "Emergency contact"), siblingLabels (labels of neighbor fields in the same row/group, e.g. ["First name","Last name"] tells you this is likely a middle-name slot), helperText (aria-describedby text — often decisive), placeholder. Use CONTEXT to disambiguate short/ambiguous labels ("Name" inside a "References" section = a reference contact's name, not the applicant's). NEVER guess when siblingLabels + section still don't clarify — skip with a suggestion.
 
@@ -1539,6 +1594,7 @@ SUGGESTION: when skip:true ONLY because the needed info is missing from the prof
           values: filtered,
           skipped,
           run_id: runId,
+          sourceDigest,
           meta,
         });
       }
