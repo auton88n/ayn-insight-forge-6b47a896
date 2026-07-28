@@ -640,6 +640,7 @@ $('autofill-now-btn').addEventListener('click', () => {
           'no_content_script': 'Refresh this page (Cmd+R / Ctrl+R), then try again.',
           'no_fields': 'No fillable fields here. Open an actual apply form (Easy Apply, Workday, Greenhouse…) and try again.',
           'no_values': "AYN couldn't match any of your saved profile data to these fields. Add a few more answers in Resume Hub → Profile and retry. (Partial profiles still work — these specific fields just didn't match.)",
+          'no_profile': 'AYN could not load your profile. Nothing was filled. Open Resume Hub and check your profile, then try again.',
         };
         err.textContent = m[response.error] || response.error || 'Fill failed. Try again.';
         err.classList.remove('hidden'); return;
@@ -648,14 +649,20 @@ $('autofill-now-btn').addEventListener('click', () => {
       const { filled, total, details } = response;
       const answered = typeof response.answered === 'number' ? response.answered : (details || []).length;
       const verified = typeof response.verified === 'number' ? response.verified : filled;
-      const needsReview = typeof response.needsReview === 'number'
-        ? response.needsReview
-        : Math.max(0, answered - verified) + ((response.skipped || []).length);
-      const pct = total > 0 ? Math.round(verified/total*100) : 0;
+      const skippedCount = typeof response.skippedCount === 'number' ? response.skippedCount : (response.skipped || []).length;
+      const ungroundedCount = typeof response.ungroundedCount === 'number' ? response.ungroundedCount : 0;
       const needsReviewCount = typeof response.needsReviewCount === 'number' ? response.needsReviewCount : 0;
-      const reviewSuffix = needsReviewCount > 0 ? `, ${needsReviewCount} to review` : '';
-      $('fill-stat-n').textContent = `${verified}/${total} filled${reviewSuffix}`;
-      $('fill-stat-lbl').textContent = `${needsReview} review`;
+      const needsReview = typeof response.needsReview === 'number' ? response.needsReview : Math.max(0, answered - verified);
+      const pct = total > 0 ? Math.round(verified/total*100) : 0;
+      // v2.12.2 — honest summary. Only provenance-verified DOM writes count as
+      // filled; skipped and needs-review are reported alongside.
+      const parts = [`${verified} filled`];
+      if (skippedCount > 0) parts.push(`${skippedCount} skipped`);
+      if (needsReviewCount > 0) parts.push(`${needsReviewCount} need your review`);
+      $('fill-stat-n').textContent = parts.join(', ');
+      $('fill-stat-lbl').textContent = ungroundedCount > 0
+        ? `${ungroundedCount} unverified against your profile`
+        : `${needsReview} review`;
       const fillBar = $('fill-progress-fill');
       fillBar.style.width = pct + '%';
       fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
