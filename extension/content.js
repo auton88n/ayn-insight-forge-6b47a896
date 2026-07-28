@@ -12,8 +12,11 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.11.1'; } })();
-  const MAX_JD_CHARS = 20000;
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.11.2'; } })();
+  // v2.11.2 — hard cap the JD payload we ship out to backend/scoring. Bigger
+  // payloads were mostly boilerplate (nav/footer/cookie banners) and pushed
+  // real role signal out of the model's window.
+  const MAX_JD_CHARS = 12000;
   const AYN_VISION_ENABLED = true;
   // v2.4 — legacy scanFormFields removed. Question Engine is the only scanner.
   // v1.9.53 — top-frame guard for proactive UI/observers. Behaviorally inert while all_frames is off.
