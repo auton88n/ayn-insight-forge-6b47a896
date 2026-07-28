@@ -1559,17 +1559,33 @@ $('copy-btn').addEventListener('click', () => {
   if (!S.tailoredText) return;
   navigator.clipboard.writeText(S.tailoredText).then(() => { $('copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('copy-btn').textContent='Copy Resume',1800); });
 });
+function aynTailoredName() {
+  const first = String(CL.resumeText || '').split('\n').map(s => s.trim()).find(Boolean) || '';
+  return first;
+}
 $('tailor-download-docx-btn')?.addEventListener('click', async (e) => {
   if (!S.tailoredText) { toast('Tailor a resume first', 'err'); return; }
   const btn = e.currentTarget; const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<div class="spinner"></div>DOCX...';
   try {
     if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumeDocxBlob) throw new Error('Formatter not loaded');
-    const co = (S.company || 'AYN').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'AYN';
-    const fileBase = `Tailored_Resume_${co}`;
-    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(S.tailoredText, fileBase);
-    saveBlob(blob, `${fileBase}.docx`);
+    const name = aynTailoredName();
+    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(S.tailoredText, 'Tailored_Resume');
+    saveBlob(blob, aynFileName(name, S.company, S.jobTitle, 'docx', 'Tailored-Resume'));
     toast('Tailored resume downloaded ✓', 'ok');
+  } catch (err) { toast(err.message || 'Download failed', 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = orig; }
+});
+$('tailor-download-pdf-btn')?.addEventListener('click', async (e) => {
+  if (!S.tailoredText) { toast('Tailor a resume first', 'err'); return; }
+  const btn = e.currentTarget; const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<div class="spinner dk"></div>PDF...';
+  try {
+    if (!window.AYNResumeFormat || !window.AYNResumeFormat.buildResumePdfBlob) throw new Error('Formatter not loaded');
+    const name = aynTailoredName();
+    const blob = window.AYNResumeFormat.buildResumePdfBlob(S.tailoredText, 'Tailored_Resume');
+    saveBlob(blob, aynFileName(name, S.company, S.jobTitle, 'pdf', 'Tailored-Resume'));
+    toast('Tailored resume PDF downloaded ✓', 'ok');
   } catch (err) { toast(err.message || 'Download failed', 'err'); }
   finally { btn.disabled = false; btn.innerHTML = orig; }
 });
