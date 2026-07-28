@@ -1942,10 +1942,20 @@ chrome.runtime.onMessage.addListener((msg) => {
       }
       const chars = (r.text || '').length;
       const quality = r.quality || 0;
+      const d = r.qualityDetail || null;
       label.textContent = SRC_LABEL[r.source] || 'JD ready';
       meta.textContent = `· ${chars.toLocaleString()} chars · quality ${quality}/100`;
       const lowQuality = quality < 45 || chars < 600;
       if (lowQuality) {
+        // v2.11.2 — explain WHY quality is low so users know what to fix.
+        let why = 'Paste it manually for a better fill.';
+        if (d) {
+          if (d.noise >= 40) why = 'Mostly page boilerplate. Paste the JD for a cleaner read.';
+          else if (d.length < 30) why = 'Job description looks short. Paste the full text.';
+          else if (d.sections === 0) why = 'Missing role sections (responsibilities, qualifications). Paste the full JD.';
+          else if (d.bullets < 20 && d.roleSignal < 30) why = 'Low role signal. Paste the JD for better matching.';
+        }
+        warn.textContent = why;
         warn.classList.remove('hidden');
         pasteBtn?.classList.remove('hidden');
       } else {
