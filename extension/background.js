@@ -116,13 +116,13 @@ function jdKeyHostPath(url) {
   try { const u = new URL(url); return `${u.hostname.replace(/^www\./,'').toLowerCase()}${u.pathname.replace(/\/+$/, '')}`; }
   catch { return String(url || ''); }
 }
-// v2.11.2 — relevance-weighted quality score. Length is only 25% of the total,
-// so a 12k-char page of nav/cookie chrome no longer beats a lean 800-char JD.
+// v2.11.3 — relevance-weighted quality score. Length is a small factor so a
+// 12k-char page of nav/cookie chrome cannot beat a lean structured JD.
 // Components (all 0..100 before weighting):
-//   length      25%   sigmoid on character count, saturates near 2500 chars
+//   length      15%   sigmoid on character count, saturates near 2500 chars
 //   sections    30%   presence of standard JD section markers
-//   bullets     15%   presence of bullet/enumeration structure
-//   roleSignal  15%   role/comp/team/seniority vocabulary
+//   bullets     20%   presence of bullet/enumeration structure
+//   roleSignal  25%   role/comp/team/seniority vocabulary
 //   noise      -25%   penalty for cookie/nav/legal boilerplate density
 function jdQualityDetail(text) {
   const t = String(text || '');
@@ -140,9 +140,31 @@ function jdQualityDetail(text) {
   // real JD; only sustained boilerplate crosses ~50.
   const lines = t.split(/\n+/).map(l => l.trim()).filter(Boolean);
   const noiseRe = /^(cookies?|we use cookies|privacy (notice|policy)|terms( of (service|use))?|accept all|manage preferences|share (this )?job|apply now|back to (jobs|search|listings)|©\s*\d{4}|all rights reserved|equal (employment )?opportunity employer|powered by|sign in|log in|create( an)? account|home|about|contact|careers|blog|help|support)$/i;
-  const noiseLines = lines.filter(l => noiseRe.test(l) || (l.length < 24 && /^[A-Z][A-Za-z ]{0,22}$/.test(l))).length;
+  // Allowlist real JD section headers so they never count as chrome, even
+  // though many are short Title-Case lines that would otherwise trip the
+  // nav-run heuristic below.
+  const headerRe = /^(about( the| us)?|the role|role|overview|summary|responsibilit\w*|what you.?ll do|duties|requirement\w*|qualification\w*|minimum qualification\w*|basic qualification\w*|preferred( qualification\w*)?|what we.?re looking for|you (have|will|bring)|skills|experience|nice to have|bonus|benefits|compensation|salary|perks|why join( us)?|our team|the team|location|schedule|education|technolog\w*|tech stack|tools)\b/i;
+  // Short Title-Case candidates: single word or two short words, under 16
+  // chars, no trailing colon. Only count as noise when 3+ appear consecutively
+  // (nav menus come in runs; real section headers stand alone next to content).
+  const shortTitleRe = /^[A-Z][A-Za-z]{0,14}(?: [A-Z]?[A-Za-z]{1,10})?$/;
+  const isShortTitleCandidate = (l) => l.length < 16 && !/:$/.test(l) && shortTitleRe.test(l) && !headerRe.test(l);
+  const noiseFlags = new Array(lines.length).fill(false);
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (headerRe.test(l)) continue;
+    if (noiseRe.test(l)) noiseFlags[i] = true;
+  }
+  let idx = 0;
+  while (idx < lines.length) {
+    let j = idx;
+    while (j < lines.length && isShortTitleCandidate(lines[j])) j++;
+    if (j - idx >= 3) { for (let k = idx; k < j; k++) noiseFlags[k] = true; }
+    idx = j === idx ? idx + 1 : j;
+  }
+  const noiseLines = noiseFlags.filter(Boolean).length;
   const noise = lines.length ? Math.round(Math.min(100, (noiseLines / lines.length) * 200)) : 0;
-  const raw = 0.25 * length + 0.30 * sections + 0.15 * bullets + 0.15 * roleSignal - 0.25 * noise;
+  const raw = 0.15 * length + 0.30 * sections + 0.20 * bullets + 0.25 * roleSignal - 0.25 * noise;
   const score = Math.max(0, Math.min(100, Math.round(raw)));
   return { score, length, sections, bullets, roleSignal, noise };
 }
