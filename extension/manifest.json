@@ -10,9 +10,9 @@
     "sidePanel",
     "scripting",
     "webNavigation",
-    "declarativeNetRequest",
     "alarms"
   ],
+
 
   "host_permissions": [
     "https://*/*",
