@@ -5,6 +5,11 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+// v2.13.0 — unified identity source of truth. See docs/map/resume-hub.md
+// "Identity" section. Every action that reads applicant PII goes through
+// loadIdentity() so a new source (canonical.identity, auth.users) is
+// picked up everywhere at once, not re-derived per action.
+import { loadIdentity, identityToLegacyMerged, identityContactBlock, type Identity } from "../_shared/identity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
