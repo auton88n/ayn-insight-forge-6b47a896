@@ -29,15 +29,7 @@
     ]
   },
 
-  "declarative_net_request": {
-    "rule_resources": [
-      {
-        "id": "ayn_csp_strip",
-        "enabled": true,
-        "path": "rules/csp.json"
-      }
-    ]
-  },
+
 
   "background": {
     "service_worker": "background.js"
