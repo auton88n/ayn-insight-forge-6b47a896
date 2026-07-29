@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // extension/question-engine/question.ts
+  // question-engine/question.ts
   function freezeQuestion(q) {
     Object.freeze(q.confidence);
     Object.freeze(q.options);
@@ -10,7 +10,7 @@
     return Object.freeze(q);
   }
 
-  // extension/question-engine/refs.ts
+  // question-engine/refs.ts
   var ID_PREFIX = Object.freeze({
     text: "__textfield__",
     structradio: "__structradio__",
@@ -102,7 +102,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence.ts
+  // question-engine/evidence.ts
   var WEIGHTS = Object.freeze({
     accessibility: {
       label: 0.9,
@@ -154,7 +154,7 @@
     });
   }
 
-  // extension/question-engine/evidence/dom.ts
+  // question-engine/evidence/dom.ts
   function collect(el, root) {
     const out = [];
     const doc = root instanceof Document ? root : el.ownerDocument;
@@ -313,7 +313,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/accessibility.ts
+  // question-engine/evidence/accessibility.ts
   var IMPLICIT_ROLES = {
     input: "textbox",
     textarea: "textbox",
@@ -414,7 +414,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/adapter.ts
+  // question-engine/evidence/adapter.ts
   function collect3(field, root, adapter) {
     if (!adapter) return [];
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
@@ -425,7 +425,7 @@
     }
   }
 
-  // extension/question-engine/field-detector.ts
+  // question-engine/field-detector.ts
   var CONTROL_ROLES = /* @__PURE__ */ new Set([
     "radio",
     "checkbox",
@@ -558,7 +558,7 @@
     return true;
   }
 
-  // extension/question-engine/grouping.ts
+  // question-engine/grouping.ts
   function cluster(fields, hints = []) {
     const clusters = [];
     const claimed = /* @__PURE__ */ new Set();
@@ -638,7 +638,7 @@
     return false;
   }
 
-  // extension/question-engine/question-reconstructor.ts
+  // question-engine/question-reconstructor.ts
   function reconstruct(fields, root, adapter = null) {
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
     const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
@@ -769,7 +769,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/merge.ts
+  // question-engine/evidence/merge.ts
   function fuse(evidence) {
     if (evidence.length === 0) {
       return { value: void 0, agreement: 0, winner: null, losers: [] };
@@ -824,7 +824,7 @@
     return Math.max(0, Math.min(1, n));
   }
 
-  // extension/question-engine/semantic-types.ts
+  // question-engine/semantic-types.ts
   var RULES = [
     // ---- contact
     { type: "contact.email", patterns: [/\be-?mail\b/i], confidence: 0.98 },
@@ -897,7 +897,7 @@
     return { semanticType: "unknown", confidence: 0 };
   }
 
-  // extension/question-engine/confidence-engine.ts
+  // question-engine/confidence-engine.ts
   function computeConfidence(input) {
     const labeling = clamp012(fuse(input.labelEvidence).agreement);
     const grouping = clamp012(input.groupConfidence);
@@ -915,7 +915,7 @@
     visionGate: 0.7
   });
 
-  // extension/question-engine/question-builder.ts
+  // question-engine/question-builder.ts
   function build(groups) {
     const out = [];
     const seenIds = /* @__PURE__ */ new Set();
@@ -1043,7 +1043,7 @@
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/adapters/index.ts
+  // question-engine/adapters/index.ts
   var registry = [];
   function registerAdapter(plugin) {
     registry.push(plugin);
@@ -1055,7 +1055,7 @@
     return registry.find((p) => p.id === "generic") ?? null;
   }
 
-  // extension/question-engine/adapters/generic.ts
+  // question-engine/adapters/generic.ts
   var genericAdapter = {
     id: "generic",
     detect() {
@@ -1108,7 +1108,7 @@
     return null;
   }
 
-  // extension/question-engine/adapter-config.ts
+  // question-engine/adapter-config.ts
   var BUILT_IN = {
     greenhouse: {
       hostRe: "(?:^|\\.)greenhouse\\.io$|boards\\.greenhouse\\.io$|job-boards\\.greenhouse\\.io$",
@@ -1178,7 +1178,7 @@
     return list.join(", ");
   }
 
-  // extension/question-engine/adapters/workday.ts
+  // question-engine/adapters/workday.ts
   var workdayAdapter = {
     id: "workday",
     detect(doc, url) {
@@ -1246,7 +1246,7 @@
     return s.replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
   }
 
-  // extension/question-engine/adapters/ashby.ts
+  // question-engine/adapters/ashby.ts
   var ashbyAdapter = {
     id: "ashby",
     detect(doc, url) {
@@ -1313,7 +1313,7 @@
     return t || null;
   }
 
-  // extension/question-engine/adapters/greenhouse.ts
+  // question-engine/adapters/greenhouse.ts
   var greenhouseAdapter = {
     id: "greenhouse",
     detect(doc, url) {
@@ -1369,7 +1369,7 @@
     }
   };
 
-  // extension/question-engine/adapters/lever.ts
+  // question-engine/adapters/lever.ts
   var leverAdapter = {
     id: "lever",
     detect(doc, url) {
@@ -1419,7 +1419,7 @@
     }
   };
 
-  // extension/question-engine/adapters/icims.ts
+  // question-engine/adapters/icims.ts
   var icimsAdapter = {
     id: "icims",
     detect(doc, url) {
@@ -1469,7 +1469,7 @@
     }
   };
 
-  // extension/question-engine/legacy.ts
+  // question-engine/legacy.ts
   function projectToLegacy(q) {
     return {
       id: q.id,
@@ -1521,7 +1521,7 @@
     }
   }
 
-  // extension/question-engine/evidence/mutation.ts
+  // question-engine/evidence/mutation.ts
   var OBSERVED_ATTRS = Object.freeze([
     "aria-hidden",
     "hidden",
@@ -1564,14 +1564,14 @@
     return true;
   }
 
-  // extension/question-engine/evidence/vision.ts
+  // question-engine/evidence/vision.ts
   var noopProvider = async () => null;
   var activeProvider = noopProvider;
   function setVisionProvider(p) {
     activeProvider = p ?? noopProvider;
   }
 
-  // extension/question-engine/learning/supabase-store.ts
+  // question-engine/learning/supabase-store.ts
   function questionSignature(q) {
     const label = normalizeLabel(q.label);
     const opts = (q.options ?? []).map((o) => normalizeLabel(o.label)).sort().join("|");
@@ -1593,7 +1593,7 @@
     activeLearning = e;
   }
 
-  // extension/question-engine/evidence/vision-provider.ts
+  // question-engine/evidence/vision-provider.ts
   var cache = /* @__PURE__ */ new Map();
   var CACHE_TTL_MS = 30 * 60 * 1e3;
   var stamps = /* @__PURE__ */ new Map();
@@ -1667,7 +1667,7 @@
     return parts.join(">");
   }
 
-  // extension/question-engine/decision-loop.ts
+  // question-engine/decision-loop.ts
   function classifyFailure(q, domOptionsNow, answer, newFieldAppeared) {
     if (newFieldAppeared) return "field_became_visible";
     if (!answer) return "unknown";
@@ -1740,7 +1740,7 @@
     return (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
   }
 
-  // extension/question-engine/index.ts
+  // question-engine/index.ts
   registerAdapter(workdayAdapter);
   registerAdapter(ashbyAdapter);
   registerAdapter(greenhouseAdapter);
@@ -1793,7 +1793,7 @@
     };
   }
 
-  // extension/content.entry.js
+  // content.entry.js
   var SUPABASE_URL = "https://dfkoxuokfkttjhfjcecx.supabase.co";
   var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw";
   var FN_MEMORY = `${SUPABASE_URL}/functions/v1/ext-memory`;
