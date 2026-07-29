@@ -948,13 +948,23 @@ Deno.serve(async (req) => {
 
 
       if (action === "ext_bootstrap") {
-        const [{ data: profile }, { data: resume }, authUserRes] = await Promise.all([
-          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-          admin.from("resumes").select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          admin.auth.admin.getUserById(userId),
-        ]);
-        const authEmail = authUserRes?.data?.user?.email || null;
-        return json({ user: { id: userId, email: authEmail, device: tok.device_label }, profile, resume });
+        // v2.13.0 — bootstrap now returns identity completeness so the
+        // sidepanel can prompt the user to fix the profile BEFORE they
+        // trigger a fill (instead of learning about it via a mid-fill
+        // "no_profile" abort). See docs/map/extension.md sidepanel status.
+        const id = await loadIdentity(admin, userId);
+        const { data: resume } = await admin.from("resumes")
+          .select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        return json({
+          user: { id: userId, email: id.email.value || null, device: tok.device_label },
+          profile: id.profile,
+          resume,
+          identity: {
+            complete: id.isComplete(),
+            missing: id.missing(),
+            sources: id.sourceMap(),
+          },
+        });
       }
 
       if (action === "ext_ingest_job") {
