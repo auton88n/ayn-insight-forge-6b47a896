@@ -5,6 +5,11 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+// v2.13.0 — unified identity source of truth. See docs/map/resume-hub.md
+// "Identity" section. Every action that reads applicant PII goes through
+// loadIdentity() so a new source (canonical.identity, auth.users) is
+// picked up everywhere at once, not re-derived per action.
+import { loadIdentity, identityToLegacyMerged, identityContactBlock, type Identity } from "../_shared/identity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -943,13 +948,23 @@ Deno.serve(async (req) => {
 
 
       if (action === "ext_bootstrap") {
-        const [{ data: profile }, { data: resume }, authUserRes] = await Promise.all([
-          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-          admin.from("resumes").select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          admin.auth.admin.getUserById(userId),
-        ]);
-        const authEmail = authUserRes?.data?.user?.email || null;
-        return json({ user: { id: userId, email: authEmail, device: tok.device_label }, profile, resume });
+        // v2.13.0 — bootstrap now returns identity completeness so the
+        // sidepanel can prompt the user to fix the profile BEFORE they
+        // trigger a fill (instead of learning about it via a mid-fill
+        // "no_profile" abort). See docs/map/extension.md sidepanel status.
+        const id = await loadIdentity(admin, userId);
+        const { data: resume } = await admin.from("resumes")
+          .select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        return json({
+          user: { id: userId, email: id.email.value || null, device: tok.device_label },
+          profile: id.profile,
+          resume,
+          identity: {
+            complete: id.isComplete(),
+            missing: id.missing(),
+            sources: id.sourceMap(),
+          },
+        });
       }
 
       if (action === "ext_ingest_job") {
@@ -1088,138 +1103,54 @@ Deno.serve(async (req) => {
           } catch (e) { console.warn("autofill_runs early insert failed", e); }
           return json({ values: [], skipped: [], run_id: earlyRunId, meta: { reason: "no_form_fields", resolved_by: { ...resolvedBySrc, ai: 0 } } });
         }
-        const [{ data: profile }, resumeResolved, canonical] = await Promise.all([
-          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-          resolveResumeContent(admin, userId, resume_version_id),
-          loadCanonical(admin, userId),
-        ]);
-        const resume = resumeResolved.content ? { content: resumeResolved.content } : null;
-        const canonicalText = canonicalDigest(canonical);
+        // v2.13.0 — one call, one merge, one digest. Replaces ~140 lines
+        // of per-action inline merging that had a documented gap: it
+        // never consulted auth.users.email as a fallback, which is how
+        // the "Isha Sharma" hallucinated identity slipped through.
+        const identity = await loadIdentity(admin, userId, { resume_version_id });
+        const profile = identity.profile;
+        const canonical = identity.canonical;
+        const rb = identity.resume.raw;
+        const resume = rb ? { content: rb } : null;
+        const basics = identity.resume.basics as Record<string, string>;
+        const work = identity.resume.work;
+        const edu = identity.resume.education;
+        const addr = (profile?.address || {}) as Record<string, string>;
+        const canonicalText = canonicalDigest(canonical as any);
 
         const profileFieldsAvailable = profile
           ? Object.entries(profile).filter(([_, v]) => v != null && v !== "" && (Array.isArray(v) ? v.length : true)).map(([k]) => k)
           : [];
-        const hasAnyData = profileFieldsAvailable.length > 0 || !!resume?.content;
+        const hasAnyData = profileFieldsAvailable.length > 0 || !!rb;
 
-        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: Array<Record<string, unknown>>; skills?: unknown[]; education?: Array<Record<string, unknown>> } | null) || null;
-        const basics = (rb?.basics || {}) as Record<string, string>;
-        const work = (rb?.work || []) as Array<Record<string, unknown>>;
-        const edu = (rb?.education || []) as Array<Record<string, unknown>>;
-        const [firstFromResume, ...restFromResume] = (basics.name || "").trim().split(/\s+/);
-
-        const parseYear = (s: unknown): number | null => {
-          const m = String(s || "").match(/(19|20)\d{2}/);
-          return m ? parseInt(m[0], 10) : null;
-        };
-        const nowYear = new Date().getFullYear();
-        let yoe = 0;
-        for (const w of work) {
-          const sy = parseYear(w.start);
-          const ey = /present|current/i.test(String(w.end || "")) ? nowYear : (parseYear(w.end) || nowYear);
-          if (sy) yoe += Math.max(0, ey - sy);
-        }
-        const eduStr = edu.map(e => `${e.degree || ""} ${e.field || ""}`).join(" ").toLowerCase();
-        let educationLevel = "";
-        if (/ph\.?d|doctor/.test(eduStr)) educationLevel = "PhD";
-        else if (/master|m\.?sc|m\.?a\.|mba|m\.?eng/.test(eduStr)) educationLevel = "Master's";
-        else if (/bachelor|b\.?sc|b\.?a\.|b\.?eng|undergrad/.test(eduStr)) educationLevel = "Bachelor's";
-        else if (/associate|diploma/.test(eduStr)) educationLevel = "Associate's";
-        else if (eduStr.trim()) educationLevel = "High School";
-
-        const addr = (profile?.address || {}) as Record<string, string>;
-        const plinks = (profile?.links || {}) as Record<string, string>;
-        const rawLinkedin = plinks.linkedin || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
-        const rawPortfolio = plinks.portfolio || plinks.website || (basics.links as unknown as Array<{ label: string; url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
-        const linkedinSafe = /linkedin\.com\//i.test(rawLinkedin) ? rawLinkedin : "";
-        const portfolioSafe = rawPortfolio && !/linkedin\.com/i.test(rawPortfolio) ? rawPortfolio : "";
-
-        const merged: Record<string, unknown> = {
-          first_name: profile?.legal_first_name || firstFromResume || "",
-          last_name: profile?.legal_last_name || restFromResume.join(" ") || "",
-          full_name: [profile?.legal_first_name, profile?.legal_last_name].filter(Boolean).join(" ") || basics.name || "",
-          email: profile?.email || basics.email || "",
-          phone: profile?.phone || basics.phone || "",
-          location: [addr.city, addr.state || addr.province, addr.country].filter(Boolean).join(", ") || basics.location || "",
-          city: addr.city || "",
-          region: addr.state || addr.province || "",
-          country: addr.country || "",
-          summary: basics.summary || "",
-          computed_years_experience: canonical?.derived?.total_yoe ?? yoe,
-          computed_education_level: canonical?.derived?.education_level || educationLevel,
-          current_title: canonical?.derived?.current_title || (work[0] as { title?: string })?.title || basics.title || "",
-          current_company: canonical?.derived?.current_company || (work[0] as { company?: string })?.company || "",
-          seniority: canonical?.derived?.seniority || "",
-          primary_function: canonical?.derived?.primary_function || "",
-        };
-        if (linkedinSafe) merged.linkedin_url = linkedinSafe;
-        if (portfolioSafe) merged.portfolio_url = portfolioSafe;
-        if (plinks.github) merged.github_url = plinks.github;
-
-        const cwa = (canonical?.work_auth || {}) as Record<string, any>;
-        const pwa = (profile?.work_auth || {}) as Record<string, any>;
-        const CA_PROV: Record<string,string> = { ON:"Ontario", BC:"British Columbia", AB:"Alberta", QC:"Quebec", MB:"Manitoba", SK:"Saskatchewan", NS:"Nova Scotia", NB:"New Brunswick", NL:"Newfoundland and Labrador", PE:"Prince Edward Island", NT:"Northwest Territories", YT:"Yukon", NU:"Nunavut" };
-        const regionRaw = (addr.state || addr.province || "") as string;
-        merged.region_full = CA_PROV[regionRaw.toUpperCase()] || regionRaw;
-        merged.work_auth = {
-          citizenship: cwa.citizenship || (String(pwa.type||"").toLowerCase()==="citizen" ? (addr.country||"") : "") || "",
-          authorized_us: (typeof cwa.work_authorized_us === "boolean") ? cwa.work_authorized_us : undefined,
-          authorized_ca: (typeof cwa.work_authorized_ca === "boolean") ? cwa.work_authorized_ca : undefined,
-          needs_sponsorship: (typeof cwa.needs_sponsorship_now === "boolean") ? cwa.needs_sponsorship_now
-                            : (typeof cwa.needs_sponsorship_future === "boolean") ? cwa.needs_sponsorship_future
-                            : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined,
-        };
+        const merged = identityToLegacyMerged(identity, profile);
+        const identitySources = identity.sourceMap();
 
         // v2.12.2 — LAYER 2: refuse to run the AI when identity is missing.
-        // A confirmed hallucinated-identity incident (Greenhouse: filled a fake
-        // name/email/phone from an empty profile payload) means the backend
-        // must never spend a token guessing. Require at minimum a first or
-        // full name PLUS one of email or phone before proceeding.
-        const _identFirst = String(merged.first_name || "").trim();
-        const _identFull = String(merged.full_name || basics.name || "").trim();
-        const _identEmail = String(merged.email || "").trim();
-        const _identPhone = String(merged.phone || "").trim();
-        const hasIdentity = (_identFirst.length > 0 || _identFull.length > 0) && (_identEmail.length > 0 || _identPhone.length > 0);
-        if (!hasIdentity) {
+        // Now delegates the completeness check to Identity.isComplete()
+        // instead of re-implementing the rule inline. v2.13.0 also records
+        // the per-field source map so we can tell (from telemetry alone)
+        // where each fill's identity came from and where it silently fell
+        // back to "missing".
+        if (!identity.isComplete()) {
           let earlyRunId: string | null = null;
           try {
             const { data: runRow } = await admin.from("autofill_runs").insert({
               user_id: userId || null, url: url || null, ats: ats || null, company: company || null, job_title: jobTitle || null,
               ext_version: extVersion || "", fields_total: Array.isArray(fields) ? fields.length : 0,
               ai_answered: 0, fields_scanned: [], ai_values: [], skipped: [],
-              meta: { reason: "no_profile" },
+              meta: { reason: "no_profile", identity_source: identitySources, identity_missing: identity.missing() },
             }).select("id").single();
             earlyRunId = runRow?.id || null;
           } catch (e) { console.warn("no_profile telemetry insert failed", e); }
-          return json({ error: "no_profile", values: [], skipped: [], sourceDigest: "", run_id: earlyRunId, meta: { reason: "no_profile" } });
+          return json({ error: "no_profile", values: [], skipped: [], sourceDigest: "", run_id: earlyRunId, meta: { reason: "no_profile", identity_missing: identity.missing() } });
         }
 
-        // v2.12.2 — LAYER 3: build a source digest the extension will use as the
-        // provenance haystack. Identity-type values (name, email, phone, address,
-        // links, employer, title, dates, etc.) must appear here as a normalized
-        // substring before the extension will inject them.
-        const _digestParts: string[] = [];
-        const _push = (v: unknown) => { const s = String(v == null ? "" : v).trim(); if (s) _digestParts.push(s); };
-        _push(merged.first_name); _push(merged.last_name); _push(merged.full_name);
-        _push(merged.email); _push(merged.phone);
-        _push(merged.city); _push(merged.region); _push((merged as any).region_full);
-        _push(merged.country); _push(merged.location);
-        _push((merged as any).linkedin_url); _push((merged as any).portfolio_url); _push((merged as any).github_url);
-        _push((addr as any).line1); _push((addr as any).line2); _push((addr as any).street);
-        _push((addr as any).postal || (addr as any).postal_code || (addr as any).zip);
-        _push(basics.name); _push(basics.email); _push(basics.phone); _push(basics.title); _push(basics.location); _push(basics.summary);
-        for (const w of work) {
-          const wa = w as any;
-          _push(wa.company); _push(wa.title); _push(wa.location); _push(wa.start); _push(wa.end); _push(wa.summary);
-          if (Array.isArray(wa.highlights)) wa.highlights.forEach(_push);
-        }
-        for (const e of edu) {
-          const ea = e as any;
-          _push(ea.institution); _push(ea.school); _push(ea.degree); _push(ea.field); _push(ea.area);
-          _push(ea.start); _push(ea.end);
-        }
-        if (Array.isArray((rb as any)?.skills)) (rb as any).skills.forEach(_push);
-        try { if (canonical) _push(JSON.stringify(canonical)); } catch { /* ignore */ }
-        const sourceDigest = _digestParts.join(" \n ");
+        // v2.12.2 — LAYER 3: provenance haystack. Now computed once inside
+        // Identity.sourceDigest() so every action uses the same rules.
+        const sourceDigest = identity.sourceDigest();
+
+
 
         // v1.9.62 — deterministic answer layer before AI.
         // The root reliability issue was AI-first routing for fields that should
@@ -2126,6 +2057,18 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
           : "";
         const jd = await resolveJobJd(admin, url, jdText);
         if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
+
+        // v2.13.0 — attach the real applicant identity so the header line
+        // ("From: <name> <email> <phone>") is grounded in profile/canonical/
+        // auth data instead of whatever basics.name happens to say. Fixes
+        // the earlier gap where cover letters silently omitted contact
+        // details when resume basics were thin.
+        const identity = await loadIdentity(admin, userId).catch(() => null);
+        const applicantBlock = identity ? identityContactBlock(identity) : "";
+        const applicantSection = applicantBlock
+          ? `\n\nAPPLICANT (use these exact contact details in the header, never invent alternatives):\n${applicantBlock}`
+          : "";
+
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `Write a cover letter under ${wordCap} words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
@@ -2137,15 +2080,17 @@ STRUCTURE (4 short paragraphs):
 4) Close: clear ask for a conversation + sign off.
 
 RULES:
-- Use ONLY facts from the resume. Never invent companies, metrics, or dates.
+- Use ONLY facts from the resume and applicant block. Never invent companies, metrics, dates, names, emails, or phone numbers.
 - Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear exactly as in the resume.
+- The signature MUST use the applicant's real name from the APPLICANT block if provided; otherwise use the name from RESUME basics. Never invent a name.
 - No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
 - Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to' (for example $90K to $120K CAD).
 - Plain text, no markdown.${guidanceLine}`,
-          user: `RESUME:\n${resumeText.slice(0, 8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0, 6000)}`,
+          user: `RESUME:\n${resumeText.slice(0, 8000)}${applicantSection}\n\nJOB DESCRIPTION:\n${jd.slice(0, 6000)}`,
         });
         return json({ body: r.text });
       }
+
 
       // ext_save_application — save to tracker via extension token
       if (action === "ext_save_application") {
@@ -2280,6 +2225,18 @@ RULES:
         const gapBlock = (matchedSkills || missingSkills)
           ? `\n\nGAP HINTS (from scorer):\nmatchedSkills: ${JSON.stringify(matchedSkills || [])}\nmissingSkills: ${JSON.stringify(missingSkills || [])}\nFor each missingSkill, look for genuinely related experience already present in the resume and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis, leave it out. Never add a skill to the skills section that is not supported by the resume.`
           : "";
+
+        // v2.13.0 — pass the applicant's real header (name, email, phone,
+        // location, links) as ground truth. Previously the tailored resume
+        // silently used whatever `basics.name` was in resumeText, which
+        // could be blank on freshly parsed resumes and produced headerless
+        // tailored output.
+        const identity = await loadIdentity(admin, userId).catch(() => null);
+        const applicantBlock = identity ? identityContactBlock(identity) : "";
+        const applicantSection = applicantBlock
+          ? `\n\nAPPLICANT HEADER (use these exact lines at the top of the tailored resume — never invent alternatives, never omit):\n${applicantBlock}`
+          : "";
+
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
@@ -2296,6 +2253,7 @@ Return ONLY this JSON (no code fences):
 KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodologies from the JD. Mark inResume=true only if the EXACT term (or a very close variant) appears in the resume text. Mark importance: high if mentioned 2+ times or in "must have" / "required"; medium otherwise; low for nice-to-haves.
 
 TAILORED RESUME:
+- Start with the APPLICANT HEADER lines verbatim if provided (name on line 1, contact on line 2, location on line 3, links on line 4). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the original resume unchanged.
 - Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
 - Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.
 - Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
@@ -2308,7 +2266,7 @@ CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bulle
 ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
 VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}${applicantSection}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {

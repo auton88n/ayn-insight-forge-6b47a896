@@ -18,7 +18,7 @@ var AYNQuestionEngine = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // extension/question-engine/index.ts
+  // question-engine/index.ts
   var question_engine_exports = {};
   __export(question_engine_exports, {
     BUILT_IN_ADAPTER_CONFIG: () => BUILT_IN,
@@ -43,7 +43,7 @@ var AYNQuestionEngine = (() => {
     withVerification: () => withVerification
   });
 
-  // extension/question-engine/question.ts
+  // question-engine/question.ts
   function freezeQuestion(q) {
     Object.freeze(q.confidence);
     Object.freeze(q.options);
@@ -72,7 +72,7 @@ var AYNQuestionEngine = (() => {
     return q.history ? [...q.history, entry] : [entry];
   }
 
-  // extension/question-engine/refs.ts
+  // question-engine/refs.ts
   var ID_PREFIX = Object.freeze({
     text: "__textfield__",
     structradio: "__structradio__",
@@ -164,7 +164,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence.ts
+  // question-engine/evidence.ts
   var WEIGHTS = Object.freeze({
     accessibility: {
       label: 0.9,
@@ -216,7 +216,7 @@ var AYNQuestionEngine = (() => {
     });
   }
 
-  // extension/question-engine/evidence/dom.ts
+  // question-engine/evidence/dom.ts
   function collect(el, root) {
     const out = [];
     const doc = root instanceof Document ? root : el.ownerDocument;
@@ -375,7 +375,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/accessibility.ts
+  // question-engine/evidence/accessibility.ts
   var IMPLICIT_ROLES = {
     input: "textbox",
     textarea: "textbox",
@@ -476,7 +476,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/adapter.ts
+  // question-engine/evidence/adapter.ts
   function collect3(field, root, adapter) {
     if (!adapter) return [];
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
@@ -487,7 +487,7 @@ var AYNQuestionEngine = (() => {
     }
   }
 
-  // extension/question-engine/field-detector.ts
+  // question-engine/field-detector.ts
   var CONTROL_ROLES = /* @__PURE__ */ new Set([
     "radio",
     "checkbox",
@@ -620,7 +620,7 @@ var AYNQuestionEngine = (() => {
     return true;
   }
 
-  // extension/question-engine/grouping.ts
+  // question-engine/grouping.ts
   function cluster(fields, hints = []) {
     const clusters = [];
     const claimed = /* @__PURE__ */ new Set();
@@ -700,7 +700,7 @@ var AYNQuestionEngine = (() => {
     return false;
   }
 
-  // extension/question-engine/question-reconstructor.ts
+  // question-engine/question-reconstructor.ts
   function reconstruct(fields, root, adapter = null) {
     const doc = root instanceof Document ? root : root.ownerDocument ?? document;
     const hints = adapter && adapter.groupingHints ? adapter.groupingHints(fields, doc) : [];
@@ -831,7 +831,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/evidence/merge.ts
+  // question-engine/evidence/merge.ts
   function fuse(evidence) {
     if (evidence.length === 0) {
       return { value: void 0, agreement: 0, winner: null, losers: [] };
@@ -886,7 +886,7 @@ var AYNQuestionEngine = (() => {
     return Math.max(0, Math.min(1, n));
   }
 
-  // extension/question-engine/semantic-types.ts
+  // question-engine/semantic-types.ts
   var RULES = [
     // ---- contact
     { type: "contact.email", patterns: [/\be-?mail\b/i], confidence: 0.98 },
@@ -959,7 +959,7 @@ var AYNQuestionEngine = (() => {
     return { semanticType: "unknown", confidence: 0 };
   }
 
-  // extension/question-engine/confidence-engine.ts
+  // question-engine/confidence-engine.ts
   function computeConfidence(input) {
     const labeling = clamp012(fuse(input.labelEvidence).agreement);
     const grouping = clamp012(input.groupConfidence);
@@ -977,7 +977,7 @@ var AYNQuestionEngine = (() => {
     visionGate: 0.7
   });
 
-  // extension/question-engine/question-builder.ts
+  // question-engine/question-builder.ts
   function build(groups) {
     const out = [];
     const seenIds = /* @__PURE__ */ new Set();
@@ -1105,7 +1105,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
   }
 
-  // extension/question-engine/adapters/index.ts
+  // question-engine/adapters/index.ts
   var registry = [];
   function registerAdapter(plugin) {
     registry.push(plugin);
@@ -1117,7 +1117,7 @@ var AYNQuestionEngine = (() => {
     return registry.find((p) => p.id === "generic") ?? null;
   }
 
-  // extension/question-engine/adapters/generic.ts
+  // question-engine/adapters/generic.ts
   var genericAdapter = {
     id: "generic",
     detect() {
@@ -1170,7 +1170,7 @@ var AYNQuestionEngine = (() => {
     return null;
   }
 
-  // extension/question-engine/adapter-config.ts
+  // question-engine/adapter-config.ts
   var BUILT_IN = {
     greenhouse: {
       hostRe: "(?:^|\\.)greenhouse\\.io$|boards\\.greenhouse\\.io$|job-boards\\.greenhouse\\.io$",
@@ -1302,7 +1302,7 @@ var AYNQuestionEngine = (() => {
     return list.join(", ");
   }
 
-  // extension/question-engine/adapters/workday.ts
+  // question-engine/adapters/workday.ts
   var workdayAdapter = {
     id: "workday",
     detect(doc, url) {
@@ -1370,7 +1370,7 @@ var AYNQuestionEngine = (() => {
     return s.replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim();
   }
 
-  // extension/question-engine/adapters/ashby.ts
+  // question-engine/adapters/ashby.ts
   var ashbyAdapter = {
     id: "ashby",
     detect(doc, url) {
@@ -1437,7 +1437,7 @@ var AYNQuestionEngine = (() => {
     return t || null;
   }
 
-  // extension/question-engine/adapters/greenhouse.ts
+  // question-engine/adapters/greenhouse.ts
   var greenhouseAdapter = {
     id: "greenhouse",
     detect(doc, url) {
@@ -1493,7 +1493,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // extension/question-engine/adapters/lever.ts
+  // question-engine/adapters/lever.ts
   var leverAdapter = {
     id: "lever",
     detect(doc, url) {
@@ -1543,7 +1543,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // extension/question-engine/adapters/icims.ts
+  // question-engine/adapters/icims.ts
   var icimsAdapter = {
     id: "icims",
     detect(doc, url) {
@@ -1593,7 +1593,7 @@ var AYNQuestionEngine = (() => {
     }
   };
 
-  // extension/question-engine/legacy.ts
+  // question-engine/legacy.ts
   function projectToLegacy(q) {
     return {
       id: q.id,
@@ -1648,7 +1648,7 @@ var AYNQuestionEngine = (() => {
     }
   }
 
-  // extension/question-engine/evidence/mutation.ts
+  // question-engine/evidence/mutation.ts
   var OBSERVED_ATTRS = Object.freeze([
     "aria-hidden",
     "hidden",
@@ -1691,14 +1691,14 @@ var AYNQuestionEngine = (() => {
     return true;
   }
 
-  // extension/question-engine/evidence/vision.ts
+  // question-engine/evidence/vision.ts
   var noopProvider = async () => null;
   var activeProvider = noopProvider;
   function setVisionProvider(p) {
     activeProvider = p ?? noopProvider;
   }
 
-  // extension/question-engine/learning/supabase-store.ts
+  // question-engine/learning/supabase-store.ts
   function questionSignature(q) {
     const label = normalizeLabel(q.label);
     const opts = (q.options ?? []).map((o) => normalizeLabel(o.label)).sort().join("|");
@@ -1837,18 +1837,28 @@ var AYNQuestionEngine = (() => {
       if (isSensitive(q)) return null;
       const incoming = tokenize(q.label || "");
       if (incoming.size < 3) return null;
+      const kind = (q.kind || "").toLowerCase();
+      const isOptionKind = kind === "radio" || kind === "checkbox" || kind === "select";
+      const currentOptionLabels = new Set(
+        Array.isArray(q.options) ? q.options.map((o) => (o?.label || "").trim().toLowerCase()).filter(Boolean) : []
+      );
       let best = null;
       for (const row of rows) {
-        if ((row.question_kind || "").toLowerCase() !== (q.kind || "").toLowerCase()) continue;
+        if ((row.question_kind || "").toLowerCase() !== kind) continue;
         const rowTokens = tokenize(row.canonical_label || "");
         if (rowTokens.size === 0) continue;
         let overlap = 0;
         for (const t of incoming) if (rowTokens.has(t)) overlap++;
         const smaller = Math.min(incoming.size, rowTokens.size);
         const score = smaller === 0 ? 0 : overlap / smaller;
-        if (overlap >= 3 && score >= 0.7 && (!best || score > best.score)) {
-          best = { row, score };
+        if (overlap < 3 || score < 0.8) continue;
+        if (isOptionKind) {
+          const rowLabels = [row.answer_option_label, ...row.answer_option_labels || []].filter(Boolean).map((l) => String(l).trim().toLowerCase());
+          if (rowLabels.length === 0) continue;
+          const hasMatchingOption = rowLabels.some((l) => currentOptionLabels.has(l));
+          if (!hasMatchingOption) continue;
         }
+        if (!best || score > best.score) best = { row, score };
       }
       return best;
     }
@@ -1955,7 +1965,7 @@ var AYNQuestionEngine = (() => {
     return activeLearning;
   }
 
-  // extension/question-engine/evidence/vision-provider.ts
+  // question-engine/evidence/vision-provider.ts
   var cache = /* @__PURE__ */ new Map();
   var CACHE_TTL_MS = 30 * 60 * 1e3;
   var stamps = /* @__PURE__ */ new Map();
@@ -2029,7 +2039,7 @@ var AYNQuestionEngine = (() => {
     return parts.join(">");
   }
 
-  // extension/question-engine/decision-loop.ts
+  // question-engine/decision-loop.ts
   function classifyFailure(q, domOptionsNow, answer, newFieldAppeared) {
     if (newFieldAppeared) return "field_became_visible";
     if (!answer) return "unknown";
@@ -2102,7 +2112,7 @@ var AYNQuestionEngine = (() => {
     return (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
   }
 
-  // extension/question-engine/index.ts
+  // question-engine/index.ts
   registerAdapter(workdayAdapter);
   registerAdapter(ashbyAdapter);
   registerAdapter(greenhouseAdapter);

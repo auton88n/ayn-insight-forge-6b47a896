@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.12.2'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.13.0'; } })();
   // v2.11.2 — hard cap the JD payload we ship out to backend/scoring. Bigger
   // payloads were mostly boilerplate (nav/footer/cookie banners) and pushed
   // real role signal out of the model's window.
