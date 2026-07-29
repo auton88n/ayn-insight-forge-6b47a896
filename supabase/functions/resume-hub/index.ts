@@ -2225,6 +2225,18 @@ RULES:
         const gapBlock = (matchedSkills || missingSkills)
           ? `\n\nGAP HINTS (from scorer):\nmatchedSkills: ${JSON.stringify(matchedSkills || [])}\nmissingSkills: ${JSON.stringify(missingSkills || [])}\nFor each missingSkill, look for genuinely related experience already present in the resume and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis, leave it out. Never add a skill to the skills section that is not supported by the resume.`
           : "";
+
+        // v2.13.0 — pass the applicant's real header (name, email, phone,
+        // location, links) as ground truth. Previously the tailored resume
+        // silently used whatever `basics.name` was in resumeText, which
+        // could be blank on freshly parsed resumes and produced headerless
+        // tailored output.
+        const identity = await loadIdentity(admin, userId).catch(() => null);
+        const applicantBlock = identity ? identityContactBlock(identity) : "";
+        const applicantSection = applicantBlock
+          ? `\n\nAPPLICANT HEADER (use these exact lines at the top of the tailored resume — never invent alternatives, never omit):\n${applicantBlock}`
+          : "";
+
         const r = await callAI({
           model: QUALITY_MODEL,
           system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
@@ -2241,6 +2253,7 @@ Return ONLY this JSON (no code fences):
 KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodologies from the JD. Mark inResume=true only if the EXACT term (or a very close variant) appears in the resume text. Mark importance: high if mentioned 2+ times or in "must have" / "required"; medium otherwise; low for nice-to-haves.
 
 TAILORED RESUME:
+- Start with the APPLICANT HEADER lines verbatim if provided (name on line 1, contact on line 2, location on line 3, links on line 4). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the original resume unchanged.
 - Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
 - Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.
 - Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
@@ -2253,7 +2266,7 @@ CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bulle
 ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
 
 VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
+          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}${applicantSection}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
         });
         let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
         try {
