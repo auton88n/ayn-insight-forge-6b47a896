@@ -12,10 +12,9 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navLinks = [
 { path: '/', en: 'Home', fr: 'Accueil', ar: 'الرئيسية' },
-{ path: '/#about', en: 'About', fr: 'À Propos', ar: 'من نحن' },
+{ path: '/#how', en: 'How it works', fr: 'Comment ça marche', ar: 'كيف يعمل' },
 { path: '/#features', en: 'Features', fr: 'Fonctionnalités', ar: 'المميزات' },
-{ path: '/#solutions', en: 'Solutions', fr: 'Solutions', ar: 'الحلول' },
-{ path: '/resume-match', en: 'Resume Match', fr: 'Resume Match', ar: 'مطابقة السيرة' },
+{ path: '/pricing', en: 'Pricing', fr: 'Tarifs', ar: 'الأسعار' },
 { path: '/contact', en: 'Contact', fr: 'Contact', ar: 'تواصل معنا' }];
 
 
