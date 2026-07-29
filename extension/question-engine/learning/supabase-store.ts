@@ -163,21 +163,45 @@ export function createSupabaseLearning(transport: LearningTransport): LearningEn
     if (isSensitive(q)) return null;
     const incoming = tokenize(q.label || "");
     if (incoming.size < 3) return null;
+    // v2.13.0 — for option-based fields (radio/checkbox/select) we also
+    // require the remembered answer's option label to still exist among
+    // the current field's options. Without this a reused "Yes" from
+    // "Do you have a driver's license?" could quietly fill "Do you
+    // consent to a background check?" just because the question tokens
+    // partially overlapped.
+    const kind = (q.kind || "").toLowerCase();
+    const isOptionKind = kind === "radio" || kind === "checkbox" || kind === "select";
+    const currentOptionLabels = new Set(
+      Array.isArray((q as unknown as { options?: Array<{ label?: string }> }).options)
+        ? ((q as unknown as { options: Array<{ label?: string }> }).options
+            .map(o => (o?.label || "").trim().toLowerCase())
+            .filter(Boolean))
+        : []
+    );
     let best: { row: MemoryRow; score: number } | null = null;
     for (const row of rows) {
-      if ((row.question_kind || "").toLowerCase() !== (q.kind || "").toLowerCase()) continue;
+      if ((row.question_kind || "").toLowerCase() !== kind) continue;
       const rowTokens = tokenize(row.canonical_label || "");
       if (rowTokens.size === 0) continue;
       let overlap = 0;
       for (const t of incoming) if (rowTokens.has(t)) overlap++;
       const smaller = Math.min(incoming.size, rowTokens.size);
       const score = smaller === 0 ? 0 : overlap / smaller;
-      if (overlap >= 3 && score >= 0.7 && (!best || score > best.score)) {
-        best = { row, score };
+      // Hardened: raised from 0.7 to 0.8 to cut cross-question drift.
+      if (overlap < 3 || score < 0.8) continue;
+      if (isOptionKind) {
+        const rowLabels = [row.answer_option_label, ...(row.answer_option_labels || [])]
+          .filter(Boolean)
+          .map(l => String(l).trim().toLowerCase());
+        if (rowLabels.length === 0) continue;
+        const hasMatchingOption = rowLabels.some(l => currentOptionLabels.has(l));
+        if (!hasMatchingOption) continue;
       }
+      if (!best || score > best.score) best = { row, score };
     }
     return best;
   }
+
 
   async function upsertRow(payload: Partial<MemoryRow> & { question_signature: string }): Promise<void> {
     const h = await headers();
