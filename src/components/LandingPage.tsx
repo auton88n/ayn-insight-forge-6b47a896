@@ -21,23 +21,23 @@ const LandingPage = memo(() => {
   }, []);
 
   const faqSchema = createFAQSchema([
-    { question: 'What is AYN AI?', answer: 'AYN is an AI career assistant that helps you find jobs, match your resume, fill applications, and track your search in one place.' },
-    { question: 'Does AYN work with LinkedIn and Indeed?', answer: 'Yes. AYN scans job pages on LinkedIn, Indeed, Greenhouse, Lever, Ashby, and other boards so you can save roles and autofill faster.' },
-    { question: 'Is AYN free to try?', answer: 'Absolutely. AYN has a free tier with no credit card required.' },
+    { question: 'What is AYN?', answer: 'AYN reads a job posting, scores how well you match it, fills the application, and writes you a tailored resume and cover letter.' },
+    { question: 'Which job sites does AYN work on?', answer: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.' },
+    { question: 'Is AYN free to try?', answer: 'Yes. AYN is free to start and no credit card is required.' },
   ]);
 
   return (
     <>
       <SEO
-        title="AYN AI | Job Search Assistant | Land Your Next Role"
-        description="AYN helps you find jobs, match your resume, autofill applications, write cover letters, and track every opportunity in one place."
+        title="AYN, autofill job applications and tailor your resume"
+        description="AYN reads the job posting, scores your match, fills the application, and writes a tailored resume and cover letter. Works on Greenhouse, Lever, Workday, Ashby and more. Free to start."
         canonical="/"
-        keywords="AYN AI, job search AI, resume assistant, AI job application, LinkedIn job assistant"
+        keywords="autofill job applications, job application autofill, tailored resume, AI cover letter, Greenhouse autofill, Workday autofill"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
       <div dir={direction} className="landing-white-page" style={{ background: '#ffffff', minHeight: '100vh', fontFamily: "'Inter', system-ui, sans-serif", fontFeatureSettings: "'cv11','ss01','ss03'" }}>
         <Header />
-        <HeroScroll />
+        <HeroScroll onStartFree={() => setShowAuthModal(true)} />
         <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
       </div>
     </>

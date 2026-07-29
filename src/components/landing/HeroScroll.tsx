@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState, memo, useCallback } from 'react';
 import type React from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { ArrowRight, Search, BarChart3, Target, LayoutGrid, Database, Users, FileText, CheckCircle, Cpu, Home, Plane, Building2, HardHat, ShoppingBag, Stethoscope } from 'lucide-react';
+import { ArrowRight, Wand2, Target, ShieldCheck, FileText, Sparkles, LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -92,7 +92,7 @@ function nearestLoaded(idx: number): number {
   return -1;
 }
 
-export const HeroScroll = memo(() => {
+export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) => {
   const { language } = useLanguage();
   const isAr = language === 'ar';
   const reduced = useReducedMotion();
@@ -110,27 +110,27 @@ export const HeroScroll = memo(() => {
 
   const CHAPTERS = [
     {
-      headline: isAr ? 'يعمل وأنت نائم.\nيتعلم وأنت تنمو.\nيبلغك عندما يهم الأمر.' : language === 'fr' ? 'Travaille pendant que vous dormez.\nApprend pendant que vous grandissez.\nSignale quand cela compte.' : 'Works while you sleep.\nLearns while you grow.\nReports when it matters.',
-      body: '',
-      stat: '01', unit: isAr ? 'اليقظة' : language === 'fr' ? 'Vigilance' : 'Vigilance',
+      headline: 'Add your resume once.\nAYN reads it and\nbuilds your profile.',
+      body: 'Your experience, skills, education, and the answers you keep retyping.',
+      stat: '01', unit: 'Profile',
       in: 0.15, out: 0.31
     },
     {
-      headline: isAr ? 'التقارير تصبح محادثات.\nالبيانات تصبح توجهاً.\nالفرق تصبح متسقة.' : language === 'fr' ? 'Les rapports deviennent des conversations.\nLes données deviennent une direction.\nLes équipes s\'alignent.' : 'Reports become conversations.\nData becomes direction.\nTeams become aligned.',
-      body: '',
-      stat: '02', unit: isAr ? 'التوجيه' : language === 'fr' ? 'Direction' : 'Direction',
+      headline: 'Open any job posting.\nAYN reads the real\njob description.',
+      body: 'It scores how well you match it, and tells you which requirements you meet and which you do not.',
+      stat: '02', unit: 'Match',
       in: 0.34, out: 0.49
     },
     {
-      headline: isAr ? 'كل تحديث.\nكل ملف.\nذاكرة واحدة حية.' : language === 'fr' ? 'Chaque mise à jour.\nChaque fichier.\nUne mémoire vivante.' : 'Every update.\nEvery file.\nOne living memory.',
-      body: '',
-      stat: '03', unit: isAr ? 'الذاكرة' : language === 'fr' ? 'Mémoire' : 'Memory',
+      headline: 'Click fill.\nThe screening questions\nand dropdowns too.',
+      body: 'AYN completes the application, then shows you exactly what it filled and what it left for you.',
+      stat: '03', unit: 'Fill',
       in: 0.52, out: 0.67
     },
     {
-      headline: isAr ? 'قوة عاملة واحدة للذكاء الاصطناعي.\nدائماً قيد العمل.\nتحركك للأمام.' : language === 'fr' ? 'Une main-d\'œuvre IA.\nToujours active.\nVous fait avancer.' : 'One AI workforce.\nAlways on.\nMoving you forward.',
-      body: '',
-      stat: '04', unit: isAr ? 'التقدم' : language === 'fr' ? 'Progrès' : 'Progress',
+      headline: 'A tailored resume\nand cover letter\nfor the role.',
+      body: 'One page, real text a resume scanner can read, built from your own experience.',
+      stat: '04', unit: 'Tailor',
       in: 0.70, out: 0.85
     },
   ];
@@ -349,28 +349,29 @@ export const HeroScroll = memo(() => {
 
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
-                <h1 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(38px,8vw,92px)', fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? <>قوة<br />المعرفة.</> : language === 'fr' ? <>Le pouvoir<br />de savoir.</> : <>The power<br />to know.</>}
+                <h1 style={{ fontFamily: C.display, fontSize: 'clamp(32px,5.4vw,64px)', fontWeight: 700, lineHeight: 1.0, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'left' }}>
+                  Stop filling out the same job application over and over.
                 </h1>
-                <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 460, margin: '0 0 36px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? 'AYN يربط تقاريرك وملفاتك وقراراتك في طبقة ذكاء واحدة يمكن لشركتك التحدث إليها.' : language === 'fr' ? "AYN connecte vos rapports, fichiers et décisions en une couche d'intelligence à laquelle votre entreprise peut parler." : 'AYN connects your reports, files, and decisions into one intelligence layer your business can talk to.'}
+                <p style={{ fontFamily: C.body, fontSize: 17, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 520, margin: '0 0 28px', textAlign: 'left' }}>
+                  AYN reads the job posting, scores you against it, fills the application, and writes you a tailored resume and cover letter. It works on Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <Link to="/contact"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
-                    onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
-                    onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-                    {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
-                  </Link>
-                  <Link to="/contact"
+                  <button type="button" onClick={() => onStartFree?.()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, border: 'none', cursor: 'pointer', transition: 'opacity 0.2s, transform 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
+                    Start free <ArrowRight size={13} />
+                  </button>
+                  <Link to="/resume-hub?tab=extension"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'عرض تقرير عينة' : language === 'fr' ? 'Voir un exemple de rapport' : 'View Sample Report'}
+                    Add to Chrome
                   </Link>
                 </div>
+                <p style={{ fontFamily: C.body, fontSize: 13, color: C.inkMid, margin: '14px 0 0', textAlign: 'left' }}>
+                  Free to start. Your data stays yours.
+                </p>
               </div>
 
               {/* Chapters */}
@@ -383,19 +384,19 @@ export const HeroScroll = memo(() => {
 
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
-                <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,7vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: isAr ? 'right' : 'left' }}>
-                  {isAr ? <span>عين واحدة.<br />كل إجابة.</span> : language === 'fr' ? <span>Un seul œil.<br />Toutes les réponses.</span> : <span>One eye.<br />Every answer.</span>}
+                <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,5vw,60px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: 'left' }}>
+                  <span>Your next application<br />should take a minute,<br />not an hour.</span>
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <Link to="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
-                    {isAr ? 'طلب عرض خاص' : language === 'fr' ? 'Demander une démo privée' : 'Request Private Demo'} <ArrowRight size={13} />
-                  </Link>
+                  <button type="button" onClick={() => onStartFree?.()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
+                    Start free <ArrowRight size={13} />
+                  </button>
                   <a href="#features" style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    {isAr ? 'شاهده في العمل' : language === 'fr' ? 'Le voir en action' : 'See it in action'}
+                    See what it does
                   </a>
                 </div>
               </div>
@@ -406,29 +407,26 @@ export const HeroScroll = memo(() => {
         </div>
       </div>
 
-      {/* Section 2 — About */}
-      <section id="about" style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
-        <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(36px,5vw,68px)', fontWeight: 700, lineHeight: 0.98, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 32px', textAlign: 'center' }}>
-            {isAr ? <>عن <span style={{ color: C.inkMid }}>AYN</span></> : language === 'fr' ? <>À propos de <span style={{ color: C.inkMid }}>AYN</span></> : <>About <span style={{ color: C.inkMid }}>AYN</span></>}
+      {/* Section 2 — How it works */}
+      <section id="how" style={{ padding: 'clamp(96px,14vh,160px) clamp(32px,6vw,96px)', background: C.bgOff }}>
+        <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 56px', textAlign: 'center' }}>
+            How it works
           </h2>
-          <p dir={isAr ? 'rtl' : 'ltr'} style={{ 
-            fontFamily: C.body, 
-            fontSize: 'clamp(18px, 1.2vw, 22px)', 
-            fontWeight: 400, 
-            lineHeight: 1.6, 
-            color: C.inkSub, 
-            margin: '0 auto',
-            maxWidth: 880,
-            textWrap: 'balance' as React.CSSProperties['textWrap'],
-            textAlign: 'center'
-          }}>
-            {isAr
-              ? 'تم بناء AYN لأصحاب الشركات الذين يحتاجون إلى الوضوح والسرعة والتحكم في عالم يعيد الذكاء الاصطناعي تشكيله. فهو يربط التقارير والمهام والقرارات وبيانات الأعمال المعتمدة في طبقة استخبارات واحدة، مما يساعد القادة على فهم ما تغير، ورؤية ما يهم، والتحرك قبل ضياع الفرص. يساعد AYN الشركات على التكيف بشكل أسرع، والقيادة بذكاء أكبر، والمضي قدمًا بثقة.'
-              : language === 'fr'
-              ? "AYN a été conçu pour les propriétaires d'entreprises qui ont besoin de clarté, de rapidité et de contrôle dans un monde remodelé par l'IA. Il connecte les rapports, les tâches, les décisions et les données commerciales approuvées en une seule couche d'intelligence, aidant les dirigeants à comprendre ce qui a changé, à voir ce qui compte et à agir avant que les opportunités ne soient manquées. AYN aide les entreprises à s'adapter plus rapidement, à diriger plus intelligemment et à aller de l'avant avec confiance."
-              : 'AYN was built for company owners who need clarity, speed, and control in a world being reshaped by AI. It connects reports, tasks, decisions, and approved business data into one intelligence layer, helping leaders understand what changed, see what matters, and act before opportunities are missed. AYN helps companies adapt faster, lead smarter, and move forward with confidence.'}
-          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 40 }}>
+            {[
+              { n: '1', text: 'Add your resume once. AYN reads it and builds your profile: your experience, skills, education, and the answers you keep retyping.' },
+              { n: '2', text: 'Open any job posting. AYN pulls the real job description off the page and scores how well you match it, and tells you which requirements you meet and which you do not.' },
+              { n: '3', text: 'Click fill. AYN completes the application, including the screening questions and dropdowns that usually take the longest, then shows you exactly what it filled and what it left for you.' },
+            ].map(step => (
+              <div key={step.n} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 100, border: `1px solid ${C.borderMd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: C.display, fontSize: 20, fontWeight: 700, color: C.ink }}>
+                  {step.n}
+                </div>
+                <p style={{ fontFamily: C.body, fontSize: 17, lineHeight: 1.6, color: C.inkSub, margin: 0 }}>{step.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -449,11 +447,11 @@ export const HeroScroll = memo(() => {
 
         <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ textAlign: 'center', marginBottom: 80, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'center' }}>
-              {isAr ? 'بُني لكل جزء من العمل.' : language === 'fr' ? 'Conçu pour chaque partie de l\'entreprise.' : 'Built for every part of the business.'}
+            <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'center' }}>
+              Features
             </h2>
-            <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              {isAr ? 'تساعد AYN القادة على طرح الأسئلة، وقراءة سياق الشركة، وتحويل النشاط اليومي إلى قرارات.' : language === 'fr' ? "AYN aide les dirigeants à poser des questions, à lire le contexte de l'entreprise et à transformer l'activité quotidienne en décisions." : 'AYN helps leaders ask questions, read company context, and turn daily activity into decisions.'}
+            <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
+              Everything you need to apply faster without losing control of what goes out with your name on it.
             </p>
           </div>
 
@@ -464,34 +462,34 @@ export const HeroScroll = memo(() => {
           }}>
             {[
               {
-                title: isAr ? 'اسأل عملك' : 'Ask Your Business',
-                desc: isAr ? 'اطرح أسئلة عبر التقارير وجداول البيانات والتحديثات والمستندات ونشاط الفريق.' : 'Ask questions across reports, spreadsheets, updates, documents, and team activity.',
-                icon: Search
+                title: 'Autofill that handles the hard parts',
+                desc: 'Names and emails are easy. AYN also handles work history, education, custom screening questions, dropdown menus, and the long forms that make you give up halfway through.',
+                icon: Wand2
               },
               {
-                title: isAr ? 'ذاكرة الشركة' : 'Company Memory',
-                desc: isAr ? 'حول الملفات والتقارير والتحديثات والقرارات إلى ذاكرة واحدة حية يمكن لشركتك استخدامها.' : 'Turn files, reports, updates, and decisions into one living memory your company can use.',
-                icon: Database
+                title: 'A match score you can check',
+                desc: 'AYN scores you against the actual job description it read from the page, and shows you how many characters it found and which resume it compared. If it cannot find a real job description, it says so instead of guessing.',
+                icon: Target
               },
               {
-                title: isAr ? 'تحديثات الفريق' : 'Team Updates',
-                desc: isAr ? 'اسمح للموظفين والمديرين بإضافة التحديثات والمعوقات والملاحظات والتقدم في AYN.' : 'Let employees and managers add updates, blockers, notes, and progress into AYN.',
-                icon: Users
+                title: 'It never invents an answer',
+                desc: 'Every answer AYN fills has to come from your own profile or resume. If it cannot verify something, it leaves the field blank and tells you, rather than making something up.',
+                icon: ShieldCheck
               },
               {
-                title: isAr ? 'تقارير القيادة' : 'Leadership Reports',
-                desc: isAr ? 'أنشئ تقارير للمديرين وملخصات للرئيس التنفيذي والأولويات وخطط العمل من نشاط الشركة.' : 'Generate manager reports, CEO summaries, priorities, and action plans from company activity.',
+                title: 'Tailored resumes and cover letters',
+                desc: 'One page, real text a resume scanner can read, not an image. AYN rewrites your existing experience to match the role without inventing jobs, changing your numbers, or adding skills you do not have.',
                 icon: FileText
               },
               {
-                title: isAr ? 'إجابات قائمة على الأدلة' : 'Evidence-Based Answers',
-                desc: isAr ? 'شاهد من أين أتت الإجابات، مع سياق من بيانات شركتك.' : 'See where answers came from, with context from your company data.',
-                icon: CheckCircle
+                title: 'It learns your answers',
+                desc: 'Answer a question once and AYN remembers it, even when the next company words it differently. Sensitive questions like work authorization are always yours to answer.',
+                icon: Sparkles
               },
               {
-                title: isAr ? 'قوة عاملة من وكلاء الذكاء الاصطناعي' : 'AI Agent Workforce',
-                desc: isAr ? 'وكلاء متخصصون يدعمون المبيعات والعمليات والتمويل والمستندات والدعم والقيادة.' : 'Specialized agents support sales, operations, finance, documents, support, and leadership.',
-                icon: Cpu
+                title: 'Everything in one place',
+                desc: 'Your resumes, saved jobs, applications, and match scores live in Resume Hub, so you can see what you applied to and what happened next.',
+                icon: LayoutGrid
               }
             ].map((card, i) => (
               <div key={i}
@@ -547,124 +545,24 @@ export const HeroScroll = memo(() => {
         </div>
       </section>
 
-      {/* Section 4 — Solutions */}
-      <section id="solutions" style={{ 
-        minHeight: '100dvh', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        padding: 'clamp(72px,12vh,120px) clamp(20px,4vw,64px)', 
-        background: '#fcfcfc', 
+      {/* Section 4 — Trust */}
+      <section id="trust" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'clamp(96px,14vh,160px) clamp(20px,4vw,64px)',
+        background: '#fcfcfc',
         borderBottom: `1px solid ${C.border}`,
         position: 'relative'
       }}>
-        <div style={{ width: '100%', maxWidth: 1280, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div style={{ textAlign: 'center', marginBottom: 80, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', lineHeight: 1.04, textAlign: 'center' }}>
-              {isAr ? 'بُني للشركات التي تحتاج إلى الوضوح للنمو.' : language === 'fr' ? 'Conçu pour les entreprises qui ont besoin de clarté pour croître.' : 'Built for the companies that need clarity to grow.'}
-            </h2>
-            <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 820, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              {isAr ? 'تتكيف AYN مع مختلف الصناعات من خلال ربط شعوبها وبياناتها وتقاريرها وعملياتها اليومية في طبقة استخبارات واحدة تعمل بالذكاء الاصطناعي.' : language === 'fr' ? "AYN s'adapte à différents secteurs en connectant leurs collaborateurs, leurs données, leurs rapports et leurs opérations quotidiennes en une seule couche d'intelligence artificielle." : 'AYN adapts to different industries by connecting their people, data, reports, and daily operations into one AI intelligence layer.'}
-            </p>
-          </div>
-          
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', 
-            gap: 32 
-          }}>
-            {[
-              { 
-                title: isAr ? 'الشركات العائلية' : 'Family Businesses',
-                desc: isAr ? 'ساعد المالكين على رؤية ما يحدث عبر الفرق والفروع والمديرين والعمليات اليومية دون الاعتماد على تحديثات متفرقة.' : 'Help owners see what is happening across teams, branches, managers, and daily operations without depending on scattered updates.',
-                icon: Home 
-              },
-              { 
-                title: isAr ? 'السياحة والضيافة' : 'Tourism & Hospitality',
-                desc: isAr ? 'اربط الحجوزات وطلبات العملاء والموردين والعمليات والتمويل وتعليقات الضيوف في تقارير قيادة واضحة.' : 'Connect bookings, customer requests, suppliers, operations, finance, and guest feedback into clear leadership reports.',
-                icon: Plane 
-              },
-              { 
-                title: isAr ? 'العقارات وإدارة الممتلكات' : 'Real Estate & Property Management',
-                desc: isAr ? 'تتبع العملاء المحتملين والمستأجرين والصيانة والعقود والمدفوعات والمستندات وتحديثات المدير في عرض واحد متصل.' : 'Track leads, tenants, maintenance, contracts, payments, documents, and manager updates in one connected view.',
-                icon: Building2 
-              },
-              { 
-                title: isAr ? 'البناء والمقاولات' : 'Construction & Contracting',
-                desc: isAr ? 'اتبع تقدم المشروع وتأخيرات الموردين وتقارير الموقع والموافقات والفواتير والمعوقات التشغيلية قبل أن تؤثر على التسليم.' : 'Follow project progress, supplier delays, site reports, approvals, invoices, and operational blockers before they affect delivery.',
-                icon: HardHat 
-              },
-              { 
-                title: isAr ? 'التجزئة والفرانشايز' : 'Retail & Franchises',
-                desc: isAr ? 'امنح القيادة رؤية عبر الفروع والمبيعات ومشكلات المخزون وشكاوى العملاء وتحديثات الموظفين وإشارات الأداء.' : 'Give leadership visibility across branches, sales, inventory issues, customer complaints, staff updates, and performance signals.',
-                icon: ShoppingBag 
-              },
-              { 
-                title: isAr ? 'العيادات والشركات الخدمية' : 'Clinics & Service Businesses',
-                desc: isAr ? 'اربط المواعيد ودعم العملاء والمدفوعات وتحديثات الموظفين والمستندات والقضايا التشغيلية في قرارات يومية أكثر وضوحاً.' : 'Connect appointments, customer support, payments, staff updates, documents, and operational issues into clearer daily decisions.',
-                icon: Stethoscope 
-              }
-            ].map((item, i) => (
-              <div key={i} style={{ 
-                padding: 'clamp(28px,5vw,48px) clamp(22px,4vw,40px)', 
-                background: 'rgba(255, 255, 255, 0.45)', 
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                border: '1px solid rgba(255, 255, 255, 0.6)', 
-                borderRadius: 32, 
-                boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.04)',
-                display: 'flex', 
-                gap: 28,
-                transition: 'all 0.5s cubic-bezier(0.19, 1, 0.22, 1)',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-              onMouseEnter={e => { 
-                const t = e.currentTarget as HTMLDivElement;
-                t.style.transform = 'translateY(-10px)';
-                t.style.boxShadow = '0 30px 60px -12px rgba(0, 0, 0, 0.08)';
-                t.style.background = 'rgba(255, 255, 255, 0.65)';
-                t.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-              }}
-              onMouseLeave={e => { 
-                const t = e.currentTarget as HTMLDivElement;
-                t.style.transform = 'translateY(0)';
-                t.style.boxShadow = '0 10px 30px -10px rgba(0, 0, 0, 0.04)';
-                t.style.background = 'rgba(255, 255, 255, 0.45)';
-                t.style.borderColor = 'rgba(255, 255, 255, 0.6)';
-              }}>
-                <div style={{ 
-                  width: 64, 
-                  height: 64, 
-                  borderRadius: 20, 
-                  background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  flexShrink: 0,
-                  border: '1px solid rgba(0,0,0,0.03)'
-                }}>
-                  <item.icon size={30} color={C.ink} strokeWidth={1.5} />
-                </div>
-                <div dir={isAr ? 'rtl' : 'ltr'} style={{ textAlign: isAr ? 'right' : 'left' }}>
-                  <h3 style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 12 }}>{item.title}</h3>
-                  <p style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6 }}>{item.desc}</p>
-                </div>
-
-                {/* Subtle Glow Effect */}
-                <div style={{ 
-                  position: 'absolute', 
-                  bottom: '-20%', 
-                  left: '-20%', 
-                  width: '60%', 
-                  height: '60%', 
-                  background: 'radial-gradient(circle, rgba(0,0,0,0.02) 0%, transparent 70%)',
-                  pointerEvents: 'none'
-                }} />
-              </div>
-            ))}
-          </div>
+        <div style={{ width: '100%', maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 24px', lineHeight: 1.04 }}>
+            Built to be honest with you
+          </h2>
+          <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.7, color: C.inkSub, margin: 0, textWrap: 'balance' as React.CSSProperties['textWrap'] }}>
+            AYN tells you what it did and what it could not do. It shows which job description it read and how complete it was, which resume it compared you against, and which fields it filled, skipped, or wants you to review. Sensitive questions about work authorization, sponsorship, salary, and self identification are never guessed. You answer those.
+          </p>
         </div>
       </section>
 
@@ -674,24 +572,22 @@ export const HeroScroll = memo(() => {
           <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: `min(85vw,${sz}px)`, height: `min(85vw,${sz}px)`, borderRadius: '50%', border: `1px solid rgba(255,255,255,${0.06 - i * 0.015})`, pointerEvents: 'none' }} />
         ))}
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 640, width: '100%', paddingBottom: 100, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <h2 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 'clamp(36px,7vw,92px)', fontWeight: 700, lineHeight: 1.02, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px', textAlign: 'center' }}>
-            {isAr ? <span>أذكى عين<br />في الغرفة<br />هي عينك.</span> : language === 'fr' ? <span>L'intelligence<br />la plus puissante<br />est la vôtre.</span> : <span>The most intelligent<br />eye in the room<br />is yours.</span>}
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,5.4vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px', textAlign: 'center' }}>
+            <span>Your next application should take a minute, not an hour.</span>
           </h2>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/contact"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: '#fff', color: C.ink, fontFamily: C.body, fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s, transform 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.88'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
-              onMouseDown={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(0.97)'; }}
-              onMouseUp={e => { (e.currentTarget as HTMLAnchorElement).style.transform = 'scale(1)'; }}>
-              {isAr ? 'طلب عرض' : language === 'fr' ? 'Demander une démo' : 'Request Demo'} <ArrowRight size={13} />
-            </Link>
-            <a href="#features"
+            <button type="button" onClick={() => onStartFree?.()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: '#fff', color: C.ink, fontFamily: C.body, fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', borderRadius: 100, border: 'none', cursor: 'pointer', transition: 'opacity 0.2s, transform 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.88'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
+              Start free <ArrowRight size={13} />
+            </button>
+            <Link to="/resume-hub?tab=extension"
               style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: 'rgba(255,255,255,0.65)', fontFamily: C.body, fontSize: 14, borderRadius: 100, border: '1px solid rgba(255,255,255,0.20)', textDecoration: 'none', transition: 'border-color 0.2s, color 0.2s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.45)'; (e.currentTarget as HTMLAnchorElement).style.color = '#fff'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.20)'; (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.65)'; }}>
-              {isAr ? 'استكشف المميزات' : language === 'fr' ? 'Explorer les fonctionnalités' : 'Explore Features'}
-            </a>
+              Add to Chrome
+            </Link>
           </div>
         </div>
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
