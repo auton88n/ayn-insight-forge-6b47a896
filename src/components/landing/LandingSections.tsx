@@ -159,9 +159,9 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
           <div className="lp-steps lp-reveal">
             {[
               'Add your resume once.',
-
               'Open any job posting.',
-              'Click fill.',
+              'See your score, then tailor.',
+
             ].map((t, i) => (
               <div className="lp-step" key={t}>
                 <span className="lp-step-n">STEP {i + 1}</span>
