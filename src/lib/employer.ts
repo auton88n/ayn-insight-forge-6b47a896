@@ -27,7 +27,29 @@ async function call<T>(body: unknown): Promise<T> {
   return parsed as T;
 }
 
-export type Org = { id: string; name: string; website: string | null };
+/** v3.10.0 — the company profile lives on orgs, and candidates read it. */
+export type Org = {
+  id: string;
+  name: string;
+  website: string | null;
+  industry?: string | null;
+  company_size?: string | null;
+  headquarters?: string | null;
+  about?: string | null;
+  logo_url?: string | null;
+  linkedin_url?: string | null;
+};
+
+export type OrgPatch = Partial<Omit<Org, "id">>;
+
+/** v3.10.0 — an intake in progress, saved after every answered step. */
+export type IntakeDraft = {
+  opening: string;
+  job_spec: Partial<JobSpec>;
+  answered: string[];
+  phase: string;
+  updated_at?: string;
+};
 
 export type JobSpec = {
   title: string;
@@ -82,6 +104,13 @@ export type Proposal = {
   id: string;
   org_name: string;
   org_website?: string | null;
+  /** v3.10.0 — the company profile, so the candidate knows who is asking. */
+  org_industry?: string | null;
+  org_size?: string | null;
+  org_headquarters?: string | null;
+  org_about?: string | null;
+  org_logo_url?: string | null;
+  org_linkedin_url?: string | null;
   job_title: string;
   job_location: string | null;
   employment_type: string | null;
@@ -115,6 +144,16 @@ export const employerApi = {
   orgGet: () => call<{ org: Org | null; role?: string }>({ action: "employer_org_get" }),
   orgCreate: (name: string, website?: string) =>
     call<{ org: Org }>({ action: "employer_org_create", name, website }),
+  /** v3.10.0 — every company profile field stays editable at any time. */
+  orgUpdate: (org_id: string, patch: OrgPatch) =>
+    call<{ org: Org }>({ action: "employer_org_update", org_id, patch }),
+  /** v3.10.0 — the intake survives leaving the page. */
+  draftGet: (org_id: string) =>
+    call<{ draft: IntakeDraft | null }>({ action: "employer_intake_draft_get", org_id }),
+  draftSave: (org_id: string, draft: IntakeDraft) =>
+    call<{ ok: true }>({ action: "employer_intake_draft_save", org_id, ...draft }),
+  draftClear: (org_id: string) =>
+    call<{ ok: true }>({ action: "employer_intake_draft_clear", org_id }),
   /** v3.8.0 — one pass over the opening description, no conversation. */
   specExtract: (org_id: string, description: string) =>
     call<{ job_spec: Partial<JobSpec>; known: string[] }>({

@@ -1897,3 +1897,34 @@ button, a, input, textarea, select {
 .lp-reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s cubic-bezier(.19,1,.22,1); }
 .lp-reveal.is-in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .lp-reveal { opacity: 1; transform: none; } }
+
+/* ============================================================
+   v3.10.0 — one visual language on the employer surface.
+   The employer side used the black --primary token, which made it
+   look like a different product to the orange seeker side and the
+   landing page. Rather than a new palette, we re-point the existing
+   tokens to the AYN orange inside .employer-surface, so every
+   shadcn primary button, ring, score ring and selected chip picks
+   it up with no per-component overrides.
+   ============================================================ */
+.employer-surface {
+  --primary: 24 95% 53%;             /* #f97316 */
+  --primary-foreground: 0 0% 100%;
+  --ring: 24 95% 53%;
+  --ayn-orange: 24 95% 53%;
+  --ayn-orange-active: 21 90% 48%;   /* #ea580c */
+}
+.employer-surface .bg-primary:hover,
+.employer-surface button.bg-primary:hover {
+  background-color: hsl(var(--ayn-orange-active));
+}
+
+/* Step transitions, restrained and reduced-motion aware. */
+.employer-step-in { animation: employer-step-in 220ms cubic-bezier(.19,1,.22,1) both; }
+@keyframes employer-step-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .employer-step-in { animation: none; }
+}

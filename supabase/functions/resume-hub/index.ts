@@ -1994,12 +1994,15 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return !!data;
     }
 
+    // v3.10.0 — the company profile a candidate reads on a proposal.
+    const ORG_COLS = "id, name, website, industry, company_size, headquarters, about, logo_url, linkedin_url";
+
     if (action === "employer_org_create") {
       const { name, website } = payload as { name?: string; website?: string };
       if (!name || !name.trim()) return json({ error: "name required" }, 400);
       const { data: org, error } = await adminForNew.from("orgs").insert({
         name: name.trim(), website: website?.trim() || null, created_by: userId,
-      }).select("id, name, website").single();
+      }).select(ORG_COLS).single();
       if (error || !org) return json({ error: error?.message || "insert failed" }, 500);
       const { error: mErr } = await adminForNew.from("org_members").insert({
         org_id: org.id, user_id: userId, role: "admin",
@@ -2013,8 +2016,66 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         .select("org_id, role").eq("user_id", userId).limit(1).maybeSingle();
       if (!mem) return json({ org: null });
       const { data: org } = await adminForNew.from("orgs")
-        .select("id, name, website").eq("id", mem.org_id).maybeSingle();
+        .select(ORG_COLS).eq("id", mem.org_id).maybeSingle();
       return json({ org: org || null, role: mem.role });
+    }
+
+    // v3.10.0 — every company profile field stays editable at any time.
+    if (action === "employer_org_update") {
+      const { org_id, patch } = payload as { org_id?: string; patch?: Record<string, unknown> };
+      if (!org_id || !patch) return json({ error: "org_id and patch required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const allowed = ["name", "website", "industry", "company_size", "headquarters", "about", "logo_url", "linkedin_url"];
+      const clean: Record<string, string | null> = {};
+      for (const k of allowed) {
+        if (!(k in patch)) continue;
+        const raw = patch[k];
+        const v = typeof raw === "string" ? raw.trim() : "";
+        clean[k] = v ? (k === "about" ? v.slice(0, 600) : v.slice(0, 300)) : null;
+      }
+      if (clean.name === null) delete clean.name; // a company always has a name
+      if (Object.keys(clean).length === 0) return json({ error: "nothing to update" }, 400);
+      const { data: org, error } = await adminForNew.from("orgs")
+        .update(clean).eq("id", org_id).select(ORG_COLS).maybeSingle();
+      if (error) return json({ error: error.message }, 500);
+      return json({ org });
+    }
+
+    // v3.10.0 — the in-progress intake survives leaving the page.
+    if (action === "employer_intake_draft_get") {
+      const { org_id } = payload as { org_id?: string };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const { data } = await adminForNew.from("employer_intake_drafts")
+        .select("opening, job_spec, answered, phase, updated_at").eq("org_id", org_id).maybeSingle();
+      return json({ draft: data || null });
+    }
+
+    if (action === "employer_intake_draft_save") {
+      const { org_id, opening, job_spec, answered, phase } = payload as {
+        org_id?: string; opening?: string; job_spec?: Record<string, unknown>;
+        answered?: string[]; phase?: string;
+      };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const { error } = await adminForNew.from("employer_intake_drafts").upsert({
+        org_id,
+        opening: String(opening || "").slice(0, 4000),
+        job_spec: job_spec || {},
+        answered: Array.isArray(answered) ? answered.slice(0, 32).map(String) : [],
+        phase: String(phase || "opening").slice(0, 24),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "org_id" });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "employer_intake_draft_clear") {
+      const { org_id } = payload as { org_id?: string };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      await adminForNew.from("employer_intake_drafts").delete().eq("org_id", org_id);
+      return json({ ok: true });
     }
 
     // v3.8.0 — intake is a widget wizard on the client, not a conversation.
@@ -2180,8 +2241,18 @@ ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.
       const mine = cards.find(c => c.ref === ref);
       if (!mine) return json({ error: "unknown ref" }, 400);
       const spec = (search.job_spec || {}) as Record<string, unknown>;
-      const { data: org } = await adminForNew.from("orgs").select("name").eq("id", org_id).maybeSingle();
+      const { data: org } = await adminForNew.from("orgs")
+        .select("name, industry, company_size, headquarters, about, website").eq("id", org_id).maybeSingle();
       const company = String(org?.name || "our company");
+      // v3.10.0 — the only company facts the model may use are the ones the
+      // employer typed into their company profile. Nothing else exists.
+      const companyFacts = {
+        name: company,
+        industry: org?.industry || null,
+        company_size: org?.company_size || null,
+        headquarters: org?.headquarters || null,
+        about: org?.about || null,
+      };
 
       const sys = `You write one short job proposal message from an employer to a candidate they found through AYN. The candidate reads it inside AYN.
 
@@ -2191,10 +2262,13 @@ Rules, strict:
 - 4 to 6 short sentences of plain prose. No greeting line breaks needed beyond normal paragraphs.
 - Open by naming the role and the company.
 - Say specifically why this person fits, citing only the matched requirements and the why lines given below. Invent nothing about them.
+- One sentence may describe what the company does, and only by paraphrasing COMPANY FACTS below. If a company fact is null, it does not exist: never guess an industry, a size, a location, a mission, or a product.
 - End by saying what happens next: if they accept, the employer receives their contact details and reaches out directly.
 - You do not know their name. Open with "Hi there".
 ${VOICE_RULES}
 - No salesy language, no flattery, no markdown, no bullet characters.
+
+COMPANY FACTS: ${JSON.stringify(companyFacts)}
 
 ROLE SPEC: ${JSON.stringify(spec)}
 
@@ -2445,7 +2519,9 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
       const enriched: Array<Record<string, unknown>> = [];
       for (const r of (rows || [])) {
         const [{ data: org }, { data: s }] = await Promise.all([
-          adminForNew.from("orgs").select("name, website").eq("id", r.org_id).maybeSingle(),
+          adminForNew.from("orgs")
+            .select("name, website, industry, company_size, headquarters, about, logo_url, linkedin_url")
+            .eq("id", r.org_id).maybeSingle(),
           r.search_id
             ? adminForNew.from("employer_searches").select("job_spec").eq("id", r.search_id).maybeSingle()
             : Promise.resolve({ data: null }),
@@ -2454,6 +2530,13 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
           id: r.id,
           org_name: org?.name || "A company",
           org_website: org?.website || null,
+          // v3.10.0 — who is reaching out, so the candidate can judge it.
+          org_industry: org?.industry || null,
+          org_size: org?.company_size || null,
+          org_headquarters: org?.headquarters || null,
+          org_about: org?.about || null,
+          org_logo_url: org?.logo_url || null,
+          org_linkedin_url: org?.linkedin_url || null,
           job_title: r.job_title || (s?.job_spec as { title?: string } | null)?.title || "",
           job_location: r.job_location || null,
           employment_type: r.employment_type || null,
