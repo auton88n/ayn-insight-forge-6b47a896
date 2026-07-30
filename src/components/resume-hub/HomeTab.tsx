@@ -14,7 +14,6 @@ import { loadHubSnapshot, type HubSnapshot } from "@/lib/hubSnapshot";
 
 interface Props {
   userId: string;
-  onOpenResumes: () => void;
   onOpenProfile: () => void;
   onOpenJobs: () => void;
   onOpenDiscovery: () => void;

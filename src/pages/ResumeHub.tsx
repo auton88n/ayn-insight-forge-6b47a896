@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, User, FileText, Briefcase, Users, Puzzle, Download } from "lucide-react";
+import { ArrowLeft, Home, User, Briefcase, Users, Puzzle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import HomeTab from "@/components/resume-hub/HomeTab";
-import BuilderTab from "@/components/resume-hub/BuilderTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
@@ -109,8 +108,8 @@ export default function ResumeHub() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rh-btn rh-btn-primary" onClick={() => setTab("resumes")}>
-              New resume
+            <button className="rh-btn rh-btn-primary" onClick={() => setTab("profile")}>
+              Your resume
             </button>
           </div>
         </div>
