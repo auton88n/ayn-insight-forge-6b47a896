@@ -86,11 +86,15 @@ export default function CandidateResultCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-medium text-muted-foreground">
-              Candidate {index + 1} of {total}
+              {index + 1} of {total}
             </span>
             <Badge variant="secondary" className="font-normal text-[11px]">{scoreBand(c.score)}</Badge>
           </div>
-          <h3 className="text-base font-semibold leading-snug mt-1">{c.headline || "Candidate"}</h3>
+          <h3 className="text-base font-semibold leading-snug mt-1">
+            {c.first_name || "Candidate"}
+          </h3>
+          <p className="text-sm mt-0.5">{c.headline || "No headline given"}</p>
+
           <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
             {meta}
             {c.location && (

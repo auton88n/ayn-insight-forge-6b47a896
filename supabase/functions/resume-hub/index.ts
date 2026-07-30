@@ -2278,6 +2278,7 @@ Rules, strict:
     function safeCard(c: Record<string, unknown>) {
       return {
         score: c.score, headline: c.headline, seniority: c.seniority,
+        first_name: c.first_name || "", // v3.15.1 — first name only, never more.
         years_experience: c.years_experience, location: c.location,
         matched_must_haves: c.matched_must_haves, gaps: c.gaps, why: c.why,
         skills_extracted: c.skills_extracted, skills_inferred: c.skills_inferred,
@@ -2285,18 +2286,20 @@ Rules, strict:
       };
     }
     /** Strip markdown symbols and any internal ref that slipped into model text. */
-    function cleanEmployerText(s: string): string {
+    function cleanEmployerText(s: string, name = ""): string {
+      const who = name ? name : "this candidate";
       return String(s || "")
         .replace(/[*_#`]/g, "")
-        .replace(/\bcandidate\s+c\d+\b/gi, "this candidate")
-        .replace(/\bc\d+\b/g, "this candidate")
+        .replace(/\bcandidate\s+c\d+\b/gi, who)
+        .replace(/\bc\d+\b/g, who)
         .replace(/[—–]/g, " to ")
         .trim();
     }
     const VOICE_RULES = `- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. No em dashes, no en dashes. Write ranges with the word "to".
-- Never write an internal reference like c1 or c2. You do not know any candidate's name, email or phone. Say "this candidate" or use their headline.
+- Never write an internal reference like c1 or c2. Refer to a candidate by their first name when one is given, otherwise say "this candidate". You do not know any last name, email or phone.
 - Never praise without evidence from the data given. Never write perfect fit, huge asset, or exactly what you are looking for.
-- If a fact is not in the data given, say that one fact is not available. Never guess.`;
+- If a fact is not in the data given, say that one fact is not available.  Never guess.`;
+
 
     if (action === "employer_card_answer") {
       const { search_id, ref, card } = payload as { search_id?: string; ref?: string; card?: string };
@@ -2339,7 +2342,7 @@ THIS CANDIDATE: ${JSON.stringify(safeCard(mine))}
 ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.filter(c => c.ref !== ref).map(safeCard))}` : ""}`;
 
       const r = await callAI({ system: sys, user: ASK[card] });
-      return json({ answer: cleanEmployerText(r.text) });
+      return json({ answer: cleanEmployerText(r.text, String(mine.first_name || "")) });
     }
 
     // v3.9.0 — the proposal message arrives pre-written from the JobSpec and
@@ -2380,7 +2383,7 @@ ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.
 THE ROLE, use these words and never describe the role any other way: ${roleLine(spec)} at ${company}.
 
 Write exactly this shape, as plain prose in 4 to 6 short sentences:
-1. A warm greeting. You do not know their name, so open with "Hi there".
+1. A warm greeting. ${mine.first_name ? `Their first name is ${mine.first_name}, so open with "Hi ${mine.first_name}".` : `You do not know their name, so open with "Hi there".`}
 2. One line saying who the company is and what it does, paraphrased only from COMPANY FACTS. If a fact is null it does not exist: never guess an industry, a size, a location, a mission, or a product.
 3. One or two lines naming the role and saying, naturally, why the employer thinks they would be a good fit. At most TWO specifics about them, said in passing, in ordinary words.
 4. A clear invitation to talk.
@@ -2405,7 +2408,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
 
       const r = await callAI({ system: sys, user: "Write the message now. Output only the message text." });
-      const message = cleanEmployerText(r.text).slice(0, 1000);
+      const message = cleanEmployerText(r.text, String(mine.first_name || "")).slice(0, 1000);
       return json({ subject_hint: `${String(spec.title || "A role")} at ${company}`, message });
     }
 
@@ -2576,6 +2579,9 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       // v3.12.0 — attach a structured, anonymous profile block for the three
       // cards we actually return, so the client renders a candidate profile
       // instead of the embedding blob. Three canonical loads, top three only.
+      // v3.15.1 — also attach the FIRST NAME only. "Candidate c1" reads like a
+      // row id; a first name is human and still not identifying. Last name,
+      // email and phone stay locked until the candidate accepts a proposal.
       for (const card of top) {
         const uid = refMap[card.ref];
         if (!uid) continue;
@@ -2585,7 +2591,16 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         } catch (e) {
           console.error("profile block failed", card.ref, (e as Error).message);
         }
+        try {
+          const { data: prof } = await adminForNew.from("user_profile_data")
+            .select("legal_first_name").eq("user_id", uid).maybeSingle();
+          const first = String(prof?.legal_first_name || "").trim().split(/\s+/)[0] || "";
+          if (first) (card as Record<string, unknown>).first_name = first;
+        } catch (e) {
+          console.error("first name lookup failed", card.ref, (e as Error).message);
+        }
       }
+
 
 
 

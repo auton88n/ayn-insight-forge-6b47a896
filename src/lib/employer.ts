@@ -138,7 +138,10 @@ export type CandidateProfileBlock = {
 export type CandidateCard = {
   ref: string;
   score: number;
+  /** v3.15.1 — first name only. Last name, email and phone need an accept. */
+  first_name?: string;
   headline: string;
+
   seniority: string;
   years_experience: number | null;
   location: string;
