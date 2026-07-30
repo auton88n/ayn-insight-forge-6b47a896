@@ -259,7 +259,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
         {/* 3. Results */}
-        {(results.length > 0 || poolNote) && (
+        {profileComplete && (results.length > 0 || poolNote) && (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold">Candidates</h2>
             {poolNote && <p className="text-xs text-muted-foreground">{poolNote}</p>}
@@ -297,7 +297,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
         {/* 4. Sent proposals */}
-        {sent.length > 0 && (
+        {profileComplete && sent.length > 0 && (
           <Card className="p-4 sm:p-6 space-y-3">
             <h2 className="text-sm font-semibold">Proposals you sent</h2>
             {sent.map(s => (
