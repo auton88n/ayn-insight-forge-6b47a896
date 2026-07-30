@@ -94,7 +94,7 @@ export default function ExtensionTab({ userId: _userId }: Props) {
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-2">
-              One click to sign in. Autofill any job application, score jobs while you browse, find recruiters, generate cover letters, track applications, and tailor your resume.
+              Score any job posting while you browse, and tailor your resume without leaving the page. AYN only reads the page, it never types into it.
             </p>
           </div>
         </div>
@@ -160,9 +160,6 @@ export default function ExtensionTab({ userId: _userId }: Props) {
         )}
       </Card>
 
-      <p className="text-xs text-muted-foreground text-center">
-        Your application profile now lives under the Profile tab.
-      </p>
 
 
     </div>

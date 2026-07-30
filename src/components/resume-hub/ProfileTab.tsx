@@ -26,7 +26,6 @@ import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
-import { computeGroupGaps } from "@/lib/profileGaps";
 
 // ── Types (mirror the edge-function profile shape) ───────────────────────────
 type Skill = { name: string; years?: number; level?: string };
@@ -285,20 +284,6 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     }));
   };
 
-  // Findability lives on the Get discovered tab now, but it is computed from
-  // this form's live state, so it stays here and is shared through profileGaps.
-  const groupGaps = computeGroupGaps({
-    firstName: personal.first_name,
-    email: personal.email,
-    currentTitle: career.derived.current_title,
-    city: personal.city,
-    desiredTitles: career.preferences.desired_titles,
-    countries,
-    citizenship: career.work_auth.citizenship,
-    skillsCount: career.skills.length,
-    experiencesCount: career.experiences.length,
-  });
-  void groupGaps;
 
   if (loading) {
     return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading profile…</div>;

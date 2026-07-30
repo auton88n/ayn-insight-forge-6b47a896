@@ -4,7 +4,7 @@
  * The point of the Profile redesign: make the talent pool connection visible.
  * When a seeker is opted in we show them exactly what an employer sees
  * (the anonymized card employer_match returns), which skills are backed by
- * evidence versus inferred, how fresh the index is, and what is missing that
+ * evidence versus inferred, how fresh it is, and what is missing that
  * employers actually filter on.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users, RefreshCw, X, ShieldCheck, Check, AlertCircle } from "lucide-react";
 import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
 import { AYN_POOL_REINDEXED, setPoolOptInCache } from "@/lib/talentPoolSync";
+import type { GroupGap } from "@/lib/profileGaps";
 
 function relativeTime(iso: string | null): string {
   if (!iso) return "never";
@@ -32,11 +33,7 @@ function relativeTime(iso: string | null): string {
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
 
-export interface GroupGap {
-  group: string;
-  complete: boolean;
-  consequence: string;
-}
+
 
 interface Props {
   /** Bumped by the parent after any save so the card refetches freshness. */
@@ -97,9 +94,9 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
     try {
       await resumeHubApi.talentPoolReindexSelf();
       await load();
-      toast({ title: "Profile re-indexed" });
+      toast({ title: "Profile refreshed" });
     } catch (e) {
-      toast({ title: "Couldn't re-index", description: (e as Error).message, variant: "destructive" });
+      toast({ title: "Couldn't refresh", description: (e as Error).message, variant: "destructive" });
     } finally { setReindexing(false); }
   };
 
@@ -176,7 +173,7 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
                     <Badge key={s.id} variant="secondary" className="font-normal">{s.skill}</Badge>
                   ))}
                   {(status.skills ?? []).length === 0 && (
-                    <span className="text-xs text-muted-foreground">No skills indexed yet.</span>
+                    <span className="text-xs text-muted-foreground">No skills saved yet.</span>
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
@@ -184,7 +181,7 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
                 </p>
               </>
             ) : (
-              <p className="text-xs text-muted-foreground">Not indexed yet. Save your profile or upload a resume.</p>
+              <p className="text-xs text-muted-foreground">Nothing to show yet. Save your profile or upload a resume.</p>
             )}
           </div>
 
@@ -221,10 +218,10 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
           {/* Freshness */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {stale ? (
-              <span className="text-primary font-medium">Your resume changed since AYN last indexed you</span>
+              <span className="text-primary font-medium">Your resume changed since AYN last refreshed what employers see</span>
             ) : (
               <span className="text-muted-foreground">
-                Your profile was last indexed {relativeTime(indexedAt)}.
+                Employers have seen this version since {relativeTime(indexedAt)}.
               </span>
             )}
             <Button variant="outline" size="sm" onClick={reindex} disabled={reindexing} className="h-7">
