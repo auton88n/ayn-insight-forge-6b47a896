@@ -65,16 +65,6 @@ export const resumeHubApi = {
   listTokens: () => call<{ tokens: Array<{ id: string; token_prefix: string; device_label: string; last_used_at: string | null; revoked_at: string | null; created_at: string }> }>("resume-hub", { action: "token_list" }),
   revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
 
-  // v2.7.0 — learned answers (memorised by the extension) management.
-  listAnswers: () =>
-    call<{ answers: Array<{ id: string; question_text: string; answer_text: string; use_count: number | null; last_company: string | null; last_used_at: string | null; updated_at: string }> }>(
-      "resume-hub", { action: "answers_list" }
-    ),
-  updateAnswer: (id: string, answer_text: string) =>
-    call<{ ok: true }>("resume-hub", { action: "answers_update", id, answer_text }),
-  deleteAnswer: (id: string) =>
-    call<{ ok: true }>("resume-hub", { action: "answers_delete", id }),
-
   // v2.9.0-A — Talent pool consent + status.
   talentPoolGet: () =>
     call<{ opted_in: boolean; consented_at: string | null; indexed: boolean; skills_count: number }>(

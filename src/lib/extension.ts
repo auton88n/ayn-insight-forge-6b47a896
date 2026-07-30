@@ -1,6 +1,6 @@
 // src/lib/extension.ts — dashboard → AYN Chrome extension bridge (v1.9.55)
 // Uses the extension's stable ID (pinned via manifest `key`) so the web app
-// can trigger autofill without opening the side panel.
+// can hand a job off to the extension side panel.
 
 export const AYN_EXTENSION_ID = "bjbifnpjbcbdojhgjpedkakkfjpcjmdl";
 
@@ -53,17 +53,9 @@ export async function getInstalledVersion(): Promise<string | null> {
   return r.ok && r.version ? r.version : null;
 }
 
-export async function triggerAutofill(
-  jobUrl: string,
-  resumeId?: string,
-  resumeVersionId?: string,
-): Promise<ExtResponse> {
-  return send({ type: "AYN_TRIGGER_AUTOFILL", jobUrl, resumeId, resumeVersionId });
-}
-
 /**
  * v2.7.0 — tell the installed extension that the user's profile just changed
- * so it drops its cached profile vector on the next autofill.
+ * so it drops its cached profile vector on the next read.
  * No-op when the extension is not installed.
  */
 export async function notifyProfileUpdated(): Promise<void> {
