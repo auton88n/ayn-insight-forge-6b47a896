@@ -27,7 +27,29 @@ async function call<T>(body: unknown): Promise<T> {
   return parsed as T;
 }
 
-export type Org = { id: string; name: string; website: string | null };
+/** v3.10.0 — the company profile lives on orgs, and candidates read it. */
+export type Org = {
+  id: string;
+  name: string;
+  website: string | null;
+  industry?: string | null;
+  company_size?: string | null;
+  headquarters?: string | null;
+  about?: string | null;
+  logo_url?: string | null;
+  linkedin_url?: string | null;
+};
+
+export type OrgPatch = Partial<Omit<Org, "id">>;
+
+/** v3.10.0 — an intake in progress, saved after every answered step. */
+export type IntakeDraft = {
+  opening: string;
+  job_spec: Partial<JobSpec>;
+  answered: string[];
+  phase: string;
+  updated_at?: string;
+};
 
 export type JobSpec = {
   title: string;
