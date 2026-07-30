@@ -290,8 +290,9 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <div className="lp-chips">
               <span className="lp-chip">Read only, always</span>
               <span className="lp-chip">Grounded in the posting</span>
-              <span className="lp-chip">Your data stays yours</span>
+              <span className="lp-chip">Contact shared only when you approve</span>
             </div>
+
 
           </div>
         </div>
