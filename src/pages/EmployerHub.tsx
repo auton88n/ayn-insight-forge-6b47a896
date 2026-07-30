@@ -498,13 +498,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
                   <ScoreRing score={open.score} />
-                  <span className="text-base">{open.headline || "Candidate"}</span>
+                  <span className="min-w-0">
+                    <span className="block text-base leading-tight">{open.first_name || "Candidate"}</span>
+                    <span className="block text-sm font-normal text-muted-foreground truncate">
+                      {open.headline || "No headline given"}
+                    </span>
+                  </span>
                 </DialogTitle>
                 <DialogDescription className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5" />
                   {[open.seniority, open.years_experience != null ? `${open.years_experience} years` : "", open.location]
                     .filter(Boolean).join(" · ") || "No location given"}
                 </DialogDescription>
+
               </DialogHeader>
 
               <div className="space-y-6">
