@@ -1343,52 +1343,13 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
         });
       }
 
-      // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
+      // ext_cover_letter_text — v3.1.0: identity + structured sections (no
+      // truncation), real company context, two-pass on the detailed tier,
+      // verified figure preservation, cached, logged.
       if (action === "ext_cover_letter_text") {
-        const { resumeText, jdText, tone, company, jobTitle, url } = payload as {
-          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string; url?: string;
-        };
-        const lengthKey = String((payload as { length?: string }).length || "standard");
-        const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
-        const guidanceRaw = String((payload as { guidance?: string }).guidance || "").trim().slice(0, 200);
-        const guidanceLine = guidanceRaw
-          ? `\n- The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the resume supports it; if it is not supported, ignore the request rather than inventing anything.`
-          : "";
-        const jd = await resolveJobJd(admin, url, jdText);
-        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
-
-        // v2.13.0 — attach the real applicant identity so the header line
-        // ("From: <name> <email> <phone>") is grounded in profile/canonical/
-        // auth data instead of whatever basics.name happens to say. Fixes
-        // the earlier gap where cover letters silently omitted contact
-        // details when resume basics were thin.
-        const identity = await loadIdentity(admin, userId).catch(() => null);
-        const applicantBlock = identity ? identityContactBlock(identity) : "";
-        const applicantSection = applicantBlock
-          ? `\n\nAPPLICANT (use these exact contact details in the header, never invent alternatives):\n${applicantBlock}`
-          : "";
-
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `Write a cover letter under ${wordCap} words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
-
-STRUCTURE (4 short paragraphs):
-1) Opening: who you are + the specific role + the ONE thing about ${company || "this team"} that pulled you in (from the JD).
-2) Proof: ONE concrete achievement from the resume that maps to a JD requirement. Include the number/scale if present in the resume.
-3) Skill bridge: 2-3 specific tools/skills from the JD that also appear in the resume. Tie them to outcomes, not lists.
-4) Close: clear ask for a conversation + sign off.
-
-RULES:
-- Use ONLY facts from the resume and applicant block. Never invent companies, metrics, dates, names, emails, or phone numbers.
-- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear exactly as in the resume.
-- The signature MUST use the applicant's real name from the APPLICANT block if provided; otherwise use the name from RESUME basics. Never invent a name.
-- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
-- Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to' (for example $90K to $120K CAD).
-- Plain text, no markdown.${guidanceLine}`,
-          user: `RESUME:\n${resumeText.slice(0, 8000)}${applicantSection}\n\nJOB DESCRIPTION:\n${jd.slice(0, 6000)}`,
-        });
-        return json({ body: r.text });
+        return await handleCoverLetter(admin, userId, payload as Record<string, unknown>);
       }
+
 
 
       // v2.8.0 — ext_job_lookup: JD Resolver's backend branch. Given host+path
