@@ -728,7 +728,6 @@
   </div>
   <div class="hdr-right">
     <span class="user-email hidden" id="user-email" title=""></span>
-    <span id="ayn-cfg-version" style="font-size:10px;color:#94a3b8;opacity:.7;margin-right:6px" title="Server-driven field rules version"></span>
     <button class="sign-out hidden" id="sign-out-btn" title="Sign out">Sign out</button>
   </div>
 </div>
@@ -736,8 +735,7 @@
 
 
 <div class="tabs hidden" id="tabs">
-  <button class="tab active" id="tab-fill"    data-tab="fill"><i class="ti ti-bolt"></i>Fill</button>
-  <button class="tab"        id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
+  <button class="tab active" id="tab-jobs"    data-tab="jobs"><i class="ti ti-target-arrow"></i>Score</button>
   <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask</button>
   <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
   <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
@@ -775,45 +773,9 @@
     </div>
   </div>
 
-  <!-- ════════════ FILL ════════════ -->
-  <div class="view" id="v-fill">
-    <div id="fill-empty" class="empty-state hidden">
-      <div class="empty-icon"><i class="ti ti-forms"></i></div>
-      <div class="empty-title" id="fill-empty-title">No application form detected</div>
-      <div class="empty-sub" id="fill-empty-sub">Open a job's apply page (LinkedIn Easy Apply, Workday, Greenhouse, Lever, Ashby…) then click Scan again.</div>
-      <button class="btn btn-outline mt12" id="fill-rescan-btn" style="max-width:200px;margin-left:auto;margin-right:auto;padding:8px 14px;font-size:12px">
-        <i class="ti ti-refresh"></i>Scan this page again
-      </button>
-    </div>
 
-    <div class="job-hero hidden" id="fill-job-banner">
-      <div class="job-hero-row">
-        <div class="job-hero-logo" id="fill-job-logo">·</div>
-        <div class="job-hero-text">
-          <div class="job-hero-company" id="fill-job-sub"></div>
-          <div class="job-hero-title" id="fill-job-title">Job detected</div>
-          <div class="job-hero-meta hidden" id="fill-field-count-wrap"><span id="fill-field-count">0</span>&nbsp;fields ready to fill</div>
-        </div>
-        <div class="hero-ring hidden" id="fill-hero-ring">
-          <svg viewBox="0 0 40 40"><circle class="hr-track" cx="20" cy="20" r="17"/><circle class="hr-bar" cx="20" cy="20" r="17" stroke-dasharray="106.8" stroke-dashoffset="106.8"/></svg>
-          <div class="hr-num"><span id="fill-hero-ring-num">0</span><small>%</small></div>
-        </div>
-      </div>
-      <!-- v2.8.4 — listing-only compact JD status row + Open the application. -->
-      <div id="fill-listing-extras" class="hidden" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--ayn-border)">
-        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ayn-muted);margin-bottom:8px">
-          <i class="ti ti-file-text" style="color:var(--ayn-blue,#3b82f6)"></i>
-          <span id="fill-listing-jd">Locating the job description…</span>
-        </div>
-        <button class="btn btn-primary" id="fill-listing-open" style="width:100%">
-          <i class="ti ti-external-link"></i><span id="fill-listing-open-label">Open the application</span>
-        </button>
-        <div style="margin-top:6px;text-align:right">
-          <a href="#" id="fill-listing-replace-jd" style="font-size:11px;color:var(--ayn-muted);text-decoration:underline;cursor:pointer">Replace JD</a>
-        </div>
-      </div>
-    </div>
-
+  <!-- ════════════ JOBS / SCORE ════════════ -->
+  <div class="view active" id="v-jobs">
 
     <!-- v2.8.0 — JD provenance banner: shows where AYN got the JD from. -->
     <div id="jd-provenance" class="card hidden mt12" style="padding:10px;font-size:12px">
@@ -821,7 +783,7 @@
         <i class="ti ti-file-text" style="color:var(--ayn-blue,#3b82f6);margin-top:2px"></i>
         <div style="flex:1;min-width:0">
           <div><b id="jd-src-label">JD ready</b> <span id="jd-src-meta" style="color:var(--ayn-muted)"></span></div>
-          <div id="jd-src-warn" class="hidden" style="color:#b45309;font-size:11px;margin-top:2px">This JD looks incomplete. Paste it below for a better fill.</div>
+          <div id="jd-src-warn" class="hidden" style="color:#b45309;font-size:11px;margin-top:2px">This JD looks incomplete. Paste it below for a better score.</div>
         </div>
       </div>
       <div style="margin-top:8px;display:flex;justify-content:flex-end">
@@ -836,89 +798,6 @@
         <button class="btn btn-primary" id="jd-paste-save" style="padding:6px 12px;font-size:12px"><i class="ti ti-check"></i>Use this JD</button>
       </div>
     </div>
-
-    <button class="btn btn-primary hidden" id="autofill-now-btn">
-      <i class="ti ti-bolt"></i>Autofill This Application
-    </button>
-
-
-    <div class="card mt12" style="padding:12px">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-        <input type="checkbox" id="vision-hq-toggle" style="margin-top:3px" />
-        <span style="flex:1">
-          <div style="font-weight:700;font-size:13px">High-accuracy vision (uses screenshots)</div>
-          <div style="font-size:11px;color:var(--ayn-faint);margin-top:2px">Takes a screenshot of the form and asks AI to read labels the page's code doesn't expose (canvas UIs, custom radio art, unusual ATS layouts). Slower and uses more tokens. Leave off unless a form is being skipped.</div>
-          <div id="vision-hq-note" class="hidden" style="font-size:11px;color:var(--ayn-green);font-weight:600;margin-top:4px"></div>
-        </span>
-      </label>
-    </div>
-
-    <div class="card mt12" style="padding:12px">
-      <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-        <input type="checkbox" id="fab-enabled-toggle" style="margin-top:3px" checked />
-        <span style="flex:1">
-          <div style="font-weight:700;font-size:13px">Show the floating button on application pages</div>
-          <div style="font-size:11px;color:var(--ayn-faint);margin-top:2px">Adds a small orange button on real job application pages so you can open AYN with one click. Turn off to hide it everywhere.</div>
-        </span>
-      </label>
-    </div>
-
-
-    <div class="card hidden mt12" id="fill-resume-dl-wrap" style="background:linear-gradient(135deg,var(--ayn-orange-soft) 0%,var(--ayn-card) 100%);border-color:var(--ayn-orange-border)">
-      <div class="card-title" style="color:var(--ayn-orange-2)"><i class="ti ti-paperclip"></i>Resume file attachment</div>
-      <div class="card-sub" style="margin-top:5px">This site blocked the one-click upload. Attach it manually:</div>
-
-      <button class="btn btn-primary mt12" id="fill-auto-attach-btn">
-        <i class="ti ti-bolt"></i>Attach my AYN resume
-      </button>
-      <div id="fill-attach-status" class="mt8 hidden" style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px"></div>
-
-      <div style="text-align:center;margin:10px 0;font-size:10px;color:var(--ayn-faint);text-transform:uppercase;letter-spacing:.1em">— or do it manually —</div>
-
-      <ol id="fill-resume-steps">
-        <li id="dl-step-1" data-active="1">Click <b>Download my AYN resume</b> below</li>
-        <li id="dl-step-2">Find the <b>Resume / CV</b> field on this page</li>
-        <li id="dl-step-3">Click its <b>Browse / Attach / Upload</b> button</li>
-        <li id="dl-step-4">Select the file you just downloaded</li>
-      </ol>
-      <div class="btn-row mt8">
-        <button class="btn btn-outline" id="fill-download-pdf-btn">
-          <i class="ti ti-file-type-pdf"></i>Download PDF
-        </button>
-        <button class="btn btn-outline" id="fill-download-docx-btn">
-          <i class="ti ti-file-type-docx"></i>Download Word
-        </button>
-      </div>
-      <div id="fill-fit-hint" class="hidden mt8" style="font-size:11px;color:var(--ayn-muted)"></div>
-      <div id="fill-dl-success" class="hidden mt8" style="font-size:12px;color:var(--ayn-green);font-weight:700;display:flex;align-items:center;gap:6px">
-        <i class="ti ti-check"></i>File downloaded — now follow steps 2 → 4 above.
-      </div>
-    </div>
-
-    <div class="err hidden" id="err-fill"></div>
-
-    <div id="fill-result-wrap" class="hidden mt12">
-      <div class="card" style="padding:14px">
-        <div class="progress-wrap" style="margin-top:0">
-          <div class="progress-bar"><div class="progress-fill" id="fill-progress-fill" style="width:0%"></div></div>
-          <div class="progress-meta">
-            <span><b id="fill-stat-n">0 answered · 0 verified</b></span>
-            <span id="fill-stat-lbl">0 review</span>
-          </div>
-        </div>
-      </div>
-      <div class="sl mt12">What AYN answered and verified</div>
-      <div class="field-list" id="fill-result-list"></div>
-      <button class="btn btn-green mt8 hidden" id="fill-save-tracker-btn"><i class="ti ti-bookmark"></i>Save this job to tracker</button>
-      <div class="btn-row mt8">
-        <button class="btn btn-outline" id="fill-reset-btn">Done</button>
-        <button class="btn btn-primary" id="fill-retry-btn"><i class="ti ti-refresh"></i>Fill again</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ════════════ JOBS / SCORE ════════════ -->
-  <div class="view" id="v-jobs">
     <div class="job-hero hidden" id="score-job-banner">
       <div class="job-hero-row">
         <div class="job-hero-logo" id="score-job-logo">·</div>

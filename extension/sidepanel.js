@@ -2,7 +2,7 @@
 
 const S = {
   user: null,
-  tab: 'fill',
+  tab: 'jobs',
   resume: '', job: '', jobTitle: '', company: '', jobUrl: '',
   keywords: [], tailoredText: '', changes: [],
 };
@@ -16,7 +16,7 @@ function toast(msg, type = '') {
   t._t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-const VIEWS = ['v-login','v-fill','v-jobs','v-ask','v-contact','v-cover','v-tracker','v-t1','v-t2','v-t3'];
+const VIEWS = ['v-login','v-jobs','v-ask','v-contact','v-cover','v-tracker','v-t1','v-t2','v-t3'];
 function show(id) {
   VIEWS.forEach(v => $(v)?.classList.toggle('active', v === id));
   const li = id !== 'v-login';
@@ -37,8 +37,7 @@ function show(id) {
 
 function switchTab(tab) {
   S.tab = tab;
-  ['fill','jobs','ask','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
-  if (tab === 'fill')    { show('v-fill');    detectForFill(); }
+  ['jobs','ask','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
   if (tab === 'jobs')    { show('v-jobs');    detectForScore(); }
   if (tab === 'ask')     { show('v-ask');     detectForAsk(); }
   if (tab === 'contact') { show('v-contact'); detectForContacts(); }
@@ -268,7 +267,7 @@ async function bootAfterAuth() {
     S.user = resp.user;
     displayEmail(resp);
     syncRemoteResume(resp);
-    switchTab('fill');
+    switchTab('jobs');
     loadSavedResume();
     toast('Signed in ✓', 'ok');
   });
@@ -286,7 +285,7 @@ async function restoreSession() {
     S.user = resp.user;
     displayEmail(resp);
     syncRemoteResume(resp);
-    switchTab('fill');
+    switchTab('jobs');
     loadSavedResume();
   });
 }
@@ -306,7 +305,7 @@ $('sign-out-btn').addEventListener('click', () => {
 // was restored and which tailored resume version is preselected.
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg && msg.type === 'HANDOFF_ARRIVED') {
-    const label = msg.resumeId ? 'Tailored resume selected · ready to fill' : 'Context restored · ready to fill';
+    const label = msg.resumeId ? 'Tailored resume selected' : 'Context restored';
     try { toast(label, 'ok'); } catch {}
   }
 });
@@ -317,181 +316,6 @@ chrome.runtime.onMessage.addListener((msg) => {
 function bg(type, payload) {
   return new Promise(resolve => chrome.runtime.sendMessage({ type, ...payload }, resolve));
 }
-
-// ════════════════════════════════════════════════════════════════
-// FILL FORM
-// ════════════════════════════════════════════════════════════════
-
-const F = { jobTitle: '', company: '', jobUrl: '', kind: 'other' };
-
-// v1.9.5: always show the Fill hero card the moment a form is detected,
-// using whatever job context we have (or tab fallbacks).
-function renderFillHero({ title, company, fieldCount, host, url, kind } = {}) {
-  const t = cleanLabel(title) || 'Job application detected';
-  // v1.9.7: never fall back to a raw host like "boards.greenhouse.io" — derive a real name.
-  const derived = deriveCompany(company, url || host, title);
-  const c = derived || cleanLabel(company) || 'Company';
-  $('fill-job-title').textContent = t;
-  $('fill-job-sub').textContent = c;
-  setCompanyLogo('fill-job-logo', c, title);
-  // v2.8.4 — fields-ready badge is meaningless on listing pages and confusing at 0.
-  const countWrap = $('fill-field-count-wrap');
-  const showCount = kind !== 'listing' && typeof fieldCount === 'number' && fieldCount > 0;
-  if (typeof fieldCount === 'number') $('fill-field-count').textContent = fieldCount;
-  if (countWrap) countWrap.classList.toggle('hidden', !showCount);
-  // v2.8.4 — listing extras (JD status + Open button) only render on listing.
-  const extras = $('fill-listing-extras');
-  if (extras) extras.classList.toggle('hidden', kind !== 'listing');
-  const banner = $('fill-job-banner');
-  banner.classList.remove('hidden');
-  banner.style.display = ''; // clear any stale inline display:none from refreshForActiveTab
-}
-
-
-
-function applyFormReady(r, tab) {
-  // PART B: instant UI reflection from a lightweight FORM_DETECTED probe
-  if (!r || !r.hasForm) return false;
-  $('fill-empty').classList.add('hidden');
-  $('fill-field-count').textContent = r.fieldCount || '?';
-  $('autofill-now-btn').classList.remove('hidden');
-  // v1.9.5: surface the hero card immediately, even before DETECT_PAGE returns
-  let host = '';
-  try { host = tab && tab.url ? new URL(tab.url).hostname.replace(/^www\./, '') : ''; } catch {}
-  renderFillHero({
-    title: F.jobTitle || cleanLabel(tab && tab.title),
-    company: F.company,
-    fieldCount: r.fieldCount,
-    host, url: tab && tab.url,
-
-  });
-  const dlWrap = $('fill-resume-dl-wrap');
-  if (dlWrap) dlWrap.classList.add('hidden');
-  return true;
-}
-
-
-function detectForFill() {
-  // Reset UI
-  $('fill-empty').classList.add('hidden');
-  $('fill-job-banner').classList.add('hidden');
-  $('fill-result-wrap').classList.add('hidden');
-  $('autofill-now-btn').classList.add('hidden');
-  $('err-fill').classList.add('hidden');
-
-  getTab(tab => {
-    if (!tab) {
-      $('fill-empty-title').textContent = 'No active tab';
-      $('fill-empty-sub').textContent = 'Open a job application page and try again.';
-      $('fill-empty').classList.remove('hidden');
-      return;
-    }
-    F.jobUrl = tab.url || '';
-    // PART B: fast path — show ready state immediately from cached probe
-    chrome.runtime.sendMessage({ type: 'GET_FORM_DETECTED', tabId: tab.id }, cached => {
-      void chrome.runtime.lastError;
-      if (cached) applyFormReady(cached, tab);
-    });
-    // v1.9.7: route through background so content.js auto-injects on rescan
-    chrome.runtime.sendMessage(
-      { type: 'TAB_SEND', tabId: tab.id, payload: { type: 'DETECT_PAGE' } },
-      r => {
-        void chrome.runtime.lastError;
-        if (!r) {
-          $('fill-empty-title').textContent = 'Page not scannable yet';
-          $('fill-empty-sub').textContent = 'Refresh this page (Cmd/Ctrl+R), then click Scan again.';
-          $('fill-empty').classList.remove('hidden');
-          return;
-        }
-
-        F.jobTitle = r.title || '';
-        F.company = deriveCompany(r.company, tab.url, r.title);
-        F.kind = r.kind;
-        // v2.8.1 — mirror kind into background so SCORE_JOB_CARD/JD_REGISTRY
-        // gates see the same classification the sidepanel is showing.
-        try { chrome.runtime.sendMessage({ type: 'SET_TAB_KIND', tabId: tab.id, kind: r.kind }, () => void chrome.runtime.lastError); } catch {}
-
-        // v2.8.1 — honor a prior "Scan anyway" override. Without this, clicking
-        // Scan anyway would re-run DETECT_PAGE, classify as 'other' again, and
-        // loop forever on the empty state.
-        chrome.runtime.sendMessage({ type: 'GET_TAB_KIND', tabId: tab.id }, ov => {
-          void chrome.runtime.lastError;
-          if (ov && ov.override === true && r.kind === 'other') {
-            r.kind = 'apply';
-            F.kind = 'apply';
-          }
-          renderKindBranches(r, tab);
-        });
-        return;
-
-
-
-      });
-    });
-
-
-  function renderKindBranches(r, tab) {
-      if (r.kind === 'ayn') {
-        $('fill-empty-title').textContent = "You're on AYN, not a job page";
-        $('fill-empty-sub').textContent = 'Open a job application form in another tab (LinkedIn Easy Apply, Workday, Greenhouse, Lever…) then come back here.';
-        $('fill-empty').classList.remove('hidden');
-        return;
-      }
-      // v2.8.1 — page classifier gate. On pages classified as 'other'
-      // (youtube.com, gmail, reddit…) hide the company card, score ring,
-      // fields-ready count, and Fill button. Offer "Scan anyway" as an
-      // explicit per-tab bypass for edge cases where classifier misfires.
-      if (r.kind === 'other') {
-        $('fill-job-banner').classList.add('hidden');
-        $('autofill-now-btn').classList.add('hidden');
-        $('fill-empty-title').textContent = "This doesn't look like a job application page.";
-        $('fill-empty-sub').innerHTML = 'AYN is designed for job applications. <a href="#" id="fill-scan-anyway" style="color:var(--ayn-orange);text-decoration:underline;cursor:pointer">Scan anyway</a>';
-        $('fill-empty').classList.remove('hidden');
-        setTimeout(() => {
-          const a = document.getElementById('fill-scan-anyway');
-          if (a) a.addEventListener('click', (e) => {
-            e.preventDefault();
-            chrome.runtime.sendMessage({ type: 'SET_KIND_OVERRIDE', tabId: tab.id, on: true }, () => {
-              void chrome.runtime.lastError;
-              // Treat this tab as apply and re-run the fill flow.
-              F.kind = 'apply';
-              detectForFill();
-            });
-          });
-        }, 0);
-        return;
-      }
-      if (r.kind === 'listing' || !r.hasForm) {
-        // v2.8.4 — ONE unified listing card: hero + JD status row + Open the application.
-        // No separate empty state, no separate JD provenance card.
-        let host = '';
-        try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-        renderFillHero({ title: r.title, company: F.company, fieldCount: 0, host, url: tab.url, kind: 'listing' });
-        $('autofill-now-btn').classList.add('hidden');
-        $('fill-empty').classList.add('hidden');
-        $('jd-provenance')?.classList.add('hidden');
-        try { window.aynRenderListingExtras && window.aynRenderListingExtras(tab.id); } catch {}
-        return;
-      }
-
-
-      // Form found — show hero (always) + ready state
-      let host = '';
-      try { host = new URL(F.jobUrl).hostname.replace(/^www\./, ''); } catch {}
-      renderFillHero({ title: r.title, company: F.company, fieldCount: r.fieldCount, host, url: tab.url, kind: 'apply' });
-      $('autofill-now-btn').classList.remove('hidden');
-      // v2.8.0 — kick off the JD Resolver so the provenance banner shows
-      // where the JD came from BEFORE the user clicks Autofill.
-      try { window.aynResolveJdBanner && window.aynResolveJdBanner(tab.id); } catch {}
-
-
-      // v1.9.8: default hidden; only revealed as a fallback after Fill fails to auto-attach
-      const dlWrap = $('fill-resume-dl-wrap');
-      if (dlWrap) dlWrap.classList.add('hidden');
-  }
-}
-
-
 
 // Helpers to fetch the AYN resume text + base filename and save a Blob
 async function fetchAynResume() {
@@ -507,11 +331,6 @@ function saveBlob(blob, filename) {
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
-}
-function markDownloadDone() {
-  document.getElementById('dl-step-1')?.classList.add('done');
-  document.getElementById('dl-step-2')?.classList.add('now');
-  document.getElementById('fill-dl-success')?.classList.remove('hidden');
 }
 
 // v2.12.1: surface honest overflow hint under a download button.
@@ -530,242 +349,10 @@ function aynShowCoverOverflowHint(hintEl, report) {
   hintEl.classList.remove('hidden');
 }
 
-async function downloadResumeAs(kind, btn) {
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner dk"></div>Preparing...';
-  try {
-    const { text, fileBase } = await fetchAynResume();
-    if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
-    let blob, report = null;
-    if (kind === 'pdf') {
-      const out = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
-      blob = out.blob; report = out;
-    } else {
-      blob = await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
-    }
-    saveBlob(blob, `${fileBase}.${kind === 'pdf' ? 'pdf' : 'docx'}`);
-    markDownloadDone();
-    aynShowOverflowHint(document.getElementById('fill-fit-hint'), report);
-    toast(`${kind === 'pdf' ? 'PDF' : 'Word'} downloaded ✓ — attach it on the form`, 'ok');
-  } catch (err) {
-    toast(err.message || 'Download failed', 'err');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = orig;
-  }
-}
 
-document.getElementById('fill-download-pdf-btn')?.addEventListener('click', (e) => downloadResumeAs('pdf', e.currentTarget));
-document.getElementById('fill-download-docx-btn')?.addEventListener('click', (e) => downloadResumeAs('docx', e.currentTarget));
 
-// v1.9.8: reusable resume attach — builds PDF + sends to background. UI-free.
-async function aynAttachResume(tabId) {
-  try {
-    if (!window.AYNResumeFormat) return { ok: false, error: 'formatter_not_loaded' };
-    const { text, fileBase } = await fetchAynResume();
-    const blob = await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
-    const base64 = await window.AYNResumeFormat.blobToBase64(blob);
-    const filename = `${fileBase}.docx`;
-    const r = await new Promise(res => chrome.runtime.sendMessage({
-      type: 'ATTACH_RESUME_FILE',
-      tabId,
-      payload: { base64, filename, mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
-    }, res));
-    return r || { ok: false, error: 'no_response' };
-  } catch (err) {
-    return { ok: false, error: err?.message || 'attach_failed' };
-  }
-}
 
-// Manual retry — same as before, just delegates to aynAttachResume + renders status.
-document.getElementById('fill-auto-attach-btn')?.addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  const status = document.getElementById('fill-attach-status');
-  btn.disabled = true;
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<div class="spinner"></div>Attaching…';
-  status.classList.add('hidden');
-  try {
-    const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
-    if (!tab?.id) throw new Error('No active tab');
-    const r = await aynAttachResume(tab.id);
-    if (r?.ok) {
-      status.innerHTML = `<i class="ti ti-check" style="color:var(--ayn-green)"></i><span style="color:var(--ayn-green)">PDF attached (${r.filename}) to ${r.count} field${r.count>1?'s':''} ✓ Now click Submit.</span>`;
-      status.classList.remove('hidden');
-      toast('PDF resume attached ✓', 'ok');
-    } else {
-      const reason = r?.error === 'blocked' || r?.error === 'blocked_by_site' ? 'This site blocks programmatic upload — use the PDF download below.'
-                    : r?.error === 'no_file_input' ? 'No file upload field detected on this page.'
-                    : r?.error || 'Could not auto-attach. Use the manual download below.';
-      status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-muted)">${reason}</span>`;
-      status.classList.remove('hidden');
-    }
-  } catch (err) {
-    status.innerHTML = `<i class="ti ti-x" style="color:var(--ayn-red)"></i><span style="color:var(--ayn-red)">${err.message || 'Failed'}</span>`;
-    status.classList.remove('hidden');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = orig;
-  }
-});
-
-$('fill-rescan-btn')?.addEventListener('click', detectForFill);
 $('score-rescan-btn')?.addEventListener('click', detectForScore);
-
-
-$('autofill-now-btn').addEventListener('click', () => {
-  const btn = $('autofill-now-btn');
-  const err = $('err-fill');
-  err.classList.add('hidden');
-  $('fill-result-wrap').classList.add('hidden');
-  $('fill-save-tracker-btn').classList.add('hidden');
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div>Reading form...';
-
-  getTab(tab => {
-    if (!tab) { err.textContent = 'No active tab.'; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; return; }
-    chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, async response => {
-      const reenable = () => { btn.disabled = false; btn.innerHTML = '<i class="ti ti-bolt"></i>Fill This Form Now'; };
-
-      if (!response) {
-        reenable();
-        err.textContent = 'Refresh this page (Cmd+R / Ctrl+R) and try again.';
-        err.classList.remove('hidden'); return;
-      }
-      if (!response.ok) {
-        reenable();
-        const m = {
-          'not_signed_in': 'Sign in first.',
-          'no_content_script': 'Refresh this page (Cmd+R / Ctrl+R), then try again.',
-          'no_fields': 'No fillable fields here. Open an actual apply form (Easy Apply, Workday, Greenhouse…) and try again.',
-          'no_values': "AYN couldn't match any of your saved profile data to these fields. Add a few more answers in Resume Hub → Profile and retry. (Partial profiles still work — these specific fields just didn't match.)",
-          'no_profile': 'AYN could not load your profile. Nothing was filled. Open Resume Hub and check your profile, then try again.',
-        };
-        err.textContent = m[response.error] || response.error || 'Fill failed. Try again.';
-        err.classList.remove('hidden'); return;
-      }
-
-      const { filled, total, details } = response;
-      const answered = typeof response.answered === 'number' ? response.answered : (details || []).length;
-      const verified = typeof response.verified === 'number' ? response.verified : filled;
-      const skippedCount = typeof response.skippedCount === 'number' ? response.skippedCount : (response.skipped || []).length;
-      const ungroundedCount = typeof response.ungroundedCount === 'number' ? response.ungroundedCount : 0;
-      const needsReviewCount = typeof response.needsReviewCount === 'number' ? response.needsReviewCount : 0;
-      const needsReview = typeof response.needsReview === 'number' ? response.needsReview : Math.max(0, answered - verified);
-      const pct = total > 0 ? Math.round(verified/total*100) : 0;
-      // v2.12.2 — honest summary. Only provenance-verified DOM writes count as
-      // filled; skipped and needs-review are reported alongside.
-      const parts = [`${verified} filled`];
-      if (skippedCount > 0) parts.push(`${skippedCount} skipped`);
-      if (needsReviewCount > 0) parts.push(`${needsReviewCount} need your review`);
-      $('fill-stat-n').textContent = parts.join(', ');
-      $('fill-stat-lbl').textContent = ungroundedCount > 0
-        ? `${ungroundedCount} unverified against your profile`
-        : `${needsReview} review`;
-      const fillBar = $('fill-progress-fill');
-      fillBar.style.width = pct + '%';
-      fillBar.className = 'progress-fill' + (pct >= 65 ? '' : ' partial');
-      setHeroRing('fill-hero-ring', 'fill-hero-ring-num', pct);
-
-      const list = $('fill-result-list');
-      list.innerHTML = '';
-      const SOURCE_LABEL = { profile: 'Profile', memory: 'Memory', ai: 'AI', inferred: 'AI', computed: 'AI', canonical: 'AI', resume: 'AI' };
-      (details || []).forEach(d => {
-        const conf = typeof d.confidence === 'number' ? Math.round(d.confidence * 100) : null;
-        const confBadge = conf != null
-          ? `<span class="conf-pill ${conf>=80?'hi':conf>=50?'md':'lo'}" title="AI confidence">${conf}%</span>`
-          : '';
-        const srcLbl = d.source ? (SOURCE_LABEL[d.source] || d.source) : '';
-        const srcBadge = srcLbl ? `<span style="margin-left:6px;font-size:10px;color:var(--ayn-muted,#6b7280);font-weight:600;">${esc(srcLbl)}</span>` : '';
-        const reviewBadge = d.needsReview ? `<span style="margin-left:6px;font-size:10px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-weight:600;">Review</span>` : '';
-        const reason = d.reasoning ? `<div class="fr">${esc(String(d.reasoning).slice(0,90))}</div>` : '';
-        // v2.11.0 — surface fuzzy reuse of a past answer so the seeker sees
-        // what memory of theirs was borrowed, and can correct it in Profile.
-        const fuzzyNote = (d.matchType === 'fuzzy' && d.sourceQuestion)
-          ? `<div class="fr" style="color:var(--ayn-muted,#6b7280);font-style:italic;">Reused your answer to: ${esc(String(d.sourceQuestion).slice(0,80))}</div>`
-          : '';
-        list.innerHTML += `
-          <div class="fi">
-            <div class="fd ${d.ok ? 'on' : 'off'}"></div>
-            <div class="fl">${esc(fillDisplayLabel(d))} ${confBadge}${srcBadge}${reviewBadge}</div>
-            <div class="fv">${d.ok ? esc((d.value||'').slice(0,28)) : esc(d.reason||'skipped')}</div>
-            ${reason}
-            ${fuzzyNote}
-          </div>`;
-      });
-
-      // v2.12.2 — surface ungrounded (provenance-dropped) values BEFORE the
-      // generic "add to profile" list. These are values the AI produced that
-      // could not be verified against the user's real profile/resume, so they
-      // were never written to the page.
-      if (ungroundedCount > 0) {
-        list.innerHTML += `<div class="fi" style="border-top:1px solid var(--ayn-border);margin-top:8px;padding-top:10px;"><div class="fl" style="font-weight:700;color:#b45309;display:flex;align-items:center;gap:6px;"><i class="ti ti-shield-lock"></i>${ungroundedCount} answers were not written because AYN could not verify them against your profile.</div></div>`;
-      }
-      const skippedFields = response.skipped || [];
-      if (skippedFields.length) {
-        list.innerHTML += `<div class="fi" style="border-top:1px solid var(--ayn-border);margin-top:8px;padding-top:10px;"><div class="fl" style="font-weight:700;color:#92400e;display:flex;align-items:center;gap:6px;"><i class="ti ti-bulb"></i>Couldn't answer ${skippedFields.length} of your questions</div></div>`;
-        skippedFields.forEach(s => {
-          list.innerHTML += `
-            <div class="fi">
-              <div class="fd off"></div>
-              <div class="fl">${esc(s.label || '')}</div>
-              <div class="fv" style="color:#b45309">${esc(s.suggestion || s.reason || 'add to your profile')}</div>
-            </div>`;
-        });
-      }
-
-      $('fill-result-wrap').classList.remove('hidden');
-      if (F.jobTitle && F.company) $('fill-save-tracker-btn').classList.remove('hidden');
-
-      // v1.9.8: auto-attach resume right after fill, reveal manual fallback only on failure
-      btn.innerHTML = '<div class="spinner"></div>Attaching resume…';
-      const dlWrap = $('fill-resume-dl-wrap');
-      const status = $('fill-attach-status');
-      const a = await aynAttachResume(tab.id).catch(() => ({ ok: false, error: 'attach_failed' }));
-      if (a?.ok) {
-        toast(`${filled} fields filled and resume attached ✓`, 'ok');
-        if (dlWrap) dlWrap.classList.add('hidden');
-        if (status) status.classList.add('hidden');
-      } else if (a?.error === 'no_file_input') {
-        toast(`${filled} fields filled ✓`, 'ok');
-        if (dlWrap) dlWrap.classList.add('hidden');
-        if (status) status.classList.add('hidden');
-      } else if (a?.error === 'blocked' || a?.error === 'blocked_by_site') {
-        toast(`${filled} fields filled. This site blocks the file upload — download below and drop it in.`, 'ok');
-        if (dlWrap) dlWrap.classList.remove('hidden');
-        if (status) {
-          status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-orange-2)">This site blocked the one-click upload. Use the download below and attach it manually.</span>`;
-          status.classList.remove('hidden');
-        }
-      } else {
-        toast(`${filled} fields filled. Could not attach the resume automatically — use the download below.`, 'ok');
-        if (dlWrap) dlWrap.classList.remove('hidden');
-        if (status) {
-          status.innerHTML = `<i class="ti ti-info-circle" style="color:var(--ayn-orange)"></i><span style="color:var(--ayn-orange-2)">Could not attach the resume automatically. Use the download below and attach it manually.</span>`;
-          status.classList.remove('hidden');
-        }
-      }
-      reenable();
-    });
-  });
-});
-
-$('fill-save-tracker-btn').addEventListener('click', () => {
-  if (!F.jobTitle) { toast('No job detected', 'err'); return; }
-  saveApplication({ jobTitle: F.jobTitle, company: F.company || 'Unknown', jobUrl: F.jobUrl, status: 'applied' });
-  $('fill-save-tracker-btn').classList.add('hidden');
-});
-
-$('fill-retry-btn').addEventListener('click', () => $('autofill-now-btn').click());
-$('fill-reset-btn').addEventListener('click', () => {
-  $('fill-result-wrap').classList.add('hidden');
-  $('err-fill').classList.add('hidden');
-});
-
-// ════════════════════════════════════════════════════════════════
-// JOB SCORE
-// ════════════════════════════════════════════════════════════════
 
 let scoringOn = false;
 const CARD_STOPWORDS = new Set(['senior','junior','lead','staff','the','of','and','for','an','to','in']);
@@ -1679,22 +1266,6 @@ function bgFunc(action, payload, opts = {}) {
 function getTab(cb) { chrome.tabs.query({ active:true, currentWindow:true }, tabs => cb(tabs[0]||null)); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function fillDisplayLabel(d={}) {
-  const raw = String(d.label || '').trim();
-  if (raw && !/^question$/i.test(raw)) return raw;
-  const group = String(d.group || '').trim();
-  const labels = {
-    'eeo.disability': 'Disability status',
-    'eeo.veteran': 'Veteran status',
-    'eeo.gender': 'Gender',
-    'eeo.ethnicity': 'Race or ethnicity',
-    'logic.work_auth': 'Work authorization',
-    'logic.sponsorship': 'Visa sponsorship',
-    'logic.relocate': 'Relocation',
-    'consent.agree': 'Required consent',
-  };
-  return labels[group] || group || raw || d.id || 'Field';
-}
 function cleanTitle(t) {
   return String(t||'').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
 }
@@ -1704,15 +1275,11 @@ window.cleanTitle = cleanTitle;
 function refreshForActiveTab() {
   if (!S.user) return;
   // Clear stale banners before re-detect so previous tab's data never lingers
-  const fb = $('fill-job-banner'); if (fb) { fb.classList.add('hidden'); fb.style.display = ''; }
   $('contact-no-job')?.classList.add('hidden');
   $('contact-job-info')?.classList.add('hidden');
   $('cover-no-job')?.classList.add('hidden');
   $('cover-job-banner')?.classList.add('hidden');
-  $('err-fill')?.classList.add('hidden');
-  $('fill-result-wrap')?.classList.add('hidden');
 
-  if (S.tab === 'fill')    detectForFill();
   if (S.tab === 'jobs')    detectForScore();
   if (S.tab === 'contact') detectForContacts();
   if (S.tab === 'cover')   detectForCover();
@@ -1743,11 +1310,11 @@ async function detectForAsk() {
   try {
     const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
     if (!tab?.id) throw new Error('no_tab');
-    const scan = await new Promise(res => chrome.tabs.sendMessage(tab.id, { type: 'SCAN_FORM' }, r => res(r || null)));
+    const scan = await new Promise(res => chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => res(r || null)));
     ASK.url = tab.url || '';
-    ASK.jobText  = scan?.jobText?.text  || '';
-    ASK.jobTitle = scan?.jobText?.title || '';
-    ASK.company  = scan?.jobText?.company || '';
+    ASK.jobText  = scan?.text  || scan?.jobText?.text  || '';
+    ASK.jobTitle = scan?.title || scan?.jobText?.title || '';
+    ASK.company  = scan?.company || scan?.jobText?.company || '';
     if (ASK.jobTitle || ASK.company) {
       pill.innerHTML = `<div class="ask-context-pill"><i class="ti ti-target-arrow"></i>${[ASK.jobTitle, ASK.company].filter(Boolean).join(' · ').slice(0, 80)}</div>`;
     } else {
@@ -1890,14 +1457,8 @@ $('score-toggle')?.addEventListener('click', () => toggleScoring());
 $('copy-subject-btn')?.addEventListener('click', () => window.copySubject());
 $('copy-outreach-btn')?.addEventListener('click', () => window.copyOutreach());
 
-// PART B: react instantly when content.js reports a form on the active tab
+// Sidepanel-wide runtime messages.
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === 'FORM_DETECTED_PUSH' && S.tab === 'fill') {
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      const t = tabs && tabs[0];
-      if (t && t.id === msg.tabId) applyFormReady(msg);
-    });
-  }
   // v2.11.1 — in-page FAB requested a tab focus.
   if (msg && msg.type === 'FOCUS_SIDEPANEL_TAB' && msg.tab) {
     try { switchTab(msg.tab); } catch {}
@@ -2020,7 +1581,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       void chrome.runtime.lastError;
       if (!r || !r.ok) {
         label.textContent = 'No job description found';
-        meta.textContent = 'Paste it manually for a better fill.';
+        meta.textContent = 'Paste it manually for a better read.';
         warn.classList.remove('hidden');
         pasteBtn?.classList.remove('hidden');
         return;
@@ -2033,7 +1594,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       const lowQuality = quality < 45 || chars < 600;
       if (lowQuality) {
         // v2.11.2 — explain WHY quality is low so users know what to fix.
-        let why = 'Paste it manually for a better fill.';
+        let why = 'Paste it manually for a better read.';
         if (d) {
           if (d.noise >= 40) why = 'Mostly page boilerplate. Paste the JD for a cleaner read.';
           else if (d.length < 30) why = 'Job description looks short. Paste the full text.';
@@ -2083,86 +1644,3 @@ chrome.runtime.onMessage.addListener((msg) => {
   });
 })();
 
-// ═══════════════════════════════════════════════════════════════════
-// v2.8.4 — Listing-state extras (JD status + Open the application button)
-// One coherent card. Replaces the old empty-state + JD banner stack.
-// ═══════════════════════════════════════════════════════════════════
-(function aynListingExtrasInit() {
-  const $ = (id) => document.getElementById(id);
-  let __listingTabId = null;
-
-  window.aynRenderListingExtras = function (tabId) {
-    __listingTabId = tabId;
-    const jdEl = $('fill-listing-jd');
-    const btn = $('fill-listing-open');
-    const btnLabel = $('fill-listing-open-label');
-    if (!jdEl || !btn) return;
-    jdEl.textContent = 'Locating the job description…';
-    btn.disabled = false;
-    btnLabel.textContent = 'Open the application';
-
-    chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
-      void chrome.runtime.lastError;
-      if (r && r.ok && (r.text || '').length > 0) {
-        jdEl.textContent = `JD ready · ${(r.text || '').length.toLocaleString()} chars`;
-      } else {
-        jdEl.textContent = 'No JD found yet · paste it if you have it';
-      }
-    });
-
-    // Probe the page for an Apply link so we can label the button honestly.
-    chrome.runtime.sendMessage(
-      { type: 'TAB_SEND', tabId, payload: { type: 'CLICK_APPLY_LINK', probe: true } },
-      () => void chrome.runtime.lastError,
-    );
-  };
-
-  $('fill-listing-open')?.addEventListener('click', () => {
-    if (__listingTabId == null) return;
-    const btn = $('fill-listing-open');
-    const btnLabel = $('fill-listing-open-label');
-    btn.disabled = true;
-    btnLabel.textContent = 'Opening…';
-    chrome.runtime.sendMessage(
-      { type: 'TAB_SEND', tabId: __listingTabId, payload: { type: 'CLICK_APPLY_LINK' } },
-      r => {
-        void chrome.runtime.lastError;
-        if (r && r.ok) {
-          btnLabel.textContent = 'Opened · switch to the form';
-        } else {
-          btn.disabled = true;
-          btnLabel.textContent = 'Find the Apply button on the page';
-        }
-      },
-    );
-  });
-
-  $('fill-listing-replace-jd')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    const w = $('jd-paste-wrap');
-    if (!w) return;
-    w.classList.remove('hidden');
-    $('jd-paste-input')?.focus();
-  });
-})();
-
-
-// v2.10.0 — show server-driven field-rules version in the header.
-(function aynShowCfgVersion(){
-  try {
-    const el = document.getElementById('ayn-cfg-version');
-    if (!el) return;
-    const render = (v) => { el.textContent = v ? ('Field rules v' + v) : ''; };
-    chrome.storage.local.get('ayn_ats_config', d => {
-      const p = d && d.ayn_ats_config;
-      render(p && p.version ? p.version : 0);
-    });
-    try {
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'local' || !changes.ayn_ats_config) return;
-        const nv = changes.ayn_ats_config.newValue;
-        render(nv && nv.version ? nv.version : 0);
-      });
-    } catch (_) {}
-  } catch (_) {}
-})();
