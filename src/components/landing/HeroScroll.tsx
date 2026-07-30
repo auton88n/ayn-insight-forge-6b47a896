@@ -10,6 +10,14 @@ import { useReducedMotion } from 'framer-motion';
 import { ArrowRight, Wand2, Target, ShieldCheck, FileText, Sparkles, LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import {
+  FillInProgressIllustration,
+  MatchScoreIllustration,
+  ProvenanceIllustration,
+  OnePageDocIllustration,
+  RunSummaryIllustration,
+} from './ProductIllustrations';
+
 
 /* ── Frame loading ──────────────────────────────────────────────
  * Frames live in /public/frames as individual JPEGs instead of
@@ -427,8 +435,15 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               </div>
             ))}
           </div>
+
+
+          {/* Fill in progress illustration */}
+          <div style={{ width: '100%', maxWidth: 900, margin: 'clamp(56px,8vw,96px) auto 0' }}>
+            <FillInProgressIllustration />
+          </div>
         </div>
       </section>
+
 
       {/* Section 3 — Features */}
       <section id="features" style={{ 
@@ -469,18 +484,22 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               {
                 title: 'A match score you can check',
                 desc: 'AYN scores you against the actual job description it read from the page, and shows you how many characters it found and which resume it compared. If it cannot find a real job description, it says so instead of guessing.',
-                icon: Target
+                icon: Target,
+                art: MatchScoreIllustration
               },
               {
                 title: 'It never invents an answer',
                 desc: 'Every answer AYN fills has to come from your own profile or resume. If it cannot verify something, it leaves the field blank and tells you, rather than making something up.',
-                icon: ShieldCheck
+                icon: ShieldCheck,
+                art: ProvenanceIllustration
               },
               {
                 title: 'Tailored resumes and cover letters',
                 desc: 'One page, real text a resume scanner can read, not an image. AYN rewrites your existing experience to match the role without inventing jobs, changing your numbers, or adding skills you do not have.',
-                icon: FileText
+                icon: FileText,
+                art: OnePageDocIllustration
               },
+
               {
                 title: 'It learns your answers',
                 desc: 'Answer a question once and AYN remembers it, even when the next company words it differently. Sensitive questions like work authorization are always yours to answer.',
@@ -521,19 +540,26 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
                   t.style.background = 'rgba(255, 255, 255, 0.4)';
                   t.style.borderColor = 'rgba(255, 255, 255, 0.5)';
                 }}>
-                <div style={{ 
-                  width: 60, 
-                  height: 60, 
-                  borderRadius: 20, 
-                  background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  marginBottom: 28,
-                  border: '1px solid rgba(0,0,0,0.03)'
-                }}>
-                  <card.icon size={28} color={C.ink} strokeWidth={1.5} />
+                {/* Illustration slot, same height on every card so the grid stays even */}
+                <div style={{ height: 150, marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: (card as { art?: unknown }).art ? 'center' : 'flex-start' }}>
+                  {(card as { art?: React.ComponentType<{ style?: React.CSSProperties }> }).art ? (
+                    (() => { const Art = (card as { art: React.ComponentType<{ style?: React.CSSProperties }> }).art; return <Art style={{ maxWidth: 240, maxHeight: 150 }} />; })()
+                  ) : (
+                    <div style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: 20,
+                      background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(0,0,0,0.03)'
+                    }}>
+                      <card.icon size={28} color={C.ink} strokeWidth={1.5} />
+                    </div>
+                  )}
                 </div>
+
                 <h3 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 16, textAlign: isAr ? 'right' : 'left' }}>{card.title}</h3>
                 <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6, flexGrow: 1, textAlign: isAr ? 'right' : 'left' }}>{card.desc}</p>
                 
@@ -563,7 +589,12 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
           <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.7, color: C.inkSub, margin: 0, textWrap: 'balance' as React.CSSProperties['textWrap'] }}>
             AYN tells you what it did and what it could not do. It shows which job description it read and how complete it was, which resume it compared you against, and which fields it filled, skipped, or wants you to review. Sensitive questions about work authorization, sponsorship, salary, and self identification are never guessed. You answer those.
           </p>
+
+          <div style={{ width: '100%', maxWidth: 560, margin: 'clamp(40px,6vw,64px) auto 0' }}>
+            <RunSummaryIllustration />
+          </div>
         </div>
+
       </section>
 
       {/* Section 5 — Final CTA (dark) */}
