@@ -42,7 +42,7 @@ function switchTab(tab) {
   if (tab === 'ask')     { show('v-ask');     detectForAsk(); }
   if (tab === 'contact') { show('v-contact'); detectForContacts(); }
   if (tab === 'cover')   { show('v-cover');   detectForCover(); }
-  if (tab === 'tracker') { show('v-tracker'); loadTracker(); }
+  
   if (tab === 'tailor')  { show('v-t1');      detectForTailor(); }
 }
 window.switchTab = switchTab;
