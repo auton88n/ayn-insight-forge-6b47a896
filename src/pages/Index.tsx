@@ -6,10 +6,12 @@ import { lazy, Suspense } from 'react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Navigate } from 'react-router-dom';
 
-// Lazy load Dashboard (authenticated users), direct import LandingPage (most common first view)
+// v3.8.0 — there is no seeker chat on the dashboard any more. A signed in job
+// seeker lands in Resume Hub. The only conversational surface left is the
+// employer candidate search in EmployerHub.
 import LandingPage from '@/components/LandingPage';
-const Dashboard = lazy(() => import('@/components/Dashboard'));
 const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
+
 
 
 // Module-level cache: once auth has resolved, subsequent re-mounts of <Index>
