@@ -112,8 +112,15 @@ export const employerApi = {
   orgGet: () => call<{ org: Org | null; role?: string }>({ action: "employer_org_get" }),
   orgCreate: (name: string, website?: string) =>
     call<{ org: Org }>({ action: "employer_org_create", name, website }),
-  intake: (org_id: string, messages: IntakeTurn[]) =>
-    call<IntakeResponse>({ action: "employer_intake_chat", org_id, messages }),
+  /** v3.8.0 — one pass over the opening description, no conversation. */
+  specExtract: (org_id: string, description: string) =>
+    call<{ job_spec: Partial<JobSpec>; known: string[] }>({
+      action: "employer_spec_extract", org_id, description,
+    }),
+  skillCatalog: (org_id: string) =>
+    call<{ pool_size: number; skills: SkillOption[] }>({ action: "employer_skill_catalog", org_id }),
+  resultsChat: (search_id: string, messages: { role: "user" | "assistant"; content: string }[]) =>
+    call<{ reply: string }>({ action: "employer_results_chat", search_id, messages }),
   match: (org_id: string, job_spec: JobSpec) =>
     call<{ search_id: string | null; results: CandidateCard[]; pool_note: string }>({
       action: "employer_match", org_id, job_spec,
