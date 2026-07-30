@@ -159,7 +159,7 @@ export default function ResumeHub() {
             {tab === "profile"   && <ProfileTab userId={userId!} />}
             {tab === "builder"   && <BuilderTab userId={userId!} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
-            {tab === "tracker"   && <TrackerTab userId={userId!} />}
+            
             {tab === "extension" && <ExtensionTab userId={userId!} />}
           </section>
 
