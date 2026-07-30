@@ -110,7 +110,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
-  const [poolRefresh, setPoolRefresh] = useState(0);
 
   // ── Intro requests from employers ───────────────────────────────────────
   const [reveals, setReveals] = useState<RevealRequest[]>([]);
@@ -343,7 +342,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
       {/* Talent pool */}
       <TalentPoolCard
-        refreshKey={poolRefresh}
         missingMatchSignals={missingMatchSignals}
         pendingIntros={pendingIntros}
       />
