@@ -5,7 +5,7 @@
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid } from 'lucide-react';
+import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid, Radar } from 'lucide-react';
 import { HeroFillMockup } from './HeroFillMockup';
 import {
   MatchScoreIllustration,
@@ -53,6 +53,13 @@ const TILES = [
     desc: 'Every resume, saved job, and score in one workspace.',
     art: null,
     meta: ['Saved jobs', 'Match scores', 'Resume versions', 'Cover letters'],
+  },
+  {
+    span: 'lp-span-6',
+    icon: Radar,
+    title: 'Be found, not just seen',
+    desc: 'Turn on discovery and employers searching for your skills can reach you. You approve every intro.',
+    art: null,
   },
 ];
 
@@ -117,27 +124,38 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              Know if a job is worth your hour <em>before you spend it</em>.
+              Applying is only <em>half the job search</em>.
             </h1>
             <p className="lp-lead">
-              AYN reads the real posting, scores your fit against it, then writes the resume and
-              cover letter for that role. And when you are hiring, it finds the three people worth
-              talking to.
+              AYN helps you apply smarter, and helps the right employers find you first.
             </p>
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
                 Start free <ArrowRight size={15} />
               </button>
-              <Link to="/resume-hub?tab=extension" className="lp-btn lp-btn-ghost">
-                Add to Chrome
-              </Link>
+              <a href="#employers" className="lp-btn lp-btn-ghost">
+                For employers
+              </a>
             </div>
-            <p className="lp-note">Works on Greenhouse, Lever, Workday, Ashby and more.</p>
+            <p className="lp-note">Free to start. Works on Greenhouse, Lever, Workday, Ashby and more.</p>
           </div>
 
           <HeroFillMockup />
         </div>
       </header>
+
+      {/* ── THESIS ───────────────────────────────────────────── */}
+      <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
+        <div className="lp-shell lp-reveal">
+          <h2 className="lp-display lp-h2">The job search is changing sides</h2>
+          <p className="lp-lead" style={{ marginTop: 14 }}>
+            Employers used to post a job and wait for a thousand resumes.
+            <br />
+            Now they search for the right person. AYN makes sure you are findable, and worth finding.
+          </p>
+        </div>
+      </section>
+
 
       {/* ── PROOF STRIP ──────────────────────────────────────── */}
       <div className="lp-strip">
@@ -179,7 +197,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <p className="lp-eyebrow">What it does</p>
             <h2 className="lp-display lp-h2">Apply to fewer jobs, and to better ones</h2>
             <p className="lp-lead">
-              Everything that goes out with your name on it is something you can check.
+              Apply faster, and be the candidate employers surface when they search.
             </p>
 
           </div>
@@ -205,6 +223,9 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
                       {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
                     </div>
                   )}
+                  {!Art && !('meta' in tile) && (
+                    <div className="lp-art" aria-hidden="true" style={{ minHeight: 96 }} />
+                  )}
                 </article>
               );
             })}
@@ -217,15 +238,16 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-reveal" style={{ marginBottom: 36 }}>
             <p className="lp-eyebrow">For employers</p>
-            <h2 className="lp-display lp-h2">You have read a thousand resumes to find three people</h2>
+            <h2 className="lp-display lp-h2">Stop reading a thousand resumes to find three people</h2>
             <p className="lp-lead">
-              Tell AYN what the role needs. It searches candidates who chose to be found and brings you
-              the three best fits, with the reason for each. No job board. No inbox full of maybes.
+              Describe the role in plain words. AYN searches candidates who chose to be found,
+              and returns the three best fits with the evidence for each. No job board. No inbox
+              full of maybes.
             </p>
             <div className="lp-chips">
-              <span className="lp-chip">Describe the role in plain words</span>
-              <span className="lp-chip">Only opted in candidates</span>
-              <span className="lp-chip">Three real fits, with evidence</span>
+              <span className="lp-chip">Say what the role actually needs.</span>
+              <span className="lp-chip">AYN searches only candidates who opted in.</span>
+              <span className="lp-chip">Three real fits, with the reason for each.</span>
             </div>
           </div>
 
@@ -250,9 +272,9 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <p className="lp-eyebrow">Built to be honest</p>
             <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
             <p className="lp-lead">
-              Every score is grounded in the posting text, and AYN shows you the lines it used. If the
-              page hides the description, it says so instead of guessing. AYN only reads. It never
-              types into a page and never submits anything for you.
+              AYN shows its work. Which job description it read, which resume it compared, what it
+              could not verify. Your profile is only shared with employers when you turn discovery
+              on, and your contact details only when you approve an intro.
             </p>
             <div className="lp-chips">
               <span className="lp-chip">Read only, always</span>
@@ -287,7 +309,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
             <h2 className="lp-display lp-h2" style={{ maxWidth: 720, marginInline: 'auto' }}>
-              Know before you apply
+              Apply less. Get found more.
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
               Add your resume once and let AYN read the job for you.
