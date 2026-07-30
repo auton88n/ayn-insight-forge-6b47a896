@@ -332,10 +332,6 @@ function saveBlob(blob, filename) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
-function markDownloadDone() {
-  document.getElementById('dl-step-1')?.classList.add('done');
-  document.getElementById('dl-step-2')?.classList.add('now');
-}
 
 // v2.12.1: surface honest overflow hint under a download button.
 function aynShowOverflowHint(hintEl, report) {
@@ -353,31 +349,6 @@ function aynShowCoverOverflowHint(hintEl, report) {
   hintEl.classList.remove('hidden');
 }
 
-async function downloadResumeAs(kind, btn) {
-  const orig = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<div class="spinner dk"></div>Preparing...';
-  try {
-    const { text, fileBase } = await fetchAynResume();
-    if (!window.AYNResumeFormat) throw new Error('Formatter not loaded');
-    let blob, report = null;
-    if (kind === 'pdf') {
-      const out = window.AYNResumeFormat.buildResumePdfBlob(text, fileBase);
-      blob = out.blob; report = out;
-    } else {
-      blob = await window.AYNResumeFormat.buildResumeDocxBlob(text, fileBase);
-    }
-    saveBlob(blob, `${fileBase}.${kind === 'pdf' ? 'pdf' : 'docx'}`);
-    markDownloadDone();
-    aynShowOverflowHint(document.getElementById('resume-fit-hint'), report);
-    toast(`${kind === 'pdf' ? 'PDF' : 'Word'} downloaded ✓ — attach it on the form`, 'ok');
-  } catch (err) {
-    toast(err.message || 'Download failed', 'err');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = orig;
-  }
-}
 
 
 
