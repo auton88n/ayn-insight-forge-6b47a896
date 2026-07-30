@@ -91,13 +91,15 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   };
 
 
-  const runMatch = async () => {
-    if (!org || !spec) return;
+  const runMatch = async (nextSpec: JobSpec) => {
+    if (!org) return;
+    setSpec(nextSpec);
     setSearching(true);
     setResults([]);
     setPoolNote("");
+    setSearchId(null);
     try {
-      const r = await employerApi.match(org.id, spec);
+      const r = await employerApi.match(org.id, nextSpec);
       setSearchId(r.search_id);
       setResults(r.results || []);
       setPoolNote(r.pool_note || "");
@@ -106,11 +108,15 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     } finally { setSearching(false); }
   };
 
+  const EMPLOYMENT_LABEL: Record<string, string> = {
+    full_time: "Full time", contract: "Contract", part_time: "Part time", internship: "Internship",
+  };
+
   const openProposal = (c: CandidateCard) => {
     setForm({
       job_title: spec?.title || "",
       job_location: spec?.location_preference || "",
-      employment_type: "",
+      employment_type: EMPLOYMENT_LABEL[spec?.employment_type || ""] || "",
       salary_range: "",
       job_url: "",
       message: "",
@@ -118,6 +124,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     setOpen(c);
     setFormOpen(true);
   };
+
 
   const submitProposal = async () => {
     if (!searchId || !open) return;
