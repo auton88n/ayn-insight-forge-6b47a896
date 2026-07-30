@@ -2,7 +2,6 @@
 // Auth: device tokens via "Sign in with AYN" one-click flow.
 
 // v1.9.55: two-lane resolver. Load shared constants + resolver into the SW.
-try { importScripts('constants.js', 'filler.js'); } catch (e) { console.warn('AYN resolver load failed', e); }
 
 const SUPABASE_URL = 'https://dfkoxuokfkttjhfjcecx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRma294dW9rZmt0dGpoZmpjZWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzNTg4NzMsImV4cCI6MjA3MTkzNDg3M30.Th_-ds6dHsxIhRpkzJLREwBIVdgkcdm2SmMNDmjNbxw';
@@ -33,35 +32,6 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return true;
   }
 
-  if (message.type === 'AYN_TRIGGER_AUTOFILL') {
-    (async () => {
-      try {
-        const jobUrl = String(message.jobUrl || '').trim();
-        if (!jobUrl) { sendResponse({ ok: false, error: 'no_url' }); return; }
-        const tabs = await chrome.tabs.query({});
-        const found = tabs.find(t => t.url === jobUrl);
-        const tab = found || await chrome.tabs.create({ url: jobUrl, active: true });
-        if (found) { try { await chrome.tabs.update(tab.id, { active: true }); } catch {} }
-        try {
-          await chrome.storage.local.set({
-            'ayn:pendingHandoff': { targetUrl: jobUrl, resumeId: message.resumeId || '', ts: Date.now() },
-          });
-          // v2.7.0 — remember which tailored resume version the user picked so
-          // subsequent autofill / attach calls target that version.
-          if (message.resumeVersionId) {
-            await chrome.storage.local.set({
-              ayn_pending_resume_version: { id: String(message.resumeVersionId), url: jobUrl, ts: Date.now() },
-            });
-          }
-        } catch {}
-        await new Promise(r => setTimeout(r, 1500));
-        chrome.runtime.sendMessage({ type: 'AUTO_AUTOFILL', tabId: tab.id }, () => void chrome.runtime.lastError);
-        sendResponse({ ok: true, tabId: tab.id });
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
-    })();
-    return true;
-  }
-
   sendResponse({ ok: false, error: 'unknown_type' });
 });
 
@@ -87,7 +57,6 @@ async function aynReadPendingResumeVersion(tabUrl) {
 }
 
 // PART B: per-tab form-detection cache (tabId → { hasForm, fieldCount, hasResumeUpload, url, ts })
-const FORM_CACHE = new Map();
 
 // v2.8.0 — JD Resolver infrastructure.
 // JD_REGISTRY: origin+pathname → { text, title, company, url, ts, source }
@@ -217,7 +186,6 @@ chrome.tabs.onCreated.addListener(t => {
   try { if (t && t.id != null && t.openerTabId != null) TAB_OPENER.set(t.id, t.openerTabId); } catch {}
 });
 chrome.tabs.onRemoved.addListener(tabId => {
-  FORM_CACHE.delete(tabId);
   TAB_OPENER.delete(tabId);
   LAST_MATCH.delete(tabId);
   MANUAL_JD.delete(tabId);
@@ -226,7 +194,6 @@ chrome.tabs.onRemoved.addListener(tabId => {
 });
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url) {
-    FORM_CACHE.delete(tabId);
     // v2.8.1 — "Scan anyway" override is per tab AND per URL. On navigation
     // we drop it so YouTube -> Ashby (same tab) doesn't inherit the bypass.
     TAB_OVERRIDE.delete(tabId);
@@ -416,45 +383,13 @@ async function callAiEdge(fnName, body) {
 // key 'ayn_ats_config' = { config, version, fetchedAt }. Broadcasts to
 // active tabs so content scripts hot-swap without a reload. All failures
 // are silent — content scripts fall back to BUILT_IN defaults.
-const AYN_ATS_CFG_KEY = 'ayn_ats_config';
-const AYN_ATS_CFG_ALARM = 'ayn_ats_config_refresh';
-const AYN_ATS_CFG_INTERVAL_MIN = 6 * 60; // 6 hours
-
-async function aynFetchAtsConfig() {
-  try {
-    const resp = await callPublic('ats_config_get', {});
-    if (!resp || !resp.config) return null;
-    const version = Number(resp.version || 0);
-    const prev = (await chrome.storage.local.get(AYN_ATS_CFG_KEY))[AYN_ATS_CFG_KEY];
-    if (prev && Number(prev.version || 0) > version) return prev;
-    const payload = { config: resp.config, version, fetchedAt: Date.now() };
-    await chrome.storage.local.set({ [AYN_ATS_CFG_KEY]: payload });
-    aynBroadcastAtsConfig(payload).catch(() => {});
-    return payload;
-  } catch { return null; }
-}
-
-async function aynBroadcastAtsConfig(payload) {
-  try {
-    const tabs = await chrome.tabs.query({});
-    for (const t of tabs) {
-      if (!t.id) continue;
-      try { chrome.tabs.sendMessage(t.id, { type: 'SET_ATS_CONFIG', payload }, () => void chrome.runtime.lastError); } catch {}
-    }
-  } catch {}
-}
 
 chrome.runtime.onInstalled.addListener(() => {
-  aynFetchAtsConfig().catch(() => {});
-  try { chrome.alarms.create(AYN_ATS_CFG_ALARM, { periodInMinutes: AYN_ATS_CFG_INTERVAL_MIN }); } catch {}
 });
 chrome.runtime.onStartup.addListener(() => {
-  aynFetchAtsConfig().catch(() => {});
-  try { chrome.alarms.create(AYN_ATS_CFG_ALARM, { periodInMinutes: AYN_ATS_CFG_INTERVAL_MIN }); } catch {}
 });
 try {
   chrome.alarms.onAlarm.addListener((a) => {
-    if (a && a.name === AYN_ATS_CFG_ALARM) aynFetchAtsConfig().catch(() => {});
   });
 } catch {}
 
@@ -470,56 +405,7 @@ async function safeSendMessage(tabId, message, frameId = 0) {
       });
     } catch { resolve(null); }
   });
-  const direct = await tryOnce();
-  if (direct !== null) return direct;
-  try {
-    await chrome.scripting.executeScript({ target: { tabId, frameIds: [frameId] }, files: ['constants.js', 'filler.js', 'dom.js', 'content.js'] });
-    await new Promise(r => setTimeout(r, 300));
-    return tryOnce();
-  } catch { return null; }
-}
-
-// ── v1.9.55: profile vector + answer memory (two-lane resolver) ──────
-// v2.7.0 — cache window trimmed from 24h to 30m so recent Profile edits
-// on the dashboard show up in the extension without waiting a full day.
-async function aynGetProfileVector() {
-  try {
-    const r = await chrome.storage.local.get('ayn_profile_vector');
-    const cached = r.ayn_profile_vector;
-    const fresh = cached && cached.fetchedAt && (Date.now() - cached.fetchedAt < 30 * 60 * 1000);
-    if (fresh && cached.vector) return cached.vector;
-    const resp = await callFunction('ext_profile', {});
-    if (resp && resp.facts) { await chrome.storage.local.set({ ayn_profile_vector: { vector: resp, fetchedAt: Date.now() } }); return resp; }
-    return cached && cached.vector ? cached.vector : null;
-  } catch (_) {
-    try { const r = await chrome.storage.local.get('ayn_profile_vector'); return r.ayn_profile_vector ? r.ayn_profile_vector.vector : null; } catch { return null; }
-  }
-}
-async function aynMemGet() { try { const r = await chrome.storage.local.get('ayn_answers'); return r.ayn_answers || {}; } catch { return {}; } }
-async function aynMemSet(m) { try { await chrome.storage.local.set({ ayn_answers: m }); } catch (_) {} }
-
-// Enumerate frames worth scanning: the top frame (which already covers its own
-// same-origin subframes + shadow roots via collectScannableDocs), plus any frame
-// that is cross-origin relative to its PARENT (an ancestor's scan cannot reach it).
-// Falls back to top-only if webNavigation is unavailable.
-async function getScannableFrames(tabId) {
-  try {
-    const frames = await chrome.webNavigation.getAllFrames({ tabId });
-    if (!frames || !frames.length) return [{ frameId: 0 }];
-    const byId = new Map(frames.map(f => [f.frameId, f]));
-    const originOf = (u) => { try { return new URL(u).origin; } catch { return null; } };
-    const out = [];
-    // v2.2.0 — include ALL non-error frames, not just cross-origin. Same-origin
-    // iframes still need explicit enumeration because the top-frame content
-    // script cannot always reach nested iframe DOM directly (Lever embeds,
-    // Ashby step-2 iframes). safeSendMessage lazily injects content.js.
-    for (const f of frames) {
-      if (f.frameId === 0) { out.push({ frameId: 0 }); continue; }
-      if (f.errorOccurred) continue;
-      out.push({ frameId: f.frameId });
-    }
-    return out.length ? out : [{ frameId: 0 }];
-  } catch { return [{ frameId: 0 }]; }
+  return await tryOnce();
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -533,45 +419,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
-  }
-
-  // ── Vision fallback (v1.9.38: opt-in real screenshot, else html2canvas) ──
-  if (message.type === 'AYN_VISION_FILL') {
-    (async () => {
-      let granted = false;
-      try { granted = await chrome.permissions.contains({ origins: ['<all_urls>'] }); } catch { granted = false; }
-      let dataUrl = null;
-      let src = '';
-      let captureError = '';
-      if (granted) {
-        try {
-          dataUrl = await chrome.tabs.captureVisibleTab(sender?.tab?.windowId ?? undefined, { format: 'png' });
-          if (dataUrl) src = 'screenshot';
-        } catch (e) { captureError = String((e && e.message) || 'capture failed'); }
-      }
-      if (!dataUrl && message.image && typeof message.image === 'string' && message.image.startsWith('data:image/')) {
-        dataUrl = message.image; src = 'html2canvas';
-      }
-      if (!dataUrl) {
-        sendResponse({ ok: false, decisions: [], diag: { captured: false, captureError: captureError || 'no image', backendError: '', decisionsCount: 0, src: '' } });
-        return;
-      }
-      try {
-        const resp = await callFunction('ext_vision_fill', {
-          image: dataUrl,
-          candidates: message.candidates || [],
-          url: message.url || '',
-          jobTitle: message.jobTitle || '',
-          company: message.company || '',
-        });
-        const decisions = resp?.decisions || [];
-        sendResponse({ ok: true, decisions, diag: { captured: true, captureError: '', backendError: '', decisionsCount: decisions.length, src } });
-      } catch (e) {
-        sendResponse({ ok: false, decisions: [], diag: { captured: true, captureError: '', backendError: String((e && e.message) || 'backend failed'), decisionsCount: 0, src } });
-      }
-    })();
-    return true;
-
   }
 
 
@@ -657,30 +504,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // v2.11.1 — in-page FAB asks background to open the side panel and
-  // signal the sidepanel to focus the Fill tab. chrome.sidePanel.open
-  // must run in the service worker in response to a user gesture; the
-  // click that produced this message counts as that gesture.
-  if (message.type === 'OPEN_SIDE_PANEL') {
-    (async () => {
-      const focusTab = (message && message.focusTab) || 'fill';
-      try {
-        // Persist the focus target so sidepanels that open fresh pick it up
-        // on init; already-open sidepanels also receive the broadcast below.
-        try { await chrome.storage.local.set({ ayn_focus_tab: { tab: focusTab, at: Date.now() } }); } catch {}
-        const tabId = sender && sender.tab && sender.tab.id;
-        const windowId = sender && sender.tab && sender.tab.windowId;
-        try {
-          if (tabId != null) await chrome.sidePanel.open({ tabId });
-          else if (windowId != null) await chrome.sidePanel.open({ windowId });
-        } catch (e) { /* already open or gesture too old */ }
-        try { chrome.runtime.sendMessage({ type: 'FOCUS_SIDEPANEL_TAB', tab: focusTab }, () => { void chrome.runtime.lastError; }); } catch {}
-        sendResponse({ ok: true });
-      } catch (e) { sendResponse({ ok: false, error: e && e.message }); }
-    })();
-    return true;
-  }
-
 
   // v1.9.7: relay a message to a tab and auto-inject content.js if missing.
   if (message.type === 'TAB_SEND') {
@@ -739,34 +562,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       MANUAL_JD.set(tabId, { text: String(message.text || ''), title: message.title || '', company: message.company || '', ts: Date.now() });
     }
     sendResponse({ ok: true });
-    return true;
-  }
-
-
-  // PART B: cache form-detected events per tab so the sidepanel reads them instantly
-  if (message.type === 'FORM_DETECTED') {
-    const tabId = sender.tab?.id;
-    if (tabId != null) {
-      FORM_CACHE.set(tabId, {
-        hasForm: !!message.hasForm,
-        fieldCount: message.fieldCount || 0,
-        hasResumeUpload: !!message.hasResumeUpload,
-        url: message.url || sender.tab?.url || '',
-        kind: message.kind || TAB_KIND.get(tabId) || 'other',
-        ts: Date.now(),
-      });
-      if (message.kind) TAB_KIND.set(tabId, message.kind);
-      // Notify any open sidepanel
-      try { chrome.runtime.sendMessage({ type: 'FORM_DETECTED_PUSH', tabId, ...FORM_CACHE.get(tabId) }, () => void chrome.runtime.lastError); } catch {}
-    }
-    sendResponse({ ok: true });
-    return true;
-  }
-
-  if (message.type === 'GET_FORM_DETECTED') {
-    const tabId = message.tabId;
-    const v = tabId != null ? FORM_CACHE.get(tabId) : null;
-    sendResponse(v || null);
     return true;
   }
 
@@ -871,446 +666,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try { sendResponse(await callFunction('ext_suggest_roles', {})); }
       catch { sendResponse(null); }
-    })();
-    return true;
-  }
-
-  // v1.4.0: Auto-tracker — content script tells us the user submitted the form
-  if (message.type === 'AUTO_TRACK_SUBMIT') {
-    (async () => {
-      try {
-        const token = await getToken();
-        if (!token) { sendResponse({ ok: false }); return; }
-        const company = message.company || '';
-        const title = (message.title || '').split(/\s+at\s+|\s+[-|@]\s+/i)[0].trim() || 'Job';
-        const tabId = sender.tab?.id;
-        // v2.8.0 — attach the last-known match score and job id so the tracker
-        // row surfaces "you applied and scored 82%" immediately.
-        const lm = tabId != null ? LAST_MATCH.get(tabId) : null;
-        await callFunction('ext_save_application', {
-          jobTitle: title, company: company || 'Unknown', jobUrl: message.url || '', status: 'applied',
-          match_score: lm && typeof lm.score === 'number' ? lm.score : undefined,
-          job_id: lm && lm.jobId ? lm.jobId : undefined,
-        });
-        sendResponse({ ok: true });
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
-    })();
-    return true;
-  }
-
-
-  // v1.4.0: Programmatic resume attach — fetch resume bytes then attach in-page
-  if (message.type === 'ATTACH_RESUME') {
-    (async () => {
-      try {
-        const tabId = message.tabId;
-        if (!tabId) { sendResponse({ ok: false, error: 'no_tab' }); return; }
-        let tabUrl = '';
-        try { const t = await chrome.tabs.get(tabId); tabUrl = t && t.url || ''; } catch {}
-        const resume_version_id = await aynReadPendingResumeVersion(tabUrl);
-        const blob = await callFunction('ext_get_resume_blob', resume_version_id ? { resume_version_id } : {});
-        if (!blob?.base64) { sendResponse({ ok: false, error: 'no_resume' }); return; }
-        const r = await safeSendMessage(tabId, { type: 'TRY_ATTACH_RESUME', payload: blob });
-        if (!r) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
-        if (!r.attached) { sendResponse({ ok: false, error: r.reason || 'blocked', filename: blob.filename }); return; }
-        sendResponse({ ok: true, count: r.count || 1, filename: blob.filename });
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
-    })();
-    return true;
-  }
-
-  // Sidepanel builds the PDF/DOCX locally and asks us to forward it to the page.
-  if (message.type === 'ATTACH_RESUME_FILE') {
-    (async () => {
-      try {
-        const tabId = message.tabId;
-        const payload = message.payload || {};
-        if (!tabId) { sendResponse({ ok: false, error: 'no_tab' }); return; }
-        if (!payload.base64) { sendResponse({ ok: false, error: 'no_resume' }); return; }
-        const r = await safeSendMessage(tabId, { type: 'TRY_ATTACH_RESUME', payload });
-        if (!r) { sendResponse({ ok: false, error: 'no_content_script' }); return; }
-        if (!r.attached) { sendResponse({ ok: false, error: r.reason || 'blocked', filename: payload.filename }); return; }
-        sendResponse({ ok: true, count: r.count || 1, filename: payload.filename });
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
-    })();
-    return true;
-  }
-
-  // Auto-autofill: scan + AI + inject (with v1.4.0 multi-pass for revealed fields)
-  if (message.type === 'AUTO_AUTOFILL') {
-    (async () => {
-      try {
-        const tabId = message.tabId;
-        if (!tabId) { sendResponse({ ok: false, error: 'No tab ID' }); return; }
-        const token = await getToken();
-        if (!token) { sendResponse({ ok: false, error: 'not_signed_in' }); return; }
-
-        const frames = await getScannableFrames(tabId);
-        const AGG = (fid, id) => fid === 0 ? id : `@@F${fid}@@${id}`;
-        const DEAGG = (fid, id) => fid === 0 ? id : id.replace(`@@F${fid}@@`, '');
-
-        // Expand repeating sections in every scannable frame
-        for (const fr of frames) { await safeSendMessage(tabId, { type: 'EXPAND_SECTIONS' }, fr.frameId); }
-        await new Promise(r => setTimeout(r, 350));
-
-        // Scan each frame; namespace non-top-frame field ids so they stay unique
-        const frameOfField = new Map();
-        const scanByFrame = {};
-        let fields = [];
-        for (const fr of frames) {
-          const s = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
-          if (!s || !Array.isArray(s.fields)) continue;
-          scanByFrame[fr.frameId] = s;
-          for (const f of s.fields) {
-            const aggId = AGG(fr.frameId, f.id);
-            frameOfField.set(aggId, fr.frameId);
-            fields.push({ ...f, id: aggId });
-          }
-        }
-        const topScan = scanByFrame[0] || {};
-        // v2.8.0 — JD RESOLVER LADDER. The apply page rarely contains the full
-        // JD; run the resolver ladder (current-page hint → opener tab → registry
-        // fuzzy → listing fetch → backend lookup) and use the best result. This
-        // is the difference between AI answering "why this company?" from a
-        // 30-word teaser vs. the real posting.
-        let jobText = topScan.jobText || {};
-        try {
-          const pageUrl = topScan.url || '';
-          const resolved = await resolveJdForTab(tabId, pageUrl, jobText);
-          if (resolved && resolved.text && jdQuality(resolved.text) > jdQuality(jobText.text || '')) {
-            jobText = { text: resolved.text, title: resolved.title || jobText.title || '', company: resolved.company || jobText.company || '' };
-            console.log('[AYN JD] resolved via', resolved.source, 'quality', resolved.quality, 'chars', resolved.text.length);
-          }
-        } catch (e) { console.warn('[AYN JD] resolve failed', e); }
-
-        const fileFields = fields.filter(f => /file/i.test(String(f.kind || f.type || '')) || /resume|cv|curriculum|upload|attach/i.test(String(f.label || '')));
-        fields = fields.filter(f => !(/file/i.test(String(f.kind || f.type || ''))));
-        if (fields.length === 0) {
-          if (fileFields.length > 0) {
-            sendResponse({ ok: true, filled: 0, total: 0, answered: 0, verified: 0, needsReview: 0, needsReviewCount: 0, resolvedLocally: 0, details: [], passes: 1, skipped: [], fileFieldCount: fileFields.length, needsResume: true });
-            return;
-          }
-          sendResponse({ ok: false, error: 'no_fields' }); return;
-        }
-
-        // v2.6.0 — removed: this used to fuzzy-match fields against stored
-        // profile aliases client-side before ever calling the backend, using
-        // a separate memory store from the one the backend's rule engine and
-        // AI already query. The backend's ext_autofill already answers every
-        // field (rule engine, memory, AI) against the real profile; letting
-        // it see ALL fields, not a pre-filtered subset, is strictly more
-        // reliable, not less, and removes an entire class of "two answers
-        // disagree" bugs.
-        let localValues = [];
-        let unknownFields = fields;
-        let __resolvedSummary = [];
-
-        // v2.7.0 — thread the currently-selected tailored resume version, if any.
-        let __tabUrl = '';
-        try { const __t = await chrome.tabs.get(tabId); __tabUrl = __t && __t.url || ''; } catch {}
-        const resume_version_id = await aynReadPendingResumeVersion(__tabUrl);
-
-        const fillData = await callFunction('ext_autofill', {
-          fields: unknownFields.map(f => ({
-            id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
-            options: f.options, required: f.required, currentValue: f.currentValue,
-            accRole: f.accRole || '', labelSource: f.labelSource || '',
-            fingerprint: f.fingerprint || '',
-            section: f.section || '', helperText: f.helperText || '', placeholder: f.placeholder || '',
-            siblingLabels: Array.isArray(f.siblingLabels) ? f.siblingLabels : [],
-            richEditor: !!f.richEditor, richDetector: f.richDetector || '',
-          })),
-          resolved: __resolvedSummary,
-          jobText: jobText?.text || '',
-          jobTitle: jobText?.title || '',
-          company: jobText?.company || '',
-          ats: topScan.ats || 'unknown',
-          url: topScan.url || '',
-          scanDiag: Array.isArray(topScan.scanDiag) ? topScan.scanDiag : [],
-          extVersion: chrome.runtime.getManifest().version,
-          resume_version_id: resume_version_id || undefined,
-        });
-        const runId = fillData?.run_id || null;
-
-        // v2.12.2 — LAYER 1: refuse to inject anything when the backend reports
-        // the caller has no profile. This prevents the AI from being asked to
-        // guess identity fields and prevents any writes to the page.
-        if (fillData && fillData.error === 'no_profile') {
-          sendResponse({ ok: false, error: 'no_profile' });
-          return;
-        }
-
-        const fieldMeta = new Map(fields.map(f => [f.id, f]));
-        const decorate = v => {
-          const f = fieldMeta.get(v.id) || {};
-          return {
-            ...v,
-            label: f.label || v.label || '',
-            kind: f.kind || f.type || v.kind || '',
-            type: f.type || v.type || '',
-            name: f.name || v.name || '',
-            group: f.group || v.group || '',
-            labelSource: f.labelSource || v.labelSource || '',
-            richDetector: f.richDetector || v.richDetector || '',
-            _idx: f._idx,
-            _frame: f._frame || '',
-          };
-        };
-        const aiValuesRaw = (fillData.values || [])
-          .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
-          .map(v => decorate({ ...v, source: v.source || 'ai' }));
-
-        // v2.12.2 — LAYER 3: PROVENANCE GATE. Every identity-type text value the
-        // backend proposes must appear in the source data that produced it, or
-        // it is dropped and never written to the page. This is the structural
-        // guard against hallucinated identities like "isha.sharma@example.com"
-        // reaching a real application form. Free-text answers (open.*/textarea)
-        // are legitimately generated, so they bypass the gate.
-        const _digestRaw = String(fillData.sourceDigest || '');
-        const _normStr = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[\s\-_.,;:'"()/\\]+/g, '').trim();
-        const _digitsOnly = s => String(s || '').replace(/\D+/g, '');
-        const _digestNorm = _normStr(_digestRaw);
-        const _digestLower = _digestRaw.toLowerCase();
-        const _digestDigits = _digitsOnly(_digestRaw);
-        const _isFreeText = v => {
-          const kind = String(v.kind || v.type || '').toLowerCase();
-          const group = String(v.group || '');
-          return /textarea|richedit|opentext/.test(kind) || /^open\./.test(group);
-        };
-        const _isEmailField = v => {
-          const s = `${v.kind || ''} ${v.type || ''} ${v.label || ''} ${v.group || ''}`.toLowerCase();
-          return /email/.test(s);
-        };
-        const _isPhoneField = v => {
-          const s = `${v.kind || ''} ${v.type || ''} ${v.label || ''} ${v.group || ''}`.toLowerCase();
-          return /phone|mobile|\btel\b/.test(s);
-        };
-        const _isUrlValue = s => /^https?:\/\//i.test(String(s || ''));
-        const ungroundedDrops = [];
-        const aiValues = [];
-        for (const v of aiValuesRaw) {
-          const textValue = String(v.value || '').trim();
-          // Option-based answers (radio/checkbox/select) come from the field's
-          // own options list; the AI cannot invent values there, so no gate.
-          if (!textValue) { aiValues.push(v); continue; }
-          if (_isFreeText(v)) { aiValues.push(v); continue; }
-          // Digest empty means either no profile (should have hit Layer 2) or
-          // legacy backend. Fail safe: drop identity-shaped writes.
-          if (!_digestRaw) {
-            ungroundedDrops.push({ id: v.id, label: v.label || v.id, reason: 'ungrounded_value', shape: `${textValue.length}ch`, suggestion: 'AYN could not verify this value against your profile.' });
-            continue;
-          }
-          let matched = false;
-          if (_isPhoneField(v)) {
-            const d = _digitsOnly(textValue);
-            matched = d.length >= 6 && _digestDigits.includes(d);
-          } else if (_isEmailField(v) || _isUrlValue(textValue)) {
-            matched = _digestLower.includes(textValue.toLowerCase());
-          } else {
-            const n = _normStr(textValue);
-            matched = n.length >= 2 && _digestNorm.includes(n);
-          }
-          if (matched) {
-            aiValues.push(v);
-          } else {
-            ungroundedDrops.push({ id: v.id, label: v.label || v.id, reason: 'ungrounded_value', shape: `${textValue.length}ch`, suggestion: 'AYN could not verify this value against your profile.' });
-            try { console.warn('[AYN provenance] dropped ungrounded value', v.label || v.id, `${textValue.length}ch`); } catch (_) {}
-          }
-        }
-        const values = [...localValues.map(decorate), ...aiValues];
-        if (values.length === 0 && ungroundedDrops.length === 0) { sendResponse({ ok: false, error: 'no_values' }); return; }
-
-
-        // Group values by owning frame; translate ids back to frame-local for injection
-        const byFrame = new Map();
-        for (const v of values) {
-          const fid = frameOfField.get(v.id) ?? 0;
-          if (!byFrame.has(fid)) byFrame.set(fid, []);
-          byFrame.get(fid).push({ ...v, id: DEAGG(fid, v.id) });
-        }
-
-        for (const [fid, vals] of byFrame) {
-          await safeSendMessage(tabId, { type: 'HIGHLIGHT_FIELDS', fieldIds: vals.map(v => v.id) }, fid);
-        }
-        await new Promise(r => setTimeout(r, 350));
-
-        let mergedResults = [];
-        for (const [fid, vals] of byFrame) {
-          const fr = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: vals }, fid);
-          (fr?.results || []).forEach(r => mergedResults.push({ ...r, id: AGG(fid, r.id), _frameId: fid }));
-        }
-        let fillResult = { results: mergedResults };
-
-        // Second pass per frame — refill fields revealed by the first pass
-        let secondPassFilled = 0;
-        try {
-          await new Promise(r => setTimeout(r, 700));
-          let newFieldsAll = [];
-          // v2.2.0 — a field is resendable if it was NEVER given a value in pass 1
-          // (either not returned by AI, or skipped) AND is still empty in the DOM.
-          // Previously we only resent brand-new IDs, so previously-skipped fields
-          // that revealed themselves after lazy hydration were never retried.
-          const resolvedIds = new Set((values || []).map(v => v && v.id).filter(Boolean));
-          for (const fr of frames) {
-            const s2 = await safeSendMessage(tabId, { type: 'SCAN_FORM' }, fr.frameId);
-            (s2?.fields || []).forEach(f => {
-              const aggId = AGG(fr.frameId, f.id);
-              const wasOk = mergedResults.some(r => r && r.id === aggId && r.ok === true && r.verified !== false);
-              const wasExplicitlySkipped = (fillData?.skipped || []).some(s => s && s.id === aggId);
-              // v2.6.0 — a field the backend explicitly skipped (no matching
-              // profile data, ambiguous, etc.) is a deliberate decline, not a
-              // detection gap. Only resend fields that were never seen at all
-              // in pass 1 (genuinely revealed late) or that failed injection
-              // despite having an answer — never re-ask a field the AI or
-              // rule engine already declined on purpose.
-              if (((!resolvedIds.has(aggId) && !wasExplicitlySkipped) || (resolvedIds.has(aggId) && !wasOk)) && !f.currentValue) {
-                frameOfField.set(aggId, fr.frameId);
-                newFieldsAll.push({ ...f, id: aggId });
-              }
-            });
-          }
-          if (newFieldsAll.length > 0) {
-            const fill2 = await callFunction('ext_autofill', {
-                fields: newFieldsAll.map(f => ({
-                  id: f.id, label: f.label, kind: f.kind || f.type, type: f.type, name: f.name || '', group: f.group,
-                  options: f.options, required: f.required, currentValue: f.currentValue,
-                  accRole: f.accRole || '', labelSource: f.labelSource || '',
-                  fingerprint: f.fingerprint || '',
-                  section: f.section || '', helperText: f.helperText || '', placeholder: f.placeholder || '',
-                  siblingLabels: Array.isArray(f.siblingLabels) ? f.siblingLabels : [],
-                  richEditor: !!f.richEditor, richDetector: f.richDetector || '',
-                })),
-              jobText: jobText?.text || '', jobTitle: jobText?.title || '', company: jobText?.company || '',
-              ats: topScan.ats || 'unknown', url: topScan.url || '',
-              extVersion: chrome.runtime.getManifest().version,
-              resume_version_id: resume_version_id || undefined,
-            });
-              const newFieldMeta = new Map(newFieldsAll.map(f => [f.id, f]));
-              const newValues = (fill2.values || [])
-                .filter(v => !v.skip && ((v.value && v.value.trim()) || v.optionValue || v.optionLabel || (Array.isArray(v.optionLabels) && v.optionLabels.length)))
-                .map(v => {
-                  const f = newFieldMeta.get(v.id) || {};
-                  return {
-                    ...v,
-                    label: f.label || v.label || '',
-                    kind: f.kind || f.type || v.kind || '',
-                    type: f.type || v.type || '',
-                    name: f.name || v.name || '',
-                    group: f.group || v.group || '',
-                    labelSource: f.labelSource || v.labelSource || '',
-                    richDetector: f.richDetector || v.richDetector || '',
-                    _idx: f._idx,
-                    _frame: f._frame || '',
-                  };
-                });
-            if (newValues.length > 0) {
-              const secondResults = [];
-              const byFrame2 = new Map();
-              for (const v of newValues) {
-                const fid = frameOfField.get(v.id) ?? 0;
-                if (!byFrame2.has(fid)) byFrame2.set(fid, []);
-                byFrame2.get(fid).push({ ...v, id: DEAGG(fid, v.id) });
-              }
-              for (const [fid, vals] of byFrame2) {
-                const fr2 = await safeSendMessage(tabId, { type: 'INJECT_VALUES', values: vals }, fid);
-                secondPassFilled += (fr2?.filled || 0);
-                (fr2?.results || []).forEach(r => { const rr = { ...r, id: AGG(fid, r.id), _frameId: fid }; mergedResults.push(rr); secondResults.push(rr); });
-                vals.forEach(v => values.push({ ...v, id: AGG(fid, v.id) }));
-              }
-              // v1.9.67 — close the second-pass telemetry row (previously orphaned:
-              // the second ext_autofill call inserted a run that was never completed).
-              try {
-                if (fill2?.run_id) {
-                  callFunction('ext_log_result', {
-                    run_id: fill2.run_id,
-                    inject_results: secondResults,
-                    filled: secondResults.filter(r => r && r.ok === true).length,
-                    total: secondResults.length,
-                  }).catch(() => {});
-                }
-              } catch (_) {}
-            }
-          }
-        } catch { /* ignore second-pass errors */ }
-
-        const resultMap = {};
-        (fillResult?.results || []).forEach(r => { resultMap[r.id] = r; });
-
-        // v2.6.0 — removed: duplicate client-side memory store (ayn_answers). The backend's own memory/learning system is now the single source of truth.
-
-        const details = values.map(v => {
-          const f = fields.find(x => x.id === v.id);
-          const needsReview = (typeof v.confidence === 'number' && v.confidence < 0.6)
-            || (f ? (self.AYN_RESOLVER ? self.AYN_RESOLVER.isSensitive(f) : false) : false);
-          return {
-            id: v.id,
-            label: f?.label || v.id,
-            group: v.group || f?.group || '',
-            value: v.value || v.optionLabel || v.optionValue || (Array.isArray(v.optionLabels) ? v.optionLabels.join(', ') : ''),
-            confidence: typeof v.confidence === 'number' ? v.confidence : 0.8,
-            reasoning: v.reasoning || '',
-            source: v.source || (resultMap[v.id] ? 'ai' : ''),
-            needsReview,
-            ok: resultMap[v.id]?.ok || false,
-            reason: resultMap[v.id]?.reason || '',
-          };
-        });
-
-        // v1.9.67 — single counting rule: ok===true counts as filled.
-        const __allResults = (fillResult?.results || []);
-        const __filled = __allResults.filter(r => r && r.ok === true).length;
-        const __total = __allResults.length;
-        const __needsReviewCount = details.filter(d => d.needsReview).length;
-
-        // v2.12.2 — honest progress reporting. Only values that survived the
-        // provenance gate AND verified in the live DOM count as filled. The
-        // sidepanel is responsible for translating this into
-        // "N filled, M skipped, K need review".
-        const _backendSkipped = fillData?.skipped || [];
-        const _mergedSkipped = [..._backendSkipped, ...ungroundedDrops];
-        const _skippedCount = _mergedSkipped.length;
-        const _ungroundedCount = ungroundedDrops.length;
-        sendResponse({
-          ok: true,
-          filled: __filled,
-          total: __total,
-          answered: values.length,
-          verified: __filled,
-          needsReview: Math.max(0, values.length - __filled),
-          needsReviewCount: __needsReviewCount,
-          skippedCount: _skippedCount,
-          ungroundedCount: _ungroundedCount,
-          resolvedLocally: localValues.length,
-          details,
-          passes: secondPassFilled > 0 ? 2 : 1,
-          skipped: _mergedSkipped,
-        });
-
-        try {
-          if (runId) {
-            // v2.4 — pipe closed-loop retry telemetry through when present.
-            const retry_count = fillResult?.retry_count || 0;
-            const failure_classes = fillResult?.failure_classes || [];
-            const resolved_by = fillResult?.resolved_by || {};
-            // v2.10.0 — humanTyping telemetry aggregated across first pass +
-            // any second pass results.
-            const human_typing_used = !!(fillResult?.humanTypingUsed) || (Array.isArray(secondResults) && secondResults.some(r => r && r.reason === 'human-typed'));
-            const human_typed_count = Number(fillResult?.humanTypedCount || 0);
-            callFunction('ext_log_result', {
-              run_id: runId,
-              inject_results: __allResults,
-              filled: __filled,
-              total: __total,
-              retry_count,
-              failure_classes,
-              resolved_by,
-              human_typing_used,
-              human_typed_count,
-            }).catch(() => {});
-          }
-        } catch (_) { /* ignore */ }
-
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
     })();
     return true;
   }
