@@ -352,31 +352,6 @@ async function callPublic(action, body) {
   return r.json().catch(() => ({}));
 }
 
-// v2.11.0 — proxy for the two AI edge functions that used to be guarded by
-// the shared x-proxy-secret. Content scripts route through here so the
-// extension token stays in background storage and never ships in the bundle.
-async function callAiEdge(fnName, body) {
-  const token = await getToken();
-  if (!token) throw new Error('Not signed in');
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'x-ayn-ext-token': token,
-      'x-source': 'ext',
-    },
-    body: JSON.stringify(body || {}),
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok || data.error) {
-    const err = new Error(data.error || `HTTP ${r.status}`);
-    if (r.status === 401) err.status = 401;
-    throw err;
-  }
-  return data;
-}
-
 
 // Relay a message to a content script in a tab (read-only messages only).
 async function safeSendMessage(tabId, message, frameId = 0) {
