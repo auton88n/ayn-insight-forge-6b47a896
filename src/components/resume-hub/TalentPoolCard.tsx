@@ -32,15 +32,22 @@ function relativeTime(iso: string | null): string {
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
 
+export interface GroupGap {
+  group: string;
+  complete: boolean;
+  consequence: string;
+}
+
 interface Props {
   /** Bumped by the parent after any save so the card refetches freshness. */
   refreshKey?: number;
-  /** Set when the profile has no work eligibility or no desired titles. */
-  missingMatchSignals: { eligibility: boolean; desiredTitles: boolean };
+  /** One entry per profile group, with what employers lose when it is empty. */
+  groupGaps: GroupGap[];
   pendingIntros: number;
 }
 
-export default function TalentPoolCard({ refreshKey = 0, missingMatchSignals, pendingIntros }: Props) {
+export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntros }: Props) {
+
   const { toast } = useToast();
   const [status, setStatus] = useState<TalentPoolStatus | null>(null);
   const [loading, setLoading] = useState(true);
