@@ -72,6 +72,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [spec, setSpec] = useState<JobSpec | null>(null);
 
+  // v3.12.0 — left nav state, and the company profile behind the menu.
+  const [tab, setTab] = useState<EmployerTab>("search");
+  const [companyOpen, setCompanyOpen] = useState(false);
+
 
   const [searching, setSearching] = useState(false);
   const [searchId, setSearchId] = useState<string | null>(null);
