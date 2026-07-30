@@ -11,6 +11,7 @@ import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
 import DiscoveryTab from "@/components/resume-hub/DiscoveryTab";
 import { employerApi } from "@/lib/employer";
+import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 
 
@@ -196,7 +197,7 @@ export default function ResumeHub() {
               </p>
 
               <button className="rh-btn w-full justify-center" onClick={downloadExtension}>
-                <Download className="w-4 h-4" /> Download v1.9.61
+                <Download className="w-4 h-4" /> Download v{manifest.version}
               </button>
             </div>
           </aside>
