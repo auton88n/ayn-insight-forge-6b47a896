@@ -195,3 +195,57 @@ export function RunSummaryIllustration({ style }: { style?: React.CSSProperties 
     </svg>
   );
 }
+
+/* 6 — Employer match: role query → opt-in pool → three ranked fits */
+export function EmployerMatchIllustration({ style }: { style?: React.CSSProperties }) {
+  const cards = [
+    { y: 36, score: '94%', w: 120, filled: true },
+    { y: 108, score: '88%', w: 100, filled: true },
+    { y: 180, score: '81%', w: 88, filled: true },
+  ];
+  return (
+    <svg {...a11y} viewBox="0 0 560 280" style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+      {/* role query panel (left) */}
+      <rect x="8" y="24" width="168" height="232" rx="14" fill="#fff" stroke={T.borderMd} />
+      <rect x="24" y="44" width="84" height="7" rx="3.5" fill={T.ink} opacity="0.75" />
+      <rect x="24" y="64" width="120" height="5" rx="2.5" fill={T.inkSub} opacity="0.3" />
+      <rect x="24" y="78" width="104" height="5" rx="2.5" fill={T.inkSub} opacity="0.3" />
+      <rect x="24" y="92" width="116" height="5" rx="2.5" fill={T.inkSub} opacity="0.3" />
+      <rect x="24" y="114" width="64" height="6" rx="3" fill={T.orange} opacity="0.75" />
+      <rect x="24" y="130" width="128" height="5" rx="2.5" fill={T.inkSub} opacity="0.22" />
+      <rect x="24" y="144" width="96" height="5" rx="2.5" fill={T.inkSub} opacity="0.22" />
+      <rect x="24" y="170" width="40" height="22" rx="11" fill={T.ink} />
+      <text x="44" y="185" textAnchor="middle" fontFamily="'Inter', system-ui, sans-serif" fontSize="10" fontWeight="600" fill="#fff">Ask</text>
+
+      {/* funnel / search connector */}
+      <path d="M184 140 H210" fill="none" stroke={T.inkSub} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M204 134 l7 6 -7 6" fill="none" stroke={T.inkSub} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* opt-in pool dots */}
+      <g opacity="0.55">
+        {[
+          [222, 64], [246, 88], [222, 112], [246, 136], [222, 160], [246, 184], [222, 208],
+        ].map(([cx, cy], i) => (
+          <circle key={i} cx={cx} cy={cy} r="6" fill="none" stroke={T.inkSub} strokeWidth="1.4" opacity={i % 2 ? 0.7 : 0.4} />
+        ))}
+      </g>
+      <path d="M262 140 H288" fill="none" stroke={T.inkSub} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M282 134 l7 6 -7 6" fill="none" stroke={T.inkSub} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+
+      {/* three ranked candidate cards (right) */}
+      {cards.map((c, i) => (
+        <g key={i}>
+          <rect x="296" y={c.y} width="256" height="56" rx="12" fill="#fff" stroke={T.border} />
+          <circle cx="320" cy={c.y + 28} r="13" fill="none" stroke={T.borderMd} />
+          <rect x="342" y={c.y + 16} width={c.w} height="6" rx="3" fill={T.inkMid} opacity="0.45" />
+          <rect x="342" y={c.y + 30} width="84" height="5" rx="2.5" fill={T.inkSub} opacity="0.28" />
+          {/* match score pill */}
+          <rect x="500" y={c.y + 16} width="40" height="22" rx="11" fill={i === 2 ? 'none' : T.orange} stroke={i === 2 ? T.orange : 'none'} opacity={i === 1 ? 0.82 : 1} />
+          <text x="520" y={c.y + 31} textAnchor="middle" fontFamily="'Inter Tight', Inter, system-ui, sans-serif" fontSize="11" fontWeight="700" fill={i === 2 ? T.orangeDeep : '#fff'}>{c.score}</text>
+          {/* rank tick */}
+          <rect x="342" y={c.y + 40} width="10" height="3" rx="1.5" fill={T.orange} opacity="0.7" />
+          <rect x="356" y={c.y + 40} width="60" height="3" rx="1.5" fill={T.inkSub} opacity="0.22" />
+        </g>
+      ))}
+    </svg>
+  );
+}
