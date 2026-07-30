@@ -491,7 +491,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden bg-background flex flex-col gap-0 p-0">
           {open && (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0 border-b border-border/60 bg-background p-6 pb-4 space-y-1.5">
+
                 <DialogTitle className="flex items-center gap-3">
                   <ScoreRing score={open.score} />
                   <span className="min-w-0">
