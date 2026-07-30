@@ -11,7 +11,9 @@
  * their job search has no use for them, and the cheapest way to guarantee a
  * leak cannot happen is to never load them into the prompt.
  */
-import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.56.0";
+
+type SupabaseClient<A = any, B = any, C = any> = ReturnType<typeof createClient>;
 import { loadIdentity } from "../_shared/identity.ts";
 
 export interface CopilotContext {
