@@ -332,6 +332,12 @@ export default function IntakeWizard({
   }, [orgId]);
 
   // ── Restore an in-progress intake ────────────────────────────────
+  // v3.12.0 — two things were genuinely broken here. The opening free text
+  // was never written at all (the save effect returned early while
+  // phase === "opening"), and the step the employer was on was never stored,
+  // so even a restored draft reopened at the first unanswered question rather
+  // than where they left off. The step now travels inside `phase` as
+  // "asking:<step>", and the opener is saved as they type.
   useEffect(() => {
     if (initialSpec && openAtSummary) { hydrated.current = true; return; }
     let alive = true;
@@ -345,9 +351,20 @@ export default function IntakeWizard({
           setOpening(d.opening || "");
           const answered = (d.answered || []).filter((k): k is StepKey => (STEPS as string[]).includes(k));
           setVisited(answered);
-          const next = STEPS.find(k => !answered.includes(k) && !isAnswered(k, restored)) || null;
-          setCursor(next);
-          setPhase(d.phase === "summary" || !next ? "summary" : "asking");
+          const [savedPhase, savedCursor] = String(d.phase || "").split(":");
+          const fallback = STEPS.find(k => !answered.includes(k) && !isAnswered(k, restored)) || null;
+          if (savedPhase === "summary") {
+            setCursor(null);
+            setPhase("summary");
+          } else if (savedPhase === "opening" || !answered.length) {
+            setCursor(fallback);
+            setPhase("opening");
+          } else {
+            const cur = (STEPS as string[]).includes(savedCursor || "")
+              ? (savedCursor as StepKey) : fallback;
+            setCursor(cur);
+            setPhase(cur ? "asking" : "summary");
+          }
         } else {
           setPhase("opening");
         }
@@ -357,15 +374,21 @@ export default function IntakeWizard({
     return () => { alive = false; };
   }, [orgId, initialSpec, openAtSummary]);
 
-  // ── Persist after every change ───────────────────────────────────
+  // ── Persist after every change, including the free text opener ───
   useEffect(() => {
-    if (!hydrated.current || phase === "loading" || phase === "opening") return;
+    if (!hydrated.current || phase === "loading") return;
+    const nothingYet = !opening.trim() && !spec.title.trim() && visited.length === 0;
+    if (nothingYet) return;
+    const encoded = phase === "summary" ? "summary"
+      : phase === "opening" ? "opening"
+        : `asking:${cursor ?? ""}`;
     const draft: IntakeDraft = {
-      opening, job_spec: spec, answered: visited, phase: phase === "summary" ? "summary" : "asking",
+      opening, job_spec: spec, answered: visited, phase: encoded,
     };
-    const t = setTimeout(() => { void employerApi.draftSave(orgId, draft).catch(() => {}); }, 400);
+    const t = setTimeout(() => { void employerApi.draftSave(orgId, draft).catch(() => {}); }, 500);
     return () => clearTimeout(t);
-  }, [orgId, spec, opening, visited, phase]);
+  }, [orgId, spec, opening, visited, phase, cursor]);
+
 
   useEffect(() => { setTyped(""); setFreeText(false); }, [current]);
 
