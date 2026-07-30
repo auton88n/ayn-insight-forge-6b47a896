@@ -2278,6 +2278,7 @@ Rules, strict:
     function safeCard(c: Record<string, unknown>) {
       return {
         score: c.score, headline: c.headline, seniority: c.seniority,
+        first_name: c.first_name || "", // v3.15.1 — first name only, never more.
         years_experience: c.years_experience, location: c.location,
         matched_must_haves: c.matched_must_haves, gaps: c.gaps, why: c.why,
         skills_extracted: c.skills_extracted, skills_inferred: c.skills_inferred,
@@ -2285,18 +2286,20 @@ Rules, strict:
       };
     }
     /** Strip markdown symbols and any internal ref that slipped into model text. */
-    function cleanEmployerText(s: string): string {
+    function cleanEmployerText(s: string, name = ""): string {
+      const who = name ? name : "this candidate";
       return String(s || "")
         .replace(/[*_#`]/g, "")
-        .replace(/\bcandidate\s+c\d+\b/gi, "this candidate")
-        .replace(/\bc\d+\b/g, "this candidate")
+        .replace(/\bcandidate\s+c\d+\b/gi, who)
+        .replace(/\bc\d+\b/g, who)
         .replace(/[—–]/g, " to ")
         .trim();
     }
     const VOICE_RULES = `- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. No em dashes, no en dashes. Write ranges with the word "to".
-- Never write an internal reference like c1 or c2. You do not know any candidate's name, email or phone. Say "this candidate" or use their headline.
+- Never write an internal reference like c1 or c2. Refer to a candidate by their first name when one is given, otherwise say "this candidate". You do not know any last name, email or phone.
 - Never praise without evidence from the data given. Never write perfect fit, huge asset, or exactly what you are looking for.
-- If a fact is not in the data given, say that one fact is not available. Never guess.`;
+- If a fact is not in the data given, say that one fact is not available.  Never guess.`;
+
 
     if (action === "employer_card_answer") {
       const { search_id, ref, card } = payload as { search_id?: string; ref?: string; card?: string };
