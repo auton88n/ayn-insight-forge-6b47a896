@@ -1,23 +1,36 @@
 /**
- * IntakeWizard.tsx — v3.8.0 "the chat is candidate search, nothing else".
+ * IntakeWizard.tsx — v3.10.0 "employer profile, saved intake, one visual language".
  *
- * Replaces the free-form intake conversation. AYN asks one question at a time
- * and the employer answers by clicking. There is a "type it instead" escape on
- * every step for anything the options do not cover.
+ * v3.8.0 replaced the free-form intake conversation with widgets. This
+ * revision makes that intake survive leaving the page, navigable in both
+ * directions, and shaped like a considered product rather than a form.
  *
- * The model is used exactly once, on the optional opening description, to
- * prefill fields the employer already stated so those questions get skipped.
+ * What changed:
+ *  - Every answered step is written to a draft row keyed by org, so coming
+ *    back resumes exactly where they left off. "Start over" clears it.
+ *  - A step map across the top shows completed answers in short form and
+ *    jumps back to any of them. Steps ahead are visible but not clickable.
+ *  - Back and Continue on every step. Going back never silently loses a later
+ *    answer: only answers the change genuinely invalidates are cleared, and
+ *    the employer is told which one and why.
+ *  - Options are large tappable cards with an orange selected state, keyboard
+ *    operable, and animated with a restrained transition that respects
+ *    prefers-reduced-motion.
+ *
+ * The model is still used exactly once, on the optional opening description.
  * It never asks a question here and it never chats.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Search, X, Pencil, ArrowRight, Sparkle } from "lucide-react";
-import { employerApi, type JobSpec, type SkillOption } from "@/lib/employer";
+import {
+  Loader2, Search, X, Pencil, ArrowRight, ArrowLeft, Sparkle, Check, RotateCcw,
+} from "lucide-react";
+import { employerApi, type JobSpec, type SkillOption, type IntakeDraft } from "@/lib/employer";
 import { useToast } from "@/hooks/use-toast";
 
 export const EMPTY_SPEC: JobSpec = {
@@ -44,6 +57,17 @@ const QUESTION: Record<StepKey, string> = {
   employment_type: "What kind of employment is it?",
   min_years: "How much experience is the minimum?",
   work_authorization: "What about work eligibility?",
+};
+
+const HELPER: Record<StepKey, string> = {
+  title: "The title candidates would recognise, not an internal job code.",
+  seniority: "This sets the bar the match is scored against.",
+  must_have_skills: "Every one of these filters the pool. Keep the list honest and short.",
+  nice_to_have_skills: "These lift a score but never exclude anyone. You can skip this.",
+  work_mode: "On site and hybrid roles are matched against where the candidate is.",
+  employment_type: "Candidates state what they are open to, and this is matched against it.",
+  min_years: "Recorded years of experience, not a guess about seniority.",
+  work_authorization: "Whether they must already be eligible to work, or you would sponsor.",
 };
 
 const SENIORITY: { v: string; label: string }[] = [
@@ -102,8 +126,13 @@ function labelFor(key: StepKey, spec: JobSpec): string {
     case "min_years": return YEARS.find(y => y.v === (spec.min_years || 0))?.label || `${spec.min_years} plus`;
     case "work_authorization":
       return AUTHORIZATION.find(x => x.v === spec.work_authorization)?.label || "Not set";
-
   }
+}
+
+/** Short form for the step map, so the row stays readable. */
+function shortLabel(key: StepKey, spec: JobSpec): string {
+  const full = labelFor(key, spec);
+  return full.length > 18 ? `${full.slice(0, 17)}…` : full;
 }
 
 const SUMMARY_LABEL: Record<StepKey, string> = {
@@ -124,6 +153,63 @@ function isAnswered(key: StepKey, spec: JobSpec): boolean {
     case "min_years": return (spec.min_years || 0) > 0;
     case "work_authorization": return !!spec.work_authorization;
   }
+}
+
+/**
+ * Changing an earlier answer can make a later one meaningless. This returns
+ * the later answers a change invalidates, with the reason, so we can tell the
+ * employer instead of quietly dropping their work.
+ */
+function invalidatedBy(changed: StepKey, before: JobSpec, after: JobSpec): { key: StepKey; reason: string }[] {
+  const out: { key: StepKey; reason: string }[] = [];
+  if (changed === "work_mode" && after.work_mode === "remote" && before.location_preference) {
+    // location_preference lives inside the work_mode step, nothing later breaks.
+  }
+  if (changed === "seniority" && before.seniority !== after.seniority) {
+    const senior = ["senior", "staff_principal", "director_plus"];
+    if (after.seniority === "intern" && (before.min_years || 0) > 0) {
+      out.push({ key: "min_years", reason: "an internship cannot also require years of experience" });
+    }
+    if (senior.includes(after.seniority) && after.employment_type === "internship") {
+      out.push({ key: "employment_type", reason: "a senior role cannot be an internship" });
+    }
+  }
+  if (changed === "employment_type" && after.employment_type === "internship" && (after.min_years || 0) > 0) {
+    out.push({ key: "min_years", reason: "an internship cannot also require years of experience" });
+  }
+  return out;
+}
+
+function clearStep(spec: JobSpec, key: StepKey): JobSpec {
+  switch (key) {
+    case "min_years": return { ...spec, min_years: 0 };
+    case "employment_type": return { ...spec, employment_type: "" };
+    case "seniority": return { ...spec, seniority: "" };
+    default: return spec;
+  }
+}
+
+/** A large tappable option card with an orange selected state. */
+function OptionCard({
+  label, selected, onClick,
+}: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={[
+        "group relative flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        selected
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "border-border/70 bg-card hover:border-primary/50 hover:bg-muted/50",
+      ].join(" ")}
+    >
+      {selected && <Check className="w-4 h-4 shrink-0" />}
+      <span className="font-medium">{label}</span>
+    </button>
+  );
 }
 
 /** Chip input with autocomplete over skills that real candidates have. */
@@ -188,7 +274,7 @@ function SkillChips({
             {matches.map(m => (
               <button
                 key={m.skill_norm} type="button" onClick={() => add(m.skill)}
-                className="text-xs rounded-full border border-border/60 px-2.5 py-1 hover:bg-muted transition-colors"
+                className="text-xs rounded-full border border-border/60 px-2.5 py-1 hover:border-primary/50 hover:bg-muted transition-colors"
               >
                 {m.skill} <span className="text-muted-foreground">{m.count}</span>
               </button>
@@ -209,24 +295,35 @@ function SkillChips({
 }
 
 export default function IntakeWizard({
-  orgId, searching, onSearch,
+  orgId, searching, onSearch, initialSpec, openAtSummary,
 }: {
   orgId: string;
   searching: boolean;
   onSearch: (spec: JobSpec) => void;
+  /** v3.10.0 — reopen a previous search's spec so a tweak beats starting over. */
+  initialSpec?: JobSpec | null;
+  openAtSummary?: boolean;
 }) {
   const { toast } = useToast();
-  const [spec, setSpec] = useState<JobSpec>(EMPTY_SPEC);
-  const [phase, setPhase] = useState<"opening" | "asking" | "summary">("opening");
+  const [spec, setSpec] = useState<JobSpec>(initialSpec || EMPTY_SPEC);
+  const [phase, setPhase] = useState<"loading" | "opening" | "asking" | "summary">(
+    initialSpec && openAtSummary ? "summary" : "loading",
+  );
   const [opening, setOpening] = useState("");
   const [reading, setReading] = useState(false);
-  const [queue, setQueue] = useState<StepKey[]>([]);
+  /** Which steps the employer has passed through, in order, so Back works. */
+  const [visited, setVisited] = useState<StepKey[]>([]);
+  const [cursor, setCursor] = useState<StepKey | null>(null);
   const [editing, setEditing] = useState<StepKey | null>(null);
   const [typed, setTyped] = useState("");
   const [freeText, setFreeText] = useState(false);
+  const [clearedNote, setClearedNote] = useState<string | null>(null);
 
   const [catalog, setCatalog] = useState<SkillOption[]>([]);
   const [poolSize, setPoolSize] = useState(0);
+
+  const current = editing ?? cursor;
+  const hydrated = useRef(false);
 
   useEffect(() => {
     employerApi.skillCatalog(orgId)
@@ -234,14 +331,59 @@ export default function IntakeWizard({
       .catch(() => { /* autocomplete is a helper, not a gate */ });
   }, [orgId]);
 
-  const current = editing ?? queue[0] ?? null;
+  // ── Restore an in-progress intake ────────────────────────────────
+  useEffect(() => {
+    if (initialSpec && openAtSummary) { hydrated.current = true; return; }
+    let alive = true;
+    employerApi.draftGet(orgId)
+      .then(r => {
+        if (!alive) return;
+        const d = r.draft;
+        if (d && (d.opening || Object.keys(d.job_spec || {}).length)) {
+          const restored: JobSpec = { ...EMPTY_SPEC, ...(d.job_spec as Partial<JobSpec>) };
+          setSpec(restored);
+          setOpening(d.opening || "");
+          const answered = (d.answered || []).filter((k): k is StepKey => (STEPS as string[]).includes(k));
+          setVisited(answered);
+          const next = STEPS.find(k => !answered.includes(k) && !isAnswered(k, restored)) || null;
+          setCursor(next);
+          setPhase(d.phase === "summary" || !next ? "summary" : "asking");
+        } else {
+          setPhase("opening");
+        }
+      })
+      .catch(() => { if (alive) setPhase("opening"); })
+      .finally(() => { hydrated.current = true; });
+    return () => { alive = false; };
+  }, [orgId, initialSpec, openAtSummary]);
+
+  // ── Persist after every change ───────────────────────────────────
+  useEffect(() => {
+    if (!hydrated.current || phase === "loading" || phase === "opening") return;
+    const draft: IntakeDraft = {
+      opening, job_spec: spec, answered: visited, phase: phase === "summary" ? "summary" : "asking",
+    };
+    const t = setTimeout(() => { void employerApi.draftSave(orgId, draft).catch(() => {}); }, 400);
+    return () => clearTimeout(t);
+  }, [orgId, spec, opening, visited, phase]);
 
   useEffect(() => { setTyped(""); setFreeText(false); }, [current]);
 
+  const startOver = async () => {
+    setSpec(EMPTY_SPEC); setOpening(""); setVisited([]); setCursor(null);
+    setEditing(null); setClearedNote(null); setPhase("opening");
+    await employerApi.draftClear(orgId).catch(() => {});
+  };
+
+  const firstUnanswered = (base: JobSpec, done: StepKey[]): StepKey | null =>
+    STEPS.find(k => !done.includes(k) && !isAnswered(k, base)) || null;
+
   const startQueue = (base: JobSpec) => {
-    const remaining = STEPS.filter(k => !isAnswered(k, base));
-    setQueue(remaining);
-    setPhase(remaining.length ? "asking" : "summary");
+    const done = STEPS.filter(k => isAnswered(k, base));
+    setVisited(done);
+    const next = firstUnanswered(base, done);
+    setCursor(next);
+    setPhase(next ? "asking" : "summary");
   };
 
   const readOpening = async () => {
@@ -263,31 +405,72 @@ export default function IntakeWizard({
 
   /** Answer the current question and move on, or close a summary edit. */
   const answer = (patch: Partial<JobSpec>) => {
-    setSpec(prev => ({ ...prev, ...patch }));
-    if (editing) { setEditing(null); return; }
-    setQueue(prev => {
-      const rest = prev.slice(1);
-      if (rest.length === 0) setPhase("summary");
-      return rest;
-    });
+    const key = current;
+    if (!key) return;
+    const before = spec;
+    let after: JobSpec = { ...spec, ...patch };
+
+    // Preserve later answers unless the change genuinely invalidates them.
+    const broken = invalidatedBy(key, before, after);
+    if (broken.length) {
+      for (const b of broken) after = clearStep(after, b.key);
+      setClearedNote(
+        broken.map(b => `${SUMMARY_LABEL[b.key]} was cleared because ${b.reason}.`).join(" "),
+      );
+    } else {
+      setClearedNote(null);
+    }
+
+    setSpec(after);
+    const done = visited.includes(key) ? visited : [...visited, key];
+    setVisited(done);
+
+    if (editing) { setEditing(null); setPhase("summary"); return; }
+    const next = firstUnanswered(after, done);
+    setCursor(next);
+    if (!next) setPhase("summary");
   };
 
   const skip = () => {
-    if (editing) { setEditing(null); return; }
-    setQueue(prev => {
-      const rest = prev.slice(1);
-      if (rest.length === 0) setPhase("summary");
-      return rest;
-    });
+    const key = current;
+    if (!key) return;
+    if (editing) { setEditing(null); setPhase("summary"); return; }
+    const done = visited.includes(key) ? visited : [...visited, key];
+    setVisited(done);
+    const next = firstUnanswered(spec, done);
+    setCursor(next);
+    if (!next) setPhase("summary");
   };
+
+  const goBack = () => {
+    if (editing) { setEditing(null); setPhase("summary"); return; }
+    const idx = current ? STEPS.indexOf(current) : STEPS.length;
+    const prev = STEPS.slice(0, idx).reverse().find(k => visited.includes(k));
+    if (prev) { setCursor(prev); setPhase("asking"); return; }
+    setPhase("opening");
+  };
+
+  const jumpTo = (k: StepKey) => {
+    setEditing(null);
+    setCursor(k);
+    setPhase("asking");
+  };
+
+  if (phase === "loading") {
+    return (
+      <Card className="p-8 flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </Card>
+    );
+  }
 
   // ── Opening description ──────────────────────────────────────────
   if (phase === "opening") {
     return (
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold">Tell AYN about the role</h2>
-          <p className="text-xs text-muted-foreground">
+      <Card className="p-5 sm:p-7 space-y-4 employer-step-in">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold tracking-tight">Tell AYN about the role</h2>
+          <p className="text-sm text-muted-foreground">
             One paragraph is enough. AYN reads it, then asks only about what you left out.
           </p>
         </div>
@@ -295,14 +478,14 @@ export default function IntakeWizard({
           value={opening}
           onChange={e => setOpening(e.target.value)}
           placeholder="For example: senior backend engineer in Toronto, hybrid, strong Python and Postgres, five years or more."
-          className="min-h-[96px]"
+          className="min-h-[110px]"
         />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={readOpening} disabled={reading}>
             {reading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowRight className="w-4 h-4 mr-2" />}
             Continue
           </Button>
-          <Button variant="ghost" onClick={() => { setSpec(EMPTY_SPEC); startQueue(EMPTY_SPEC); }} disabled={reading}>
+          <Button variant="outline" onClick={() => { setSpec(EMPTY_SPEC); startQueue(EMPTY_SPEC); }} disabled={reading}>
             Skip, ask me everything
           </Button>
         </div>
@@ -310,154 +493,221 @@ export default function IntakeWizard({
     );
   }
 
+  const stepMap = (
+    <>
+      {/* Desktop: the whole path, completed steps clickable. */}
+      <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+        {STEPS.map((k, i) => {
+          const done = visited.includes(k);
+          const active = current === k;
+          const reachable = done || active;
+          return (
+            <button
+              key={k}
+              type="button"
+              disabled={!reachable}
+              onClick={() => jumpTo(k)}
+              aria-current={active ? "step" : undefined}
+              className={[
+                "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                active ? "border-primary bg-primary/10 text-foreground font-medium"
+                  : done ? "border-border/70 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    : "border-dashed border-border/50 text-muted-foreground/50 cursor-not-allowed",
+              ].join(" ")}
+            >
+              <span className="tabular-nums mr-1 opacity-60">{i + 1}</span>
+              {done && !active ? shortLabel(k, spec) : SUMMARY_LABEL[k]}
+            </button>
+          );
+        })}
+      </div>
+      {/* Mobile: just where they are, plus a back arrow. */}
+      <div className="sm:hidden flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={goBack} aria-label="Back">
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Step {current ? STEPS.indexOf(current) + 1 : STEPS.length} of {STEPS.length}
+        </span>
+      </div>
+    </>
+  );
+
   // ── One question at a time ───────────────────────────────────────
-  if (current) {
-    const opts = (list: { v: string; label: string }[], field: keyof JobSpec) => (
-      <div className="flex flex-wrap gap-2">
+  if (current && phase !== "summary") {
+    const optionCards = (list: { v: string; label: string }[], field: keyof JobSpec) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {list.map(o => (
-          <Button key={o.v} variant="outline" size="sm"
-            onClick={() => answer({ [field]: o.v } as Partial<JobSpec>)}>
-            {o.label}
-          </Button>
+          <OptionCard
+            key={o.v} label={o.label}
+            selected={(spec[field] as string) === o.v}
+            onClick={() => answer({ [field]: o.v } as Partial<JobSpec>)}
+          />
         ))}
       </div>
     );
 
     return (
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              {editing ? "Editing" : `Question ${STEPS.indexOf(current) + 1} of ${STEPS.length}`}
-            </p>
-            <h2 className="text-base font-semibold">{QUESTION[current]}</h2>
-          </div>
-          {editing && <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>}
-        </div>
+      <Card
+        className="p-5 sm:p-7 space-y-5"
+        onKeyDown={e => { if (e.key === "Escape" && editing) { setEditing(null); setPhase("summary"); } }}
+      >
+        {stepMap}
 
-        {current === "title" && (
-          <div className="space-y-3">
-            <Input
-              value={typed} onChange={e => setTyped(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && typed.trim()) answer({ title: typed.trim() }); }}
-              placeholder="Role title"
-            />
-            <div className="flex flex-wrap gap-1.5">
-              {TITLE_SUGGESTIONS
-                .filter(t => !typed.trim() || t.toLowerCase().includes(typed.toLowerCase()))
-                .slice(0, 8)
-                .map(t => (
-                  <button key={t} type="button" onClick={() => answer({ title: t })}
-                    className="text-xs rounded-full border border-border/60 px-2.5 py-1 hover:bg-muted transition-colors">
-                    {t}
-                  </button>
-                ))}
+        <div key={current} className="space-y-5 employer-step-in">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                {editing ? "Editing" : `Question ${STEPS.indexOf(current) + 1} of ${STEPS.length}`}
+              </p>
+              <h2 className="text-lg font-semibold tracking-tight">{QUESTION[current]}</h2>
+              <p className="text-sm text-muted-foreground">{HELPER[current]}</p>
             </div>
-            <Button size="sm" disabled={!typed.trim()} onClick={() => answer({ title: typed.trim() })}>Next</Button>
+            {editing && (
+              <Button variant="ghost" size="sm" onClick={() => { setEditing(null); setPhase("summary"); }}>
+                Cancel
+              </Button>
+            )}
           </div>
-        )}
 
-        {current === "seniority" && (
-          freeText
-            ? <TypeInstead value={typed} setValue={setTyped} onSave={v => answer({ seniority: v })} onBack={() => setFreeText(false)} />
-            : <>{opts(SENIORITY, "seniority")}<TypeInsteadLink onClick={() => setFreeText(true)} /></>
-        )}
+          {clearedNote && (
+            <p className="text-xs text-muted-foreground border-l-2 border-primary/60 pl-3">{clearedNote}</p>
+          )}
 
-        {(current === "must_have_skills" || current === "nice_to_have_skills") && (
-          <div className="space-y-4">
+          {current === "title" && (
+            <div className="space-y-3">
+              <Input
+                value={typed || spec.title} onChange={e => setTyped(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && (typed || spec.title).trim()) answer({ title: (typed || spec.title).trim() }); }}
+                placeholder="Role title"
+                autoFocus
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {TITLE_SUGGESTIONS
+                  .filter(t => !typed.trim() || t.toLowerCase().includes(typed.toLowerCase()))
+                  .slice(0, 8)
+                  .map(t => (
+                    <button key={t} type="button" onClick={() => answer({ title: t })}
+                      className="text-xs rounded-full border border-border/60 px-2.5 py-1 hover:border-primary/50 hover:bg-muted transition-colors">
+                      {t}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {current === "seniority" && (
+            freeText
+              ? <TypeInstead value={typed} setValue={setTyped} onSave={v => answer({ seniority: v })} onBack={() => setFreeText(false)} />
+              : <>{optionCards(SENIORITY, "seniority")}<TypeInsteadLink onClick={() => setFreeText(true)} /></>
+          )}
+
+          {(current === "must_have_skills" || current === "nice_to_have_skills") && (
             <SkillChips
               value={current === "must_have_skills" ? spec.must_have_skills : spec.nice_to_have_skills}
               onChange={v => setSpec(p => ({ ...p, [current]: v }))}
               catalog={catalog}
               poolSize={poolSize}
             />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => answer({})}>Next</Button>
-              {current === "nice_to_have_skills" && (
-                <Button size="sm" variant="ghost" onClick={skip}>Skip</Button>
+          )}
+
+          {current === "work_mode" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {WORK_MODE.map(o => (
+                  <OptionCard
+                    key={o.v} label={o.label} selected={spec.work_mode === o.v}
+                    onClick={() => setSpec(p => ({
+                      ...p, work_mode: o.v, remote_ok: o.v !== "onsite",
+                      location_preference: o.v === "remote" ? "" : p.location_preference,
+                    }))}
+                  />
+                ))}
+              </div>
+              {spec.work_mode && spec.work_mode !== "remote" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Where</Label>
+                  <Input
+                    value={spec.location_preference || ""}
+                    onChange={e => setSpec(p => ({ ...p, location_preference: e.target.value }))}
+                    placeholder="City or region"
+                  />
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {current === "work_mode" && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {WORK_MODE.map(o => (
-                <Button
-                  key={o.v}
-                  variant={spec.work_mode === o.v ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSpec(p => ({
-                    ...p, work_mode: o.v, remote_ok: o.v !== "onsite",
-                    location_preference: o.v === "remote" ? "" : p.location_preference,
-                  }))}
-                >
-                  {o.label}
-                </Button>
+          {current === "employment_type" && (
+            freeText
+              ? <TypeInstead value={typed} setValue={setTyped} onSave={v => answer({ employment_type: v })} onBack={() => setFreeText(false)} />
+              : <>{optionCards(EMPLOYMENT, "employment_type")}<TypeInsteadLink onClick={() => setFreeText(true)} /></>
+          )}
+
+          {current === "min_years" && (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {YEARS.map(y => (
+                <OptionCard
+                  key={y.v} label={y.label} selected={(spec.min_years || 0) === y.v}
+                  onClick={() => answer({ min_years: y.v })}
+                />
               ))}
             </div>
-            {spec.work_mode && spec.work_mode !== "remote" && (
+          )}
+
+          {current === "work_authorization" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {AUTHORIZATION.map(a => (
+                  <OptionCard
+                    key={a.v} label={a.label} selected={spec.work_authorization === a.v}
+                    onClick={() => setSpec(p => ({ ...p, work_authorization: a.v }))}
+                  />
+                ))}
+              </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Where</Label>
+                <Label className="text-xs">Which country do they need to be eligible in</Label>
                 <Input
-                  value={spec.location_preference || ""}
-                  onChange={e => setSpec(p => ({ ...p, location_preference: e.target.value }))}
-                  placeholder="City or region"
+                  value={typed} onChange={e => setTyped(e.target.value)}
+                  placeholder="For example Canada"
                 />
               </div>
-            )}
-            <Button size="sm" disabled={!spec.work_mode} onClick={() => answer({})}>Next</Button>
-          </div>
-        )}
-
-        {current === "employment_type" && (
-          freeText
-            ? <TypeInstead value={typed} setValue={setTyped} onSave={v => answer({ employment_type: v })} onBack={() => setFreeText(false)} />
-            : <>{opts(EMPLOYMENT, "employment_type")}<TypeInsteadLink onClick={() => setFreeText(true)} /></>
-        )}
-
-        {current === "min_years" && (
-          <div className="flex flex-wrap gap-2">
-            {YEARS.map(y => (
-              <Button key={y.v} variant="outline" size="sm" onClick={() => answer({ min_years: y.v })}>{y.label}</Button>
-            ))}
-          </div>
-        )}
-
-        {current === "work_authorization" && (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {AUTHORIZATION.map(a => (
-                <Button
-                  key={a.v}
-                  variant={spec.work_authorization === a.v ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSpec(p => ({ ...p, work_authorization: a.v }))}
-                >
-                  {a.label}
-                </Button>
-              ))}
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Which country do they need to be eligible in</Label>
-              <Input
-                value={typed} onChange={e => setTyped(e.target.value)}
-                placeholder="For example Canada"
-              />
-            </div>
+          )}
+
+          {/* Back and Continue on every step. */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={goBack}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
+            </Button>
             <Button
               size="sm"
-              disabled={!spec.work_authorization}
-              onClick={() => answer({
-                notes: [spec.notes, typed.trim() ? `Work eligibility country: ${typed.trim()}` : ""]
-                  .filter(Boolean).join("\n"),
-              })}
+              disabled={
+                (current === "title" && !(typed || spec.title).trim()) ||
+                (current === "work_mode" && !spec.work_mode) ||
+                (current === "work_authorization" && !spec.work_authorization)
+              }
+              onClick={() => {
+                if (current === "title") return answer({ title: (typed || spec.title).trim() });
+                if (current === "work_authorization") {
+                  return answer({
+                    notes: [spec.notes, typed.trim() ? `Work eligibility country: ${typed.trim()}` : ""]
+                      .filter(Boolean).join("\n"),
+                  });
+                }
+                answer({});
+              }}
             >
-              Next
+              Continue <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
+            {(current === "nice_to_have_skills" || current === "min_years") && (
+              <Button size="sm" variant="ghost" onClick={skip}>Skip</Button>
+            )}
+            <button type="button" onClick={startOver}
+              className="ml-auto text-xs text-muted-foreground underline underline-offset-2">
+              Start over
+            </button>
           </div>
-        )}
+        </div>
       </Card>
     );
   }
@@ -469,16 +719,20 @@ export default function IntakeWizard({
   });
 
   return (
-    <Card className="p-4 sm:p-6 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold">The role AYN will search for</h2>
-        <p className="text-xs text-muted-foreground">Click any line to change it.</p>
+    <Card className="p-5 sm:p-7 space-y-5 employer-step-in">
+      {stepMap}
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold tracking-tight">The role AYN will search for</h2>
+        <p className="text-sm text-muted-foreground">Click any line to change it.</p>
       </div>
-      <div className="divide-y divide-border/50 rounded-lg border border-border/50">
+      {clearedNote && (
+        <p className="text-xs text-muted-foreground border-l-2 border-primary/60 pl-3">{clearedNote}</p>
+      )}
+      <div className="divide-y divide-border/50 rounded-xl border border-border/60 overflow-hidden">
         {STEPS.map(k => (
           <button
-            key={k} type="button" onClick={() => { setEditing(k); setPhase("summary"); }}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
+            key={k} type="button" onClick={() => { setEditing(k); setPhase("asking"); }}
+            className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-muted/50 transition-colors"
           >
             <span className="text-xs text-muted-foreground shrink-0 w-40">{SUMMARY_LABEL[k]}</span>
             <span className="text-sm flex-1 truncate">{labelFor(k, spec)}</span>
@@ -491,10 +745,13 @@ export default function IntakeWizard({
           At least one must have skill is not held by anyone in the pool. The search will return nobody until you change it.
         </p>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <Button onClick={() => onSearch(spec)} disabled={searching || !spec.title.trim() || spec.must_have_skills.length === 0}>
           {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
           Find candidates
+        </Button>
+        <Button variant="outline" size="sm" onClick={startOver}>
+          <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Start over
         </Button>
         <span className="text-xs text-muted-foreground flex items-center gap-1">
           <Sparkle className="w-3 h-3" /> AYN searches candidates who opted into discovery, nothing else.
