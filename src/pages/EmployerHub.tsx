@@ -521,13 +521,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-3">
+                {/* v3.13.0 — check the claims before you spend a proposal. */}
+                <Button
+                  variant="outline"
+                  disabled={!searchId}
+                  onClick={() => { setAssessFor(open); setOpen(null); }}
+                >
+                  <ClipboardCheck className="w-4 h-4 mr-2" /> Send an assessment
+                </Button>
                 {sentRefs.has(open.ref) ? (
                   <Button disabled variant="secondary">Proposal sent, waiting for a reply</Button>
                 ) : (
                   <Button onClick={() => openProposal(open)}>Send a job proposal</Button>
                 )}
               </DialogFooter>
+
             </>
           )}
         </DialogContent>
