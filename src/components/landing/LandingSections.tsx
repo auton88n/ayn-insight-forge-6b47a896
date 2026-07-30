@@ -307,7 +307,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
             <h2 className="lp-display lp-h2" style={{ maxWidth: 720, marginInline: 'auto' }}>
-              Know before you apply
+              Apply less. Get found more.
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
               Add your resume once and let AYN read the job for you.
