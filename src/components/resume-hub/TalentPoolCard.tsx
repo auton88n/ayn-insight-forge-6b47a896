@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Users, RefreshCw, X, ShieldCheck } from "lucide-react";
+import { Loader2, Users, RefreshCw, X, ShieldCheck, Check, AlertCircle } from "lucide-react";
 import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
 import { AYN_POOL_REINDEXED, setPoolOptInCache } from "@/lib/talentPoolSync";
 
@@ -233,17 +233,22 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
             </Button>
           </div>
 
-          {/* Completeness nudge, tied to matching rather than a percentage */}
-          {missingMatchSignals.eligibility && (
-            <p className="text-xs text-muted-foreground">
-              Employers filter on work eligibility. Add yours so the right ones can find you.
-            </p>
-          )}
-          {missingMatchSignals.desiredTitles && (
-            <p className="text-xs text-muted-foreground">
-              Add the titles you want. Employers searching the pool match on them first.
-            </p>
-          )}
+          {/* Findability by group. Concrete consequences, no score out of 100. */}
+          <div className="space-y-1.5 pt-1">
+            <p className="text-xs font-medium">How findable you are</p>
+            {groupGaps.map(g => (
+              <div key={g.group} className="flex items-start gap-2 text-xs">
+                {g.complete
+                  ? <Check className="w-3.5 h-3.5 mt-[1px] shrink-0 text-primary" />
+                  : <AlertCircle className="w-3.5 h-3.5 mt-[1px] shrink-0 text-muted-foreground" />}
+                <span className={g.complete ? "text-muted-foreground" : ""}>
+                  <span className="font-medium">{g.group}</span>
+                  {g.complete ? " is complete." : <> — {g.consequence}</>}
+                </span>
+              </div>
+            ))}
+          </div>
+
         </>
       )}
     </Card>
