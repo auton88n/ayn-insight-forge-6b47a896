@@ -27,7 +27,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 
 1. GENERATED, never hand-edit: public/ayn-extension.zip and public/ayn-extension-version.json. Run node extension/build.mjs.
 2. Version bump protocol: manifest.json version + content.js AYN_BUILD fallback, then build.mjs (which rewrites the version file).
-3. Never write to the deprecated applications table (job_applications is the tracker).
+3. Never write to the applications or job_applications tables. Both trackers are deprecated and the Tracker UI was deleted in v3.0.1.
 4. The extension is read only. Never add code that writes to, clicks, or types into a page.
 5. User-facing writing style: no em dashes, no en dashes, ranges use "to". This rule is also baked into the AI system prompts in cc-generate and resume-match.
 6. servers: server.js is the express static host for dist/ (SPA fallback, caching for /assets and /frames). backend/server.py is a FastAPI health stub only, not a real backend. The real backend is Supabase edge functions.
