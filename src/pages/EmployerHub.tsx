@@ -179,93 +179,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* 1. Intake chat */}
-        <Card className="p-4 sm:p-6 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold">Describe the role</h2>
-            <p className="text-xs text-muted-foreground">Tell AYN what you need. It asks at most three questions.</p>
-          </div>
-          <div ref={scrollRef} className="max-h-72 overflow-y-auto space-y-3 pr-1">
-            {turns.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                For example: we need a senior backend engineer in Toronto, strong Python and Postgres, five years or more.
-              </p>
-            )}
-            {turns.map((t, i) => (
-              <div key={i} className={t.role === "user" ? "flex justify-end" : ""}>
-                <p className={t.role === "user"
-                  ? "max-w-[80%] rounded-2xl bg-primary text-primary-foreground px-3 py-2 text-sm"
-                  : "max-w-[85%] text-sm leading-relaxed"}>
-                  {t.content}
-                </p>
-              </div>
-            ))}
-            {asking && <p className="text-sm text-muted-foreground animate-pulse">Thinking…</p>}
-          </div>
-          <div className="flex gap-2">
-            <Textarea
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } }}
-              placeholder="Describe the role"
-              className="min-h-[44px] max-h-32"
-            />
-            <Button onClick={ask} disabled={asking || !draft.trim()} size="icon" className="shrink-0">
-              {asking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </Button>
-          </div>
-        </Card>
+        {/* 1 and 2. Widget intake, then the editable spec summary. */}
+        <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
 
-        {/* 2. JobSpec */}
-        {spec && (
-          <Card className="p-4 sm:p-6 space-y-4">
-            <h2 className="text-sm font-semibold">The role AYN will search for</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Title</Label>
-                <Input value={spec.title} onChange={e => setSpec({ ...spec, title: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Seniority</Label>
-                <Input value={spec.seniority} onChange={e => setSpec({ ...spec, seniority: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Must have skills, comma separated</Label>
-                <Input
-                  value={spec.must_have_skills.join(", ")}
-                  onChange={e => setSpec({ ...spec, must_have_skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nice to have skills, comma separated</Label>
-                <Input
-                  value={spec.nice_to_have_skills.join(", ")}
-                  onChange={e => setSpec({ ...spec, nice_to_have_skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Location</Label>
-                <Input value={spec.location_preference || ""} onChange={e => setSpec({ ...spec, location_preference: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Minimum years</Label>
-                <Input
-                  type="number"
-                  value={spec.min_years ?? 0}
-                  onChange={e => setSpec({ ...spec, min_years: Number(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={spec.notes || ""} onChange={e => setSpec({ ...spec, notes: e.target.value })} className="min-h-[60px]" />
-            </div>
-            <Button onClick={runMatch} disabled={searching || !spec.title.trim()}>
-              {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-              Find candidates
-            </Button>
-          </Card>
-        )}
 
         {/* 3. Results */}
         {(results.length > 0 || poolNote) && (
