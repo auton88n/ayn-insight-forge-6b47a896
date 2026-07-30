@@ -3,8 +3,9 @@
  *
  * The employer surface, and now the only conversational surface in the app.
  * Four steps in one page: answer the intake widgets, review the JobSpec, read
- * the candidates AYN found, send a proposal. The chat under the results is
- * scoped to evaluating those candidates and nothing else.
+ * the candidates AYN found, send a proposal. v3.9.0 removed the free-form
+ * chat: AYN now answers four fixed questions per candidate, and the proposal
+ * message arrives pre-written.
  *
  * No candidate identity is ever rendered here. Name, email and phone only
  * appear in the Sent list, and only after the candidate accepted.
@@ -25,7 +26,7 @@ import {
   Loader2, Send, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
 import IntakeWizard from "@/components/employer/IntakeWizard";
-import CandidateChat from "@/components/employer/CandidateChat";
+import CandidateAskCards from "@/components/employer/CandidateAskCards";
 import {
   employerApi, type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
@@ -63,6 +64,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [formOpen, setFormOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [form, setForm] = useState({ job_title: "", job_location: "", employment_type: "", salary_range: "", job_url: "", message: "" });
 
   const [sent, setSent] = useState<SentProposal[]>([]);
@@ -112,6 +114,17 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     full_time: "Full time", contract: "Contract", part_time: "Part time", internship: "Internship",
   };
 
+  const draftMessage = useCallback(async (c: CandidateCard) => {
+    if (!org || !searchId) return;
+    setDrafting(true);
+    try {
+      const r = await employerApi.draftProposal(org.id, searchId, c.ref);
+      if (r.message) setForm(f => ({ ...f, message: r.message.slice(0, 1000) }));
+    } catch {
+      // Drafting never blocks sending. The box stays empty with its placeholder.
+    } finally { setDrafting(false); }
+  }, [org, searchId]);
+
   const openProposal = (c: CandidateCard) => {
     setForm({
       job_title: spec?.title || "",
@@ -123,6 +136,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     });
     setOpen(c);
     setFormOpen(true);
+    void draftMessage(c);
   };
 
 
@@ -217,15 +231,14 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     <li key={i} className="text-xs text-muted-foreground leading-relaxed">{w}</li>
                   ))}
                 </ul>
+                {searchId && (
+                  <CandidateAskCards searchId={searchId} candidateRef={c.ref} total={results.length} />
+                )}
               </Card>
             ))}
           </div>
         )}
 
-        {/* 3b. The only chat: evaluating the candidates this search returned. */}
-        {searchId && results.length > 0 && (
-          <CandidateChat searchId={searchId} count={results.length} />
-        )}
 
 
 
@@ -376,13 +389,23 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Message</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Message</Label>
+                <button
+                  type="button"
+                  onClick={() => open && draftMessage(open)}
+                  disabled={drafting}
+                  className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                >
+                  {drafting ? "Writing a draft…" : "Rewrite draft"}
+                </button>
+              </div>
               <Textarea
                 value={form.message}
                 maxLength={1000}
                 onChange={e => setForm({ ...form, message: e.target.value })}
                 className="min-h-[120px]"
-                placeholder="Why you think they are a fit and what happens next."
+                placeholder={drafting ? "AYN is drafting a message…" : "Why you think they are a fit and what happens next."}
               />
               <p className="text-[11px] text-muted-foreground text-right">{form.message.length} of 1000</p>
             </div>

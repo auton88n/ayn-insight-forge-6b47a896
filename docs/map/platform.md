@@ -18,7 +18,9 @@ WIDGET INTAKE (src/components/employer/IntakeWizard.tsx). The employer does not 
 8. Work eligibility. Country plus must already be authorised / open to sponsoring.
 Then an editable JobSpec summary card. Clicking any line reopens that single widget. "Find candidates" calls employer_match.
 
-RESULTS AND EVALUATION (src/components/employer/CandidateChat.tsx, employer_results_chat). The chat under the results is scoped to the candidates THAT search returned, grounded only in what employer_match returned: compare them, explain a score, explain a gap. A detail that was not returned is reported as not available, never guessed. The model never sees names, emails, phones or user ids. Sending a proposal is unchanged from v3.6.0.
+RESULTS AND EVALUATION (v3.9.0, src/components/employer/CandidateAskCards.tsx, employer_card_answer). There is no free-form chat anywhere in the product any more. The results chat was removed because it described the role wrongly, contradicted itself on years of experience, and leaked internal refs like c1. Under each candidate sits a row of four question cards: Why this score, What is missing, Compare to the others (hidden when only one candidate came back), What to ask in a screen. Each is one stateless server call grounded in the stored search row: the role line is hard-coded into the prompt from the JobSpec, years of experience is asserted as fact when recorded, a missing detail is reported as not available and never guessed. Answers are cached client side per candidate and card. The model never sees names, emails, phones or user ids.
+
+THE PROPOSAL MESSAGE (v3.9.0). Opening the proposal dialog fires employer_draft_proposal, which returns a written message citing only the matched requirements. The employer edits it. If drafting fails, the box stays empty and sending still works.
 
 OFF TOPIC RULE. Anything that is not defining the role or evaluating the returned candidates gets one short sentence saying AYN only helps find candidates for a role, then the current intake question again. No answer to the off topic question, no lecture.
 
