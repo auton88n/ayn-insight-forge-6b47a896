@@ -292,3 +292,25 @@ CLEARING A REQUIRED FIELD LATER: everything stays editable at all times. If an e
 NUDGES: no percentage bar and no score. `missingOrgFields` produces one specific line per missing field ("Add your website so candidates can check you out"), rendered as a list in the same left-rule style as the seeker findability panel.
 
 UI: the company size buttons are now the same `OptionCard` language as IntakeWizard (rounded-xl bordered card, `border-primary bg-primary text-primary-foreground` when selected, so they resolve to AYN orange under `.employer-surface`). The logo Upload button is a normal `secondary` button instead of a heavy outline.
+
+## v3.12.0 — employer surface, properly
+
+### Why the buttons were black, again
+`.employer-surface` in src/index.css redefines `--primary`, but this repo's shadcn Button variants are written with `bg-foreground` / `border-foreground` utilities, not `bg-primary`. The token redefinition therefore never reached the default and outline variants, which is why the company size option cards (hand written, token driven) went orange while "Find candidates" and "Start over" stayed black. Fix: the scope also retints `button.bg-foreground` and `button.border-foreground`. Measured in Chromium inside the scope: primary background `rgb(249,112,21)`, outline background transparent, both 44px tall, `gap-3` between them, Start over rendered as outline so the hierarchy reads.
+
+### Why intake drafts did not survive a refresh
+Two independent bugs. (1) The persist effect returned early while `phase === "opening"`, so the free text opening description was never written even once. (2) The step the employer was on was never stored, so even a restored draft reopened at the first unanswered question. Now: the opener saves as it is typed (500ms debounce), and the cursor travels inside `phase` as `asking:<step>` (`summary` and `opening` are the other two values). The backend truncation on `phase` was widened from 24 to 64 characters, which had been silently cutting the longest step keys.
+
+### Candidate background block
+`employer_match` attaches `profile` to each of the top three cards, built by `buildCandidateProfile(canonical)`: seniority, years, current title, known for, `skills_by_level` (expert / advanced / proficient / familiar / other), experience rows (title, company, dates, industry), education lines, certifications, and a seeking list. Rendered by `src/components/employer/CandidateProfile.tsx`. No label is ever rendered for an empty value, and `buildProfileText` (the embedding text) was fixed for the same class of bug: it used to emit `YoE: .`, `Current title: .` and `Education: BSc  at`. Still anonymous: no name, email, phone, address, or links. `summary` (the old blob) remains on the type only so previously stored searches still render.
+
+### Proposal draft
+`employer_draft_proposal` writes an invitation, not an analysis. Shape: greeting ("Hi there", the employer does not know their name), one line on the company from the company profile only, one or two lines on the role and why they might fit with at most TWO specifics, an invitation to talk, then what happens next on accept. Forbidden in the prompt: skills with years attached, more than two facts about them, and the words "must-have skills", "match", "score", "requirements", "gaps", "profile".
+
+### Navigation and branding
+EmployerHub has an AYN branded sticky header (Brain mark, "Hiring / <company>", company menu on the right with Company profile and Sign out) and a left nav in the Resume Hub language: Search (intake plus results), Proposals (sent, with status), Company (opens the profile dialog). The v3.11.0 gate is unchanged and now also hides the nav: while a required company field is missing the onboarding profile is the only thing rendered. Once complete, the company profile no longer sits as a card in the flow; it lives in a dialog behind the menu and stays fully editable.
+
+Resume Hub's top left "Back" button is gone (it had nowhere sensible to go). It is now the AYN mark, with Sign out in a dropdown on the right, matching the employer treatment.
+
+### Legacy dashboard
+Deleted: `src/components/Dashboard.tsx` and `src/components/dashboard/DashboardContainer.tsx`. `/dashboard` and `/dashboard/*` redirect to `/`, which routes by role (Resume Hub for a seeker, EmployerHub for an approved employer). `src/components/dashboard/` still exists because DashboardPricing, Sidebar and the simulator live there; nothing in it renders the old chat shell.
