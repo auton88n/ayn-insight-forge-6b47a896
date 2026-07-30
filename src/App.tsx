@@ -107,8 +107,11 @@ const AnimatedRoutes = () => {
   const routes = (
     <Routes location={location}>
       <Route path="/" element={<Suspense fallback={<PageLoader />}><Index /></Suspense>} />
-      {/* Guard: stray /dashboard links bounce to the real dashboard at / */}
+      {/* v3.12.0 — the legacy dashboard is gone. Anything pointing at it
+          bounces to "/", which routes by role: Resume Hub for a seeker, the
+          employer surface for an approved employer. */}
       <Route path="/dashboard" element={<Navigate to="/" replace />} />
+      <Route path="/dashboard/*" element={<Navigate to="/" replace />} />
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
       <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
