@@ -486,9 +486,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
-            </Button>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
             <Button onClick={submitProposal} disabled={sending}>
               {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               Send proposal
