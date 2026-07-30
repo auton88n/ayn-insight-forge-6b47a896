@@ -57,9 +57,10 @@ export default function BuilderTab({ userId }: Props) {
         toast({ title: "Created" });
       }
       load();
-      // v3.1.0 — resumes are written client-side, so the talent pool index
-      // would otherwise go stale. Fire and forget.
-      resumeHubApi.talentPoolReindexSelf().catch(() => {});
+      // v3.2.1 — resumes are written client side and bypass the edge function,
+      // so the pool index would go stale. Fire and forget, opt-in gated.
+      reindexTalentPool(activeId ? "resume_update" : "resume_insert");
+
     } catch (e) {
       toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
