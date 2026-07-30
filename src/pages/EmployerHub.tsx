@@ -352,32 +352,48 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </p>
             </div>
 
-            {tab === "search" && (
-              <>
-                {/* 1 and 2. Widget intake, then the editable spec summary. */}
-                <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+            {tab === "search" && searching && (
+              <div className="space-y-4">
+                <Card className="p-6 text-center space-y-1.5">
+                  <p className="text-sm font-medium flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" /> AYN is reading the pool
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Scoring every candidate who opted into discovery against your role.
+                  </p>
+                </Card>
+                {[0, 1, 2].map(i => <CandidateCardSkeleton key={i} />)}
+              </div>
+            )}
 
-                {/* 3. Results, or the shape of them while AYN reads the pool. */}
-                {searching && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> AYN is reading the pool…
+            {tab === "search" && !searching && stage === "spec" && (
+              <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+            )}
+
+            {tab === "search" && !searching && stage === "results" && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{spec?.title || "Your role"}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {[spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
+                        .filter(Boolean).join(" · ")}
                     </p>
-                    {[0, 1, 2].map(i => <CandidateCardSkeleton key={i} />)}
                   </div>
-                )}
+                  <Button variant="outline" size="sm" onClick={() => setStage("spec")}>
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to the role
+                  </Button>
+                </div>
 
-                {!searching && spec && results.length === 0 && searchId !== null && (
+                {results.length === 0 ? (
                   <Card className="p-6 text-center space-y-1.5">
                     <p className="text-sm font-medium">Nobody in the pool matches these must haves yet</p>
                     <p className="text-sm text-muted-foreground">
                       Try relaxing one must have skill, or lowering the minimum years, and search again.
                     </p>
                   </Card>
-                )}
-
-                {!searching && results.length > 0 && (
-                  <div className="space-y-4">
+                ) : (
+                  <>
                     {poolNote && <p className="text-sm text-muted-foreground">{poolNote}</p>}
                     {results.map((c, i) => (
                       <CandidateResultCard
@@ -392,9 +408,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                         onAssess={() => setAssessFor(c)}
                       />
                     ))}
-                  </div>
+                  </>
                 )}
-              </>
+              </div>
             )}
 
 
@@ -428,7 +444,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </Card>
             )}
 
+            {tab === "company" && <CompanyProfile org={org} onSaved={handleOrgSaved} page />}
+
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
+
 
           </main>
 
