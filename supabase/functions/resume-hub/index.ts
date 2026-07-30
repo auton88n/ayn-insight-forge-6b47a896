@@ -2173,7 +2173,11 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         opening: String(opening || "").slice(0, 4000),
         job_spec: job_spec || {},
         answered: Array.isArray(answered) ? answered.slice(0, 32).map(String) : [],
-        phase: String(phase || "opening").slice(0, 24),
+        // v3.12.0 — phase now carries the step the employer was actually on,
+        // as "asking:work_authorization", so a refresh restores the position
+        // and not just the answers. 24 chars truncated the longest step key.
+        phase: String(phase || "opening").slice(0, 64),
+
         updated_at: new Date().toISOString(),
       }, { onConflict: "org_id" });
       if (error) return json({ error: error.message }, 500);
