@@ -66,14 +66,45 @@ export const resumeHubApi = {
   revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
 
   // v2.9.0-A — Talent pool consent + status.
+  // v3.2.0 — also returns the anonymized employer preview, skills with
+  // provenance, and the freshness timestamps the Hub shows.
   talentPoolGet: () =>
-    call<{ opted_in: boolean; consented_at: string | null; indexed: boolean; skills_count: number }>(
-      "resume-hub", { action: "talent_pool_get" }
-    ),
+    call<TalentPoolStatus>("resume-hub", { action: "talent_pool_get" }),
   talentPoolSet: (opted_in: boolean) =>
     call<{ ok: true; opted_in: boolean }>("resume-hub", { action: "talent_pool_set", opted_in }),
 
-  // v2.9.1 — manual re-index for the caller (link in Talent Pool card).
+  // v2.9.1 — manual re-index for the caller (also fired after client writes).
   talentPoolReindexSelf: () =>
     call<{ model: string; skills_count: number }>("resume-hub", { action: "talent_pool_reindex_self" }),
+
+  // v3.2.0 — remove an inferred skill the seeker disagrees with.
+  talentPoolSkillDelete: (id: string) =>
+    call<{ ok: true }>("resume-hub", { action: "talent_pool_skill_delete", id }),
 };
+
+export interface PoolSkill {
+  id: string;
+  skill: string;
+  provenance: "extracted" | "inferred" | string;
+  source: string | null;
+}
+
+export interface TalentPoolStatus {
+  opted_in: boolean;
+  consented_at: string | null;
+  indexed: boolean;
+  skills_count: number;
+  preview: {
+    headline: string;
+    seniority: string;
+    location: string;
+    years_experience: number | null;
+    indexed_at: string | null;
+    embedding_model: string | null;
+  } | null;
+  skills: PoolSkill[];
+  indexed_at: string | null;
+  resume_updated_at: string | null;
+  profile_updated_at: string | null;
+}
+
