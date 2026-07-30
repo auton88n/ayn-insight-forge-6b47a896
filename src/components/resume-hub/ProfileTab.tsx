@@ -105,7 +105,12 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string } | null>(null);
+  // v3.4.0 — legacy accounts can hold several resumes from before the
+  // one-resume rule. They are read only and exist so nobody loses a file.
+  const [olderResumes, setOlderResumes] = useState<{ id: string; title: string; created_at: string; content: ResumeContent }[]>([]);
+  const [showOlder, setShowOlder] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
 
@@ -113,15 +118,15 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: canon }, { data: prof }, { data: resumeRow }, { data: auth }] = await Promise.all([
+      const [{ data: canon }, { data: prof }, { data: resumeRows }, { data: auth }] = await Promise.all([
         supabase.from("user_profile_canonical")
           .select("skills, experiences, education, certifications, work_auth, preferences, derived")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("user_profile_data")
           .select("legal_first_name, legal_last_name, email, phone, address, links")
           .eq("user_id", userId).maybeSingle(),
-        supabase.from("resumes").select("id, title, content")
-          .eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        supabase.from("resumes").select("id, title, content, created_at, is_primary")
+          .eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.auth.getUser(),
       ]);
 
@@ -146,10 +151,20 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
         setPersonalTouched(touched);
       }
 
-      if (resumeRow) {
-        setPrimaryResume({ id: resumeRow.id, title: resumeRow.title });
-        setResumeContent((resumeRow.content as ResumeContent) ?? null);
+      type Row = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean };
+      const rows = ((resumeRows ?? []) as Row[]);
+      const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
+      if (active) {
+        setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at });
+        setResumeContent((active.content as ResumeContent) ?? null);
+      } else {
+        setPrimaryResume(null);
+        setResumeContent(null);
       }
+      setOlderResumes(
+        rows.filter(r => r.id !== active?.id)
+          .map(r => ({ id: r.id, title: r.title, created_at: r.created_at, content: (r.content ?? {}) as ResumeContent }))
+      );
       setAccountEmail(auth?.user?.email ?? "");
     } catch (e) {
       toast({ title: "Couldn't load profile", description: (e as Error).message, variant: "destructive" });
@@ -159,6 +174,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   }, [toast, userId]);
 
   useEffect(() => { load(); }, [load]);
+
 
   // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
   const fallback = useMemo(() => {
