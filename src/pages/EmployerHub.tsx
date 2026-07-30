@@ -23,15 +23,30 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, Send, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
+  Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
+  Brain, Search as SearchIcon, Mail,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateAskCards from "@/components/employer/CandidateAskCards";
+import CandidateProfile from "@/components/employer/CandidateProfile";
 import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
+
+/** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
+type EmployerTab = "search" | "proposals" | "company";
+const EMPLOYER_NAV: { key: EmployerTab; label: string; icon: typeof Brain; hint: string }[] = [
+  { key: "search", label: "Search", hint: "Describe the role, read candidates", icon: SearchIcon },
+  { key: "proposals", label: "Proposals", hint: "What you sent, and their answers", icon: Mail },
+  { key: "company", label: "Company", hint: "What candidates see about you", icon: Building2 },
+];
+
 
 
 function ScoreRing({ score }: { score: number }) {
