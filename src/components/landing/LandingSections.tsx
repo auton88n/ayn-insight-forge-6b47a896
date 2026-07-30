@@ -270,9 +270,9 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <p className="lp-eyebrow">Built to be honest</p>
             <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
             <p className="lp-lead">
-              Every score is grounded in the posting text, and AYN shows you the lines it used. If the
-              page hides the description, it says so instead of guessing. AYN only reads. It never
-              types into a page and never submits anything for you.
+              AYN shows its work. Which job description it read, which resume it compared, what it
+              could not verify. Your profile is only shared with employers when you turn discovery
+              on, and your contact details only when you approve an intro.
             </p>
             <div className="lp-chips">
               <span className="lp-chip">Read only, always</span>
