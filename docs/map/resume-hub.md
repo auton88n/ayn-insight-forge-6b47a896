@@ -64,11 +64,7 @@ REINDEX TRIGGERS (v3.2.1, the real bug behind the redesign: resumes and profile 
 Call sites, one per client write that changes indexed content:
 | Write | File | reason |
 |---|---|---|
-| Resume insert or update (Save) | BuilderTab.tsx save() | resume_insert / resume_update |
-| Primary resume switch | BuilderTab.tsx setPrimary() | primary_resume_change |
-| Primary resume deleted | BuilderTab.tsx removeResume() | primary_resume_deleted |
-| Resume upload, saved as primary | BuilderTab.tsx handleFileParsed() | resume_upload |
-| AI Improve overwrites content | BuilderTab.tsx aiImprove() | resume_ai_rewrite |
+| Resume upload or replacement (becomes the one active resume) | ProfileTab.tsx handleResumeParsed() | resume_upload |
 | Resume upload, saved as primary | ProfileTab.tsx handleResumeParsed() | resume_upload |
 | Profile field save (user_profile_data + user_profile_canonical upserts) | ProfileTab.tsx save() | profile_save |
 
