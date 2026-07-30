@@ -1994,12 +1994,15 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return !!data;
     }
 
+    // v3.10.0 — the company profile a candidate reads on a proposal.
+    const ORG_COLS = "id, name, website, industry, company_size, headquarters, about, logo_url, linkedin_url";
+
     if (action === "employer_org_create") {
       const { name, website } = payload as { name?: string; website?: string };
       if (!name || !name.trim()) return json({ error: "name required" }, 400);
       const { data: org, error } = await adminForNew.from("orgs").insert({
         name: name.trim(), website: website?.trim() || null, created_by: userId,
-      }).select("id, name, website").single();
+      }).select(ORG_COLS).single();
       if (error || !org) return json({ error: error?.message || "insert failed" }, 500);
       const { error: mErr } = await adminForNew.from("org_members").insert({
         org_id: org.id, user_id: userId, role: "admin",
@@ -2013,8 +2016,66 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         .select("org_id, role").eq("user_id", userId).limit(1).maybeSingle();
       if (!mem) return json({ org: null });
       const { data: org } = await adminForNew.from("orgs")
-        .select("id, name, website").eq("id", mem.org_id).maybeSingle();
+        .select(ORG_COLS).eq("id", mem.org_id).maybeSingle();
       return json({ org: org || null, role: mem.role });
+    }
+
+    // v3.10.0 — every company profile field stays editable at any time.
+    if (action === "employer_org_update") {
+      const { org_id, patch } = payload as { org_id?: string; patch?: Record<string, unknown> };
+      if (!org_id || !patch) return json({ error: "org_id and patch required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const allowed = ["name", "website", "industry", "company_size", "headquarters", "about", "logo_url", "linkedin_url"];
+      const clean: Record<string, string | null> = {};
+      for (const k of allowed) {
+        if (!(k in patch)) continue;
+        const raw = patch[k];
+        const v = typeof raw === "string" ? raw.trim() : "";
+        clean[k] = v ? (k === "about" ? v.slice(0, 600) : v.slice(0, 300)) : null;
+      }
+      if (clean.name === null) delete clean.name; // a company always has a name
+      if (Object.keys(clean).length === 0) return json({ error: "nothing to update" }, 400);
+      const { data: org, error } = await adminForNew.from("orgs")
+        .update(clean).eq("id", org_id).select(ORG_COLS).maybeSingle();
+      if (error) return json({ error: error.message }, 500);
+      return json({ org });
+    }
+
+    // v3.10.0 — the in-progress intake survives leaving the page.
+    if (action === "employer_intake_draft_get") {
+      const { org_id } = payload as { org_id?: string };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const { data } = await adminForNew.from("employer_intake_drafts")
+        .select("opening, job_spec, answered, phase, updated_at").eq("org_id", org_id).maybeSingle();
+      return json({ draft: data || null });
+    }
+
+    if (action === "employer_intake_draft_save") {
+      const { org_id, opening, job_spec, answered, phase } = payload as {
+        org_id?: string; opening?: string; job_spec?: Record<string, unknown>;
+        answered?: string[]; phase?: string;
+      };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const { error } = await adminForNew.from("employer_intake_drafts").upsert({
+        org_id,
+        opening: String(opening || "").slice(0, 4000),
+        job_spec: job_spec || {},
+        answered: Array.isArray(answered) ? answered.slice(0, 32).map(String) : [],
+        phase: String(phase || "opening").slice(0, 24),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "org_id" });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "employer_intake_draft_clear") {
+      const { org_id } = payload as { org_id?: string };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      await adminForNew.from("employer_intake_drafts").delete().eq("org_id", org_id);
+      return json({ ok: true });
     }
 
     // v3.8.0 — intake is a widget wizard on the client, not a conversation.
