@@ -1758,6 +1758,7 @@ button, a, input, textarea, select {
   background: hsl(var(--lp-paper)); border: 1px solid hsl(var(--lp-border));
 }
 @media (min-width: 1024px) {
+  .lp-span-6 { grid-column: span 6; }
   .lp-span-4 { grid-column: span 4; }
   .lp-span-3 { grid-column: span 3; }
   .lp-span-2 { grid-column: span 2; }
@@ -1772,6 +1773,11 @@ button, a, input, textarea, select {
 
 /* --- chips --- */
 .lp-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.lp-tile-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 14px; }
+.lp-tile-meta span {
+  font-size: 12.5px; padding: 6px 12px; border-radius: 999px;
+  color: hsl(var(--lp-muted)); background: hsl(var(--lp-fg) / 0.04); border: 1px solid hsl(var(--lp-border-soft));
+}
 .lp-chip { padding: 9px 16px; border-radius: 999px; border: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-fg) / 0.03); font-size: 14px; color: hsl(var(--lp-muted)); }
 
 /* --- faq --- */
