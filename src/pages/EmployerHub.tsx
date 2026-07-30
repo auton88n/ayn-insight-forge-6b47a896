@@ -614,7 +614,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
       {/* Proposal form */}
       <Dialog open={formOpen} onOpenChange={o => { setFormOpen(o); if (!o) setOpen(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg overscroll-contain bg-background">
           <DialogHeader>
             <DialogTitle>Send a job proposal</DialogTitle>
             <DialogDescription>
