@@ -190,8 +190,8 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               'Open any job posting.',
               'Get a version made for that job.',
             ].map((t, i) => (
-
               <div className="lp-step" key={t}>
+
                 <span className="lp-step-n">STEP {i + 1}</span>
                 <p>{t}</p>
               </div>
