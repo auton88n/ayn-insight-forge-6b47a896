@@ -838,38 +838,50 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
   // skills or the primary resume skills. Inferred = in derived.top_skills
   // but NOT in either extracted set. Must-have matching in Phase B is
   // restricted to extracted edges.
+  // v3.5.0 — edges now carry level, years and recency so employer matching can
+  // rank a recent expert above a name on a list. Provenance rules unchanged.
+  type Edge = { skill: string; source: string; level: string | null; years: number | null; last_used: string | null };
   const norm = (s: string) => s.toLowerCase().trim();
-  const canonicalSkillNames = canonical.skills.map(s => s.name).filter(Boolean);
   const resumeSkills = Array.isArray((resumeContent as { skills?: unknown })?.skills)
     ? ((resumeContent as { skills: unknown[] }).skills.filter(x => typeof x === "string") as string[])
     : [];
 
-  const extracted = new Map<string, { skill: string; source: string }>();
-  for (const s of canonicalSkillNames) {
-    const n = norm(s);
-    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "canonical_profile" });
+  const extracted = new Map<string, Edge>();
+  for (const s of canonical.skills) {
+    const n = norm(s.name || "");
+    if (n && !extracted.has(n)) {
+      extracted.set(n, {
+        skill: s.name, source: "canonical_profile",
+        level: s.level ?? null, years: s.years ?? null, last_used: s.last_used ?? null,
+      });
+    }
   }
   for (const s of resumeSkills) {
     const n = norm(s);
-    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "resume" });
+    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "resume", level: null, years: null, last_used: null });
   }
 
-  const inferred = new Map<string, { skill: string; source: string }>();
+  const inferred = new Map<string, Edge>();
   for (const s of (canonical.derived.top_skills || [])) {
     const name = String(s);
     const n = norm(name);
-    if (n && !extracted.has(n) && !inferred.has(n)) inferred.set(n, { skill: name, source: "canonical_profile" });
+    if (n && !extracted.has(n) && !inferred.has(n)) {
+      inferred.set(n, { skill: name, source: "canonical_profile", level: null, years: null, last_used: null });
+    }
   }
 
   await admin.from("candidate_skills").delete().eq("user_id", userId);
   const rows = [
     ...Array.from(extracted.entries()).map(([skill_norm, v]) => ({
       user_id: userId, skill: v.skill, skill_norm, provenance: "extracted", source: v.source,
+      level: v.level, years: v.years, last_used: v.last_used,
     })),
     ...Array.from(inferred.entries()).map(([skill_norm, v]) => ({
       user_id: userId, skill: v.skill, skill_norm, provenance: "inferred", source: v.source,
+      level: null, years: null, last_used: null,
     })),
   ];
+
   if (rows.length) {
     const { error: sErr } = await admin.from("candidate_skills").insert(rows);
     if (sErr) throw sErr;
