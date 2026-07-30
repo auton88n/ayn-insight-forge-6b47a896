@@ -309,7 +309,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               <p className="lp-eyebrow">Verification assessments</p>
               <h2 className="lp-display lp-h2">Find out who actually did the work</h2>
               <p className="lp-lead">
-                Before you spend a proposal, send a short assessment generated from that candidate\u2019s own
+                Before you spend a proposal, send a short assessment generated from that candidate’s own
                 claimed background against your role. The questions probe lived experience, so doing the
                 work is the only way to answer well.
               </p>
