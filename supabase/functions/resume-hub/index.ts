@@ -1997,6 +1997,35 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // v3.10.0 — the company profile a candidate reads on a proposal.
     const ORG_COLS = "id, name, website, industry, company_size, headquarters, about, logo_url, linkedin_url";
 
+    // v3.11.0 — the company profile gate. A UI-only gate is not a gate, so
+    // every action that searches for or contacts a candidate checks here too.
+    const REQUIRED_ORG_FIELDS: [string, string][] = [
+      ["name", "company name"],
+      ["website", "website"],
+      ["industry", "industry"],
+      ["headquarters", "headquarters"],
+      ["company_size", "company size"],
+      ["about", "about paragraph"],
+    ];
+    const ABOUT_MIN = 80;
+
+    /** Returns an error response when the org profile is incomplete, else null. */
+    async function assertOrgProfileComplete(orgId: string): Promise<Response | null> {
+      const { data: org } = await adminForNew.from("orgs")
+        .select(ORG_COLS).eq("id", orgId).maybeSingle();
+      if (!org) return json({ error: "org not found" }, 404);
+      const missing: string[] = [];
+      for (const [key, label] of REQUIRED_ORG_FIELDS) {
+        const v = String((org as Record<string, unknown>)[key] ?? "").trim();
+        if (!v || (key === "about" && v.length < ABOUT_MIN)) missing.push(label);
+      }
+      if (missing.length === 0) return null;
+      return json({
+        error: `Complete your company profile first. Still missing: ${missing.join(", ")}. Candidates see this on every proposal.`,
+        missing_org_fields: missing,
+      }, 428);
+    }
+
     if (action === "employer_org_create") {
       const { name, website } = payload as { name?: string; website?: string };
       if (!name || !name.trim()) return json({ error: "name required" }, 400);
@@ -2086,6 +2115,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const { org_id, description } = payload as { org_id?: string; description?: string };
       if (!org_id || typeof description !== "string") return json({ error: "org_id and description required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const gate = await assertOrgProfileComplete(org_id);
+      if (gate) return gate;
       const text = description.trim().slice(0, 4000);
       if (!text) return json({ job_spec: {}, known: [] });
       const sys = `You extract structured hiring criteria from one description of an open role. Output ONLY JSON, no prose:
@@ -2288,6 +2319,8 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
       const { org_id, job_spec } = payload as { org_id?: string; job_spec?: Record<string, unknown> };
       if (!org_id || !job_spec) return json({ error: "org_id and job_spec required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const gate = await assertOrgProfileComplete(org_id);
+      if (gate) return gate;
 
       const mustHaves = Array.isArray(job_spec.must_have_skills) ? (job_spec.must_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
       const niceToHaves = Array.isArray(job_spec.nice_to_have_skills) ? (job_spec.nice_to_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
@@ -2474,6 +2507,8 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
         .select("id, org_id, ref_map").eq("id", search_id).maybeSingle();
       if (!search) return json({ error: "search not found" }, 404);
       if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+      const orgGate = await assertOrgProfileComplete(search.org_id);
+      if (orgGate) return orgGate;
       const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
       if (!candidateUserId) return json({ error: "unknown ref" }, 400);
 

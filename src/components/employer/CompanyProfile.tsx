@@ -1,13 +1,14 @@
 /**
- * CompanyProfile.tsx — v3.10.0 "employer profile, saved intake, one visual language".
+ * CompanyProfile.tsx — v3.11.0 "company profile first".
  *
  * A candidate deciding whether to accept a proposal mostly wants to know who
- * is reaching out. Until now they saw a company name and nothing else, which
- * is the main reason someone says no. Everything here is editable at any
- * time, and every field is optional except the name.
+ * is reaching out, so six fields are now required before AYN will search or
+ * send anything: company name, website, industry, headquarters, company size,
+ * and an about paragraph of at least 80 characters. LinkedIn and a logo stay
+ * optional and are labelled that way so nobody is blocked hunting a file.
  *
- * The nudge names the one missing field that actually weakens a proposal.
- * No percentage bar, no score, no gamification.
+ * The same component renders twice: as onboarding when the required fields
+ * are incomplete, and as an always editable card once they are not.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -18,24 +19,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Building2, ChevronDown, Loader2, Upload, Check } from "lucide-react";
-import { employerApi, type Org, type OrgPatch } from "@/lib/employer";
+import {
+  employerApi, isValidUrl, missingOrgFields, normaliseUrl,
+  ABOUT_MIN, type Org, type OrgPatch,
+} from "@/lib/employer";
 
 const SIZES = ["1 to 10", "11 to 50", "51 to 200", "201 to 1000", "1000 plus"];
 
-/** The one missing field that most weakens their proposals, in priority order. */
-function nudgeFor(org: Org): string | null {
-  if (!org.about?.trim()) return "Candidates are more likely to accept when they can see what your company does. Add a short about paragraph.";
-  if (!org.industry?.trim()) return "Add your industry so a candidate can tell straight away whether the work is in their field.";
-  if (!org.website?.trim()) return "Add your website. A proposal with nothing to look up is easy to ignore.";
-  if (!org.headquarters?.trim()) return "Add your headquarters so candidates know where the company is based.";
-  if (!org.company_size?.trim()) return "Add your company size. Some people only want a small team, some only want a large one.";
-  if (!org.logo_url?.trim()) return "Add a logo so your proposal is recognisable.";
-  return null;
+/** Same option card language as the intake wizard, orange when selected. */
+function SizeOption({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={[
+        "group relative flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm text-left transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        selected
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "border-border/70 bg-card hover:border-primary/50 hover:bg-muted/50",
+      ].join(" ")}
+    >
+      {selected && <Check className="w-4 h-4 shrink-0" />}
+      <span className="font-medium">{label}</span>
+    </button>
+  );
 }
 
 export default function CompanyProfile({
-  org, onSaved,
-}: { org: Org; onSaved: (org: Org) => void }) {
+  org, onSaved, onboarding = false,
+}: { org: Org; onSaved: (org: Org) => void; onboarding?: boolean }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Org>(org);
@@ -60,6 +74,19 @@ export default function CompanyProfile({
     const next = (form[key] ?? "") as string;
     const prev = (org[key] ?? "") as string;
     if (next.trim() === prev.trim()) return;
+    void save({ [key]: next.trim() } as OrgPatch);
+  };
+
+  /** Websites accept a bare domain: normalise it rather than reject it. */
+  const blurSaveUrl = (key: "website" | "linkedin_url", label: string) => () => {
+    const raw = ((form[key] ?? "") as string).trim();
+    if (raw && !isValidUrl(raw)) {
+      toast({ title: `That ${label} does not look like a link`, description: "For example example.com or https://example.com", variant: "destructive" });
+      return;
+    }
+    const next = normaliseUrl(raw);
+    setForm(f => ({ ...f, [key]: next }));
+    if (next === ((org[key] ?? "") as string).trim()) return;
     void save({ [key]: next } as OrgPatch);
   };
 
@@ -89,7 +116,106 @@ export default function CompanyProfile({
     } finally { setUploading(false); }
   };
 
-  const nudge = nudgeFor(org);
+  const missing = missingOrgFields(org);
+  const expanded = onboarding || open;
+  const aboutLen = (form.about ?? "").trim().length;
+
+  const fields = (
+    <div className="space-y-4 employer-step-in">
+      {missing.length > 0 && (
+        <ul className="space-y-1 border-l-2 border-primary/60 pl-3">
+          {missing.map(m => (
+            <li key={m.key} className="text-xs text-muted-foreground">{m.nudge}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Company name">
+          <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} onBlur={blurSave("name")} />
+        </Field>
+        <Field label="Website">
+          <Input value={form.website ?? ""} placeholder="example.com" onChange={e => setForm({ ...form, website: e.target.value })} onBlur={blurSaveUrl("website", "website")} />
+        </Field>
+        <Field label="Industry">
+          <Input value={form.industry ?? ""} placeholder="For example healthcare software" onChange={e => setForm({ ...form, industry: e.target.value })} onBlur={blurSave("industry")} />
+        </Field>
+        <Field label="Headquarters">
+          <Input value={form.headquarters ?? ""} placeholder="City, country" onChange={e => setForm({ ...form, headquarters: e.target.value })} onBlur={blurSave("headquarters")} />
+        </Field>
+        <Field label="LinkedIn, optional">
+          <Input value={form.linkedin_url ?? ""} placeholder="linkedin.com/company/" onChange={e => setForm({ ...form, linkedin_url: e.target.value })} onBlur={blurSaveUrl("linkedin_url", "LinkedIn link")} />
+        </Field>
+        <Field label="Logo, optional">
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileRef} type="file" accept="image/*" className="sr-only"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); e.target.value = ""; }}
+            />
+            <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+              {org.logo_url ? "Replace" : "Upload"}
+            </Button>
+            {org.logo_url && (
+              <button type="button" className="text-xs text-muted-foreground underline underline-offset-2"
+                onClick={() => { setForm(f => ({ ...f, logo_url: "" })); void save({ logo_url: "" }); }}>
+                Remove
+              </button>
+            )}
+          </div>
+        </Field>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs">Company size</Label>
+        <div className="flex flex-wrap gap-2">
+          {SIZES.map(s => (
+            <SizeOption
+              key={s} label={s} selected={form.company_size === s}
+              onClick={() => { setForm(f => ({ ...f, company_size: s })); void save({ company_size: s }); }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">About the company</Label>
+          <span className={`text-[11px] ${aboutLen > 0 && aboutLen < ABOUT_MIN ? "text-primary" : "text-muted-foreground"}`}>
+            {aboutLen < ABOUT_MIN ? `${aboutLen} of ${ABOUT_MIN} minimum` : `${aboutLen} of 600`}
+          </span>
+        </div>
+        <Textarea
+          value={form.about ?? ""} maxLength={600}
+          placeholder="What the company does, in a couple of plain sentences. Candidates read this before they decide."
+          className="min-h-[90px]"
+          onChange={e => setForm({ ...form, about: e.target.value })}
+          onBlur={blurSave("about")}
+        />
+        <p className="text-[11px] text-muted-foreground">
+          AYN uses this when it drafts a proposal. It never invents facts about your company.
+        </p>
+      </div>
+    </div>
+  );
+
+  if (onboarding) {
+    return (
+      <Card className="p-5 sm:p-7 space-y-5">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-primary" />
+            <h1 className="text-lg font-semibold">Tell candidates who you are</h1>
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Candidates see this on every proposal. AYN cannot search until it is filled in.
+          </p>
+        </div>
+        {fields}
+      </Card>
+    );
+  }
 
   return (
     <Card className="p-4 sm:p-6 space-y-4">
@@ -116,88 +242,13 @@ export default function CompanyProfile({
         </span>
       </button>
 
-      {nudge && !open && (
-        <p className="text-xs text-muted-foreground border-l-2 border-primary/60 pl-3">{nudge}</p>
+      {missing.length > 0 && !expanded && (
+        <ul className="space-y-1 border-l-2 border-primary/60 pl-3">
+          {missing.map(m => <li key={m.key} className="text-xs text-muted-foreground">{m.nudge}</li>)}
+        </ul>
       )}
 
-      {open && (
-        <div className="space-y-4 employer-step-in">
-          {nudge && (
-            <p className="text-xs text-muted-foreground border-l-2 border-primary/60 pl-3">{nudge}</p>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Company name">
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} onBlur={blurSave("name")} />
-            </Field>
-            <Field label="Website">
-              <Input value={form.website ?? ""} placeholder="https://" onChange={e => setForm({ ...form, website: e.target.value })} onBlur={blurSave("website")} />
-            </Field>
-            <Field label="Industry">
-              <Input value={form.industry ?? ""} placeholder="For example healthcare software" onChange={e => setForm({ ...form, industry: e.target.value })} onBlur={blurSave("industry")} />
-            </Field>
-            <Field label="Headquarters">
-              <Input value={form.headquarters ?? ""} placeholder="City, country" onChange={e => setForm({ ...form, headquarters: e.target.value })} onBlur={blurSave("headquarters")} />
-            </Field>
-            <Field label="LinkedIn">
-              <Input value={form.linkedin_url ?? ""} placeholder="https://linkedin.com/company/" onChange={e => setForm({ ...form, linkedin_url: e.target.value })} onBlur={blurSave("linkedin_url")} />
-            </Field>
-            <Field label="Logo">
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileRef} type="file" accept="image/*" className="sr-only"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); e.target.value = ""; }}
-                />
-                <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                  {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
-                  {org.logo_url ? "Replace" : "Upload"}
-                </Button>
-                {org.logo_url && (
-                  <button type="button" className="text-xs text-muted-foreground underline underline-offset-2"
-                    onClick={() => { setForm(f => ({ ...f, logo_url: "" })); void save({ logo_url: "" }); }}>
-                    Remove
-                  </button>
-                )}
-              </div>
-            </Field>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">Company size</Label>
-            <div className="flex flex-wrap gap-2">
-              {SIZES.map(s => {
-                const on = form.company_size === s;
-                return (
-                  <Button
-                    key={s} type="button" size="sm" variant={on ? "default" : "outline"}
-                    aria-pressed={on}
-                    onClick={() => { setForm(f => ({ ...f, company_size: s })); void save({ company_size: s }); }}
-                  >
-                    {on && <Check className="w-3.5 h-3.5 mr-1.5" />}{s}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">About the company</Label>
-              <span className="text-[11px] text-muted-foreground">{(form.about ?? "").length} of 600</span>
-            </div>
-            <Textarea
-              value={form.about ?? ""} maxLength={600}
-              placeholder="What the company does, in a couple of plain sentences. Candidates read this before they decide."
-              className="min-h-[90px]"
-              onChange={e => setForm({ ...form, about: e.target.value })}
-              onBlur={blurSave("about")}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              AYN uses this when it drafts a proposal. It never invents facts about your company.
-            </p>
-          </div>
-        </div>
-      )}
+      {expanded && fields}
     </Card>
   );
 }

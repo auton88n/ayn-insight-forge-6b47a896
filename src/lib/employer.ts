@@ -42,6 +42,56 @@ export type Org = {
 
 export type OrgPatch = Partial<Omit<Org, "id">>;
 
+/**
+ * v3.11.0 — the company profile is an onboarding gate, not a settings form.
+ * A candidate decides whether to accept a proposal mostly on who is reaching
+ * out, so a blank profile wastes the proposal for both sides. These six are
+ * required before AYN will search or send. LinkedIn and logo stay optional.
+ */
+export const ABOUT_MIN = 80;
+
+export type OrgField = "name" | "website" | "industry" | "headquarters" | "company_size" | "about";
+
+export const REQUIRED_ORG_FIELDS: { key: OrgField; label: string; nudge: string }[] = [
+  { key: "name", label: "Company name", nudge: "Add your company name so candidates know who is reaching out." },
+  { key: "website", label: "Website", nudge: "Add your website so candidates can check you out." },
+  { key: "industry", label: "Industry", nudge: "Add your industry so candidates can tell whether the work is in their field." },
+  { key: "headquarters", label: "Headquarters", nudge: "Add your headquarters so candidates know where the company is based." },
+  { key: "company_size", label: "Company size", nudge: "Add your company size. Some people only want a small team, some only want a large one." },
+  { key: "about", label: "About the company", nudge: `Add an about paragraph so candidates know what you do. At least ${ABOUT_MIN} characters.` },
+];
+
+/** Which required fields are still missing on this org, in priority order. */
+export function missingOrgFields(org: Org | null): typeof REQUIRED_ORG_FIELDS {
+  if (!org) return REQUIRED_ORG_FIELDS;
+  return REQUIRED_ORG_FIELDS.filter(f => {
+    const v = String((org as Record<string, unknown>)[f.key] ?? "").trim();
+    if (!v) return true;
+    if (f.key === "about") return v.length < ABOUT_MIN;
+    return false;
+  });
+}
+
+export function isOrgComplete(org: Org | null): boolean {
+  return missingOrgFields(org).length === 0;
+}
+
+/** A bare domain is a normal thing to type. Normalise it, do not reject it. */
+export function normaliseUrl(raw: string): string {
+  const v = raw.trim();
+  if (!v) return "";
+  return /^https?:\/\//i.test(v) ? v : `https://${v.replace(/^\/+/, "")}`;
+}
+
+export function isValidUrl(raw: string): boolean {
+  const v = normaliseUrl(raw);
+  if (!v) return true;
+  try {
+    const u = new URL(v);
+    return (u.protocol === "http:" || u.protocol === "https:") && /\./.test(u.hostname);
+  } catch { return false; }
+}
+
 /** v3.10.0 — an intake in progress, saved after every answered step. */
 export type IntakeDraft = {
   opening: string;

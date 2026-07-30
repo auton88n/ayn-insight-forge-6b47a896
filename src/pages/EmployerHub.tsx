@@ -29,7 +29,8 @@ import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateAskCards from "@/components/employer/CandidateAskCards";
 import {
-  employerApi, type CandidateCard, type JobSpec, type Org, type SentProposal,
+  employerApi, isOrgComplete, missingOrgFields,
+  type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
 
 
@@ -73,6 +74,30 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const loadSent = useCallback(async () => {
     try { const r = await employerApi.sentProposals(); setSent(r.requests || []); } catch { /* silent */ }
   }, []);
+
+  /**
+   * v3.11.0 — the surface unlocks in place, no reload. Clearing a required
+   * field later re-locks it, and we say which field and what it blocks.
+   */
+  const profileComplete = isOrgComplete(org);
+  const handleOrgSaved = useCallback((next: Org) => {
+    setOrg(prev => {
+      const was = isOrgComplete(prev);
+      const now = isOrgComplete(next);
+      if (!was && now) {
+        toast({ title: "Company profile complete", description: "You can search for candidates now." });
+      } else if (was && !now) {
+        const missing = missingOrgFields(next).map(m => m.label).join(", ");
+        toast({
+          title: `${missing} is now empty`,
+          description: "Candidate search and proposals are paused until you fill it back in.",
+          variant: "destructive",
+        });
+      }
+      return next;
+    });
+  }, [toast]);
+
 
   useEffect(() => {
     employerApi.orgGet()
@@ -213,15 +238,28 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* 1 and 2. Widget intake, then the editable spec summary. */}
-        <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+        {/**
+         * v3.11.0 — the gate. While a required company field is missing the
+         * onboarding profile is the ONLY thing rendered, so there is nothing
+         * to click around. The backend enforces the same rule.
+         */}
+        {!profileComplete ? (
+          <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
+        ) : (
+          <>
+            {/* 1 and 2. Widget intake, then the editable spec summary. */}
+            <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
 
-        {/* Who is reaching out. Editable at any time, and used in proposals. */}
-        <CompanyProfile org={org} onSaved={setOrg} />
+            {/* Who is reaching out. Editable at any time, and used in proposals. */}
+            <CompanyProfile org={org} onSaved={handleOrgSaved} />
+          </>
+        )}
+
+
 
 
         {/* 3. Results */}
-        {(results.length > 0 || poolNote) && (
+        {profileComplete && (results.length > 0 || poolNote) && (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold">Candidates</h2>
             {poolNote && <p className="text-xs text-muted-foreground">{poolNote}</p>}
@@ -259,7 +297,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
         {/* 4. Sent proposals */}
-        {sent.length > 0 && (
+        {profileComplete && sent.length > 0 && (
           <Card className="p-4 sm:p-6 space-y-3">
             <h2 className="text-sm font-semibold">Proposals you sent</h2>
             {sent.map(s => (
