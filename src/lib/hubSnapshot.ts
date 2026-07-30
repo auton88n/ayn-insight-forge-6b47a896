@@ -41,10 +41,10 @@ export async function loadHubSnapshot(userId: string): Promise<HubSnapshot> {
   ]);
 
   const canon = (canonRes.data ?? {}) as {
-    skills?: unknown[]; experiences?: unknown[];
+    skills?: Array<{ level?: string | null } | string>; experiences?: Array<{ bullets?: string[]; industry?: string }>;
     work_auth?: { countries?: string[]; citizenship?: string; work_authorized_ca?: boolean; work_authorized_us?: boolean };
-    preferences?: { desired_titles?: string[] };
-    derived?: { current_title?: string };
+    preferences?: { desired_titles?: string[]; availability?: string; employment_types?: string[] };
+    derived?: { current_title?: string; known_for?: string[] };
   };
   const prof = (profRes.data ?? {}) as { legal_first_name?: string; email?: string; address?: { city?: string } };
   const wa = canon.work_auth ?? {};
@@ -52,6 +52,8 @@ export async function loadHubSnapshot(userId: string): Promise<HubSnapshot> {
     ...(wa.work_authorized_ca ? ["Canada"] : []),
     ...(wa.work_authorized_us ? ["United States"] : []),
   ];
+  const skills = canon.skills ?? [];
+  const experiences = canon.experiences ?? [];
 
   const jobIds = ((jobsRes.data ?? []) as { id: string }[]).map(j => j.id);
   const scored = new Set(((matchesRes.data ?? []) as { job_id: string }[]).map(m => m.job_id));
@@ -67,9 +69,16 @@ export async function loadHubSnapshot(userId: string): Promise<HubSnapshot> {
       desiredTitles: canon.preferences?.desired_titles,
       countries,
       citizenship: wa.citizenship,
-      skillsCount: canon.skills?.length ?? 0,
-      experiencesCount: canon.experiences?.length ?? 0,
+      skillsCount: skills.length,
+      experiencesCount: experiences.length,
+      skillsWithLevel: skills.filter(s => typeof s === "object" && s && !!s.level).length,
+      rolesWithAchievements: experiences.filter(e => (e.bullets ?? []).filter(Boolean).length > 0).length,
+      rolesWithIndustry: experiences.filter(e => !!e.industry).length,
+      availability: canon.preferences?.availability,
+      employmentTypes: canon.preferences?.employment_types,
+      knownForCount: (canon.derived?.known_for ?? []).length,
     }),
+
     unscoredJobs: jobIds.filter(id => !scored.has(id)).length,
     pendingIntros: (revealsRes?.requests ?? []).filter(r => r.status === "pending").length,
     poolOptedIn: !!poolRes?.opted_in,
