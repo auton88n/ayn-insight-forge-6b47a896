@@ -66,7 +66,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [form, setForm] = useState({ job_title: "", job_location: "", employment_type: "", salary_range: "", job_url: "", message: "" });
 
   const [sent, setSent] = useState<SentProposal[]>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadSent = useCallback(async () => {
     try { const r = await employerApi.sentProposals(); setSent(r.requests || []); } catch { /* silent */ }
@@ -80,8 +79,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     loadSent();
   }, [loadSent]);
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" }); }, [turns, asking]);
-
   const createOrg = async () => {
     if (!orgName.trim()) return;
     setOrgBusy(true);
@@ -93,24 +90,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     } finally { setOrgBusy(false); }
   };
 
-  const ask = async () => {
-    if (!org || !draft.trim() || asking) return;
-    const next: IntakeTurn[] = [...turns, { role: "user", content: draft.trim() }];
-    setTurns(next);
-    setDraft("");
-    setAsking(true);
-    try {
-      const r = await employerApi.intake(org.id, next);
-      if (r.done) {
-        setSpec({ ...EMPTY_SPEC, ...r.job_spec });
-        setTurns([...next, { role: "assistant", content: "I have enough to search. Review the role below and edit anything that is off." }]);
-      } else {
-        setTurns([...next, { role: "assistant", content: r.question }]);
-      }
-    } catch (e) {
-      toast({ title: "AYN could not respond", description: (e as Error).message, variant: "destructive" });
-    } finally { setAsking(false); }
-  };
 
   const runMatch = async () => {
     if (!org || !spec) return;
