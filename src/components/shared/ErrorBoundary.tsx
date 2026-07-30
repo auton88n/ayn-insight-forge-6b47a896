@@ -83,11 +83,11 @@ export class ErrorBoundary extends Component<Props, State> {
         message.includes('Component is not a function');
 
       return (
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+        <Card className="ayn-ember-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-foreground">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Brain className="w-5 h-5 text-primary" />
+              <div className="p-2 rounded-full ayn-ember-badge">
+                <Brain className="w-5 h-5" />
               </div>
               Oops! AYN hit a snag
             </CardTitle>
@@ -112,7 +112,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 }}
                 variant="default"
                 size="sm"
-                className="gap-2"
+                className="gap-2 ayn-ember-btn"
               >
                 <RefreshCw className="w-4 h-4" />
                 {isAutoReloadError ? 'Reload Page' : "Let's Try Again"}
