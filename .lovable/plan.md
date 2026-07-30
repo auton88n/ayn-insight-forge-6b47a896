@@ -1,50 +1,37 @@
-## Goal
+## 1. Error screen on AYN ember orange branding
 
-Replace the two side by side CTA buttons in the hero with a single audience switch placed at the top of the hero. Choosing "Looking for a job" or "Hiring" swaps the whole hero content (headline, subline, button, note, mockup) to speak to that audience only.
+`src/components/shared/ErrorBoundary.tsx` currently renders a grey card with a black button because the global `--primary` is near black.
 
-## What changes
+- Rebuild the fallback card in the ember language: warm off white surface, soft ember tinted border, ember gradient icon badge with the AYN brain mark, and an ember filled "Let's try again" button.
+- Use the existing landing ember tokens (`--lp-ember`, `--lp-gradient-ember`) exposed as a small reusable class so no colors are hardcoded in the component.
+- Keep the message copy, dev only error text, and the reload versus retry behavior exactly as they are.
+- Same treatment for the smaller inline fallbacks that share the card, so a snag always looks like AYN.
 
-All in `src/components/landing/LandingSections.tsx` plus a few new styles in `src/index.css`. No backend, no data, no logic changes.
+## 2. Hero centered
 
-### 1. Audience state
-Add local state in `LandingSections`: `audience` as `'job_seeker' | 'employer'`, defaulting to `job_seeker`. Persist the last choice in `localStorage` so a returning visitor lands on the side they picked.
+In `src/components/landing/LandingSections.tsx` the hero is a left column with the mockup beside it.
 
-### 2. The switch
-A pill shaped segmented control sitting above the headline, where the "Free to start, no credit card" pill is today:
+- Center the hero: audience switch, pill, headline, lead, CTA and note all centered in a single column with a max width around 820px.
+- The mockup moves below, centered, at full shell width, keeping the existing crossfade when the audience switches.
+- Headline and lead get `text-wrap: balance` so the centered lines break evenly.
 
-```text
- ┌───────────────────────────────────────┐
- │  I am looking for a job │  I am hiring│
- └───────────────────────────────────────┘
-```
-- Two buttons inside one rounded track, the active one filled with AYN orange, the inactive one quiet.
-- Real buttons with `role="tab"` / `aria-selected` so it is keyboard and screen reader friendly.
-- The "Free to start, no credit card" pill moves under the switch and only shows on the seeker side (employers are onboarded one at a time, so it shows "Onboarding employers one at a time" there instead).
+## 3. Remove language switching, English only
 
-### 3. Hero content per audience
+- Delete `src/components/shared/LanguageSwitcher.tsx` and remove it from `src/components/shared/index.ts`, `Header.tsx` and `Support.tsx` (that removes the "EN" control in the top bar).
+- Remove the language selector row from settings, and the footer language links.
+- `LanguageContext` stays as a thin shim that always reports `en` and forces `dir="ltr"`, so the ~25 files that read `language` keep compiling while every ternary resolves to the English branch. No user visible way to change it, no Arabic or French output anywhere.
+- Strip the `ar` / `fr` branches from the landing, hero and auth copy so the source reads as plain English rather than three way ternaries in the files touched by this change.
+- Remove the AR/FR hreflang tags and any `/ar` `/fr` route hints from the landing SEO head.
 
-Seeker:
-- Headline: "Stop rewriting your resume for every job."
-- Lead: a resume and cover letter written for the exact posting in front of you, from your real history, in the time it takes to read the ad.
-- Button: "Start free" opening signup with role job_seeker.
-- Note: read only on every page, AYN never types into a form and never submits anything for you.
-- Art: `ExtensionOnPostingMockup`.
+## 4. Fits every platform
 
-Employer:
-- Headline: "Three people worth talking to, not six hundred maybes."
-- Lead: describe the role once, AYN searches people who chose to be found and returns the strongest fits with the evidence, the gaps and a way to verify them before you commit.
-- Button: "Request employer access" opening signup with role employer.
-- Note: contact details stay private until the candidate accepts your proposal.
-- Art: `CandidateCardMockup`.
+A responsive pass, presentation only:
 
-The swap is a short crossfade with a small vertical lift so it reads as a change of view rather than a page jump. Both mockups already exist in `AppMockups.tsx`.
+- Landing: hero type scale down to 360px wide, switch wraps to two full width buttons on small screens, bento and split sections collapse to one column, mockups scroll horizontally inside their frame instead of overflowing the page, tap targets at least 44px.
+- Employer Hub: the icon rail becomes a bottom bar on phones, dialogs go full screen below the small breakpoint with the fixed header and footer preserved, candidate cards stack.
+- Resume Hub: tab rail scrolls horizontally on phones, profile groups and job cards stack.
+- Global: add `dvh` based heights where `vh` is used so mobile browser chrome does not clip content, and confirm no horizontal scroll at 360, 768, 1024 and 1440.
 
-### 4. Rest of the page
-The sections below the hero stay as they are, both audiences visible when scrolling. One small addition: when the employer side is selected, the page scrolls the reader toward the employer section, and vice versa, only when the switch is clicked, never on load.
+## Verification
 
-## Technical notes
-
-- `LandingSections` becomes stateful; it is already a `memo` component and keeps that.
-- New CSS classes: `.lp-switch`, `.lp-switch-btn`, `.lp-switch-btn.is-on`, added next to the existing `.lp-*` landing tokens in `src/index.css`, using existing semantic tokens (no hardcoded colors).
-- `onStartFree(role)` is already wired through `src/components/LandingPage.tsx` to the role aware auth modal, so the CTA needs no new plumbing.
-- Hero art is swapped by key so the crossfade animates correctly; both mockups are inline SVG, so there is no extra network cost.
+Screenshot the landing hero (both audiences), the error card, Employer Hub and Resume Hub at 360, 768 and 1440 in the browser, and confirm the EN control is gone from every header.

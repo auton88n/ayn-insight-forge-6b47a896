@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Brain, ArrowLeft, MessageSquare, FileText, HelpCircle, Clock, Ticket, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -168,9 +167,6 @@ const Support = () => {
               </div>
               <span className="text-xl font-bold">AYN</span>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher />
           </div>
         </div>
       </header>

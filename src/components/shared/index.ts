@@ -1,7 +1,6 @@
 // Barrel export for shared components
 export { ErrorBoundary } from './ErrorBoundary';
 export { OptimizedImage } from './OptimizedImage';
-export { LanguageSwitcher } from './LanguageSwitcher';
 export { MessageFormatter } from './MessageFormatter';
 export { OfflineBanner } from './OfflineBanner';
 export { PageTransition } from './PageTransition';

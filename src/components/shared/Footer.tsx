@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { Brain, Mail } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { Separator } from '@/components/ui/separator';
 
 const DiscordIcon = () => (
@@ -16,7 +15,6 @@ const XIcon = () => (
 );
 
 export const Footer = () => {
-  const { language } = useLanguage();
 
   return (
     <footer className="border-t border-border/50 py-12 px-6">
@@ -31,7 +29,7 @@ export const Footer = () => {
               <span className="text-xl font-bold">AYN</span>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              {language === 'ar' ? 'حلول ذكاء اصطناعي متقدمة' : language === 'fr' ? 'Solutions IA avancées' : 'Advanced AI Solutions'}
+              Advanced AI Solutions
             </p>
             <div className="flex items-center gap-3 text-muted-foreground">
               <a href="mailto:info@aynn.io" className="hover:text-foreground transition-colors" aria-label="Email">
@@ -49,30 +47,30 @@ export const Footer = () => {
           {/* Navigate */}
           <div>
             <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">
-              {language === 'ar' ? 'التنقل' : language === 'fr' ? 'Navigation' : 'Navigate'}
+              Navigate
             </h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/" className="hover:text-foreground transition-colors">{language === 'ar' ? 'الرئيسية' : language === 'fr' ? 'Accueil' : 'Home'}</Link></li>
-              <li><Link to="/#how" className="hover:text-foreground transition-colors">{language === 'ar' ? 'كيف يعمل' : language === 'fr' ? 'Comment ça marche' : 'How it works'}</Link></li>
-              <li><Link to="/pricing" className="hover:text-foreground transition-colors">{language === 'ar' ? 'الأسعار' : language === 'fr' ? 'Tarifs' : 'Pricing'}</Link></li>
-              <li><Link to="/contact" className="hover:text-foreground transition-colors">{language === 'ar' ? 'تواصل معنا' : language === 'fr' ? 'Contact' : 'Contact'}</Link></li>
+              <li><Link to="/" className="hover:text-foreground transition-colors">Home</Link></li>
+              <li><Link to="/#how" className="hover:text-foreground transition-colors">How it works</Link></li>
+              <li><Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
+              <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
             </ul>
           </div>
 
           {/* Legal */}
           <div>
             <h4 className="font-semibold text-sm uppercase tracking-wider mb-3">
-              {language === 'ar' ? 'قانوني' : language === 'fr' ? 'Légal' : 'Legal'}
+              Legal
             </h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/privacy" className="hover:text-foreground transition-colors">{language === 'ar' ? 'سياسة الخصوصية' : language === 'fr' ? 'Confidentialité' : 'Privacy Policy'}</Link></li>
-              <li><Link to="/terms" className="hover:text-foreground transition-colors">{language === 'ar' ? 'الشروط والأحكام' : language === 'fr' ? 'Conditions' : 'Terms of Service'}</Link></li>
+              <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
             </ul>
           </div>
         </div>
         <Separator className="mb-6" />
         <p className="text-xs text-muted-foreground text-center">
-          © 2026 AYN AI. {language === 'ar' ? 'جميع الحقوق محفوظة.' : language === 'fr' ? 'Tous droits réservés.' : 'All rights reserved.'}
+          © 2026 AYN AI. All rights reserved.
         </p>
       </div>
     </footer>

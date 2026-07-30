@@ -204,8 +204,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
       {/* ── HERO ─────────────────────────────────────────────── */}
       <header className="lp-hero">
         <div className="lp-hero-aura" aria-hidden="true" />
-        <div className="lp-shell">
-          <div style={{ maxWidth: 780 }}>
+        <div className="lp-shell lp-hero-center">
+          <div className="lp-hero-copy">
             <div className="lp-switch" role="tablist" aria-label="Who are you">
               <button
                 type="button"
@@ -245,6 +245,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             {hero.art}
           </div>
         </div>
+
       </header>
 
 

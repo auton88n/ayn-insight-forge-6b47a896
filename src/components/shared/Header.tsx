@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Menu, LogIn, LogOut, User } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -64,7 +63,7 @@ export const Header = () => {
   };
 
   const getLabel = (link: typeof navLinks[0]) =>
-  language === 'ar' ? link.ar : language === 'fr' ? link.fr : link.en;
+  link.en;
 
   // The landing page runs the dark Charcoal and Ember system, other marketing
   // pages stay on the light surface, so the bar flips its palette by route.
@@ -124,7 +123,6 @@ export const Header = () => {
 
         {/* Right side — EN + Get Started Free — absolutely positioned */}
         <div style={{ position: 'absolute', right: 'clamp(12px,4vw,32px)', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 'clamp(8px,2vw,20px)' }}>
-          <LanguageSwitcher />
 
           {/* Auth — desktop */}
           <div className="hidden md:block">
@@ -159,7 +157,7 @@ export const Header = () => {
                 onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.98)'; }}
                 onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
-                {language === 'ar' ? 'ابدأ مجاناً' : language === 'fr' ? 'Commencer gratuitement' : 'Start Free'}
+                Start Free
               </button>
             )}
           </div>
@@ -198,14 +196,14 @@ export const Header = () => {
                       </div>
                       <Button variant="outline" className="w-full" onClick={handleSignOut}>
                         <LogOut className="h-4 w-4 mr-2" />
-                        {language === 'ar' ? 'تسجيل خروج' : 'Sign Out'}
+                        Sign Out
                       </Button>
                     </div>
                   ) : (
                     <div className="px-3">
                       <Button className="w-full" onClick={() => setShowAuthModal(true)}>
                         <LogIn className="h-4 w-4 mr-2" />
-                        {language === 'ar' ? 'ابدأ مجاناً' : 'Start Free'}
+                        Start Free
                       </Button>
                     </div>
                   )}

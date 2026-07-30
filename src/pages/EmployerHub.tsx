@@ -496,7 +496,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
       <Dialog open={!!open && !formOpen} onOpenChange={o => { if (!o) setOpen(null); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden bg-background flex flex-col gap-0 p-0">
+        <DialogContent className="max-w-2xl w-[calc(100vw-1.5rem)] max-h-[88dvh] sm:max-h-[85vh] overflow-hidden bg-background flex flex-col gap-0 p-0">
           {open && (
             <>
               <DialogHeader className="shrink-0 border-b border-border/60 bg-background p-6 pb-4 space-y-1.5">
@@ -624,7 +624,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
       {/* Proposal form */}
       <Dialog open={formOpen} onOpenChange={o => { setFormOpen(o); if (!o) setOpen(null); }}>
-        <DialogContent className="max-w-lg overscroll-contain bg-background">
+        <DialogContent className="max-w-lg w-[calc(100vw-1.5rem)] max-h-[88dvh] overflow-y-auto overscroll-contain bg-background">
           <DialogHeader>
             <DialogTitle>Send a job proposal</DialogTitle>
             <DialogDescription>
