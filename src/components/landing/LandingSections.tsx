@@ -223,6 +223,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
                       {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
                     </div>
                   )}
+                  {!Art && !('meta' in tile) && <div className="lp-art" aria-hidden="true" />}
                 </article>
               );
             })}
