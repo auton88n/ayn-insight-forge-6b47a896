@@ -104,6 +104,13 @@ export type Proposal = {
   id: string;
   org_name: string;
   org_website?: string | null;
+  /** v3.10.0 — the company profile, so the candidate knows who is asking. */
+  org_industry?: string | null;
+  org_size?: string | null;
+  org_headquarters?: string | null;
+  org_about?: string | null;
+  org_logo_url?: string | null;
+  org_linkedin_url?: string | null;
   job_title: string;
   job_location: string | null;
   employment_type: string | null;
