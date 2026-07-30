@@ -572,6 +572,44 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
         </div>
       </section>
 
+      {/* Section 3b — For employers */}
+      <section id="employers" style={{ padding: 'clamp(96px,14vh,160px) clamp(20px,5vw,80px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px' }}>
+            For employers
+          </h2>
+          <p style={{ fontFamily: C.display, fontSize: 'clamp(20px,2.4vw,26px)', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.3, color: C.ink, margin: '0 0 18px' }}>
+            You have read a thousand resumes to find three people.
+          </p>
+          <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.7, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'] }}>
+            Tell AYN what the role needs. It searches candidates who chose to be found and brings you the three best fits, with the reason for each. No job board. No inbox full of maybes.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 32, textAlign: 'left', margin: 'clamp(48px,7vw,72px) 0 clamp(40px,6vw,56px)' }}>
+            {[
+              'Describe the role in plain words.',
+              'AYN searches only candidates who opted in.',
+              'Get three real fits, with evidence.',
+            ].map(t => (
+              <div key={t} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ width: 28, height: 1, background: C.borderMd }} />
+                <p style={{ fontFamily: C.body, fontSize: 17, lineHeight: 1.6, color: C.inkSub, margin: 0 }}>{t}</p>
+              </div>
+            ))}
+          </div>
+
+          <Link to="/contact"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
+            Join the employer waitlist <ArrowRight size={13} />
+          </Link>
+          <p style={{ fontFamily: C.body, fontSize: 13, color: C.inkMid, margin: '14px 0 0' }}>
+            Early access. We onboard employers one at a time.
+          </p>
+        </div>
+      </section>
+
       {/* Section 4 — Trust */}
       <section id="trust" style={{
         display: 'flex',
