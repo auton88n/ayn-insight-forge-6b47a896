@@ -1728,6 +1728,28 @@ button, a, input, textarea, select {
 .lp-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .lp-note { font-size: 13.5px; color: hsl(var(--lp-dim)); margin: 16px 0 0; }
 
+/* --- audience switch --- */
+.lp-switch {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px;
+  background: hsl(var(--lp-fg) / 0.05); border: 1px solid hsl(var(--lp-border-soft));
+  margin-bottom: 20px;
+}
+.lp-switch-btn {
+  appearance: none; border: 0; cursor: pointer; border-radius: 999px;
+  padding: 9px 18px; font-size: 14px; font-weight: 600; line-height: 1;
+  background: transparent; color: hsl(var(--lp-muted));
+  transition: background .22s ease, color .22s ease, box-shadow .22s ease;
+}
+.lp-switch-btn:hover { color: hsl(var(--lp-fg)); }
+.lp-switch-btn.is-on {
+  background: var(--lp-gradient-ember); color: #fff;
+  box-shadow: 0 6px 16px -8px hsl(var(--lp-ember) / 0.8);
+}
+.lp-switch-btn:focus-visible { outline: 2px solid hsl(var(--lp-ember)); outline-offset: 2px; }
+@keyframes lpAudienceIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.lp-audience { animation: lpAudienceIn .38s cubic-bezier(.22,1,.36,1) both; }
+
+
 /* --- logo strip --- */
 .lp-strip { border-block: 1px solid hsl(var(--lp-border-soft)); background: hsl(var(--lp-surface) / 0.5); }
 .lp-strip-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: clamp(18px, 4vw, 52px); padding-block: 22px; }
