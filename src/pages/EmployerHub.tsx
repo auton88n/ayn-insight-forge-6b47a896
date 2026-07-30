@@ -418,15 +418,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 {sent.map(s => (
                   <div key={s.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-1">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium truncate">{s.job_title || "Role"}</p>
-                      <Badge variant={s.status === "approved" ? "secondary" : "outline"}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {s.name || s.first_name || (s.ref ? `Candidate ${s.ref}` : "Candidate")}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[s.job_title || "Role", s.sent_at ? new Date(s.sent_at).toLocaleDateString() : ""]
+                            .filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                      <Badge variant={s.status === "approved" ? "secondary" : "outline"} className="shrink-0">
                         {s.status === "pending" ? "Waiting for a reply" : s.status === "approved" ? "Accepted" : "Declined"}
                       </Badge>
                     </div>
-                    {s.status === "approved" && (
+                    {s.status === "approved" && (s.email || s.phone) && (
                       <p className="text-xs">
-                        <span className="font-medium">{s.name || "Candidate"}</span>
-                        {s.email ? ` · ${s.email}` : ""}{s.phone ? ` · ${s.phone}` : ""}
+                        {[s.email, s.phone].filter(Boolean).join(" · ")}
                       </p>
                     )}
                     {s.status === "declined" && (
@@ -434,6 +441,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     )}
                   </div>
                 ))}
+
               </Card>
             )}
 
