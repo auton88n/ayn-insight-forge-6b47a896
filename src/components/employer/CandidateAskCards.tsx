@@ -48,17 +48,20 @@ export default function CandidateAskCards({
   }, [active, busy, candidateRef, searchId, toast]);
 
   const visible = CARDS.filter(c => !c.multiOnly || total > 1);
+  const activeLabel = CARDS.find(c => c.key === active)?.label || "";
 
   return (
-    <div className="space-y-2 pt-1">
-      <div className="flex flex-wrap gap-1.5">
+    <div className="space-y-3 pt-1">
+      <div className="flex flex-wrap gap-2">
         {visible.map(c => (
           <Button
             key={c.key}
             type="button"
             size="sm"
-            variant={active === c.key ? "secondary" : "outline"}
-            className="h-7 rounded-full text-xs font-normal"
+            variant="outline"
+            className={`h-8 rounded-full text-xs font-medium ${
+              active === c.key ? "border-primary bg-primary/10 text-primary hover:bg-primary/15" : ""
+            }`}
             onClick={() => ask(c.key)}
           >
             {busy && active === c.key ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : null}
@@ -67,12 +70,24 @@ export default function CandidateAskCards({
         ))}
       </div>
       {active && (busy || answer) && (
-        <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
-          {busy && !answer
-            ? <p className="text-xs text-muted-foreground animate-pulse">Reading the match result…</p>
-            : <p className="text-xs leading-relaxed whitespace-pre-wrap">{answer}</p>}
+        <div className="rounded-xl border border-border bg-card border-l-2 border-l-primary px-4 py-3.5 space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {activeLabel}
+          </p>
+          {busy && !answer ? (
+            <div className="space-y-2" aria-live="polite">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Reading the match result…
+              </p>
+              <div className="h-3 rounded bg-muted animate-pulse w-11/12" />
+              <div className="h-3 rounded bg-muted animate-pulse w-4/5" />
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">{answer}</p>
+          )}
         </div>
       )}
     </div>
   );
 }
+
