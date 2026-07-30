@@ -144,6 +144,16 @@ export const employerApi = {
   orgGet: () => call<{ org: Org | null; role?: string }>({ action: "employer_org_get" }),
   orgCreate: (name: string, website?: string) =>
     call<{ org: Org }>({ action: "employer_org_create", name, website }),
+  /** v3.10.0 — every company profile field stays editable at any time. */
+  orgUpdate: (org_id: string, patch: OrgPatch) =>
+    call<{ org: Org }>({ action: "employer_org_update", org_id, patch }),
+  /** v3.10.0 — the intake survives leaving the page. */
+  draftGet: (org_id: string) =>
+    call<{ draft: IntakeDraft | null }>({ action: "employer_intake_draft_get", org_id }),
+  draftSave: (org_id: string, draft: IntakeDraft) =>
+    call<{ ok: true }>({ action: "employer_intake_draft_save", org_id, ...draft }),
+  draftClear: (org_id: string) =>
+    call<{ ok: true }>({ action: "employer_intake_draft_clear", org_id }),
   /** v3.8.0 — one pass over the opening description, no conversation. */
   specExtract: (org_id: string, description: string) =>
     call<{ job_spec: Partial<JobSpec>; known: string[] }>({
