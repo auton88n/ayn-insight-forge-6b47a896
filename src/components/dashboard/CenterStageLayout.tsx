@@ -289,6 +289,18 @@ export const CenterStageLayout = ({
     }
   }, [messages.length, clearResponseBubbles, clearSuggestions, setEmotion, setIsResponding]);
 
+  // v3.7.0: an empty chat opens with prompts built from this person's own
+  // state (an unscored saved job, a pending proposal, an empty profile group)
+  // rather than "Tell me more".
+  const isEmptyChat = messages.length === 0;
+  const copilotStarters = useCopilotStarters(isEmptyChat);
+  useEffect(() => {
+    if (!isEmptyChat || copilotStarters.length === 0) return;
+    emitSuggestions(copilotStarters);
+  }, [isEmptyChat, copilotStarters, emitSuggestions]);
+
+
+
   // Clear visual state when switching chat sessions
   useEffect(() => {
     if (currentSessionId) {
