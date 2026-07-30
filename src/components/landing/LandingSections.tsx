@@ -66,9 +66,10 @@ const TILES = [
     span: 'lp-span-6',
     icon: Radar,
     title: 'Be found, not just seen',
-    desc: 'Turn on discovery and employers searching for your skills can reach you. You approve every intro.',
+    desc: 'Turn on discovery and employers searching AYN can see your full profile. Your email and phone stay private until you approve an intro.',
     art: null,
   },
+
 ];
 
 
@@ -289,8 +290,9 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <div className="lp-chips">
               <span className="lp-chip">Read only, always</span>
               <span className="lp-chip">Grounded in the posting</span>
-              <span className="lp-chip">Your data stays yours</span>
+              <span className="lp-chip">Contact shared only when you approve</span>
             </div>
+
 
           </div>
         </div>

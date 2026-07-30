@@ -1,0 +1,1 @@
+ALTER TABLE public.talent_pool_consent ADD COLUMN IF NOT EXISTS consent_version text;

@@ -1878,11 +1878,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // and runs via the service role, gated on opted_in.
     // ─────────────────────────────────────────────────────────────
     if (action === "talent_pool_get") {
-      // v3.2.0 — the Hub now renders the anonymized employer preview, skills
-      // split by provenance, and a freshness line, so this returns everything
-      // needed for that in one round trip.
+      // v3.2.0 — the Hub renders the employer-facing preview, skills split by
+      // provenance, and a freshness line, so this returns everything needed
+      // for that in one round trip. v3.5.1 adds the consent wording version.
       const [{ data: consent }, { data: idx }, { data: skillRows }, { data: resumeRow }, { data: canonRow }] = await Promise.all([
-        adminForNew.from("talent_pool_consent").select("opted_in, consented_at").eq("user_id", userId).maybeSingle(),
+        adminForNew.from("talent_pool_consent").select("opted_in, consented_at, consent_version").eq("user_id", userId).maybeSingle(),
+
         adminForNew.from("candidate_index")
           .select("headline, summary, seniority, location, years_experience, indexed_at, embedding_model")
           .eq("user_id", userId).maybeSingle(),
@@ -1894,6 +1895,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({
         opted_in: !!consent?.opted_in,
         consented_at: consent?.consented_at ?? null,
+        consent_version: (consent as { consent_version?: string } | null)?.consent_version ?? null,
+
         indexed: !!idx,
         skills_count: skills.length,
         preview: idx
@@ -1927,18 +1930,22 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
 
     if (action === "talent_pool_set") {
-      const { opted_in } = payload as { opted_in?: boolean };
+      const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
       if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
       const now = new Date().toISOString();
+      // v3.5.1 — record WHICH consent wording the user agreed to, so a future
+      // copy change never leaves us guessing what they were shown.
       const row = {
         user_id: userId,
         opted_in,
         consented_at: opted_in ? now : null,
         revoked_at: opted_in ? null : now,
+        consent_version: opted_in ? (consent_version || "v3.5.1-full-profile") : null,
         updated_at: now,
       };
       const { error } = await adminForNew.from("talent_pool_consent").upsert(row, { onConflict: "user_id" });
       if (error) return json({ error: error.message }, 500);
+
       if (opted_in) {
         try { await indexCandidate(adminForNew, userId); }
         catch (e) { console.error("indexCandidate failed", (e as Error).message); }

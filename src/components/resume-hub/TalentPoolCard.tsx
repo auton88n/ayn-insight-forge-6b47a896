@@ -3,7 +3,7 @@
  *
  * The point of the Profile redesign: make the talent pool connection visible.
  * When a seeker is opted in we show them exactly what an employer sees
- * (the anonymized card employer_match returns), which skills are backed by
+ * (the summary card employer_match returns), which skills are backed by
  * evidence versus inferred, how fresh it is, and what is missing that
  * employers actually filter on.
  */
@@ -12,11 +12,16 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users, RefreshCw, X, ShieldCheck, Check, AlertCircle } from "lucide-react";
 import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
 import { AYN_POOL_REINDEXED, setPoolOptInCache } from "@/lib/talentPoolSync";
 import type { GroupGap } from "@/lib/profileGaps";
+
 
 function relativeTime(iso: string | null): string {
   if (!iso) return "never";
@@ -32,6 +37,9 @@ function relativeTime(iso: string | null): string {
   const months = Math.round(days / 30);
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
+/** v3.5.1 — bump whenever the consent wording changes. */
+const CONSENT_VERSION = "v3.5.1-full-profile";
+
 
 
 
@@ -50,6 +58,9 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
+  // v3.5.1 — opting in requires an explicit confirmation step.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
 
   const load = useCallback(async () => {
     try {
@@ -74,16 +85,18 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
 
   const toggle = async (next: boolean) => {
     setSaving(true);
+    setConfirmOpen(false);
     try {
-      await resumeHubApi.talentPoolSet(next);
+      await resumeHubApi.talentPoolSet(next, next ? CONSENT_VERSION : undefined);
       setPoolOptInCache(next);
       toast({
-        title: next ? "You're in the pool" : "Left the pool",
+        title: next ? "You're discoverable" : "Left the pool",
         description: next
-          ? "Employers can now discover your anonymized profile."
-          : "Your data left the pool.",
+          ? "Employers searching AYN can now see your full profile. Contact details stay private until you approve an intro."
+          : "Your profile left the pool.",
       });
       await load();
+
     } catch (e) {
       toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
     } finally { setSaving(false); }
@@ -134,21 +147,58 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
               {pendingIntros} {pendingIntros === 1 ? "company wants" : "companies want"} an intro
             </p>
           )}
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
-            When on, AYN can present your anonymized profile to verified employers searching for
-            candidates. Your name and contact details are never shared until you approve a specific
-            request. Turn this off anytime and your data leaves the pool immediately.
-          </p>
+          {optedIn ? (
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
+              You are discoverable. Employers searching AYN can see your full profile, and AYN's AI
+              matches you to open roles using everything you have provided.
+              <br />
+              Your email and phone stay private until you approve an intro. Turn this off anytime and
+              your profile leaves the pool immediately.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
+              Turn this on and employers searching AYN can see your full profile: your resume, work
+              history, skills, education, what you are looking for, and where you can work. AYN's AI
+              uses all of it to match you to roles you would not have found on your own.
+              <br />
+              Employers reach you through AYN. Your email and phone are only shared when you approve
+              a specific request.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          <Switch checked={optedIn} disabled={loading || saving} onCheckedChange={toggle} />
+          <Switch
+            checked={optedIn}
+            disabled={loading || saving}
+            onCheckedChange={(next) => (next ? setConfirmOpen(true) : toggle(false))}
+          />
         </div>
       </div>
 
+      {/* v3.5.1 — explicit consent moment before the profile enters the pool. */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Make your profile discoverable</AlertDialogTitle>
+            <AlertDialogDescription>
+              Employers searching AYN will be able to see everything in your profile, including your
+              resume, work history, skills, and preferences. AYN's AI will use this information to
+              match you with roles and to recommend you to employers. You can turn this off at any
+              time, and your profile is removed from the pool immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => toggle(true)}>Turn on discovery</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
       {optedIn && !loading && (
         <>
-          {/* What employers see — the anonymized card, exactly as returned by employer_match */}
+          {/* Summary of your profile as employers first see it in a search result */}
           <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-3.5 h-3.5 text-primary" />
@@ -177,8 +227,10 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  No name and no contact details. That is the whole card.
+                  This is the summary employers see first. They can also see your full profile.
+                  Your email and phone are only shared when you approve an intro.
                 </p>
+
               </>
             ) : (
               <p className="text-xs text-muted-foreground">Nothing to show yet. Save your profile or upload a resume.</p>

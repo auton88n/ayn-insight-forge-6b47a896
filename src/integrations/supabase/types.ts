@@ -4004,6 +4004,7 @@ export type Database = {
       }
       talent_pool_consent: {
         Row: {
+          consent_version: string | null
           consented_at: string | null
           opted_in: boolean
           revoked_at: string | null
@@ -4011,6 +4012,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          consent_version?: string | null
           consented_at?: string | null
           opted_in?: boolean
           revoked_at?: string | null
@@ -4018,6 +4020,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          consent_version?: string | null
           consented_at?: string | null
           opted_in?: boolean
           revoked_at?: string | null

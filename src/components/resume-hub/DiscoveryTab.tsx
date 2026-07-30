@@ -55,9 +55,10 @@ export default function DiscoveryTab({ userId }: { userId: string }) {
             Intro requests
           </div>
           <p className="text-xs text-muted-foreground">
-            Employers who searched the pool and want to reach out. Your name and email stay private
-            until you approve.
+            Employers who searched the pool and want to reach out. They can already see your full
+            profile. Your email and phone stay private until you approve.
           </p>
+
           <div className="space-y-2">
             {reveals.map(r => (
               <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
