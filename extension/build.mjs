@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * extension/build.mjs
- * Bundles the Universal Question Engine + content bridge into two IIFE scripts,
- * then packages the extension into public/ayn-extension.zip.
+ * v3.0.0 — autofill removed, so there is nothing to bundle any more. The
+ * extension ships plain scripts; this just runs the wiring self-check and
+ * packages public/ayn-extension.zip.
  *
  * Usage: node extension/build.mjs
  */
-import { build } from "esbuild";
 import { execSync } from "node:child_process";
 import { rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -16,35 +16,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const EXT = __dirname;
 
-const common = {
-  bundle: true,
-  format: "iife",
-  target: "chrome110",
-  platform: "browser",
-  sourcemap: false,
-  logLevel: "info",
-  legalComments: "none",
-};
-
 async function main() {
   // v2.8.4 — wiring self-check runs FIRST. Fails the build on any seam mismatch.
   execSync(`node ${resolve(ROOT, "scripts/check-wiring.mjs")}`, { stdio: "inherit" });
-
-  await build({
-    ...common,
-    entryPoints: [resolve(EXT, "question-engine/index.ts")],
-    outfile: resolve(EXT, "question-engine.bundle.js"),
-    globalName: "AYNQuestionEngine",
-    footer: {
-      js: "window.AYNQuestionEngine = AYNQuestionEngine;",
-    },
-  });
-
-  await build({
-    ...common,
-    entryPoints: [resolve(EXT, "content.entry.js")],
-    outfile: resolve(EXT, "content.bundle.js"),
-  });
 
   // v2.7.0 — manifest.json is the single source of truth for extension version.
   const manifest = JSON.parse(readFileSync(resolve(EXT, "manifest.json"), "utf8"));
@@ -62,13 +36,7 @@ async function main() {
   const zipPath = resolve(publicDir, "ayn-extension.zip");
   if (existsSync(zipPath)) rmSync(zipPath);
 
-  const excludes = [
-    "question-engine/*",
-    "question-engine/**/*",
-    "content.entry.js",
-    "build.mjs",
-    "README.md",
-  ]
+  const excludes = ["build.mjs", "README.md"]
     .map((p) => `-x "${p}"`)
     .join(" ");
 
