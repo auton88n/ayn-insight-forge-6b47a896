@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { Brain, Mail } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { Separator } from '@/components/ui/separator';
 
 const DiscordIcon = () => (
@@ -16,7 +15,6 @@ const XIcon = () => (
 );
 
 export const Footer = () => {
-  const { language } = useLanguage();
 
   return (
     <footer className="border-t border-border/50 py-12 px-6">

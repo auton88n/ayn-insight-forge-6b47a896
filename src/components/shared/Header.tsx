@@ -63,7 +63,7 @@ export const Header = () => {
   };
 
   const getLabel = (link: typeof navLinks[0]) =>
-  language === 'ar' ? link.ar : language === 'fr' ? link.fr : link.en;
+  link.en;
 
   // The landing page runs the dark Charcoal and Ember system, other marketing
   // pages stay on the light surface, so the bar flips its palette by route.
@@ -196,14 +196,14 @@ export const Header = () => {
                       </div>
                       <Button variant="outline" className="w-full" onClick={handleSignOut}>
                         <LogOut className="h-4 w-4 mr-2" />
-                        {language === 'ar' ? 'تسجيل خروج' : 'Sign Out'}
+                        Sign Out
                       </Button>
                     </div>
                   ) : (
                     <div className="px-3">
                       <Button className="w-full" onClick={() => setShowAuthModal(true)}>
                         <LogIn className="h-4 w-4 mr-2" />
-                        {language === 'ar' ? 'ابدأ مجاناً' : 'Start Free'}
+                        Start Free
                       </Button>
                     </div>
                   )}
