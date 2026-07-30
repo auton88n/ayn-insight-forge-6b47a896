@@ -3559,9 +3559,17 @@ export type Database = {
           candidate_user_id: string
           created_at: string
           decided_at: string | null
+          employment_type: string | null
           id: string
+          job_location: string | null
+          job_title: string
+          job_url: string | null
+          message: string
           org_id: string
+          responded_at: string | null
+          salary_range: string | null
           search_id: string | null
+          sent_at: string
           status: string
         }
         Insert: {
@@ -3569,9 +3577,17 @@ export type Database = {
           candidate_user_id: string
           created_at?: string
           decided_at?: string | null
+          employment_type?: string | null
           id?: string
+          job_location?: string | null
+          job_title?: string
+          job_url?: string | null
+          message?: string
           org_id: string
+          responded_at?: string | null
+          salary_range?: string | null
           search_id?: string | null
+          sent_at?: string
           status?: string
         }
         Update: {
@@ -3579,9 +3595,17 @@ export type Database = {
           candidate_user_id?: string
           created_at?: string
           decided_at?: string | null
+          employment_type?: string | null
           id?: string
+          job_location?: string | null
+          job_title?: string
+          job_url?: string | null
+          message?: string
           org_id?: string
+          responded_at?: string | null
+          salary_range?: string | null
           search_id?: string | null
+          sent_at?: string
           status?: string
         }
         Relationships: [

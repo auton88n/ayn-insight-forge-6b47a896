@@ -37,7 +37,7 @@ export async function loadHubSnapshot(userId: string): Promise<HubSnapshot> {
     supabase.from("jobs").select("id").eq("user_id", userId),
     supabase.from("job_matches").select("job_id").eq("user_id", userId),
     resumeHubApi.talentPoolGet().catch(() => null),
-    employerApi.revealList().catch(() => null),
+    employerApi.proposalList().catch(() => null),
   ]);
 
   const canon = (canonRes.data ?? {}) as {

@@ -2187,8 +2187,13 @@ RULES — YOU MUST FOLLOW EVERY ONE:
             matched_must_haves: r.matched_must_haves || [],
             gaps: r.gaps || [],
             why: r.why || [],
+            // v3.6.0 — candidate detail shows evidence provenance. Still no PII.
+            skills_extracted: c.skills.extracted,
+            skills_inferred: c.skills.inferred,
+            summary: (c.profile_text || "").slice(0, 1200),
           };
         });
+
 
       const { data: search, error: sErr } = await adminForNew.from("employer_searches").insert({
         org_id, created_by: userId, job_spec, results: top, ref_map: refMap,
@@ -2198,21 +2203,59 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ search_id: search.id, results: top, pool_note: rrParsed.pool_note || "" });
     }
 
+    // v3.6.0 — a reveal request is now a JOB PROPOSAL. The employer must say
+    // what the role is and write a message. Contact details are still only
+    // released after the candidate accepts (see employer_reveal_status).
     if (action === "employer_reveal_request") {
-      const { search_id, ref } = payload as { search_id?: string; ref?: string };
+      const {
+        search_id, ref, job_title, job_location, employment_type, salary_range, job_url, message,
+      } = payload as {
+        search_id?: string; ref?: string; job_title?: string; job_location?: string;
+        employment_type?: string; salary_range?: string; job_url?: string; message?: string;
+      };
       if (!search_id || !ref) return json({ error: "search_id and ref required" }, 400);
+      const title = String(job_title || "").trim();
+      const msg = String(message || "").trim();
+      if (!title) return json({ error: "job_title required" }, 400);
+      if (!msg) return json({ error: "message required" }, 400);
+      if (msg.length > 1000) return json({ error: "message must be 1000 characters or fewer" }, 400);
+
       const { data: search } = await adminForNew.from("employer_searches")
         .select("id, org_id, ref_map").eq("id", search_id).maybeSingle();
       if (!search) return json({ error: "search not found" }, 404);
       if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
       const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
       if (!candidateUserId) return json({ error: "unknown ref" }, 400);
-      // Idempotent: skip if a pending or approved row exists for this (search, candidate).
-      const { data: existing } = await adminForNew.from("reveal_requests")
-        .select("id, status").eq("search_id", search_id).eq("candidate_user_id", candidateUserId).maybeSingle();
-      if (existing) return json({ ok: true, status: existing.status, already: true });
+
+      // Rate limit 1: one open proposal per (org, candidate) at a time.
+      const { data: openRow } = await adminForNew.from("reveal_requests")
+        .select("id").eq("org_id", search.org_id)
+        .eq("candidate_user_id", candidateUserId).eq("status", "pending").maybeSingle();
+      if (openRow) {
+        return json({ error: "You already have an open proposal with this candidate. Wait for a reply before sending another." }, 429);
+      }
+      // Rate limit 2: no new proposal within 30 days of a decline.
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentDecline } = await adminForNew.from("reveal_requests")
+        .select("id, responded_at").eq("org_id", search.org_id)
+        .eq("candidate_user_id", candidateUserId).eq("status", "declined")
+        .gte("responded_at", cutoff).limit(1).maybeSingle();
+      if (recentDecline) {
+        return json({ error: "This candidate declined a proposal from you in the last 30 days. You can try again after that." }, 429);
+      }
+
       const { error: iErr } = await adminForNew.from("reveal_requests").insert({
-        org_id: search.org_id, candidate_user_id: candidateUserId, search_id, candidate_ref: ref,
+        org_id: search.org_id,
+        candidate_user_id: candidateUserId,
+        search_id,
+        candidate_ref: ref,
+        job_title: title,
+        job_location: job_location?.trim() || null,
+        employment_type: employment_type?.trim() || null,
+        salary_range: salary_range?.trim() || null,
+        job_url: job_url?.trim() || null,
+        message: msg,
+        sent_at: new Date().toISOString(),
       });
       if (iErr) return json({ error: iErr.message }, 500);
       return json({ ok: true, status: "pending" });
@@ -2220,13 +2263,13 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
     if (action === "reveal_list") {
       const { data: rows } = await adminForNew.from("reveal_requests")
-        .select("id, org_id, search_id, status, created_at, decided_at")
+        .select("id, org_id, search_id, status, created_at, decided_at, job_title, job_location, employment_type, salary_range, job_url, message, sent_at, responded_at")
         .eq("candidate_user_id", userId)
-        .order("created_at", { ascending: false });
+        .order("sent_at", { ascending: false });
       const enriched: Array<Record<string, unknown>> = [];
       for (const r of (rows || [])) {
         const [{ data: org }, { data: s }] = await Promise.all([
-          adminForNew.from("orgs").select("name").eq("id", r.org_id).maybeSingle(),
+          adminForNew.from("orgs").select("name, website").eq("id", r.org_id).maybeSingle(),
           r.search_id
             ? adminForNew.from("employer_searches").select("job_spec").eq("id", r.search_id).maybeSingle()
             : Promise.resolve({ data: null }),
@@ -2234,9 +2277,17 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         enriched.push({
           id: r.id,
           org_name: org?.name || "A company",
-          job_title: (s?.job_spec as { title?: string } | null)?.title || "",
+          org_website: org?.website || null,
+          job_title: r.job_title || (s?.job_spec as { title?: string } | null)?.title || "",
+          job_location: r.job_location || null,
+          employment_type: r.employment_type || null,
+          salary_range: r.salary_range || null,
+          job_url: r.job_url || null,
+          message: r.message || "",
           status: r.status,
+          sent_at: r.sent_at || r.created_at,
           created_at: r.created_at,
+          responded_at: r.responded_at || r.decided_at,
           decided_at: r.decided_at,
         });
       }
@@ -2247,8 +2298,9 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const { id, approve } = payload as { id?: string; approve?: boolean };
       if (!id || typeof approve !== "boolean") return json({ error: "id and approve required" }, 400);
       const status = approve ? "approved" : "declined";
+      const now = new Date().toISOString();
       const { error } = await adminForNew.from("reveal_requests")
-        .update({ status, decided_at: new Date().toISOString() })
+        .update({ status, decided_at: now, responded_at: now })
         .eq("id", id).eq("candidate_user_id", userId);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true, status });
@@ -2256,33 +2308,58 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
     if (action === "employer_reveal_status") {
       const { search_id } = payload as { search_id?: string };
-      if (!search_id) return json({ error: "search_id required" }, 400);
-      const { data: search } = await adminForNew.from("employer_searches")
-        .select("org_id, ref_map").eq("id", search_id).maybeSingle();
-      if (!search) return json({ error: "not found" }, 404);
-      if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
-      const { data: rows } = await adminForNew.from("reveal_requests")
-        .select("id, candidate_user_id, candidate_ref, status, created_at, decided_at")
-        .eq("search_id", search_id);
+      const { data: memberships } = await adminForNew.from("org_members")
+        .select("org_id").eq("user_id", userId);
+      const orgIds = (memberships || []).map(m => m.org_id);
+      if (orgIds.length === 0) return json({ requests: [] });
+
+      let q = adminForNew.from("reveal_requests")
+        .select("id, org_id, candidate_user_id, candidate_ref, status, job_title, job_location, employment_type, salary_range, job_url, message, sent_at, responded_at, created_at, decided_at")
+        .in("org_id", orgIds)
+        .order("sent_at", { ascending: false });
+
       const refByUser = new Map<string, string>();
-      for (const [ref, uid] of Object.entries((search.ref_map as Record<string, string> | null) || {})) refByUser.set(uid, ref);
+      if (search_id) {
+        const { data: search } = await adminForNew.from("employer_searches")
+          .select("org_id, ref_map").eq("id", search_id).maybeSingle();
+        if (!search) return json({ error: "not found" }, 404);
+        if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+        for (const [ref, uid] of Object.entries((search.ref_map as Record<string, string> | null) || {})) refByUser.set(uid, ref);
+        q = q.eq("search_id", search_id);
+      }
+
+      const { data: rows } = await q;
       const enriched: Array<Record<string, unknown>> = [];
       for (const r of (rows || [])) {
         const base: Record<string, unknown> = {
-          id: r.id, ref: r.candidate_ref || refByUser.get(r.candidate_user_id) || "",
-          status: r.status, created_at: r.created_at, decided_at: r.decided_at,
+          id: r.id,
+          ref: r.candidate_ref || refByUser.get(r.candidate_user_id) || "",
+          status: r.status,
+          job_title: r.job_title || "",
+          job_location: r.job_location || null,
+          employment_type: r.employment_type || null,
+          salary_range: r.salary_range || null,
+          job_url: r.job_url || null,
+          message: r.message || "",
+          sent_at: r.sent_at || r.created_at,
+          created_at: r.created_at,
+          responded_at: r.responded_at || r.decided_at,
+          decided_at: r.decided_at,
         };
+        // Contact details are released ONLY on an accepted proposal.
         if (r.status === "approved") {
           const { data: prof } = await adminForNew.from("user_profile_data")
-            .select("legal_first_name, legal_last_name, email").eq("user_id", r.candidate_user_id).maybeSingle();
+            .select("legal_first_name, legal_last_name, email, phone").eq("user_id", r.candidate_user_id).maybeSingle();
           const { data: authUser } = await adminForNew.auth.admin.getUserById(r.candidate_user_id);
           base.name = [prof?.legal_first_name, prof?.legal_last_name].filter(Boolean).join(" ") || null;
           base.email = prof?.email || authUser?.user?.email || null;
+          base.phone = prof?.phone || null;
         }
         enriched.push(base);
       }
       return json({ requests: enriched });
     }
+
 
     return json({ error: "Unknown action" }, 400);
   } catch (e) {

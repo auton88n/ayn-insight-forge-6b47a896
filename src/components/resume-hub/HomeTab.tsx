@@ -17,7 +17,9 @@ interface Props {
   onOpenProfile: () => void;
   onOpenJobs: () => void;
   onOpenDiscovery: () => void;
+  onOpenProposals: () => void;
 }
+
 
 interface Action {
   key: string;
@@ -29,7 +31,7 @@ interface Action {
   primary?: boolean;
 }
 
-export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDiscovery }: Props) {
+export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDiscovery, onOpenProposals }: Props) {
   const [snap, setSnap] = useState<HubSnapshot | null>(null);
 
   useEffect(() => {
@@ -50,17 +52,19 @@ export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDisco
   const actions: Action[] = [];
 
   // Intro requests always sort first when present.
+  // v3.6.0 — job proposals always sort first when present.
   if (snap.pendingIntros > 0) {
     actions.push({
-      key: "intros",
+      key: "proposals",
       icon: Users,
       primary: true,
-      title: `${snap.pendingIntros} ${snap.pendingIntros === 1 ? "employer wants" : "employers want"} an intro`,
-      body: "They found you in the talent pool. Your name and contact stay private until you approve.",
-      cta: "Review requests",
-      onClick: onOpenDiscovery,
+      title: `${snap.pendingIntros} new job ${snap.pendingIntros === 1 ? "proposal" : "proposals"}`,
+      body: "An employer wants to hire for a role like yours. Your contact details stay private until you accept.",
+      cta: "Read proposals",
+      onClick: onOpenProposals,
     });
   }
+
 
   if (snap.resumeCount === 0) {
     actions.push({
