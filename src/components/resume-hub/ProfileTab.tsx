@@ -1,18 +1,22 @@
 /**
- * ProfileTab.tsx — v3.2.0 "one profile, and show what it powers"
+ * ProfileTab.tsx — v3.5.0 "a profile that can actually be matched"
  *
- * There used to be two surfaces here: a "Profile" and a "Canonical Profile".
- * Canonical is an internal engineering concept and it leaked into the UI.
- * A job seeker sees exactly one profile now. _shared/identity.ts already
- * resolves precedence (profile > canonical > resume > account), so this view
- * mirrors that order, shows one value per field with a small source label,
- * and always writes edits to the user-entered layer so they win afterwards.
+ * This form IS the matching index. Before v3.5.0 it was too thin to match on
+ * (bare skill strings, invisible work history) and too noisy to fill in
+ * ("You entered this" eight times). Now:
  *
- * Fields are grouped by what they power, because since autofill was removed
- * their purpose changed: they are matching signals for the talent pool and
- * generation inputs for scoring, tailoring, and cover letters.
+ * FIVE GROUPS, in the order a job seeker thinks about them: Your resume,
+ * About you, Your experience, What you are looking for, Work eligibility.
+ * Each is a collapsible card with a purpose line, open state remembered for
+ * the session.
+ *
+ * PROVENANCE only where it informs: "From your resume" on resume-derived
+ * values, "Edited by you" with a revert when the user moved away from the
+ * resume value, and nothing at all for fields they simply typed.
+ *
+ * AUTOSAVE on blur with a small saved indicator. No giant Save button.
  */
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,34 +24,47 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Plus, X, FileUp, ArrowRight, Download, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Loader2, Plus, X, FileUp, ArrowRight, Download, RefreshCw, Trash2,
+  ChevronDown, Check, Undo2, Sparkles,
+} from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
-import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
+import { type ResumeContent } from "@/lib/resumeHub";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
 import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import { computeReadiness } from "@/lib/profileGaps";
 
-// ── Types (mirror the edge-function profile shape) ───────────────────────────
-type Skill = { name: string; years?: number; level?: string };
-type Exp = { company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[] };
+// ── Types (mirror the edge-function canonical shape) ─────────────────────────
+export type SkillLevel = "familiar" | "proficient" | "advanced" | "expert";
+export type LastUsed = "this_year" | "within_2_years" | "over_2_years";
+
+type Skill = { name: string; years?: number | null; level?: SkillLevel | null; last_used?: LastUsed | null };
+type Exp = {
+  company: string; title: string; location?: string; start?: string; end?: string; current?: boolean;
+  bullets?: string[]; bullets_from_resume?: boolean; industry?: string; team_size?: number | null;
+};
 type Edu = { school: string; degree?: string; field?: string; start?: string; end?: string };
 type Cert = { name: string; issuer?: string; year?: string };
 type WorkAuth = {
   citizenship?: string; countries?: string[];
   work_authorized_us?: boolean; work_authorized_ca?: boolean;
   needs_sponsorship_now?: boolean; needs_sponsorship_future?: boolean;
-  visa_type?: string; notes?: string;
+  visa_type?: string; notes?: string; work_permit_expires?: string;
 };
 type Prefs = {
   open_to_remote?: boolean; open_to_relocation?: boolean;
   salary_min_usd?: number; salary_currency?: string;
   desired_titles?: string[]; desired_locations?: string[];
+  employment_types?: string[]; availability?: string; company_stages?: string[];
 };
 type Derived = {
   total_yoe?: number; seniority?: string; primary_function?: string;
   top_skills?: string[]; education_level?: string;
   current_title?: string; current_company?: string;
+  known_for?: string[];
 };
 type Career = {
   skills: Skill[]; experiences: Exp[]; education: Edu[]; certifications: Cert[];
@@ -57,19 +74,40 @@ type Career = {
 const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
 const WORK_COUNTRIES = ["Canada", "United States", "United Kingdom", "European Union", "Australia", "United Arab Emirates"];
-
-type SourceTag = "entered" | "resume" | "account" | "none";
-const SOURCE_LABEL: Record<SourceTag, string> = {
-  entered: "You entered this",
-  resume: "From your resume",
-  account: "From your account",
-  none: "",
-};
+const LEVELS: { value: SkillLevel; label: string }[] = [
+  { value: "familiar", label: "Familiar" },
+  { value: "proficient", label: "Proficient" },
+  { value: "advanced", label: "Advanced" },
+  { value: "expert", label: "Expert" },
+];
+const LAST_USED: { value: LastUsed; label: string }[] = [
+  { value: "this_year", label: "This year" },
+  { value: "within_2_years", label: "Within 2 years" },
+  { value: "over_2_years", label: "Over 2 years ago" },
+];
+const INDUSTRIES = ["Fintech", "Healthcare", "Ecommerce", "Enterprise SaaS", "Government", "Education", "Logistics", "Gaming", "Energy"];
+const EMPLOYMENT_TYPES = ["Full time", "Contract", "Part time", "Internship"];
+const AVAILABILITY = ["Immediately", "2 weeks", "1 month", "3 months", "Just looking"];
+const COMPANY_STAGES = ["Early startup", "Growth", "Large company", "No preference"];
 
 /** Personal fields live in user_profile_data, the user-entered layer. */
 type PersonalKey = "first_name" | "last_name" | "email" | "phone" | "city" | "linkedin" | "github" | "portfolio";
 type Personal = Record<PersonalKey, string>;
 const EMPTY_PERSONAL: Personal = { first_name: "", last_name: "", email: "", phone: "", city: "", linkedin: "", github: "", portfolio: "" };
+
+function normalizeSkills(raw: unknown): Skill[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(s => {
+    if (typeof s === "string") return { name: s, level: null, years: null, last_used: null };
+    const o = (s ?? {}) as Record<string, unknown>;
+    return {
+      name: String(o.name ?? ""),
+      level: (o.level as SkillLevel) ?? null,
+      years: typeof o.years === "number" ? o.years : null,
+      last_used: (o.last_used as LastUsed) ?? null,
+    };
+  }).filter(s => s.name !== undefined);
+}
 
 function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   const work = resume.work || [];
@@ -80,9 +118,14 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   const total_yoe = earliest ? Math.max(0, new Date().getFullYear() - earliest) : prev.derived?.total_yoe;
   return {
     ...prev,
-    skills: skills.length ? skills.map(name => ({ name })) : prev.skills,
+    skills: skills.length ? skills.map(name => ({ name, level: null, years: null, last_used: null })) : prev.skills,
     experiences: work.length
-      ? work.map(w => ({ company: w.company || "", title: w.title || "", location: w.location, start: w.start, end: w.end, current: !w.end, bullets: w.bullets || [] }))
+      ? work.map(w => ({
+          company: w.company || "", title: w.title || "", location: w.location,
+          start: w.start, end: w.end, current: !w.end,
+          bullets: (w.bullets || []).slice(0, 5),
+          bullets_from_resume: (w.bullets || []).length > 0,
+        }))
       : prev.experiences,
     education: edu.length
       ? edu.map(e => ({ school: e.school || "", degree: e.degree, field: e.field, start: e.start, end: e.end }))
@@ -104,16 +147,18 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
   const [personalTouched, setPersonalTouched] = useState<Partial<Record<PersonalKey, boolean>>>({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [uploading, setUploading] = useState(false);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string } | null>(null);
-  // v3.4.0 — legacy accounts can hold several resumes from before the
-  // one-resume rule. They are read only and exist so nobody loses a file.
   const [olderResumes, setOlderResumes] = useState<{ id: string; title: string; created_at: string; content: ResumeContent }[]>([]);
   const [showOlder, setShowOlder] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
+  const [openSkill, setOpenSkill] = useState<number | null>(null);
+  const [levelPromptDone, setLevelPromptDone] = useState(
+    () => sessionStorage.getItem("ayn_skill_level_prompt") === "done"
+  );
 
   // ── Load everything the single profile reads from ───────────────────────
   const load = useCallback(async () => {
@@ -131,7 +176,10 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
         supabase.auth.getUser(),
       ]);
 
-      setCareer({ ...EMPTY, ...((canon ?? {}) as unknown as Partial<Career>) });
+      const c = { ...EMPTY, ...((canon ?? {}) as unknown as Partial<Career>) };
+      // v3.5.0 migration: bare string skills become objects with empty level.
+      c.skills = normalizeSkills((canon as { skills?: unknown } | null)?.skills);
+      setCareer(c);
 
       if (prof) {
         const addr = (prof.address ?? {}) as Record<string, string>;
@@ -176,7 +224,6 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
 
   useEffect(() => { load(); }, [load]);
 
-
   // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
   const fallback = useMemo(() => {
     const b = resumeContent?.basics ?? {};
@@ -184,33 +231,93 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     const links = (b.links ?? []) as Array<{ label?: string; url?: string }>;
     const findLink = (needle: string) =>
       links.find(l => `${l.label || ""} ${l.url || ""}`.toLowerCase().includes(needle))?.url || "";
-    const map: Record<PersonalKey, { value: string; source: SourceTag }> = {
-      first_name: { value: nameParts[0] || "", source: nameParts.length ? "resume" : "none" },
-      last_name: { value: nameParts.slice(1).join(" "), source: nameParts.length > 1 ? "resume" : "none" },
-      email: b.email ? { value: b.email, source: "resume" } : { value: accountEmail, source: accountEmail ? "account" : "none" },
-      phone: { value: b.phone || "", source: b.phone ? "resume" : "none" },
-      city: { value: b.location || "", source: b.location ? "resume" : "none" },
-      linkedin: { value: findLink("linkedin"), source: findLink("linkedin") ? "resume" : "none" },
-      github: { value: findLink("github"), source: findLink("github") ? "resume" : "none" },
-      portfolio: { value: findLink("portfolio"), source: findLink("portfolio") ? "resume" : "none" },
+    const map: Record<PersonalKey, string> = {
+      first_name: nameParts[0] || "",
+      last_name: nameParts.slice(1).join(" "),
+      email: b.email || accountEmail || "",
+      phone: b.phone || "",
+      city: b.location || "",
+      linkedin: findLink("linkedin"),
+      github: findLink("github"),
+      portfolio: findLink("portfolio"),
     };
     return map;
   }, [resumeContent, accountEmail]);
 
-  const field = (k: PersonalKey) => {
+  /**
+   * v3.5.0 provenance rules. Only three states reach the UI:
+   *  resume  — the shown value came from the resume and was not changed
+   *  edited  — there is a resume value and the user moved away from it
+   *  none    — the user typed it and there is nothing to compare against
+   */
+  const field = (k: PersonalKey): { value: string; source: "resume" | "edited" | "none"; original?: string } => {
     const entered = personal[k];
-    if (personalTouched[k] || entered) return { value: entered, source: "entered" as SourceTag };
-    return fallback[k];
+    const fromResume = fallback[k];
+    if (!personalTouched[k] && !entered) {
+      return { value: fromResume, source: fromResume ? "resume" : "none" };
+    }
+    if (fromResume && entered.trim() !== fromResume.trim()) {
+      return { value: entered, source: "edited", original: fromResume };
+    }
+    return { value: entered, source: fromResume ? "resume" : "none" };
   };
+
   const setPersonalField = (k: PersonalKey, v: string) => {
     setPersonal(p => ({ ...p, [k]: v }));
     setPersonalTouched(t => ({ ...t, [k]: true }));
   };
 
-  const resumeSkillSet = useMemo(
-    () => new Set((resumeContent?.skills ?? []).map(s => String(s).toLowerCase().trim())),
-    [resumeContent]
-  );
+  // ── Autosave ─────────────────────────────────────────────────────────────
+  const stateRef = useRef({ career, personal, personalTouched, fallback });
+  stateRef.current = { career, personal, personalTouched, fallback };
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const persist = useCallback(async () => {
+    const { career: c, personal: p, personalTouched: t, fallback: fb } = stateRef.current;
+    const val = (k: PersonalKey) => (t[k] || p[k] ? p[k] : fb[k]);
+    setSaveState("saving");
+    try {
+      const [{ error: cErr }, { error: pErr }] = await Promise.all([
+        supabase.from("user_profile_canonical").upsert({
+          user_id: userId,
+          skills: c.skills ?? [],
+          experiences: c.experiences ?? [],
+          education: c.education ?? [],
+          certifications: c.certifications ?? [],
+          work_auth: c.work_auth ?? {},
+          preferences: c.preferences ?? {},
+          derived: c.derived ?? {},
+          updated_at: new Date().toISOString(),
+        } as unknown as never, { onConflict: "user_id" }),
+        supabase.from("user_profile_data").upsert({
+          user_id: userId,
+          legal_first_name: val("first_name") || null,
+          legal_last_name: val("last_name") || null,
+          email: val("email") || null,
+          phone: val("phone") || null,
+          address: { city: val("city") || "" },
+          links: { linkedin: val("linkedin") || "", github: val("github") || "", portfolio: val("portfolio") || "" },
+          updated_at: new Date().toISOString(),
+        } as unknown as never, { onConflict: "user_id" }),
+      ]);
+      if (cErr) throw new Error(cErr.message);
+      if (pErr) throw new Error(pErr.message);
+      void notifyProfileUpdated();
+      reindexTalentPool("profile_save");
+      setSaveState("saved");
+    } catch (e) {
+      setSaveState("idle");
+      toast({ title: "Save failed", description: (e as Error).message, variant: "destructive" });
+    }
+  }, [toast, userId]);
+
+  /** Called on blur and on every discrete control change. */
+  const queueSave = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { void persist(); }, 900);
+  }, [persist]);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   // ── Resume upload: becomes THE active resume, previous one goes inactive ──
   const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
@@ -224,12 +331,11 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       if (error) throw error;
       setResumeContent(resume);
       setCareer(prev => mapResumeToCareer(resume, prev));
-      // Resumes are written client side, so the pool index would go stale.
-      // Fire and forget, opt-in gated, never blocks the save.
       reindexTalentPool("resume_upload");
       setReplaceOpen(false);
       await load();
-      toast({ title: "Resume saved", description: "Review the fields below, then Save profile." });
+      queueSave();
+      toast({ title: "Resume saved", description: "AYN filled in what it could read. Check your skills and achievements below." });
     } catch (e) {
       toast({ title: "Upload failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -255,51 +361,6 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     setOlderResumes(list => list.filter(r => r.id !== id));
   };
 
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const [{ error: cErr }, { error: pErr }] = await Promise.all([
-        supabase.from("user_profile_canonical").upsert({
-          user_id: userId,
-          skills: career.skills ?? [],
-          experiences: career.experiences ?? [],
-          education: career.education ?? [],
-          certifications: career.certifications ?? [],
-          work_auth: career.work_auth ?? {},
-          preferences: career.preferences ?? {},
-          derived: career.derived ?? {},
-          updated_at: new Date().toISOString(),
-        } as unknown as never, { onConflict: "user_id" }),
-        supabase.from("user_profile_data").upsert({
-          user_id: userId,
-          legal_first_name: field("first_name").value || null,
-          legal_last_name: field("last_name").value || null,
-          email: field("email").value || null,
-          phone: field("phone").value || null,
-          address: { city: field("city").value || "" },
-          links: {
-            linkedin: field("linkedin").value || "",
-            github: field("github").value || "",
-            portfolio: field("portfolio").value || "",
-          },
-          updated_at: new Date().toISOString(),
-        } as unknown as never, { onConflict: "user_id" }),
-      ]);
-      if (cErr) throw new Error(cErr.message);
-      if (pErr) throw new Error(pErr.message);
-      void notifyProfileUpdated();
-      // Profile fields are upserted straight to Supabase here, they do not go
-      // through profile_canonical_save, so nothing reindexes server side.
-      reindexTalentPool("profile_save");
-      toast({ title: "Profile saved" });
-    } catch (e) {
-      toast({ title: "Save failed", description: (e as Error).message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const setDerived = (k: keyof Derived, v: unknown) => setCareer(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
   const setWA = (k: keyof WorkAuth, v: unknown) => setCareer(p => ({ ...p, work_auth: { ...p.work_auth, [k]: v } }));
   const setPref = (k: keyof Prefs, v: unknown) => setCareer(p => ({ ...p, preferences: { ...p.preferences, [k]: v } }));
@@ -319,17 +380,62 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
         work_authorized_us: next.includes("United States"),
       },
     }));
+    queueSave();
   };
 
+  const updateSkill = (i: number, next: Skill) => { updateAt(setCareer, "skills", i, next); queueSave(); };
+  const updateExp = (i: number, next: Exp) => { updateAt(setCareer, "experiences", i, next); queueSave(); };
+  const updateEdu = (i: number, next: Edu) => { updateAt(setCareer, "education", i, next); queueSave(); };
+
+  const skillsWithLevel = career.skills.filter(s => !!s.level).length;
+  const rolesWithAchievements = career.experiences.filter(e => (e.bullets ?? []).filter(Boolean).length > 0).length;
+
+  const readiness = computeReadiness({
+    firstName: field("first_name").value,
+    email: field("email").value,
+    currentTitle: career.derived.current_title,
+    city: field("city").value,
+    desiredTitles: career.preferences.desired_titles,
+    countries,
+    citizenship: career.work_auth.citizenship,
+    skillsCount: career.skills.length,
+    experiencesCount: career.experiences.length,
+    skillsWithLevel,
+    rolesWithAchievements,
+    availability: career.preferences.availability,
+    employmentTypes: career.preferences.employment_types,
+    knownForCount: (career.derived.known_for ?? []).length,
+  });
+
+  const needsLevelPrompt =
+    !levelPromptDone && career.skills.length > 0 && skillsWithLevel === 0;
+
+  const nonCitizenCountries = countries.filter(
+    c => !career.work_auth.citizenship || c.toLowerCase() !== career.work_auth.citizenship.toLowerCase()
+  );
 
   if (loading) {
     return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading profile…</div>;
   }
 
   return (
-    <div className="space-y-6">
-      {/* ── 0. Your resume (v3.4.0: one active resume, no library) ──────── */}
-      <Group title="Your resume" line="Everything AYN writes starts from this.">
+    <div className="space-y-4">
+      {/* ── Matching readiness, and the autosave indicator ───────────────── */}
+      <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-2 min-w-0">
+          {readiness.ready
+            ? <Check className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
+            : <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-primary" />}
+          <p className="text-xs leading-relaxed">{readiness.line}</p>
+        </div>
+        <span className="text-[11px] text-muted-foreground shrink-0 flex items-center gap-1.5">
+          {saveState === "saving" && <><Loader2 className="w-3 h-3 animate-spin" /> Saving</>}
+          {saveState === "saved" && <><Check className="w-3 h-3" /> Saved</>}
+        </span>
+      </div>
+
+      {/* ── 1. Your resume ───────────────────────────────────────────────── */}
+      <Group id="resume" title="Your resume" line="Everything AYN writes starts from this.">
         {primaryResume ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 min-w-0">
@@ -406,72 +512,328 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
         )}
       </Group>
 
-
-      {/* ── 1. About you ───────────────────────────────────────────────── */}
-      <Group title="About you" line="Used in your tailored resumes and cover letters.">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <SourcedField label="First name" f={field("first_name")} onChange={v => setPersonalField("first_name", v)} />
-          <SourcedField label="Last name" f={field("last_name")} onChange={v => setPersonalField("last_name", v)} />
-          <SourcedField label="Email" f={field("email")} onChange={v => setPersonalField("email", v)} />
-          <SourcedField label="Phone" f={field("phone")} onChange={v => setPersonalField("phone", v)} />
-          <SourcedField label="Location" f={field("city")} onChange={v => setPersonalField("city", v)} placeholder="City, region" />
-          <SourcedField
-            label="Current title"
-            f={{
-              value: career.derived.current_title || "",
-              source: career.derived.current_title ? "entered" : "none",
-            }}
-            onChange={v => setDerived("current_title", v)}
-          />
-          <SourcedField
-            label="Current company"
-            f={{
-              value: career.derived.current_company || "",
-              source: career.derived.current_company ? "entered" : "none",
-            }}
-            onChange={v => setDerived("current_company", v)}
-          />
-          <SourcedField label="LinkedIn" f={field("linkedin")} onChange={v => setPersonalField("linkedin", v)} placeholder="https://" />
-          <SourcedField label="GitHub" f={field("github")} onChange={v => setPersonalField("github", v)} placeholder="https://" />
-          <SourcedField label="Portfolio" f={field("portfolio")} onChange={v => setPersonalField("portfolio", v)} placeholder="https://" />
+      {/* ── 2. About you ─────────────────────────────────────────────────── */}
+      <Group id="about" title="About you" line="Used in your tailored resumes and cover letters.">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SourcedField label="First name" f={field("first_name")} onChange={v => setPersonalField("first_name", v)} onBlur={queueSave} onRevert={v => { setPersonalField("first_name", v); queueSave(); }} />
+          <SourcedField label="Last name" f={field("last_name")} onChange={v => setPersonalField("last_name", v)} onBlur={queueSave} onRevert={v => { setPersonalField("last_name", v); queueSave(); }} />
+          <SourcedField label="Email" f={field("email")} onChange={v => setPersonalField("email", v)} onBlur={queueSave} onRevert={v => { setPersonalField("email", v); queueSave(); }} />
+          <SourcedField label="Phone" f={field("phone")} onChange={v => setPersonalField("phone", v)} onBlur={queueSave} onRevert={v => { setPersonalField("phone", v); queueSave(); }} />
+          <SourcedField label="Location" f={field("city")} onChange={v => setPersonalField("city", v)} onBlur={queueSave} placeholder="City, region" onRevert={v => { setPersonalField("city", v); queueSave(); }} />
+          <PlainField label="Current title" value={career.derived.current_title || ""} onChange={v => setDerived("current_title", v)} onBlur={queueSave} />
+          <PlainField label="Current company" value={career.derived.current_company || ""} onChange={v => setDerived("current_company", v)} onBlur={queueSave} />
+          <SourcedField label="LinkedIn" f={field("linkedin")} onChange={v => setPersonalField("linkedin", v)} onBlur={queueSave} placeholder="https://" onRevert={v => { setPersonalField("linkedin", v); queueSave(); }} />
+          <SourcedField label="GitHub" f={field("github")} onChange={v => setPersonalField("github", v)} onBlur={queueSave} placeholder="https://" onRevert={v => { setPersonalField("github", v); queueSave(); }} />
+          <SourcedField label="Portfolio" f={field("portfolio")} onChange={v => setPersonalField("portfolio", v)} onBlur={queueSave} placeholder="https://" onRevert={v => { setPersonalField("portfolio", v); queueSave(); }} />
         </div>
       </Group>
 
-      {/* ── 2. What you're looking for ─────────────────────────────────── */}
-      <Group title="What you're looking for" line="Helps employers searching the talent pool find you for the right roles.">
+      {/* ── 3. Your experience ───────────────────────────────────────────── */}
+      <Group id="experience" title="Your experience" line="This is what AYN scores against a job and tailors from.">
+        {/* Skills */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Skills ({career.skills.length})</p>
+            <span className="text-[11px] text-muted-foreground">
+              {skillsWithLevel} of {career.skills.length} have a level
+            </span>
+          </div>
+
+          {needsLevelPrompt && (
+            <div className="rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-xs flex items-start justify-between gap-3">
+              <span className="leading-relaxed">
+                Your skills came across as names only. Add a level to your top five, not all of them. That is
+                what an employer search actually ranks on.
+              </span>
+              <button
+                type="button"
+                className="underline shrink-0 hover:text-foreground"
+                onClick={() => { sessionStorage.setItem("ayn_skill_level_prompt", "done"); setLevelPromptDone(true); }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {career.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Upload a resume and AYN fills these in.</p>}
+
+          <div className="flex flex-wrap gap-1.5">
+            {career.skills.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setOpenSkill(openSkill === i ? null : i)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+                  openSkill === i ? "border-primary bg-primary/10" : "border-border hover:border-foreground/40"
+                }`}
+              >
+                <span className="font-medium">{s.name || "Untitled skill"}</span>
+                {s.level && <span className="text-muted-foreground">{LEVELS.find(l => l.value === s.level)?.label}</span>}
+                {s.last_used && <span className="text-muted-foreground">· {LAST_USED.find(l => l.value === s.last_used)?.label}</span>}
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </button>
+            ))}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => { setCareer(p => ({ ...p, skills: [...p.skills, { name: "", level: null, years: null, last_used: null }] })); setOpenSkill(career.skills.length); }}
+            >
+              <Plus className="w-3 h-3" /> Add skill
+            </button>
+          </div>
+
+          {openSkill !== null && career.skills[openSkill] && (
+            <div className="rounded-lg border p-3 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Skill</Label>
+                  <Input
+                    value={career.skills[openSkill].name}
+                    onChange={e => updateSkill(openSkill, { ...career.skills[openSkill], name: e.target.value })}
+                    onBlur={queueSave}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Years (optional)</Label>
+                  <Input
+                    type="number"
+                    value={career.skills[openSkill].years ?? ""}
+                    onChange={e => updateSkill(openSkill, { ...career.skills[openSkill], years: e.target.value === "" ? null : Number(e.target.value) })}
+                    onBlur={queueSave}
+                  />
+                </div>
+              </div>
+              <OptionRow
+                label="Level"
+                options={LEVELS}
+                value={career.skills[openSkill].level ?? null}
+                onChange={v => updateSkill(openSkill, { ...career.skills[openSkill], level: v as SkillLevel | null })}
+              />
+              <OptionRow
+                label="Last used"
+                options={LAST_USED}
+                value={career.skills[openSkill].last_used ?? null}
+                onChange={v => updateSkill(openSkill, { ...career.skills[openSkill], last_used: v as LastUsed | null })}
+              />
+              <div className="flex justify-between">
+                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "skills", openSkill); setOpenSkill(null); queueSave(); }}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remove
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setOpenSkill(null)}>Done</Button>
+              </div>
+            </div>
+          )}
+
+          <BulkAdd
+            placeholder="Paste several skills separated by commas"
+            onAdd={names => {
+              setCareer(p => ({ ...p, skills: [...p.skills, ...names.map(n => ({ name: n, level: null, years: null, last_used: null }))] }));
+              queueSave();
+            }}
+          />
+        </div>
+
+        {/* Work history — content visible by default */}
+        <div className="space-y-2 pt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Work history ({career.experiences.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, experiences: [...p.experiences, { company: "", title: "", bullets: [""] }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add role
+            </Button>
+          </div>
+          {career.experiences.length === 0 && <p className="text-xs text-muted-foreground">No roles yet.</p>}
+
+          {career.experiences.map((e, i) => (
+            <div key={i} className="rounded-lg border p-3 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <PlainField label="Title" value={e.title} onChange={v => updateExp(i, { ...e, title: v })} onBlur={queueSave} />
+                <PlainField label="Company" value={e.company} onChange={v => updateExp(i, { ...e, company: v })} onBlur={queueSave} />
+                <PlainField label="Start" value={e.start || ""} onChange={v => updateExp(i, { ...e, start: v })} onBlur={queueSave} placeholder="2022-01" />
+                <PlainField label="End" value={e.end || ""} onChange={v => updateExp(i, { ...e, end: v })} onBlur={queueSave} placeholder="Present" />
+                <PlainField label="Location" value={e.location || ""} onChange={v => updateExp(i, { ...e, location: v })} onBlur={queueSave} placeholder="City, or Remote" />
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Industry or domain</Label>
+                  <Input
+                    list="ayn-industries"
+                    value={e.industry || ""}
+                    onChange={ev => updateExp(i, { ...e, industry: ev.target.value })}
+                    onBlur={queueSave}
+                    placeholder="Fintech, healthcare, enterprise SaaS"
+                  />
+                </div>
+                <PlainField
+                  label="Team size managed (optional)"
+                  type="number"
+                  value={e.team_size == null ? "" : String(e.team_size)}
+                  onChange={v => updateExp(i, { ...e, team_size: v === "" ? null : Number(v) })}
+                  onBlur={queueSave}
+                />
+                <label className="flex items-center justify-between rounded-md border px-3 py-2 text-sm self-end">
+                  <span>Current role</span>
+                  <Switch checked={!!e.current} onCheckedChange={v => updateExp(i, { ...e, current: v })} />
+                </label>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">Achievements</Label>
+                  {e.bullets_from_resume && <Badge variant="outline" className="text-[10px] font-normal">From your resume</Badge>}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  These are the lines tailoring rewrites for each job. Empty here means tailoring has nothing to work with.
+                </p>
+                {(e.bullets ?? []).map((b, bi) => (
+                  <div key={bi} className="flex gap-2">
+                    <Textarea
+                      rows={2}
+                      value={b}
+                      placeholder="Cut checkout latency by 40 percent for 2 million monthly users"
+                      onChange={ev => {
+                        const next = [...(e.bullets ?? [])];
+                        next[bi] = ev.target.value;
+                        updateExp(i, { ...e, bullets: next });
+                      }}
+                      onBlur={queueSave}
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      updateExp(i, { ...e, bullets: (e.bullets ?? []).filter((_, j) => j !== bi) });
+                    }}><X className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+                {(e.bullets ?? []).length < 5 && (
+                  <Button variant="ghost" size="sm" onClick={() => updateExp(i, { ...e, bullets: [...(e.bullets ?? []), ""] })}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Add achievement
+                  </Button>
+                )}
+                {(e.bullets ?? []).filter(Boolean).length > 0 && (e.bullets ?? []).filter(Boolean).length < 2 && (
+                  <p className="text-[11px] text-muted-foreground">Two to five achievements give tailoring enough to choose from.</p>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "experiences", i); queueSave(); }}>Remove role</Button>
+              </div>
+            </div>
+          ))}
+          <datalist id="ayn-industries">
+            {INDUSTRIES.map(x => <option key={x} value={x} />)}
+          </datalist>
+        </div>
+
+        {/* Education */}
+        <div className="space-y-2 pt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Education ({career.education.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, education: [...p.education, { school: "" }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add school
+            </Button>
+          </div>
+          {career.education.length === 0 && <p className="text-xs text-muted-foreground">No education entries yet.</p>}
+          {career.education.map((e, i) => (
+            <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-3 border rounded-lg p-3">
+              <PlainField label="School" value={e.school} onChange={v => updateEdu(i, { ...e, school: v })} onBlur={queueSave} />
+              <PlainField label="Degree" value={e.degree || ""} onChange={v => updateEdu(i, { ...e, degree: v })} onBlur={queueSave} placeholder="BSc" />
+              <PlainField label="Field of study" value={e.field || ""} onChange={v => updateEdu(i, { ...e, field: v })} onBlur={queueSave} placeholder="Computer science" />
+              <PlainField label="End year" value={e.end || ""} onChange={v => updateEdu(i, { ...e, end: v })} onBlur={queueSave} />
+              <div className="sm:col-span-2 flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => { removeAt(setCareer, "education", i); queueSave(); }}>Remove</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Derived signals employers and scoring both use */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
+          <PlainField
+            label="Total years of experience"
+            type="number"
+            value={career.derived.total_yoe == null ? "" : String(career.derived.total_yoe)}
+            onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))}
+            onBlur={queueSave}
+          />
+          <PlainField label="Seniority" value={career.derived.seniority || ""} onChange={v => setDerived("seniority", v)} onBlur={queueSave} placeholder="entry, mid, senior, staff" />
+          <PlainField label="Primary function" value={career.derived.primary_function || ""} onChange={v => setDerived("primary_function", v)} onBlur={queueSave} placeholder="Backend, Product, Design" />
+        </div>
+
+        {/* What you are known for */}
+        <div className="space-y-1.5 pt-4">
+          <Label className="text-xs text-muted-foreground">What you are known for (optional)</Label>
+          <p className="text-[11px] text-muted-foreground">
+            The two or three things you would want a hiring manager to know first. AYN uses these in cover
+            letters and in the summary employers see.
+          </p>
+          {[0, 1, 2].map(idx => (
+            <Input
+              key={idx}
+              value={(career.derived.known_for ?? [])[idx] ?? ""}
+              placeholder={idx === 0 ? "Shipped payments infrastructure at scale" : "Add another"}
+              onChange={ev => {
+                const next = [...(career.derived.known_for ?? ["", "", ""])];
+                while (next.length < 3) next.push("");
+                next[idx] = ev.target.value;
+                setDerived("known_for", next);
+              }}
+              onBlur={() => { setDerived("known_for", (career.derived.known_for ?? []).filter(Boolean)); queueSave(); }}
+            />
+          ))}
+        </div>
+      </Group>
+
+      {/* ── 4. What you are looking for ──────────────────────────────────── */}
+      <Group id="looking" title="What you are looking for" line="Employers searching for candidates match on this first.">
         <ChipList
           label="Desired titles"
           values={career.preferences.desired_titles || []}
-          onChange={v => setPref("desired_titles", v)}
+          onChange={v => { setPref("desired_titles", v); queueSave(); }}
           placeholder="Add a title"
         />
         <ChipList
           label="Desired locations"
           values={career.preferences.desired_locations || []}
-          onChange={v => setPref("desired_locations", v)}
+          onChange={v => { setPref("desired_locations", v); queueSave(); }}
           placeholder="Add a city or region"
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <SourcedField
+        <MultiSelect
+          label="Employment type"
+          options={EMPLOYMENT_TYPES}
+          values={career.preferences.employment_types || []}
+          onChange={v => { setPref("employment_types", v); queueSave(); }}
+        />
+        <SingleSelect
+          label="Availability"
+          options={AVAILABILITY}
+          value={career.preferences.availability || ""}
+          onChange={v => { setPref("availability", v); queueSave(); }}
+        />
+        <MultiSelect
+          label="Company stage"
+          options={COMPANY_STAGES}
+          values={career.preferences.company_stages || []}
+          onChange={v => { setPref("company_stages", v); queueSave(); }}
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <PlainField
             label="Minimum salary"
             type="number"
-            f={{ value: String(career.preferences.salary_min_usd ?? ""), source: career.preferences.salary_min_usd != null ? "entered" : "none" }}
+            value={career.preferences.salary_min_usd == null ? "" : String(career.preferences.salary_min_usd)}
             onChange={v => setPref("salary_min_usd", v === "" ? undefined : Number(v))}
+            onBlur={queueSave}
             placeholder="80000"
           />
-          <SourcedField
+          <PlainField
             label="Currency"
-            f={{ value: career.preferences.salary_currency || "", source: career.preferences.salary_currency ? "entered" : "none" }}
+            value={career.preferences.salary_currency || ""}
             onChange={v => setPref("salary_currency", v)}
+            onBlur={queueSave}
             placeholder="CAD, USD, EUR"
           />
-          <Toggle label="Open to remote" value={!!career.preferences.open_to_remote} onChange={v => setPref("open_to_remote", v)} />
-          <Toggle label="Open to relocation" value={!!career.preferences.open_to_relocation} onChange={v => setPref("open_to_relocation", v)} />
+          <Toggle label="Open to remote" value={!!career.preferences.open_to_remote} onChange={v => { setPref("open_to_remote", v); queueSave(); }} />
+          <Toggle label="Open to relocation" value={!!career.preferences.open_to_relocation} onChange={v => { setPref("open_to_relocation", v); queueSave(); }} />
         </div>
       </Group>
 
-      {/* ── 3. Work eligibility ────────────────────────────────────────── */}
-      <Group title="Work eligibility" line="Employers filter on this. Getting it right means fewer wrong matches.">
+      {/* ── 5. Work eligibility ──────────────────────────────────────────── */}
+      <Group id="eligibility" title="Work eligibility" line="Employers filter on this before anything else.">
         <div>
           <Label className="text-xs text-muted-foreground">Countries you can work in</Label>
           <div className="flex flex-wrap gap-2 mt-1.5">
@@ -491,111 +853,25 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <SourcedField
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <PlainField
             label="Citizenship"
-            f={{ value: career.work_auth.citizenship || "", source: career.work_auth.citizenship ? "entered" : "none" }}
+            value={career.work_auth.citizenship || ""}
             onChange={v => setWA("citizenship", v)}
+            onBlur={queueSave}
             placeholder="e.g. Canada"
           />
-          <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => setWA("needs_sponsorship_now", v)} />
-          <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => setWA("needs_sponsorship_future", v)} />
-        </div>
-      </Group>
-
-      {/* ── 4. Your experience ─────────────────────────────────────────── */}
-      <Group title="Your experience" line="This is what AYN scores against a job and tailors from.">
-        {/* Skills */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Skills ({career.skills.length})</p>
-            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, skills: [...p.skills, { name: "" }] }))}>
-              <Plus className="w-4 h-4 mr-1" /> Add skill
-            </Button>
-          </div>
-          {career.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Upload a resume and AYN fills these in.</p>}
-          {career.skills.map((s, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 items-center">
-              <Input className="col-span-6" placeholder="Skill" value={s.name} onChange={e => updateAt(setCareer, "skills", i, { ...s, name: e.target.value })} />
-              <Input className="col-span-2" type="number" placeholder="Years" value={s.years ?? ""} onChange={e => updateAt(setCareer, "skills", i, { ...s, years: e.target.value === "" ? undefined : Number(e.target.value) })} />
-              <span className="col-span-3 text-[11px] text-muted-foreground">
-                {resumeSkillSet.has(s.name.toLowerCase().trim()) ? SOURCE_LABEL.resume : SOURCE_LABEL.entered}
-              </span>
-              <Button variant="ghost" size="icon" className="col-span-1" onClick={() => removeAt(setCareer, "skills", i)}><X className="w-4 h-4" /></Button>
-            </div>
-          ))}
-        </div>
-
-        {/* Work history */}
-        <div className="space-y-2 pt-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Work history ({career.experiences.length})</p>
-            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, experiences: [...p.experiences, { company: "", title: "" }] }))}>
-              <Plus className="w-4 h-4 mr-1" /> Add role
-            </Button>
-          </div>
-          {career.experiences.length === 0 && <p className="text-xs text-muted-foreground">No roles yet.</p>}
-          {career.experiences.map((e, i) => (
-            <div key={i} className="rounded-lg border p-3 space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Input placeholder="Title" value={e.title} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, title: ev.target.value })} />
-                <Input placeholder="Company" value={e.company} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, company: ev.target.value })} />
-                <Input placeholder="Start" value={e.start || ""} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, start: ev.target.value })} />
-                <Input placeholder="End (or Present)" value={e.end || ""} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, end: ev.target.value })} />
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch checked={!!e.current} onCheckedChange={v => updateAt(setCareer, "experiences", i, { ...e, current: v })} />
-                  Current role
-                </label>
-                <Button variant="ghost" size="sm" onClick={() => removeAt(setCareer, "experiences", i)}>Remove</Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Education */}
-        <div className="space-y-2 pt-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Education ({career.education.length})</p>
-            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, education: [...p.education, { school: "" }] }))}>
-              <Plus className="w-4 h-4 mr-1" /> Add school
-            </Button>
-          </div>
-          {career.education.length === 0 && <p className="text-xs text-muted-foreground">No education entries yet.</p>}
-          {career.education.map((e, i) => (
-            <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3">
-              <Input placeholder="School" value={e.school} onChange={ev => updateAt(setCareer, "education", i, { ...e, school: ev.target.value })} />
-              <Input placeholder="Degree" value={e.degree || ""} onChange={ev => updateAt(setCareer, "education", i, { ...e, degree: ev.target.value })} />
-              <Input placeholder="Field" value={e.field || ""} onChange={ev => updateAt(setCareer, "education", i, { ...e, field: ev.target.value })} />
-              <Input placeholder="End year" value={e.end || ""} onChange={ev => updateAt(setCareer, "education", i, { ...e, end: ev.target.value })} />
-              <div className="sm:col-span-2 flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => removeAt(setCareer, "education", i)}>Remove</Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Derived signals employers and scoring both use */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <SourcedField
-            label="Total years of experience"
-            type="number"
-            f={{ value: String(career.derived.total_yoe ?? ""), source: career.derived.total_yoe != null ? "entered" : "none" }}
-            onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))}
-          />
-          <SourcedField
-            label="Seniority"
-            f={{ value: career.derived.seniority || "", source: career.derived.seniority ? "entered" : "none" }}
-            onChange={v => setDerived("seniority", v)}
-            placeholder="entry, mid, senior, staff"
-          />
-          <SourcedField
-            label="Primary function"
-            f={{ value: career.derived.primary_function || "", source: career.derived.primary_function ? "entered" : "none" }}
-            onChange={v => setDerived("primary_function", v)}
-            placeholder="Backend, Product, Design"
-          />
+          {nonCitizenCountries.length > 0 && (
+            <PlainField
+              label="Work permit expires (optional)"
+              type="date"
+              value={career.work_auth.work_permit_expires || ""}
+              onChange={v => setWA("work_permit_expires", v)}
+              onBlur={queueSave}
+            />
+          )}
+          <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => { setWA("needs_sponsorship_now", v); queueSave(); }} />
+          <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => { setWA("needs_sponsorship_future", v); queueSave(); }} />
         </div>
       </Group>
 
@@ -609,45 +885,144 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
           Get discovered <ArrowRight className="w-3 h-3" />
         </button>
       </p>
-
-      <div className="sticky bottom-4 z-10 flex justify-end pt-2">
-        <Button size="lg" onClick={save} disabled={saving} className="shadow-lg">
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save profile
-        </Button>
-      </div>
     </div>
   );
 }
 
 // ── Presentation helpers ─────────────────────────────────────────────────────
-function Group({ title, line, children }: { title: string; line: string; children: React.ReactNode }) {
+function Group({ id, title, line, children }: { id: string; title: string; line: string; children: React.ReactNode }) {
+  const key = `ayn_profile_group_${id}`;
+  const [open, setOpen] = useState(() => sessionStorage.getItem(key) !== "closed");
+  const toggle = () => setOpen(o => { sessionStorage.setItem(key, o ? "closed" : "open"); return !o; });
   return (
-    <Card className="p-4 sm:p-6 space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">{line}</p>
-      </div>
-      {children}
+    <Card className="p-4 sm:p-6">
+      <button type="button" onClick={toggle} className="w-full flex items-start justify-between gap-3 text-left">
+        <div>
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{line}</p>
+        </div>
+        <ChevronDown className={`w-4 h-4 mt-1 shrink-0 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && <div className="space-y-4 mt-4">{children}</div>}
     </Card>
   );
 }
 
+function PlainField({
+  label, value, onChange, onBlur, placeholder, type,
+}: {
+  label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} />
+    </div>
+  );
+}
+
 function SourcedField({
-  label, f, onChange, placeholder, type,
+  label, f, onChange, onBlur, onRevert, placeholder, type,
 }: {
   label: string;
-  f: { value: string; source: SourceTag };
+  f: { value: string; source: "resume" | "edited" | "none"; original?: string };
   onChange: (v: string) => void;
+  onBlur?: () => void;
+  onRevert?: (original: string) => void;
   placeholder?: string;
   type?: string;
 }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Input value={f.value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type} />
-      {f.source !== "none" && <p className="text-[11px] text-muted-foreground">{SOURCE_LABEL[f.source]}</p>}
+      <Input value={f.value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={type} />
+      {f.source === "resume" && <p className="text-[11px] text-muted-foreground">From your resume</p>}
+      {f.source === "edited" && (
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+          Edited by you
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 underline hover:text-foreground"
+            onClick={() => onRevert?.(f.original || "")}
+          >
+            <Undo2 className="w-3 h-3" /> Use resume value
+          </button>
+        </p>
+      )}
     </div>
+  );
+}
+
+function OptionRow({
+  label, options, value, onChange,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(value === o.value ? null : o.value)}
+            className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+              value === o.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MultiSelect({ label, options, values, onChange }: { label: string; options: string[]; values: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <OptionRowMulti label={label} options={options} values={values} onChange={onChange} />
+  );
+}
+
+function OptionRowMulti({ label, options, values, onChange }: { label: string; options: string[]; values: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map(o => {
+          const on = values.includes(o);
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => onChange(on ? values.filter(v => v !== o) : [...values, o])}
+              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
+              }`}
+            >
+              {o}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SingleSelect({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <OptionRow
+      label={label}
+      options={options.map(o => ({ value: o, label: o }))}
+      value={value || null}
+      onChange={v => onChange(v || "")}
+    />
   );
 }
 
@@ -657,6 +1032,27 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
       <span>{label}</span>
       <Switch checked={value} onCheckedChange={onChange} />
     </label>
+  );
+}
+
+function BulkAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (values: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const commit = () => {
+    const names = draft.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+    if (!names.length) return;
+    onAdd(names);
+    setDraft("");
+  };
+  return (
+    <div className="flex gap-2">
+      <Input
+        placeholder={placeholder}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+      />
+      <Button type="button" variant="outline" size="sm" onClick={commit}>Add</Button>
+    </div>
   );
 }
 
