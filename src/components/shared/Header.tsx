@@ -66,6 +66,16 @@ export const Header = () => {
   const getLabel = (link: typeof navLinks[0]) =>
   language === 'ar' ? link.ar : language === 'fr' ? link.fr : link.en;
 
+  // The landing page runs the dark Charcoal and Ember system, other marketing
+  // pages stay on the light surface, so the bar flips its palette by route.
+  const onDark = location.pathname === '/';
+  const inkStrong = onDark ? '#f7f4f2' : '#0a0a0f';
+  const inkSoft = onDark ? 'rgba(247,244,242,0.58)' : 'rgba(10,10,15,0.50)';
+  const pillBg = onDark ? 'rgba(38,38,38,0.75)' : 'rgba(255,255,255,0.95)';
+  const pillBorder = onDark ? 'rgba(255,255,255,0.10)' : 'rgba(10,10,15,0.10)';
+  const pillShadow = onDark ? '0 8px 28px -14px rgba(0,0,0,0.9)' : '0 1px 8px rgba(0,0,0,0.06)';
+  const headFont = onDark ? "'Outfit', system-ui, sans-serif" : "'Space Grotesk', 'Geist', system-ui, sans-serif";
+
   return (
     <>
       {/* Fixed top bar — transparent, no border, no background */}
@@ -73,7 +83,7 @@ export const Header = () => {
 
         {/* Mobile brand — left */}
         <Link to="/" className="md:hidden" style={{ position: 'absolute', left: 'clamp(16px,4vw,32px)', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-          <span style={{ fontFamily: "'Space Grotesk', 'Geist', system-ui, sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: '#0a0a0f' }}>AYN</span>
+          <span style={{ fontFamily: headFont, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
         </Link>
 
         {/* Centered glassmorphism pill — desktop / large tablets only */}
@@ -81,11 +91,11 @@ export const Header = () => {
           alignItems: 'center', gap: 28,
           padding: '9px 24px',
           borderRadius: 9999,
-          background: 'rgba(255,255,255,0.95)',
+          background: pillBg,
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          border: '1px solid rgba(10,10,15,0.10)',
-          boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+          border: `1px solid ${pillBorder}`,
+          boxShadow: pillShadow,
         }}>
           {navLinks.map((link) => (
             <Link
@@ -93,22 +103,24 @@ export const Header = () => {
               to={link.path}
               onClick={(e) => handleNavClick(e, link.path)}
               style={{
-                fontFamily: "'Space Grotesk', 'Geist', system-ui, sans-serif",
+                fontFamily: headFont,
                 fontSize: 14,
                 fontWeight: isActive(link.path) ? 500 : 400,
-                color: isActive(link.path) ? '#0a0a0f' : 'rgba(10,10,15,0.50)',
+                color: isActive(link.path) ? inkStrong : inkSoft,
                 textDecoration: 'none',
                 transition: 'color 0.15s',
                 whiteSpace: 'nowrap',
                 letterSpacing: '-0.01em',
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#0a0a0f')}
-              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? '#0a0a0f' : 'rgba(10,10,15,0.50)')}
+              onMouseEnter={e => (e.currentTarget.style.color = inkStrong)}
+              onMouseLeave={e => (e.currentTarget.style.color = isActive(link.path) ? inkStrong : inkSoft)}
             >
               {getLabel(link)}
             </Link>
           ))}
         </div>
+
+
 
         {/* Right side — EN + Get Started Free — absolutely positioned */}
         <div style={{ position: 'absolute', right: 'clamp(12px,4vw,32px)', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 'clamp(8px,2vw,20px)' }}>
