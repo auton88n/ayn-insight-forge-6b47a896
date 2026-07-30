@@ -10,11 +10,26 @@ import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, Plus, Trash2, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { ResumeUpload } from "./ResumeUpload";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
+import ResumeDiffViewer from "./ResumeDiffViewer";
 
 
 interface Props { userId: string }
 
 interface ResumeRow { id: string; title: string; is_primary: boolean; content: ResumeContent; ats_score: number | null }
+interface VersionRow { id: string; created_at: string; content: ResumeContent; created_for_job_id: string | null }
+
+/** Flatten a resume into plain text so the diff viewer can compare two of them. */
+function resumeToText(c: ResumeContent): string {
+  const b = c.basics ?? {};
+  const lines: string[] = [b.name ?? "", b.title ?? "", b.summary ?? "", ""];
+  (c.work ?? []).forEach(w => {
+    lines.push(`${w.title ?? ""} — ${w.company ?? ""}`.trim());
+    (w.bullets ?? []).forEach(x => lines.push(`• ${x}`));
+    lines.push("");
+  });
+  if ((c.skills ?? []).length) lines.push(`Skills: ${(c.skills ?? []).join(", ")}`);
+  return lines.join("\n");
+}
 
 export default function BuilderTab({ userId }: Props) {
   const { toast } = useToast();
@@ -25,6 +40,10 @@ export default function BuilderTab({ userId }: Props) {
   const [busy, setBusy] = useState(false);
   const [importText, setImportText] = useState("");
   const [showImport, setShowImport] = useState(false);
+  // v3.3.0 — the Resumes tab holds the builder AND every tailored version, so
+  // a version is where the diff viewer is reached from.
+  const [versions, setVersions] = useState<VersionRow[]>([]);
+  const [compareId, setCompareId] = useState<string | null>(null);
 
   const load = async () => {
     const { data } = await supabase.from("resumes").select("id, title, is_primary, content, ats_score").eq("user_id", userId).order("updated_at", { ascending: false });
@@ -38,6 +57,16 @@ export default function BuilderTab({ userId }: Props) {
     }
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
+
+  useEffect(() => {
+    setCompareId(null);
+    if (!activeId) { setVersions([]); return; }
+    supabase.from("resume_versions")
+      .select("id, created_at, content, created_for_job_id")
+      .eq("user_id", userId).eq("resume_id", activeId)
+      .order("created_at", { ascending: false }).limit(20)
+      .then(({ data }) => setVersions((data as unknown as VersionRow[]) ?? []));
+  }, [activeId, userId]);
 
   const selectResume = (r: ResumeRow) => {
     setActiveId(r.id);
@@ -202,6 +231,9 @@ export default function BuilderTab({ userId }: Props) {
       {/* Editor */}
       <div className="space-y-4">
         <Card className="p-4">
+          <p className="text-xs text-muted-foreground mb-3">
+            Your base resumes live here, along with every version AYN tailored for a specific job.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Resume title" className="max-w-xs" />
             <Button onClick={save} disabled={busy}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
@@ -248,6 +280,33 @@ export default function BuilderTab({ userId }: Props) {
             </div>
           )}
         </Card>
+
+        {versions.length > 0 && (
+          <Card className="p-4 space-y-3">
+            <h3 className="font-semibold">Tailored versions ({versions.length})</h3>
+            <p className="text-xs text-muted-foreground">
+              Each one was written for a specific job. Compare a version to see exactly what changed.
+            </p>
+            <div className="space-y-1.5">
+              {versions.map(v => (
+                <div key={v.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">
+                    Tailored {new Date(v.created_at).toLocaleDateString()}
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={() => setCompareId(compareId === v.id ? null : v.id)}>
+                    {compareId === v.id ? "Hide changes" : "Compare"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {compareId && (
+              <ResumeDiffViewer
+                original={resumeToText(content)}
+                improved={resumeToText(versions.find(v => v.id === compareId)!.content)}
+              />
+            )}
+          </Card>
+        )}
 
         <Card className="p-4 space-y-3">
           <h3 className="font-semibold">Basics</h3>

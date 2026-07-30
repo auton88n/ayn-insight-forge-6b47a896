@@ -21,12 +21,10 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Plus, X, FileUp, Users } from "lucide-react";
+import { Loader2, Save, Plus, X, FileUp, ArrowRight } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { employerApi, type RevealRequest } from "@/lib/employer";
-import TalentPoolCard from "./TalentPoolCard";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
 
 // ── Types (mirror the edge-function profile shape) ───────────────────────────
@@ -99,7 +97,7 @@ function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   };
 }
 
-export default function ProfileTab({ userId }: { userId: string }) {
+export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string; onOpenDiscovery: () => void }) {
   const { toast } = useToast();
   const [career, setCareer] = useState<Career>(EMPTY);
   const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
@@ -110,24 +108,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
-
-  // ── Intro requests from employers ───────────────────────────────────────
-  const [reveals, setReveals] = useState<RevealRequest[]>([]);
-  const [revealBusy, setRevealBusy] = useState<Record<string, boolean>>({});
-  const loadReveals = useCallback(async () => {
-    try { const r = await employerApi.revealList(); setReveals(r.requests || []); } catch { /* silent */ }
-  }, []);
-  useEffect(() => { loadReveals(); }, [loadReveals]);
-  const decideReveal = async (id: string, approve: boolean) => {
-    setRevealBusy(p => ({ ...p, [id]: true }));
-    try {
-      await employerApi.revealDecide(id, approve);
-      toast({ title: approve ? "Contact shared" : "Declined" });
-      await loadReveals();
-    } catch (e) {
-      toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
-    } finally { setRevealBusy(p => ({ ...p, [id]: false })); }
-  };
 
   // ── Load everything the single profile reads from ───────────────────────
   const load = useCallback(async () => {
@@ -304,37 +284,10 @@ export default function ProfileTab({ userId }: { userId: string }) {
     }));
   };
 
-  // Findability, one line per group, concrete about what employers cannot
-  // match on. No score out of 100.
-  const groupGaps = [
-    {
-      group: "About you",
-      complete: !!(personal.first_name && personal.email && (career.derived.current_title || personal.city)),
-      consequence: "Without a current title and location, employers cannot place you on their shortlist.",
-    },
-    {
-      group: "What you're looking for",
-      complete: (career.preferences.desired_titles?.length ?? 0) > 0,
-      consequence: "No desired titles means you will not surface for role based searches.",
-    },
-    {
-      group: "Where you can work",
-      complete: countries.length > 0 || !!career.work_auth.citizenship,
-      consequence: "Employers filter by work eligibility first. Without it you are excluded from most searches.",
-    },
-    {
-      group: "Your experience",
-      complete: career.skills.length > 0 && career.experiences.length > 0,
-      consequence: "With no skills or experience there is nothing for the matcher to compare a job against.",
-    },
-  ];
-
 
   if (loading) {
     return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading profile…</div>;
   }
-
-  const pendingIntros = reveals.filter(r => r.status === "pending").length;
 
   return (
     <div className="space-y-6">
@@ -360,47 +313,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </p>
         <ResumeUpload onParsed={handleResumeParsed} variant="full" />
       </Card>
-
-      {/* Talent pool */}
-      <TalentPoolCard
-        groupGaps={groupGaps}
-        pendingIntros={pendingIntros}
-      />
-
-
-      {/* Intro requests */}
-      {reveals.length > 0 && (
-        <Card className="p-4 sm:p-6 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Users className="w-4 h-4 text-primary" />
-            Intro requests
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Employers who searched the pool and want to reach out. Your name and email stay private
-            until you approve.
-          </p>
-          <div className="space-y-2">
-            {reveals.map(r => (
-              <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{r.org_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{r.job_title || "Role"} · {r.status}</div>
-                </div>
-                {r.status === "pending" ? (
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" disabled={revealBusy[r.id]} onClick={() => decideReveal(r.id, false)}>Decline</Button>
-                    <Button size="sm" disabled={revealBusy[r.id]} onClick={() => decideReveal(r.id, true)}>
-                      {revealBusy[r.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Share contact"}
-                    </Button>
-                  </div>
-                ) : (
-                  <Badge variant={r.status === "approved" ? "secondary" : "outline"}>{r.status}</Badge>
-                )}
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {/* ── 1. About you ───────────────────────────────────────────────── */}
       <Group title="About you" line="Used in your tailored resumes and cover letters.">
@@ -593,6 +505,17 @@ export default function ProfileTab({ userId }: { userId: string }) {
           />
         </div>
       </Group>
+
+      <p className="text-xs text-muted-foreground">
+        This profile is what employers search when you are in the talent pool.{" "}
+        <button
+          type="button"
+          onClick={onOpenDiscovery}
+          className="text-primary underline underline-offset-2 inline-flex items-center gap-1"
+        >
+          Get discovered <ArrowRight className="w-3 h-3" />
+        </button>
+      </p>
 
       <div className="sticky bottom-4 z-10 flex justify-end pt-2">
         <Button size="lg" onClick={save} disabled={saving} className="shadow-lg">
