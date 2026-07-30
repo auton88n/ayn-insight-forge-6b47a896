@@ -198,7 +198,7 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
 
       {optedIn && !loading && (
         <>
-          {/* What employers see — the anonymized card, exactly as returned by employer_match */}
+          {/* Summary of your profile as employers first see it in a search result */}
           <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-3.5 h-3.5 text-primary" />
