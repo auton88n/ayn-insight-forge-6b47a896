@@ -23,14 +23,13 @@ const a11y = { 'aria-hidden': true as const, role: 'presentation' as const, focu
 
 /* 1 — Fill in progress: form panel + AYN sidepanel */
 export function FillInProgressIllustration({ style }: { style?: React.CSSProperties }) {
-  const rows = [
+  const rows: { y: number; state: 'done' | 'active' | 'select' | 'skip' }[] = [
     { y: 52, state: 'done' },
     { y: 98, state: 'done' },
     { y: 144, state: 'active' },
     { y: 190, state: 'done' },
     { y: 236, state: 'select' },
-
-  ] as const;
+  ];
 
   return (
     <svg {...a11y} viewBox="0 0 900 360" style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
@@ -47,15 +46,12 @@ export function FillInProgressIllustration({ style }: { style?: React.CSSPropert
             width="528"
             height="30"
             rx="8"
-            fill={r.state === 'skip' ? 'none' : '#fff'}
+            fill="#fff"
             stroke={r.state === 'active' ? T.orange : T.border}
             strokeWidth={r.state === 'active' ? 2 : 1}
-            strokeDasharray={r.state === 'skip' ? '5 4' : undefined}
           />
           {/* value placeholder */}
-          {r.state !== 'skip' && (
-            <rect x="50" y={r.y + 25} width={r.state === 'active' ? 120 : 210} height="8" rx="4" fill={T.inkMid} opacity="0.28" />
-          )}
+          <rect x="50" y={r.y + 25} width={r.state === 'active' ? 120 : 210} height="8" rx="4" fill={T.inkMid} opacity="0.28" />
           {/* dropdown chevron */}
           {r.state === 'select' && (
             <path d={`M540 ${r.y + 25} l6 7 6 -7`} fill="none" stroke={T.inkSub} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -64,16 +60,17 @@ export function FillInProgressIllustration({ style }: { style?: React.CSSPropert
           {r.state === 'done' && (
             <path d={`M534 ${r.y + 29} l5 6 10 -12`} fill="none" stroke={T.orange} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           )}
-          {r.state === 'skip' && <circle cx={r.y ? 542 : 542} cy={r.y + 29} r="5.5" fill="none" stroke={T.inkSub} strokeWidth="1.5" opacity="0.6" />}
           {r.state === 'active' && <circle cx="542" cy={r.y + 29} r="5.5" fill="none" stroke={T.orange} strokeWidth="2" />}
         </g>
       ))}
 
-      {/* file upload row */}
-      <rect x="36" y="322" width="528" height="0" rx="0" fill="none" />
-      <g>
-        <rect x="36" y="330" width="150" height="0" fill="none" />
-      </g>
+      {/* file upload row, left unfilled (skipped) */}
+      <rect x="36" y="282" width="88" height="6" rx="3" fill={T.inkSub} opacity="0.35" />
+      <rect x="36" y="296" width="528" height="38" rx="8" fill="none" stroke={T.borderMd} strokeDasharray="5 4" />
+      <path d="M60 320 v-14 M54 312 l6 -6 6 6" fill="none" stroke={T.inkSub} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
+      <rect x="78" y="311" width="120" height="8" rx="4" fill={T.inkSub} opacity="0.22" />
+      <circle cx="542" cy="315" r="5.5" fill="none" stroke={T.inkSub} strokeWidth="1.5" opacity="0.6" />
+
 
       {/* sidepanel */}
       <rect x="624" y="8" width="268" height="344" rx="18" fill="#fff" stroke={T.borderMd} />
