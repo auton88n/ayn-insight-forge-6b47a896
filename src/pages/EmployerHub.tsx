@@ -52,10 +52,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [orgName, setOrgName] = useState(companyName || "");
   const [orgBusy, setOrgBusy] = useState(false);
 
-  const [turns, setTurns] = useState<IntakeTurn[]>([]);
-  const [draft, setDraft] = useState("");
-  const [asking, setAsking] = useState(false);
   const [spec, setSpec] = useState<JobSpec | null>(null);
+
 
   const [searching, setSearching] = useState(false);
   const [searchId, setSearchId] = useState<string | null>(null);
