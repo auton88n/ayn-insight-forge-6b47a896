@@ -269,3 +269,12 @@ Reindex triggers remain the seven call sites routed through src/lib/talentPoolSy
 The words canonical, index, vector, embedding, and ingest no longer appear in any user-facing seeker string. They remain in code, table names, and these docs.
 
 Embedding audit (2026-07-30): `select embedding_model, count(*) from candidate_index group by 1` returns zero rows. No 'deterministic-v1' rows exist, so no backfill is needed.
+
+
+## v3.10.1 employer surface tokens (measured, not eyeballed)
+
+The orange scope lives in src/index.css `.employer-surface` (--primary, --primary-foreground, --ring, --ayn-orange). Rule: the class must be on BOTH the page wrapper in src/pages/EmployerHub.tsx and on document.body via a mount effect. Portalled shadcn content (Dialog, AlertDialog, Popover, Select) attaches to document.body and inherits nothing from the page wrapper, so the body class is what turns the proposal dialog's Send proposal button orange. Measured after the fix: body --primary resolves 24 95% 53% and a body-level `.bg-primary` node computes rgb(249, 112, 21) on white text.
+
+Company profile (orgs table: website, industry, company_size, headquarters, about, logo_url, linkedin_url) is edited in src/components/employer/CompanyProfile.tsx, rendered inside EmployerHub under the intake. It surfaces in two places: the seeker's Proposals card (ProposalsTab.tsx renders logo, industry, size, headquarters, website link and about), and the COMPANY FACTS block passed into employer_draft_proposal, where a null field is stated to be nonexistent so the model cannot invent one.
+
+Intake draft persistence lives in employer_intake_drafts keyed by org, saved after every answered step and restored on return, with Start over clearing it. The step map jumps back to any completed step and only clears later answers the change genuinely invalidates.

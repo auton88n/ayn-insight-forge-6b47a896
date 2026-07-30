@@ -26,6 +26,7 @@ import {
   Loader2, Send, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
 import IntakeWizard from "@/components/employer/IntakeWizard";
+import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateAskCards from "@/components/employer/CandidateAskCards";
 import {
   employerApi, type CandidateCard, type JobSpec, type Org, type SentProposal,
@@ -80,6 +81,18 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       .finally(() => setOrgLoading(false));
     loadSent();
   }, [loadSent]);
+
+  /**
+   * v3.10.1 — the orange token scope has to reach portals too. Radix renders
+   * Dialog, AlertDialog, Popover and Select content into document.body, well
+   * outside this page's DOM tree, so a class on the wrapper alone would leave
+   * the proposal dialog black while the page turned orange. Setting it on
+   * <body> for the lifetime of the employer surface covers both.
+   */
+  useEffect(() => {
+    document.body.classList.add("employer-surface");
+    return () => document.body.classList.remove("employer-surface");
+  }, []);
 
   const createOrg = async () => {
     if (!orgName.trim()) return;
@@ -167,12 +180,12 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const sentRefs = new Set(sent.filter(s => s.status === "pending" || s.status === "approved").map(s => s.ref));
 
   if (orgLoading) {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+    return <div className="employer-surface min-h-screen grid place-items-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin" /></div>;
   }
 
   if (!org) {
     return (
-      <div className="min-h-screen grid place-items-center p-6">
+      <div className="employer-surface min-h-screen grid place-items-center p-6">
         <Card className="w-full max-w-md p-6 space-y-4">
           <div className="flex items-center gap-2"><Building2 className="w-4 h-4 text-primary" /><h1 className="font-semibold">Name your company</h1></div>
           <p className="text-sm text-muted-foreground">Candidates see this name on any proposal you send.</p>
@@ -186,7 +199,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="employer-surface min-h-screen bg-background">
       <header className="border-b border-border/60">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -202,6 +215,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* 1 and 2. Widget intake, then the editable spec summary. */}
         <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+
+        {/* Who is reaching out. Editable at any time, and used in proposals. */}
+        <CompanyProfile org={org} onSaved={setOrg} />
 
 
         {/* 3. Results */}
