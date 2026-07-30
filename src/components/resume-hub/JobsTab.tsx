@@ -235,7 +235,7 @@ export default function JobsTab({ userId }: Props) {
                 <Button onClick={() => removeJob(selected.id)} variant="ghost" size="sm" className="ml-auto"><Trash2 className="w-4 h-4" /></Button>
               </div>
               {!primaryResume && (
-                <p className="text-xs text-amber-500 mt-3">Set a primary resume in Builder to enable AI actions.</p>
+                <p className="text-xs text-amber-500 mt-3">Add your resume in Profile to enable AI actions.</p>
               )}
             </Card>
 
