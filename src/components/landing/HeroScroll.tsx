@@ -16,6 +16,7 @@ import {
   ProvenanceIllustration,
   OnePageDocIllustration,
   RunSummaryIllustration,
+  EmployerMatchIllustration,
 } from './ProductIllustrations';
 
 
@@ -596,6 +597,10 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
                 <p style={{ fontFamily: C.body, fontSize: 17, lineHeight: 1.6, color: C.inkSub, margin: 0 }}>{t}</p>
               </div>
             ))}
+          </div>
+
+          <div style={{ width: '100%', maxWidth: 640, margin: '0 auto clamp(40px,6vw,56px)' }}>
+            <EmployerMatchIllustration />
           </div>
 
           <Link to="/contact"
