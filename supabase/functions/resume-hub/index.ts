@@ -1927,18 +1927,22 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
 
     if (action === "talent_pool_set") {
-      const { opted_in } = payload as { opted_in?: boolean };
+      const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
       if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
       const now = new Date().toISOString();
+      // v3.5.1 — record WHICH consent wording the user agreed to, so a future
+      // copy change never leaves us guessing what they were shown.
       const row = {
         user_id: userId,
         opted_in,
         consented_at: opted_in ? now : null,
         revoked_at: opted_in ? null : now,
+        consent_version: opted_in ? (consent_version || "v3.5.1-full-profile") : null,
         updated_at: now,
       };
       const { error } = await adminForNew.from("talent_pool_consent").upsert(row, { onConflict: "user_id" });
       if (error) return json({ error: error.message }, 500);
+
       if (opted_in) {
         try { await indexCandidate(adminForNew, userId); }
         catch (e) { console.error("indexCandidate failed", (e as Error).message); }
