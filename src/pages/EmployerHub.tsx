@@ -24,12 +24,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft,
 } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateResultCard from "@/components/employer/CandidateResultCard";
@@ -76,9 +73,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [spec, setSpec] = useState<JobSpec | null>(null);
 
-  // v3.12.0 — left nav state, and the company profile behind the menu.
+  // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
-  const [companyOpen, setCompanyOpen] = useState(false);
+  const [stage, setStage] = useState<"spec" | "results">("spec");
+
 
 
   const [searching, setSearching] = useState(false);
@@ -163,18 +161,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     if (!org) return;
     setSpec(nextSpec);
     setSearching(true);
+    setStage("results");
     setResults([]);
     setPoolNote("");
     setSearchId(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     try {
       const r = await employerApi.match(org.id, nextSpec);
       setSearchId(r.search_id);
       setResults(r.results || []);
       setPoolNote(r.pool_note || "");
     } catch (e) {
+      setStage("spec");
       toast({ title: "Search failed", description: (e as Error).message, variant: "destructive" });
     } finally { setSearching(false); }
   };
+
 
   const EMPLOYMENT_LABEL: Record<string, string> = {
     full_time: "Full time", contract: "Contract", part_time: "Part time", internship: "Internship",
@@ -271,29 +273,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             </div>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Company menu">
-                {org.logo_url
-                  ? <img src={org.logo_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-                  : <Building2 className="w-4 h-4" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="truncate">{org.name}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => { if (profileComplete) setCompanyOpen(true); }}
-                disabled={!profileComplete}
-              >
-                <Building2 className="w-4 h-4 mr-2" /> Company profile
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
-                <LogOut className="w-4 h-4 mr-2" /> Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {org.logo_url && (
+            <img src={org.logo_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+          )}
+
         </div>
       </header>
 
@@ -318,7 +301,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 return (
                   <button
                     key={item.key}
-                    onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                    onClick={() => setTab(item.key)}
                     aria-label={item.label}
                     className={`group relative w-10 h-10 rounded-xl grid place-items-center transition-colors ${
                       active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -338,8 +321,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   </button>
                 );
               })}
+
+              {/* v3.15.0 — sign out lives in the nav, not the header. */}
+              <span className="my-1 h-px w-6 bg-border" aria-hidden />
+              <button
+                onClick={() => supabase.auth.signOut()}
+                aria-label="Sign out"
+                className="group relative w-10 h-10 rounded-xl grid place-items-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <LogOut className="w-[18px] h-[18px]" />
+                <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-40 hidden group-hover:block whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md">
+                  Sign out
+                </span>
+              </button>
             </nav>
           </aside>
+
 
           <main className="flex-1 min-w-0 space-y-6">
             {/* The rail is icons only, so the section names itself here. */}
