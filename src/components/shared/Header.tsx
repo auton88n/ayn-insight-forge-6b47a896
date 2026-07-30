@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Menu, LogIn, LogOut, User } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -124,7 +123,6 @@ export const Header = () => {
 
         {/* Right side — EN + Get Started Free — absolutely positioned */}
         <div style={{ position: 'absolute', right: 'clamp(12px,4vw,32px)', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 'clamp(8px,2vw,20px)' }}>
-          <LanguageSwitcher />
 
           {/* Auth — desktop */}
           <div className="hidden md:block">
