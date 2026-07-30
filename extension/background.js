@@ -378,23 +378,7 @@ async function callAiEdge(fnName, body) {
 }
 
 
-// ── v2.10.0: server-driven adapter config ─────────────────────────
-// Fetch ats_config from the edge function on startup + every 6h. Storage
-// key 'ayn_ats_config' = { config, version, fetchedAt }. Broadcasts to
-// active tabs so content scripts hot-swap without a reload. All failures
-// are silent — content scripts fall back to BUILT_IN defaults.
-
-chrome.runtime.onInstalled.addListener(() => {
-});
-chrome.runtime.onStartup.addListener(() => {
-});
-try {
-  chrome.alarms.onAlarm.addListener((a) => {
-  });
-} catch {}
-
-
-// Inject content script if not loaded
+// Relay a message to a content script in a tab (read-only messages only).
 async function safeSendMessage(tabId, message, frameId = 0) {
   const opts = { frameId };
   const tryOnce = () => new Promise(resolve => {

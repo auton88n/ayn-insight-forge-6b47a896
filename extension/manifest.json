@@ -8,8 +8,7 @@
     "activeTab",
     "storage",
     "sidePanel",
-    "webNavigation",
-    "alarms"
+    "webNavigation"
   ],
   "host_permissions": [
     "https://*/*"
