@@ -6,7 +6,7 @@
  * Employer: search people who chose to be found, verify them, invite them.
  * Every mockup on this page is a rendition of a screen that exists.
  */
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
@@ -241,7 +241,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             </div>
           </div>
 
-          <div className="lp-hero-art lp-reveal lp-audience" key={`art-${audience}`}>
+          <div className="lp-hero-art lp-audience" key={`art-${audience}`}>
             {hero.art}
           </div>
         </div>
