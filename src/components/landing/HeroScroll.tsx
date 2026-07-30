@@ -10,6 +10,14 @@ import { useReducedMotion } from 'framer-motion';
 import { ArrowRight, Wand2, Target, ShieldCheck, FileText, Sparkles, LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import {
+  FillInProgressIllustration,
+  MatchScoreIllustration,
+  ProvenanceIllustration,
+  OnePageDocIllustration,
+  RunSummaryIllustration,
+} from './ProductIllustrations';
+
 
 /* ── Frame loading ──────────────────────────────────────────────
  * Frames live in /public/frames as individual JPEGs instead of
