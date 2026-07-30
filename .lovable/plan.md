@@ -1,37 +1,37 @@
-## 1. Error screen on AYN ember orange branding
+## Goal
 
-`src/components/shared/ErrorBoundary.tsx` currently renders a grey card with a black button because the global `--primary` is near black.
+The switch at the top ("I am looking for a job" / "I am hiring") should change the whole page, not just the hero. Scrolling down in seeker mode shows only seeker content; hiring mode shows only employer content. No mixing.
 
-- Rebuild the fallback card in the ember language: warm off white surface, soft ember tinted border, ember gradient icon badge with the AYN brain mark, and an ember filled "Let's try again" button.
-- Use the existing landing ember tokens (`--lp-ember`, `--lp-gradient-ember`) exposed as a small reusable class so no colors are hardcoded in the component.
-- Keep the message copy, dev only error text, and the reload versus retry behavior exactly as they are.
-- Same treatment for the smaller inline fallbacks that share the card, so a snag always looks like AYN.
+## What changes
 
-## 2. Hero centered
+**One audience state drives the page** (`src/components/landing/LandingSections.tsx`)
 
-In `src/components/landing/LandingSections.tsx` the hero is a left column with the mockup beside it.
+The existing `audience` state already controls the hero. Every section below the hero becomes audience-owned:
 
-- Center the hero: audience switch, pill, headline, lead, CTA and note all centered in a single column with a max width around 820px.
-- The mockup moves below, centered, at full shell width, keeping the existing crossfade when the audience switches.
-- Headline and lead get `text-wrap: balance` so the centered lines break evenly.
+| Section | Seeker mode | Hiring mode |
+|---|---|---|
+| Logo strip ("Reads job posts on") | shown | replaced by a hiring-side line (candidates who opted in, evidence, assessments) |
+| The problem | only the job seeker pain column, full width | only the employer pain column, full width |
+| Seeker showcase (tailored docs + feature tiles) | shown | hidden |
+| Employer showcase (candidate card, 4 steps, assessments) | hidden | shown |
+| Trust | shown, with seeker-worded chips | shown, with employer-worded chips |
+| FAQ | seeker questions only | employer questions only |
+| Closing | single "Start free" CTA | single "Request employer access" CTA |
 
-## 3. Remove language switching, English only
+The `PAINS`, `FAQS` and trust chip data get split into a seeker set and an employer set, so nothing from the other side leaks in. Every CTA on the page passes the current audience, so there is never a mixed "Start free / I am hiring" pair below the fold.
 
-- Delete `src/components/shared/LanguageSwitcher.tsx` and remove it from `src/components/shared/index.ts`, `Header.tsx` and `Support.tsx` (that removes the "EN" control in the top bar).
-- Remove the language selector row from settings, and the footer language links.
-- `LanguageContext` stays as a thin shim that always reports `en` and forces `dir="ltr"`, so the ~25 files that read `language` keep compiling while every ternary resolves to the English branch. No user visible way to change it, no Arabic or French output anywhere.
-- Strip the `ar` / `fr` branches from the landing, hero and auth copy so the source reads as plain English rather than three way ternaries in the files touched by this change.
-- Remove the AR/FR hreflang tags and any `/ar` `/fr` route hints from the landing SEO head.
+**Switching feels intentional**
 
-## 4. Fits every platform
+Switching re-keys the page body so the new sections fade in the same way the hero already does, and it scrolls back to the top of the hero so the user sees the new story from its beginning rather than landing mid-page in unrelated content. The choice keeps persisting to localStorage.
 
-A responsive pass, presentation only:
+**Header nav follows the mode**
 
-- Landing: hero type scale down to 360px wide, switch wraps to two full width buttons on small screens, bento and split sections collapse to one column, mockups scroll horizontally inside their frame instead of overflowing the page, tap targets at least 44px.
-- Employer Hub: the icon rail becomes a bottom bar on phones, dialogs go full screen below the small breakpoint with the fixed header and footer preserved, candidate cards stack.
-- Resume Hub: tab rail scrolls horizontally on phones, profile groups and job cards stack.
-- Global: add `dvh` based heights where `vh` is used so mobile browser chrome does not clip content, and confirm no horizontal scroll at 360, 768, 1024 and 1440.
+The top nav currently always shows "For employers". In hiring mode the anchors point at the employer sections; in seeker mode "For employers" becomes the way to flip the switch rather than a link to a hidden section, so no nav item can scroll to something that is not rendered.
 
-## Verification
+## Technical notes
 
-Screenshot the landing hero (both audiences), the error card, Employer Hub and Resume Hub at 360, 768 and 1440 in the browser, and confirm the EN control is gone from every header.
+- All work is in `src/components/landing/LandingSections.tsx`, with small anchor-handling changes in `src/components/shared/Header.tsx` and minor CSS in `src/index.css` (single-column pain block, fade on audience change).
+- Sections are conditionally rendered, not hidden with CSS, so the hidden side is not read by screen readers or search crawlers as duplicate content on the same viewport. Both stories remain in the DOM across a switch only for the duration of the fade.
+- Anchor ids (`#features`, `#employers`, `#trust`, `#faq`) stay stable; clicking an anchor for the other side flips the audience first, then scrolls.
+- The reveal-on-scroll observer is re-run after a switch so newly mounted sections animate in instead of sitting invisible.
+- Verified at phone, tablet and desktop widths after the change.
