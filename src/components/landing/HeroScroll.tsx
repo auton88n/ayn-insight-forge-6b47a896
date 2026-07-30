@@ -16,6 +16,7 @@ import {
   ProvenanceIllustration,
   OnePageDocIllustration,
   RunSummaryIllustration,
+  EmployerMatchIllustration,
 } from './ProductIllustrations';
 
 
