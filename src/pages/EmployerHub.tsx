@@ -488,7 +488,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
       <Dialog open={!!open && !formOpen} onOpenChange={o => { if (!o) setOpen(null); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto overscroll-contain bg-background">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden bg-background flex flex-col gap-0 p-0">
           {open && (
             <>
               <DialogHeader>
