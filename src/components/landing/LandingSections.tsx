@@ -1,18 +1,16 @@
 /**
  * LandingSections — AYN marketing page.
  * Charcoal & Ember, Outfit + Figtree, bento grid composition.
- * The old scroll scrubbed 3D canvas has been retired in favour of the
- * CSS driven HeroFillMockup.
+ * v3.0.0: AYN is a read only job search copilot. Match score first, no autofill.
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Wand2, Target, ShieldCheck, FileText, Sparkles, LayoutGrid } from 'lucide-react';
+import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid } from 'lucide-react';
 import { HeroFillMockup } from './HeroFillMockup';
 import {
   MatchScoreIllustration,
   ProvenanceIllustration,
   OnePageDocIllustration,
-  RunSummaryIllustration,
   EmployerMatchIllustration,
 } from './ProductIllustrations';
 
@@ -21,55 +19,47 @@ const ATS = ['Greenhouse', 'Ashby', 'Lever', 'Workday', 'iCIMS', 'SmartRecruiter
 const TILES = [
   {
     span: 'lp-span-4',
-    icon: Wand2,
-    title: 'Autofill that handles the hard parts',
-    desc: 'One click fills the whole form. Even the questions that make you quit.',
-    art: null,
-    meta: ['Dropdowns', 'Work history', 'Screening questions'],
-  },
-  {
-    span: 'lp-span-2',
     icon: Target,
     title: 'A match score you can check',
-    desc: 'See your real match before you spend the hour.',
+    desc: 'See your real fit before you spend the hour writing an application.',
     art: MatchScoreIllustration,
   },
   {
     span: 'lp-span-2',
     icon: ShieldCheck,
-    title: 'It never invents an answer',
-    desc: 'If AYN cannot verify it, it leaves it blank.',
+    title: 'Grounded on the real posting',
+    desc: 'AYN reads the full job text, not a nav bar and a cookie banner.',
     art: ProvenanceIllustration,
   },
   {
     span: 'lp-span-2',
     icon: FileText,
     title: 'Tailored resumes and cover letters',
-    desc: 'Built for the role. One page, ATS ready.',
+    desc: 'Written for that role. One page, ATS ready.',
     art: OnePageDocIllustration,
   },
   {
     span: 'lp-span-2',
-    icon: Sparkles,
-    title: 'It learns your answers',
-    desc: 'Answer a question once. AYN remembers it.',
+    icon: MessagesSquare,
+    title: 'Ask AYN about the job',
+    desc: 'What does this role really want? Ask, and get an answer from the posting.',
     art: null,
-    meta: ['Reusable answers', 'Editable any time'],
+    meta: ['Plain questions', 'Answers from the text'],
   },
   {
     span: 'lp-span-6',
     icon: LayoutGrid,
     title: 'Everything in one place',
-    desc: 'Every resume, job, and application tracked in one workspace.',
+    desc: 'Every resume, saved job, and score in one workspace.',
     art: null,
-    meta: ['Saved jobs', 'Application tracker', 'Resume versions', 'Fill history'],
+    meta: ['Saved jobs', 'Match scores', 'Resume versions', 'Cover letters'],
   },
 ];
 
 const FAQS = [
   {
     q: 'What is AYN?',
-    a: 'AYN reads a job posting, scores how well you match it, fills the application, and writes you a tailored resume and cover letter.',
+    a: 'AYN reads a job posting, scores how well you match it, and writes you a tailored resume and cover letter for that role.',
   },
   {
     q: 'Which job sites does AYN work on?',
@@ -80,10 +70,11 @@ const FAQS = [
     a: 'Yes. AYN is free to start and no credit card is required.',
   },
   {
-    q: 'Can AYN answer sensitive questions for me?',
-    a: 'No. Work authorization, sponsorship, salary, and self identification are always left to you.',
+    q: 'Does AYN fill or submit applications for me?',
+    a: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.',
   },
 ];
+
 
 /** Adds .is-in to .lp-reveal elements once they enter the viewport. */
 function useReveal() {
