@@ -1,16 +1,15 @@
 /**
- * EmployerHub.tsx — v3.6.0 "the proposal loop", employer side.
+ * EmployerHub.tsx — v3.8.0 "the chat is candidate search, nothing else".
  *
- * Before this page an approved employer landed in the seeker dashboard and
- * could not search at all: employerApi.intake, .match and .sendProposal had
- * zero callers. This is the surface that uses them.
+ * The employer surface, and now the only conversational surface in the app.
+ * Four steps in one page: answer the intake widgets, review the JobSpec, read
+ * the candidates AYN found, send a proposal. The chat under the results is
+ * scoped to evaluating those candidates and nothing else.
  *
- * Four steps, in one page: describe the role, review the JobSpec, read the
- * candidates AYN found, send a proposal. No candidate identity is ever
- * rendered here. Name, email and phone only appear in the Sent list, and only
- * after the candidate accepted.
+ * No candidate identity is ever rendered here. Name, email and phone only
+ * appear in the Sent list, and only after the candidate accepted.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,16 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, Send, Search, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
+  Loader2, Send, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
+import IntakeWizard from "@/components/employer/IntakeWizard";
+import CandidateChat from "@/components/employer/CandidateChat";
 import {
-  employerApi, type CandidateCard, type IntakeTurn, type JobSpec, type Org, type SentProposal,
+  employerApi, type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
 
-const EMPTY_SPEC: JobSpec = {
-  title: "", seniority: "mid", must_have_skills: [], nice_to_have_skills: [],
-  location_preference: "", remote_ok: false, min_years: 0, notes: "",
-};
 
 function ScoreRing({ score }: { score: number }) {
   const pct = Math.max(0, Math.min(100, score));
