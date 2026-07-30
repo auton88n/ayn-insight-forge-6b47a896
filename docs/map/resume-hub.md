@@ -314,3 +314,29 @@ Resume Hub's top left "Back" button is gone (it had nowhere sensible to go). It 
 
 ### Legacy dashboard
 Deleted: `src/components/Dashboard.tsx` and `src/components/dashboard/DashboardContainer.tsx`. `/dashboard` and `/dashboard/*` redirect to `/`, which routes by role (Resume Hub for a seeker, EmployerHub for an approved employer). `src/components/dashboard/` still exists because DashboardPricing, Sidebar and the simulator live there; nothing in it renders the old chat shell.
+
+## v3.13.0 — verification assessments
+
+### The idea
+Before spending a proposal, an employer can send the candidate a short assessment generated from that candidate's own claimed background against the JobSpec of the search they were found in. It is not a quiz on textbook knowledge; the prompt (QUALITY_MODEL) is told to probe lived experience, so a person who did the work answers easily and a person who listed the skill does not.
+
+### Schema
+Three tables, and the split between them is the whole security design.
+
+- `assessments` — one row per sent assessment: org, search, candidate ref, resolved user, job title, questions (no answers, no rubric), status (`sent`, `started`, `submitted`, `expired`), timer, sent/started/submitted timestamps. Grants: `SELECT` to `authenticated` only; `anon` has nothing; every write goes through the edge function as `service_role`. RLS: the candidate reads their own rows, an org member reads their org's rows.
+- `assessment_rubrics` — what a good answer contains, per question. ALL privileges revoked from `anon` and `authenticated`. `service_role` only. No policies, RLS on, so even a stray grant cannot leak it.
+- `assessment_results` — score, verdict, per question observations, per question `ms`. Same isolation as rubrics: `service_role` only. The candidate never sees a score, so nothing can be reverse engineered by re-taking.
+
+Verified after the migration with `has_table_privilege`: `assessment_rubrics` and `assessment_results` return false for SELECT and INSERT for both `anon` and `authenticated`; `assessments` returns SELECT true for `authenticated` only, INSERT false.
+
+### Backend actions (supabase/functions/resume-hub/index.ts)
+Employer lane: `employer_assessment_generate` (draft questions from the candidate's canonical profile plus the JobSpec, returns questions and lets the employer cut or edit them; the rubric is generated alongside and never returned), `employer_assessment_send`, `employer_assessment_list` (results, service role, org scoped).
+Candidate lane: `assessment_list`, `assessment_start` (stamps `started_at`, which is what the timer is measured against server side), `assessment_answer` (autosave per question, records `ms` spent), `assessment_submit` (calls `finaliseAssessment`, which grades against the private rubric and writes `assessment_results`), `assessment_growth_notes` (what the candidate gets back instead of a score: where their answers were thin, phrased as something to work on).
+
+### Anti gaming
+The timer is enforced from `started_at` on the server, not from a client clock. Per question `ms` is recorded and surfaced to the employer next to the answer, because a flawless four paragraph answer written in eleven seconds is the signal. The rubric is never sent to the client at any point in the flow, and results are readable only through a service role action that checks org membership first.
+
+### UI
+Employer: `src/components/employer/AssessmentDialog.tsx` (generate, review, edit, send) opened from "Send an assessment" in the candidate dialog, and `src/components/employer/AssessmentsPanel.tsx` on a new Assessments tab in the left nav.
+Candidate: `src/components/resume-hub/AssessmentsTab.tsx`, a new badged tab in Resume Hub, with the timer, autosave, and the growth notes after submitting.
+Client API: `src/lib/assessments.ts`.

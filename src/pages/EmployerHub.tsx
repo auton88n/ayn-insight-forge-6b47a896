@@ -24,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -34,16 +34,19 @@ import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateAskCards from "@/components/employer/CandidateAskCards";
 import CandidateProfile from "@/components/employer/CandidateProfile";
+import AssessmentDialog from "@/components/employer/AssessmentDialog";
+import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
 
 /** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
-type EmployerTab = "search" | "proposals" | "company";
+type EmployerTab = "search" | "proposals" | "assessments" | "company";
 const EMPLOYER_NAV: { key: EmployerTab; label: string; icon: typeof Brain; hint: string }[] = [
   { key: "search", label: "Search", hint: "Describe the role, read candidates", icon: SearchIcon },
   { key: "proposals", label: "Proposals", hint: "What you sent, and their answers", icon: Mail },
+  { key: "assessments", label: "Assessments", hint: "Check that their claims are real", icon: ClipboardCheck },
   { key: "company", label: "Company", hint: "What candidates see about you", icon: Building2 },
 ];
 
@@ -89,6 +92,11 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [form, setForm] = useState({ job_title: "", job_location: "", employment_type: "", salary_range: "", job_url: "", message: "" });
 
   const [sent, setSent] = useState<SentProposal[]>([]);
+
+  // v3.13.0 — the assessment dialog and a reload key for the sent list.
+  const [assessFor, setAssessFor] = useState<CandidateCard | null>(null);
+  const [assessKey, setAssessKey] = useState(0);
+
 
   const loadSent = useCallback(async () => {
     try { const r = await employerApi.sentProposals(); setSent(r.requests || []); } catch { /* silent */ }
@@ -413,6 +421,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 ))}
               </Card>
             )}
+
+            {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
+
           </main>
         </div>
       )}
@@ -510,13 +521,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-3">
+                {/* v3.13.0 — check the claims before you spend a proposal. */}
+                <Button
+                  variant="outline"
+                  disabled={!searchId}
+                  onClick={() => { setAssessFor(open); setOpen(null); }}
+                >
+                  <ClipboardCheck className="w-4 h-4 mr-2" /> Send an assessment
+                </Button>
                 {sentRefs.has(open.ref) ? (
                   <Button disabled variant="secondary">Proposal sent, waiting for a reply</Button>
                 ) : (
                   <Button onClick={() => openProposal(open)}>Send a job proposal</Button>
                 )}
               </DialogFooter>
+
             </>
           )}
         </DialogContent>
@@ -585,6 +605,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* v3.13.0 — verification assessment. Rubrics never reach this client. */}
+      {org && searchId && assessFor && (
+        <AssessmentDialog
+          open={!!assessFor}
+          onOpenChange={o => { if (!o) setAssessFor(null); }}
+          orgId={org.id}
+          searchId={searchId}
+          candidateRef={assessFor.ref}
+          onSent={() => { setAssessKey(k => k + 1); setTab("assessments"); }}
+        />
+      )}
     </div>
+
   );
 }

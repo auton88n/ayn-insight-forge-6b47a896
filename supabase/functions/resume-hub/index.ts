@@ -2765,8 +2765,481 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       return json({ requests: enriched });
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // v3.13.0 — VERIFICATION ASSESSMENTS
+    //
+    // An employer can send a short assessment before deciding whether to
+    // send a proposal. Questions are generated from THAT candidate's own
+    // profile and probe depth of lived experience, not textbook knowledge.
+    //
+    // ISOLATION OF THE RUBRIC AND THE RESULT (the security property):
+    //   - assessments.questions stores ONLY {id, type, text, options}.
+    //     The rubric is never written into that column.
+    //   - Rubrics live in public.assessment_rubrics, which has ALL
+    //     privileges revoked from anon and authenticated. Same for
+    //     public.assessment_results. Both are service_role only, and RLS
+    //     is on with zero policies, so even a leaked grant denies reads.
+    //   - No candidate-lane action here ever returns a rubric, a score,
+    //     a verdict, or a per-question observation.
+    // ═══════════════════════════════════════════════════════════
+    type PubQuestion = { id: string; type: "mc" | "short"; text: string; options?: string[] };
+
+    /** Strip a question down to what the candidate is allowed to see. */
+    function publicQuestion(q: Record<string, unknown>): PubQuestion {
+      const type = q.type === "short" ? "short" : "mc";
+      return {
+        id: String(q.id || ""),
+        type,
+        text: String(q.text || ""),
+        ...(type === "mc"
+          ? { options: (Array.isArray(q.options) ? q.options : []).map(String).slice(0, 5) }
+          : {}),
+      };
+    }
+
+    function assessmentDeadline(a: Record<string, unknown>): number | null {
+      if (!a.started_at) return null;
+      return new Date(String(a.started_at)).getTime() + Number(a.time_limit_seconds || 1800) * 1000;
+    }
+
+    // ---- Employer: generate a draft assessment from the candidate profile ----
+    if (action === "employer_assessment_generate") {
+      const { org_id, search_id, ref } = payload as { org_id?: string; search_id?: string; ref?: string };
+      if (!org_id || !search_id || !ref) return json({ error: "org_id, search_id and ref required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const gate = await assertOrgProfileComplete(org_id);
+      if (gate) return gate;
+
+      const { data: search } = await adminForNew.from("employer_searches")
+        .select("id, org_id, job_spec, ref_map").eq("id", search_id).maybeSingle();
+      if (!search || search.org_id !== org_id) return json({ error: "search not found" }, 404);
+      const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
+      if (!candidateUserId) return json({ error: "unknown ref" }, 400);
+
+      const canon = await loadCanonical(adminForNew, candidateUserId);
+      if (!canon) return json({ error: "This candidate has no structured profile to build questions from." }, 409);
+      const block = buildCandidateProfile(canon);
+      const spec = (search.job_spec as Record<string, unknown>) || {};
+      const jobTitle = String(spec.title || "").trim() || block.current_title || "the role";
+
+      const achievements = canon.experiences.slice(0, 6).map(e => ({
+        title: e.title, company: e.company, industry: e.industry,
+        dates: [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to "),
+        achievements: (e.achievements || []).slice(0, 4),
+      }));
+
+      const sys = `You write short verification assessments that check whether what a candidate claims on their profile is real.
+
+WHAT YOU ARE CHECKING: depth of lived experience. Not textbook knowledge.
+A question that a general language model can answer well without knowing this person is a WASTED question. Do not write one.
+
+FORBIDDEN QUESTION SHAPES:
+- Definitions, "what is X", "which of these best describes X"
+- Anything answerable from a job description
+- Anything about general best practice, frameworks or tooling in the abstract
+
+REQUIRED QUESTION SHAPES, use a mix of these, always anchored to something THIS person actually claims:
+- A specific decision or tradeoff on work they list, and why they chose it over the alternative
+- What went wrong on a specific project they list, and what they changed after
+- Reconstructing a number they cite in an achievement bullet: how it was measured, what the baseline was
+- The constraint or messy detail only someone who did the work would know
+- Their specific role when a claim is team shaped, separating what they did from what the team did
+
+FORMAT: 4 to 6 multiple choice questions and 2 to 3 short answer questions.
+Multiple choice: scenario based, four options, plausible distractors drawn from realistic alternative choices. No obviously silly option. The correct option must be the one consistent with how the work is actually done under the constraints described.
+Short answer: ask for 2 to 4 sentences.
+
+Each question also carries a PRIVATE rubric: what a person who genuinely did this work would say, what a bluffer says instead, and for multiple choice which option index is correct and why. The rubric is never shown to the candidate.
+${VOICE_RULES}`;
+
+      const schema = {
+        type: "object",
+        properties: {
+          questions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["mc", "short"] },
+                text: { type: "string" },
+                options: { type: "array", items: { type: "string" } },
+                rubric: { type: "string" },
+                anchor: { type: "string" },
+              },
+              required: ["type", "text", "rubric"],
+            },
+          },
+        },
+        required: ["questions"],
+      };
+
+      const r = await callAI({
+        model: QUALITY_MODEL,
+        system: sys,
+        user: `ROLE BEING HIRED FOR: ${JSON.stringify({ title: jobTitle, seniority: spec.seniority, must_have_skills: spec.must_have_skills })}
+
+THE CANDIDATE'S OWN CLAIMS (build every question from these):
+${JSON.stringify({ profile: block, work: achievements, education: block.education }, null, 1)}
+
+Write the assessment now.`,
+        toolName: "write_assessment",
+        toolSchema: schema,
+      });
+
+      const parsed = (r.structured as { questions?: Array<Record<string, unknown>> } | undefined)
+        || parseJsonLoose<{ questions?: Array<Record<string, unknown>> }>(r.text)
+        || {};
+      const raw = Array.isArray(parsed.questions) ? parsed.questions : [];
+      if (raw.length < 3) return json({ error: "Could not generate an assessment for this candidate. Try again." }, 502);
+
+      const questions: PubQuestion[] = [];
+      const rubrics: Array<{ question_id: string; rubric: string }> = [];
+      raw.slice(0, 9).forEach((q, i) => {
+        const id = `q${i + 1}`;
+        const type = q.type === "short" ? "short" : "mc";
+        const opts = (Array.isArray(q.options) ? q.options : []).map(String).filter(Boolean).slice(0, 5);
+        if (type === "mc" && opts.length < 2) return;
+        questions.push({ id, type, text: cleanEmployerText(String(q.text || "")), ...(type === "mc" ? { options: opts } : {}) });
+        rubrics.push({ question_id: id, rubric: String(q.rubric || "").slice(0, 2000) });
+      });
+      if (!questions.length) return json({ error: "Could not generate an assessment for this candidate. Try again." }, 502);
+
+      const { data: row, error: aErr } = await adminForNew.from("assessments").insert({
+        org_id, candidate_user_id: candidateUserId, search_id,
+        candidate_ref: ref, job_title: jobTitle, status: "draft",
+        questions, created_by: userId,
+      }).select("id").single();
+      if (aErr || !row) return json({ error: aErr?.message || "insert failed" }, 500);
+
+      await adminForNew.from("assessment_rubrics")
+        .insert(rubrics.map(x => ({ assessment_id: row.id, ...x })));
+
+      return json({ assessment_id: row.id, job_title: jobTitle, questions });
+    }
+
+    // ---- Employer: send the draft, minus any question they removed ----
+    if (action === "employer_assessment_send") {
+      const { assessment_id, keep_ids, time_limit_seconds, expires_days } = payload as {
+        assessment_id?: string; keep_ids?: string[];
+        time_limit_seconds?: number; expires_days?: number;
+      };
+      if (!assessment_id) return json({ error: "assessment_id required" }, 400);
+      const { data: a } = await adminForNew.from("assessments")
+        .select("id, org_id, status, questions").eq("id", assessment_id).maybeSingle();
+      if (!a) return json({ error: "assessment not found" }, 404);
+      if (!(await assertOrgMember(a.org_id))) return json({ error: "not an org member" }, 403);
+      if (a.status !== "draft") return json({ error: "This assessment was already sent." }, 409);
+
+      const all = (a.questions as Array<Record<string, unknown>>) || [];
+      const keep = Array.isArray(keep_ids) && keep_ids.length
+        ? all.filter(q => keep_ids.map(String).includes(String(q.id)))
+        : all;
+      if (keep.length < 3) return json({ error: "Keep at least three questions." }, 400);
+
+      const limit = Math.max(300, Math.min(7200, Math.round(Number(time_limit_seconds) || 1800)));
+      const days = Math.max(1, Math.min(30, Math.round(Number(expires_days) || 7)));
+      const { error } = await adminForNew.from("assessments").update({
+        questions: keep.map(publicQuestion),
+        status: "sent",
+        time_limit_seconds: limit,
+        sent_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + days * 86400000).toISOString(),
+      }).eq("id", assessment_id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true, status: "sent" });
+    }
+
+    // ---- Employer: sent assessments with results once submitted ----
+    if (action === "employer_assessment_list") {
+      const { search_id } = payload as { search_id?: string };
+      const { data: memberships } = await adminForNew.from("org_members")
+        .select("org_id").eq("user_id", userId);
+      const orgIds = (memberships || []).map(m => m.org_id);
+      if (!orgIds.length) return json({ assessments: [] });
+
+      let q = adminForNew.from("assessments")
+        .select("id, org_id, search_id, candidate_ref, job_title, status, questions, answers, time_limit_seconds, started_at, submitted_at, sent_at, expires_at, created_at")
+        .in("org_id", orgIds).neq("status", "draft")
+        .order("created_at", { ascending: false }).limit(100);
+      if (search_id) q = q.eq("search_id", search_id);
+      const { data: rows } = await q;
+
+      const ids = (rows || []).map(r => r.id);
+      const { data: results } = ids.length
+        ? await adminForNew.from("assessment_results")
+          .select("assessment_id, overall_score, verification_verdict, per_question, strengths, concerns, employer_summary")
+          .in("assessment_id", ids)
+        : { data: [] };
+      const byId = new Map((results || []).map(r => [r.assessment_id, r]));
+
+      const out = (rows || []).map(r => {
+        const expired = r.status !== "submitted" && r.expires_at && new Date(r.expires_at).getTime() < Date.now();
+        const res = byId.get(r.id) || null;
+        return {
+          id: r.id, ref: r.candidate_ref, search_id: r.search_id, job_title: r.job_title,
+          status: expired ? "expired" : r.status,
+          question_count: ((r.questions as unknown[]) || []).length,
+          time_limit_seconds: r.time_limit_seconds,
+          sent_at: r.sent_at, started_at: r.started_at, submitted_at: r.submitted_at, expires_at: r.expires_at,
+          result: res
+            ? {
+              overall_score: res.overall_score,
+              verification_verdict: res.verification_verdict,
+              per_question: res.per_question,
+              strengths: res.strengths,
+              concerns: res.concerns,
+              employer_summary: res.employer_summary,
+            }
+            : null,
+        };
+      });
+      return json({ assessments: out });
+    }
+
+    // ---- Candidate: list assessments addressed to me (no scores, ever) ----
+    if (action === "assessment_list") {
+      const { data: rows } = await adminForNew.from("assessments")
+        .select("id, org_id, job_title, status, questions, time_limit_seconds, started_at, submitted_at, sent_at, expires_at")
+        .eq("candidate_user_id", userId).neq("status", "draft")
+        .order("sent_at", { ascending: false }).limit(50);
+      const out: Array<Record<string, unknown>> = [];
+      for (const r of (rows || [])) {
+        const { data: org } = await adminForNew.from("orgs").select("name, logo_url").eq("id", r.org_id).maybeSingle();
+        const expired = r.status !== "submitted" && r.expires_at && new Date(r.expires_at).getTime() < Date.now();
+        out.push({
+          id: r.id,
+          org_name: org?.name || "A company",
+          org_logo_url: org?.logo_url || null,
+          job_title: r.job_title || "",
+          status: expired ? "expired" : r.status,
+          question_count: ((r.questions as unknown[]) || []).length,
+          time_limit_seconds: r.time_limit_seconds,
+          sent_at: r.sent_at, expires_at: r.expires_at,
+          started_at: r.started_at, submitted_at: r.submitted_at,
+          deadline_at: r.started_at ? new Date(assessmentDeadline(r)!).toISOString() : null,
+        });
+      }
+      return json({ assessments: out });
+    }
+
+    // ---- Candidate: start (server enforced timer) ----
+    if (action === "assessment_start") {
+      const { id } = payload as { id?: string };
+      if (!id) return json({ error: "id required" }, 400);
+      const { data: a } = await adminForNew.from("assessments")
+        .select("id, org_id, job_title, status, questions, answers, time_limit_seconds, started_at, expires_at")
+        .eq("id", id).eq("candidate_user_id", userId).maybeSingle();
+      if (!a) return json({ error: "assessment not found" }, 404);
+      if (a.status === "submitted") return json({ error: "You already submitted this assessment." }, 409);
+      if (a.status === "expired") return json({ error: "This assessment expired." }, 409);
+      if (a.expires_at && new Date(a.expires_at).getTime() < Date.now()) {
+        await adminForNew.from("assessments").update({ status: "expired" }).eq("id", id);
+        return json({ error: "This assessment expired." }, 409);
+      }
+
+      let started = a.started_at as string | null;
+      if (!started) {
+        started = new Date().toISOString();
+        await adminForNew.from("assessments").update({ status: "started", started_at: started }).eq("id", id);
+      }
+      const deadline = new Date(started).getTime() + Number(a.time_limit_seconds || 1800) * 1000;
+      if (deadline < Date.now()) {
+        await finaliseAssessment(id);
+        return json({ error: "Your time on this assessment ran out. It has been submitted." }, 409);
+      }
+      const { data: org } = await adminForNew.from("orgs").select("name").eq("id", a.org_id).maybeSingle();
+      return json({
+        id: a.id,
+        org_name: org?.name || "A company",
+        job_title: a.job_title || "",
+        // Only the public shape. The rubric is in another table entirely.
+        questions: ((a.questions as Array<Record<string, unknown>>) || []).map(publicQuestion),
+        answers: a.answers || {},
+        deadline_at: new Date(deadline).toISOString(),
+        seconds_left: Math.max(0, Math.round((deadline - Date.now()) / 1000)),
+      });
+    }
+
+    // ---- Candidate: autosave one answer, with time spent on it ----
+    if (action === "assessment_answer") {
+      const { id, question_id, answer, ms } = payload as {
+        id?: string; question_id?: string; answer?: string; ms?: number;
+      };
+      if (!id || !question_id) return json({ error: "id and question_id required" }, 400);
+      const { data: a } = await adminForNew.from("assessments")
+        .select("id, status, answers, started_at, time_limit_seconds")
+        .eq("id", id).eq("candidate_user_id", userId).maybeSingle();
+      if (!a) return json({ error: "assessment not found" }, 404);
+      if (a.status !== "started") return json({ error: "This assessment is not open." }, 409);
+      const deadline = assessmentDeadline(a as Record<string, unknown>);
+      if (deadline && deadline < Date.now()) {
+        await finaliseAssessment(id);
+        return json({ error: "Time ran out. Your answers were submitted." }, 409);
+      }
+      const answers = { ...((a.answers as Record<string, unknown>) || {}) };
+      answers[String(question_id)] = {
+        answer: String(answer ?? "").slice(0, 3000),
+        ms: Math.max(0, Math.min(3600000, Math.round(Number(ms) || 0))),
+        at: new Date().toISOString(),
+      };
+      const { error } = await adminForNew.from("assessments").update({ answers }).eq("id", id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // ---- Candidate: submit. Returns a plain confirmation and nothing else ----
+    if (action === "assessment_submit") {
+      const { id } = payload as { id?: string };
+      if (!id) return json({ error: "id required" }, 400);
+      const { data: a } = await adminForNew.from("assessments")
+        .select("id, org_id, status").eq("id", id).eq("candidate_user_id", userId).maybeSingle();
+      if (!a) return json({ error: "assessment not found" }, 404);
+      if (a.status === "submitted") return json({ error: "Already submitted." }, 409);
+      const { data: org } = await adminForNew.from("orgs").select("name").eq("id", a.org_id).maybeSingle();
+      await finaliseAssessment(id);
+      // No score, no verdict, no feedback. Deliberately.
+      return json({ ok: true, org_name: org?.name || "the company" });
+    }
+
+    // ---- Candidate: the growth note, and only the growth note ----
+    if (action === "assessment_growth_notes") {
+      const { data: rows } = await adminForNew.from("assessments")
+        .select("id").eq("candidate_user_id", userId).eq("status", "submitted").limit(20);
+      const ids = (rows || []).map(r => r.id);
+      if (!ids.length) return json({ notes: [] });
+      const { data: res } = await adminForNew.from("assessment_results")
+        .select("assessment_id, seeker_growth_note, created_at").in("assessment_id", ids)
+        .order("created_at", { ascending: false }).limit(3);
+      // Only the note text travels. No score, no verdict, no observation.
+      const notes = (res || [])
+        .map(r => String(r.seeker_growth_note || "").trim())
+        .filter(Boolean);
+      return json({ notes });
+    }
+
+    /**
+     * Grade a submitted assessment. Runs entirely server side with the
+     * service role. Everything it writes lands in assessment_results,
+     * which no client role can select from.
+     */
+    async function finaliseAssessment(assessmentId: string): Promise<void> {
+      const { data: a } = await adminForNew.from("assessments")
+        .select("id, org_id, candidate_user_id, job_title, questions, answers, started_at, submitted_at, time_limit_seconds")
+        .eq("id", assessmentId).maybeSingle();
+      if (!a || a.submitted_at) return;
+      const submittedAt = new Date().toISOString();
+      await adminForNew.from("assessments")
+        .update({ status: "submitted", submitted_at: submittedAt }).eq("id", assessmentId);
+
+      const { data: rubricRows } = await adminForNew.from("assessment_rubrics")
+        .select("question_id, rubric").eq("assessment_id", assessmentId);
+      const rubricById = new Map((rubricRows || []).map(r => [r.question_id, r.rubric]));
+      const questions = (a.questions as Array<Record<string, unknown>>) || [];
+      const answers = (a.answers as Record<string, { answer?: string; ms?: number }>) || {};
+
+      const canon = await loadCanonical(adminForNew, a.candidate_user_id);
+      const claims = canon ? buildCandidateProfile(canon) : null;
+
+      const items = questions.map(q => {
+        const id = String(q.id);
+        const ans = answers[id] || {};
+        return {
+          id,
+          type: q.type,
+          question: q.text,
+          options: q.options ?? null,
+          private_rubric: rubricById.get(id) || "",
+          candidate_answer: String(ans.answer ?? ""),
+          seconds_spent: Math.round(Number(ans.ms || 0) / 1000),
+        };
+      });
+
+      const sys = `You grade a verification assessment for an employer. The candidate never sees any of this.
+
+WHAT YOU ARE JUDGING: whether the answers read like someone who actually did the work they claim, or like someone reciting general knowledge.
+Use each question's private rubric. Reward specific constraints, real tradeoffs, named failure modes, and honest uncertainty about details. Penalise generic best practice prose, restated question text, and confident claims with no texture.
+
+Also note timing where it is informative: a long, flawless short answer written in under twenty seconds is worth mentioning as an observation. State it as an observation, never as an accusation.
+
+Scores: overall_score 0 to 100. verification_verdict is exactly one of "consistent", "partly consistent", "inconsistent", judged against what the candidate claims on their profile.
+employer_summary: 2 to 4 sentences, plain prose, what the employer should take away.
+seeker_growth_note: ONE sentence the candidate may later be shown. It must be about how their RESUME presents their work, never about the assessment, never about what they got wrong, never a score. Example shape: "Your resume undersells your work on data pipelines."
+${VOICE_RULES}`;
+
+      const schema = {
+        type: "object",
+        properties: {
+          overall_score: { type: "number" },
+          verification_verdict: { type: "string", enum: ["consistent", "partly consistent", "inconsistent"] },
+          per_question: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                score: { type: "number" },
+                observed: { type: "string" },
+              },
+              required: ["id", "score", "observed"],
+            },
+          },
+          strengths: { type: "array", items: { type: "string" } },
+          concerns: { type: "array", items: { type: "string" } },
+          employer_summary: { type: "string" },
+          seeker_growth_note: { type: "string" },
+        },
+        required: ["overall_score", "verification_verdict", "per_question", "employer_summary"],
+      };
+
+      let out: Record<string, unknown> = {};
+      try {
+        const r = await callAI({
+          model: QUALITY_MODEL,
+          system: sys,
+          user: `WHAT THE CANDIDATE CLAIMS ON THEIR PROFILE:
+${JSON.stringify(claims, null, 1)}
+
+THE ASSESSMENT, WITH PRIVATE RUBRICS AND THEIR ANSWERS:
+${JSON.stringify(items, null, 1)}
+
+Grade it now.`,
+          toolName: "grade_assessment",
+          toolSchema: schema,
+        });
+        out = (r.structured as Record<string, unknown>) || parseJsonLoose<Record<string, unknown>>(r.text) || {};
+      } catch (e) {
+        console.error("assessment grading failed", e);
+      }
+
+      const verdicts = ["consistent", "partly consistent", "inconsistent"];
+      const perQ = Array.isArray(out.per_question) ? out.per_question as Array<Record<string, unknown>> : [];
+      const byQ = new Map(perQ.map(p => [String(p.id), p]));
+      await adminForNew.from("assessment_results").upsert({
+        assessment_id: assessmentId,
+        overall_score: Math.max(0, Math.min(100, Math.round(Number(out.overall_score) || 0))),
+        verification_verdict: verdicts.includes(String(out.verification_verdict))
+          ? String(out.verification_verdict) : "partly consistent",
+        per_question: items.map(it => {
+          const p = byQ.get(it.id);
+          return {
+            id: it.id,
+            question: it.question,
+            answer: it.candidate_answer,
+            seconds_spent: it.seconds_spent,
+            score: Math.max(0, Math.min(100, Math.round(Number(p?.score) || 0))),
+            observed: cleanEmployerText(String(p?.observed || "No observation available.")),
+          };
+        }),
+        strengths: (Array.isArray(out.strengths) ? out.strengths : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
+        concerns: (Array.isArray(out.concerns) ? out.concerns : []).map(s => cleanEmployerText(String(s))).slice(0, 5),
+        employer_summary: cleanEmployerText(String(out.employer_summary || "")).slice(0, 1200),
+        seeker_growth_note: cleanEmployerText(String(out.seeker_growth_note || "")).slice(0, 300),
+      }, { onConflict: "assessment_id" });
+    }
+
 
     return json({ error: "Unknown action" }, 400);
+
   } catch (e) {
     console.error("resume-hub error", e);
     return json({ error: e instanceof Error ? e.message : "Server error" }, 500);

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Users, Puzzle, Download, Mail, Brain, LogOut } from "lucide-react";
+import { Home, User, Briefcase, Users, Puzzle, Download, Mail, Brain, LogOut, ClipboardCheck } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -14,21 +14,25 @@ import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
 import DiscoveryTab from "@/components/resume-hub/DiscoveryTab";
 import ProposalsTab from "@/components/resume-hub/ProposalsTab";
+import AssessmentsTab from "@/components/resume-hub/AssessmentsTab";
 import { employerApi } from "@/lib/employer";
+import { assessmentApi } from "@/lib/assessments";
 import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 
 
-type TabKey = "home" | "profile" | "jobs" | "proposals" | "discovery" | "extension";
+type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "discovery" | "extension";
 
 // v3.6.0 — Proposals is its own page, between Jobs and Get discovered.
+// v3.13.0 — Assessments sits right after it, badged the same way.
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
-  { key: "home",      label: "Home",              icon: Home,      hint: "Start here" },
-  { key: "profile",   label: "Profile",           icon: User,      hint: "You, your resume, your goals" },
-  { key: "jobs",      label: "Jobs",              icon: Briefcase, hint: "Score and tailor" },
-  { key: "proposals", label: "Proposals",         icon: Mail,      hint: "Roles employers want you for" },
-  { key: "discovery", label: "Get discovered",    icon: Users,     hint: "Let employers find you" },
-  { key: "extension", label: "Browser extension", icon: Puzzle,    hint: "Score jobs as you browse" },
+  { key: "home",        label: "Home",              icon: Home,           hint: "Start here" },
+  { key: "profile",     label: "Profile",           icon: User,           hint: "You, your resume, your goals" },
+  { key: "jobs",        label: "Jobs",              icon: Briefcase,      hint: "Score and tailor" },
+  { key: "proposals",   label: "Proposals",         icon: Mail,           hint: "Roles employers want you for" },
+  { key: "assessments", label: "Assessments",       icon: ClipboardCheck, hint: "Questions about your own work" },
+  { key: "discovery",   label: "Get discovered",    icon: Users,          hint: "Let employers find you" },
+  { key: "extension",   label: "Browser extension", icon: Puzzle,         hint: "Score jobs as you browse" },
 ];
 
 
@@ -40,6 +44,7 @@ export default function ResumeHub() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingIntros, setPendingIntros] = useState(0);
+  const [pendingAssessments, setPendingAssessments] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -64,6 +69,13 @@ export default function ResumeHub() {
       employerApi.proposalList()
         .then(r => setPendingIntros((r.requests || []).filter(x => x.status === "pending").length))
         .catch(() => { /* silent */ });
+      // v3.13.0 — badge Assessments with anything not yet submitted.
+      assessmentApi.list()
+        .then(r => setPendingAssessments((r.assessments || [])
+          .filter(a => a.status === "sent" || a.status === "started").length))
+        .catch(() => { /* silent */ });
+
+
 
     });
   }, [navigate, toast]);
@@ -149,16 +161,20 @@ export default function ResumeHub() {
               {NAV.map((item) => {
                 const Icon = item.icon;
                 const active = tab === item.key;
+                // v3.13.0 — Proposals and Assessments both carry a count.
+                const count = item.key === "proposals"
+                  ? pendingIntros
+                  : item.key === "assessments" ? pendingAssessments : 0;
                 return (
                   <button
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label + (item.key === "proposals" && pendingIntros > 0 ? ` (${pendingIntros} new proposals)` : "")}
+                    aria-label={item.label + (count > 0 ? ` (${count} new)` : "")}
                     style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    {item.key === "proposals" && pendingIntros > 0 && (
+                    {count > 0 && (
                       <span
                         aria-hidden
                         style={{
@@ -169,10 +185,10 @@ export default function ResumeHub() {
                           fontSize: 10, fontWeight: 600, lineHeight: "16px",
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}
-                      >{pendingIntros > 9 ? "9+" : pendingIntros}</span>
+                      >{count > 9 ? "9+" : count}</span>
                     )}
                     <span className="rh-tip" role="tooltip">
-                      {item.label}{item.key === "proposals" && pendingIntros > 0 ? ` · ${pendingIntros} new` : ""}
+                      {item.label}{count > 0 ? ` · ${count} new` : ""}
                     </span>
                   </button>
                 );
@@ -195,6 +211,8 @@ export default function ResumeHub() {
             {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
             {tab === "discovery" && <DiscoveryTab userId={userId!} />}
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
+            {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
+
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}

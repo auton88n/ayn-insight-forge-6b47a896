@@ -1,0 +1,137 @@
+/**
+ * v3.13.0 — the employer's sent assessments list, with results.
+ *
+ * Everything shown here comes from assessment_results, a table no client
+ * role can select from: the edge function reads it with the service role
+ * and only ever returns it on the employer lane.
+ */
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Loader2, ShieldAlert, Timer } from "lucide-react";
+import { assessmentApi, ASSESSMENT_LIMIT_NOTE, type EmployerAssessment } from "@/lib/assessments";
+
+const STATUS_LABEL: Record<string, string> = {
+  sent: "Waiting for them to start",
+  started: "In progress",
+  submitted: "Submitted",
+  expired: "Expired",
+};
+
+const VERDICT_LABEL: Record<string, string> = {
+  consistent: "Consistent with their profile",
+  "partly consistent": "Partly consistent with their profile",
+  inconsistent: "Inconsistent with their profile",
+};
+
+export default function AssessmentsPanel({ reloadKey }: { reloadKey: number }) {
+  const [rows, setRows] = useState<EmployerAssessment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    assessmentApi.employerList()
+      .then(r => setRows(r.assessments || []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, [reloadKey]);
+
+  return (
+    <Card className="p-4 sm:p-6 space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold">Assessments you sent</h2>
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground mt-1">
+          <ShieldAlert className="w-3.5 h-3.5 mt-px shrink-0" />
+          {ASSESSMENT_LIMIT_NOTE}
+        </p>
+      </div>
+
+      {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+      {!loading && rows.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Nothing sent yet. Open a candidate and send them an assessment before you decide on a proposal.
+        </p>
+      )}
+
+      {rows.map(a => {
+        const isOpen = openId === a.id;
+        return (
+          <div key={a.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{a.job_title || "Role"}</p>
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Timer className="w-3 h-3" />
+                  {a.question_count} questions · {Math.round(a.time_limit_seconds / 60)} minute limit
+                </p>
+              </div>
+              <Badge variant={a.status === "submitted" ? "secondary" : "outline"}>
+                {STATUS_LABEL[a.status] || a.status}
+              </Badge>
+            </div>
+
+            {a.result && (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-semibold">{a.result.overall_score}</span>
+                  <Badge variant="secondary" className="font-normal">
+                    {VERDICT_LABEL[a.result.verification_verdict] || a.result.verification_verdict}
+                  </Badge>
+                  <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setOpenId(isOpen ? null : a.id)}>
+                    {isOpen ? "Hide detail" : "Read the detail"}
+                  </Button>
+                </div>
+                {a.result.employer_summary && (
+                  <p className="text-sm leading-relaxed">{a.result.employer_summary}</p>
+                )}
+
+                {isOpen && (
+                  <div className="space-y-3 pt-1">
+                    {a.result.strengths.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Strengths</p>
+                        <ul className="space-y-0.5">
+                          {a.result.strengths.map((s, i) => <li key={i} className="text-sm leading-relaxed">{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {a.result.concerns.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Concerns</p>
+                        <ul className="space-y-0.5">
+                          {a.result.concerns.map((s, i) => <li key={i} className="text-sm leading-relaxed">{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Per question</p>
+                      {a.result.per_question.map(q => (
+                        <div key={q.id} className="rounded-md border border-border/50 px-3 py-2 space-y-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-sm leading-relaxed">{q.question}</p>
+                            <Badge variant="outline" className="shrink-0 font-normal">{q.score}</Badge>
+                          </div>
+                          {q.answer && (
+                            <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                              {q.answer}
+                            </p>
+                          )}
+                          <p className="text-xs leading-relaxed">{q.observed}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {q.seconds_spent} seconds on this question
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
