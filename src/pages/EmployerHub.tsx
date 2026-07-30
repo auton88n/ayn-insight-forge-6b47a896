@@ -421,6 +421,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 ))}
               </Card>
             )}
+
+            {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
+
           </main>
         </div>
       )}
