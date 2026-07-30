@@ -93,6 +93,11 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [sent, setSent] = useState<SentProposal[]>([]);
 
+  // v3.13.0 — the assessment dialog and a reload key for the sent list.
+  const [assessFor, setAssessFor] = useState<CandidateCard | null>(null);
+  const [assessKey, setAssessKey] = useState(0);
+
+
   const loadSent = useCallback(async () => {
     try { const r = await employerApi.sentProposals(); setSent(r.requests || []); } catch { /* silent */ }
   }, []);
