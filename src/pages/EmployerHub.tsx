@@ -593,7 +593,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </div>
 
 
-              <DialogFooter className="gap-2 sm:gap-3">
+              <DialogFooter className="shrink-0 gap-2 sm:gap-3 border-t border-border/60 bg-background p-6 pt-4">
                 {/* v3.13.0 — check the claims before you spend a proposal. */}
                 <Button
                   variant="outline"
