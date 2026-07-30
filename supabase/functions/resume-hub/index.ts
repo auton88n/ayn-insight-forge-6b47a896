@@ -427,18 +427,21 @@ function keywordFallbackScore(canonical: CanonicalProfile | null, fullJd: string
 // cover letter. Extracted once from primary resume + user_profile_data;
 // users can edit it in the Profile tab and edits win over re-extraction.
 type CanonicalProfile = {
-  skills: Array<{ name: string; years?: number; last_used?: string; level?: string; evidence?: string }>;
-  experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[] }>;
+  // v3.5.0 — skills carry level and recency because a bare name is unmatchable.
+  skills: Array<{ name: string; years?: number | null; last_used?: string | null; level?: string | null; evidence?: string }>;
+  experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[]; industry?: string; team_size?: number | null; bullets_from_resume?: boolean }>;
   education: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string; gpa?: string }>;
   certifications: Array<{ name: string; issuer?: string; year?: string }>;
   work_auth: {
     citizenship?: string;
+    countries?: string[];
     work_authorized_us?: boolean;
     work_authorized_ca?: boolean;
     needs_sponsorship_now?: boolean;
     needs_sponsorship_future?: boolean;
     visa_type?: string;
     notes?: string;
+    work_permit_expires?: string;
   };
   preferences: {
     open_to_remote?: boolean;
@@ -449,6 +452,9 @@ type CanonicalProfile = {
     start_date_availability?: string;
     desired_titles?: string[];
     desired_locations?: string[];
+    employment_types?: string[];
+    availability?: string;
+    company_stages?: string[];
   };
   derived: {
     total_yoe?: number;
@@ -458,8 +464,10 @@ type CanonicalProfile = {
     education_level?: string;
     current_title?: string;
     current_company?: string;
+    known_for?: string[];
   };
 };
+
 
 const EMPTY_CANONICAL: CanonicalProfile = {
   skills: [], experiences: [], education: [], certifications: [],
@@ -733,20 +741,68 @@ async function embedText(text: string): Promise<{ vector: number[]; model: strin
 }
 
 
+/**
+ * v3.5.0 — the profile text an employer search embeds against. It now carries
+ * the signals the Profile form started collecting: skill level and recency,
+ * industry and team size per role, achievements, availability, employment
+ * type, company stage, and what the candidate is known for. Skills with a
+ * level and recent usage are repeated once so the embedding weights them
+ * above bare strings. Still no name, email, phone, address, or links.
+ */
 function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unknown> | null): string {
-  const skills = c.skills.map(s => s.name).filter(Boolean).join(", ");
+  const skillPhrase = (s: CanonicalProfile["skills"][number]) => {
+    const bits = [s.name];
+    if (s.level) bits.push(s.level);
+    if (s.years) bits.push(`${s.years} years`);
+    if (s.last_used === "this_year") bits.push("used this year");
+    else if (s.last_used === "within_2_years") bits.push("used within 2 years");
+    else if (s.last_used === "over_2_years") bits.push("last used over 2 years ago");
+    return bits.join(" ");
+  };
+  const strong = (s: CanonicalProfile["skills"][number]) =>
+    (s.level === "advanced" || s.level === "expert") && s.last_used !== "over_2_years";
+  const skills = c.skills.filter(s => s.name).map(skillPhrase).join(", ");
+  const emphasised = c.skills.filter(s => s.name && strong(s)).map(s => s.name).join(", ");
+
   const exp = c.experiences.map(e => {
-    const bullets = (e.bullets || []).slice(0, 4).join(" | ");
-    return `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")} ${bullets}`.trim();
+    const bullets = (e.bullets || []).filter(Boolean).slice(0, 5).join(" | ");
+    const head = `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")}`.trim();
+    const ctx = [
+      e.industry ? `Industry: ${e.industry}` : "",
+      e.team_size ? `Managed a team of ${e.team_size}` : "",
+    ].filter(Boolean).join(". ");
+    return [head, ctx, bullets].filter(Boolean).join(". ");
   }).join("\n");
+
   const edu = c.education.map(e => `${e.degree || ""} ${e.field || ""} at ${e.school || ""}`.trim()).join("; ");
   const certs = c.certifications.map(c => c.name).filter(Boolean).join(", ");
   const derived = `Seniority: ${c.derived.seniority || ""}. Function: ${c.derived.primary_function || ""}. YoE: ${c.derived.total_yoe ?? ""}. Current title: ${c.derived.current_title || ""}.`;
+  const knownFor = (c.derived.known_for || []).filter(Boolean).join(". ");
+  const p = c.preferences;
+  const seeking = [
+    p.availability ? `Available: ${p.availability}` : "",
+    (p.employment_types || []).length ? `Employment type: ${(p.employment_types || []).join(", ")}` : "",
+    (p.company_stages || []).length ? `Company stage: ${(p.company_stages || []).join(", ")}` : "",
+    (p.desired_titles || []).length ? `Target roles: ${(p.desired_titles || []).join(", ")}` : "",
+    p.open_to_remote ? "Open to remote" : "",
+    p.open_to_relocation ? "Open to relocation" : "",
+  ].filter(Boolean).join(". ");
   const resumeSummary = ((resumeContent as { basics?: { summary?: string } })?.basics?.summary || "").toString();
+
   // Deliberately excludes name, email, phone, address, links to keep matching anonymous.
-  return [derived, `Skills: ${skills}`, `Experience:\n${exp}`, `Education: ${edu}`, certs ? `Certifications: ${certs}` : "", resumeSummary ? `Summary: ${resumeSummary}` : ""]
-    .filter(Boolean).join("\n\n");
+  return [
+    derived,
+    knownFor ? `Known for: ${knownFor}` : "",
+    `Skills: ${skills}`,
+    emphasised ? `Strongest current skills: ${emphasised}` : "",
+    `Experience:\n${exp}`,
+    `Education: ${edu}`,
+    certs ? `Certifications: ${certs}` : "",
+    seeking ? `Seeking: ${seeking}` : "",
+    resumeSummary ? `Summary: ${resumeSummary}` : "",
+  ].filter(Boolean).join("\n\n");
 }
+
 
 async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<{ model: string; skills_count: number } | null> {
   const [canonical, { data: primary }] = await Promise.all([
@@ -782,38 +838,50 @@ async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: stri
   // skills or the primary resume skills. Inferred = in derived.top_skills
   // but NOT in either extracted set. Must-have matching in Phase B is
   // restricted to extracted edges.
+  // v3.5.0 — edges now carry level, years and recency so employer matching can
+  // rank a recent expert above a name on a list. Provenance rules unchanged.
+  type Edge = { skill: string; source: string; level: string | null; years: number | null; last_used: string | null };
   const norm = (s: string) => s.toLowerCase().trim();
-  const canonicalSkillNames = canonical.skills.map(s => s.name).filter(Boolean);
   const resumeSkills = Array.isArray((resumeContent as { skills?: unknown })?.skills)
     ? ((resumeContent as { skills: unknown[] }).skills.filter(x => typeof x === "string") as string[])
     : [];
 
-  const extracted = new Map<string, { skill: string; source: string }>();
-  for (const s of canonicalSkillNames) {
-    const n = norm(s);
-    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "canonical_profile" });
+  const extracted = new Map<string, Edge>();
+  for (const s of canonical.skills) {
+    const n = norm(s.name || "");
+    if (n && !extracted.has(n)) {
+      extracted.set(n, {
+        skill: s.name, source: "canonical_profile",
+        level: s.level ?? null, years: s.years ?? null, last_used: s.last_used ?? null,
+      });
+    }
   }
   for (const s of resumeSkills) {
     const n = norm(s);
-    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "resume" });
+    if (n && !extracted.has(n)) extracted.set(n, { skill: s, source: "resume", level: null, years: null, last_used: null });
   }
 
-  const inferred = new Map<string, { skill: string; source: string }>();
+  const inferred = new Map<string, Edge>();
   for (const s of (canonical.derived.top_skills || [])) {
     const name = String(s);
     const n = norm(name);
-    if (n && !extracted.has(n) && !inferred.has(n)) inferred.set(n, { skill: name, source: "canonical_profile" });
+    if (n && !extracted.has(n) && !inferred.has(n)) {
+      inferred.set(n, { skill: name, source: "canonical_profile", level: null, years: null, last_used: null });
+    }
   }
 
   await admin.from("candidate_skills").delete().eq("user_id", userId);
   const rows = [
     ...Array.from(extracted.entries()).map(([skill_norm, v]) => ({
       user_id: userId, skill: v.skill, skill_norm, provenance: "extracted", source: v.source,
+      level: v.level, years: v.years, last_used: v.last_used,
     })),
     ...Array.from(inferred.entries()).map(([skill_norm, v]) => ({
       user_id: userId, skill: v.skill, skill_norm, provenance: "inferred", source: v.source,
+      level: null, years: null, last_used: null,
     })),
   ];
+
   if (rows.length) {
     const { error: sErr } = await admin.from("candidate_skills").insert(rows);
     if (sErr) throw sErr;
