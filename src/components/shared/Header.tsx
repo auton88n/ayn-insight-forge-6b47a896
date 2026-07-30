@@ -130,10 +130,10 @@ export const Header = () => {
           <div className="hidden md:block">
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: 'rgba(10,10,15,0.55)' }}>
+                <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 13, color: inkSoft }}>
                   {user.email?.split('@')[0]}
                 </span>
-                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(10,10,15,0.55)', padding: 4 }} title="Sign out">
+                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', cursor: 'pointer', color: inkSoft, padding: 4 }} title="Sign out">
                   <LogOut size={15} />
                 </button>
               </div>
@@ -141,20 +141,21 @@ export const Header = () => {
               <button
                 onClick={() => setShowAuthModal(true)}
                 style={{
-                  fontFamily: "'Space Grotesk', 'Geist', system-ui, sans-serif",
-                  fontSize: 13, fontWeight: 500,
+                  fontFamily: headFont,
+                  fontSize: 13, fontWeight: 600,
                   color: '#fff',
-                  background: '#0a0a0f',
+                  background: onDark ? 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)' : '#0a0a0f',
                   border: 'none',
-                  borderRadius: 8,
-                  padding: '8px 18px',
+                  borderRadius: 999,
+                  padding: '9px 20px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   letterSpacing: '-0.01em',
-                  transition: 'background 0.15s, transform 0.1s',
+                  boxShadow: onDark ? '0 10px 26px -14px rgba(232,93,58,0.95)' : 'none',
+                  transition: 'filter 0.15s, background 0.15s, transform 0.1s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#1a1a2e'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#0a0a0f'; }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1.08)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'none'; }}
                 onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.98)'; }}
                 onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
@@ -167,7 +168,8 @@ export const Header = () => {
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" style={{ color: '#0a0a0f' }} aria-label="Open menu">
+                <Button variant="ghost" size="icon" style={{ color: inkStrong }} aria-label="Open menu">
+
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
