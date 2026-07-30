@@ -161,16 +161,20 @@ export default function ResumeHub() {
               {NAV.map((item) => {
                 const Icon = item.icon;
                 const active = tab === item.key;
+                // v3.13.0 — Proposals and Assessments both carry a count.
+                const count = item.key === "proposals"
+                  ? pendingIntros
+                  : item.key === "assessments" ? pendingAssessments : 0;
                 return (
                   <button
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label + (item.key === "proposals" && pendingIntros > 0 ? ` (${pendingIntros} new proposals)` : "")}
+                    aria-label={item.label + (count > 0 ? ` (${count} new)` : "")}
                     style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    {item.key === "proposals" && pendingIntros > 0 && (
+                    {count > 0 && (
                       <span
                         aria-hidden
                         style={{
@@ -181,10 +185,10 @@ export default function ResumeHub() {
                           fontSize: 10, fontWeight: 600, lineHeight: "16px",
                           display: "flex", alignItems: "center", justifyContent: "center",
                         }}
-                      >{pendingIntros > 9 ? "9+" : pendingIntros}</span>
+                      >{count > 9 ? "9+" : count}</span>
                     )}
                     <span className="rh-tip" role="tooltip">
-                      {item.label}{item.key === "proposals" && pendingIntros > 0 ? ` · ${pendingIntros} new` : ""}
+                      {item.label}{count > 0 ? ` · ${count} new` : ""}
                     </span>
                   </button>
                 );
@@ -207,6 +211,8 @@ export default function ResumeHub() {
             {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
             {tab === "discovery" && <DiscoveryTab userId={userId!} />}
             {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
+            {tab === "assessments" && <AssessmentsTab onChanged={setPendingAssessments} />}
+
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}
