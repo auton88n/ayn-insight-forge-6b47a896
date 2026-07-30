@@ -197,7 +197,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <p className="lp-eyebrow">What it does</p>
             <h2 className="lp-display lp-h2">Apply to fewer jobs, and to better ones</h2>
             <p className="lp-lead">
-              Everything that goes out with your name on it is something you can check.
+              Apply faster, and be the candidate employers surface when they search.
             </p>
 
           </div>
