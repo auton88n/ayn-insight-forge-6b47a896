@@ -351,18 +351,20 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
             {tab === "search" && searching && (
-              <div className="space-y-4">
-                <Card className="p-6 text-center space-y-1.5">
-                  <p className="text-sm font-medium flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" /> AYN is reading the pool
-                  </p>
+              <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
+                <span
+                  aria-hidden
+                  className="w-12 h-12 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin"
+                />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">AYN is reading the pool</p>
                   <p className="text-sm text-muted-foreground">
                     Scoring every candidate who opted into discovery against your role.
                   </p>
-                </Card>
-                {[0, 1, 2].map(i => <CandidateCardSkeleton key={i} />)}
-              </div>
+                </div>
+              </Card>
             )}
+
 
             {tab === "search" && !searching && stage === "spec" && (
               <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
