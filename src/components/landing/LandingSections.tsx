@@ -152,10 +152,52 @@ function useReveal() {
   return root;
 }
 
-type Props = { onStartFree?: (role?: 'job_seeker' | 'employer') => void };
+type Audience = 'job_seeker' | 'employer';
+type Props = { onStartFree?: (role?: Audience) => void };
+
+const HERO: Record<Audience, {
+  pill: JSX.Element;
+  headline: JSX.Element;
+  lead: string;
+  cta: string;
+  note: string;
+  art: JSX.Element;
+  anchor: string;
+}> = {
+  job_seeker: {
+    pill: <><b>Free to start</b> no credit card <i /></>,
+    headline: <>Stop rewriting your resume for <em>every single job.</em></>,
+    lead: 'A resume and cover letter written for the exact posting in front of you, from your real history, in the time it takes to read the ad.',
+    cta: 'Start free',
+    note: 'Read only on every page. AYN never types into a form and never submits anything for you.',
+    art: <ExtensionOnPostingMockup />,
+    anchor: 'features',
+  },
+  employer: {
+    pill: <><b>Employer access</b> onboarded one at a time <i /></>,
+    headline: <>Three people worth talking to, <em>not six hundred maybes.</em></>,
+    lead: 'Describe the role once. AYN searches people who chose to be found and returns the strongest fits with the evidence, the gaps and a way to verify them before you commit.',
+    cta: 'Request employer access',
+    note: 'Contact details stay private until the candidate accepts your proposal.',
+    art: <CandidateCardMockup />,
+    anchor: 'employers',
+  },
+};
 
 export const LandingSections = memo(({ onStartFree }: Props) => {
   const root = useReveal();
+  const [audience, setAudience] = useState<Audience>(() => {
+    if (typeof window === 'undefined') return 'job_seeker';
+    return localStorage.getItem('ayn_landing_audience') === 'employer' ? 'employer' : 'job_seeker';
+  });
+
+  const pickAudience = (next: Audience) => {
+    setAudience(next);
+    try { localStorage.setItem('ayn_landing_audience', next); } catch { /* ignore */ }
+    document.getElementById(HERO[next].anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const hero = HERO[audience];
 
   return (
     <div className="lp" ref={root}>
@@ -164,33 +206,47 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
         <div className="lp-hero-aura" aria-hidden="true" />
         <div className="lp-shell">
           <div style={{ maxWidth: 780 }}>
-            <span className="lp-pill">
-              <b>Free to start</b> no credit card <i />
-            </span>
-            <h1 className="lp-display lp-h1">
-              Hiring stopped being a pile of resumes. <em>AYN reads both sides.</em>
-            </h1>
-            <p className="lp-lead" style={{ maxWidth: 660 }}>
-              For job seekers, a resume and cover letter written for the exact posting in front of you.
-              For employers, the people who can actually do the job, with the evidence attached.
-            </p>
-
-            <div className="lp-cta-row" style={{ marginTop: 30 }}>
-              <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
-                I am looking for a job <ArrowRight size={15} />
+            <div className="lp-switch" role="tablist" aria-label="Who are you">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={audience === 'job_seeker'}
+                className={`lp-switch-btn ${audience === 'job_seeker' ? 'is-on' : ''}`}
+                onClick={() => pickAudience('job_seeker')}
+              >
+                I am looking for a job
               </button>
-              <button type="button" className="lp-btn lp-btn-ghost" onClick={() => onStartFree?.('employer')}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={audience === 'employer'}
+                className={`lp-switch-btn ${audience === 'employer' ? 'is-on' : ''}`}
+                onClick={() => pickAudience('employer')}
+              >
                 I am hiring
               </button>
             </div>
-            <p className="lp-note">Read only on every page. AYN never types into a form and never submits anything for you.</p>
+
+            <div className="lp-audience" key={audience}>
+              <div><span className="lp-pill">{hero.pill}</span></div>
+              <h1 className="lp-display lp-h1">{hero.headline}</h1>
+              <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
+
+              <div className="lp-cta-row" style={{ marginTop: 30 }}>
+                <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
+                  {hero.cta} <ArrowRight size={15} />
+                </button>
+              </div>
+              <p className="lp-note">{hero.note}</p>
+            </div>
           </div>
 
-          <div className="lp-hero-art lp-reveal">
-            <ExtensionOnPostingMockup />
+          <div className="lp-hero-art lp-reveal lp-audience" key={`art-${audience}`}>
+            {hero.art}
           </div>
         </div>
       </header>
+
 
       {/* ── PROOF STRIP ──────────────────────────────────────── */}
       <div className="lp-strip">
