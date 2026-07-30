@@ -1,18 +1,16 @@
 /**
  * LandingSections — AYN marketing page.
  * Charcoal & Ember, Outfit + Figtree, bento grid composition.
- * The old scroll scrubbed 3D canvas has been retired in favour of the
- * CSS driven HeroFillMockup.
+ * v3.0.0: AYN is a read only job search copilot. Match score first, no autofill.
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Wand2, Target, ShieldCheck, FileText, Sparkles, LayoutGrid } from 'lucide-react';
+import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid } from 'lucide-react';
 import { HeroFillMockup } from './HeroFillMockup';
 import {
   MatchScoreIllustration,
   ProvenanceIllustration,
   OnePageDocIllustration,
-  RunSummaryIllustration,
   EmployerMatchIllustration,
 } from './ProductIllustrations';
 
@@ -21,55 +19,47 @@ const ATS = ['Greenhouse', 'Ashby', 'Lever', 'Workday', 'iCIMS', 'SmartRecruiter
 const TILES = [
   {
     span: 'lp-span-4',
-    icon: Wand2,
-    title: 'Autofill that handles the hard parts',
-    desc: 'One click fills the whole form. Even the questions that make you quit.',
-    art: null,
-    meta: ['Dropdowns', 'Work history', 'Screening questions'],
-  },
-  {
-    span: 'lp-span-2',
     icon: Target,
     title: 'A match score you can check',
-    desc: 'See your real match before you spend the hour.',
+    desc: 'See your real fit before you spend the hour writing an application.',
     art: MatchScoreIllustration,
   },
   {
     span: 'lp-span-2',
     icon: ShieldCheck,
-    title: 'It never invents an answer',
-    desc: 'If AYN cannot verify it, it leaves it blank.',
+    title: 'Grounded on the real posting',
+    desc: 'AYN reads the full job text, not a nav bar and a cookie banner.',
     art: ProvenanceIllustration,
   },
   {
     span: 'lp-span-2',
     icon: FileText,
     title: 'Tailored resumes and cover letters',
-    desc: 'Built for the role. One page, ATS ready.',
+    desc: 'Written for that role. One page, ATS ready.',
     art: OnePageDocIllustration,
   },
   {
     span: 'lp-span-2',
-    icon: Sparkles,
-    title: 'It learns your answers',
-    desc: 'Answer a question once. AYN remembers it.',
+    icon: MessagesSquare,
+    title: 'Ask AYN about the job',
+    desc: 'What does this role really want? Ask, and get an answer from the posting.',
     art: null,
-    meta: ['Reusable answers', 'Editable any time'],
+    meta: ['Plain questions', 'Answers from the text'],
   },
   {
     span: 'lp-span-6',
     icon: LayoutGrid,
     title: 'Everything in one place',
-    desc: 'Every resume, job, and application tracked in one workspace.',
+    desc: 'Every resume, saved job, and score in one workspace.',
     art: null,
-    meta: ['Saved jobs', 'Application tracker', 'Resume versions', 'Fill history'],
+    meta: ['Saved jobs', 'Match scores', 'Resume versions', 'Cover letters'],
   },
 ];
 
 const FAQS = [
   {
     q: 'What is AYN?',
-    a: 'AYN reads a job posting, scores how well you match it, fills the application, and writes you a tailored resume and cover letter.',
+    a: 'AYN reads a job posting, scores how well you match it, and writes you a tailored resume and cover letter for that role.',
   },
   {
     q: 'Which job sites does AYN work on?',
@@ -80,10 +70,11 @@ const FAQS = [
     a: 'Yes. AYN is free to start and no credit card is required.',
   },
   {
-    q: 'Can AYN answer sensitive questions for me?',
-    a: 'No. Work authorization, sponsorship, salary, and self identification are always left to you.',
+    q: 'Does AYN fill or submit applications for me?',
+    a: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.',
   },
 ];
+
 
 /** Adds .is-in to .lp-reveal elements once they enter the viewport. */
 function useReveal() {
@@ -126,11 +117,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              You have filled the same form <em>a hundred times</em>.
+              Know if a job is worth your hour <em>before you spend it</em>.
             </h1>
             <p className="lp-lead">
-              AYN applies for you. One click per job, not forty fields. And when you are hiring, it
-              finds the three people worth talking to.
+              AYN reads the real posting, scores your fit against it, then writes the resume and
+              cover letter for that role. And when you are hiring, it finds the three people worth
+              talking to.
             </p>
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
@@ -150,7 +142,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
       {/* ── PROOF STRIP ──────────────────────────────────────── */}
       <div className="lp-strip">
         <div className="lp-shell lp-strip-inner">
-          <span className="lp-strip-label">Fills applications on</span>
+          <span className="lp-strip-label">Reads job posts on</span>
           {ATS.map((n) => (
             <span key={n} className="lp-strip-mark">{n}</span>
           ))}
@@ -168,7 +160,8 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             {[
               'Add your resume once.',
               'Open any job posting.',
-              'Click fill.',
+              'See your score, then tailor.',
+
             ].map((t, i) => (
               <div className="lp-step" key={t}>
                 <span className="lp-step-n">STEP {i + 1}</span>
@@ -184,10 +177,11 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-reveal" style={{ marginBottom: 40 }}>
             <p className="lp-eyebrow">What it does</p>
-            <h2 className="lp-display lp-h2">Apply faster without losing control</h2>
+            <h2 className="lp-display lp-h2">Apply to fewer jobs, and to better ones</h2>
             <p className="lp-lead">
               Everything that goes out with your name on it is something you can check.
             </p>
+
           </div>
 
           <div className="lp-bento lp-reveal">
@@ -254,20 +248,21 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell" style={{ display: 'grid', gap: 'clamp(28px,5vw,56px)', gridTemplateColumns: '1fr' }}>
           <div className="lp-reveal">
             <p className="lp-eyebrow">Built to be honest</p>
-            <h2 className="lp-display lp-h2">It tells you what it did not do</h2>
+            <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
             <p className="lp-lead">
-              AYN shows you what it filled, what it skipped, and what it could not verify. Work
-              authorization, sponsorship, salary, and self identification are never guessed. You answer
-              those.
+              Every score is grounded in the posting text, and AYN shows you the lines it used. If the
+              page hides the description, it says so instead of guessing. AYN only reads. It never
+              types into a page and never submits anything for you.
             </p>
-          </div>
-          <div className="lp-tile lp-reveal">
-            <div className="lp-art" style={{ marginTop: 0 }}>
-              <RunSummaryIllustration />
+            <div className="lp-chips">
+              <span className="lp-chip">Read only, always</span>
+              <span className="lp-chip">Evidence for every score</span>
+              <span className="lp-chip">Your data stays yours</span>
             </div>
           </div>
         </div>
       </section>
+
 
       {/* ── FAQ ──────────────────────────────────────────────── */}
       <section id="faq" className="lp-section" style={{ paddingBlockStart: 0 }}>
@@ -292,11 +287,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
             <h2 className="lp-display lp-h2" style={{ maxWidth: 720, marginInline: 'auto' }}>
-              Your next application should take a minute
+              Know before you apply
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-              Add your resume once and let AYN do the rest.
+              Add your resume once and let AYN read the job for you.
             </p>
+
             <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.()}>
                 Start free <ArrowRight size={15} />

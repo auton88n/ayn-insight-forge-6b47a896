@@ -237,7 +237,6 @@ async function resolveResumeContent(
 const EXT_ACTIONS = new Set([
   "ext_bootstrap", "ext_ingest_job", "ext_cover_letter_text",
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
-  "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.5.0: canonical profile read for extension
   "ext_profile_canonical_get",
@@ -1385,34 +1384,6 @@ RULES:
       }
 
 
-      // ext_save_application — save to tracker via extension token
-      if (action === "ext_save_application") {
-        const { jobTitle, company, jobUrl, status, score, match_score, job_id, salaryEstimate, notes } = payload as {
-          jobTitle?: string; company?: string; jobUrl?: string;
-          status?: string; score?: number; match_score?: number; job_id?: string;
-          salaryEstimate?: string; notes?: string;
-        };
-        if (!company || !jobTitle) return json({ error: "company and jobTitle required" }, 400);
-        // v2.8.0 — accept match_score / job_id from AUTO_TRACK_SUBMIT so the
-        // tracker row is enriched at capture time (previously we upserted just
-        // the URL and had to rely on later manual edits).
-        const finalScore = typeof match_score === "number" ? match_score
-                         : typeof score === "number" ? score : null;
-        const row: Record<string, unknown> = {
-          user_id: userId, job_title: jobTitle, company,
-          job_url: jobUrl || "", status: status || "saved",
-          match_score: finalScore, salary_estimate: salaryEstimate || "",
-          notes: notes || "",
-          applied_at: status === "applied" ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        };
-        if (job_id) row.job_id = job_id;
-        const { data, error } = await admin.from("job_applications").upsert(row,
-          { onConflict: "user_id,job_url", ignoreDuplicates: false }).select("id").single();
-        if (error) return json({ error: error.message }, 500);
-        return json({ ok: true, id: data.id });
-      }
-
       // v2.8.0 — ext_job_lookup: JD Resolver's backend branch. Given host+path
       // (or a URL), returns the most recent jobs-row with jd_text ≥ 400 chars.
       if (action === "ext_job_lookup") {
@@ -1436,25 +1407,6 @@ RULES:
         return json({ ok: true, job: best });
       }
 
-
-      if (action === "ext_get_applications") {
-        const { data, error } = await admin.from("job_applications")
-          .select("id,job_title,company,job_url,status,match_score,salary_estimate,notes,applied_at,updated_at,created_at")
-          .eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
-        if (error) return json({ error: error.message }, 500);
-        return json({ applications: data || [] });
-      }
-
-      if (action === "ext_update_application") {
-        const { id, status, notes } = payload as { id?: string; status?: string; notes?: string };
-        if (!id) return json({ error: "id required" }, 400);
-        const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-        if (status) { updates.status = status; if (status === "applied") updates.applied_at = new Date().toISOString(); }
-        if (notes !== undefined) updates.notes = notes;
-        const { error } = await admin.from("job_applications").update(updates).eq("id", id).eq("user_id", userId);
-        if (error) return json({ error: error.message }, 500);
-        return json({ ok: true });
-      }
 
       // ext_download_resume_text — returns primary or tailored resume as ATS plain text
       if (action === "ext_download_resume_text") {

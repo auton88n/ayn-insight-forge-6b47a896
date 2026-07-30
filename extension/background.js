@@ -61,8 +61,7 @@ async function aynReadPendingResumeVersion(tabUrl) {
 // v2.8.0 — JD Resolver infrastructure.
 // JD_REGISTRY: origin+pathname → { text, title, company, url, ts, source }
 // TAB_OPENER: tabId → openerTabId (captured at tab creation time)
-// LAST_MATCH: tabId → { score, jobId, ts } — populated by SCORE_JOB_CARD so
-// AUTO_TRACK_SUBMIT can enrich the tracker row with the score at submit time.
+// LAST_MATCH: tabId → { score, jobId, ts } — last score computed for the tab.
 // MANUAL_JD: tabId → { text, title, company, ts } — user-pasted override.
 const JD_REGISTRY = new Map();
 const TAB_OPENER = new Map();
@@ -573,7 +572,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           url: pageUrl,
           resume_version_id: resume_version_id || undefined,
         });
-        // v2.8.0 — remember the score per tab so AUTO_TRACK_SUBMIT can attach it.
+        // Remember the score per tab so the panel can show it without a refetch.
         try { if (tabId != null && data && typeof data.score === 'number') LAST_MATCH.set(tabId, { score: data.score, jobId: data.job_id || '', ts: Date.now() }); } catch {}
         sendResponse({
           score: data.score || 0, matchLabel: data.matchLabel || '',
@@ -588,21 +587,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-
-  // Application tracker
-  if (['SAVE_APPLICATION','GET_APPLICATIONS','UPDATE_APPLICATION'].includes(message.type)) {
-    (async () => {
-      try {
-        const actionMap = {
-          SAVE_APPLICATION: 'ext_save_application',
-          GET_APPLICATIONS: 'ext_get_applications',
-          UPDATE_APPLICATION: 'ext_update_application',
-        };
-        sendResponse(await callFunction(actionMap[message.type], message.payload || {}));
-      } catch (e) { sendResponse({ error: e.message }); }
-    })();
-    return true;
-  }
 
   // Suggest roles
   if (message.type === 'SUGGEST_ROLES') {

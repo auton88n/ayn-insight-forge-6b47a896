@@ -83,24 +83,8 @@ export default function JobsTab({ userId }: Props) {
     } finally { setBusy(false); }
   };
 
-  const addToTracker = async () => {
-    if (!selected) return;
-    // v2.7.0 — unified tracker uses job_applications and links back to the source job.
-    const { error } = await supabase.from("job_applications").upsert({
-      user_id: userId,
-      job_id: selected.id,
-      job_title: selected.title,
-      company: selected.company,
-      job_url: selected.source_url ?? "",
-      status: "saved",
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id,job_url", ignoreDuplicates: false });
-    if (error) {
-      toast({ title: "Add failed", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Added to tracker" });
-  };
+
+
 
   const removeJob = async (id: string) => {
     if (!confirm("Remove this job?")) return;
@@ -195,7 +179,7 @@ export default function JobsTab({ userId }: Props) {
                 <Button onClick={calcMatch} disabled={busy || !primaryResume}><Sparkles className="w-4 h-4 mr-2" />Calculate match</Button>
                 <Button onClick={tailorResume} disabled={busy || !primaryResume} variant="outline">Tailor resume</Button>
                 <Button onClick={writeCover} disabled={busy || !primaryResume} variant="outline">Write cover letter</Button>
-                <Button onClick={addToTracker} variant="outline">Add to tracker</Button>
+                
                 {selected.source_url && (
                   <Button
                     variant="outline"

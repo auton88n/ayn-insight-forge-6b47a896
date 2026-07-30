@@ -3,25 +3,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Briefcase, TrendingUp, ChevronRight } from "lucide-react";
+import { FileText, Briefcase, ChevronRight } from "lucide-react";
 
 interface Props { userId: string; onOpenBuilder: () => void; onOpenJobs: () => void }
 
 export default function OverviewTab({ userId, onOpenBuilder, onOpenJobs }: Props) {
-  const [stats, setStats] = useState({ resumes: 0, jobs: 0, applications: 0, primaryScore: null as number | null, primaryTitle: "" });
+  const [stats, setStats] = useState({ resumes: 0, jobs: 0, primaryScore: null as number | null, primaryTitle: "" });
 
   useEffect(() => {
     (async () => {
-      const [{ count: resumes }, { count: jobs }, { count: applications }, { data: primary }] = await Promise.all([
+      const [{ count: resumes }, { count: jobs }, { data: primary }] = await Promise.all([
         supabase.from("resumes").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("jobs").select("*", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("job_applications").select("*", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("resumes").select("title, ats_score").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
       ]);
       setStats({
         resumes: resumes ?? 0,
         jobs: jobs ?? 0,
-        applications: applications ?? 0,
         primaryScore: primary?.ats_score ?? null,
         primaryTitle: primary?.title ?? "",
       });
@@ -30,7 +28,7 @@ export default function OverviewTab({ userId, onOpenBuilder, onOpenJobs }: Props
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="p-5">
           <div className="flex items-start justify-between">
             <div>
@@ -56,17 +54,8 @@ export default function OverviewTab({ userId, onOpenBuilder, onOpenJobs }: Props
             View jobs <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         </Card>
-
-        <Card className="p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Applications</p>
-              <p className="text-3xl font-bold mt-1">{stats.applications}</p>
-            </div>
-            <TrendingUp className="w-5 h-5 text-muted-foreground" />
-          </div>
-        </Card>
       </div>
+
 
       {stats.primaryTitle && (
         <Card className="p-5">
@@ -88,9 +77,10 @@ export default function OverviewTab({ userId, onOpenBuilder, onOpenJobs }: Props
         <h3 className="font-semibold mb-2">Getting started</h3>
         <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
           <li>Open <strong>Builder</strong>, paste your existing resume, and let AYN structure it.</li>
-          <li>Install the <strong>AYN Autofill</strong> Chrome extension from the Extension tab.</li>
+          <li>Install the <strong>AYN</strong> Chrome extension from the Extension tab.</li>
           <li>Browse jobs on LinkedIn, Indeed, or any company site. Click "Save" in the extension.</li>
-          <li>Open a saved job to see your match score, then tailor and apply in one click.</li>
+          <li>Open a saved job to see your match score, then tailor your resume for it.</li>
+
         </ol>
       </Card>
     </div>

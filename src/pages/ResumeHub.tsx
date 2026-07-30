@@ -2,28 +2,27 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LayoutGrid, User, FileText, Briefcase, ListChecks, Puzzle, Download } from "lucide-react";
+import { ArrowLeft, LayoutGrid, User, FileText, Briefcase, Puzzle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import OverviewTab from "@/components/resume-hub/OverviewTab";
 import BuilderTab from "@/components/resume-hub/BuilderTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
-import TrackerTab from "@/components/resume-hub/TrackerTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
 import { employerApi } from "@/lib/employer";
 import "@/styles/resume-hub.css";
 
 
-type TabKey = "overview" | "profile" | "builder" | "jobs" | "tracker" | "extension";
+type TabKey = "overview" | "profile" | "builder" | "jobs" | "extension";
 
 const NAV: { key: TabKey; label: string; icon: typeof LayoutGrid; hint: string }[] = [
   { key: "overview",  label: "Overview",  icon: LayoutGrid,  hint: "Snapshot" },
   { key: "profile",   label: "Profile",   icon: User,        hint: "Canonical" },
   { key: "builder",   label: "Resumes",   icon: FileText,    hint: "Tailor & ATS" },
   { key: "jobs",      label: "Saved jobs",icon: Briefcase,   hint: "Match queue" },
-  { key: "tracker",   label: "Tracker",   icon: ListChecks,  hint: "Pipeline" },
   { key: "extension", label: "Extension", icon: Puzzle,      hint: "Install AYN" },
 ];
+
 
 export default function ResumeHub() {
   const navigate = useNavigate();
@@ -160,7 +159,7 @@ export default function ResumeHub() {
             {tab === "profile"   && <ProfileTab userId={userId!} />}
             {tab === "builder"   && <BuilderTab userId={userId!} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
-            {tab === "tracker"   && <TrackerTab userId={userId!} />}
+            
             {tab === "extension" && <ExtensionTab userId={userId!} />}
           </section>
 
@@ -180,8 +179,9 @@ export default function ResumeHub() {
             <div className="rh-aside-section">
               <div className="rh-aside-label">Chrome extension</div>
               <p className="text-[13px] text-[color:var(--rh-muted)] leading-relaxed mb-2">
-                Score, autofill, and tailor on any job board.
+                Score and tailor on any job board. AYN only reads the page.
               </p>
+
               <button className="rh-btn w-full justify-center" onClick={downloadExtension}>
                 <Download className="w-4 h-4" /> Download v1.9.61
               </button>

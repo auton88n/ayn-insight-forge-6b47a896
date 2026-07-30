@@ -16,7 +16,7 @@ function toast(msg, type = '') {
   t._t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-const VIEWS = ['v-login','v-jobs','v-ask','v-contact','v-cover','v-tracker','v-t1','v-t2','v-t3'];
+const VIEWS = ['v-login','v-jobs','v-ask','v-contact','v-cover','v-t1','v-t2','v-t3'];
 function show(id) {
   VIEWS.forEach(v => $(v)?.classList.toggle('active', v === id));
   const li = id !== 'v-login';
@@ -37,12 +37,12 @@ function show(id) {
 
 function switchTab(tab) {
   S.tab = tab;
-  ['jobs','ask','contact','cover','tracker','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
+  ['jobs','ask','contact','cover','tailor'].forEach(t => $(`tab-${t}`)?.classList.toggle('active', t===tab));
   if (tab === 'jobs')    { show('v-jobs');    detectForScore(); }
   if (tab === 'ask')     { show('v-ask');     detectForAsk(); }
   if (tab === 'contact') { show('v-contact'); detectForContacts(); }
   if (tab === 'cover')   { show('v-cover');   detectForCover(); }
-  if (tab === 'tracker') { show('v-tracker'); loadTracker(); }
+  
   if (tab === 'tailor')  { show('v-t1');      detectForTailor(); }
 }
 window.switchTab = switchTab;
@@ -920,10 +920,6 @@ $('cover-copy-btn').addEventListener('click', () => {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => { $('cover-copy-btn').textContent = '✓ Copied!'; toast('Copied','ok'); setTimeout(()=>$('cover-copy-btn').textContent='Copy',1800); });
 });
-$('cover-save-btn').addEventListener('click', () => {
-  if (!CL.company || !CL.jobTitle) { toast('No job detected', 'err'); return; }
-  saveApplication({ jobTitle: CL.jobTitle, company: CL.company, jobUrl: '', status: 'saved' });
-});
 
 function coverHeaderFromResume(resumeText) {
   const lines = String(resumeText || '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -979,90 +975,6 @@ $('cover-download-docx-btn')?.addEventListener('click', async () => {
   finally { btn.disabled = false; btn.innerHTML = orig; }
 });
 
-// ════════════════════════════════════════════════════════════════
-// TRACKER
-// ════════════════════════════════════════════════════════════════
-
-let trackerApps = [];
-
-function saveApplication(app) {
-  chrome.runtime.sendMessage({ type: 'SAVE_APPLICATION', payload: app }, r => {
-    if (r?.ok) { toast('Saved to tracker ✓','ok'); loadTracker(); }
-    else toast(r?.error || 'Could not save','err');
-  });
-}
-
-function loadTracker() {
-  $('tracker-loading').classList.remove('hidden');
-  $('tracker-empty').classList.add('hidden');
-  $('tracker-list').innerHTML = '';
-  const errEl = $('err-tracker');
-  if (errEl) errEl.classList.add('hidden');
-  chrome.runtime.sendMessage({ type: 'GET_APPLICATIONS', payload: {} }, r => {
-    $('tracker-loading').classList.add('hidden');
-    if (chrome.runtime.lastError) {
-      if (errEl) { errEl.textContent = 'Could not load tracker. Reload the extension.'; errEl.classList.remove('hidden'); }
-      return;
-    }
-    if (r?.error) {
-      if (errEl) { errEl.textContent = r.error; errEl.classList.remove('hidden'); }
-      $('tracker-empty').classList.remove('hidden'); return;
-    }
-    if (!r?.applications) { $('tracker-empty').classList.remove('hidden'); return; }
-    trackerApps = r.applications;
-    if (trackerApps.length === 0) { $('tracker-empty').classList.remove('hidden'); return; }
-    renderTracker(trackerApps);
-  });
-}
-
-function renderTracker(apps) {
-  const list = $('tracker-list'); list.innerHTML = '';
-  const statusOrder = ['offer','interview','applied','saved','rejected'];
-  const sorted = [...apps].sort((a,b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
-  sorted.forEach(app => {
-    const date = app.applied_at ? new Date(app.applied_at).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) :
-                 new Date(app.updated_at || app.created_at).toLocaleDateString('en-CA',{month:'short',day:'numeric'});
-    const div = document.createElement('div');
-    div.className = 'app-card';
-    div.dataset.id = app.id;
-    div.innerHTML = `
-      <div class="app-card-top">
-        <div>
-          <div class="app-card-title">${esc(app.job_title)}</div>
-          <div class="app-card-company">${esc(app.company)}</div>
-        </div>
-        <span class="app-status ${app.status}" data-id="${app.id}" data-status="${app.status}">${app.status}</span>
-      </div>
-      <div class="app-meta">
-        <span>${date}</span>
-        ${app.match_score ? `<span style="color:#F97316">⬡ ${app.match_score}/10</span>` : ''}
-        ${app.salary_estimate ? `<span>${esc(app.salary_estimate)}</span>` : ''}
-        ${app.job_url ? `<a href="${esc(app.job_url)}" target="_blank" style="color:#F97316;text-decoration:none;font-size:11px">View ↗</a>` : ''}
-      </div>`;
-    list.appendChild(div);
-  });
-  list.querySelectorAll('.app-status').forEach(el => el.addEventListener('click', () => cycleStatus(el.dataset.id, el.dataset.status)));
-}
-
-const STATUS_CYCLE = ['saved','applied','interview','offer','rejected'];
-function cycleStatus(id, current) {
-  const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
-  chrome.runtime.sendMessage({ type: 'UPDATE_APPLICATION', payload: { id, status: next } }, r => {
-    if (r?.ok) loadTracker();
-  });
-}
-
-$('tracker-save-current-btn').addEventListener('click', () => {
-  getTab(tab => {
-    if (!tab) { toast('No active tab','err'); return; }
-    chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => {
-      if (chrome.runtime.lastError || !r?.text) { toast('No job detected','err'); return; }
-      const company = deriveCompany(r.company, tab.url, r.title);
-      const jobTitle = (r.title || '').split(/at|\s[-|]\s/i)[0].trim() || 'Job';
-      saveApplication({ jobTitle, company, jobUrl: tab.url, status: 'saved' });
-    });
-  });
-});
 
 // ════════════════════════════════════════════════════════════════
 // TAILOR

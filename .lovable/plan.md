@@ -1,64 +1,54 @@
 ## Goal
 
-Retire the 3D scroll-canvas hero and ship a modern, high-conversion landing page for AYN: charcoal base with ember accents, Outfit headings + Figtree body, bento-grid composition, and an animated product mockup instead of the canvas.
+Bring the marketing page in line with v3.0.0 (AYN is read only, no autofill) and remove the broken job tracking feature from the web app and the extension.
 
-Note: this overrides the stored brand fonts (Syne/Inter) with Outfit/Figtree per your pick.
+## Part 1: Landing page rewrite
 
-## What gets removed
+Files: `src/components/landing/LandingSections.tsx`, `src/components/landing/HeroFillMockup.tsx`, `src/components/LandingPage.tsx`, `index.html`.
 
-- The scroll-scrubbed canvas, frame preloading, scroll chapters, and their listeners in `src/components/landing/HeroScroll.tsx` (the file is replaced by a new composition).
-- The `/frames` image sequence references in markup (files stay on disk, unused).
-- Dead 3D perspective/scroll utilities in `src/index.css` that nothing else uses.
+New promise, match score first:
+- H1: knowing whether a job is worth your hour, before you spend it.
+- Sub: AYN reads the real posting, scores your fit, then writes the resume and cover letter for that role.
+- CTAs unchanged: Start free, Add to Chrome.
 
-## New page structure
+Hero visual: `HeroFillMockup` currently animates a form filling itself. Replace it with a match score card mockup (same CSS only animation approach, no canvas, no new dependency): score dial counting up, three grounded reason lines, and a "reads the real posting" chip. Reduced motion respected as today.
 
+Section changes:
 ```text
-Header (sticky, blurred charcoal)
-1  HERO            copy left, animated fill mockup right, Start free + Add to Chrome
-2  PROOF STRIP     ATS logos as text marks: Greenhouse, Ashby, Lever, Workday, iCIMS
-3  BENTO GRID      6 tiles, mixed sizes, reusing the existing SVG illustrations
-                   [ big: fill in progress ][ match score ]
-                   [ provenance ][ one-page doc ][ run summary ]
-4  HOW IT WORKS    3 compact steps, numbered, one line each
-5  FOR EMPLOYERS   #employers anchor, EmployerMatchIllustration, waitlist CTA
-6  TRUST           short paragraph + 3 assurance chips
-7  CLOSING CTA     full-width ember band, Start free
-Footer
+HERO           match score promise + score card mockup
+PROOF STRIP    "Reads job posts on" (was "Fills applications on")
+HOW IT WORKS   1 Add your resume once  2 Open any job posting  3 See your score, then tailor
+BENTO          match score (big), grounded on the real posting, tailored resume and
+               cover letter, Ask AYN about the role, one workspace
+FOR EMPLOYERS  unchanged
+TRUST          reworded: AYN grounds every score in the posting text and tells you what
+               it could not read. It never writes to a page.
+FAQ            4 answers rewritten with no autofill claim
+CLOSING        "Know before you apply"
 ```
 
-All existing copy is preserved as-is (no em dashes, no en dashes, ranges use "to"). Only layout, colour, and type change; small trims where a bento tile needs a shorter line.
+Removed copy: every autofill claim, "click fill", "it learns your answers", "fill history", the run summary panel. `RunSummaryIllustration` is dropped from the page (kept in `ProductIllustrations.tsx` unless unused elsewhere, then removed too).
 
-## Hero animation (replaces the 3D)
+SEO: title, meta description, keywords and the `createFAQSchema` entries in `LandingPage.tsx` plus the `<title>`/og/twitter tags in `index.html` all move from "autofill job applications" to match score and tailored resume wording. Single H1, section h2s, canonical unchanged.
 
-Pure CSS/SVG, no canvas, no new dependency:
-- A browser-chrome card showing a job application form.
-- Fields fill in sequence with a typing caret, a green verified tick lands on each, and a small "verified by AYN" badge slides in.
-- Loop is CSS keyframes only, respects `prefers-reduced-motion`, and pauses off-screen via `content-visibility`.
+## Part 2: Remove job tracking everywhere
 
-## Design system
+Web app:
+- Delete `src/components/resume-hub/TrackerTab.tsx`.
+- `src/pages/ResumeHub.tsx`: drop the `tracker` tab key, nav entry, and render branch; redirect `?tab=tracker` to overview.
+- `src/components/resume-hub/JobsTab.tsx`: remove `addToTracker` and the "Add to tracker" button.
+- `src/components/resume-hub/OverviewTab.tsx`: remove the `job_applications` count stat and reflow the remaining stats.
 
-In `src/index.css` and `tailwind.config.ts`, as semantic HSL tokens (no hardcoded colours in components):
-- background `#1a1a1a`, card `#2d2d2d`, border/muted `#4a4a4a`, primary/accent ember `#e85d3a`
-- gradient and glow tokens for the ember accent, soft elevation shadows
-- `--font-display: Outfit`, `--font-body: Figtree`, loaded via Google Fonts in `index.html`; `.font-display` remapped to Outfit
+Extension:
+- `sidepanel.html`: remove the Tracker tab button, the `v-tracker` view, the tracker styles, and the "Save job to tracker" button in the cover view.
+- `sidepanel.js`: remove the tracker view id, tab routing, `loadTracker`, `renderTracker`, save handlers and their listeners.
+- `background.js`: remove the application tracker actions and the submit-time score enrichment path that only fed the tracker.
+- Bump `manifest.json` to 3.0.1 and the `AYN_BUILD` fallback, then run `node extension/build.mjs`.
 
-## Marketing and SEO
-
-- Single H1 in the hero, semantic `section` + `h2` per band, descriptive alt/aria labels on every illustration.
-- `index.html`: title under 60 chars with the primary keyword, meta description under 160, matching `og:*` and `twitter:card`, canonical to `https://ayn-insight-forge.lovable.app/`.
-- JSON-LD: `SoftwareApplication` for the extension plus `FAQPage` for a short 4-question FAQ added above the footer (also good marketing content).
-- Lazy-load below-fold illustrations, keep the hero critical path free of images.
-
-## Files touched
-
-- Rewrite `src/components/landing/HeroScroll.tsx` (renamed to `LandingSections.tsx`) and update the import in `src/components/LandingPage.tsx`
-- New `src/components/landing/HeroFillMockup.tsx` (animated hero)
-- Extend `src/components/landing/ProductIllustrations.tsx` only if a bento tile needs a variant size
-- `src/index.css`, `tailwind.config.ts`, `index.html`
-- `src/components/shared/Header.tsx` / `Footer.tsx` restyled to the new tokens
-
-Dashboard, resume hub, extension, and backend are untouched.
+Backend and data: the `job_applications` table and its rows are left untouched, and the tracker actions in `supabase/functions/resume-hub` are deleted so nothing calls them.
 
 ## Verification
 
-Build check, then Playwright screenshots at 390px, 826px, and 1440px to confirm no overflow and that the bento reflows to a single column on mobile.
+- `scripts/check-wiring.mjs` must pass (it checks sidepanel messages have handlers and extension actions are registered).
+- Grep for `tracker` and `autofill` in `src/` and `extension/` to confirm no dangling references.
+- Playwright screenshots of `/` at 390px, 826px and 1440px, plus `/resume-hub` to confirm the tab row reflows.
