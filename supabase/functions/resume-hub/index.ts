@@ -240,18 +240,15 @@ const EXT_ACTIONS = new Set([
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
   // v1.4.0: smarter AI
-  "ext_get_resume_blob",
   // v1.5.0 Phase 1: canonical profile read for extension
   "ext_profile_canonical_get",
   // v1.9.19: autofill telemetry
   // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
   // v1.9.55: two-lane resolver — client-side profile vector
-  "ext_profile",
   // v2.7.0: learned answers CRUD
   // v2.8.0: JD resolver — fetch previously-ingested JD by host+path
   "ext_job_lookup",
   // v2.10.0: server-driven adapter config for the question engine.
-  "ats_config_get",
 ]);
 
 
@@ -882,25 +879,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // v2.10.0 — public read of ats_config. Available BEFORE the ext-auth gate
-    // because the payload is non-sensitive server-driven adapter config that
-    // both the extension and (potentially) an anon caller need. Still listed
-    // in EXT_ACTIONS so scripts/check-wiring.mjs sees the registration.
-    if (action === "ats_config_get") {
-      try {
-        const admin = createClient(supabaseUrl, serviceKey);
-        const { data, error } = await admin
-          .from("ats_config")
-          .select("config, version")
-          .eq("id", "registry")
-          .maybeSingle();
-        if (error || !data) return json({ config: null, version: 0 });
-        return json({ config: data.config, version: data.version });
-      } catch (e) {
-        return json({ config: null, version: 0, error: (e as Error).message });
-      }
-    }
-
     // ============ EXTENSION-AUTH ACTIONS (x-ayn-ext-token) ============
     // v2.8.4 — DUAL_AUTH_ACTIONS may also be reached from the web dashboard
     // with a session JWT (no ext token). All other EXT_ACTIONS keep the
@@ -993,75 +971,6 @@ Deno.serve(async (req) => {
         }).select("id").single();
         if (error) throw error;
         return json({ job_id: inserted.id, deduped: false });
-      }
-
-      if (action === "ext_profile") {
-        // v1.9.55: compact profile vector for the extension's local resolver.
-        // Excludes any work_auth / EEO / salary facts — those must stay AI-side.
-        const [{ data: profile }, { data: resume }, canonical] = await Promise.all([
-          admin.from("user_profile_data").select("*").eq("user_id", userId).maybeSingle(),
-          admin.from("resumes").select("content").eq("user_id", userId).eq("is_primary", true).maybeSingle(),
-          loadCanonical(admin, userId),
-        ]);
-        const rb = (resume?.content as { basics?: Record<string, unknown>; work?: Array<Record<string, unknown>>; education?: Array<Record<string, unknown>> } | null) || null;
-        const basics = (rb?.basics || {}) as Record<string, string>;
-        const work = (rb?.work || []) as Array<Record<string, unknown>>;
-        const edu = (rb?.education || []) as Array<Record<string, unknown>>;
-        const [firstFromResume, ...restFromResume] = (basics.name || "").trim().split(/\s+/);
-        const addr = (profile?.address || {}) as Record<string, string>;
-        const plinks = (profile?.links || {}) as Record<string, string>;
-        const linkedin = plinks.linkedin || (basics.links as unknown as Array<{ url: string }>)?.find?.(l => /linkedin\.com/i.test(l?.url || ""))?.url || "";
-        const website = plinks.portfolio || plinks.website || (basics.links as unknown as Array<{ url: string }>)?.find?.(l => !/linkedin\.com/i.test(l?.url || ""))?.url || "";
-        const eduTop = edu[0] || {};
-        const gradYear = (() => { const m = String((eduTop as any).end || "").match(/(19|20)\d{2}/); return m ? m[0] : ""; })();
-        const parseYear = (s: unknown): number | null => { const m = String(s || "").match(/(19|20)\d{2}/); return m ? parseInt(m[0], 10) : null; };
-        const nowYear = new Date().getFullYear();
-        let yoe = 0;
-        for (const w of work) {
-          const sy = parseYear(w.start);
-          const ey = /present|current/i.test(String(w.end || "")) ? nowYear : (parseYear(w.end) || nowYear);
-          if (sy) yoe += Math.max(0, ey - sy);
-        }
-        const first_name = String(profile?.legal_first_name || firstFromResume || "");
-        const last_name = String(profile?.legal_last_name || restFromResume.join(" ") || "");
-        const facts = {
-          first_name,
-          last_name,
-          full_name: [first_name, last_name].filter(Boolean).join(" ") || basics.name || "",
-          email: String(profile?.email || basics.email || ""),
-          phone: String(profile?.phone || basics.phone || ""),
-          linkedin: /linkedin\.com\//i.test(linkedin) ? linkedin : "",
-          website: website && !/linkedin\.com/i.test(website) ? website : "",
-          city: String(addr.city || ""),
-          region: String(addr.state || addr.province || ""),
-          country: String(addr.country || ""),
-          current_title: String(canonical?.derived?.current_title || (work[0] as { title?: string })?.title || basics.title || ""),
-          current_company: String(canonical?.derived?.current_company || (work[0] as { company?: string })?.company || ""),
-          years_experience: String(canonical?.derived?.total_yoe ?? yoe ?? ""),
-          school: String((eduTop as any).school || (eduTop as any).institution || ""),
-          degree: String((eduTop as any).degree || ""),
-          grad_year: gradYear,
-        };
-        const aliases = {
-          first_name: ["first name","given name","forename","prenom","prénom","nombre"],
-          last_name: ["last name","surname","family name","nom","nom de famille","apellido"],
-          full_name: ["full name","name","your name","legal name","nom complet","nombre completo"],
-          email: ["email","e-mail","email address","courriel","adresse courriel","correo","correo electronico"],
-          phone: ["phone","phone number","mobile","cell","cellphone","telephone","mobile number","téléphone","telefono","numero de telephone"],
-          linkedin: ["linkedin","linkedin url","linkedin profile","profil linkedin"],
-          website: ["website","portfolio","personal website","portfolio url","site web","sitio web"],
-          city: ["city","town","ville","ciudad"],
-          region: ["state","province","region","state/province","région","provincia"],
-          country: ["country","pays","pais","país"],
-          current_title: ["current title","job title","current role","title","poste actuel","puesto actual"],
-          current_company: ["current company","employer","company","current employer","entreprise actuelle","empresa actual"],
-          years_experience: ["years of experience","total experience","years experience","annees d'experience","anos de experiencia"],
-          school: ["school","university","college","institution","universite","université","universidad"],
-          degree: ["degree","qualification","diplome","diplôme","titulo"],
-          grad_year: ["graduation year","year of graduation","annee de diplome","ano de graduacion"],
-        };
-        const digest = await sha256Hex(JSON.stringify(facts));
-        return json({ facts, aliases, digest });
       }
 
       // v2.12.0 — ext_tailor, ext_cover_letter, ext_job_ingest removed.
@@ -1671,56 +1580,6 @@ VOICE: write bullets and changes the way a thoughtful person writes. Vary senten
           atsScore: Math.max(0, Math.min(100, Math.round(Number((parsed as Record<string, unknown>).atsScore) || 0))),
           scoreReasoning: String((parsed as Record<string, unknown>).scoreReasoning || ""),
         });
-      }
-
-
-
-
-      // v2.12.0 — ext_save_answer + ext_lookup_answer removed. The live
-      // learning lane is extension/question-engine/learning/supabase-store.ts,
-      // which reads/writes public.ext_answer_memory over PostgREST directly
-      // (with the same fuzzy-match + sensitive-question rules baked in).
-
-
-
-      // ──────────────────────────────────────────────────────────────
-      // v1.4.0: ext_get_resume_blob — return resume as base64 .txt for programmatic file attach
-      // ──────────────────────────────────────────────────────────────
-      if (action === "ext_get_resume_blob") {
-        const { resume_version_id } = payload as { resume_version_id?: string };
-        const resolved = await resolveResumeContent(admin, userId, resume_version_id);
-        if (!resolved.content) return json({ error: "No resume on file. Upload one at aynn.io first." }, 404);
-        const resume = { content: resolved.content };
-        const rc = resume.content as Record<string, unknown>;
-        const basics = (rc.basics || {}) as Record<string, string>;
-        const work = (rc.work || []) as Array<Record<string, unknown>>;
-        const edu = (rc.education || []) as Array<Record<string, unknown>>;
-        const skills = (rc.skills || []) as string[];
-        const lines: string[] = [];
-        if (basics.name) lines.push(basics.name);
-        const contact = [basics.email, basics.phone, basics.location].filter(Boolean).join("  |  ");
-        if (contact) lines.push(contact);
-        if (basics.summary) lines.push("", "SUMMARY", basics.summary);
-        if (work.length) {
-          lines.push("", "EXPERIENCE");
-          work.forEach(w => {
-            lines.push("", `${w.title || ""} — ${w.company || ""}   ${w.start || ""} - ${w.end || "Present"}`);
-            ((w.bullets as string[]) || []).forEach(b => lines.push(`- ${b}`));
-          });
-        }
-        if (edu.length) {
-          lines.push("", "EDUCATION");
-          edu.forEach(e => lines.push(`${e.degree || ""} ${e.field ? "in " + e.field : ""} — ${e.school || ""}  ${e.end || ""}`));
-        }
-        if (skills.length) { lines.push("", "SKILLS", skills.join(", ")); }
-        const text = lines.join("\n");
-        const bytes = new TextEncoder().encode(text);
-        // base64 encode
-        let bin = "";
-        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-        const b64 = btoa(bin);
-        const filename = `${(basics.name || "Resume").replace(/\s+/g, "_")}_AYN.txt`;
-        return json({ base64: b64, filename, mime: "text/plain", size: bytes.length });
       }
 
       if (action === "ext_profile_canonical_get") {

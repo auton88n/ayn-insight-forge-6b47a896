@@ -1310,11 +1310,11 @@ async function detectForAsk() {
   try {
     const tab = await new Promise(res => chrome.tabs.query({ active: true, currentWindow: true }, t => res(t[0])));
     if (!tab?.id) throw new Error('no_tab');
-    const scan = await new Promise(res => chrome.tabs.sendMessage(tab.id, { type: 'SCAN_FORM' }, r => res(r || null)));
+    const scan = await new Promise(res => chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_JOB_TEXT' }, r => res(r || null)));
     ASK.url = tab.url || '';
-    ASK.jobText  = scan?.jobText?.text  || '';
-    ASK.jobTitle = scan?.jobText?.title || '';
-    ASK.company  = scan?.jobText?.company || '';
+    ASK.jobText  = scan?.text  || scan?.jobText?.text  || '';
+    ASK.jobTitle = scan?.title || scan?.jobText?.title || '';
+    ASK.company  = scan?.company || scan?.jobText?.company || '';
     if (ASK.jobTitle || ASK.company) {
       pill.innerHTML = `<div class="ask-context-pill"><i class="ti ti-target-arrow"></i>${[ASK.jobTitle, ASK.company].filter(Boolean).join(' · ').slice(0, 80)}</div>`;
     } else {
