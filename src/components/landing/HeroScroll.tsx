@@ -643,7 +643,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
         ))}
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 640, width: '100%', paddingBottom: 100, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,5.4vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px', textAlign: 'center' }}>
-            <span>Your next application should take a minute, not an hour.</span>
+            <span>Your next application should take a minute.</span>
           </h2>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button type="button" onClick={() => onStartFree?.()}
