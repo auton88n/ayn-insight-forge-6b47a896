@@ -120,8 +120,9 @@ export default function BuilderTab({ userId }: Props) {
       }).select("id").single();
       if (inserted) setActiveId(inserted.id);
       await load();
-      // v3.2.0 — client-side resume write, so refresh the talent pool index.
-      resumeHubApi.talentPoolReindexSelf().catch(() => {});
+      // Client-side resume write, so refresh the talent pool index.
+      reindexTalentPool("resume_upload");
+
       toast({
         title: "Resume saved as primary",
         description: "Your profile has been pre-filled. Review each section and save it.",
