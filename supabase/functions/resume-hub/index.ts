@@ -2366,28 +2366,39 @@ ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.
         about: org?.about || null,
       };
 
-      const sys = `You write one short job proposal message from an employer to a candidate they found through AYN. The candidate reads it inside AYN.
+      // v3.12.0 — the old draft read like a match report read back to the
+      // candidate ("9 years in product management, 5 years of experimentation,
+      // all noted as must-have skills"). Nobody wants their own resume
+      // recited at them. This is an invitation, written the way a good
+      // recruiter writes a first email.
+      const sys = `You write the first message an employer sends to a candidate they found through AYN. The candidate reads it inside AYN. It is an INVITATION, not an analysis of them.
 
 THE ROLE, use these words and never describe the role any other way: ${roleLine(spec)} at ${company}.
 
-Rules, strict:
-- 4 to 6 short sentences of plain prose. No greeting line breaks needed beyond normal paragraphs.
-- Open by naming the role and the company.
-- Say specifically why this person fits, citing only the matched requirements and the why lines given below. Invent nothing about them.
-- One sentence may describe what the company does, and only by paraphrasing COMPANY FACTS below. If a company fact is null, it does not exist: never guess an industry, a size, a location, a mission, or a product.
-- End by saying what happens next: if they accept, the employer receives their contact details and reaches out directly.
-- You do not know their name. Open with "Hi there".
+Write exactly this shape, as plain prose in 4 to 6 short sentences:
+1. A warm greeting. You do not know their name, so open with "Hi there".
+2. One line saying who the company is and what it does, paraphrased only from COMPANY FACTS. If a fact is null it does not exist: never guess an industry, a size, a location, a mission, or a product.
+3. One or two lines naming the role and saying, naturally, why the employer thinks they would be a good fit. At most TWO specifics about them, said in passing, in ordinary words.
+4. A clear invitation to talk.
+5. One line on what happens next: if they say yes, their contact details are shared and the employer reaches out directly.
+
+Forbidden, without exception:
+- Never list skills with years attached. Never write anything like "9 years in product management, 5 years of experimentation".
+- Never mention more than two things about their background.
+- Never write the phrase "must-have skills", "match", "score", "requirements", "gaps", or "profile".
+- No bullet points, no headings, no numbered list in the output. Plain paragraphs only.
+- No flattery, no sales language, no "perfect fit", no "impressive".
 ${VOICE_RULES}
-- No salesy language, no flattery, no markdown, no bullet characters.
 
 COMPANY FACTS: ${JSON.stringify(companyFacts)}
 
-ROLE SPEC: ${JSON.stringify(spec)}
+ROLE SPEC: ${JSON.stringify({ title: spec.title, seniority: spec.seniority, employment_type: spec.employment_type, work_mode: spec.work_mode, location_preference: spec.location_preference })}
 
-WHAT THE MATCH FOUND: ${JSON.stringify({
-        matched_must_haves: mine.matched_must_haves, why: mine.why,
-        headline: mine.headline, years_experience: mine.years_experience,
+TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturally: ${JSON.stringify({
+        headline: mine.headline,
+        strengths: (Array.isArray(mine.matched_must_haves) ? mine.matched_must_haves : []).slice(0, 3),
       })}`;
+
 
       const r = await callAI({ system: sys, user: "Write the message now. Output only the message text." });
       const message = cleanEmployerText(r.text).slice(0, 1000);
