@@ -152,10 +152,11 @@ Embedding provider (v2.9.1):
 
 Indexing routine indexCandidate(admin, userId):
 1. Loads canonical profile (loadCanonical) + primary resume.
-2. Builds profile_text: seniority, function, YoE, current title, skills, experience bullets, education, certifications, resume summary. **Excludes name, email, phone, address, links** — matching is anonymous until a Phase B reveal.
+2. Builds profile_text. v3.5.0 widened it so employers can match on what the form now collects: seniority, function, YoE, current title, what the candidate is known for, each skill written as "name level years recency", a repeated "Strongest current skills" line for advanced or expert skills not stale (this is how level and recency get weight in the embedding, no schema change needed), per role title, company, dates, industry, team size and up to 5 achievement bullets, education with field of study, certifications, availability, employment type, company stage, desired titles, remote and relocation, and the resume summary. **Still excludes name, email, phone, address, links** — matching is anonymous until a reveal.
 3. Embedding: `embedText(profile_text)` (see above). Real model when the gateway is reachable, `deterministicEmbed` fallback otherwise; the returned model tag is stored on the row.
 4. Upserts candidate_index (vector, model, embedded_at).
-5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule.
+5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule. v3.5.0 added three nullable columns to candidate_skills, `level`, `years` and `last_used`, carried through from canonical skills on extracted edges only; inferred edges always write null because AYN did not observe them.
+
 
 
 Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (The resume is written client side in ProfileTab.tsx, which calls reindexTalentPool after the insert; users can also force a reindex by toggling the switch off and on.)
