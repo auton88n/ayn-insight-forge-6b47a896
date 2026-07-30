@@ -236,15 +236,16 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-reveal" style={{ marginBottom: 36 }}>
             <p className="lp-eyebrow">For employers</p>
-            <h2 className="lp-display lp-h2">You have read a thousand resumes to find three people</h2>
+            <h2 className="lp-display lp-h2">Stop reading a thousand resumes to find three people</h2>
             <p className="lp-lead">
-              Tell AYN what the role needs. It searches candidates who chose to be found and brings you
-              the three best fits, with the reason for each. No job board. No inbox full of maybes.
+              Describe the role in plain words. AYN searches candidates who chose to be found,
+              and returns the three best fits with the evidence for each. No job board. No inbox
+              full of maybes.
             </p>
             <div className="lp-chips">
-              <span className="lp-chip">Describe the role in plain words</span>
-              <span className="lp-chip">Only opted in candidates</span>
-              <span className="lp-chip">Three real fits, with evidence</span>
+              <span className="lp-chip">Say what the role actually needs.</span>
+              <span className="lp-chip">AYN searches only candidates who opted in.</span>
+              <span className="lp-chip">Three real fits, with the reason for each.</span>
             </div>
           </div>
 
