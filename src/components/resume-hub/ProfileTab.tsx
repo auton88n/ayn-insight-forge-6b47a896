@@ -304,10 +304,31 @@ export default function ProfileTab({ userId }: { userId: string }) {
     }));
   };
 
-  const missingMatchSignals = {
-    eligibility: countries.length === 0 && !career.work_auth.citizenship,
-    desiredTitles: (career.preferences.desired_titles?.length ?? 0) === 0,
-  };
+  // Findability, one line per group, concrete about what employers cannot
+  // match on. No score out of 100.
+  const groupGaps = [
+    {
+      group: "About you",
+      complete: !!(personal.first_name && personal.email && (career.derived.current_title || personal.city)),
+      consequence: "Without a current title and location, employers cannot place you on their shortlist.",
+    },
+    {
+      group: "What you're looking for",
+      complete: (career.preferences.desired_titles?.length ?? 0) > 0,
+      consequence: "No desired titles means you will not surface for role based searches.",
+    },
+    {
+      group: "Where you can work",
+      complete: countries.length > 0 || !!career.work_auth.citizenship,
+      consequence: "Employers filter by work eligibility first. Without it you are excluded from most searches.",
+    },
+    {
+      group: "Your experience",
+      complete: career.skills.length > 0 && career.experiences.length > 0,
+      consequence: "With no skills or experience there is nothing for the matcher to compare a job against.",
+    },
+  ];
+
 
   if (loading) {
     return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading profile…</div>;
@@ -342,9 +363,10 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
       {/* Talent pool */}
       <TalentPoolCard
-        missingMatchSignals={missingMatchSignals}
+        groupGaps={groupGaps}
         pendingIntros={pendingIntros}
       />
+
 
       {/* Intro requests */}
       {reveals.length > 0 && (

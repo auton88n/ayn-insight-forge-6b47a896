@@ -149,3 +149,20 @@ Speed. ext_job_score no longer awaits parseJobMeta before scoring: metadata pars
 Client contract. smart_tailor returns gapAnalysis { method, alreadyStrong[], surfaced[], stillMissing[], niceToHave[], counts } plus figuresVerified / figuresAltered and sectionsUsed. surfaced is computed by re-running the gap analysis against the tailored output, so it reflects what actually landed. The sidepanel renders this as "Where you stand" under the tailored resume: surfaced, already strong, and genuinely missing with an explicit note that AYN left those out on purpose.
 
 Telemetry. logAiCall writes one ai_call_telemetry row per AI call: purpose, model, duration_ms, cache hit, the identity sourceMap, and for tailor the matched / missing / surfaced counts.
+
+## v3.2.0 findability panel (Profile tab)
+
+TalentPoolCard now renders a per-group findability list instead of ad hoc nudges.
+Props: `groupGaps: { group, complete, consequence }[]`, computed in ProfileTab.tsx.
+
+| Group | Complete when | Consequence when missing |
+|---|---|---|
+| About you | first name + email + (current title or city) | Employers cannot place you on a shortlist |
+| What you're looking for | at least one desired title | You will not surface for role based searches |
+| Where you can work | a work-auth country or citizenship | Excluded from most searches, employers filter here first |
+| Your experience | at least one skill and one experience | Nothing for the matcher to compare a job against |
+
+Freshness line and Refresh (talent_pool_reindex_self) are unchanged from v3.2.1.
+Reindex triggers remain the seven call sites routed through src/lib/talentPoolSync.ts.
+
+Embedding audit (2026-07-30): `select embedding_model, count(*) from candidate_index group by 1` returns zero rows. No 'deterministic-v1' rows exist, so no backfill is needed.
