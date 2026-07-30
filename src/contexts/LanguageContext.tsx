@@ -8,8 +8,8 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { translations } from '@/i18n';
 
-export type Language = 'en';
-export type Direction = 'ltr';
+export type Language = 'en' | 'ar' | 'fr';
+export type Direction = 'ltr' | 'rtl';
 
 interface LanguageContextType {
   language: Language;
