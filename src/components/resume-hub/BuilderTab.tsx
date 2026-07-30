@@ -156,9 +156,11 @@ export default function BuilderTab({ userId }: Props) {
       setContent(r.resume);
       if (activeId) {
         await supabase.from("resumes").update({ content: r.resume as any, ats_score: r.ats_score }).eq("id", activeId);
+        reindexTalentPool("resume_ai_rewrite");
       }
       toast({ title: `Improved (ATS: ${r.ats_score})`, description: r.suggestions.slice(0, 3).join(" • ") });
       load();
+
     } catch (e) {
       toast({ title: "AI rewrite failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
