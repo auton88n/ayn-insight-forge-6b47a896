@@ -741,20 +741,68 @@ async function embedText(text: string): Promise<{ vector: number[]; model: strin
 }
 
 
+/**
+ * v3.5.0 — the profile text an employer search embeds against. It now carries
+ * the signals the Profile form started collecting: skill level and recency,
+ * industry and team size per role, achievements, availability, employment
+ * type, company stage, and what the candidate is known for. Skills with a
+ * level and recent usage are repeated once so the embedding weights them
+ * above bare strings. Still no name, email, phone, address, or links.
+ */
 function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unknown> | null): string {
-  const skills = c.skills.map(s => s.name).filter(Boolean).join(", ");
+  const skillPhrase = (s: CanonicalProfile["skills"][number]) => {
+    const bits = [s.name];
+    if (s.level) bits.push(s.level);
+    if (s.years) bits.push(`${s.years} years`);
+    if (s.last_used === "this_year") bits.push("used this year");
+    else if (s.last_used === "within_2_years") bits.push("used within 2 years");
+    else if (s.last_used === "over_2_years") bits.push("last used over 2 years ago");
+    return bits.join(" ");
+  };
+  const strong = (s: CanonicalProfile["skills"][number]) =>
+    (s.level === "advanced" || s.level === "expert") && s.last_used !== "over_2_years";
+  const skills = c.skills.filter(s => s.name).map(skillPhrase).join(", ");
+  const emphasised = c.skills.filter(s => s.name && strong(s)).map(s => s.name).join(", ");
+
   const exp = c.experiences.map(e => {
-    const bullets = (e.bullets || []).slice(0, 4).join(" | ");
-    return `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")} ${bullets}`.trim();
+    const bullets = (e.bullets || []).filter(Boolean).slice(0, 5).join(" | ");
+    const head = `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")}`.trim();
+    const ctx = [
+      e.industry ? `Industry: ${e.industry}` : "",
+      e.team_size ? `Managed a team of ${e.team_size}` : "",
+    ].filter(Boolean).join(". ");
+    return [head, ctx, bullets].filter(Boolean).join(". ");
   }).join("\n");
+
   const edu = c.education.map(e => `${e.degree || ""} ${e.field || ""} at ${e.school || ""}`.trim()).join("; ");
   const certs = c.certifications.map(c => c.name).filter(Boolean).join(", ");
   const derived = `Seniority: ${c.derived.seniority || ""}. Function: ${c.derived.primary_function || ""}. YoE: ${c.derived.total_yoe ?? ""}. Current title: ${c.derived.current_title || ""}.`;
+  const knownFor = (c.derived.known_for || []).filter(Boolean).join(". ");
+  const p = c.preferences;
+  const seeking = [
+    p.availability ? `Available: ${p.availability}` : "",
+    (p.employment_types || []).length ? `Employment type: ${(p.employment_types || []).join(", ")}` : "",
+    (p.company_stages || []).length ? `Company stage: ${(p.company_stages || []).join(", ")}` : "",
+    (p.desired_titles || []).length ? `Target roles: ${(p.desired_titles || []).join(", ")}` : "",
+    p.open_to_remote ? "Open to remote" : "",
+    p.open_to_relocation ? "Open to relocation" : "",
+  ].filter(Boolean).join(". ");
   const resumeSummary = ((resumeContent as { basics?: { summary?: string } })?.basics?.summary || "").toString();
+
   // Deliberately excludes name, email, phone, address, links to keep matching anonymous.
-  return [derived, `Skills: ${skills}`, `Experience:\n${exp}`, `Education: ${edu}`, certs ? `Certifications: ${certs}` : "", resumeSummary ? `Summary: ${resumeSummary}` : ""]
-    .filter(Boolean).join("\n\n");
+  return [
+    derived,
+    knownFor ? `Known for: ${knownFor}` : "",
+    `Skills: ${skills}`,
+    emphasised ? `Strongest current skills: ${emphasised}` : "",
+    `Experience:\n${exp}`,
+    `Education: ${edu}`,
+    certs ? `Certifications: ${certs}` : "",
+    seeking ? `Seeking: ${seeking}` : "",
+    resumeSummary ? `Summary: ${resumeSummary}` : "",
+  ].filter(Boolean).join("\n\n");
 }
+
 
 async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<{ model: string; skills_count: number } | null> {
   const [canonical, { data: primary }] = await Promise.all([
