@@ -766,17 +766,32 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
 
   const exp = c.experiences.map(e => {
     const bullets = (e.bullets || []).filter(Boolean).slice(0, 5).join(" | ");
-    const head = `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")}`.trim();
+    // v3.12.0 — never emit a label with an empty value. The old template
+    // produced strings like "at " and "Education: BSc  at", which the
+    // employer surface then rendered verbatim.
+    const dates = [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to ");
+    const head = [
+      [e.title, e.company].filter(Boolean).join(" at "),
+      dates,
+    ].filter(Boolean).join(", ");
     const ctx = [
       e.industry ? `Industry: ${e.industry}` : "",
       e.team_size ? `Managed a team of ${e.team_size}` : "",
     ].filter(Boolean).join(". ");
     return [head, ctx, bullets].filter(Boolean).join(". ");
-  }).join("\n");
+  }).filter(Boolean).join("\n");
 
-  const edu = c.education.map(e => `${e.degree || ""} ${e.field || ""} at ${e.school || ""}`.trim()).join("; ");
+  const edu = c.education
+    .map(e => [[e.degree, e.field].filter(Boolean).join(" "), e.school].filter(Boolean).join(" at "))
+    .filter(Boolean).join("; ");
   const certs = c.certifications.map(c => c.name).filter(Boolean).join(", ");
-  const derived = `Seniority: ${c.derived.seniority || ""}. Function: ${c.derived.primary_function || ""}. YoE: ${c.derived.total_yoe ?? ""}. Current title: ${c.derived.current_title || ""}.`;
+  const derived = [
+    c.derived.seniority ? `Seniority: ${c.derived.seniority}` : "",
+    c.derived.primary_function ? `Function: ${c.derived.primary_function}` : "",
+    c.derived.total_yoe != null ? `Years of experience: ${c.derived.total_yoe}` : "",
+    c.derived.current_title ? `Current title: ${c.derived.current_title}` : "",
+  ].filter(Boolean).join(". ");
+
   const knownFor = (c.derived.known_for || []).filter(Boolean).join(". ");
   const p = c.preferences;
   const seeking = [
@@ -793,15 +808,81 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
   return [
     derived,
     knownFor ? `Known for: ${knownFor}` : "",
-    `Skills: ${skills}`,
+    skills ? `Skills: ${skills}` : "",
     emphasised ? `Strongest current skills: ${emphasised}` : "",
-    `Experience:\n${exp}`,
-    `Education: ${edu}`,
+    exp ? `Experience:\n${exp}` : "",
+    edu ? `Education: ${edu}` : "",
+
     certs ? `Certifications: ${certs}` : "",
     seeking ? `Seeking: ${seeking}` : "",
     resumeSummary ? `Summary: ${resumeSummary}` : "",
   ].filter(Boolean).join("\n\n");
 }
+
+/**
+ * v3.12.0 — the employer candidate card used to render `profile_text`, a
+ * newline blob meant for an embedding model, straight into the UI. It read
+ * like a debug dump and it leaked empty labels. This returns the same facts
+ * as a structured, anonymous object the client can lay out properly.
+ * Still no name, email, phone, address, or links.
+ */
+type CandidateProfileBlock = {
+  seniority: string;
+  years_experience: number | null;
+  current_title: string;
+  primary_function: string;
+  known_for: string[];
+  skills_by_level: Array<{ level: string; skills: Array<{ name: string; years: number | null }> }>;
+  experience: Array<{ title: string; company: string; dates: string; industry: string }>;
+  education: Array<{ line: string }>;
+  certifications: string[];
+  seeking: string[];
+};
+
+function buildCandidateProfile(c: CanonicalProfile): CandidateProfileBlock {
+  const LEVELS = ["expert", "advanced", "proficient", "familiar"];
+  const byLevel = new Map<string, Array<{ name: string; years: number | null }>>();
+  for (const s of c.skills) {
+    if (!s.name) continue;
+    const lvl = LEVELS.includes(String(s.level || "").toLowerCase())
+      ? String(s.level).toLowerCase() : "other";
+    if (!byLevel.has(lvl)) byLevel.set(lvl, []);
+    byLevel.get(lvl)!.push({ name: s.name, years: s.years ?? null });
+  }
+  const order = [...LEVELS, "other"];
+  const skills_by_level = order
+    .filter(l => byLevel.has(l))
+    .map(l => ({ level: l, skills: byLevel.get(l)!.slice(0, 24) }));
+
+  const p = c.preferences || {};
+  return {
+    seniority: c.derived.seniority || "",
+    years_experience: c.derived.total_yoe ?? null,
+    current_title: c.derived.current_title || "",
+    primary_function: c.derived.primary_function || "",
+    known_for: (c.derived.known_for || []).filter(Boolean).slice(0, 4),
+    skills_by_level,
+    experience: c.experiences.slice(0, 6).map(e => ({
+      title: e.title || "",
+      company: e.company || "",
+      dates: [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to "),
+      industry: e.industry || "",
+    })).filter(e => e.title || e.company),
+    education: c.education
+      .map(e => ({ line: [[e.degree, e.field].filter(Boolean).join(" "), e.school].filter(Boolean).join(" at ") }))
+      .filter(e => !!e.line).slice(0, 4),
+    certifications: c.certifications.map(x => x.name).filter(Boolean).slice(0, 6),
+    seeking: [
+      p.availability ? `Available ${p.availability}` : "",
+      (p.employment_types || []).length ? (p.employment_types || []).join(", ") : "",
+      (p.desired_titles || []).length ? `Targeting ${(p.desired_titles || []).slice(0, 3).join(", ")}` : "",
+      p.open_to_remote ? "Open to remote" : "",
+      p.open_to_relocation ? "Open to relocation" : "",
+    ].filter(Boolean),
+  };
+}
+
+
 
 
 async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<{ model: string; skills_count: number } | null> {
@@ -2092,7 +2173,11 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         opening: String(opening || "").slice(0, 4000),
         job_spec: job_spec || {},
         answered: Array.isArray(answered) ? answered.slice(0, 32).map(String) : [],
-        phase: String(phase || "opening").slice(0, 24),
+        // v3.12.0 — phase now carries the step the employer was actually on,
+        // as "asking:work_authorization", so a refresh restores the position
+        // and not just the answers. 24 chars truncated the longest step key.
+        phase: String(phase || "opening").slice(0, 64),
+
         updated_at: new Date().toISOString(),
       }, { onConflict: "org_id" });
       if (error) return json({ error: error.message }, 500);
@@ -2285,28 +2370,39 @@ ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.
         about: org?.about || null,
       };
 
-      const sys = `You write one short job proposal message from an employer to a candidate they found through AYN. The candidate reads it inside AYN.
+      // v3.12.0 — the old draft read like a match report read back to the
+      // candidate ("9 years in product management, 5 years of experimentation,
+      // all noted as must-have skills"). Nobody wants their own resume
+      // recited at them. This is an invitation, written the way a good
+      // recruiter writes a first email.
+      const sys = `You write the first message an employer sends to a candidate they found through AYN. The candidate reads it inside AYN. It is an INVITATION, not an analysis of them.
 
 THE ROLE, use these words and never describe the role any other way: ${roleLine(spec)} at ${company}.
 
-Rules, strict:
-- 4 to 6 short sentences of plain prose. No greeting line breaks needed beyond normal paragraphs.
-- Open by naming the role and the company.
-- Say specifically why this person fits, citing only the matched requirements and the why lines given below. Invent nothing about them.
-- One sentence may describe what the company does, and only by paraphrasing COMPANY FACTS below. If a company fact is null, it does not exist: never guess an industry, a size, a location, a mission, or a product.
-- End by saying what happens next: if they accept, the employer receives their contact details and reaches out directly.
-- You do not know their name. Open with "Hi there".
+Write exactly this shape, as plain prose in 4 to 6 short sentences:
+1. A warm greeting. You do not know their name, so open with "Hi there".
+2. One line saying who the company is and what it does, paraphrased only from COMPANY FACTS. If a fact is null it does not exist: never guess an industry, a size, a location, a mission, or a product.
+3. One or two lines naming the role and saying, naturally, why the employer thinks they would be a good fit. At most TWO specifics about them, said in passing, in ordinary words.
+4. A clear invitation to talk.
+5. One line on what happens next: if they say yes, their contact details are shared and the employer reaches out directly.
+
+Forbidden, without exception:
+- Never list skills with years attached. Never write anything like "9 years in product management, 5 years of experimentation".
+- Never mention more than two things about their background.
+- Never write the phrase "must-have skills", "match", "score", "requirements", "gaps", or "profile".
+- No bullet points, no headings, no numbered list in the output. Plain paragraphs only.
+- No flattery, no sales language, no "perfect fit", no "impressive".
 ${VOICE_RULES}
-- No salesy language, no flattery, no markdown, no bullet characters.
 
 COMPANY FACTS: ${JSON.stringify(companyFacts)}
 
-ROLE SPEC: ${JSON.stringify(spec)}
+ROLE SPEC: ${JSON.stringify({ title: spec.title, seniority: spec.seniority, employment_type: spec.employment_type, work_mode: spec.work_mode, location_preference: spec.location_preference })}
 
-WHAT THE MATCH FOUND: ${JSON.stringify({
-        matched_must_haves: mine.matched_must_haves, why: mine.why,
-        headline: mine.headline, years_experience: mine.years_experience,
+TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturally: ${JSON.stringify({
+        headline: mine.headline,
+        strengths: (Array.isArray(mine.matched_must_haves) ? mine.matched_must_haves : []).slice(0, 3),
       })}`;
+
 
       const r = await callAI({ system: sys, user: "Write the message now. Output only the message text." });
       const message = cleanEmployerText(r.text).slice(0, 1000);
@@ -2476,6 +2572,21 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
             summary: (c.profile_text || "").slice(0, 1200),
           };
         });
+
+      // v3.12.0 — attach a structured, anonymous profile block for the three
+      // cards we actually return, so the client renders a candidate profile
+      // instead of the embedding blob. Three canonical loads, top three only.
+      for (const card of top) {
+        const uid = refMap[card.ref];
+        if (!uid) continue;
+        try {
+          const canon = await loadCanonical(adminForNew, uid);
+          if (canon) (card as Record<string, unknown>).profile = buildCandidateProfile(canon);
+        } catch (e) {
+          console.error("profile block failed", card.ref, (e as Error).message);
+        }
+      }
+
 
 
       const { data: search, error: sErr } = await adminForNew.from("employer_searches").insert({

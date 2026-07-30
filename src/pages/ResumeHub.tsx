@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, User, Briefcase, Users, Puzzle, Download, Mail } from "lucide-react";
+import { Home, User, Briefcase, Users, Puzzle, Download, Mail, Brain, LogOut } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import HomeTab from "@/components/resume-hub/HomeTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
@@ -96,15 +100,15 @@ export default function ResumeHub() {
       <div className="rh-shell">
         {/* Top bar */}
         <div className="rh-topbar">
+          {/* v3.12.0 — "Back" had nowhere sensible to go once the dashboard
+              was removed. The AYN mark takes its place, and Sign out moved
+              into a menu on the right, matching the employer header. */}
           <div className="flex items-center gap-3 min-w-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="text-[color:var(--rh-muted)] hover:text-[color:var(--rh-ink)] hover:bg-[color:var(--rh-raised)]"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back
-            </Button>
+            <div className="flex items-center gap-2 shrink-0" aria-label="AYN">
+              <Brain className="w-5 h-5 text-[color:var(--rh-ink)]" />
+              <span className="font-semibold tracking-tight text-[color:var(--rh-ink)]">AYN</span>
+            </div>
+            <div className="w-px h-6 bg-[color:var(--rh-line)]" aria-hidden />
             <div className="min-w-0">
               <div className="rh-eyebrow">Job Search OS</div>
               <h1 className="rh-title leading-tight truncate">Resume Hub</h1>
@@ -114,8 +118,26 @@ export default function ResumeHub() {
             <button className="rh-btn rh-btn-primary" onClick={() => setTab("profile")}>
               Your resume
             </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Account menu"
+                  className="rounded-full text-[color:var(--rh-muted)] hover:text-[color:var(--rh-ink)] hover:bg-[color:var(--rh-raised)]">
+                  <User className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setTab("profile")}>
+                  <User className="w-4 h-4 mr-2" /> Your profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
+                  <LogOut className="w-4 h-4 mr-2" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
+
 
         {/* Three-column workspace */}
         <div className="rh-grid">
