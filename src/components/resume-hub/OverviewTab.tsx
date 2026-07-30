@@ -77,9 +77,10 @@ export default function OverviewTab({ userId, onOpenBuilder, onOpenJobs }: Props
         <h3 className="font-semibold mb-2">Getting started</h3>
         <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
           <li>Open <strong>Builder</strong>, paste your existing resume, and let AYN structure it.</li>
-          <li>Install the <strong>AYN Autofill</strong> Chrome extension from the Extension tab.</li>
+          <li>Install the <strong>AYN</strong> Chrome extension from the Extension tab.</li>
           <li>Browse jobs on LinkedIn, Indeed, or any company site. Click "Save" in the extension.</li>
-          <li>Open a saved job to see your match score, then tailor and apply in one click.</li>
+          <li>Open a saved job to see your match score, then tailor your resume for it.</li>
+
         </ol>
       </Card>
     </div>
