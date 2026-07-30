@@ -2837,11 +2837,12 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const spec = (search.job_spec as Record<string, unknown>) || {};
       const jobTitle = String(spec.title || "").trim() || block.current_title || "the role";
 
-      const achievements = canon.experiences.slice(0, 6).map(e => ({
-        title: e.title, company: e.company, industry: e.industry,
+      const achievements = canon.experiences.slice(0, 4).map(e => ({
+        title: e.title, company: e.company,
         dates: [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to "),
-        achievements: (e.achievements || []).slice(0, 4),
+        achievements: (e.achievements || []).slice(0, 3),
       }));
+
 
       const sys = `You write short verification assessments that check whether what a candidate claims on their profile is real.
 
