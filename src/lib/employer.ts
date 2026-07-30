@@ -35,8 +35,14 @@ export type JobSpec = {
   must_have_skills: string[];
   nice_to_have_skills: string[];
   location_preference?: string;
+  /** v3.8.0 — onsite, hybrid or remote. */
+  work_mode?: string;
+  /** v3.8.0 — full_time, contract, part_time or internship. */
+  employment_type?: string;
   remote_ok?: boolean;
   min_years?: number;
+  /** v3.8.0 — authorized_required or open_to_sponsoring. */
+  work_authorization?: string;
   notes?: string;
 };
 
@@ -55,10 +61,9 @@ export type CandidateCard = {
   summary?: string;
 };
 
-export type IntakeTurn = { role: "user" | "assistant"; content: string };
-export type IntakeResponse =
-  | { done: false; question: string }
-  | { done: true; job_spec: JobSpec };
+/** v3.8.0 — skills that actually exist on opted-in candidates, with counts. */
+export type SkillOption = { skill: string; skill_norm: string; count: number };
+
 
 /** v3.6.0 — what the employer sends and the seeker reads. */
 export type ProposalDraft = {
