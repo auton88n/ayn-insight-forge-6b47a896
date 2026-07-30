@@ -819,6 +819,71 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
   ].filter(Boolean).join("\n\n");
 }
 
+/**
+ * v3.12.0 — the employer candidate card used to render `profile_text`, a
+ * newline blob meant for an embedding model, straight into the UI. It read
+ * like a debug dump and it leaked empty labels. This returns the same facts
+ * as a structured, anonymous object the client can lay out properly.
+ * Still no name, email, phone, address, or links.
+ */
+type CandidateProfileBlock = {
+  seniority: string;
+  years_experience: number | null;
+  current_title: string;
+  primary_function: string;
+  known_for: string[];
+  skills_by_level: Array<{ level: string; skills: Array<{ name: string; years: number | null }> }>;
+  experience: Array<{ title: string; company: string; dates: string; industry: string }>;
+  education: Array<{ line: string }>;
+  certifications: string[];
+  seeking: string[];
+};
+
+function buildCandidateProfile(c: CanonicalProfile): CandidateProfileBlock {
+  const LEVELS = ["expert", "advanced", "proficient", "familiar"];
+  const byLevel = new Map<string, Array<{ name: string; years: number | null }>>();
+  for (const s of c.skills) {
+    if (!s.name) continue;
+    const lvl = LEVELS.includes(String(s.level || "").toLowerCase())
+      ? String(s.level).toLowerCase() : "other";
+    if (!byLevel.has(lvl)) byLevel.set(lvl, []);
+    byLevel.get(lvl)!.push({ name: s.name, years: s.years ?? null });
+  }
+  const order = [...LEVELS, "other"];
+  const skills_by_level = order
+    .filter(l => byLevel.has(l))
+    .map(l => ({ level: l, skills: byLevel.get(l)!.slice(0, 24) }));
+
+  const p = c.preferences || {};
+  return {
+    seniority: c.derived.seniority || "",
+    years_experience: c.derived.total_yoe ?? null,
+    current_title: c.derived.current_title || "",
+    primary_function: c.derived.primary_function || "",
+    known_for: (c.derived.known_for || []).filter(Boolean).slice(0, 4),
+    skills_by_level,
+    experience: c.experiences.slice(0, 6).map(e => ({
+      title: e.title || "",
+      company: e.company || "",
+      dates: [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to "),
+      industry: e.industry || "",
+    })).filter(e => e.title || e.company),
+    education: c.education
+      .map(e => ({ line: [[e.degree, e.field].filter(Boolean).join(" "), e.school].filter(Boolean).join(" at ") }))
+      .filter(e => !!e.line).slice(0, 4),
+    certifications: c.certifications.map(x => x.name).filter(Boolean).slice(0, 6),
+    seeking: [
+      p.availability ? `Available ${p.availability}` : "",
+      (p.employment_types || []).length ? (p.employment_types || []).join(", ") : "",
+      (p.desired_titles || []).length ? `Targeting ${(p.desired_titles || []).slice(0, 3).join(", ")}` : "",
+      p.open_to_remote ? "Open to remote" : "",
+      p.open_to_relocation ? "Open to relocation" : "",
+    ].filter(Boolean),
+  };
+}
+
+
+
 
 async function indexCandidate(admin: SupabaseClient<any, any, any>, userId: string): Promise<{ model: string; skills_count: number } | null> {
   const [canonical, { data: primary }] = await Promise.all([
