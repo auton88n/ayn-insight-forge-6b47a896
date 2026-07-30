@@ -73,7 +73,10 @@ export default function BuilderTab({ userId }: Props) {
     toast({ title: "Set as primary" });
     setBusy(false);
     load();
+    // v3.2.0 — the pool indexes the primary resume, so a switch changes it.
+    resumeHubApi.talentPoolReindexSelf().catch(() => {});
   };
+
 
   const removeResume = async () => {
     if (!activeId) return;
