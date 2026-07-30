@@ -117,11 +117,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              You have filled the same form <em>a hundred times</em>.
+              Know if a job is worth your hour <em>before you spend it</em>.
             </h1>
             <p className="lp-lead">
-              AYN applies for you. One click per job, not forty fields. And when you are hiring, it
-              finds the three people worth talking to.
+              AYN reads the real posting, scores your fit against it, then writes the resume and
+              cover letter for that role. And when you are hiring, it finds the three people worth
+              talking to.
             </p>
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
@@ -141,7 +142,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
       {/* ── PROOF STRIP ──────────────────────────────────────── */}
       <div className="lp-strip">
         <div className="lp-shell lp-strip-inner">
-          <span className="lp-strip-label">Fills applications on</span>
+          <span className="lp-strip-label">Reads job posts on</span>
           {ATS.map((n) => (
             <span key={n} className="lp-strip-mark">{n}</span>
           ))}
@@ -158,6 +159,7 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
           <div className="lp-steps lp-reveal">
             {[
               'Add your resume once.',
+
               'Open any job posting.',
               'Click fill.',
             ].map((t, i) => (
