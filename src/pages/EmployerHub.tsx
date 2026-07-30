@@ -24,12 +24,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft,
 } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateResultCard from "@/components/employer/CandidateResultCard";
@@ -76,9 +73,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
   const [spec, setSpec] = useState<JobSpec | null>(null);
 
-  // v3.12.0 — left nav state, and the company profile behind the menu.
+  // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
-  const [companyOpen, setCompanyOpen] = useState(false);
+  const [stage, setStage] = useState<"spec" | "results">("spec");
+
 
 
   const [searching, setSearching] = useState(false);
@@ -163,18 +161,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     if (!org) return;
     setSpec(nextSpec);
     setSearching(true);
+    setStage("results");
     setResults([]);
     setPoolNote("");
     setSearchId(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     try {
       const r = await employerApi.match(org.id, nextSpec);
       setSearchId(r.search_id);
       setResults(r.results || []);
       setPoolNote(r.pool_note || "");
     } catch (e) {
+      setStage("spec");
       toast({ title: "Search failed", description: (e as Error).message, variant: "destructive" });
     } finally { setSearching(false); }
   };
+
 
   const EMPLOYMENT_LABEL: Record<string, string> = {
     full_time: "Full time", contract: "Contract", part_time: "Part time", internship: "Internship",
@@ -271,29 +273,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             </div>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Company menu">
-                {org.logo_url
-                  ? <img src={org.logo_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-                  : <Building2 className="w-4 h-4" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="truncate">{org.name}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => { if (profileComplete) setCompanyOpen(true); }}
-                disabled={!profileComplete}
-              >
-                <Building2 className="w-4 h-4 mr-2" /> Company profile
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
-                <LogOut className="w-4 h-4 mr-2" /> Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {org.logo_url && (
+            <img src={org.logo_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+          )}
+
         </div>
       </header>
 
@@ -318,7 +301,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 return (
                   <button
                     key={item.key}
-                    onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                    onClick={() => setTab(item.key)}
                     aria-label={item.label}
                     className={`group relative w-10 h-10 rounded-xl grid place-items-center transition-colors ${
                       active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -338,8 +321,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   </button>
                 );
               })}
+
+              {/* v3.15.0 — sign out lives in the nav, not the header. */}
+              <span className="my-1 h-px w-6 bg-border" aria-hidden />
+              <button
+                onClick={() => supabase.auth.signOut()}
+                aria-label="Sign out"
+                className="group relative w-10 h-10 rounded-xl grid place-items-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <LogOut className="w-[18px] h-[18px]" />
+                <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-40 hidden group-hover:block whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md">
+                  Sign out
+                </span>
+              </button>
             </nav>
           </aside>
+
 
           <main className="flex-1 min-w-0 space-y-6">
             {/* The rail is icons only, so the section names itself here. */}
@@ -352,32 +349,48 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </p>
             </div>
 
-            {tab === "search" && (
-              <>
-                {/* 1 and 2. Widget intake, then the editable spec summary. */}
-                <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+            {tab === "search" && searching && (
+              <div className="space-y-4">
+                <Card className="p-6 text-center space-y-1.5">
+                  <p className="text-sm font-medium flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" /> AYN is reading the pool
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Scoring every candidate who opted into discovery against your role.
+                  </p>
+                </Card>
+                {[0, 1, 2].map(i => <CandidateCardSkeleton key={i} />)}
+              </div>
+            )}
 
-                {/* 3. Results, or the shape of them while AYN reads the pool. */}
-                {searching && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> AYN is reading the pool…
+            {tab === "search" && !searching && stage === "spec" && (
+              <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+            )}
+
+            {tab === "search" && !searching && stage === "results" && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{spec?.title || "Your role"}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {[spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
+                        .filter(Boolean).join(" · ")}
                     </p>
-                    {[0, 1, 2].map(i => <CandidateCardSkeleton key={i} />)}
                   </div>
-                )}
+                  <Button variant="outline" size="sm" onClick={() => setStage("spec")}>
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back to the role
+                  </Button>
+                </div>
 
-                {!searching && spec && results.length === 0 && searchId !== null && (
+                {results.length === 0 ? (
                   <Card className="p-6 text-center space-y-1.5">
                     <p className="text-sm font-medium">Nobody in the pool matches these must haves yet</p>
                     <p className="text-sm text-muted-foreground">
                       Try relaxing one must have skill, or lowering the minimum years, and search again.
                     </p>
                   </Card>
-                )}
-
-                {!searching && results.length > 0 && (
-                  <div className="space-y-4">
+                ) : (
+                  <>
                     {poolNote && <p className="text-sm text-muted-foreground">{poolNote}</p>}
                     {results.map((c, i) => (
                       <CandidateResultCard
@@ -392,9 +405,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                         onAssess={() => setAssessFor(c)}
                       />
                     ))}
-                  </div>
+                  </>
                 )}
-              </>
+              </div>
             )}
 
 
@@ -428,11 +441,14 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </Card>
             )}
 
+            {tab === "company" && <CompanyProfile org={org} onSaved={handleOrgSaved} page />}
+
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
+
 
           </main>
 
-          {/* v3.14.0 — the same four destinations, as a bottom bar on phones. */}
+          {/* v3.15.0 — the same destinations plus sign out, as a bottom bar. */}
           <nav
             className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur flex"
             aria-label="Employer navigation"
@@ -444,7 +460,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               return (
                 <button
                   key={item.key}
-                  onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                  onClick={() => setTab(item.key)}
                   className={`relative flex-1 py-2.5 grid place-items-center gap-0.5 ${
                     active ? "text-primary" : "text-muted-foreground"
                   }`}
@@ -459,21 +475,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </button>
               );
             })}
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
+            >
+              <LogOut className="w-[18px] h-[18px]" />
+              <span className="text-[10px] font-medium">Sign out</span>
+            </button>
           </nav>
+
         </div>
       )}
 
 
-      {/* v3.12.0 — once complete, the company profile lives behind the menu. */}
-      <Dialog open={companyOpen} onOpenChange={setCompanyOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Company profile</DialogTitle>
-            <DialogDescription>Candidates see this on every proposal you send.</DialogDescription>
-          </DialogHeader>
-          <CompanyProfile org={org} onSaved={handleOrgSaved} />
-        </DialogContent>
-      </Dialog>
 
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
@@ -493,69 +507,80 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Why AYN picked them</p>
-                  <ul className="space-y-1.5">
-                    {open.why.map((w, i) => <li key={i} className="text-sm leading-relaxed">{w}</li>)}
-                  </ul>
-                </div>
+              <div className="space-y-6">
+                {open.why.length > 0 && (
+                  <section className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Why AYN picked them</p>
+                    <ul className="space-y-2">
+                      {open.why
+                        .flatMap(w => w.split(/(?<=\.)\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean))
+                        .map((w, i) => (
+                          <li key={i} className="text-sm leading-relaxed flex gap-2.5">
+                            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden />
+                            <span>{w}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </section>
+                )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Requirements met</p>
+                <section className="rounded-xl border border-border/60 grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border/60">
+                  <div className="p-4 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Requirements met</p>
                     <div className="flex flex-wrap gap-1.5">
                       {open.matched_must_haves.map(m => (
-                        <Badge key={m} variant="secondary" className="font-normal gap-1">
+                        <Badge key={m} variant="secondary" className="font-normal gap-1 py-1">
                           <CheckCircle2 className="w-3 h-3" />{m}
                         </Badge>
                       ))}
-                      {open.matched_must_haves.length === 0 && <span className="text-xs text-muted-foreground">None recorded.</span>}
+                      {open.matched_must_haves.length === 0 && <span className="text-sm text-muted-foreground">None recorded.</span>}
                     </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Gaps</p>
+                  <div className="p-4 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Missing</p>
                     <div className="flex flex-wrap gap-1.5">
                       {open.gaps.map(g => (
-                        <Badge key={g} variant="outline" className="font-normal gap-1 text-muted-foreground">
+                        <Badge key={g} variant="outline" className="font-normal gap-1 py-1 text-muted-foreground">
                           <AlertCircle className="w-3 h-3" />{g}
                         </Badge>
                       ))}
-                      {open.gaps.length === 0 && <span className="text-xs text-muted-foreground">None found.</span>}
+                      {open.gaps.length === 0 && <span className="text-sm text-muted-foreground">Nothing missing that you named.</span>}
                     </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Backed by their resume</p>
-                    <div className="flex flex-wrap gap-1.5">
+                <section className="space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Skills</p>
+                  <div className="flex flex-wrap items-start gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 pt-1">From their resume</span>
+                    <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
                       {(open.skills_extracted ?? []).map(s => <Badge key={s} variant="outline" className="font-normal">{s}</Badge>)}
-                      {(open.skills_extracted ?? []).length === 0 && <span className="text-xs text-muted-foreground">Nothing evidenced.</span>}
+                      {(open.skills_extracted ?? []).length === 0 && <span className="text-sm text-muted-foreground">Nothing evidenced.</span>}
                     </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">AYN inferred</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(open.skills_inferred ?? []).map(s => <Badge key={s} variant="secondary" className="font-normal">{s}</Badge>)}
-                      {(open.skills_inferred ?? []).length === 0 && <span className="text-xs text-muted-foreground">None inferred.</span>}
+                  <div className="flex flex-wrap items-start gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 pt-1">AYN inferred</span>
+                    <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                      {(open.skills_inferred ?? []).map(s => <Badge key={s} variant="outline" className="font-normal border-dashed">{s}</Badge>)}
+                      {(open.skills_inferred ?? []).length === 0 && <span className="text-sm text-muted-foreground">None inferred.</span>}
                     </div>
                   </div>
-                </div>
+                </section>
 
                 {open.profile ? (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Background</p>
+                  <section className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Background</p>
                     <CandidateProfile profile={open.profile} location={open.location} />
-                  </div>
+                  </section>
                 ) : open.summary ? (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Background</p>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{open.summary}</p>
-                  </div>
+                  <section className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Background</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{open.summary}</p>
+                  </section>
                 ) : null}
 
               </div>
+
 
               <DialogFooter className="gap-2 sm:gap-3">
                 {/* v3.13.0 — check the claims before you spend a proposal. */}

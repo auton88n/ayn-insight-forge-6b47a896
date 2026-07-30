@@ -84,20 +84,23 @@ export function CandidateProfile({ profile, location }: { profile: CandidateProf
 
       {profile.experience.length > 0 && (
         <Section icon={Briefcase} title="Experience">
-          <ul className="space-y-2">
+          <ul className="divide-y divide-border/50 rounded-lg border border-border/50 bg-card">
             {profile.experience.map((e, i) => (
-              <li key={`${e.title}-${e.company}-${i}`} className="text-sm leading-snug">
-                <span className="font-medium">{[e.title, e.company].filter(Boolean).join(" at ")}</span>
+              <li key={`${e.title}-${e.company}-${i}`} className="px-3 py-2.5">
+                <p className="text-sm font-medium leading-snug">
+                  {[e.title, e.company].filter(Boolean).join(" at ")}
+                </p>
                 {(e.dates || e.industry) && (
-                  <span className="block text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {[e.dates, e.industry].filter(Boolean).join(" · ")}
-                  </span>
+                  </p>
                 )}
               </li>
             ))}
           </ul>
         </Section>
       )}
+
 
       {profile.education.length > 0 && (
         <Section icon={GraduationCap} title="Education">

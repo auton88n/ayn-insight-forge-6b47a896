@@ -1,58 +1,33 @@
-## Goal
+# Employer Hub v3.15.0 — five fixes
 
-Make the employer surface (EmployerHub) feel modern and easy to move around: a compact icon rail instead of the wide text nav, a visible loading state while AYN searches, and candidate cards that are properly structured and easy to read.
+## 1. The text under a candidate card is hard to read
+`CandidateAskCards.tsx` renders AYN's answer at 12px muted grey inside a faint tint, so the most substantive text on the card is the least visible.
 
-## 1. Navigation becomes an icon rail
+- Answer text goes to `text-sm leading-relaxed text-foreground`, inside a card with a visible border and a left orange accent so it reads as an answer, not a footnote.
+- The active question is shown as a small heading above the answer ("Why this score"), so it is clear what is being answered.
+- Loading state becomes a short skeleton with a spinner line instead of pulsing grey text.
+- Question chips get a clearer active state (orange tint, orange text).
 
-Replace the 224px text-and-hint sidebar with a narrow icon rail, matching the Resume Hub language the seeker already has:
+## 2 and 3. The candidate detail dialog
+Currently one long "why" paragraph, then four unequal chip grids, then the background block.
 
-- Vertical rail of 4 icon buttons (Search, Proposals, Assessments, Company), active state in AYN orange, hover tooltip showing the label plus the one-line hint.
-- Pending proposal count stays as a small dot badge on the Proposals icon.
-- The main content area gets the reclaimed width, so specs and candidate cards breathe.
-- Mobile: the rail becomes a bottom-anchored icon bar (same icons, same badges) instead of the current row of text buttons.
-- A small page heading above the content names the current section, so the icon-only rail never leaves the user guessing where they are.
+- The dialog becomes a single readable column with consistent section rhythm: header (score, headline, seniority, location, match band), then Why AYN picked them as a bulleted list (never one wall of text: split on sentences when the model returns a paragraph), then a two column Met / Missing block with equal padding and dividers, then Skills where "Backed by their resume" and "AYN inferred" are two labelled rows of one chip family instead of two competing badge styles, then Background.
+- The Background block (`CandidateProfile.tsx`) is tightened: consistent section spacing, skill level labels aligned in a fixed left column, experience rows as a clean two line stack with a subtle divider between roles, education and "what they are looking for" in the same rhythm. Empty values still render nothing.
+- Body text at `text-sm`, section labels at 11px uppercase, one spacing scale across all sections.
 
-## 2. Real loading state after "Find"
+## 4. Company profile becomes a page, not a dialog
+- The Company rail item switches the main tab to `company` and renders `CompanyProfile` full width in the main column (same as Search, Proposals, Assessments).
+- The collapsed summary row is removed in that context: the fields are shown open, grouped as Identity (name, website, industry, headquarters), Presence (LinkedIn, logo), Size, and About. Autosave on blur stays exactly as is.
+- The company dialog is deleted; the menu item and `companyOpen` state go away.
 
-Today the results area stays empty while the match runs, so the click feels dead.
-
-- While searching: show a "AYN is reading the pool" panel with three skeleton candidate cards (score ring placeholder, two text lines, chip row) so the layout does not jump when results land.
-- The Find button shows a spinner and disabled state (already partly there, made consistent).
-- Empty result state: a clear card saying no one in the pool matches these must-haves yet, with a hint to relax a must-have.
-
-## 3. Candidate cards, restructured
-
-Rebuild each result card into clear, labelled zones instead of the current stack of unlabelled text:
-
-```text
-┌───────────────────────────────────────────────┐
-│ (87)  Senior Backend Engineer                 │
-│       Senior · 7 years · Toronto      [Open]  │
-├───────────────────────────────────────────────┤
-│ HAS WHAT YOU ASKED FOR                        │
-│  ✓ Python   ✓ Postgres   ✓ AWS                │
-│ MISSING                                       │
-│  – Kubernetes                                 │
-├───────────────────────────────────────────────┤
-│ WHY AYN PICKED THEM                           │
-│  • one reason per line, full sentences        │
-│  • …                                          │
-├───────────────────────────────────────────────┤
-│ Ask AYN about them   [4 question cards]       │
-│ [Send a job proposal] [Send an assessment]    │
-└───────────────────────────────────────────────┘
-```
-
-Specifics:
-- Section eyebrow labels (uppercase, muted, small) so no block of text is unexplained.
-- Matched skills get a check mark and a positive chip; gaps get a muted outline chip under a separate "Missing" label, so green and grey are never mixed in one row.
-- The "why" lines become a proper bulleted list at body size with relaxed leading, not 12px muted text; long lists collapse behind "Show more".
-- Score ring gets a label ("match") under it and a plain-language band (strong / good / partial) so the number means something.
-- Primary actions (Send a job proposal, Send an assessment) move onto the card footer, so the employer does not have to open the dialog to act.
-- Consistent card padding, one divider style, and larger tap targets.
+## 5. Search becomes staged, and sign out moves into the nav
+- The Search tab gets three views held in one state: `spec` (the intake wizard and role summary), `loading` (full width "AYN is reading the pool" with skeleton cards and nothing else on screen), and `results` (only the candidate cards, with a "Back to the role" button and a one line summary of the role searched at the top).
+- Hitting Find scrolls to top and switches views, so the results are never buried under the intake table.
+- Editing from the results view returns to `spec` with everything preserved, exactly as the draft persistence already does.
+- The top right company icon and its dropdown are removed. The nav rail gains a bottom section with the company avatar and a Sign out icon button (tooltip "Sign out"); the mobile bottom bar gains a fifth Sign out item. Header keeps the AYN mark and company name only.
 
 ## Technical notes
-
-- All work is presentation-only in `src/pages/EmployerHub.tsx`, plus a small extracted `src/components/employer/CandidateResultCard.tsx` (card markup) and `CandidateCardSkeleton.tsx` (loading state) to keep the page file manageable.
-- Nav rail styles reuse the existing `.employer-surface` token scope and the `rh-navitem` pattern from `src/styles/resume-hub.css`; no hardcoded colors.
-- No backend, edge function, schema, or API changes. `employer_match`, proposals, and assessments keep their current contracts.
+- Files: `src/pages/EmployerHub.tsx` (view state, rail, header, company tab, dialog removal), `src/components/employer/CandidateAskCards.tsx`, `src/components/employer/CandidateResultCard.tsx`, `src/components/employer/CandidateProfile.tsx`, `src/components/employer/CompanyProfile.tsx` (a `page` mode next to `onboarding`).
+- Presentation only. No edge function, schema, or API changes; no candidate identity is rendered anywhere new.
+- All colour stays on semantic tokens inside `.employer-surface` so the orange scope keeps working, including in portals.
+- Verify with a Playwright pass at 1280 wide and at mobile width: rail sign out present, no top right icon, Find moves to a loading view then results, company profile renders in the main column.
