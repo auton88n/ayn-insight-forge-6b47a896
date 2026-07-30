@@ -292,8 +292,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       ) : (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex gap-6 pb-24 md:pb-6">
           {/* v3.14.0 — icon rail, same language as the seeker Resume Hub. */}
-          <aside className="hidden md:block w-14 shrink-0" aria-label="Employer navigation">
-            <nav className="sticky top-24 flex flex-col items-center gap-1.5 rounded-2xl border border-border/60 bg-card p-2">
+          <aside className="hidden md:block w-24 shrink-0" aria-label="Employer navigation">
+            <nav className="sticky top-24 flex flex-col items-stretch gap-1 rounded-2xl border border-border/60 bg-card p-2">
               {EMPLOYER_NAV.map(item => {
                 const Icon = item.icon;
                 const active = tab === item.key;
@@ -303,36 +303,31 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     aria-label={item.label}
-                    className={`group relative w-10 h-10 rounded-xl grid place-items-center transition-colors ${
+                    className={`relative w-full rounded-xl py-2.5 flex flex-col items-center gap-1 transition-colors ${
                       active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
                     <Icon className="w-[18px] h-[18px]" />
+                    <span className="text-[11px] font-medium leading-none">{item.label}</span>
                     {badge > 0 && (
                       <span
                         aria-hidden
-                        className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold leading-4 text-center"
+                        className="absolute top-1 right-2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold leading-4 text-center"
                       >{badge > 9 ? "9+" : badge}</span>
                     )}
-                    <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-40 hidden group-hover:block whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left shadow-md">
-                      <span className="block text-xs font-medium text-popover-foreground">{item.label}</span>
-                      <span className="block text-[11px] text-muted-foreground">{item.hint}</span>
-                    </span>
                   </button>
                 );
               })}
 
               {/* v3.15.0 — sign out lives in the nav, not the header. */}
-              <span className="my-1 h-px w-6 bg-border" aria-hidden />
+              <span className="my-1 h-px w-6 self-center bg-border" aria-hidden />
               <button
                 onClick={() => supabase.auth.signOut()}
                 aria-label="Sign out"
-                className="group relative w-10 h-10 rounded-xl grid place-items-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <LogOut className="w-[18px] h-[18px]" />
-                <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-40 hidden group-hover:block whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md">
-                  Sign out
-                </span>
+                <span className="text-[11px] font-medium leading-none">Sign out</span>
               </button>
             </nav>
           </aside>
@@ -342,12 +337,18 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {/* The rail is icons only, so the section names itself here. */}
             <div>
               <h2 className="text-lg font-semibold tracking-tight">
-                {EMPLOYER_NAV.find(n => n.key === tab)?.label}
+                {tab === "search" && stage === "results"
+                  ? (spec?.title || "Your role")
+                  : EMPLOYER_NAV.find(n => n.key === tab)?.label}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {EMPLOYER_NAV.find(n => n.key === tab)?.hint}
+                {tab === "search" && stage === "results"
+                  ? [spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
+                      .filter(Boolean).join(" · ")
+                  : EMPLOYER_NAV.find(n => n.key === tab)?.hint}
               </p>
             </div>
+
 
             {tab === "search" && searching && (
               <div className="space-y-4">
