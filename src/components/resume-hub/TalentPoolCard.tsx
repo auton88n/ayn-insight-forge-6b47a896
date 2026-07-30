@@ -134,17 +134,54 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
               {pendingIntros} {pendingIntros === 1 ? "company wants" : "companies want"} an intro
             </p>
           )}
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
-            When on, AYN can present your anonymized profile to verified employers searching for
-            candidates. Your name and contact details are never shared until you approve a specific
-            request. Turn this off anytime and your data leaves the pool immediately.
-          </p>
+          {optedIn ? (
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
+              You are discoverable. Employers searching AYN can see your full profile, and AYN's AI
+              matches you to open roles using everything you have provided.
+              <br />
+              Your email and phone stay private until you approve an intro. Turn this off anytime and
+              your profile leaves the pool immediately.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
+              Turn this on and employers searching AYN can see your full profile: your resume, work
+              history, skills, education, what you are looking for, and where you can work. AYN's AI
+              uses all of it to match you to roles you would not have found on your own.
+              <br />
+              Employers reach you through AYN. Your email and phone are only shared when you approve
+              a specific request.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          <Switch checked={optedIn} disabled={loading || saving} onCheckedChange={toggle} />
+          <Switch
+            checked={optedIn}
+            disabled={loading || saving}
+            onCheckedChange={(next) => (next ? setConfirmOpen(true) : toggle(false))}
+          />
         </div>
       </div>
+
+      {/* v3.5.1 — explicit consent moment before the profile enters the pool. */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Make your profile discoverable</AlertDialogTitle>
+            <AlertDialogDescription>
+              Employers searching AYN will be able to see everything in your profile, including your
+              resume, work history, skills, and preferences. AYN's AI will use this information to
+              match you with roles and to recommend you to employers. You can turn this off at any
+              time, and your profile is removed from the pool immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => toggle(true)}>Turn on discovery</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {optedIn && !loading && (
         <>
