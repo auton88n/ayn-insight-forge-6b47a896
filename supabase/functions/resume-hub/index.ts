@@ -2078,48 +2078,136 @@ Rules, strict:
       return json({ pool_size: ids.length, skills });
     }
 
-    // v3.8.0 — the chat after a search exists only to evaluate the candidates
-    // that search returned. It reads the stored result cards for that
-    // search_id and nothing else. No PII is ever loaded: the stored cards are
-    // already opaque refs with no name, email, phone or user id.
-    if (action === "employer_results_chat") {
-      const { search_id, messages } = payload as {
-        search_id?: string; messages?: Array<{ role: string; content: string }>;
+    // v3.9.0 — the free-form results chat is gone. It produced a wrong role
+    // reference, a self contradiction about years of experience, and it leaked
+    // the internal ref "c1" to the employer. Two structured actions replace it:
+    // employer_card_answer (four fixed questions, grounded in the stored cards)
+    // and employer_draft_proposal (a pre-written proposal message).
+    // Neither ever loads PII: the stored cards are opaque refs only.
+
+    /** Human role line built from the stored spec, so the model never invents one. */
+    const SENIORITY_LABEL: Record<string, string> = {
+      intern: "intern", entry: "entry level", mid: "mid level", senior: "senior",
+      staff_principal: "staff or principal", manager: "manager", director_plus: "director or above",
+    };
+    const EMPLOYMENT_LABEL_FN: Record<string, string> = {
+      full_time: "full time", contract: "contract", part_time: "part time", internship: "internship",
+    };
+    function roleLine(spec: Record<string, unknown>): string {
+      const title = String(spec?.title || "").trim() || "this role";
+      const sen = SENIORITY_LABEL[String(spec?.seniority || "")] || "";
+      return sen ? `${sen} ${title}` : title;
+    }
+    function safeCard(c: Record<string, unknown>) {
+      return {
+        score: c.score, headline: c.headline, seniority: c.seniority,
+        years_experience: c.years_experience, location: c.location,
+        matched_must_haves: c.matched_must_haves, gaps: c.gaps, why: c.why,
+        skills_extracted: c.skills_extracted, skills_inferred: c.skills_inferred,
+        summary: typeof c.summary === "string" ? c.summary.slice(0, 900) : "",
       };
-      if (!search_id || !Array.isArray(messages)) return json({ error: "search_id and messages required" }, 400);
+    }
+    /** Strip markdown symbols and any internal ref that slipped into model text. */
+    function cleanEmployerText(s: string): string {
+      return String(s || "")
+        .replace(/[*_#`]/g, "")
+        .replace(/\bcandidate\s+c\d+\b/gi, "this candidate")
+        .replace(/\bc\d+\b/g, "this candidate")
+        .replace(/[—–]/g, " to ")
+        .trim();
+    }
+    const VOICE_RULES = `- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. No em dashes, no en dashes. Write ranges with the word "to".
+- Never write an internal reference like c1 or c2. You do not know any candidate's name, email or phone. Say "this candidate" or use their headline.
+- Never praise without evidence from the data given. Never write perfect fit, huge asset, or exactly what you are looking for.
+- If a fact is not in the data given, say that one fact is not available. Never guess.`;
+
+    if (action === "employer_card_answer") {
+      const { search_id, ref, card } = payload as { search_id?: string; ref?: string; card?: string };
+      const CARDS = ["why_score", "what_is_missing", "compare", "screen_questions"];
+      if (!search_id || !ref || !card || !CARDS.includes(card)) {
+        return json({ error: "search_id, ref and a valid card required" }, 400);
+      }
       const { data: search } = await adminForNew.from("employer_searches")
         .select("id, org_id, job_spec, results").eq("id", search_id).maybeSingle();
       if (!search) return json({ error: "search not found" }, 404);
       if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
 
       const cards = (Array.isArray(search.results) ? search.results : []) as Array<Record<string, unknown>>;
-      const safeCards = cards.map(c => ({
-        ref: c.ref, score: c.score, headline: c.headline, seniority: c.seniority,
-        years_experience: c.years_experience, location: c.location,
-        matched_must_haves: c.matched_must_haves, gaps: c.gaps, why: c.why,
-        skills_extracted: c.skills_extracted, skills_inferred: c.skills_inferred,
-        summary: typeof c.summary === "string" ? c.summary.slice(0, 900) : "",
-      }));
+      const mine = cards.find(c => c.ref === ref);
+      if (!mine) return json({ error: "unknown ref" }, 400);
+      const spec = (search.job_spec || {}) as Record<string, unknown>;
+      const years = mine.years_experience;
 
-      const sys = `You are AYN. The person you are talking to is an employer who just ran one candidate search. Your only job now is to help them evaluate the candidates below.
+      const ASK: Record<string, string> = {
+        why_score: `Explain why this candidate scored ${mine.score} out of 100 for this role. Use only the requirements they matched and the gaps recorded. At most 4 short sentences.`,
+        what_is_missing: `List what is missing in this candidate against the role requirements, using only the recorded gaps and the must have skills they did not match. Nothing else. At most 4 short lines.`,
+        compare: `Compare this candidate to the others returned by the same search, on the role requirements only. Say who is stronger on what. At most 4 short sentences. Refer to the others by their headline, never by a reference code.`,
+        screen_questions: `Write exactly three screening questions to ask this candidate, each grounded in something specific in their recorded experience. One short question per line. No numbering symbols.`,
+      };
 
-What you may do: compare these candidates, explain a score, explain a gap, say which one fits the role best and why, point out what the search did not tell them.
+      const sys = `You are AYN, answering one fixed question for an employer about one candidate from a search they just ran.
+
+THE ROLE, use these words and never describe the role any other way: ${roleLine(spec)}.
+${spec.employment_type ? `Employment type: ${EMPLOYMENT_LABEL_FN[String(spec.employment_type)] || String(spec.employment_type)}.` : ""}
+${years !== null && years !== undefined ? `This candidate has ${years} years of experience. Use that number. Never say their experience is unspecified.` : `This candidate's years of experience were not recorded. If asked, say that one fact is not available.`}
 
 Rules, strict:
-- Ground every statement in the JSON below. If a detail is not in it, say it is not available. Never guess.
-- Never praise a candidate without pointing to the specific evidence in their card. Never say perfect fit, huge asset, exactly what you are looking for, or anything like it.
-- Refer to candidates by their ref only. You do not have their name, email, phone or identity, and you cannot get it. Contact details are released only if the candidate accepts a proposal.
-- You cannot search job boards, find open roles, contact candidates, or see candidates who have not opted into discovery. If asked, say so plainly in one sentence.
-- If they ask anything that is not about evaluating these candidates, reply in one short sentence that you only help evaluate the candidates from this search, and stop. Do not answer the question. Do not lecture.
-- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. No em dashes, no en dashes. Write ranges with the word "to".
+- Answer only the question asked. Do not restate every skill with years. Do not summarise their whole background.
+${VOICE_RULES}
 
-ROLE SPEC: ${JSON.stringify(search.job_spec)}
+ROLE SPEC: ${JSON.stringify(spec)}
 
-CANDIDATES: ${JSON.stringify(safeCards)}`;
-      const convo = messages.slice(-10).map(m => `${m.role.toUpperCase()}: ${String(m.content).slice(0, 2000)}`).join("\n\n");
-      const r = await callAI({ system: sys, user: convo });
-      return json({ reply: String(r.text || "").replace(/[*_#`]/g, "").trim() });
+THIS CANDIDATE: ${JSON.stringify(safeCard(mine))}
+
+${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.filter(c => c.ref !== ref).map(safeCard))}` : ""}`;
+
+      const r = await callAI({ system: sys, user: ASK[card] });
+      return json({ answer: cleanEmployerText(r.text) });
     }
+
+    // v3.9.0 — the proposal message arrives pre-written from the JobSpec and
+    // this candidate's match result, so the employer edits instead of staring
+    // at a blank box. Never blocks sending: the client falls back to empty.
+    if (action === "employer_draft_proposal") {
+      const { org_id, search_id, ref } = payload as { org_id?: string; search_id?: string; ref?: string };
+      if (!org_id || !search_id || !ref) return json({ error: "org_id, search_id and ref required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const { data: search } = await adminForNew.from("employer_searches")
+        .select("id, org_id, job_spec, results").eq("id", search_id).maybeSingle();
+      if (!search || search.org_id !== org_id) return json({ error: "search not found" }, 404);
+
+      const cards = (Array.isArray(search.results) ? search.results : []) as Array<Record<string, unknown>>;
+      const mine = cards.find(c => c.ref === ref);
+      if (!mine) return json({ error: "unknown ref" }, 400);
+      const spec = (search.job_spec || {}) as Record<string, unknown>;
+      const { data: org } = await adminForNew.from("orgs").select("name").eq("id", org_id).maybeSingle();
+      const company = String(org?.name || "our company");
+
+      const sys = `You write one short job proposal message from an employer to a candidate they found through AYN. The candidate reads it inside AYN.
+
+THE ROLE, use these words and never describe the role any other way: ${roleLine(spec)} at ${company}.
+
+Rules, strict:
+- 4 to 6 short sentences of plain prose. No greeting line breaks needed beyond normal paragraphs.
+- Open by naming the role and the company.
+- Say specifically why this person fits, citing only the matched requirements and the why lines given below. Invent nothing about them.
+- End by saying what happens next: if they accept, the employer receives their contact details and reaches out directly.
+- You do not know their name. Open with "Hi there".
+${VOICE_RULES}
+- No salesy language, no flattery, no markdown, no bullet characters.
+
+ROLE SPEC: ${JSON.stringify(spec)}
+
+WHAT THE MATCH FOUND: ${JSON.stringify({
+        matched_must_haves: mine.matched_must_haves, why: mine.why,
+        headline: mine.headline, years_experience: mine.years_experience,
+      })}`;
+
+      const r = await callAI({ system: sys, user: "Write the message now. Output only the message text." });
+      const message = cleanEmployerText(r.text).slice(0, 1000);
+      return json({ subject_hint: `${String(spec.title || "A role")} at ${company}`, message });
+    }
+
 
 
     if (action === "employer_match") {
