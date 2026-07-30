@@ -1,0 +1,231 @@
+/**
+ * TalentPoolCard.tsx — v3.2.0 "one profile, and show what it powers"
+ *
+ * The point of the Profile redesign: make the talent pool connection visible.
+ * When a seeker is opted in we show them exactly what an employer sees
+ * (the anonymized card employer_match returns), which skills are backed by
+ * evidence versus inferred, how fresh the index is, and what is missing that
+ * employers actually filter on.
+ */
+import { useCallback, useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Users, RefreshCw, X, ShieldCheck } from "lucide-react";
+import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diff)) return "never";
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.round(days / 30);
+  return `${months} month${months === 1 ? "" : "s"} ago`;
+}
+
+interface Props {
+  /** Bumped by the parent after any save so the card refetches freshness. */
+  refreshKey?: number;
+  /** Set when the profile has no work eligibility or no desired titles. */
+  missingMatchSignals: { eligibility: boolean; desiredTitles: boolean };
+  pendingIntros: number;
+}
+
+export default function TalentPoolCard({ refreshKey = 0, missingMatchSignals, pendingIntros }: Props) {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<TalentPoolStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await resumeHubApi.talentPoolGet();
+      setStatus(r);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const toggle = async (next: boolean) => {
+    setSaving(true);
+    try {
+      await resumeHubApi.talentPoolSet(next);
+      toast({
+        title: next ? "You're in the pool" : "Left the pool",
+        description: next
+          ? "Employers can now discover your anonymized profile."
+          : "Your data left the pool.",
+      });
+      await load();
+    } catch (e) {
+      toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const reindex = async () => {
+    setReindexing(true);
+    try {
+      await resumeHubApi.talentPoolReindexSelf();
+      await load();
+      toast({ title: "Profile re-indexed" });
+    } catch (e) {
+      toast({ title: "Couldn't re-index", description: (e as Error).message, variant: "destructive" });
+    } finally { setReindexing(false); }
+  };
+
+  const deleteSkill = async (s: PoolSkill) => {
+    try {
+      await resumeHubApi.talentPoolSkillDelete(s.id);
+      setStatus(p => p ? { ...p, skills: p.skills.filter(x => x.id !== s.id), skills_count: p.skills_count - 1 } : p);
+    } catch (e) {
+      toast({ title: "Couldn't remove", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const optedIn = !!status?.opted_in;
+  const extracted = (status?.skills ?? []).filter(s => s.provenance === "extracted");
+  const inferred = (status?.skills ?? []).filter(s => s.provenance === "inferred");
+
+  const indexedAt = status?.indexed_at ?? null;
+  const newestEdit = [status?.resume_updated_at, status?.profile_updated_at]
+    .filter(Boolean)
+    .sort()
+    .pop() as string | undefined;
+  const stale = !!(optedIn && indexedAt && newestEdit && new Date(newestEdit).getTime() > new Date(indexedAt).getTime() + 5000);
+
+  return (
+    <Card className="p-4 sm:p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="font-medium">Let employers find me</span>
+            {optedIn ? <Badge variant="secondary">On</Badge> : <Badge variant="outline">Off</Badge>}
+          </div>
+          {optedIn && pendingIntros > 0 && (
+            <p className="text-xs font-medium text-primary mt-1">
+              {pendingIntros} {pendingIntros === 1 ? "company wants" : "companies want"} an intro
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
+            When on, AYN can present your anonymized profile to verified employers searching for
+            candidates. Your name and contact details are never shared until you approve a specific
+            request. Turn this off anytime and your data leaves the pool immediately.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          <Switch checked={optedIn} disabled={loading || saving} onCheckedChange={toggle} />
+        </div>
+      </div>
+
+      {optedIn && !loading && (
+        <>
+          {/* What employers see — the anonymized card, exactly as returned by employer_match */}
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                What employers see
+              </span>
+            </div>
+            {status?.preview ? (
+              <>
+                <div>
+                  <p className="text-sm font-medium">{status.preview.headline || "No headline yet"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {[
+                      status.preview.seniority,
+                      status.preview.years_experience != null ? `${status.preview.years_experience} years` : "",
+                      status.preview.location,
+                    ].filter(Boolean).join(" · ") || "No seniority, years, or location yet"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(status.skills ?? []).slice(0, 18).map(s => (
+                    <Badge key={s.id} variant="secondary" className="font-normal">{s.skill}</Badge>
+                  ))}
+                  {(status.skills ?? []).length === 0 && (
+                    <span className="text-xs text-muted-foreground">No skills indexed yet.</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  No name and no contact details. That is the whole card.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Not indexed yet. Save your profile or upload a resume.</p>
+            )}
+          </div>
+
+          {/* Skills split by provenance */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <p className="text-xs font-medium">Backed by your resume ({extracted.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {extracted.map(s => <Badge key={s.id} variant="outline" className="font-normal">{s.skill}</Badge>)}
+                {extracted.length === 0 && <span className="text-xs text-muted-foreground">Nothing evidenced yet.</span>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium">AYN inferred these ({inferred.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {inferred.map(s => (
+                  <Badge key={s.id} variant="secondary" className="font-normal gap-1">
+                    {s.skill}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${s.skill}`}
+                      onClick={() => deleteSkill(s)}
+                      className="opacity-60 hover:opacity-100"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {inferred.length === 0 && <span className="text-xs text-muted-foreground">None inferred.</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Freshness */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {stale ? (
+              <span className="text-primary font-medium">Your resume changed since AYN last indexed you</span>
+            ) : (
+              <span className="text-muted-foreground">
+                Your profile was last indexed {relativeTime(indexedAt)}.
+              </span>
+            )}
+            <Button variant="outline" size="sm" onClick={reindex} disabled={reindexing} className="h-7">
+              {reindexing ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1.5" />}
+              Refresh
+            </Button>
+          </div>
+
+          {/* Completeness nudge, tied to matching rather than a percentage */}
+          {missingMatchSignals.eligibility && (
+            <p className="text-xs text-muted-foreground">
+              Employers filter on work eligibility. Add yours so the right ones can find you.
+            </p>
+          )}
+          {missingMatchSignals.desiredTitles && (
+            <p className="text-xs text-muted-foreground">
+              Add the titles you want. Employers searching the pool match on them first.
+            </p>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
