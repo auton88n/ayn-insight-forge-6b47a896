@@ -97,11 +97,15 @@ export default function AssessmentDialog({
         </DialogHeader>
 
         {busy ? (
-          <div className="py-12 grid place-items-center text-sm text-muted-foreground gap-2">
-            <Loader2 className="w-5 h-5 animate-spin" />
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+            <span
+              aria-hidden
+              className="w-10 h-10 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin"
+            />
             AYN is writing questions from their background.
           </div>
         ) : (
+
           <div className="space-y-4">
             <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
               <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
