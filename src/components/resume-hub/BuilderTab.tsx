@@ -76,20 +76,23 @@ export default function BuilderTab({ userId }: Props) {
     toast({ title: "Set as primary" });
     setBusy(false);
     load();
-    // v3.2.0 — the pool indexes the primary resume, so a switch changes it.
-    resumeHubApi.talentPoolReindexSelf().catch(() => {});
+    // profile_text is built from the primary resume, so a switch changes the index.
+    reindexTalentPool("primary_resume_change");
   };
 
 
   const removeResume = async () => {
     if (!activeId) return;
     if (!confirm("Delete this resume? This cannot be undone.")) return;
+    const wasPrimary = resumes.find((r) => r.id === activeId)?.is_primary;
     await supabase.from("resumes").delete().eq("id", activeId);
     setActiveId(null);
     setTitle("");
     setContent({ basics: { name: "", summary: "" }, work: [], education: [], skills: [] });
     load();
+    if (wasPrimary) reindexTalentPool("primary_resume_deleted");
   };
+
 
   const newResume = () => {
     setActiveId(null);
