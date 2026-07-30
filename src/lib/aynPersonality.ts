@@ -43,99 +43,59 @@ export const AYN_PERSONALITY: AYNPersonality = {
   }
 };
 
-// Intent types for routing
-export type IntentType = 'chat' | 'engineering' | 'files' | 'search' | 'image';
+// Intent types for routing.
+// v3.7.0: 'engineering' removed along with EngineeringContext, calculatorType
+// and buildingCode. AYN is a job search copilot, it does not size beams.
+export type IntentType = 'chat' | 'files' | 'search' | 'image';
 
-// Engineering-specific context
-export interface EngineeringContext {
-  calculatorType?: 'beam' | 'column' | 'foundation' | 'slab' | 'retaining-wall' | 'grading';
-  projectName?: string;
-  buildingCode?: string;
-  region?: string;
-}
-
-// Build the system prompt for AYN based on context
+// Build the system prompt for AYN based on context.
+// NOTE: the authoritative dashboard prompt lives server side in
+// supabase/functions/ayn-unified/systemPrompts.ts. This helper stays for
+// client-side previews and keeps the same voice.
 export function buildAYNSystemPrompt(
   intent: IntentType,
   userLanguage: string = 'en',
-  engineeringContext?: EngineeringContext,
   userPreferences?: { communicationStyle?: string; region?: string }
 ): string {
-  const basePrompt = `you're ayn, a friendly ai assistant. you help people with their questions in a casual, approachable way.
+  const basePrompt = `you're ayn, a job search copilot. you help people find work, decide what to apply to, and present themselves well.
 
 personality:
 - use lowercase for most things (except proper nouns and acronyms)
-- use contractions naturally (gonna, wanna, it's, that's)
-- keep numbers short (12k instead of 12,000, 2.5m instead of 2,500,000)
-- be concise but thorough when the topic needs it
-- match the user's energy and emotion
-- if they're frustrated, be extra patient and understanding
-- if they're excited, share their enthusiasm
+- use contractions naturally
+- keep numbers short (12k instead of 12,000)
+- be concise, and specific to this person rather than generic
+- never invent experience, skills, employers or dates they do not have
+- be honest when a job is a poor fit
 
-language: respond in ${userLanguage === 'ar' ? 'Arabic' : 'English'} (match the user's language)`;
+language: respond in ${userLanguage === 'ar' ? 'Arabic' : userLanguage === 'fr' ? 'French' : 'English'} (match the user's language)`;
 
-  // Add intent-specific instructions
   let intentPrompt = '';
-  
+
   switch (intent) {
-    case 'engineering':
-      intentPrompt = `
-
-you're helping with structural engineering calculations. be precise with:
-- material properties and specifications
-- building code requirements (${engineeringContext?.buildingCode || 'ACI 318-25/CSA A23.3-24'})
-- safety factors and design considerations
-- clear explanations of results
-
-${engineeringContext?.calculatorType ? `current calculator: ${engineeringContext.calculatorType}` : ''}
-${engineeringContext?.projectName ? `project: ${engineeringContext.projectName}` : ''}
-${engineeringContext?.region ? `region: ${engineeringContext.region}` : ''}
-
-always:
-- explain the engineering concepts in accessible terms
-- highlight any safety concerns or code violations
-- suggest optimizations when appropriate
-- be precise with units (kN, MPa, mm, etc.)`;
-      break;
-
     case 'files':
       intentPrompt = `
 
-you're analyzing uploaded files. focus on:
-- understanding the content thoroughly
-- extracting key information
-- answering specific questions about the content
-- summarizing when helpful`;
+they uploaded a file. if it is a resume or a job description, connect it to what you already know about them instead of summarising it back at them.`;
       break;
 
     case 'search':
       intentPrompt = `
 
-you have access to web search. use it when:
-- the user asks about current events or recent info
-- you need to verify facts
-- looking up specific data or statistics
-- researching topics outside your training data
-
-cite sources when relevant.`;
+you can look things up. use it for company research, salary data, and hiring news. cite sources when relevant.`;
       break;
 
     case 'image':
       intentPrompt = `
 
-you're helping with image generation or analysis.
-- be creative with prompts when generating
-- be detailed when describing images
-- ask clarifying questions if the request is vague`;
+you're helping with an image. describe what you see and tie it back to their job search.`;
       break;
 
     default:
       intentPrompt = `
 
-you're having a general conversation. be helpful, friendly, and engaging.`;
+talk about their job search: fit, gaps, how to tell their story, interviews, and what to do next.`;
   }
 
-  // Add user preference customizations
   let preferencesPrompt = '';
   if (userPreferences?.communicationStyle === 'formal') {
     preferencesPrompt = `
@@ -146,37 +106,24 @@ note: this user prefers a more formal communication style. adjust accordingly wh
   return basePrompt + intentPrompt + preferencesPrompt;
 }
 
-// Detect intent from user message
+// Detect intent from user message.
 export function detectIntent(message: string): IntentType {
   const lowerMessage = message.toLowerCase();
-  
-  // Engineering keywords
-  const engineeringKeywords = [
-    'beam', 'column', 'foundation', 'slab', 'retaining wall', 'grading',
-    'calculate', 'structural', 'load', 'stress', 'reinforcement', 'concrete',
-    'steel', 'moment', 'shear', 'deflection', 'design', 'span', 'kn', 'mpa',
-    'engineering', 'civil', 'construction', 'building code', 'aci', 'csa', 'ibc'
-  ];
-  
-  // Search keywords
+
   const searchKeywords = [
-    'search', 'find', 'look up', 'what is the latest', 'current', 'today',
-    'news', 'recent', 'google', 'research'
-  ];
-  
-  // File keywords
-  const fileKeywords = [
-    'uploaded', 'file', 'document', 'pdf', 'image', 'analyze this',
-    'what does this say', 'summarize this'
-  ];
-  
-  // Image keywords
-  const imageKeywords = [
-    'generate image', 'create image', 'draw', 'picture of', 'illustration',
-    'make an image', 'design a'
+    'search', 'look up', 'what is the latest', 'news about', 'recent', 'research'
   ];
 
-  // Check for matches
+  const fileKeywords = [
+    'uploaded', 'this file', 'this document', 'this pdf', 'analyze this',
+    'what does this say', 'summarize this'
+  ];
+
+  const imageKeywords = [
+    'generate image', 'create image', 'draw', 'picture of', 'illustration',
+    'make an image'
+  ];
+
   if (imageKeywords.some(kw => lowerMessage.includes(kw))) {
     return 'image';
   }
@@ -186,12 +133,10 @@ export function detectIntent(message: string): IntentType {
   if (searchKeywords.some(kw => lowerMessage.includes(kw))) {
     return 'search';
   }
-  if (engineeringKeywords.some(kw => lowerMessage.includes(kw))) {
-    return 'engineering';
-  }
-  
+
   return 'chat';
 }
+
 
 // Get emotion-appropriate response starters
 export function getEmotionStarter(emotion: AYNEmotion): string {
