@@ -2861,7 +2861,7 @@ REQUIRED QUESTION SHAPES, use a mix of these, always anchored to something THIS 
 - The constraint or messy detail only someone who did the work would know
 - Their specific role when a claim is team shaped, separating what they did from what the team did
 
-FORMAT: 4 to 6 multiple choice questions and 2 to 3 short answer questions.
+FORMAT: exactly 4 multiple choice questions and 2 short answer questions. Keep every question and rubric tight, no preamble.
 Multiple choice: scenario based, four options, plausible distractors drawn from realistic alternative choices. No obviously silly option. The correct option must be the one consistent with how the work is actually done under the constraints described.
 Short answer: ask for 2 to 4 sentences.
 
