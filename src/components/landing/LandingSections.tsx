@@ -248,20 +248,21 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell" style={{ display: 'grid', gap: 'clamp(28px,5vw,56px)', gridTemplateColumns: '1fr' }}>
           <div className="lp-reveal">
             <p className="lp-eyebrow">Built to be honest</p>
-            <h2 className="lp-display lp-h2">It tells you what it did not do</h2>
+            <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
             <p className="lp-lead">
-              AYN shows you what it filled, what it skipped, and what it could not verify. Work
-              authorization, sponsorship, salary, and self identification are never guessed. You answer
-              those.
+              Every score is grounded in the posting text, and AYN shows you the lines it used. If the
+              page hides the description, it says so instead of guessing. AYN only reads. It never
+              types into a page and never submits anything for you.
             </p>
-          </div>
-          <div className="lp-tile lp-reveal">
-            <div className="lp-art" style={{ marginTop: 0 }}>
-              <RunSummaryIllustration />
+            <div className="lp-chips">
+              <span className="lp-chip">Read only, always</span>
+              <span className="lp-chip">Evidence for every score</span>
+              <span className="lp-chip">Your data stays yours</span>
             </div>
           </div>
         </div>
       </section>
+
 
       {/* ── FAQ ──────────────────────────────────────────────── */}
       <section id="faq" className="lp-section" style={{ paddingBlockStart: 0 }}>
