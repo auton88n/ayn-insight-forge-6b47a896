@@ -472,22 +472,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // v2.11.0 — content-script bridges to authenticated AI edge functions.
-  if (message.type === 'AYN_FN_RETRY') {
-    (async () => {
-      try { sendResponse({ ok: true, data: await callAiEdge('ext-fill-form-retry', message.payload || {}) }); }
-      catch (e) { sendResponse({ ok: false, error: e.message }); }
-    })();
-    return true;
-  }
-  if (message.type === 'AYN_FN_VISION') {
-    (async () => {
-      try { sendResponse({ ok: true, data: await callAiEdge('ext-vision-discover', message.payload || {}) }); }
-      catch (e) { sendResponse({ ok: false, error: e.message }); }
-    })();
-    return true;
-  }
-
 
   // v1.9.7: relay a message to a tab and auto-inject content.js if missing.
   if (message.type === 'TAB_SEND') {
