@@ -82,16 +82,18 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
 
   const toggle = async (next: boolean) => {
     setSaving(true);
+    setConfirmOpen(false);
     try {
-      await resumeHubApi.talentPoolSet(next);
+      await resumeHubApi.talentPoolSet(next, next ? CONSENT_VERSION : undefined);
       setPoolOptInCache(next);
       toast({
-        title: next ? "You're in the pool" : "Left the pool",
+        title: next ? "You're discoverable" : "Left the pool",
         description: next
-          ? "Employers can now discover your anonymized profile."
-          : "Your data left the pool.",
+          ? "Employers searching AYN can now see your full profile. Contact details stay private until you approve an intro."
+          : "Your profile left the pool.",
       });
       await load();
+
     } catch (e) {
       toast({ title: "Couldn't update", description: (e as Error).message, variant: "destructive" });
     } finally { setSaving(false); }
