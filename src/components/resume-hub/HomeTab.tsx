@@ -14,7 +14,6 @@ import { loadHubSnapshot, type HubSnapshot } from "@/lib/hubSnapshot";
 
 interface Props {
   userId: string;
-  onOpenResumes: () => void;
   onOpenProfile: () => void;
   onOpenJobs: () => void;
   onOpenDiscovery: () => void;
@@ -30,7 +29,7 @@ interface Action {
   primary?: boolean;
 }
 
-export default function HomeTab({ userId, onOpenResumes, onOpenProfile, onOpenJobs, onOpenDiscovery }: Props) {
+export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDiscovery }: Props) {
   const [snap, setSnap] = useState<HubSnapshot | null>(null);
 
   useEffect(() => {
@@ -69,8 +68,8 @@ export default function HomeTab({ userId, onOpenResumes, onOpenProfile, onOpenJo
       icon: FileText,
       title: "Add your resume",
       body: "Nothing else works without it. AYN reads it once and fills in your profile, scoring, and tailoring.",
-      cta: "Go to Resumes",
-      onClick: onOpenResumes,
+      cta: "Go to Profile",
+      onClick: onOpenProfile,
     });
   }
 
@@ -136,7 +135,7 @@ export default function HomeTab({ userId, onOpenResumes, onOpenProfile, onOpenJo
             <p className="text-sm font-medium">You are set up. Open a job posting and AYN will score it.</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Primary resume: {snap.primaryResumeTitle || "none selected"} · Talent pool:{" "}
+            Your resume: {snap.primaryResumeTitle || "none yet"} · Talent pool:{" "}
             {snap.poolOptedIn ? "employers can find you" : "off"}
           </p>
         </Card>

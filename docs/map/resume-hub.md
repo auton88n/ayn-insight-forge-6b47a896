@@ -1,18 +1,34 @@
 # Resume Hub map (web app + resume-hub backend)
 
 ## Surface
-src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (nav reorganized in v3.3.0):
+src/pages/ResumeHub.tsx with five tabs in src/components/resume-hub/ (Resumes removed in v3.4.0):
 
 | key | label | hint | component |
 |---|---|---|---|
 | home | Home | Start here | HomeTab (next actions, replaced OverviewTab) |
-| profile | Profile | You and your goals | ProfileTab (four groups only since v3.3.0) |
-| resumes | Resumes | Build and tailor | BuilderTab (resumes, versions, diff viewer, upload/parse) |
-| jobs | Jobs | Score and compare | JobsTab (saved jobs, score, tailor, cover letter, handoff) |
+| profile | Profile | You, your resume, your goals | ProfileTab (resume group + four field groups) |
+| jobs | Jobs | Score and tailor | JobsTab (saved jobs, score, tailor, cover letter, generated documents, handoff) |
 | discovery | Get discovered | Let employers find you | DiscoveryTab (TalentPoolCard + intro requests) |
 | extension | Browser extension | Score jobs as you browse | ExtensionTab (zip download, version check, device tokens) |
 
-Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0.
+Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0, BuilderTab.tsx in v3.4.0.
+
+## One profile, one resume (v3.4.0)
+
+BuilderTab and ProfileTab edited the same facts (name, location, summary, company, experience) in two places, and a resume library implied resumes are things a user maintains. Both are gone.
+
+RULES:
+1. A user has exactly ONE active resume: the `resumes` row with `is_primary = true`. Uploading a replacement flips every other row to `is_primary = false`; nothing is deleted.
+2. Profile is the only place any of those fields are edited. No other surface writes name, location, summary, titles, dates, experience, education, or skills.
+3. Tailored resumes and cover letters are OUTPUTS of a job, not resumes. They live on the job in JobsTab.
+
+PROFILE GROUP 0, "Your resume", line "Everything AYN writes starts from this.": the active resume title, the date it was added, Download (PDF), and Replace resume. Replace asks for confirmation, then reveals ResumeUpload; the parse refreshes the derived profile fields via mapResumeToCareer and fires reindexTalentPool("resume_upload"). No list, no versions, no set-as-primary, no resume title editing.
+
+MIGRATION AFFORDANCE: accounts created before v3.4.0 can hold several rows. ProfileTab loads all of them, treats the primary (or newest) as the resume, and shows one quiet line: "You have <n> older resumes from an earlier version of AYN." Expanding lists them read only with download and delete. It is not a manager: no editing, no switching active resume from the list.
+
+TAILORED OUTPUTS (JobsTab): the newest `resume_versions` row with `created_for_job_id = job.id` and the newest `cover_letters` row with `job_id = job.id` render as "Documents for this job" with the generated date and PDF / Word downloads. Regenerating deletes the previous copy for that job and inserts the new one, so there is at most one of each per job. Cache behaviour in the edge function is unchanged. ResumeDiffViewer survives as "See what changed" on the tailored resume, comparing it against the active source resume.
+
+Document building moved into the web app at src/lib/resumeDocs.ts (jsPDF + docx, real selectable text, same contract as extension/resumeFormat.js): resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase.
 
 ## Home next actions (v3.3.0)
 
@@ -21,11 +37,11 @@ OverviewTab was a counts dashboard (resume count, saved job count, primary resum
 | Card | Condition | Button |
 |---|---|---|
 | "<n> employers want an intro" (always sorts first) | pending reveal_list requests > 0 | Get discovered |
-| "Add your resume" | resumes count = 0 | Resumes |
+| "Add your resume" | resumes count = 0 | Profile (v3.4.0, was Resumes) |
 | "Complete your profile" (names the incomplete groups) | any groupGaps entry incomplete | Profile |
 | "<n> saved jobs not scored yet" | jobs without a job_matches row | Jobs |
 
-When all four are clear: one line, "You are set up. Open a job posting and AYN will score it.", plus the primary resume name and whether the talent pool is on. No streaks, no completion percentage, no invented engagement metrics.
+When all four are clear: one line, "You are set up. Open a job posting and AYN will score it.", plus the active resume name and whether the talent pool is on. No streaks, no completion percentage, no invented engagement metrics.
 
 Gap logic moved out of ProfileTab into src/lib/profileGaps.ts -> computeGroupGaps(), so Home, Get discovered, and Profile cannot disagree.
 
@@ -48,12 +64,8 @@ REINDEX TRIGGERS (v3.2.1, the real bug behind the redesign: resumes and profile 
 Call sites, one per client write that changes indexed content:
 | Write | File | reason |
 |---|---|---|
-| Resume insert or update (Save) | BuilderTab.tsx save() | resume_insert / resume_update |
-| Primary resume switch | BuilderTab.tsx setPrimary() | primary_resume_change |
-| Primary resume deleted | BuilderTab.tsx removeResume() | primary_resume_deleted |
-| Resume upload, saved as primary | BuilderTab.tsx handleFileParsed() | resume_upload |
-| AI Improve overwrites content | BuilderTab.tsx aiImprove() | resume_ai_rewrite |
-| Resume upload, saved as primary | ProfileTab.tsx handleResumeParsed() | resume_upload |
+| Resume upload or replacement (becomes the one active resume) | ProfileTab.tsx handleResumeParsed() | resume_upload |
+
 | Profile field save (user_profile_data + user_profile_canonical upserts) | ProfileTab.tsx save() | profile_save |
 
 ResumeUpload.tsx deliberately does NOT call it: the component only parses, it never persists a row. Both of its callers reindex after their own insert, so firing inside the component would run before the row existed and double fire. ProfileTab.save() writes the two profile tables directly rather than through profile_canonical_save, so nothing reindexes server side and the client ping is required (no double fire). indexCandidate rebuilds both candidate_index and candidate_skills, so provenance stays accurate.
@@ -122,7 +134,7 @@ Indexing routine indexCandidate(admin, userId):
 5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule.
 
 
-Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
+Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (The resume is written client side in ProfileTab.tsx, which calls reindexTalentPool after the insert; users can also force a reindex by toggling the switch off and on.)
 
 Hub UI (TalentPoolCard.tsx): "Let employers find me" switch wired to resumeHubApi.talentPoolGet / talentPoolSet. talent_pool_get returns opted_in, preview (headline, seniority, location, years_experience, indexed_at, embedding_model), skills[] with provenance, and indexed_at / resume_updated_at / profile_updated_at for the freshness check.
 

@@ -21,11 +21,12 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Plus, X, FileUp, ArrowRight } from "lucide-react";
+import { Loader2, Save, Plus, X, FileUp, ArrowRight, Download, RefreshCw, Trash2 } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
+import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 
 // ── Types (mirror the edge-function profile shape) ───────────────────────────
 type Skill = { name: string; years?: number; level?: string };
@@ -105,7 +106,12 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string; created_at: string } | null>(null);
+  // v3.4.0 — legacy accounts can hold several resumes from before the
+  // one-resume rule. They are read only and exist so nobody loses a file.
+  const [olderResumes, setOlderResumes] = useState<{ id: string; title: string; created_at: string; content: ResumeContent }[]>([]);
+  const [showOlder, setShowOlder] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
 
@@ -113,15 +119,15 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: canon }, { data: prof }, { data: resumeRow }, { data: auth }] = await Promise.all([
+      const [{ data: canon }, { data: prof }, { data: resumeRows }, { data: auth }] = await Promise.all([
         supabase.from("user_profile_canonical")
           .select("skills, experiences, education, certifications, work_auth, preferences, derived")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("user_profile_data")
           .select("legal_first_name, legal_last_name, email, phone, address, links")
           .eq("user_id", userId).maybeSingle(),
-        supabase.from("resumes").select("id, title, content")
-          .eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        supabase.from("resumes").select("id, title, content, created_at, is_primary")
+          .eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.auth.getUser(),
       ]);
 
@@ -146,10 +152,20 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
         setPersonalTouched(touched);
       }
 
-      if (resumeRow) {
-        setPrimaryResume({ id: resumeRow.id, title: resumeRow.title });
-        setResumeContent((resumeRow.content as ResumeContent) ?? null);
+      type Row = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean };
+      const rows = ((resumeRows ?? []) as Row[]);
+      const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
+      if (active) {
+        setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at });
+        setResumeContent((active.content as ResumeContent) ?? null);
+      } else {
+        setPrimaryResume(null);
+        setResumeContent(null);
       }
+      setOlderResumes(
+        rows.filter(r => r.id !== active?.id)
+          .map(r => ({ id: r.id, title: r.title, created_at: r.created_at, content: (r.content ?? {}) as ResumeContent }))
+      );
       setAccountEmail(auth?.user?.email ?? "");
     } catch (e) {
       toast({ title: "Couldn't load profile", description: (e as Error).message, variant: "destructive" });
@@ -159,6 +175,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
   }, [toast, userId]);
 
   useEffect(() => { load(); }, [load]);
+
 
   // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
   const fallback = useMemo(() => {
@@ -195,7 +212,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     [resumeContent]
   );
 
-  // ── Resume upload: saves as primary and drafts the profile ──────────────
+  // ── Resume upload: becomes THE active resume, previous one goes inactive ──
   const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
     setUploading(true);
     try {
@@ -210,6 +227,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       // Resumes are written client side, so the pool index would go stale.
       // Fire and forget, opt-in gated, never blocks the save.
       reindexTalentPool("resume_upload");
+      setReplaceOpen(false);
       await load();
       toast({ title: "Resume saved", description: "Review the fields below, then Save profile." });
     } catch (e) {
@@ -218,6 +236,25 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       setUploading(false);
     }
   };
+
+  const downloadResume = async (content: ResumeContent, name: string, kind: "pdf" | "docx") => {
+    try {
+      const text = resumeToText(content);
+      const base = fileBase(name || "Resume");
+      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
+      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+    } catch (e) {
+      toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const deleteOlderResume = async (id: string) => {
+    if (!confirm("Delete this older resume? This cannot be undone.")) return;
+    const { error } = await supabase.from("resumes").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    setOlderResumes(list => list.filter(r => r.id !== id));
+  };
+
 
   const save = async () => {
     setSaving(true);
@@ -291,28 +328,84 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
 
   return (
     <div className="space-y-6">
-      {/* Resume source */}
-      <Card className="p-4 sm:p-6 space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm">
-            <FileUp className="w-4 h-4 text-primary" />
-            <span className="font-medium">Your resume</span>
-            {primaryResume
-              ? <Badge variant="secondary" className="truncate max-w-[260px]">{primaryResume.title}</Badge>
-              : <Badge variant="outline">No resume yet</Badge>}
+      {/* ── 0. Your resume (v3.4.0: one active resume, no library) ──────── */}
+      <Group title="Your resume" line="Everything AYN writes starts from this.">
+        {primaryResume ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileUp className="w-4 h-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{primaryResume.title}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Added {new Date(primaryResume.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => downloadResume(resumeContent ?? {}, primaryResume.title, "pdf")}>
+                <Download className="w-4 h-4 mr-1.5" /> Download
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (replaceOpen) { setReplaceOpen(false); return; }
+                  if (confirm("Replace your resume? AYN will read the new file and update the fields below. Your current resume becomes inactive.")) {
+                    setReplaceOpen(true);
+                  }
+                }}
+              >
+                <RefreshCw className="w-4 h-4 mr-1.5" /> {replaceOpen ? "Cancel" : "Replace resume"}
+              </Button>
+            </div>
           </div>
-          {uploading && (
-            <span className="text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
-          correct what it got wrong.
-        </p>
-        <ResumeUpload onParsed={handleResumeParsed} variant="full" />
-      </Card>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
+            correct what it got wrong.
+          </p>
+        )}
+
+        {uploading && (
+          <span className="text-xs text-muted-foreground flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
+          </span>
+        )}
+
+        {(!primaryResume || replaceOpen) && <ResumeUpload onParsed={handleResumeParsed} variant="full" />}
+
+        {olderResumes.length > 0 && (
+          <div className="pt-1">
+            <p className="text-[11px] text-muted-foreground">
+              You have {olderResumes.length} older {olderResumes.length === 1 ? "resume" : "resumes"} from an earlier version of AYN.{" "}
+              <button type="button" className="underline hover:text-foreground" onClick={() => setShowOlder(v => !v)}>
+                {showOlder ? "Hide" : "View"}
+              </button>
+            </p>
+            {showOlder && (
+              <div className="mt-2 space-y-1.5">
+                {olderResumes.map(r => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs truncate">{r.title}</p>
+                      <p className="text-[11px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => downloadResume(r.content, r.title, "pdf")}>
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteOlderResume(r.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Group>
+
 
       {/* ── 1. About you ───────────────────────────────────────────────── */}
       <Group title="About you" line="Used in your tailored resumes and cover letters.">

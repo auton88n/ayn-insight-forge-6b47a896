@@ -1,3 +1,10 @@
+/**
+ * JobsTab.tsx — v3.4.0 "tailored outputs live on the job"
+ *
+ * A tailored resume is not a resume the user maintains, it is an output of a
+ * job. So the generated documents are stored against the job and downloaded
+ * from here. The source resume is the single active one in Profile.
+ */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -7,12 +14,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
-import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2 } from "lucide-react";
+import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Download } from "lucide-react";
 import { handoffUrl } from "@/lib/extension";
+import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
+import ResumeDiffViewer from "./ResumeDiffViewer";
 
 interface Props { userId: string; onOpenJob: (id: string) => void }
 
 interface JobRow { id: string; company: string; title: string; location: string | null; source_url: string | null; jd_text: string | null; created_at: string }
+interface TailoredRow { id: string; created_at: string; content: ResumeContent }
+interface CoverRow { id: string; created_at: string; body: string }
 
 export default function JobsTab({ userId }: Props) {
   const { toast } = useToast();
@@ -20,7 +31,9 @@ export default function JobsTab({ userId }: Props) {
   const [selected, setSelected] = useState<JobRow | null>(null);
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
-  const [letter, setLetter] = useState("");
+  const [tailored, setTailored] = useState<TailoredRow | null>(null);
+  const [cover, setCover] = useState<CoverRow | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newJob, setNewJob] = useState({ url: "", text: "" });
@@ -35,10 +48,27 @@ export default function JobsTab({ userId }: Props) {
       .then(({ data }) => data && setPrimaryResume({ id: data.id, content: data.content as ResumeContent }));
   /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
 
+  /** Documents generated for this job, newest first. */
+  const loadDocs = async (jobId: string) => {
+    const [{ data: v }, { data: c }] = await Promise.all([
+      supabase.from("resume_versions").select("id, created_at, content")
+        .eq("user_id", userId).eq("created_for_job_id", jobId)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("cover_letters").select("id, created_at, body")
+        .eq("user_id", userId).eq("job_id", jobId)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    setTailored((v as unknown as TailoredRow) ?? null);
+    setCover((c as unknown as CoverRow) ?? null);
+  };
+
   const openJob = async (j: JobRow) => {
     setSelected(j);
     setMatchData(null);
-    setLetter("");
+    setShowDiff(false);
+    setTailored(null);
+    setCover(null);
+    loadDocs(j.id);
   };
 
   const calcMatch = async () => {
@@ -61,11 +91,14 @@ export default function JobsTab({ userId }: Props) {
     setBusy(true);
     try {
       const { resume } = await resumeHubApi.tailor(primaryResume.content, selected.jd_text);
+      // Regenerating replaces the stored copy for this job.
+      await supabase.from("resume_versions").delete().eq("user_id", userId).eq("created_for_job_id", selected.id);
       const { error } = await supabase.from("resume_versions").insert({
-        user_id: userId, resume_id: primaryResume.id, content: resume as any, created_for_job_id: selected.id,
+        user_id: userId, resume_id: primaryResume.id, content: resume as never, created_for_job_id: selected.id,
       });
       if (error) throw error;
-      toast({ title: "Tailored resume saved", description: "Check Builder for the new version." });
+      await loadDocs(selected.id);
+      toast({ title: "Tailored resume ready", description: "Download it below." });
     } catch (e) {
       toast({ title: "Tailor failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
@@ -76,15 +109,22 @@ export default function JobsTab({ userId }: Props) {
     setBusy(true);
     try {
       const { body } = await resumeHubApi.coverLetter(primaryResume.content, selected.jd_text, { company: selected.company });
-      setLetter(body);
+      await supabase.from("cover_letters").delete().eq("user_id", userId).eq("job_id", selected.id);
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
+      await loadDocs(selected.id);
     } catch (e) {
       toast({ title: "Cover letter failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
   };
 
-
-
+  const downloadDoc = async (text: string, base: string, kind: "pdf" | "docx") => {
+    try {
+      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
+      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+    } catch (e) {
+      toast({ title: "Download failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+    }
+  };
 
   const removeJob = async (id: string) => {
     if (!confirm("Remove this job?")) return;
@@ -92,6 +132,7 @@ export default function JobsTab({ userId }: Props) {
     if (selected?.id === id) setSelected(null);
     load();
   };
+
 
   const addManually = async () => {
     if (!newJob.url && !newJob.text) return;
@@ -194,7 +235,7 @@ export default function JobsTab({ userId }: Props) {
                 <Button onClick={() => removeJob(selected.id)} variant="ghost" size="sm" className="ml-auto"><Trash2 className="w-4 h-4" /></Button>
               </div>
               {!primaryResume && (
-                <p className="text-xs text-amber-500 mt-3">Set a primary resume in Builder to enable AI actions.</p>
+                <p className="text-xs text-amber-500 mt-3">Add your resume in Profile to enable AI actions.</p>
               )}
             </Card>
 
@@ -221,15 +262,72 @@ export default function JobsTab({ userId }: Props) {
               </Card>
             )}
 
-            {letter && (
-              <Card className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">Cover letter</h3>
-                  <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(letter); toast({ title: "Copied" }); }}>Copy</Button>
+            {(tailored || cover) && (
+              <Card className="p-5 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Documents for this job</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Written from your resume and this posting. Generating again replaces the copy stored here.
+                  </p>
                 </div>
-                <pre className="text-sm whitespace-pre-wrap font-sans">{letter}</pre>
+
+                {tailored && (
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-sm font-medium">Tailored resume</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Generated {new Date(tailored.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(resumeToText(tailored.content), fileBase(selected.company, selected.title, "Resume"), "pdf")}>
+                          <Download className="w-4 h-4 mr-1.5" />PDF
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(resumeToText(tailored.content), fileBase(selected.company, selected.title, "Resume"), "docx")}>
+                          <Download className="w-4 h-4 mr-1.5" />Word
+                        </Button>
+                        {primaryResume && (
+                          <Button size="sm" variant="ghost" onClick={() => setShowDiff(v => !v)}>
+                            {showDiff ? "Hide changes" : "See what changed"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {showDiff && primaryResume && (
+                      <ResumeDiffViewer
+                        original={resumeToText(primaryResume.content)}
+                        improved={resumeToText(tailored.content)}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {cover && (
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-sm font-medium">Cover letter</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Generated {new Date(cover.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
+                          <Download className="w-4 h-4 mr-1.5" />PDF
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+                          <Download className="w-4 h-4 mr-1.5" />Word
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
+                      </div>
+                    </div>
+                    <pre className="text-sm whitespace-pre-wrap font-sans max-h-72 overflow-auto">{cover.body}</pre>
+                  </div>
+                )}
               </Card>
             )}
+
 
             {selected.jd_text && (
               <Card className="p-5">
