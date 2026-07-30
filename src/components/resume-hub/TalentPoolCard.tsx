@@ -227,8 +227,10 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  No name and no contact details. That is the whole card.
+                  This is the summary employers see first. They can also see your full profile.
+                  Your email and phone are only shared when you approve an intro.
                 </p>
+
               </>
             ) : (
               <p className="text-xs text-muted-foreground">Nothing to show yet. Save your profile or upload a resume.</p>
