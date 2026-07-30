@@ -1,97 +1,129 @@
 /**
  * LandingSections — AYN marketing page.
- * Charcoal & Ember, Outfit + Figtree, bento grid composition.
- * v3.3.2: tailoring is the promise. Scoring is proof, never a headline.
+ *
+ * v3.16.0: markets what the product actually does today, both sides of it.
+ * Seeker: tailored documents grounded in the real posting.
+ * Employer: search people who chose to be found, verify them, invite them.
+ * Every mockup on this page is a rendition of a screen that exists.
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid, Radar } from 'lucide-react';
-import { HeroFillMockup } from './HeroFillMockup';
 import {
-  MatchScoreIllustration,
-  ProvenanceIllustration,
-  OnePageDocIllustration,
-  EmployerMatchIllustration,
-} from './ProductIllustrations';
+  ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
+  Search, ClipboardCheck, MailCheck, Building2, Eye,
+} from 'lucide-react';
+import {
+  ExtensionOnPostingMockup,
+  TailoredDocsMockup,
+  CandidateCardMockup,
+  AssessmentMockup,
+} from './AppMockups';
 
 const ATS = ['Greenhouse', 'Ashby', 'Lever', 'Workday', 'iCIMS', 'SmartRecruiters'];
 
-const TILES = [
+const PAINS = [
   {
-    span: 'lp-span-4',
+    who: 'If you are applying',
+    lines: [
+      'You send the same resume to forty postings and hear nothing back.',
+      'Rewriting it properly for one job costs you an evening.',
+      'You never find out which line lost you the interview.',
+    ],
+  },
+  {
+    who: 'If you are hiring',
+    lines: [
+      'One posting brings six hundred resumes, most of them wrong.',
+      'The good ones are already employed and never see your ad.',
+      'A confident resume tells you nothing about whether they did the work.',
+    ],
+  },
+];
+
+const SEEKER_TILES = [
+  {
+    span: 'lp-span-3',
     icon: FileText,
-    title: 'A resume for every job',
-    desc: 'Your real experience, rewritten in the language of the posting. One page, ATS ready.',
-    art: OnePageDocIllustration,
+    title: 'A resume written for that one job',
+    desc: 'Your real experience, phrased in the language of the posting, on one page that an ATS can read.',
+    meta: ['PDF', 'DOCX', 'One page', 'Kept with the job'],
+  },
+  {
+    span: 'lp-span-3',
+    icon: MessagesSquare,
+    title: 'A cover letter that names things',
+    desc: 'It mentions the company and the role because AYN read both of them. No template sentences.',
+    meta: ['Named company', 'Grounded in the posting'],
   },
   {
     span: 'lp-span-2',
-    icon: MessagesSquare,
-    title: 'Cover letters that are specific',
-    desc: 'It mentions the company and the role, because AYN read both. No templates.',
-    art: null,
-    meta: ['Named company', 'One page'],
-  },
-  {
-    span: 'lp-span-4',
     icon: Target,
-    title: 'It knows what to change',
-    desc: 'AYN compares the posting to your resume and shows what is strong, what it surfaced, and what you are genuinely missing.',
-    art: MatchScoreIllustration,
+    title: 'The honest gap list',
+    desc: 'Matched, missing and nice to have, worked out from the posting against your background before the model writes a word.',
   },
   {
     span: 'lp-span-2',
     icon: ShieldCheck,
-    title: 'Never invented',
-    desc: 'Nothing added that is not in your background. Your numbers, dates, and titles are never altered.',
-    art: ProvenanceIllustration,
+    title: 'Nothing invented',
+    desc: 'No skill, number, date or title appears that is not already yours. If AYN cannot verify it, it says so.',
   },
   {
-    span: 'lp-span-3',
-    icon: LayoutGrid,
-    title: 'Works where you are',
-    desc: 'Open a posting, get your tailored version without leaving the page.',
-    art: null,
-    meta: ['Greenhouse', 'Lever', 'Workday', 'Ashby'],
-  },
-  {
-    span: 'lp-span-3',
-    icon: LayoutGrid,
-    title: 'Everything in one place',
-    desc: 'Your resumes, versions, and jobs live in Resume Hub.',
-    art: null,
-    meta: ['Resumes', 'Versions', 'Saved jobs', 'Cover letters'],
-  },
-  {
-    span: 'lp-span-6',
+    span: 'lp-span-2',
     icon: Radar,
-    title: 'Be found, not just seen',
-    desc: 'Turn on discovery and employers searching AYN can see your full profile. Your email and phone stay private until you approve an intro.',
-    art: null,
+    title: 'Be found while you sleep',
+    desc: 'Turn on discovery and employers searching AYN can reach you. Email and phone stay private until you accept.',
   },
-
 ];
 
+const EMPLOYER_STEPS = [
+  {
+    icon: Building2,
+    title: 'Describe the role once',
+    desc: 'Title, seniority, must have skills with live counts of who exists, location, eligibility. No free text guessing.',
+  },
+  {
+    icon: Search,
+    title: 'AYN reads the pool',
+    desc: 'Skill prefilter, then semantic recall, then one grounded rerank. You get the strongest fits with the evidence and the gaps.',
+  },
+  {
+    icon: ClipboardCheck,
+    title: 'Verify before you commit',
+    desc: 'Send a short assessment written from that person\u2019s own background. You see score, observations and time per answer.',
+  },
+  {
+    icon: MailCheck,
+    title: 'Invite the right one',
+    desc: 'Send a proposal with the role, location, salary range and a message AYN drafts for you. Contact opens when they accept.',
+  },
+];
 
 const FAQS = [
   {
     q: 'What is AYN?',
-    a: 'AYN reads a job posting, scores how well you match it, and writes you a tailored resume and cover letter for that role.',
+    a: 'Two things that share one profile. For job seekers, AYN reads a posting and writes a resume and cover letter tailored to it. For employers, AYN searches people who chose to be found and returns the strongest fits with evidence.',
   },
   {
-    q: 'Which job sites does AYN work on?',
+    q: 'Which job sites does the extension work on?',
     a: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.',
-  },
-  {
-    q: 'Is AYN free to try?',
-    a: 'Yes. AYN is free to start and no credit card is required.',
   },
   {
     q: 'Does AYN fill or submit applications for me?',
     a: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.',
   },
+  {
+    q: 'Can employers see my name and email?',
+    a: 'Not until you accept their proposal. Before that they see your professional profile and your match evidence, never your email or phone.',
+  },
+  {
+    q: 'What is a verification assessment?',
+    a: 'A short set of questions generated from a candidate\u2019s own claimed background. It probes lived experience rather than textbook knowledge. The employer sees the score, the candidate only ever sees growth notes.',
+  },
+  {
+    q: 'Is AYN free to try?',
+    a: 'Yes, free to start for job seekers and no credit card is required. Employers are onboarded one at a time.',
+  },
 ];
-
 
 /** Adds .is-in to .lp-reveal elements once they enter the viewport. */
 function useReveal() {
@@ -120,7 +152,9 @@ function useReveal() {
   return root;
 }
 
-export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void }) => {
+type Props = { onStartFree?: (role?: 'job_seeker' | 'employer') => void };
+
+export const LandingSections = memo(({ onStartFree }: Props) => {
   const root = useReveal();
 
   return (
@@ -128,45 +162,35 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
       {/* ── HERO ─────────────────────────────────────────────── */}
       <header className="lp-hero">
         <div className="lp-hero-aura" aria-hidden="true" />
-        <div className="lp-shell lp-hero-grid">
-          <div>
+        <div className="lp-shell">
+          <div style={{ maxWidth: 780 }}>
             <span className="lp-pill">
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              A resume built for <em>the job you are applying to</em>.
+              Hiring stopped being a pile of resumes. <em>AYN reads both sides.</em>
             </h1>
-            <p className="lp-lead">
-              AYN reads the posting and rewrites your resume and cover letter to fit. In seconds, not an evening.
+            <p className="lp-lead" style={{ maxWidth: 660 }}>
+              For job seekers, a resume and cover letter written for the exact posting in front of you.
+              For employers, the people who can actually do the job, with the evidence attached.
             </p>
 
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
-              <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
-                Start free <ArrowRight size={15} />
+              <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
+                I am looking for a job <ArrowRight size={15} />
               </button>
-              <a href="#employers" className="lp-btn lp-btn-ghost">
-                For employers
-              </a>
+              <button type="button" className="lp-btn lp-btn-ghost" onClick={() => onStartFree?.('employer')}>
+                I am hiring
+              </button>
             </div>
-            <p className="lp-note">Free to start. Works on Greenhouse, Lever, Workday, Ashby and more.</p>
+            <p className="lp-note">Read only on every page. AYN never types into a form and never submits anything for you.</p>
           </div>
 
-          <HeroFillMockup />
+          <div className="lp-hero-art lp-reveal">
+            <ExtensionOnPostingMockup />
+          </div>
         </div>
       </header>
-
-      {/* ── THESIS ───────────────────────────────────────────── */}
-      <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
-        <div className="lp-shell lp-reveal">
-          <h2 className="lp-display lp-h2">The job search is changing sides</h2>
-          <p className="lp-lead" style={{ marginTop: 14 }}>
-            Employers used to post a job and wait for a thousand resumes.
-            <br />
-            Now they search for the right person. AYN makes sure you are findable, and worth finding.
-          </p>
-        </div>
-      </section>
-
 
       {/* ── PROOF STRIP ──────────────────────────────────────── */}
       <div className="lp-strip">
@@ -178,46 +202,56 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         </div>
       </div>
 
-      {/* ── HOW IT WORKS ─────────────────────────────────────── */}
-      <section id="how" className="lp-section">
+      {/* ── THE PAIN ─────────────────────────────────────────── */}
+      <section className="lp-section">
         <div className="lp-shell">
-          <div className="lp-reveal" style={{ marginBottom: 40 }}>
-            <p className="lp-eyebrow">How it works</p>
-            <h2 className="lp-display lp-h2">Three steps, then it is muscle memory</h2>
+          <div className="lp-reveal" style={{ marginBottom: 38 }}>
+            <p className="lp-eyebrow">The problem</p>
+            <h2 className="lp-display lp-h2">Both sides are guessing</h2>
+            <p className="lp-lead">
+              A resume is a summary of a person written for nobody in particular, and a job post is a
+              wish list written for everybody. AYN puts real evidence between them.
+            </p>
           </div>
-          <div className="lp-steps lp-reveal">
-            {[
-              'Add your resume once.',
-              'Open any job posting.',
-              'Get a version made for that job.',
-            ].map((t, i) => (
-              <div className="lp-step" key={t}>
-
-                <span className="lp-step-n">STEP {i + 1}</span>
-                <p>{t}</p>
+          <div className="lp-duo lp-reveal">
+            {PAINS.map((p) => (
+              <div className="lp-pain" key={p.who}>
+                <h3 className="lp-display">{p.who}</h3>
+                <ul>
+                  {p.lines.map((l) => <li key={l}>{l}</li>)}
+                </ul>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── FEATURES BENTO ───────────────────────────────────── */}
-      <section id="features" className="lp-section">
+      {/* ── SEEKER SHOWCASE ──────────────────────────────────── */}
+      <section id="features" className="lp-section" style={{ paddingBlockStart: 0 }}>
         <div className="lp-shell">
-          <div className="lp-reveal" style={{ marginBottom: 40 }}>
-            <p className="lp-eyebrow">What it does</p>
-            <h2 className="lp-display lp-h2">Tailored to the role, every time</h2>
-            <p className="lp-lead">
-              Send something built for the role, not the same file you sent last week.
-            </p>
-
-
+          <div className="lp-split lp-reveal">
+            <div>
+              <p className="lp-eyebrow">For job seekers</p>
+              <h2 className="lp-display lp-h2">One posting in, one tailored application out</h2>
+              <p className="lp-lead">
+                Open a job. AYN reads the whole posting off the live page, scores you against it, then
+                writes a one page resume and a cover letter from your own history. Both stay attached to
+                that job so you can find them again.
+              </p>
+              <div className="lp-cta-row" style={{ marginTop: 26 }}>
+                <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
+                  Start free <ArrowRight size={15} />
+                </button>
+              </div>
+            </div>
+            <div className="lp-art lp-art-plain">
+              <TailoredDocsMockup />
+            </div>
           </div>
 
-          <div className="lp-bento lp-reveal">
-            {TILES.map((tile) => {
+          <div className="lp-bento lp-reveal" style={{ marginTop: 44 }}>
+            {SEEKER_TILES.map((tile) => {
               const Icon = tile.icon;
-              const Art = tile.art;
               return (
                 <article key={tile.title} className={`lp-tile ${tile.span}`}>
                   <span className="lp-tile-icon" aria-hidden="true">
@@ -225,18 +259,10 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
                   </span>
                   <h3>{tile.title}</h3>
                   <p>{tile.desc}</p>
-                  {Art && (
-                    <div className="lp-art">
-                      <Art />
-                    </div>
-                  )}
-                  {!Art && 'meta' in tile && (
+                  {'meta' in tile && (
                     <div className="lp-tile-meta">
                       {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
                     </div>
-                  )}
-                  {!Art && !('meta' in tile) && (
-                    <div className="lp-art" aria-hidden="true" style={{ minHeight: 96 }} />
                   )}
                 </article>
               );
@@ -245,59 +271,85 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         </div>
       </section>
 
-      {/* ── FOR EMPLOYERS ────────────────────────────────────── */}
-      <section id="employers" className="lp-section">
+      {/* ── EMPLOYER SHOWCASE ────────────────────────────────── */}
+      <section id="employers" className="lp-section" style={{ paddingBlockStart: 0 }}>
         <div className="lp-shell">
-          <div className="lp-reveal" style={{ marginBottom: 36 }}>
+          <div className="lp-reveal" style={{ marginBottom: 34 }}>
             <p className="lp-eyebrow">For employers</p>
-            <h2 className="lp-display lp-h2">Stop reading a thousand resumes to find three people</h2>
+            <h2 className="lp-display lp-h2">Three people worth talking to, not six hundred maybes</h2>
             <p className="lp-lead">
-              Describe the role in plain words. AYN searches candidates who chose to be found,
-              and returns the three best fits with the evidence for each. No job board. No inbox
-              full of maybes.
+              Describe the role in a few taps. AYN searches candidates who chose to be found and returns
+              the strongest fits, each one with the evidence, the gaps and where every skill came from.
             </p>
-            <div className="lp-chips">
-              <span className="lp-chip">Say what the role actually needs.</span>
-              <span className="lp-chip">AYN searches only candidates who opted in.</span>
-              <span className="lp-chip">Three real fits, with the reason for each.</span>
-            </div>
           </div>
 
-          <div className="lp-tile lp-reveal" style={{ marginTop: 8 }}>
-            <div className="lp-art" style={{ marginTop: 0 }}>
-              <EmployerMatchIllustration />
+          <div className="lp-art lp-art-plain lp-reveal">
+            <CandidateCardMockup />
+          </div>
+
+          <div className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
+            {EMPLOYER_STEPS.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div className="lp-flow-step" key={s.title}>
+                  <span className="lp-tile-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.75} /></span>
+                  <span className="lp-step-n">STEP {i + 1}</span>
+                  <h3 className="lp-display">{s.title}</h3>
+                  <p>{s.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="lp-split lp-reveal" style={{ marginTop: 52 }}>
+            <div className="lp-art lp-art-plain">
+              <AssessmentMockup />
             </div>
-            <div className="lp-cta-row" style={{ marginTop: 8 }}>
-              <Link to="/contact" className="lp-btn lp-btn-primary">
-                Join the employer waitlist <ArrowRight size={15} />
-              </Link>
-              <span className="lp-note" style={{ margin: 0 }}>Early access. We onboard employers one at a time.</span>
+            <div>
+              <p className="lp-eyebrow">Verification assessments</p>
+              <h2 className="lp-display lp-h2">Find out who actually did the work</h2>
+              <p className="lp-lead">
+                Before you spend a proposal, send a short assessment generated from that candidate\u2019s own
+                claimed background against your role. The questions probe lived experience, so doing the
+                work is the only way to answer well.
+              </p>
+              <div className="lp-chips">
+                <span className="lp-chip">Score and observations, per question</span>
+                <span className="lp-chip">Time spent on each answer</span>
+                <span className="lp-chip">Server enforced timer</span>
+                <span className="lp-chip">The candidate only sees growth notes</span>
+              </div>
+              <p className="lp-note">
+                This checks depth of experience. It cannot prove someone answered unaided.
+              </p>
+              <div className="lp-cta-row" style={{ marginTop: 22 }}>
+                <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('employer')}>
+                  Request employer access <ArrowRight size={15} />
+                </button>
+                <span className="lp-note" style={{ margin: 0 }}>We onboard employers one at a time.</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── TRUST ────────────────────────────────────────────── */}
-      <section id="trust" className="lp-section">
-        <div className="lp-shell" style={{ display: 'grid', gap: 'clamp(28px,5vw,56px)', gridTemplateColumns: '1fr' }}>
-          <div className="lp-reveal">
-            <p className="lp-eyebrow">Built to be honest</p>
-            <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
-            <p className="lp-lead">
-              AYN shows its work. Which posting it read, which resume it used, and what it could not
-              verify. It never invents experience you do not have.
-            </p>
-            <div className="lp-chips">
-              <span className="lp-chip">Read only, always</span>
-              <span className="lp-chip">Grounded in the posting</span>
-              <span className="lp-chip">Contact shared only when you approve</span>
-            </div>
-
-
+      <section id="trust" className="lp-section" style={{ paddingBlockStart: 0 }}>
+        <div className="lp-shell lp-reveal">
+          <p className="lp-eyebrow">Built to be honest</p>
+          <h2 className="lp-display lp-h2">It shows its work, including what it could not read</h2>
+          <p className="lp-lead">
+            AYN tells you which posting it read, which resume it used, which skills came from your own
+            words and which it inferred. Guessing is labelled as guessing.
+          </p>
+          <div className="lp-chips">
+            <span className="lp-chip"><Eye size={14} style={{ marginInlineEnd: 6, verticalAlign: -2 }} />Read only, always</span>
+            <span className="lp-chip">Grounded in the real posting</span>
+            <span className="lp-chip">You approve every introduction</span>
+            <span className="lp-chip">Contact details released on accept only</span>
           </div>
         </div>
       </section>
-
 
       {/* ── FAQ ──────────────────────────────────────────────── */}
       <section id="faq" className="lp-section" style={{ paddingBlockStart: 0 }}>
@@ -321,21 +373,24 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
       <section className="lp-section" style={{ paddingBlockStart: 0 }}>
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
-            <h2 className="lp-display lp-h2" style={{ maxWidth: 720, marginInline: 'auto' }}>
-              Stop sending the same resume.
+            <h2 className="lp-display lp-h2" style={{ maxWidth: 760, marginInline: 'auto' }}>
+              Stop sending the same resume. Stop reading the wrong ones.
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-              Add your resume once and get a version made for every job.
+              Add your background once. AYN does the matching, both directions.
             </p>
-
-
             <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
-              <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.()}>
+              <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.('job_seeker')}>
                 Start free <ArrowRight size={15} />
               </button>
-              <Link to="/resume-hub?tab=extension" className="lp-btn lp-btn-ghost" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}>
-                Add to Chrome
-              </Link>
+              <button
+                type="button"
+                className="lp-btn lp-btn-ghost"
+                style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }}
+                onClick={() => onStartFree?.('employer')}
+              >
+                I am hiring
+              </button>
             </div>
           </div>
         </div>
