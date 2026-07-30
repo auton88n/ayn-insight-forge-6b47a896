@@ -479,36 +479,36 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
             {[
               {
                 title: 'Autofill that handles the hard parts',
-                desc: 'Names and emails are easy. AYN also handles work history, education, custom screening questions, dropdown menus, and the long forms that make you give up halfway through.',
+                desc: 'One click fills the whole form. Even the questions that make you quit.',
                 icon: Wand2
               },
               {
                 title: 'A match score you can check',
-                desc: 'AYN scores you against the actual job description it read from the page, and shows you how many characters it found and which resume it compared. If it cannot find a real job description, it says so instead of guessing.',
+                desc: 'See your real match before you waste an hour applying.',
                 icon: Target,
                 art: MatchScoreIllustration
               },
               {
                 title: 'It never invents an answer',
-                desc: 'Every answer AYN fills has to come from your own profile or resume. If it cannot verify something, it leaves the field blank and tells you, rather than making something up.',
+                desc: 'Never a made up answer. If AYN cannot verify it, it leaves it blank.',
                 icon: ShieldCheck,
                 art: ProvenanceIllustration
               },
               {
                 title: 'Tailored resumes and cover letters',
-                desc: 'One page, real text a resume scanner can read, not an image. AYN rewrites your existing experience to match the role without inventing jobs, changing your numbers, or adding skills you do not have.',
+                desc: 'A resume and cover letter built for the role. One page, ATS ready.',
                 icon: FileText,
                 art: OnePageDocIllustration
               },
 
               {
                 title: 'It learns your answers',
-                desc: 'Answer a question once and AYN remembers it, even when the next company words it differently. Sensitive questions like work authorization are always yours to answer.',
+                desc: 'Answer a question once. AYN remembers it forever.',
                 icon: Sparkles
               },
               {
                 title: 'Everything in one place',
-                desc: 'Your resumes, saved jobs, applications, and match scores live in Resume Hub, so you can see what you applied to and what happened next.',
+                desc: 'Every resume, job, and application in one place.',
                 icon: LayoutGrid
               }
             ].map((card, i) => (
