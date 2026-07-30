@@ -199,18 +199,12 @@ export default function JobsTab({ userId }: Props) {
                 {selected.source_url && (
                   <Button
                     variant="outline"
-                    onClick={async () => {
-                      const url = selected.source_url!;
-                      const r = await triggerAutofill(url, primaryResume?.id);
-                      if (r.ok) {
-                        toast({ title: "Autofill sent", description: "Switch to the job tab to watch AYN fill it." });
-                      } else {
-                        window.open(handoffUrl(url, primaryResume?.id), "_blank", "noopener");
-                        toast({ title: "Opening job page", description: "Install the AYN extension to autofill instantly." });
-                      }
+                    onClick={() => {
+                      window.open(handoffUrl(selected.source_url!, primaryResume?.id), "_blank", "noopener");
+                      toast({ title: "Opening job page", description: "AYN opens with this job and resume selected." });
                     }}
                   >
-                    <Wand2 className="w-4 h-4 mr-2" />Autofill with AYN
+                    <Wand2 className="w-4 h-4 mr-2" />Open job with AYN
                   </Button>
                 )}
                 <Button onClick={() => removeJob(selected.id)} variant="ghost" size="sm" className="ml-auto"><Trash2 className="w-4 h-4" /></Button>
