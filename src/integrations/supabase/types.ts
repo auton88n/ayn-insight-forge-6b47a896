@@ -362,6 +362,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_call_telemetry: {
+        Row: {
+          cache_hit: boolean
+          created_at: string
+          duration_ms: number | null
+          gap_matched: number | null
+          gap_missing: number | null
+          gap_surfaced: number | null
+          id: string
+          meta: Json | null
+          model: string | null
+          purpose: string
+          source_map: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          cache_hit?: boolean
+          created_at?: string
+          duration_ms?: number | null
+          gap_matched?: number | null
+          gap_missing?: number | null
+          gap_surfaced?: number | null
+          id?: string
+          meta?: Json | null
+          model?: string | null
+          purpose: string
+          source_map?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          cache_hit?: boolean
+          created_at?: string
+          duration_ms?: number | null
+          gap_matched?: number | null
+          gap_missing?: number | null
+          gap_surfaced?: number | null
+          id?: string
+          meta?: Json | null
+          model?: string | null
+          purpose?: string
+          source_map?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ai_mode_configs: {
         Row: {
           created_at: string
@@ -386,6 +431,33 @@ export type Database = {
           mode_name?: string
           updated_at?: string
           webhook_url?: string
+        }
+        Relationships: []
+      }
+      ai_result_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          expires_at: string
+          payload: Json
+          purpose: string
+          user_id: string | null
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          expires_at: string
+          payload: Json
+          purpose: string
+          user_id?: string | null
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          expires_at?: string
+          payload?: Json
+          purpose?: string
+          user_id?: string | null
         }
         Relationships: []
       }
