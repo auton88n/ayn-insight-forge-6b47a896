@@ -296,8 +296,11 @@ export const CenterStageLayout = ({
   const copilotStarters = useCopilotStarters(isEmptyChat);
   useEffect(() => {
     if (!isEmptyChat || copilotStarters.length === 0) return;
-    emitSuggestions(copilotStarters);
-  }, [isEmptyChat, copilotStarters, emitSuggestions]);
+    // currentSessionId is a dependency because the session-switch effect below
+    // clears suggestions, so the starters must be re-emitted after a switch.
+    const t = setTimeout(() => emitSuggestions(copilotStarters), 0);
+    return () => clearTimeout(t);
+  }, [isEmptyChat, copilotStarters, emitSuggestions, currentSessionId]);
 
 
 
