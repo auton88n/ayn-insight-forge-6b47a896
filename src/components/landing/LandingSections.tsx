@@ -124,27 +124,38 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              Know if a job is worth your hour <em>before you spend it</em>.
+              Applying is only <em>half the job search</em>.
             </h1>
             <p className="lp-lead">
-              AYN reads the real posting, scores your fit against it, then writes the resume and
-              cover letter for that role. And when you are hiring, it finds the three people worth
-              talking to.
+              AYN helps you apply smarter, and helps the right employers find you first.
             </p>
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
                 Start free <ArrowRight size={15} />
               </button>
-              <Link to="/resume-hub?tab=extension" className="lp-btn lp-btn-ghost">
-                Add to Chrome
-              </Link>
+              <a href="#employers" className="lp-btn lp-btn-ghost">
+                For employers
+              </a>
             </div>
-            <p className="lp-note">Works on Greenhouse, Lever, Workday, Ashby and more.</p>
+            <p className="lp-note">Free to start. Works on Greenhouse, Lever, Workday, Ashby and more.</p>
           </div>
 
           <HeroFillMockup />
         </div>
       </header>
+
+      {/* ── THESIS ───────────────────────────────────────────── */}
+      <section className="lp-section" style={{ paddingBlockEnd: 0 }}>
+        <div className="lp-shell lp-reveal">
+          <h2 className="lp-display lp-h2">The job search is changing sides</h2>
+          <p className="lp-lead" style={{ marginTop: 14 }}>
+            Employers used to post a job and wait for a thousand resumes.
+            <br />
+            Now they search for the right person. AYN makes sure you are findable, and worth finding.
+          </p>
+        </div>
+      </section>
+
 
       {/* ── PROOF STRIP ──────────────────────────────────────── */}
       <div className="lp-strip">
