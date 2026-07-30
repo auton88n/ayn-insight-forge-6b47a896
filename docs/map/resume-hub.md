@@ -65,7 +65,7 @@ Call sites, one per client write that changes indexed content:
 | Write | File | reason |
 |---|---|---|
 | Resume upload or replacement (becomes the one active resume) | ProfileTab.tsx handleResumeParsed() | resume_upload |
-| Resume upload, saved as primary | ProfileTab.tsx handleResumeParsed() | resume_upload |
+
 | Profile field save (user_profile_data + user_profile_canonical upserts) | ProfileTab.tsx save() | profile_save |
 
 ResumeUpload.tsx deliberately does NOT call it: the component only parses, it never persists a row. Both of its callers reindex after their own insert, so firing inside the component would run before the row existed and double fire. ProfileTab.save() writes the two profile tables directly rather than through profile_canonical_save, so nothing reindexes server side and the client ping is required (no double fire). indexCandidate rebuilds both candidate_index and candidate_skills, so provenance stays accurate.
@@ -134,7 +134,7 @@ Indexing routine indexCandidate(admin, userId):
 5. Rebuilds candidate_skills. **Provenance rule (Graphify-inspired):** skills literally present in canonical.skills OR primary resume.skills → 'extracted' (source 'canonical_profile' or 'resume'). Skills in canonical.derived.top_skills NOT already extracted → 'inferred'. Phase B matcher must satisfy must-have requirements ONLY from 'extracted' edges; 'inferred' edges may support nice-to-haves. This is the noise-cancellation rule.
 
 
-Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
+Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (The resume is written client side in ProfileTab.tsx, which calls reindexTalentPool after the insert; users can also force a reindex by toggling the switch off and on.)
 
 Hub UI (TalentPoolCard.tsx): "Let employers find me" switch wired to resumeHubApi.talentPoolGet / talentPoolSet. talent_pool_get returns opted_in, preview (headline, seniority, location, years_experience, indexed_at, embedding_model), skills[] with provenance, and indexed_at / resume_updated_at / profile_updated_at for the freshness check.
 
