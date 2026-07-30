@@ -390,12 +390,18 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   </div>
                 </div>
 
-                {open.summary && (
+                {open.profile ? (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Background</p>
+                    <CandidateProfile profile={open.profile} location={open.location} />
+                  </div>
+                ) : open.summary ? (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Background</p>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{open.summary}</p>
                   </div>
-                )}
+                ) : null}
+
               </div>
 
               <DialogFooter>
