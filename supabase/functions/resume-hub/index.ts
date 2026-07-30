@@ -10,6 +10,13 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // loadIdentity() so a new source (canonical.identity, auth.users) is
 // picked up everywhere at once, not re-derived per action.
 import { loadIdentity, identityToLegacyMerged, identityContactBlock, type Identity } from "../_shared/identity.ts";
+// v3.1.0 — structured sections (no truncation), deterministic gap analysis,
+// figure preservation, result cache, company context, AI telemetry.
+import {
+  sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
+  cacheGet, cacheSet, logAiCall, fetchCompanyContext,
+  type GapAnalysis, type SectionBundle,
+} from "../_shared/tailoring.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
