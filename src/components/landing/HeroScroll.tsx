@@ -358,10 +358,10 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
                 <h1 style={{ fontFamily: C.display, fontSize: 'clamp(32px,5.4vw,64px)', fontWeight: 700, lineHeight: 1.0, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'left' }}>
-                  Stop filling out the same job application over and over.
+                  You have filled the same form a hundred times.
                 </h1>
                 <p style={{ fontFamily: C.body, fontSize: 17, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 520, margin: '0 0 28px', textAlign: 'left' }}>
-                  AYN reads the job posting, scores you against it, fills the application, and writes you a tailored resume and cover letter. It works on Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.
+                  AYN applies for you. One click per job, not forty fields.
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <button type="button" onClick={() => onStartFree?.()}
@@ -370,16 +370,17 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
                     Start free <ArrowRight size={13} />
                   </button>
-                  <Link to="/resume-hub?tab=extension"
+                  <a href="#employers"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    Add to Chrome
-                  </Link>
+                    For employers
+                  </a>
                 </div>
                 <p style={{ fontFamily: C.body, fontSize: 13, color: C.inkMid, margin: '14px 0 0', textAlign: 'left' }}>
-                  Free to start. Your data stays yours.
+                  Free to start. Works on Greenhouse, Lever, Workday, Ashby and more.
                 </p>
+
               </div>
 
               {/* Chapters */}
