@@ -1581,7 +1581,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       void chrome.runtime.lastError;
       if (!r || !r.ok) {
         label.textContent = 'No job description found';
-        meta.textContent = 'Paste it manually for a better fill.';
+        meta.textContent = 'Paste it manually for a better read.';
         warn.classList.remove('hidden');
         pasteBtn?.classList.remove('hidden');
         return;
@@ -1594,7 +1594,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       const lowQuality = quality < 45 || chars < 600;
       if (lowQuality) {
         // v2.11.2 — explain WHY quality is low so users know what to fix.
-        let why = 'Paste it manually for a better fill.';
+        let why = 'Paste it manually for a better read.';
         if (d) {
           if (d.noise >= 40) why = 'Mostly page boilerplate. Paste the JD for a cleaner read.';
           else if (d.length < 30) why = 'Job description looks short. Paste the full text.';

@@ -12,7 +12,7 @@ chrome.action.onClicked.addListener(tab => chrome.sidePanel.open({ tabId: tab.id
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 // ── v1.9.55: External bridge for aynn.io / lovable dashboard ──────
-// Allows the web app to trigger autofill without opening the side panel.
+// Allows the web app to hand a job to the side panel.
 // The manifest `externally_connectable.matches` gate origins to aynn.io.
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) { sendResponse({ ok: false, error: 'bad_message' }); return; }
@@ -23,7 +23,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   }
 
   // v2.7.0 — dashboard tells us the user just saved their profile.
-  // Invalidate cached profile vector so the next autofill uses fresh data.
+  // Invalidate cached profile so the next read uses fresh data.
   if (message.type === 'AYN_PROFILE_UPDATED') {
     (async () => {
       try { await chrome.storage.local.remove('ayn_profile_vector'); } catch {}
@@ -432,7 +432,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const payload = message.payload || {};
         // v2.8.2 — auto-inject the tailored resume selection for the currently
         // active tab into ext_job_score so the backend scores against the same
-        // resume the autofill would use.
+        // resume the copilot would use.
         if (message.action === 'ext_job_score' && !payload.resume_version_id) {
           try {
             const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
