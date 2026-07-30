@@ -177,10 +177,11 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-reveal" style={{ marginBottom: 40 }}>
             <p className="lp-eyebrow">What it does</p>
-            <h2 className="lp-display lp-h2">Apply faster without losing control</h2>
+            <h2 className="lp-display lp-h2">Apply to fewer jobs, and to better ones</h2>
             <p className="lp-lead">
               Everything that goes out with your name on it is something you can check.
             </p>
+
           </div>
 
           <div className="lp-bento lp-reveal">
