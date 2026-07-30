@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v2.12.2 provenance gate — four-layer structural defense against hallucinated identity values reaching a job application. Shipped after a confirmed Greenhouse incident where an empty profile caused the AI to invent 'isha.sharma@example.com' + '+1234567890' + 'Sharma' and the sidepanel counted the writes as success. (1) Client refuses to run: extension/background.js aborts the fill and shows 'AYN could not load your profile. Nothing was filled.' when the backend returns error:'no_profile'. (2) Backend refuses too: supabase/functions/resume-hub/index.ts ext_autofill computes hasIdentity=(first_name||full_name) && (email||phone) from merged profile+resume basics; if false returns {error:'no_profile', values:[], sourceDigest:''} with NO AI call and logs an autofill_runs row with meta.reason='no_profile'. (3) Provenance gate: ext_autofill returns sourceDigest — a normalized concatenation of every legitimate personal fact (names, email, phone, address, city/region/country, LinkedIn/portfolio/GitHub, resume basics, every work entry's company/title/location/dates/summary/highlights, every education entry's institution/degree/field/dates, resume skills, and full canonical JSON as backstop). Before injection, extension/background.js validates every AI-proposed text value: free-text (textarea/richedit/opentext/open.*) bypasses; email/URL uses case-insensitive substring match on raw digest; phone uses digits-only substring match (≥6 digits); other identity text uses normalized substring match (lowercased, NFD-stripped, whitespace+punctuation collapsed) so accented/punctuated legitimate values still match; option-based answers (radio/checkbox/select) skip the gate because AI can only pick from the field's own options. Ungrounded values are DROPPED with reason 'ungrounded_value', never written, surfaced in sidepanel as 'N answers were not written because AYN could not verify them against your profile.' (4) Prompt hardening: ext_autofill system prompt now leads with ABSOLUTE PROVENANCE RULE naming specific rejected placeholders (example.com, isha.sharma, John Doe, Jane Smith, +1234567890, 555-0100) and states returning skip:true is always correct. Honest progress reporting: sidepanel replaces 'X/Y filled' with 'verified filled, skippedCount skipped, needsReviewCount need your review' where verified counts only values that passed the gate AND verified in the live DOM; a fill is never reported successful when values were dropped. AYN_BUILD fallback bumped to 2.12.2", manifest v2.12.2, AYN_BUILD 2.12.2, July 28 2026.
+Last verified: commit "v3.0.0 autofill removal — the extension is now read only. Deleted the entire write path (form scanning, value injection, fill ladder, human typing, provenance gate, post-inject verify and recovery, the question engine and both bundles, fill-session.js, filler.js, dom.js, constants.js, page-world.js and its MAIN-world entry, the in-page floating button, learned answer memory) and the fill-only backend surface (ext_autofill, ext_vision_fill, ext_log_result, ext_profile, ext_get_resume_blob, ats_config_get, answers_list/update/delete, plus the ayn-ai-proxy, ext-fill-form-retry, ext-vision-discover and ext-memory edge functions). Permissions dropped to activeTab, storage, sidePanel, webNavigation with https only. AYN is a job search copilot: JD detection, match score, tailored resume and cover letter, Ask AYN.", manifest v3.0.0, AYN_BUILD 3.0.0, July 29 2026.
 
 ## What AYN is
 
@@ -12,9 +12,9 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 
 | Area | What it is | Map file |
 |---|---|---|
-| Chrome extension | Sideloaded MV3 extension: scans and autofills job application forms (Ashby, Greenhouse, Lever, Workday, iCIMS, Gem, generic), scores job cards, tracks applications, attaches resumes. Code: extension/. | docs/map/extension.md |
+| Chrome extension | Sideloaded MV3 extension, READ ONLY since v3.0.0: reads the real job description off the page, scores the match, tailors resumes and cover letters, answers questions about the job, scores job cards, tracks applications. It never writes to a page. Code: extension/. | docs/map/extension.md |
 | Resume Hub | Web workspace at /resume-hub: profile, resume builder and tailoring, saved jobs, application tracker, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
-| AI platform | Signed-in chat dashboard (emotional eye UI, streaming chat via ayn-ai-proxy), World Intelligence swarm simulator, agent society, cc-generate report tools, subscriptions and credits, support system, NDA and contract signing, admin panel, landing page, i18n (en/ar/fr). Code: src/components/dashboard, eye, admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
+| AI platform | Signed-in chat dashboard (emotional eye UI, streaming chat via ayn-unified), World Intelligence swarm simulator, agent society, cc-generate report tools, subscriptions and credits, support system, NDA and contract signing, admin panel, landing page, i18n (en/ar/fr). Code: src/components/dashboard, eye, admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
 | Talent Pool | Employer marketplace. Phase A (data layer) and Phase B (hiring mode in dashboard chat + hybrid matcher + reveal flow) shipped. | docs/map/resume-hub.md (talent pool + employer marketplace sections) |
 
 ## Routes (src/App.tsx)
@@ -23,10 +23,10 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 
 ## Global rules (apply everywhere)
 
-1. GENERATED, never hand-edit: extension/question-engine.bundle.js, extension/content.bundle.js, public/ayn-extension.zip. Edit sources, then run node extension/build.mjs.
-2. Version bump protocol: manifest.json version + content.js AYN_BUILD + public/ayn-extension-version.json together, then build.mjs.
+1. GENERATED, never hand-edit: public/ayn-extension.zip and public/ayn-extension-version.json. Run node extension/build.mjs.
+2. Version bump protocol: manifest.json version + content.js AYN_BUILD fallback, then build.mjs (which rewrites the version file).
 3. Never write to the deprecated applications table (job_applications is the tracker).
-4. Never add page writers after post-inject verification beyond aynRecoverWipedAnswers (see extension map, section Gotchas).
+4. The extension is read only. Never add code that writes to, clicks, or types into a page.
 5. User-facing writing style: no em dashes, no en dashes, ranges use "to". This rule is also baked into the AI system prompts in cc-generate and resume-match.
 6. servers: server.js is the express static host for dist/ (SPA fallback, caching for /assets and /frames). backend/server.py is a FastAPI health stub only, not a real backend. The real backend is Supabase edge functions.
 7. memory/PRD.md describes an older platform-era snapshot; trust the docs/map files over it.
@@ -37,40 +37,36 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 
 ```
                     aynn.io (Resume Hub)
-                    │  AYN_TRIGGER_AUTOFILL / AYN_PROFILE_UPDATED / AYN_PING
+                    │  AYN_PROFILE_UPDATED / AYN_PING / handoff deep link
                     ▼
- job page ◄─── extension sidepanel + background.js ───► resume-hub edge fn ───► Supabase tables
- (content.js)        two-lane resolver                   (35+ actions,            (jobs, resumes,
-  scan/inject/         lane1 local vector                 3 auth lanes)            job_applications,
-  verify/recover       lane2 AI ext_autofill                                       ext_answers,
-                    ▲                                                              autofill_runs)
-                    └── telemetry + verified answers flow back up ──► Hub tabs read the same tables
+ job page ───► extension sidepanel + background.js ───► resume-hub edge fn ───► Supabase tables
+ (content.js         JD resolver ladder                 (14 ext actions,          (jobs, resumes,
+  read only)         score / tailor / cover / ask        3 auth lanes)             job_applications)
+                    ▲
+                    └── saved jobs, scores and applications ──► Hub tabs read the same tables
 ```
 
-Five loops carry everything. If you understand these, you understand AYN:
+Four loops carry everything:
 
-1. FILL LOOP: scan (Question Engine) -> resolve (local vector, then AI for the rest) -> inject -> verify read-only -> one bounded recovery for rebuild-wiped answers -> telemetry to autofill_runs. Survives both full page reloads (storage snapshot, signature re-anchor) and silent partial rebuilds (content re-anchor by label text).
-2. LEARNING LOOP: verified answers persist (ext_answers by question hash, plus the question-learning store via ext-memory) and feed the next fill, so every application makes the next one better. Correctable in ProfileTab so one bad answer cannot poison the future.
-3. SYNC LOOP: profile edited in the Hub -> AYN_PROFILE_UPDATED clears the extension's cached fact vector -> next fill refetches. 24h TTL is the fallback for closed browsers.
-4. TRACKING LOOP: submit detected on the page -> job_applications upsert -> Tracker board; fill telemetry attaches to the same view. The user's pipeline builds itself.
-5. HANDOFF LOOP: Hub tailors a resume for a job -> deep link or external message carries resumeId -> sidepanel preselects it -> ext_autofill resolves that resume_versions row instead of the primary. The tailoring work actually reaches the form.
-6. MATCH LOOP (v2.9.0-B): seeker opts in -> indexCandidate builds anonymized profile_text + 768d embedding + extracted/inferred skills -> employer opens hiring mode in the dashboard chat -> employer_intake_chat distills a JobSpec -> employer_match runs extracted-only prefilter (must-haves), pgvector recall (top 12), then a single grounded rerank on opaque refs (inferred capped at 10 pts) -> top 3 anonymized cards -> employer requests intro -> candidate approves in ProfileTab intro requests -> contact revealed only then. The ref_map that binds refs to real users never leaves the edge function.
+1. READ LOOP: content.js extracts the JD from the live page (site selector map, JSON-LD and meta fallback); the background JD resolver ladder (manual paste, current page, opener tab, registry, listing fetch, backend lookup) upgrades it until jdQuality >= 45. Everything downstream is grounded on that text.
+2. SYNC LOOP: profile edited in the Hub -> AYN_PROFILE_UPDATED clears the extension's cached identity -> next read refetches. 24h TTL is the fallback for closed browsers.
+3. TRACKING LOOP: the user saves or marks a job -> job_applications upsert -> Tracker board in both the sidepanel and the Hub, enriched with the score from LAST_MATCH.
+4. HANDOFF LOOP: Hub tailors a resume for a job -> deep link carries resumeId -> sidepanel preselects that resume_versions row for scoring, tailoring, and cover letters.
+5. MATCH LOOP (v2.9.0-B): seeker opts in -> indexCandidate builds anonymized profile_text + 768d embedding + extracted/inferred skills -> employer opens hiring mode in the dashboard chat -> employer_intake_chat distills a JobSpec -> employer_match runs extracted-only prefilter (must-haves), pgvector recall (top 12), then a single grounded rerank on opaque refs (inferred capped at 10 pts) -> top 3 anonymized cards -> employer requests intro -> candidate approves in ProfileTab intro requests -> contact revealed only then. The ref_map that binds refs to real users never leaves the edge function.
 
 ## Honest assessment (strengths, weaknesses, what is actually smart)
 
 STRENGTHS AND MOAT
-- Content re-anchoring (v2.6.1/v2.6.2) is the differentiator: AYN identifies form questions by what they SAY, not by DOM handles, so it survives Ashby's silent bot-check rebuilds that break naive autofillers. This came from real failure analysis, not speculation, and is encoded in the Gotchas section so it never regresses.
-- Two-lane resolution keeps cost and latency low: deterministic local facts answer the easy 70 percent free; the AI lane only sees what needs judgment, with sensitive categories (work auth, EEO, salary) deliberately kept AI-side and out of the cached vector.
-- Per-user learning memory compounds: hashed question dedupe, use counts, user-correctable.
-- Discipline learned the hard way: exactly one writer after verification, report-only verify, truthful fill counts. Earlier retry loops caused double-toggles; that lesson is now law.
-- Device-token auth (scoped, revocable, no passwords) and a closed telemetry loop (every fill auditable per user in autofill_runs).
+- Everything AYN now promises runs on our own backend: JD extraction, match scoring, tailoring, cover letters, talent pool matching. No hostile territory, no probability disguised as a guarantee.
+- JD grounding is the real asset: a six-tier resolver plus a quality score means the AI is never asked to judge a job from a nav bar and a cookie banner.
+- Unified identity (_shared/identity.ts) feeds scoring, tailoring, and cover letters from one place, so quality fixes land everywhere at once.
+- Device-token auth (scoped, revocable, no passwords).
 
 WEAKNESSES AND RISKS
-- supabase/functions/resume-hub/index.ts is a ~2400 line monolith and content.js a ~4000 line hand-edited IIFE; both are single points of merge pain with no unit tests (e2e/ covers the legacy platform, not the extension).
+- supabase/functions/resume-hub/index.ts is still a large monolith with no unit tests (e2e/ covers the legacy platform, not the extension). content.js is down to ~970 lines after v3.0.0.
 - Distribution: sideload only. No auto update, no Chrome Web Store trust signal; users silently rot on old builds. Biggest product risk today.
 - The legacy platform roughly doubles repo weight, confuses tooling and new contributors, and its e2e suites can mislead CI signals.
-- ayn-ai-proxy falls back to a hardcoded default proxy secret when the env var is unset; treat AYN_PROXY_SECRET as mandatory.
 - Bus factor of one (solo founder). These map files are the mitigation; keeping them current is not optional.
 
 WHAT IS ACTUALLY SMART HERE (for an AI forming a mental model fast)
-The core insight of the whole system: on modern ATS pages, the DOM is a liar and the visible text is the truth. Every hard-won mechanism (signature re-anchoring, label-text recovery, isConnected guards, visible-label matching over synthetic values) is that one insight applied at a different layer. Judge any proposed change against it.
+The core insight that survived v3.0.0: on modern job pages, the DOM is a liar and the visible text is the truth. That is why the reader (site selectors, JSON-LD fallback, quality scoring, the resolver ladder) is the part worth defending. Writing to those same pages was the part that could never be made reliable, so it is gone. Judge any proposed change against that split: read deeply, never write.
