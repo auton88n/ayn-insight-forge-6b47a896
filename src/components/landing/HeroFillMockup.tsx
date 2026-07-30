@@ -1,40 +1,39 @@
 /**
- * HeroFillMockup — pure CSS + SVG animated product mockup that replaces the
- * old scroll scrubbed 3D canvas. No canvas, no image sequence, no dependency.
+ * HeroFillMockup — pure CSS + SVG animated product mockup.
  *
- * A browser chrome card shows a job application form. Fields fill in sequence,
- * a verified tick lands on each, and the AYN side panel reports the run.
- * Motion is CSS keyframes only and is disabled under prefers-reduced-motion.
+ * A browser chrome card shows a job posting being read line by line, while the
+ * AYN side panel counts a grounded match score. Motion is CSS keyframes only
+ * and is disabled under prefers-reduced-motion.
  */
 import { memo } from 'react';
 
 type Row = { label: string; value: string; delay: number; kind?: 'select' | 'skip' };
 
 const ROWS: Row[] = [
-  { label: 'First name', value: 'Ghazi', delay: 0.2 },
-  { label: 'Email', value: 'ghazi@aynn.io', delay: 1.0 },
-  { label: 'Phone', value: '+1 604 555 0142', delay: 1.8 },
-  { label: 'Years of experience', value: '5 to 7 years', delay: 2.6, kind: 'select' },
-  { label: 'Work authorization', value: 'You answer this one', delay: 3.4, kind: 'skip' },
+  { label: 'Role', value: 'Senior Frontend Engineer', delay: 0.2 },
+  { label: 'Must have', value: 'React, TypeScript, testing', delay: 1.0 },
+  { label: 'Your evidence', value: '6 years, 4 shipped products', delay: 1.8 },
+  { label: 'Gap found', value: 'No Kubernetes on your resume', delay: 2.6, kind: 'skip' },
+  { label: 'Posting read', value: '1,240 words, full text', delay: 3.4, kind: 'select' },
 ];
 
 export const HeroFillMockup = memo(() => {
   return (
-    <div className="lp-mockup" aria-label="AYN filling a job application form" role="img">
+    <div className="lp-mockup" aria-label="AYN scoring a job posting against your resume" role="img">
       <div className="lp-mockup-glow" aria-hidden="true" />
 
       <div className="lp-window">
         {/* browser chrome */}
         <div className="lp-chrome">
           <span className="lp-dot" /><span className="lp-dot" /><span className="lp-dot" />
-          <div className="lp-url">job-boards.greenhouse.io/apply</div>
+          <div className="lp-url">job-boards.greenhouse.io/jobs</div>
           <div className="lp-badge">AYN</div>
         </div>
 
         <div className="lp-window-body">
-          {/* form */}
+          {/* what AYN read */}
           <div className="lp-form">
-            <div className="lp-form-title">Application</div>
+            <div className="lp-form-title">Job posting</div>
             {ROWS.map((r) => (
               <div className="lp-field" key={r.label} style={{ animationDelay: `${r.delay}s` }}>
                 <div className="lp-field-label">{r.label}</div>
@@ -45,7 +44,7 @@ export const HeroFillMockup = memo(() => {
                       <path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
-                  {r.kind === 'skip' && <span className="lp-skip-mark">skipped</span>}
+                  {r.kind === 'skip' && <span className="lp-skip-mark">gap</span>}
                 </div>
               </div>
             ))}
@@ -65,13 +64,13 @@ export const HeroFillMockup = memo(() => {
             </div>
 
             <ul className="lp-panel-list">
-              <li style={{ animationDelay: '0.9s' }}>Resume attached</li>
-              <li style={{ animationDelay: '1.7s' }}>Answers verified</li>
-              <li style={{ animationDelay: '2.5s' }}>Cover letter written</li>
+              <li style={{ animationDelay: '0.9s' }}>Skills line up</li>
+              <li style={{ animationDelay: '1.7s' }}>Seniority matches</li>
+              <li style={{ animationDelay: '2.5s' }}>One gap to address</li>
             </ul>
 
             <div className="lp-panel-foot" style={{ animationDelay: '4.0s' }}>
-              4 filled, 1 left for you
+              Grounded on the real posting
             </div>
           </aside>
         </div>
