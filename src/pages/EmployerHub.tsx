@@ -370,18 +370,12 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
             {tab === "search" && !searching && stage === "results" && (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{spec?.title || "Your role"}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {[spec?.seniority, spec?.location_preference, EMPLOYMENT_LABEL[spec?.employment_type || ""]]
-                        .filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
+                <div className="flex justify-start">
                   <Button variant="outline" size="sm" onClick={() => setStage("spec")}>
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to the role
                   </Button>
                 </div>
+
 
                 {results.length === 0 ? (
                   <Card className="p-6 text-center space-y-1.5">
