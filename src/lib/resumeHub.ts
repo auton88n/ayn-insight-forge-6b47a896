@@ -66,12 +66,14 @@ export const resumeHubApi = {
   revokeToken: (id: string) => call<{ ok: true }>("resume-hub", { action: "token_revoke", id }),
 
   // v2.9.0-A — Talent pool consent + status.
-  // v3.2.0 — also returns the anonymized employer preview, skills with
-  // provenance, and the freshness timestamps the Hub shows.
+  // v3.2.0 — also returns the employer preview, skills with provenance, and
+  // the freshness timestamps the Hub shows.
+  // v3.5.1 — talentPoolSet carries the consent wording version the user saw.
   talentPoolGet: () =>
     call<TalentPoolStatus>("resume-hub", { action: "talent_pool_get" }),
-  talentPoolSet: (opted_in: boolean) =>
-    call<{ ok: true; opted_in: boolean }>("resume-hub", { action: "talent_pool_set", opted_in }),
+  talentPoolSet: (opted_in: boolean, consent_version?: string) =>
+    call<{ ok: true; opted_in: boolean }>("resume-hub", { action: "talent_pool_set", opted_in, consent_version }),
+
 
   // v2.9.1 — manual re-index for the caller (also fired after client writes).
   talentPoolReindexSelf: () =>
