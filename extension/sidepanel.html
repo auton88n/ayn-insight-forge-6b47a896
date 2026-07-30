@@ -402,28 +402,6 @@
     }
     .email-fmt:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); background: var(--ayn-orange-soft); }
 
-    /* Application tracker card */
-    .app-card {
-      background: var(--ayn-card); border: 1px solid var(--ayn-border);
-      border-radius: 11px; padding: 12px 14px; margin-bottom: 9px;
-      box-shadow: var(--shadow-sm); transition: border-color .15s, transform .1s;
-    }
-    .app-card:hover { border-color: var(--ayn-orange-border); }
-    .app-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-    .app-card-title { font-size: 13.5px; font-weight: 700; color: var(--ayn-ink); line-height: 1.35; }
-    .app-card-company { font-size: 11.5px; color: var(--ayn-muted); margin-top: 2px; font-weight: 500; }
-    .app-status {
-      display: inline-flex; padding: 4px 10px; border-radius: 999px;
-      font-size: 10.5px; font-weight: 700; border: 1px solid; cursor: pointer;
-      white-space: nowrap; transition: all .15s; text-transform: uppercase; letter-spacing: .04em;
-    }
-    .app-status.saved     { color: var(--ayn-muted); border-color: var(--ayn-border); background: var(--ayn-bg); }
-    .app-status.applied   { color: #1E40AF; border-color: #BFDBFE; background: var(--ayn-blue-soft); }
-    .app-status.interview { color: #92400E; border-color: #FDE68A; background: #FFFBEB; }
-    .app-status.offer     { color: #15803D; border-color: #BBF7D0; background: var(--ayn-green-soft); }
-    .app-status.rejected  { color: #991B1B; border-color: #FECACA; background: var(--ayn-red-soft); }
-    .app-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--ayn-faint); align-items: center; }
-
     /* Section label */
     .sl {
       font-size: 11px; font-weight: 700; color: var(--ayn-muted);
@@ -739,7 +717,6 @@
   <button class="tab"        id="tab-ask"     data-tab="ask"><i class="ti ti-sparkles"></i>Ask</button>
   <button class="tab"        id="tab-contact" data-tab="contact"><i class="ti ti-users"></i>Contacts</button>
   <button class="tab"        id="tab-cover"   data-tab="cover"><i class="ti ti-mail"></i>Cover</button>
-  <button class="tab"        id="tab-tracker" data-tab="tracker"><i class="ti ti-checkbox"></i>Tracker</button>
   <button class="tab"        id="tab-tailor"  data-tab="tailor"><i class="ti ti-wand"></i>Resume</button>
 </div>
 
@@ -1044,26 +1021,7 @@
         <button class="btn btn-outline" id="cover-download-docx-btn"><i class="ti ti-download"></i>Download Word</button>
       </div>
       <div id="cover-fit-hint" class="hidden mt8" style="font-size:11px;color:var(--ayn-muted)"></div>
-      <button class="btn btn-outline mt8" id="cover-save-btn"><i class="ti ti-bookmark"></i>Save job to tracker</button>
     </div>
-  </div>
-
-  <!-- ════════════ TRACKER ════════════ -->
-  <div class="view" id="v-tracker">
-    <button class="btn btn-primary" id="tracker-save-current-btn">
-      <i class="ti ti-plus"></i>Save Current Job
-    </button>
-    <div class="cta-hint">Saves company, title and URL from the active tab</div>
-
-    <div class="divider"></div>
-
-    <div id="tracker-loading" class="note" style="text-align:center;padding:14px"><div class="spinner dk" style="margin:0 auto 8px"></div>Loading…</div>
-    <div id="tracker-empty" class="empty-state hidden">
-      <div class="empty-icon"><i class="ti ti-clipboard-list"></i></div>
-      <div class="empty-title">No applications yet</div>
-      <div class="empty-sub">Save jobs from any posting page — they'll appear here sorted by stage.</div>
-    </div>
-    <div id="tracker-list"></div>
   </div>
 
   <!-- ════════════ TAILOR (Resume) — Step 1 ════════════ -->
