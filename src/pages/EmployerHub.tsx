@@ -29,7 +29,8 @@ import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateAskCards from "@/components/employer/CandidateAskCards";
 import {
-  employerApi, type CandidateCard, type JobSpec, type Org, type SentProposal,
+  employerApi, isOrgComplete, missingOrgFields,
+  type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
 
 
