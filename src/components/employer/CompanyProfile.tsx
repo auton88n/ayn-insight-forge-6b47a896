@@ -48,8 +48,9 @@ function SizeOption({ label, selected, onClick }: { label: string; selected: boo
 }
 
 export default function CompanyProfile({
-  org, onSaved, onboarding = false,
-}: { org: Org; onSaved: (org: Org) => void; onboarding?: boolean }) {
+  org, onSaved, onboarding = false, page = false,
+}: { org: Org; onSaved: (org: Org) => void; onboarding?: boolean; page?: boolean }) {
+
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Org>(org);
