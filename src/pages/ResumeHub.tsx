@@ -2,32 +2,36 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LayoutGrid, User, FileText, Briefcase, Puzzle, Download } from "lucide-react";
+import { ArrowLeft, Home, User, FileText, Briefcase, Users, Puzzle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import OverviewTab from "@/components/resume-hub/OverviewTab";
+import HomeTab from "@/components/resume-hub/HomeTab";
 import BuilderTab from "@/components/resume-hub/BuilderTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
+import DiscoveryTab from "@/components/resume-hub/DiscoveryTab";
 import { employerApi } from "@/lib/employer";
 import "@/styles/resume-hub.css";
 
 
-type TabKey = "overview" | "profile" | "builder" | "jobs" | "extension";
+type TabKey = "home" | "profile" | "resumes" | "jobs" | "discovery" | "extension";
 
-const NAV: { key: TabKey; label: string; icon: typeof LayoutGrid; hint: string }[] = [
-  { key: "overview",  label: "Overview",  icon: LayoutGrid,  hint: "Snapshot" },
-  { key: "profile",   label: "Profile",   icon: User,        hint: "One profile" },
-  { key: "builder",   label: "Resumes",   icon: FileText,    hint: "Tailor & ATS" },
-  { key: "jobs",      label: "Saved jobs",icon: Briefcase,   hint: "Match queue" },
-  { key: "extension", label: "Extension", icon: Puzzle,      hint: "Install AYN" },
+// v3.3.0 — ordered the way a user actually moves, not the way the old autofill
+// product was organised.
+const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
+  { key: "home",      label: "Home",              icon: Home,      hint: "Start here" },
+  { key: "profile",   label: "Profile",           icon: User,      hint: "You and your goals" },
+  { key: "resumes",   label: "Resumes",           icon: FileText,  hint: "Build and tailor" },
+  { key: "jobs",      label: "Jobs",              icon: Briefcase, hint: "Score and compare" },
+  { key: "discovery", label: "Get discovered",    icon: Users,     hint: "Let employers find you" },
+  { key: "extension", label: "Browser extension", icon: Puzzle,    hint: "Score jobs as you browse" },
 ];
 
 
 export default function ResumeHub() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useState<TabKey>("home");
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingIntros, setPendingIntros] = useState(0);
@@ -105,7 +109,7 @@ export default function ResumeHub() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="rh-btn rh-btn-primary" onClick={() => setTab("builder")}>
+            <button className="rh-btn rh-btn-primary" onClick={() => setTab("resumes")}>
               New resume
             </button>
           </div>
@@ -126,11 +130,11 @@ export default function ResumeHub() {
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label + (item.key === "profile" && pendingIntros > 0 ? ` (${pendingIntros} intro requests)` : "")}
+                    aria-label={item.label + (item.key === "discovery" && pendingIntros > 0 ? ` (${pendingIntros} intro requests)` : "")}
                     style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    {item.key === "profile" && pendingIntros > 0 && (
+                    {item.key === "discovery" && pendingIntros > 0 && (
                       <span
                         aria-hidden
                         style={{
@@ -144,7 +148,7 @@ export default function ResumeHub() {
                       >{pendingIntros > 9 ? "9+" : pendingIntros}</span>
                     )}
                     <span className="rh-tip" role="tooltip">
-                      {item.label}{item.key === "profile" && pendingIntros > 0 ? ` · ${pendingIntros} intro${pendingIntros === 1 ? "" : "s"}` : ""}
+                      {item.label}{item.key === "discovery" && pendingIntros > 0 ? ` · ${pendingIntros} intro${pendingIntros === 1 ? "" : "s"}` : ""}
                     </span>
                   </button>
                 );
@@ -155,9 +159,18 @@ export default function ResumeHub() {
 
           {/* Main panel */}
           <section className="rh-main">
-            {tab === "overview"  && <OverviewTab userId={userId!} onOpenBuilder={() => setTab("builder")} onOpenJobs={() => setTab("jobs")} />}
-            {tab === "profile"   && <ProfileTab userId={userId!} />}
-            {tab === "builder"   && <BuilderTab userId={userId!} />}
+            {tab === "home"      && (
+              <HomeTab
+                userId={userId!}
+                onOpenResumes={() => setTab("resumes")}
+                onOpenProfile={() => setTab("profile")}
+                onOpenJobs={() => setTab("jobs")}
+                onOpenDiscovery={() => setTab("discovery")}
+              />
+            )}
+            {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
+            {tab === "resumes"   && <BuilderTab userId={userId!} />}
+            {tab === "discovery" && <DiscoveryTab userId={userId!} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
             
             {tab === "extension" && <ExtensionTab userId={userId!} />}
