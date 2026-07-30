@@ -24,12 +24,12 @@ const a11y = { 'aria-hidden': true as const, role: 'presentation' as const, focu
 /* 1 — Fill in progress: form panel + AYN sidepanel */
 export function FillInProgressIllustration({ style }: { style?: React.CSSProperties }) {
   const rows = [
-    { y: 54, state: 'done' },
-    { y: 100, state: 'done' },
-    { y: 146, state: 'active' },
-    { y: 192, state: 'done' },
-    { y: 238, state: 'select' },
-    { y: 284, state: 'skip' },
+    { y: 52, state: 'done' },
+    { y: 98, state: 'done' },
+    { y: 144, state: 'active' },
+    { y: 190, state: 'done' },
+    { y: 236, state: 'select' },
+
   ] as const;
 
   return (
