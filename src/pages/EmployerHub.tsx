@@ -222,6 +222,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           </div>
         )}
 
+        {/* 3b. The only chat: evaluating the candidates this search returned. */}
+        {searchId && results.length > 0 && (
+          <CandidateChat searchId={searchId} count={results.length} />
+        )}
+
+
+
         {/* 4. Sent proposals */}
         {sent.length > 0 && (
           <Card className="p-4 sm:p-6 space-y-3">
