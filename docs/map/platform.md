@@ -56,7 +56,7 @@ server.js: express static host for dist/ with SPA fallback and cache headers (/a
 
 Flow inside the panel:
 1. On open, `employer_org_get`. If no org, the assistant greets with the sales-oriented line "Search AYN's talent pool for candidates who match your open role. First, register your company so I can start finding candidates." above the inline register card; `employer_org_create` sets up the org + admin membership. (v2.9.1: same "Hiring mode" button in the dashboard shell, no separate route — clicking it just opens the panel directly on the register card for a user with no org.)
-2. Free-text chat → `employer_intake_chat` (at most 3 clarifying questions, then a JobSpec).
+2. v3.8.0: no free-text intake. `employer_spec_extract` prefills a JobSpec from the optional opening description, then IntakeWizard asks the remaining questions as widgets (`employer_skill_catalog` backs the skill chips).
 3. When JobSpec lands, an editable spec card exposes a "Find candidates" button → `employer_match`.
 4. Results render as anonymized candidate cards with score ring, matched must-haves, gaps, and grounded "why" bullets. "Request intro" calls `employer_reveal_request`; contact reveal happens only after the candidate approves in ProfileTab.
 
