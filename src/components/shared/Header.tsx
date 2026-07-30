@@ -144,7 +144,7 @@ export const Header = () => {
                   fontFamily: headFont,
                   fontSize: 13, fontWeight: 600,
                   color: '#fff',
-                  background: onDark ? 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)' : '#0a0a0f',
+                  background: onLanding ? 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)' : '#0a0a0f',
                   border: 'none',
                   borderRadius: 999,
                   padding: '9px 20px',
