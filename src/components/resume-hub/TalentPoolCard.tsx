@@ -3,7 +3,7 @@
  *
  * The point of the Profile redesign: make the talent pool connection visible.
  * When a seeker is opted in we show them exactly what an employer sees
- * (the anonymized card employer_match returns), which skills are backed by
+ * (the summary card employer_match returns), which skills are backed by
  * evidence versus inferred, how fresh it is, and what is missing that
  * employers actually filter on.
  */
