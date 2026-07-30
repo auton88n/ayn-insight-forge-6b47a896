@@ -278,3 +278,17 @@ The orange scope lives in src/index.css `.employer-surface` (--primary, --primar
 Company profile (orgs table: website, industry, company_size, headquarters, about, logo_url, linkedin_url) is edited in src/components/employer/CompanyProfile.tsx, rendered inside EmployerHub under the intake. It surfaces in two places: the seeker's Proposals card (ProposalsTab.tsx renders logo, industry, size, headquarters, website link and about), and the COMPANY FACTS block passed into employer_draft_proposal, where a null field is stated to be nonexistent so the model cannot invent one.
 
 Intake draft persistence lives in employer_intake_drafts keyed by org, saved after every answered step and restored on return, with Start over clearing it. The step map jumps back to any completed step and only clears later answers the change genuinely invalidates.
+
+## v3.11.0 company profile first (the gate)
+
+REQUIRED before an employer can use the product: `name`, `website`, `industry`, `headquarters`, `company_size`, `about` (minimum 80 characters after trim). OPTIONAL and labelled "optional" in the UI: `linkedin_url`, `logo_url`. Website and LinkedIn are validated as links when present, and a bare domain is normalised to `https://` rather than rejected (`normaliseUrl` / `isValidUrl` in src/lib/employer.ts, which is also where `REQUIRED_ORG_FIELDS`, `missingOrgFields` and `isOrgComplete` live so client and copy stay in one place).
+
+CLIENT GATE: src/pages/EmployerHub.tsx computes `profileComplete` from the loaded org. While it is false the ONLY thing rendered inside `<main>` is `<CompanyProfile onboarding />` (heading "Tell candidates who you are", sub "Candidates see this on every proposal. AYN cannot search until it is filled in."). The intake wizard, the results list and the sent proposals list are not rendered at all, not disabled. Saving the last required field unlocks in place with a toast, no reload.
+
+BACKEND GATE: `assertOrgProfileComplete(orgId)` in supabase/functions/resume-hub/index.ts re-reads the org and returns HTTP 428 with `{ error, missing_org_fields }` when any required field is empty (or `about` is under 80 chars). It runs after the org-membership check in `employer_spec_extract` (the intake action that replaced employer_intake_chat in v3.8.0), `employer_match`, and `employer_reveal_request`. A UI-only gate is not a gate.
+
+CLEARING A REQUIRED FIELD LATER: everything stays editable at all times. If an edit empties a required field, `handleOrgSaved` compares completeness before and after and shows a destructive toast naming the field ("Website is now empty. Candidate search and proposals are paused until you fill it back in."), and the surface re-locks to onboarding on the same render. The backend independently refuses the same three actions.
+
+NUDGES: no percentage bar and no score. `missingOrgFields` produces one specific line per missing field ("Add your website so candidates can check you out"), rendered as a list in the same left-rule style as the seeker findability panel.
+
+UI: the company size buttons are now the same `OptionCard` language as IntakeWizard (rounded-xl bordered card, `border-primary bg-primary text-primary-foreground` when selected, so they resolve to AYN orange under `.employer-surface`). The logo Upload button is a normal `secondary` button instead of a heavy outline.
