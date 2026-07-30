@@ -510,7 +510,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
               </DialogHeader>
 
-              <div className="space-y-6">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-background p-6 space-y-6">
                 {open.why.length > 0 && (
                   <section className="space-y-2">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Why AYN picked them</p>
