@@ -1,5 +1,1 @@
 project_id = "dfkoxuokfkttjhfjcecx"
-
-[functions.ayn-unified]
-verify_jwt = false
-entrypoint = "./functions/ayn-unified/index.ts"
