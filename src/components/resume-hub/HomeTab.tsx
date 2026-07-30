@@ -29,7 +29,7 @@ interface Action {
   primary?: boolean;
 }
 
-export default function HomeTab({ userId, onOpenResumes, onOpenProfile, onOpenJobs, onOpenDiscovery }: Props) {
+export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDiscovery }: Props) {
   const [snap, setSnap] = useState<HubSnapshot | null>(null);
 
   useEffect(() => {
@@ -68,8 +68,8 @@ export default function HomeTab({ userId, onOpenResumes, onOpenProfile, onOpenJo
       icon: FileText,
       title: "Add your resume",
       body: "Nothing else works without it. AYN reads it once and fills in your profile, scoring, and tailoring.",
-      cta: "Go to Resumes",
-      onClick: onOpenResumes,
+      cta: "Go to Profile",
+      onClick: onOpenProfile,
     });
   }
 
