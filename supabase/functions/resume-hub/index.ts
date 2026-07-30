@@ -2558,6 +2558,21 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
           };
         });
 
+      // v3.12.0 — attach a structured, anonymous profile block for the three
+      // cards we actually return, so the client renders a candidate profile
+      // instead of the embedding blob. Three canonical loads, top three only.
+      for (const card of top) {
+        const uid = refMap[card.ref];
+        if (!uid) continue;
+        try {
+          const canon = await loadCanonical(adminForNew, uid);
+          if (canon) (card as Record<string, unknown>).profile = buildCandidateProfile(canon);
+        } catch (e) {
+          console.error("profile block failed", card.ref, (e as Error).message);
+        }
+      }
+
+
 
       const { data: search, error: sErr } = await adminForNew.from("employer_searches").insert({
         org_id, created_by: userId, job_spec, results: top, ref_map: refMap,
