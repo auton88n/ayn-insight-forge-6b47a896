@@ -1997,6 +1997,35 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // v3.10.0 — the company profile a candidate reads on a proposal.
     const ORG_COLS = "id, name, website, industry, company_size, headquarters, about, logo_url, linkedin_url";
 
+    // v3.11.0 — the company profile gate. A UI-only gate is not a gate, so
+    // every action that searches for or contacts a candidate checks here too.
+    const REQUIRED_ORG_FIELDS: [string, string][] = [
+      ["name", "company name"],
+      ["website", "website"],
+      ["industry", "industry"],
+      ["headquarters", "headquarters"],
+      ["company_size", "company size"],
+      ["about", "about paragraph"],
+    ];
+    const ABOUT_MIN = 80;
+
+    /** Returns an error response when the org profile is incomplete, else null. */
+    async function assertOrgProfileComplete(orgId: string): Promise<Response | null> {
+      const { data: org } = await adminForNew.from("orgs")
+        .select(ORG_COLS).eq("id", orgId).maybeSingle();
+      if (!org) return json({ error: "org not found" }, 404);
+      const missing: string[] = [];
+      for (const [key, label] of REQUIRED_ORG_FIELDS) {
+        const v = String((org as Record<string, unknown>)[key] ?? "").trim();
+        if (!v || (key === "about" && v.length < ABOUT_MIN)) missing.push(label);
+      }
+      if (missing.length === 0) return null;
+      return json({
+        error: `Complete your company profile first. Still missing: ${missing.join(", ")}. Candidates see this on every proposal.`,
+        missing_org_fields: missing,
+      }, 428);
+    }
+
     if (action === "employer_org_create") {
       const { name, website } = payload as { name?: string; website?: string };
       if (!name || !name.trim()) return json({ error: "name required" }, 400);
