@@ -37,6 +37,9 @@ function relativeTime(iso: string | null): string {
   const months = Math.round(days / 30);
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
+/** v3.5.1 — bump whenever the consent wording changes. */
+const CONSENT_VERSION = "v3.5.1-full-profile";
+
 
 
 
