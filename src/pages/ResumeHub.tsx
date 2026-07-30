@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, User, Briefcase, Users, Puzzle, Download, Mail } from "lucide-react";
+import { Home, User, Briefcase, Users, Puzzle, Download, Mail, Brain, LogOut } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import HomeTab from "@/components/resume-hub/HomeTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
