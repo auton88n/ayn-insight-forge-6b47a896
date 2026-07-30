@@ -1,7 +1,33 @@
 # Resume Hub map (web app + resume-hub backend)
 
 ## Surface
-src/pages/ResumeHub.tsx with five tabs in src/components/resume-hub/: OverviewTab (stats), ProfileTab (v3.2.0 SINGLE profile, see below), BuilderTab (resumes, versions, diff viewer, upload/parse), JobsTab (saved jobs, match score, tailor, cover letter, Open job with AYN handoff), ExtensionTab (download zip, version from ayn-extension-version.json, AYN_PING install detection, connected device tokens with revoke). TrackerTab was deleted in v3.0.1. CanadianProfileForm.tsx was deleted in v3.2.0 (its fields were autofill answers; they now live in the grouped profile as matching signals).
+src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (nav reorganized in v3.3.0):
+
+| key | label | hint | component |
+|---|---|---|---|
+| home | Home | Start here | HomeTab (next actions, replaced OverviewTab) |
+| profile | Profile | You and your goals | ProfileTab (four groups only since v3.3.0) |
+| resumes | Resumes | Build and tailor | BuilderTab (resumes, versions, diff viewer, upload/parse) |
+| jobs | Jobs | Score and compare | JobsTab (saved jobs, score, tailor, cover letter, handoff) |
+| discovery | Get discovered | Let employers find you | DiscoveryTab (TalentPoolCard + intro requests) |
+| extension | Browser extension | Score jobs as you browse | ExtensionTab (zip download, version check, device tokens) |
+
+Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0.
+
+## Home next actions (v3.3.0)
+
+OverviewTab was a counts dashboard (resume count, saved job count, primary resume ATS badge, a static getting-started list). It told the user nothing to do, so it was deleted. HomeTab renders at most four cards, each only when its condition holds, from one loader: src/lib/hubSnapshot.ts -> loadHubSnapshot(userId).
+
+| Card | Condition | Button |
+|---|---|---|
+| "<n> employers want an intro" (always sorts first) | pending reveal_list requests > 0 | Get discovered |
+| "Add your resume" | resumes count = 0 | Resumes |
+| "Complete your profile" (names the incomplete groups) | any groupGaps entry incomplete | Profile |
+| "<n> saved jobs not scored yet" | jobs without a job_matches row | Jobs |
+
+When all four are clear: one line, "You are set up. Open a job posting and AYN will score it.", plus the primary resume name and whether the talent pool is on. No streaks, no completion percentage, no invented engagement metrics.
+
+Gap logic moved out of ProfileTab into src/lib/profileGaps.ts -> computeGroupGaps(), so Home, Get discovered, and Profile cannot disagree.
 
 ## Single profile (v3.2.0)
 
@@ -125,7 +151,7 @@ Web-lane actions:
 - **reveal_decide** { id, approve } (candidate side): updates status + decided_at, own rows only.
 - **employer_reveal_status** { search_id }: for org members. Includes name + email ONLY for rows where status='approved' (pulled from user_profile_data and auth.users). Otherwise no PII.
 
-Hub UI (ProfileTab.tsx): "Intro requests" card appears when the seeker is opted in and has any reveal requests. Share contact / Decline buttons call reveal_decide; contact details are shared only after approval.
+Hub UI (DiscoveryTab.tsx, moved from ProfileTab in v3.3.0): "Intro requests" card appears when the seeker is opted in and has any reveal requests. Share contact / Decline buttons call reveal_decide; contact details are shared only after approval.
 
 
 ## v3.1.0 Tailor and Cover Letter (supabase/functions/_shared/tailoring.ts)
@@ -150,10 +176,10 @@ Client contract. smart_tailor returns gapAnalysis { method, alreadyStrong[], sur
 
 Telemetry. logAiCall writes one ai_call_telemetry row per AI call: purpose, model, duration_ms, cache hit, the identity sourceMap, and for tailor the matched / missing / surfaced counts.
 
-## v3.2.0 findability panel (Profile tab)
+## Findability panel (Get discovered tab)
 
-TalentPoolCard now renders a per-group findability list instead of ad hoc nudges.
-Props: `groupGaps: { group, complete, consequence }[]`, computed in ProfileTab.tsx.
+TalentPoolCard renders a per-group findability list instead of ad hoc nudges. It moved out of ProfileTab into DiscoveryTab in v3.3.0.
+Props: `groupGaps: GroupGap[]` from src/lib/profileGaps.ts, supplied by loadHubSnapshot.
 
 | Group | Complete when | Consequence when missing |
 |---|---|---|
@@ -164,5 +190,22 @@ Props: `groupGaps: { group, complete, consequence }[]`, computed in ProfileTab.t
 
 Freshness line and Refresh (talent_pool_reindex_self) are unchanged from v3.2.1.
 Reindex triggers remain the seven call sites routed through src/lib/talentPoolSync.ts.
+
+## v3.3.0 labels rewritten
+
+| Where | Was | Now |
+|---|---|---|
+| Nav | Saved jobs | Jobs |
+| Nav | Extension / "Install AYN" | Browser extension / "Score jobs as you browse" |
+| Nav | Overview / "Snapshot" | Home / "Start here" |
+| TalentPoolCard freshness | "Your profile was last indexed X" | "Employers have seen this version since X" |
+| TalentPoolCard stale line | "changed since AYN last indexed you" | "changed since AYN last refreshed what employers see" |
+| TalentPoolCard toasts | "Profile re-indexed" / "Couldn't re-index" | "Profile refreshed" / "Couldn't refresh" |
+| TalentPoolCard empty states | "No skills indexed yet" / "Not indexed yet" | "No skills saved yet" / "Nothing to show yet" |
+| JobsTab primary action | "Calculate match" | "Score this job" |
+| ExtensionTab hero copy | autofill, recruiters, application tracking (all removed features) | "Score any job posting while you browse, and tailor your resume without leaving the page." |
+| ProfileTab footer | (none) | "This profile is what employers search when you are in the talent pool" linking to Get discovered |
+
+The words canonical, index, vector, embedding, and ingest no longer appear in any user-facing seeker string. They remain in code, table names, and these docs.
 
 Embedding audit (2026-07-30): `select embedding_model, count(*) from candidate_index group by 1` returns zero rows. No 'deterministic-v1' rows exist, so no backfill is needed.
