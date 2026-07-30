@@ -1,54 +1,58 @@
 ## Goal
 
-Bring the marketing page in line with v3.0.0 (AYN is read only, no autofill) and remove the broken job tracking feature from the web app and the extension.
+Make the employer surface (EmployerHub) feel modern and easy to move around: a compact icon rail instead of the wide text nav, a visible loading state while AYN searches, and candidate cards that are properly structured and easy to read.
 
-## Part 1: Landing page rewrite
+## 1. Navigation becomes an icon rail
 
-Files: `src/components/landing/LandingSections.tsx`, `src/components/landing/HeroFillMockup.tsx`, `src/components/LandingPage.tsx`, `index.html`.
+Replace the 224px text-and-hint sidebar with a narrow icon rail, matching the Resume Hub language the seeker already has:
 
-New promise, match score first:
-- H1: knowing whether a job is worth your hour, before you spend it.
-- Sub: AYN reads the real posting, scores your fit, then writes the resume and cover letter for that role.
-- CTAs unchanged: Start free, Add to Chrome.
+- Vertical rail of 4 icon buttons (Search, Proposals, Assessments, Company), active state in AYN orange, hover tooltip showing the label plus the one-line hint.
+- Pending proposal count stays as a small dot badge on the Proposals icon.
+- The main content area gets the reclaimed width, so specs and candidate cards breathe.
+- Mobile: the rail becomes a bottom-anchored icon bar (same icons, same badges) instead of the current row of text buttons.
+- A small page heading above the content names the current section, so the icon-only rail never leaves the user guessing where they are.
 
-Hero visual: `HeroFillMockup` currently animates a form filling itself. Replace it with a match score card mockup (same CSS only animation approach, no canvas, no new dependency): score dial counting up, three grounded reason lines, and a "reads the real posting" chip. Reduced motion respected as today.
+## 2. Real loading state after "Find"
 
-Section changes:
+Today the results area stays empty while the match runs, so the click feels dead.
+
+- While searching: show a "AYN is reading the pool" panel with three skeleton candidate cards (score ring placeholder, two text lines, chip row) so the layout does not jump when results land.
+- The Find button shows a spinner and disabled state (already partly there, made consistent).
+- Empty result state: a clear card saying no one in the pool matches these must-haves yet, with a hint to relax a must-have.
+
+## 3. Candidate cards, restructured
+
+Rebuild each result card into clear, labelled zones instead of the current stack of unlabelled text:
+
 ```text
-HERO           match score promise + score card mockup
-PROOF STRIP    "Reads job posts on" (was "Fills applications on")
-HOW IT WORKS   1 Add your resume once  2 Open any job posting  3 See your score, then tailor
-BENTO          match score (big), grounded on the real posting, tailored resume and
-               cover letter, Ask AYN about the role, one workspace
-FOR EMPLOYERS  unchanged
-TRUST          reworded: AYN grounds every score in the posting text and tells you what
-               it could not read. It never writes to a page.
-FAQ            4 answers rewritten with no autofill claim
-CLOSING        "Know before you apply"
+┌───────────────────────────────────────────────┐
+│ (87)  Senior Backend Engineer                 │
+│       Senior · 7 years · Toronto      [Open]  │
+├───────────────────────────────────────────────┤
+│ HAS WHAT YOU ASKED FOR                        │
+│  ✓ Python   ✓ Postgres   ✓ AWS                │
+│ MISSING                                       │
+│  – Kubernetes                                 │
+├───────────────────────────────────────────────┤
+│ WHY AYN PICKED THEM                           │
+│  • one reason per line, full sentences        │
+│  • …                                          │
+├───────────────────────────────────────────────┤
+│ Ask AYN about them   [4 question cards]       │
+│ [Send a job proposal] [Send an assessment]    │
+└───────────────────────────────────────────────┘
 ```
 
-Removed copy: every autofill claim, "click fill", "it learns your answers", "fill history", the run summary panel. `RunSummaryIllustration` is dropped from the page (kept in `ProductIllustrations.tsx` unless unused elsewhere, then removed too).
+Specifics:
+- Section eyebrow labels (uppercase, muted, small) so no block of text is unexplained.
+- Matched skills get a check mark and a positive chip; gaps get a muted outline chip under a separate "Missing" label, so green and grey are never mixed in one row.
+- The "why" lines become a proper bulleted list at body size with relaxed leading, not 12px muted text; long lists collapse behind "Show more".
+- Score ring gets a label ("match") under it and a plain-language band (strong / good / partial) so the number means something.
+- Primary actions (Send a job proposal, Send an assessment) move onto the card footer, so the employer does not have to open the dialog to act.
+- Consistent card padding, one divider style, and larger tap targets.
 
-SEO: title, meta description, keywords and the `createFAQSchema` entries in `LandingPage.tsx` plus the `<title>`/og/twitter tags in `index.html` all move from "autofill job applications" to match score and tailored resume wording. Single H1, section h2s, canonical unchanged.
+## Technical notes
 
-## Part 2: Remove job tracking everywhere
-
-Web app:
-- Delete `src/components/resume-hub/TrackerTab.tsx`.
-- `src/pages/ResumeHub.tsx`: drop the `tracker` tab key, nav entry, and render branch; redirect `?tab=tracker` to overview.
-- `src/components/resume-hub/JobsTab.tsx`: remove `addToTracker` and the "Add to tracker" button.
-- `src/components/resume-hub/OverviewTab.tsx`: remove the `job_applications` count stat and reflow the remaining stats.
-
-Extension:
-- `sidepanel.html`: remove the Tracker tab button, the `v-tracker` view, the tracker styles, and the "Save job to tracker" button in the cover view.
-- `sidepanel.js`: remove the tracker view id, tab routing, `loadTracker`, `renderTracker`, save handlers and their listeners.
-- `background.js`: remove the application tracker actions and the submit-time score enrichment path that only fed the tracker.
-- Bump `manifest.json` to 3.0.1 and the `AYN_BUILD` fallback, then run `node extension/build.mjs`.
-
-Backend and data: the `job_applications` table and its rows are left untouched, and the tracker actions in `supabase/functions/resume-hub` are deleted so nothing calls them.
-
-## Verification
-
-- `scripts/check-wiring.mjs` must pass (it checks sidepanel messages have handlers and extension actions are registered).
-- Grep for `tracker` and `autofill` in `src/` and `extension/` to confirm no dangling references.
-- Playwright screenshots of `/` at 390px, 826px and 1440px, plus `/resume-hub` to confirm the tab row reflows.
+- All work is presentation-only in `src/pages/EmployerHub.tsx`, plus a small extracted `src/components/employer/CandidateResultCard.tsx` (card markup) and `CandidateCardSkeleton.tsx` (loading state) to keep the page file manageable.
+- Nav rail styles reuse the existing `.employer-surface` token scope and the `rh-navitem` pattern from `src/styles/resume-hub.css`; no hardcoded colors.
+- No backend, edge function, schema, or API changes. `employer_match`, proposals, and assessments keep their current contracts.
