@@ -987,10 +987,14 @@ Deno.serve(async (req) => {
           fullJd?: string; jobSnippet?: string; resume_version_id?: string;
         };
 
-        // v2.8.2 — honor tailored resume selection (same path as ext_autofill).
-        const [resolvedResume, canonical] = await Promise.all([
+        const scoreStarted = Date.now();
+        // v2.8.2 — honor tailored resume selection.
+        // v3.1.0 — identity is loaded here too, so scoring sees the same
+        // applicant view as tailor and cover letter.
+        const [resolvedResume, canonical, identity] = await Promise.all([
           resolveResumeContent(admin, userId, resume_version_id),
           loadCanonical(admin, userId),
+          loadIdentity(admin, userId, { resume_version_id }).catch(() => null),
         ]);
         const resume = resolvedResume.content ? { content: resolvedResume.content } : null;
         if (!resume?.content && !canonical) {
@@ -1041,21 +1045,28 @@ Deno.serve(async (req) => {
         let parsedJob: JobParsed = cachedRow?.parsed || EMPTY_PARSED;
         let source: "full" | "snippet" | "approximate_keyword_overlap" = "full";
 
+        // v3.1.0 — parseJobMeta used to block the scoring call. It now runs
+        // concurrently with it; the score prompt is grounded on the
+        // deterministic gap analysis instead of JOB_PARSED, and parsedJob is
+        // awaited afterwards for salary and the honesty safety net.
+        let parsedJobPromise: Promise<JobParsed> | null = null;
         if (!cachedRow && fullJd && fullJd.length >= 40) {
-          // Inline ingest on miss.
-          parsedJob = await parseJobMeta(fullJd, url || "", jobTitle || "", company || "");
           fullJdResolved = fullJd.slice(0, 30000);
-          const row = {
-            url_hash: hash || await sha256Hex(fullJd.slice(0, 400)),
-            url: normalized || url || null,
-            title: jobTitle || null, company: company || null,
-            full_jd: fullJdResolved, parsed: parsedJob,
-            created_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          };
-          admin.from("job_cache").upsert(row, { onConflict: "url_hash" }).then(({ error }) => {
-            if (error) console.warn("job_cache inline-ingest upsert failed", error.message);
-          });
+          const ingestHash = hash || await sha256Hex(fullJd.slice(0, 400));
+          parsedJobPromise = parseJobMeta(fullJd, url || "", jobTitle || "", company || "");
+          parsedJobPromise.then((pj) => {
+            const row = {
+              url_hash: ingestHash,
+              url: normalized || url || null,
+              title: jobTitle || null, company: company || null,
+              full_jd: fullJdResolved, parsed: pj,
+              created_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            };
+            return admin.from("job_cache").upsert(row, { onConflict: "url_hash" });
+          }).then((r: any) => {
+            if (r?.error) console.warn("job_cache inline-ingest upsert failed", r.error.message);
+          }, () => {});
         } else if (!cachedRow) {
           // No full JD available — fall back to the snippet (card-badge path).
           fullJdResolved = (jobSnippet || "").slice(0, 4000);
@@ -1099,15 +1110,23 @@ Deno.serve(async (req) => {
           if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(s));
         }
 
-        // 3. Try AI scoring against the full JD.
-        const resumeDigest = {
-          basics: rc.basics,
-          work: ((rc.work as Array<Record<string, unknown>>) || []).slice(0, 6).map(w => ({
-            title: w.title, company: w.company, start: w.start, end: w.end,
-            bullets: ((w.bullets as string[]) || []).slice(0, 4),
-          })),
-        };
+        // 3. Score against the full JD. v3.1.0: structured sections instead
+        // of a sliced digest, plus a deterministic gap analysis.
+        const scoreBundle = buildSections(identity, canonical);
+        const scoreGap = computeGap(fullJdResolved, scoreBundle);
         const canonText = canonicalDigest(canonical);
+
+        // Result cache: (jd, resume selection, applicant snapshot).
+        const scoreCacheKey = `score:${userId}:${resume_version_id || "primary"}:${(await sha256Hex(fullJdResolved)).slice(0, 24)}:${(await sha256Hex(scoreBundle.text + canonText)).slice(0, 16)}`;
+        const scoreCached = await cacheGet<Record<string, unknown>>(admin, scoreCacheKey);
+        if (scoreCached) {
+          logAiCall(admin, {
+            user_id: userId, purpose: "job_score", cache_hit: true,
+            duration_ms: Date.now() - scoreStarted, source_map: identity?.sourceMap() || null,
+            gap_matched: scoreGap.matched.length, gap_missing: scoreGap.missing.length,
+          });
+          return json({ ...scoreCached, cached: true });
+        }
 
         let parsedAI: {
           score?: number; matchLabel?: string; reasons?: string[];
@@ -1138,33 +1157,32 @@ Return ONLY this JSON (no code fences):
 
 HONESTY RULE (HARD): Only put a skill in matchedSkills if it appears in CANONICAL_SKILLS (case-insensitive). Anything in JD_SKILLS that is NOT in CANONICAL_SKILLS goes to missingSkills. Never fabricate a matched skill the candidate doesn't have. If unsure, mark it missing.
 
-CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format ranges with the word "to": "$90K to $120K CAD" or "£55K to £70K". Never use dashes for ranges.
+CURRENCY: infer from the JD text or the posting hostname. NEVER hardcode USD. Format ranges with the word "to": "$90K to $120K CAD" or "£55K to £70K". Never use dashes for ranges.
 
 VOICE: write reasons and verdict the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.
 
 SCORING RUBRIC:
-- 9 to 10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
+- 9 to 10 Strong: meets all must-haves + senior signals matching the job's stated seniority.
 - 7 to 8 Good: meets most must-haves, 1 to 2 coachable gaps.
 - 4 to 6 Fair: half the must-haves, real gaps in seniority or core tech.
 - 1 to 3 Poor: missing the core requirement.
 
-SENIORITY_FIT: compare canonical.derived.seniority to JOB_PARSED.seniority. "under"/"match"/"over"/"unknown".
+SENIORITY_FIT: compare canonical.derived.seniority to the seniority the job asks for. "under"/"match"/"over"/"unknown".
 
 OUTPUT RULES: reasons = 3 phrases max 6 words. mustHaves 3-5. niceToHaves 2-4. matchedSkills up to 8. missingSkills up to 8.`,
             user: `CANONICAL_SKILLS: ${Array.from(userSkillIndex.values()).slice(0, 60).join(", ")}
 CANONICAL_PROFILE_SUMMARY:
 ${canonText}
 
-RESUME_DIGEST:
-${JSON.stringify(resumeDigest).slice(0, 5000)}
+APPLICANT SECTIONS:
+${scoreBundle.text}
 
 JOB_TITLE: ${jobTitle || cachedRow?.title || ""}
 COMPANY: ${company || cachedRow?.company || ""}
 URL: ${url || ""}
-JOB_PARSED: ${JSON.stringify(parsedJob).slice(0, 2500)}
 
 FULL_JD:
-${fullJdResolved.slice(0, 15000)}`,
+${fullJdResolved.slice(0, 15000)}${renderGapBlock(scoreGap)}`,
           });
           try {
             const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
@@ -1176,6 +1194,8 @@ ${fullJdResolved.slice(0, 15000)}`,
           console.warn("ext_job_score AI failed; using keyword fallback:", (e as Error).message);
           aiOk = false;
         }
+        // Job metadata was parsed concurrently with the scoring call above.
+        if (parsedJobPromise) { try { parsedJob = await parsedJobPromise; } catch { /* keep EMPTY_PARSED */ } }
 
         // v2.8.2 — grounding metadata so the UI can show WHAT was scored.
         const scoredAgainst = {
