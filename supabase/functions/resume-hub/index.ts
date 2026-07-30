@@ -2437,11 +2437,9 @@ RULES:
     if (revised.length > body.length * 0.5) { body = revised; passes = 2; }
   }
 
-  let missingFigures = droppedFigures(body, body); // placeholder, replaced below
-  // A cover letter only needs the figures it chose to cite to be accurate,
-  // so we verify the other direction: every figure IN the letter must exist
-  // in the sections.
-  missingFigures = droppedFigures(body, bundle.text).filter((f) => f.length > 1);
+  // A cover letter only cites a handful of figures, so we verify the other
+  // direction: every figure IN the letter must exist verbatim in the sections.
+  let missingFigures = droppedFigures(body, bundle.text).filter((f) => f.length > 1);
   if (missingFigures.length) {
     const retry = await callAI({
       model: QUALITY_MODEL,
