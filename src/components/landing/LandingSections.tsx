@@ -1,7 +1,7 @@
 /**
  * LandingSections — AYN marketing page.
  * Charcoal & Ember, Outfit + Figtree, bento grid composition.
- * v3.0.0: AYN is a read only job search copilot. Match score first, no autofill.
+ * v3.3.2: tailoring is the promise. Scoring is proof, never a headline.
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
@@ -19,40 +19,48 @@ const ATS = ['Greenhouse', 'Ashby', 'Lever', 'Workday', 'iCIMS', 'SmartRecruiter
 const TILES = [
   {
     span: 'lp-span-4',
-    icon: Target,
-    title: 'A match score you can check',
-    desc: 'See your real fit before you spend the hour writing an application.',
-    art: MatchScoreIllustration,
-  },
-  {
-    span: 'lp-span-2',
-    icon: ShieldCheck,
-    title: 'Grounded on the real posting',
-    desc: 'AYN reads the full job text, not a nav bar and a cookie banner.',
-    art: ProvenanceIllustration,
-  },
-  {
-    span: 'lp-span-2',
     icon: FileText,
-    title: 'Tailored resumes and cover letters',
-    desc: 'Written for that role. One page, ATS ready.',
+    title: 'A resume for every job',
+    desc: 'Your real experience, rewritten in the language of the posting. One page, ATS ready.',
     art: OnePageDocIllustration,
   },
   {
     span: 'lp-span-2',
     icon: MessagesSquare,
-    title: 'Ask AYN about the job',
-    desc: 'What does this role really want? Ask, and get an answer from the posting.',
+    title: 'Cover letters that are specific',
+    desc: 'It mentions the company and the role, because AYN read both. No templates.',
     art: null,
-    meta: ['Plain questions', 'Answers from the text'],
+    meta: ['Named company', 'One page'],
   },
   {
-    span: 'lp-span-6',
+    span: 'lp-span-4',
+    icon: Target,
+    title: 'It knows what to change',
+    desc: 'AYN compares the posting to your resume and shows what is strong, what it surfaced, and what you are genuinely missing.',
+    art: MatchScoreIllustration,
+  },
+  {
+    span: 'lp-span-2',
+    icon: ShieldCheck,
+    title: 'Never invented',
+    desc: 'Nothing added that is not in your background. Your numbers, dates, and titles are never altered.',
+    art: ProvenanceIllustration,
+  },
+  {
+    span: 'lp-span-3',
+    icon: LayoutGrid,
+    title: 'Works where you are',
+    desc: 'Open a posting, get your tailored version without leaving the page.',
+    art: null,
+    meta: ['Greenhouse', 'Lever', 'Workday', 'Ashby'],
+  },
+  {
+    span: 'lp-span-3',
     icon: LayoutGrid,
     title: 'Everything in one place',
-    desc: 'Every resume, saved job, and score in one workspace.',
+    desc: 'Your resumes, versions, and jobs live in Resume Hub.',
     art: null,
-    meta: ['Saved jobs', 'Match scores', 'Resume versions', 'Cover letters'],
+    meta: ['Resumes', 'Versions', 'Saved jobs', 'Cover letters'],
   },
   {
     span: 'lp-span-6',
@@ -62,6 +70,7 @@ const TILES = [
     art: null,
   },
 ];
+
 
 const FAQS = [
   {
