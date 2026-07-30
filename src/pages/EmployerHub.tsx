@@ -214,11 +214,24 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* 1 and 2. Widget intake, then the editable spec summary. */}
-        <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+        {/**
+         * v3.11.0 — the gate. While a required company field is missing the
+         * onboarding profile is the ONLY thing rendered, so there is nothing
+         * to click around. The backend enforces the same rule.
+         */}
+        {!profileComplete ? (
+          <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
+        ) : (
+          <>
+            {/* 1 and 2. Widget intake, then the editable spec summary. */}
+            <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
 
-        {/* Who is reaching out. Editable at any time, and used in proposals. */}
-        <CompanyProfile org={org} onSaved={setOrg} />
+            {/* Who is reaching out. Editable at any time, and used in proposals. */}
+            <CompanyProfile org={org} onSaved={handleOrgSaved} />
+          </>
+        )}
+
+
 
 
         {/* 3. Results */}
