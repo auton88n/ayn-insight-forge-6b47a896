@@ -418,15 +418,22 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 {sent.map(s => (
                   <div key={s.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-1">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium truncate">{s.job_title || "Role"}</p>
-                      <Badge variant={s.status === "approved" ? "secondary" : "outline"}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {s.name || s.first_name || (s.ref ? `Candidate ${s.ref}` : "Candidate")}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[s.job_title || "Role", s.sent_at ? new Date(s.sent_at).toLocaleDateString() : ""]
+                            .filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                      <Badge variant={s.status === "approved" ? "secondary" : "outline"} className="shrink-0">
                         {s.status === "pending" ? "Waiting for a reply" : s.status === "approved" ? "Accepted" : "Declined"}
                       </Badge>
                     </div>
-                    {s.status === "approved" && (
+                    {s.status === "approved" && (s.email || s.phone) && (
                       <p className="text-xs">
-                        <span className="font-medium">{s.name || "Candidate"}</span>
-                        {s.email ? ` · ${s.email}` : ""}{s.phone ? ` · ${s.phone}` : ""}
+                        {[s.email, s.phone].filter(Boolean).join(" · ")}
                       </p>
                     )}
                     {s.status === "declined" && (
@@ -434,6 +441,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                     )}
                   </div>
                 ))}
+
               </Card>
             )}
 
@@ -488,10 +496,11 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
       <Dialog open={!!open && !formOpen} onOpenChange={o => { if (!o) setOpen(null); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto overscroll-contain bg-background">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden bg-background flex flex-col gap-0 p-0">
           {open && (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0 border-b border-border/60 bg-background p-6 pb-4 space-y-1.5">
+
                 <DialogTitle className="flex items-center gap-3">
                   <ScoreRing score={open.score} />
                   <span className="min-w-0">
@@ -509,7 +518,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
               </DialogHeader>
 
-              <div className="space-y-6">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-background p-6 space-y-6">
                 {open.why.length > 0 && (
                   <section className="space-y-2">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Why AYN picked them</p>
@@ -592,7 +601,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               </div>
 
 
-              <DialogFooter className="gap-2 sm:gap-3">
+              <DialogFooter className="shrink-0 gap-2 sm:gap-3 border-t border-border/60 bg-background p-6 pt-4">
                 {/* v3.13.0 — check the claims before you spend a proposal. */}
                 <Button
                   variant="outline"

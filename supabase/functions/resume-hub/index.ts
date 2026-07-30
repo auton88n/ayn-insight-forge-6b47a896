@@ -2766,15 +2766,18 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
           responded_at: r.responded_at || r.decided_at,
           decided_at: r.decided_at,
         };
-        // Contact details are released ONLY on an accepted proposal.
+        // First name only, so a list of proposals for one role is readable.
+        // Last name, email and phone are released ONLY on an accepted proposal.
+        const { data: prof } = await adminForNew.from("user_profile_data")
+          .select("legal_first_name, legal_last_name, email, phone").eq("user_id", r.candidate_user_id).maybeSingle();
+        base.first_name = String(prof?.legal_first_name || "").trim().split(/\s+/)[0] || null;
         if (r.status === "approved") {
-          const { data: prof } = await adminForNew.from("user_profile_data")
-            .select("legal_first_name, legal_last_name, email, phone").eq("user_id", r.candidate_user_id).maybeSingle();
           const { data: authUser } = await adminForNew.auth.admin.getUserById(r.candidate_user_id);
           base.name = [prof?.legal_first_name, prof?.legal_last_name].filter(Boolean).join(" ") || null;
           base.email = prof?.email || authUser?.user?.email || null;
           base.phone = prof?.phone || null;
         }
+
         enriched.push(base);
       }
       return json({ requests: enriched });
@@ -2837,11 +2840,12 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const spec = (search.job_spec as Record<string, unknown>) || {};
       const jobTitle = String(spec.title || "").trim() || block.current_title || "the role";
 
-      const achievements = canon.experiences.slice(0, 6).map(e => ({
-        title: e.title, company: e.company, industry: e.industry,
+      const achievements = canon.experiences.slice(0, 4).map(e => ({
+        title: e.title, company: e.company,
         dates: [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to "),
-        achievements: (e.achievements || []).slice(0, 4),
+        achievements: (e.achievements || []).slice(0, 3),
       }));
+
 
       const sys = `You write short verification assessments that check whether what a candidate claims on their profile is real.
 
@@ -2860,7 +2864,7 @@ REQUIRED QUESTION SHAPES, use a mix of these, always anchored to something THIS 
 - The constraint or messy detail only someone who did the work would know
 - Their specific role when a claim is team shaped, separating what they did from what the team did
 
-FORMAT: 4 to 6 multiple choice questions and 2 to 3 short answer questions.
+FORMAT: exactly 4 multiple choice questions and 2 short answer questions. Keep every question and rubric tight, no preamble.
 Multiple choice: scenario based, four options, plausible distractors drawn from realistic alternative choices. No obviously silly option. The correct option must be the one consistent with how the work is actually done under the constraints described.
 Short answer: ask for 2 to 4 sentences.
 
@@ -2888,8 +2892,11 @@ ${VOICE_RULES}`;
         required: ["questions"],
       };
 
+      // Generation sits on the employer's waiting path, so it runs on the fast
+      // model. Grading and growth notes stay on QUALITY_MODEL.
       const r = await callAI({
-        model: QUALITY_MODEL,
+        model: DEFAULT_MODEL,
+
         system: sys,
         user: `ROLE BEING HIRED FOR: ${JSON.stringify({ title: jobTitle, seniority: spec.seniority, must_have_skills: spec.must_have_skills })}
 
