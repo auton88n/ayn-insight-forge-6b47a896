@@ -66,9 +66,10 @@ const TILES = [
     span: 'lp-span-6',
     icon: Radar,
     title: 'Be found, not just seen',
-    desc: 'Turn on discovery and employers searching for your skills can reach you. You approve every intro.',
+    desc: 'Turn on discovery and employers searching AYN can see your full profile. Your email and phone stay private until you approve an intro.',
     art: null,
   },
+
 ];
 
 
