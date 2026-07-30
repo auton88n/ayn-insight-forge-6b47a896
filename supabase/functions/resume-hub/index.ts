@@ -1249,7 +1249,7 @@ ${fullJdResolved.slice(0, 15000)}${renderGapBlock(scoreGap)}`,
         const seniorityFit = ["under","match","over","unknown"].includes(parsedAI.seniorityFit || "")
           ? parsedAI.seniorityFit! : "unknown";
 
-        return json({
+        const scoreResult = {
           score, matchLabel,
           reasons: (parsedAI.reasons || []).slice(0, 3),
           mustHaves: (parsedAI.mustHaves || []).slice(0, 5).map(m => ({ text: String(m.text || ""), met: !!m.met })),
@@ -1262,7 +1262,22 @@ ${fullJdResolved.slice(0, 15000)}${renderGapBlock(scoreGap)}`,
           verdict: String(parsedAI.verdict || ""),
           source,
           scoredAgainst,
+          gapAnalysis: {
+            method: scoreGap.method,
+            alreadyStrong: scoreGap.matched.map(r => r.text).slice(0, 15),
+            stillMissing: scoreGap.missing.map(r => r.text).slice(0, 15),
+            niceToHave: scoreGap.niceToHave.map(r => ({ text: r.text, met: r.status === "matched" })).slice(0, 10),
+          },
+        };
+        cacheSet(admin, scoreCacheKey, userId, "job_score", scoreResult, 24 * 60 * 60 * 1000);
+        logAiCall(admin, {
+          user_id: userId, purpose: "job_score", model: DEFAULT_MODEL,
+          duration_ms: Date.now() - scoreStarted, cache_hit: false,
+          source_map: identity?.sourceMap() || null,
+          gap_matched: scoreGap.matched.length, gap_missing: scoreGap.missing.length,
+          meta: { jd_chars: fullJdResolved.length, section_chars: scoreBundle.chars, jd_source: source },
         });
+        return json(scoreResult);
       }
 
 
