@@ -467,7 +467,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               Features
             </h2>
             <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              Everything you need to apply faster without losing control of what goes out with your name on it.
+              Apply faster without losing control of what goes out with your name on it.
             </p>
           </div>
 
