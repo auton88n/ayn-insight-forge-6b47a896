@@ -10,6 +10,13 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // loadIdentity() so a new source (canonical.identity, auth.users) is
 // picked up everywhere at once, not re-derived per action.
 import { loadIdentity, identityToLegacyMerged, identityContactBlock, type Identity } from "../_shared/identity.ts";
+// v3.1.0 — structured sections (no truncation), deterministic gap analysis,
+// figure preservation, result cache, company context, AI telemetry.
+import {
+  sha256 as sha256b, buildSections, computeGap, renderGapBlock, droppedFigures,
+  cacheGet, cacheSet, logAiCall, fetchCompanyContext,
+  type GapAnalysis, type SectionBundle,
+} from "../_shared/tailoring.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -980,10 +987,14 @@ Deno.serve(async (req) => {
           fullJd?: string; jobSnippet?: string; resume_version_id?: string;
         };
 
-        // v2.8.2 — honor tailored resume selection (same path as ext_autofill).
-        const [resolvedResume, canonical] = await Promise.all([
+        const scoreStarted = Date.now();
+        // v2.8.2 — honor tailored resume selection.
+        // v3.1.0 — identity is loaded here too, so scoring sees the same
+        // applicant view as tailor and cover letter.
+        const [resolvedResume, canonical, identity] = await Promise.all([
           resolveResumeContent(admin, userId, resume_version_id),
           loadCanonical(admin, userId),
+          loadIdentity(admin, userId, { resume_version_id }).catch(() => null),
         ]);
         const resume = resolvedResume.content ? { content: resolvedResume.content } : null;
         if (!resume?.content && !canonical) {
@@ -1034,21 +1045,28 @@ Deno.serve(async (req) => {
         let parsedJob: JobParsed = cachedRow?.parsed || EMPTY_PARSED;
         let source: "full" | "snippet" | "approximate_keyword_overlap" = "full";
 
+        // v3.1.0 — parseJobMeta used to block the scoring call. It now runs
+        // concurrently with it; the score prompt is grounded on the
+        // deterministic gap analysis instead of JOB_PARSED, and parsedJob is
+        // awaited afterwards for salary and the honesty safety net.
+        let parsedJobPromise: Promise<JobParsed> | null = null;
         if (!cachedRow && fullJd && fullJd.length >= 40) {
-          // Inline ingest on miss.
-          parsedJob = await parseJobMeta(fullJd, url || "", jobTitle || "", company || "");
           fullJdResolved = fullJd.slice(0, 30000);
-          const row = {
-            url_hash: hash || await sha256Hex(fullJd.slice(0, 400)),
-            url: normalized || url || null,
-            title: jobTitle || null, company: company || null,
-            full_jd: fullJdResolved, parsed: parsedJob,
-            created_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          };
-          admin.from("job_cache").upsert(row, { onConflict: "url_hash" }).then(({ error }) => {
-            if (error) console.warn("job_cache inline-ingest upsert failed", error.message);
-          });
+          const ingestHash = hash || await sha256Hex(fullJd.slice(0, 400));
+          parsedJobPromise = parseJobMeta(fullJd, url || "", jobTitle || "", company || "");
+          parsedJobPromise.then((pj) => {
+            const row = {
+              url_hash: ingestHash,
+              url: normalized || url || null,
+              title: jobTitle || null, company: company || null,
+              full_jd: fullJdResolved, parsed: pj,
+              created_at: new Date().toISOString(),
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            };
+            return admin.from("job_cache").upsert(row, { onConflict: "url_hash" });
+          }).then((r: any) => {
+            if (r?.error) console.warn("job_cache inline-ingest upsert failed", r.error.message);
+          }, () => {});
         } else if (!cachedRow) {
           // No full JD available — fall back to the snippet (card-badge path).
           fullJdResolved = (jobSnippet || "").slice(0, 4000);
@@ -1092,15 +1110,23 @@ Deno.serve(async (req) => {
           if (k && !userSkillIndex.has(k)) userSkillIndex.set(k, String(s));
         }
 
-        // 3. Try AI scoring against the full JD.
-        const resumeDigest = {
-          basics: rc.basics,
-          work: ((rc.work as Array<Record<string, unknown>>) || []).slice(0, 6).map(w => ({
-            title: w.title, company: w.company, start: w.start, end: w.end,
-            bullets: ((w.bullets as string[]) || []).slice(0, 4),
-          })),
-        };
+        // 3. Score against the full JD. v3.1.0: structured sections instead
+        // of a sliced digest, plus a deterministic gap analysis.
+        const scoreBundle = buildSections(identity, canonical);
+        const scoreGap = computeGap(fullJdResolved, scoreBundle);
         const canonText = canonicalDigest(canonical);
+
+        // Result cache: (jd, resume selection, applicant snapshot).
+        const scoreCacheKey = `score:${userId}:${resume_version_id || "primary"}:${(await sha256Hex(fullJdResolved)).slice(0, 24)}:${(await sha256Hex(scoreBundle.text + canonText)).slice(0, 16)}`;
+        const scoreCached = await cacheGet<Record<string, unknown>>(admin, scoreCacheKey);
+        if (scoreCached) {
+          logAiCall(admin, {
+            user_id: userId, purpose: "job_score", cache_hit: true,
+            duration_ms: Date.now() - scoreStarted, source_map: identity?.sourceMap() || null,
+            gap_matched: scoreGap.matched.length, gap_missing: scoreGap.missing.length,
+          });
+          return json({ ...scoreCached, cached: true });
+        }
 
         let parsedAI: {
           score?: number; matchLabel?: string; reasons?: string[];
@@ -1131,33 +1157,32 @@ Return ONLY this JSON (no code fences):
 
 HONESTY RULE (HARD): Only put a skill in matchedSkills if it appears in CANONICAL_SKILLS (case-insensitive). Anything in JD_SKILLS that is NOT in CANONICAL_SKILLS goes to missingSkills. Never fabricate a matched skill the candidate doesn't have. If unsure, mark it missing.
 
-CURRENCY: Read JOB_PARSED.salary first — if it has a currency, use it. Otherwise infer from the JD text or the posting hostname. NEVER hardcode USD. Format ranges with the word "to": "$90K to $120K CAD" or "£55K to £70K". Never use dashes for ranges.
+CURRENCY: infer from the JD text or the posting hostname. NEVER hardcode USD. Format ranges with the word "to": "$90K to $120K CAD" or "£55K to £70K". Never use dashes for ranges.
 
 VOICE: write reasons and verdict the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector.
 
 SCORING RUBRIC:
-- 9 to 10 Strong: meets all must-haves + senior signals matching JOB_PARSED.seniority.
+- 9 to 10 Strong: meets all must-haves + senior signals matching the job's stated seniority.
 - 7 to 8 Good: meets most must-haves, 1 to 2 coachable gaps.
 - 4 to 6 Fair: half the must-haves, real gaps in seniority or core tech.
 - 1 to 3 Poor: missing the core requirement.
 
-SENIORITY_FIT: compare canonical.derived.seniority to JOB_PARSED.seniority. "under"/"match"/"over"/"unknown".
+SENIORITY_FIT: compare canonical.derived.seniority to the seniority the job asks for. "under"/"match"/"over"/"unknown".
 
 OUTPUT RULES: reasons = 3 phrases max 6 words. mustHaves 3-5. niceToHaves 2-4. matchedSkills up to 8. missingSkills up to 8.`,
             user: `CANONICAL_SKILLS: ${Array.from(userSkillIndex.values()).slice(0, 60).join(", ")}
 CANONICAL_PROFILE_SUMMARY:
 ${canonText}
 
-RESUME_DIGEST:
-${JSON.stringify(resumeDigest).slice(0, 5000)}
+APPLICANT SECTIONS:
+${scoreBundle.text}
 
 JOB_TITLE: ${jobTitle || cachedRow?.title || ""}
 COMPANY: ${company || cachedRow?.company || ""}
 URL: ${url || ""}
-JOB_PARSED: ${JSON.stringify(parsedJob).slice(0, 2500)}
 
 FULL_JD:
-${fullJdResolved.slice(0, 15000)}`,
+${fullJdResolved.slice(0, 15000)}${renderGapBlock(scoreGap)}`,
           });
           try {
             const raw = r.text.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
@@ -1169,6 +1194,8 @@ ${fullJdResolved.slice(0, 15000)}`,
           console.warn("ext_job_score AI failed; using keyword fallback:", (e as Error).message);
           aiOk = false;
         }
+        // Job metadata was parsed concurrently with the scoring call above.
+        if (parsedJobPromise) { try { parsedJob = await parsedJobPromise; } catch { /* keep EMPTY_PARSED */ } }
 
         // v2.8.2 — grounding metadata so the UI can show WHAT was scored.
         const scoredAgainst = {
@@ -1222,7 +1249,7 @@ ${fullJdResolved.slice(0, 15000)}`,
         const seniorityFit = ["under","match","over","unknown"].includes(parsedAI.seniorityFit || "")
           ? parsedAI.seniorityFit! : "unknown";
 
-        return json({
+        const scoreResult = {
           score, matchLabel,
           reasons: (parsedAI.reasons || []).slice(0, 3),
           mustHaves: (parsedAI.mustHaves || []).slice(0, 5).map(m => ({ text: String(m.text || ""), met: !!m.met })),
@@ -1235,7 +1262,22 @@ ${fullJdResolved.slice(0, 15000)}`,
           verdict: String(parsedAI.verdict || ""),
           source,
           scoredAgainst,
+          gapAnalysis: {
+            method: scoreGap.method,
+            alreadyStrong: scoreGap.matched.map(r => r.text).slice(0, 15),
+            stillMissing: scoreGap.missing.map(r => r.text).slice(0, 15),
+            niceToHave: scoreGap.niceToHave.map(r => ({ text: r.text, met: r.status === "matched" })).slice(0, 10),
+          },
+        };
+        cacheSet(admin, scoreCacheKey, userId, "job_score", scoreResult, 24 * 60 * 60 * 1000);
+        logAiCall(admin, {
+          user_id: userId, purpose: "job_score", model: DEFAULT_MODEL,
+          duration_ms: Date.now() - scoreStarted, cache_hit: false,
+          source_map: identity?.sourceMap() || null,
+          gap_matched: scoreGap.matched.length, gap_missing: scoreGap.missing.length,
+          meta: { jd_chars: fullJdResolved.length, section_chars: scoreBundle.chars, jd_source: source },
         });
+        return json(scoreResult);
       }
 
 
@@ -1336,52 +1378,13 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
         });
       }
 
-      // ext_cover_letter_text — generate a cover letter from pasted resume/JD text
+      // ext_cover_letter_text — v3.1.0: identity + structured sections (no
+      // truncation), real company context, two-pass on the detailed tier,
+      // verified figure preservation, cached, logged.
       if (action === "ext_cover_letter_text") {
-        const { resumeText, jdText, tone, company, jobTitle, url } = payload as {
-          resumeText?: string; jdText?: string; tone?: string; company?: string; jobTitle?: string; url?: string;
-        };
-        const lengthKey = String((payload as { length?: string }).length || "standard");
-        const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
-        const guidanceRaw = String((payload as { guidance?: string }).guidance || "").trim().slice(0, 200);
-        const guidanceLine = guidanceRaw
-          ? `\n- The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the resume supports it; if it is not supported, ignore the request rather than inventing anything.`
-          : "";
-        const jd = await resolveJobJd(admin, url, jdText);
-        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
-
-        // v2.13.0 — attach the real applicant identity so the header line
-        // ("From: <name> <email> <phone>") is grounded in profile/canonical/
-        // auth data instead of whatever basics.name happens to say. Fixes
-        // the earlier gap where cover letters silently omitted contact
-        // details when resume basics were thin.
-        const identity = await loadIdentity(admin, userId).catch(() => null);
-        const applicantBlock = identity ? identityContactBlock(identity) : "";
-        const applicantSection = applicantBlock
-          ? `\n\nAPPLICANT (use these exact contact details in the header, never invent alternatives):\n${applicantBlock}`
-          : "";
-
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `Write a cover letter under ${wordCap} words. Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
-
-STRUCTURE (4 short paragraphs):
-1) Opening: who you are + the specific role + the ONE thing about ${company || "this team"} that pulled you in (from the JD).
-2) Proof: ONE concrete achievement from the resume that maps to a JD requirement. Include the number/scale if present in the resume.
-3) Skill bridge: 2-3 specific tools/skills from the JD that also appear in the resume. Tie them to outcomes, not lists.
-4) Close: clear ask for a conversation + sign off.
-
-RULES:
-- Use ONLY facts from the resume and applicant block. Never invent companies, metrics, dates, names, emails, or phone numbers.
-- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear exactly as in the resume.
-- The signature MUST use the applicant's real name from the APPLICANT block if provided; otherwise use the name from RESUME basics. Never invent a name.
-- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
-- Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to' (for example $90K to $120K CAD).
-- Plain text, no markdown.${guidanceLine}`,
-          user: `RESUME:\n${resumeText.slice(0, 8000)}${applicantSection}\n\nJOB DESCRIPTION:\n${jd.slice(0, 6000)}`,
-        });
-        return json({ body: r.text });
+        return await handleCoverLetter(admin, userId, payload as Record<string, unknown>);
       }
+
 
 
       // v2.8.0 — ext_job_lookup: JD Resolver's backend branch. Given host+path
@@ -1458,75 +1461,13 @@ RULES:
         return json({answer:r.text,sessionId:sessionId||crypto.randomUUID()});
       }
 
-      // smart_tailor (extension path) — same as JWT smart_tailor below
+      // smart_tailor — v3.1.0: identity-grounded, section-based (no character
+      // truncation), deterministic gap analysis, two-pass quality, verified
+      // figure preservation, cached, logged. See handleSmartTailor below.
       if (action === "smart_tailor") {
-        const { resumeText, jdText, jobTitle, company, url } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string; url?: string };
-        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
-          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
-        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
-          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
-        const jd = await resolveJobJd(admin, url, jdText);
-        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
-        const gapBlock = (matchedSkills || missingSkills)
-          ? `\n\nGAP HINTS (from scorer):\nmatchedSkills: ${JSON.stringify(matchedSkills || [])}\nmissingSkills: ${JSON.stringify(missingSkills || [])}\nFor each missingSkill, look for genuinely related experience already present in the resume and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis, leave it out. Never add a skill to the skills section that is not supported by the resume.`
-          : "";
-
-        // v2.13.0 — pass the applicant's real header (name, email, phone,
-        // location, links) as ground truth. Previously the tailored resume
-        // silently used whatever `basics.name` was in resumeText, which
-        // could be blank on freshly parsed resumes and produced headerless
-        // tailored output.
-        const identity = await loadIdentity(admin, userId).catch(() => null);
-        const applicantBlock = identity ? identityContactBlock(identity) : "";
-        const applicantSection = applicantBlock
-          ? `\n\nAPPLICANT HEADER (use these exact lines at the top of the tailored resume — never invent alternatives, never omit):\n${applicantBlock}`
-          : "";
-
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
-
-Return ONLY this JSON (no code fences):
-{
-  "keywords": [{"text":"<keyword>","inResume": true|false, "importance":"high|medium|low"}],
-  "tailoredText": "<full plain-text ATS resume>",
-  "changes": ["<change 1>", "<change 2>", "..."],
-  "atsScore": <integer 0-100>,
-  "scoreReasoning": "<one sentence on the score>"
-}
-
-KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodologies from the JD. Mark inResume=true only if the EXACT term (or a very close variant) appears in the resume text. Mark importance: high if mentioned 2+ times or in "must have" / "required"; medium otherwise; low for nice-to-haves.
-
-TAILORED RESUME:
-- Start with the APPLICANT HEADER lines verbatim if provided (name on line 1, contact on line 2, location on line 3, links on line 4). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the original resume unchanged.
-- Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
-- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.
-- Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
-- Re-order skills to surface JD-matching ones first.
-- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify when numbers exist in original. Never fabricate numbers.
-- Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
-
-CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme, already implied by 'container orchestration'.").
-
-ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
-
-VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}${applicantSection}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
-        });
-        let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
-        try {
-          const raw = r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim();
-          const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
-          parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
-        } catch { return json({ error: "Failed to parse AI response" }, 500); }
-        return json({
-          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume), importance: String(k.importance||"medium") })) : [],
-          tailoredText: String(parsed.tailoredText || ""),
-          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,6) : [],
-          atsScore: Math.max(0, Math.min(100, Math.round(Number((parsed as Record<string, unknown>).atsScore) || 0))),
-          scoreReasoning: String((parsed as Record<string, unknown>).scoreReasoning || ""),
-        });
+        return await handleSmartTailor(admin, userId, payload as Record<string, unknown>);
       }
+
 
       if (action === "ext_profile_canonical_get") {
         const canonical = await loadCanonical(admin, userId);
@@ -2239,3 +2180,330 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     return json({ error: e instanceof Error ? e.message : "Server error" }, 500);
   }
 });
+
+// ══════════════════════════════════════════════════════════════
+// v3.1.0 — Tailor and Cover Letter
+//
+// These two are THE product now that autofill is gone, so they get the
+// full treatment: identity everywhere, structured sections instead of
+// character slices, a DETERMINISTIC gap analysis computed in code (the
+// model never discovers what is missing, it only decides what to surface
+// and how to phrase it), a self-critique revision pass, and programmatic
+// verification that no number, percentage, currency figure or year was
+// altered. Results are cached by (user, resume version, jd hash) and one
+// telemetry row is written per AI call.
+// ══════════════════════════════════════════════════════════════
+
+const TAILOR_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function parseJsonLoose<T>(text: string): T | null {
+  try {
+    const raw = String(text || "").replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+    const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+    return JSON.parse(s !== -1 ? raw.slice(s, e + 1) : raw) as T;
+  } catch { return null; }
+}
+
+interface TailorOut {
+  keywords?: Array<Record<string, unknown>>;
+  tailoredText?: string;
+  changes?: string[];
+  atsScore?: number;
+  scoreReasoning?: string;
+}
+
+function normalizeTailorOut(p: TailorOut | null) {
+  return {
+    keywords: Array.isArray(p?.keywords)
+      ? p!.keywords.slice(0, 14).map((k) => ({
+        text: String(k.text || ""), inResume: Boolean(k.inResume), importance: String(k.importance || "medium"),
+      }))
+      : [],
+    tailoredText: String(p?.tailoredText || ""),
+    changes: Array.isArray(p?.changes) ? p!.changes.map(String).slice(0, 6) : [],
+    atsScore: Math.max(0, Math.min(100, Math.round(Number(p?.atsScore) || 0))),
+    scoreReasoning: String(p?.scoreReasoning || ""),
+  };
+}
+
+const TAILOR_RULES = `
+TAILORED RESUME:
+- Start with the APPLICANT HEADER lines verbatim if provided (name, contact, location, links). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the sections unchanged.
+- Keep ALL company names, titles, dates EXACTLY as in the sections. Never change facts.
+- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. Do not round, scale, add, or remove figures.
+- For each requirement under "REQUIRED BUT NOT EVIDENCED": look for genuinely related experience already present in the sections and surface it in the job description's own terminology. If there is no real basis in the sections, leave it out entirely and do not imply it.
+- Never add a skill to the skills section that is not supported by the sections.
+- Re-order skills to surface the job's terms first, among skills the candidate actually has.
+- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify only with numbers already present.
+- Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
+
+KEYWORDS (10 to 14): the most important hard skills, tools, certs and methodologies from the job description. Mark inResume=true only if the term (or a very close variant) is present in the sections. importance: high if it is a stated must have or repeated; medium otherwise; low for nice to haves.
+
+CHANGES (3 to 6): plain-language list of edits, each naming the requirement it addresses and the existing experience it drew on.
+
+ATS SCORE: keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
+
+VOICE: write the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`;
+
+async function handleSmartTailor(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+  payload: Record<string, unknown>,
+): Promise<Response> {
+  const started = Date.now();
+  const resumeText = String(payload.resumeText || "");
+  const jobTitle = String(payload.jobTitle || "");
+  const company = String(payload.company || "");
+  const url = payload.url ? String(payload.url) : undefined;
+  const resumeVersionId = payload.resume_version_id ? String(payload.resume_version_id) : undefined;
+  const matchedSkills = Array.isArray(payload.matched_skills) ? (payload.matched_skills as unknown[]).map(String).slice(0, 20) : [];
+  const missingSkills = Array.isArray(payload.missing_skills) ? (payload.missing_skills as unknown[]).map(String).slice(0, 20) : [];
+
+  const jd = await resolveJobJd(admin, url, payload.jdText ? String(payload.jdText) : undefined);
+  if (!jd || jd.length < 40) return json({ error: "jd required" }, 400);
+
+  const [identity, canonical] = await Promise.all([
+    loadIdentity(admin, userId, { resume_version_id: resumeVersionId }).catch(() => null),
+    loadCanonical(admin, userId),
+  ]);
+
+  const bundle = buildSections(identity, canonical, resumeText);
+  if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available to tailor" }, 400);
+
+  const gap = computeGap(jd, bundle, { jdSkills: [...matchedSkills, ...missingSkills] });
+
+  const jdHash = (await sha256b(jd)).slice(0, 24);
+  const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
+  const cacheKey = `tailor:${userId}:${resumeVersionId || "primary"}:${sectionHash}:${jdHash}`;
+  const cached = await cacheGet<Record<string, unknown>>(admin, cacheKey);
+  if (cached) {
+    logAiCall(admin, {
+      user_id: userId, purpose: "tailor", cache_hit: true, duration_ms: Date.now() - started,
+      source_map: identity?.sourceMap() || null,
+      gap_matched: gap.matched.length, gap_missing: gap.missing.length,
+      gap_surfaced: Number((cached as any).gapAnalysis?.surfacedCount || 0),
+      meta: { jd_chars: jd.length, section_chars: bundle.chars },
+    });
+    return json({ ...cached, cached: true });
+  }
+
+  const applicantBlock = identity ? identityContactBlock(identity) : "";
+  const applicantSection = applicantBlock
+    ? `\n\nAPPLICANT HEADER (use these exact lines at the top of the tailored resume, never invent alternatives, never omit):\n${applicantBlock}`
+    : "";
+  const droppedNote = bundle.dropped.length
+    ? `\n\nNOTE: these sections were omitted from the payload to fit the budget and must not be referenced: ${bundle.dropped.join(", ")}.`
+    : "";
+
+  const userMsg = `TARGET ROLE: ${jobTitle} at ${company}${applicantSection}
+
+APPLICANT SECTIONS (the only source of truth about this person):
+${bundle.text}${droppedNote}
+
+JOB DESCRIPTION:
+${jd.slice(0, 20000)}${renderGapBlock(gap)}`;
+
+  const system = `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
+
+Return ONLY this JSON (no code fences):
+{
+  "keywords": [{"text":"<keyword>","inResume": true|false, "importance":"high|medium|low"}],
+  "tailoredText": "<full plain-text ATS resume>",
+  "changes": ["<change 1>", "<change 2>"],
+  "atsScore": <integer 0-100>,
+  "scoreReasoning": "<one sentence on the score>"
+}
+${TAILOR_RULES}`;
+
+  // PASS 1 — draft.
+  const draftRes = await callAI({ model: QUALITY_MODEL, system, user: userMsg });
+  let out = normalizeTailorOut(parseJsonLoose<TailorOut>(draftRes.text));
+  if (!out.tailoredText) return json({ error: "Failed to parse AI response" }, 500);
+
+  // PASS 2 — self critique, then revise. Always for tailoring.
+  const critiqueRes = await callAI({
+    model: QUALITY_MODEL,
+    system: `You are a strict reviewer of a tailored resume. Check the DRAFT against the SECTIONS and the GAP ANALYSIS on four points:
+1. Every claim is grounded in the SECTIONS. Flag anything that is not.
+2. Every number, percentage, currency figure, date and year is unchanged from the SECTIONS.
+3. No skill appears in the skills section that the SECTIONS do not support.
+4. The draft addresses the top items under "REQUIRED BUT NOT EVIDENCED" wherever real related evidence exists, and stays silent where it does not.
+
+Then output the CORRECTED version. Return ONLY the same JSON shape as the draft:
+{"keywords":[...],"tailoredText":"...","changes":[...],"atsScore":0,"scoreReasoning":"..."}
+Keep everything that was already correct. Do not add new claims to fix a gap.${TAILOR_RULES}`,
+    user: `${userMsg}\n\nDRAFT TO REVIEW:\n${JSON.stringify(out).slice(0, 40000)}`,
+  });
+  const revised = normalizeTailorOut(parseJsonLoose<TailorOut>(critiqueRes.text));
+  if (revised.tailoredText && revised.tailoredText.length > out.tailoredText.length * 0.5) out = revised;
+
+  // FIGURE PRESERVATION — verified in code, not asked for.
+  let missingFigures = droppedFigures(bundle.text, out.tailoredText);
+  if (missingFigures.length) {
+    const retry = await callAI({
+      model: QUALITY_MODEL,
+      system,
+      user: `${userMsg}\n\nPREVIOUS ATTEMPT DROPPED OR ALTERED THESE FIGURES: ${missingFigures.slice(0, 30).join(", ")}\nProduce the tailored resume again with every one of those figures present, unchanged, in the bullet it belongs to.`,
+    });
+    const fixed = normalizeTailorOut(parseJsonLoose<TailorOut>(retry.text));
+    if (fixed.tailoredText) {
+      const stillMissing = droppedFigures(bundle.text, fixed.tailoredText);
+      if (stillMissing.length < missingFigures.length) { out = fixed; missingFigures = stillMissing; }
+    }
+  }
+
+  // SURFACED — recompute the gap against the tailored output. Requirements
+  // that were missing before and are evidenced now were genuinely surfaced.
+  const afterBundle: SectionBundle = { sections: bundle.sections, text: out.tailoredText, dropped: [], chars: out.tailoredText.length };
+  const afterGap = computeGap(jd, afterBundle, { jdSkills: [...matchedSkills, ...missingSkills] });
+  const afterMatched = new Set(afterGap.requirements.filter((r) => r.status === "matched").map((r) => r.text));
+  const surfaced = gap.missing.filter((r) => afterMatched.has(r.text)).map((r) => r.text);
+
+  const result = {
+    ...out,
+    gapAnalysis: {
+      method: gap.method,
+      alreadyStrong: gap.matched.map((r) => ({ text: r.text, evidence: r.evidence })),
+      surfaced,
+      surfacedCount: surfaced.length,
+      stillMissing: gap.missing.filter((r) => !afterMatched.has(r.text)).map((r) => r.text),
+      niceToHave: gap.niceToHave.map((r) => ({ text: r.text, met: r.status === "matched" })),
+      counts: { matched: gap.matched.length, missing: gap.missing.length, surfaced: surfaced.length },
+    },
+    figuresVerified: missingFigures.length === 0,
+    figuresAltered: missingFigures.slice(0, 20),
+    sectionsUsed: { chars: bundle.chars, dropped: bundle.dropped },
+  };
+
+  cacheSet(admin, cacheKey, userId, "tailor", result, TAILOR_TTL);
+  logAiCall(admin, {
+    user_id: userId, purpose: "tailor", model: QUALITY_MODEL, duration_ms: Date.now() - started,
+    cache_hit: false, source_map: identity?.sourceMap() || null,
+    gap_matched: gap.matched.length, gap_missing: gap.missing.length, gap_surfaced: surfaced.length,
+    meta: { jd_chars: jd.length, section_chars: bundle.chars, dropped: bundle.dropped, figures_ok: missingFigures.length === 0, passes: 2 },
+  });
+
+  return json(result);
+}
+
+async function handleCoverLetter(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+  payload: Record<string, unknown>,
+): Promise<Response> {
+  const started = Date.now();
+  const resumeText = String(payload.resumeText || "");
+  const tone = String(payload.tone || "professional, warm");
+  const company = String(payload.company || "");
+  const jobTitle = String(payload.jobTitle || "");
+  const url = payload.url ? String(payload.url) : undefined;
+  const resumeVersionId = payload.resume_version_id ? String(payload.resume_version_id) : undefined;
+  const lengthKey = String(payload.length || "standard");
+  const wordCap = lengthKey === "short" ? 180 : lengthKey === "detailed" ? 400 : 280;
+  const guidanceRaw = String(payload.guidance || "").trim().slice(0, 200);
+  const guidanceLine = guidanceRaw
+    ? `\n- The applicant asked you to emphasize: ${guidanceRaw}. Honour this only where the sections support it; if it is not supported, ignore the request rather than inventing anything.`
+    : "";
+
+  const jd = await resolveJobJd(admin, url, payload.jdText ? String(payload.jdText) : undefined);
+  if (!jd || jd.length < 40) return json({ error: "jd required" }, 400);
+
+  const [identity, canonical, companyCtx] = await Promise.all([
+    loadIdentity(admin, userId, { resume_version_id: resumeVersionId }).catch(() => null),
+    loadCanonical(admin, userId),
+    fetchCompanyContext(admin, company, url).catch(() => ({ text: "", source: "" })),
+  ]);
+
+  const bundle = buildSections(identity, canonical, resumeText);
+  if (!bundle.text || bundle.chars < 60) return json({ error: "No resume content available" }, 400);
+  const gap = computeGap(jd, bundle);
+
+  const jdHash = (await sha256b(jd)).slice(0, 24);
+  const sectionHash = (await sha256b(bundle.text)).slice(0, 16);
+  const cacheKey = `cover:${userId}:${resumeVersionId || "primary"}:${sectionHash}:${jdHash}:${lengthKey}:${await sha256b(tone + guidanceRaw)}`.slice(0, 200);
+  const cached = await cacheGet<Record<string, unknown>>(admin, cacheKey);
+  if (cached) {
+    logAiCall(admin, {
+      user_id: userId, purpose: "cover_letter", cache_hit: true, duration_ms: Date.now() - started,
+      source_map: identity?.sourceMap() || null, meta: { length: lengthKey },
+    });
+    return json({ ...cached, cached: true });
+  }
+
+  const applicantBlock = identity ? identityContactBlock(identity) : "";
+  const applicantSection = applicantBlock
+    ? `\n\nAPPLICANT (use these exact contact details in the header and signature, never invent alternatives):\n${applicantBlock}`
+    : "";
+  const companySection = companyCtx.text
+    ? `\n\nCOMPANY CONTEXT (from ${companyCtx.source}, the employer's own public page):\n${companyCtx.text}`
+    : "";
+
+  const system = `Write a cover letter under ${wordCap} words. Tone: ${tone}. Address ${company || "the hiring team"}${jobTitle ? ` for the ${jobTitle} role` : ""}.
+
+STRUCTURE (4 short paragraphs):
+1) Opening: who you are, the specific role, and one specific thing about this employer drawn from COMPANY CONTEXT. If COMPANY CONTEXT is absent or says nothing concrete, open with the role and the candidate's most relevant strength instead. Never invent enthusiasm or facts about the company.
+2) Proof: one concrete achievement from the sections that maps to a stated requirement. Include the number or scale if it is present in the sections.
+3) Skill bridge: two or three specific tools or skills the job asks for that the sections genuinely support. Tie them to outcomes, not lists.
+4) Close: a clear ask for a conversation, then sign off.
+
+RULES:
+- Use ONLY facts from the APPLICANT SECTIONS, the APPLICANT block, and COMPANY CONTEXT. Never invent companies, metrics, dates, names, emails, or phone numbers.
+- Never alter numbers. Every metric, percentage, currency figure, headcount, timeframe, date and job title must appear exactly as in the sections.
+- Do not claim any requirement listed as not evidenced in the GAP ANALYSIS unless real related experience is in the sections.
+- The signature MUST use the applicant's real name from the APPLICANT block if provided. Never invent a name.
+- No clichés ("I'm excited to apply", "I hope this finds you well", "results-driven", "passionate", "leverage", "in today's fast-paced").
+- Write the way a thoughtful person writes: vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.
+- Plain text, no markdown.${guidanceLine}`;
+
+  const userMsg = `APPLICANT SECTIONS:\n${bundle.text}${applicantSection}${companySection}\n\nJOB DESCRIPTION:\n${jd.slice(0, 20000)}${renderGapBlock(gap)}`;
+
+  const draft = await callAI({ model: QUALITY_MODEL, system, user: userMsg });
+  let body = String(draft.text || "").trim();
+  let passes = 1;
+
+  // Two-pass quality on the detailed tier only.
+  if (lengthKey === "detailed" && body) {
+    const critique = await callAI({
+      model: QUALITY_MODEL,
+      system: `${system}\n\nYou are now revising a draft. Check it on four points: every claim is grounded in the sections, every number and date is unchanged, no skill is claimed without support, and it addresses the top requirements where real evidence exists. Return ONLY the corrected letter as plain text, nothing else.`,
+      user: `${userMsg}\n\nDRAFT TO REVISE:\n${body}`,
+    });
+    const revised = String(critique.text || "").trim();
+    if (revised.length > body.length * 0.5) { body = revised; passes = 2; }
+  }
+
+  // A cover letter only cites a handful of figures, so we verify the other
+  // direction: every figure IN the letter must exist verbatim in the sections.
+  let missingFigures = droppedFigures(body, bundle.text).filter((f) => f.length > 1);
+  if (missingFigures.length) {
+    const retry = await callAI({
+      model: QUALITY_MODEL,
+      system,
+      user: `${userMsg}\n\nTHE PREVIOUS DRAFT CITED FIGURES THAT DO NOT APPEAR IN THE SECTIONS: ${missingFigures.slice(0, 20).join(", ")}\nRewrite the letter using only figures that appear verbatim in the sections, or no figures at all.`,
+    });
+    const fixed = String(retry.text || "").trim();
+    if (fixed) {
+      const still = droppedFigures(fixed, bundle.text).filter((f) => f.length > 1);
+      if (still.length < missingFigures.length) { body = fixed; missingFigures = still; }
+    }
+  }
+
+  const result = {
+    body,
+    companyContext: companyCtx.text ? { source: companyCtx.source, chars: companyCtx.text.length } : null,
+    figuresVerified: missingFigures.length === 0,
+    figuresUnsupported: missingFigures.slice(0, 20),
+    sectionsUsed: { chars: bundle.chars, dropped: bundle.dropped },
+  };
+
+  cacheSet(admin, cacheKey, userId, "cover_letter", result, TAILOR_TTL);
+  logAiCall(admin, {
+    user_id: userId, purpose: "cover_letter", model: QUALITY_MODEL, duration_ms: Date.now() - started,
+    cache_hit: false, source_map: identity?.sourceMap() || null,
+    gap_matched: gap.matched.length, gap_missing: gap.missing.length,
+    meta: { jd_chars: jd.length, section_chars: bundle.chars, length: lengthKey, passes, company_ctx: !!companyCtx.text, figures_ok: missingFigures.length === 0 },
+  });
+
+  return json(result);
+}
+

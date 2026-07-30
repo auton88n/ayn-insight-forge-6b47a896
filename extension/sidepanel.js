@@ -4,7 +4,7 @@ const S = {
   user: null,
   tab: 'jobs',
   resume: '', job: '', jobTitle: '', company: '', jobUrl: '',
-  keywords: [], tailoredText: '', changes: [],
+  keywords: [], tailoredText: '', changes: [], gap: null,
 };
 
 const $ = id => document.getElementById(id);
@@ -1034,6 +1034,7 @@ $('analyze-btn').addEventListener('click', async () => {
     const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
+    S.gap = d.gapAnalysis || null;
     S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
     S.scoreReasoning = d.scoreReasoning || '';
     renderKw(S.keywords); show('v-t2');
@@ -1074,7 +1075,7 @@ $('tailor-btn').addEventListener('click', async () => {
   try {
     const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
-    S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
+    S.tailoredText = d.tailoredText||''; S.changes = d.changes||[]; S.gap = d.gapAnalysis || null;
     renderResult(S.tailoredText, S.changes); show('v-t3');
   } catch(e) { $('err-t2').textContent = e.message; $('err-t2').classList.remove('hidden'); }
   finally { btn.disabled = false; btn.innerHTML = 'Tailor My Resume ✦'; }
@@ -1086,6 +1087,31 @@ function renderResult(text, changes) {
   (changes.length?changes:['Keywords woven in where your experience supported it.']).forEach(c => {
     list.innerHTML += `<li><div class="cdot"></div><span>${esc(c)}</span></li>`;
   });
+  renderGap(S.gap);
+}
+
+// v3.1.0 — the gap analysis is computed in code, not guessed by the model,
+// so it is safe to show the user exactly what is genuinely missing.
+function renderGap(gap) {
+  const wrap = $('gap-report'), body = $('gap-body');
+  if (!wrap || !body) return;
+  if (!gap) { wrap.classList.add('hidden'); return; }
+  const chips = (arr, cls) => (arr || []).slice(0, 8)
+    .map(t => `<span class="kc ${cls}">${esc(typeof t === 'string' ? t : (t.text || ''))}</span>`).join('');
+  const parts = [];
+  if ((gap.surfaced || []).length) {
+    parts.push(`<div class="mt6"><b>Surfaced for this job</b><div class="kw-chips">${chips(gap.surfaced, 'matched')}</div></div>`);
+  }
+  if ((gap.alreadyStrong || []).length) {
+    parts.push(`<div class="mt6"><b>Already strong</b><div class="kw-chips">${chips(gap.alreadyStrong, 'matched')}</div></div>`);
+  }
+  if ((gap.stillMissing || []).length) {
+    parts.push(`<div class="mt6"><b>Genuinely missing from your background</b><div class="kw-chips">${chips(gap.stillMissing, 'missing')}</div>
+      <div style="opacity:.7;margin-top:6px">AYN left these out on purpose. Nothing in your resume supports them yet.</div></div>`);
+  }
+  if (!parts.length) { wrap.classList.add('hidden'); return; }
+  body.innerHTML = parts.join('');
+  wrap.classList.remove('hidden');
 }
 
 $('back-t1').addEventListener('click', () => show('v-t1'));
@@ -1126,7 +1152,7 @@ $('tailor-download-pdf-btn')?.addEventListener('click', async (e) => {
   finally { btn.disabled = false; btn.innerHTML = orig; }
 });
 $('new-job-btn').addEventListener('click', () => {
-  S.keywords=[]; S.tailoredText=''; S.changes=[]; S.jobTitle=''; S.company='';
+  S.keywords=[]; S.tailoredText=''; S.changes=[]; S.gap=null; S.jobTitle=''; S.company='';
   $('job-input').value=''; $('job-chars').textContent='0';
   $('t-job-banner').style.display = 'none';
   show('v-t1'); detectForTailor();

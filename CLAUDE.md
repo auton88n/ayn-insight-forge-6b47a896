@@ -4,7 +4,9 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: commit "v3.0.0 autofill removal — the extension is now read only. Deleted the entire write path (form scanning, value injection, fill ladder, human typing, provenance gate, post-inject verify and recovery, the question engine and both bundles, fill-session.js, filler.js, dom.js, constants.js, page-world.js and its MAIN-world entry, the in-page floating button, learned answer memory) and the fill-only backend surface (ext_autofill, ext_vision_fill, ext_log_result, ext_profile, ext_get_resume_blob, ats_config_get, answers_list/update/delete, plus the ayn-ai-proxy, ext-fill-form-retry, ext-vision-discover and ext-memory edge functions). Permissions dropped to activeTab, storage, sidePanel, webNavigation with https only. AYN is a job search copilot: JD detection, match score, tailored resume and cover letter, Ask AYN.", manifest v3.0.0, AYN_BUILD 3.0.0, July 29 2026.
+Last verified: commit "v3.1.0 tailor and cover become the product. Identity is now wired into ext_job_score, smart_tailor and ext_cover_letter_text via _shared/identity.ts. Character truncation is gone: _shared/tailoring.ts builds structured sections (24000 char budget, whole sections dropped deliberately and named, never cut mid resume) and computes a DETERMINISTIC gap analysis in code, which is returned to the client so the sidepanel can show what was surfaced, what was already strong, and what is genuinely missing. Two pass draft-then-critique on tailoring always and cover letters on the detailed tier. Number preservation is verified programmatically with one retry then a flag. Cover letters get real employer About-page context (robots respecting, 7 day cache, fails open). ext_job_score parallelizes parseJobMeta with the scoring call. New tables ai_result_cache and ai_call_telemetry (one row per AI call: purpose, model, duration, identity sourceMap, cache hit, gap counts). Resume writes in ProfileTab and BuilderTab now ping talent_pool_reindex_self.", manifest v3.1.0, AYN_BUILD 3.1.0, July 30 2026.
+
+Preceded by "v3.0.1 tracker removal" and "v3.0.0 autofill removal — the extension is read only. Deleted the entire write path and the fill-only backend surface. Permissions are activeTab, storage, sidePanel, webNavigation with https only."
 
 ## What AYN is
 
@@ -25,7 +27,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 
 1. GENERATED, never hand-edit: public/ayn-extension.zip and public/ayn-extension-version.json. Run node extension/build.mjs.
 2. Version bump protocol: manifest.json version + content.js AYN_BUILD fallback, then build.mjs (which rewrites the version file).
-3. Never write to the deprecated applications table (job_applications is the tracker).
+3. Never write to the applications or job_applications tables. Both trackers are deprecated and the Tracker UI was deleted in v3.0.1.
 4. The extension is read only. Never add code that writes to, clicks, or types into a page.
 5. User-facing writing style: no em dashes, no en dashes, ranges use "to". This rule is also baked into the AI system prompts in cc-generate and resume-match.
 6. servers: server.js is the express static host for dist/ (SPA fallback, caching for /assets and /frames). backend/server.py is a FastAPI health stub only, not a real backend. The real backend is Supabase edge functions.
@@ -41,7 +43,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
                     ▼
  job page ───► extension sidepanel + background.js ───► resume-hub edge fn ───► Supabase tables
  (content.js         JD resolver ladder                 (14 ext actions,          (jobs, resumes,
-  read only)         score / tailor / cover / ask        3 auth lanes)             job_applications)
+  read only)         score / tailor / cover / ask        2 auth lanes)             ai_result_cache)
                     ▲
                     └── saved jobs, scores and applications ──► Hub tabs read the same tables
 ```
@@ -50,7 +52,7 @@ Four loops carry everything:
 
 1. READ LOOP: content.js extracts the JD from the live page (site selector map, JSON-LD and meta fallback); the background JD resolver ladder (manual paste, current page, opener tab, registry, listing fetch, backend lookup) upgrades it until jdQuality >= 45. Everything downstream is grounded on that text.
 2. SYNC LOOP: profile edited in the Hub -> AYN_PROFILE_UPDATED clears the extension's cached identity -> next read refetches. 24h TTL is the fallback for closed browsers.
-3. TRACKING LOOP: the user saves or marks a job -> job_applications upsert -> Tracker board in both the sidepanel and the Hub, enriched with the score from LAST_MATCH.
+3. GAP LOOP (v3.1.0): _shared/tailoring.ts computes matched / missing / nice-to-have deterministically from the JD against structured sections, the model only surfaces and phrases, and the same analysis is returned to the sidepanel so the user sees what is genuinely missing from their background.
 4. HANDOFF LOOP: Hub tailors a resume for a job -> deep link carries resumeId -> sidepanel preselects that resume_versions row for scoring, tailoring, and cover letters.
 5. MATCH LOOP (v2.9.0-B): seeker opts in -> indexCandidate builds anonymized profile_text + 768d embedding + extracted/inferred skills -> employer opens hiring mode in the dashboard chat -> employer_intake_chat distills a JobSpec -> employer_match runs extracted-only prefilter (must-haves), pgvector recall (top 12), then a single grounded rerank on opaque refs (inferred capped at 10 pts) -> top 3 anonymized cards -> employer requests intro -> candidate approves in ProfileTab intro requests -> contact revealed only then. The ref_map that binds refs to real users never leaves the edge function.
 
