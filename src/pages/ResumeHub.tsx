@@ -17,7 +17,7 @@ type TabKey = "overview" | "profile" | "builder" | "jobs" | "extension";
 
 const NAV: { key: TabKey; label: string; icon: typeof LayoutGrid; hint: string }[] = [
   { key: "overview",  label: "Overview",  icon: LayoutGrid,  hint: "Snapshot" },
-  { key: "profile",   label: "Profile",   icon: User,        hint: "Canonical" },
+  { key: "profile",   label: "Profile",   icon: User,        hint: "One profile" },
   { key: "builder",   label: "Resumes",   icon: FileText,    hint: "Tailor & ATS" },
   { key: "jobs",      label: "Saved jobs",icon: Briefcase,   hint: "Match queue" },
   { key: "extension", label: "Extension", icon: Puzzle,      hint: "Install AYN" },

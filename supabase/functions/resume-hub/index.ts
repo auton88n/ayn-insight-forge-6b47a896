@@ -1810,18 +1810,53 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // and runs via the service role, gated on opted_in.
     // ─────────────────────────────────────────────────────────────
     if (action === "talent_pool_get") {
-      const [{ data: consent }, { data: idx }, { count: skillsCount }] = await Promise.all([
+      // v3.2.0 — the Hub now renders the anonymized employer preview, skills
+      // split by provenance, and a freshness line, so this returns everything
+      // needed for that in one round trip.
+      const [{ data: consent }, { data: idx }, { data: skillRows }, { data: resumeRow }, { data: canonRow }] = await Promise.all([
         adminForNew.from("talent_pool_consent").select("opted_in, consented_at").eq("user_id", userId).maybeSingle(),
-        adminForNew.from("candidate_index").select("indexed_at").eq("user_id", userId).maybeSingle(),
-        adminForNew.from("candidate_skills").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        adminForNew.from("candidate_index")
+          .select("headline, summary, seniority, location, years_experience, indexed_at, embedding_model")
+          .eq("user_id", userId).maybeSingle(),
+        adminForNew.from("candidate_skills").select("id, skill, provenance, source").eq("user_id", userId).order("provenance"),
+        adminForNew.from("resumes").select("updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+        adminForNew.from("user_profile_canonical").select("updated_at").eq("user_id", userId).maybeSingle(),
       ]);
+      const skills = (skillRows ?? []) as Array<{ id: string; skill: string; provenance: string; source: string }>;
       return json({
         opted_in: !!consent?.opted_in,
         consented_at: consent?.consented_at ?? null,
         indexed: !!idx,
-        skills_count: skillsCount ?? 0,
+        skills_count: skills.length,
+        preview: idx
+          ? {
+              headline: idx.headline ?? "",
+              seniority: idx.seniority ?? "",
+              location: idx.location ?? "",
+              years_experience: idx.years_experience ?? null,
+              indexed_at: idx.indexed_at ?? null,
+              embedding_model: idx.embedding_model ?? null,
+            }
+          : null,
+        skills,
+        indexed_at: idx?.indexed_at ?? null,
+        resume_updated_at: resumeRow?.updated_at ?? null,
+        profile_updated_at: canonRow?.updated_at ?? null,
       });
     }
+
+    // v3.2.0 — let a seeker remove an inferred skill they disagree with.
+    // Extracted skills are evidence-backed and are rebuilt on every index,
+    // so only inferred rows are deletable here.
+    if (action === "talent_pool_skill_delete") {
+      const { id } = payload as { id?: string };
+      if (!id) return json({ error: "id required" }, 400);
+      const { error } = await adminForNew.from("candidate_skills")
+        .delete().eq("id", id).eq("user_id", userId).eq("provenance", "inferred");
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
 
     if (action === "talent_pool_set") {
       const { opted_in } = payload as { opted_in?: boolean };
