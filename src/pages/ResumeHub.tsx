@@ -179,8 +179,9 @@ export default function ResumeHub() {
             <div className="rh-aside-section">
               <div className="rh-aside-label">Chrome extension</div>
               <p className="text-[13px] text-[color:var(--rh-muted)] leading-relaxed mb-2">
-                Score, autofill, and tailor on any job board.
+                Score and tailor on any job board. AYN only reads the page.
               </p>
+
               <button className="rh-btn w-full justify-center" onClick={downloadExtension}>
                 <Download className="w-4 h-4" /> Download v1.9.61
               </button>
