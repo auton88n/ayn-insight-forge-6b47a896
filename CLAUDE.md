@@ -4,7 +4,7 @@ Read THIS file first, then open ONLY the domain file you need from docs/map/. Do
 
 MAINTENANCE RULE: any commit that changes a seam, message type, backend action, table, or version MUST update the matching map file in the same commit.
 
-Last verified: v3.3.0 Resume Hub reorganized. Six tabs: Home, Profile, Resumes, Jobs, Get discovered, Browser extension. OverviewTab deleted (counts dashboard) and replaced by HomeTab next actions driven by src/lib/hubSnapshot.ts. TalentPoolCard and intro requests moved from ProfileTab into the new DiscoveryTab, and the intro badge moved with them. Gap logic extracted to src/lib/profileGaps.ts. Internal jargon (index, canonical, autofill, tracking) removed from user-facing strings. July 2026.
+Last verified: v3.4.0 one profile, one resume. Five tabs: Home, Profile, Jobs, Get discovered, Browser extension. BuilderTab.tsx deleted; a user keeps exactly ONE active resume (resumes.is_primary = true) and it lives in the new first Profile group "Your resume" (name, added date, Download, Replace). Legacy multi-resume accounts get a read-only "older resumes" line with download and delete. Tailored resumes and cover letters are outputs attached to their job and are downloaded from JobsTab as PDF or Word via the new src/lib/resumeDocs.ts; regenerating replaces the stored copy. resume_version_id stays in the backend unchanged. July 2026.
 
 Preceded by "v3.0.1 tracker removal" and "v3.0.0 autofill removal — the extension is read only. Deleted the entire write path and the fill-only backend surface. Permissions are activeTab, storage, sidePanel, webNavigation with https only."
 
