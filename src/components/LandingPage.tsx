@@ -25,21 +25,22 @@ const LandingPage = memo(() => {
   }, []);
 
   const faqSchema = createFAQSchema([
-    { question: 'What is AYN?', answer: 'AYN reads a job posting, scores how well you match it, fills the application, and writes you a tailored resume and cover letter.' },
+    { question: 'What is AYN?', answer: 'AYN reads a job posting, scores how well you match it, and writes you a tailored resume and cover letter for that role.' },
     { question: 'Which job sites does AYN work on?', answer: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.' },
     { question: 'Is AYN free to try?', answer: 'Yes. AYN is free to start and no credit card is required.' },
-    { question: 'Can AYN answer sensitive questions for me?', answer: 'No. Work authorization, sponsorship, salary, and self identification are always left to you.' },
+    { question: 'Does AYN fill or submit applications for me?', answer: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.' },
   ]);
 
   return (
     <>
       <SEO
-        title="AYN, autofill job applications in one click"
-        description="AYN fills job applications on Greenhouse, Lever, Workday and Ashby, scores your match, and writes a tailored resume. Free to start."
+        title="AYN, know your match score before you apply"
+        description="AYN reads the real job posting, scores your fit, and writes a tailored resume and cover letter for that role. Free to start."
         canonical="/"
-        keywords="autofill job applications, job application autofill, tailored resume, AI cover letter, Greenhouse autofill, Workday autofill"
+        keywords="job match score, resume match to job description, tailored resume, AI cover letter, job search copilot, Chrome extension for job seekers"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
+
       <div dir={direction} style={{ background: '#faf8f3', minHeight: '100vh' }}>
         <Header />
         <LandingSections onStartFree={() => setShowAuthModal(true)} />
