@@ -1,3 +1,5 @@
+import ProfilePreview from "@/components/resume-hub/ProfileTab";
+import "@/styles/resume-hub.css";
 import { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
