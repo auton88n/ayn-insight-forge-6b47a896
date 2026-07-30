@@ -239,16 +239,10 @@ const EXT_ACTIONS = new Set([
   "ext_job_score", "ext_suggest_roles", "ext_find_contacts",
   "ext_save_application", "ext_get_applications", "ext_update_application",
   "ext_download_resume_text", "smart_tailor", "ext_ask",
-  // v1.4.0: smarter AI
-  // v1.5.0 Phase 1: canonical profile read for extension
+  // v1.5.0: canonical profile read for extension
   "ext_profile_canonical_get",
-  // v1.9.19: autofill telemetry
-  // v1.9.30 Phase 3: vision fallback for custom (non-native) option controls
-  // v1.9.55: two-lane resolver — client-side profile vector
-  // v2.7.0: learned answers CRUD
   // v2.8.0: JD resolver — fetch previously-ingested JD by host+path
   "ext_job_lookup",
-  // v2.10.0: server-driven adapter config for the question engine.
 ]);
 
 
