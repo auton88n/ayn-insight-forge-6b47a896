@@ -100,10 +100,9 @@ function labelFor(key: StepKey, spec: JobSpec): string {
     }
     case "employment_type": return EMPLOYMENT.find(e => e.v === spec.employment_type)?.label || "Not set";
     case "min_years": return YEARS.find(y => y.v === (spec.min_years || 0))?.label || `${spec.min_years} plus`;
-    case "work_authorization": {
-      const a = AUTHORIZATION.find(x => x.v === spec.work_authorization)?.label;
-      return a ? (spec.notes && false ? a : a) : "Not set";
-    }
+    case "work_authorization":
+      return AUTHORIZATION.find(x => x.v === spec.work_authorization)?.label || "Not set";
+
   }
 }
 
