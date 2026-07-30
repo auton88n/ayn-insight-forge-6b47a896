@@ -2889,8 +2889,11 @@ ${VOICE_RULES}`;
         required: ["questions"],
       };
 
+      // Generation sits on the employer's waiting path, so it runs on the fast
+      // model. Grading and growth notes stay on QUALITY_MODEL.
       const r = await callAI({
-        model: QUALITY_MODEL,
+        model: DEFAULT_MODEL,
+
         system: sys,
         user: `ROLE BEING HIRED FOR: ${JSON.stringify({ title: jobTitle, seniority: spec.seniority, must_have_skills: spec.must_have_skills })}
 
