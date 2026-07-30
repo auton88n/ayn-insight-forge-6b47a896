@@ -51,11 +51,35 @@ The Hub used to show a Profile and a Canonical Profile. Canonical is an internal
 
 READ PATH: the UI mirrors _shared/identity.ts precedence, profile > canonical > resume > account. ProfileTab loads user_profile_canonical, user_profile_data, the primary resume, and auth.getUser in one Promise.all. Personal fields resolve through a `fallback` memo built from resume basics and the account email; a field shows the user-entered value when present, otherwise the fallback, with a muted source label: "You entered this", "From your resume", "From your account". Editing any field always writes the user-entered layer (user_profile_data) so it wins afterwards.
 
-FOUR GROUPS, each labelled with what it powers:
-1. About you (name, contact, location, current title and company, links) - Used in your tailored resumes and cover letters.
-2. What you're looking for (desired titles, desired locations, minimum salary and currency, remote and relocation) - Helps employers searching the talent pool find you for the right roles.
-3. Work eligibility (countries you can work in, citizenship, sponsorship now, sponsorship later) - Employers filter on this. Getting it right means fewer wrong matches.
-4. Your experience (skills, work history, education, derived years and seniority) - This is what AYN scores against a job and tailors from.
+FIVE GROUPS (v3.5.0 order), each a collapsible card with a heading and a purpose line, open state remembered per session in sessionStorage, two columns on desktop for paired short fields and one column on mobile, autosave on blur with a small saved indicator and no Save button:
+1. Your resume - Everything AYN writes starts from this. (the one active resume, upload or replace, download)
+2. About you (first and last name, email, phone, location, current title, current company, LinkedIn, GitHub, portfolio) - Used in your tailored resumes and cover letters.
+3. Your experience (skills with level and recency, work history with industry, team size and achievements, education with field of study, derived years and seniority, what you are known for) - This is what AYN scores against a job and tailors from.
+4. What you are looking for (desired titles, desired locations, minimum salary and currency, remote, relocation, employment type, availability, company stage) - Employers searching for candidates match on this first.
+5. Work eligibility (countries, citizenship, sponsorship now, sponsorship later, work permit expiry) - Employers filter on this before anything else.
+
+NEW FIELDS IN v3.5.0 AND WHY EACH EXISTS FOR MATCHING:
+| Field | Where | Why it is matched on |
+|---|---|---|
+| skill.level (familiar, proficient, advanced, expert) | Your experience | "React" alone is unrankable. Level separates a user from an owner. |
+| skill.years | Your experience | Employers filter on depth, e.g. 5+ years Python. |
+| skill.last_used (this year, within 2 years, over 2 years ago) | Your experience | Recency decides whether a skill is live or historic. |
+| experience.industry | Your experience | Domain is a hard filter for fintech, healthcare, government roles. |
+| experience.team_size | Your experience | The only clean signal for management scope. |
+| experience.bullets (2 to 5 achievements, labelled when they came from the resume) | Your experience | The tailoring engine rewrites these. Empty bullets means tailoring has nothing to work with. |
+| education.field | Your experience | A real filter for regulated and technical roles. |
+| derived.known_for (up to 3 lines) | Your experience | Feeds cover letters and the employer-facing summary. |
+| preferences.employment_types (full time, contract, part time, internship) | What you are looking for | Cheap to answer, excludes wrong matches outright. |
+| preferences.availability (immediately, 2 weeks, 1 month, 3 months, just looking) | What you are looking for | Employers with a start date filter on it first. |
+| preferences.company_stages (early startup, growth, large, no preference) | What you are looking for | Stage fit is a common recruiter screen. |
+| work_auth.work_permit_expires | Work eligibility | Shown only when a non-citizen country is selected. Prevents matches that expire mid-hire. |
+
+SKILL MIGRATION: existing bare strings load as { name, level: null, years: null, last_used: null }. Nothing is lost and nothing is guessed. The user is prompted once, on their top skills only, to add levels; the group header shows "n of m have a level".
+
+PROVENANCE DISPLAY RULES (v3.5.0, replacing the eight repetitions of "You entered this"): a field derived from the resume with no user edit shows "From your resume". A field the user changed away from a resume value shows "Edited by you" with a revert control. A field the user simply typed, with no resume value to compare against, shows nothing. The read precedence itself is unchanged.
+
+MATCHING READINESS LINE: at the top of the tab, one sentence naming the one or two highest-impact missing things, from src/lib/profileGaps.ts -> computeReadiness(), which extends the same gap logic the findability panel uses to the new fields. Never a percentage. When nothing is missing it says so in one calm line.
+
 
 TALENT POOL CARD (src/components/resume-hub/TalentPoolCard.tsx, new in v3.2.0): when opted in it renders a "What employers see" preview of the anonymized card exactly as employer_match returns it (headline, seniority, years, location, skill chips, no name and no contact). Skills are split by the candidate_skills.provenance column into "Backed by your resume" (extracted) and "AYN inferred these" (inferred); inferred chips have a delete control calling talent_pool_skill_delete. A freshness line reads "Your profile was last indexed <relative time>", and flips to "Your resume changed since AYN last indexed you" with a Refresh button when indexed_at is older than resume or profile updated_at. Completeness nudges are tied to matching, not to a percentage bar: missing work eligibility or desired titles each get one line.
 
