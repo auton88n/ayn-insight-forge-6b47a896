@@ -15,7 +15,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
 | Area | What it is | Map file |
 |---|---|---|
 | Chrome extension | Sideloaded MV3 extension, READ ONLY since v3.0.0: reads the real job description off the page, scores the match, tailors resumes and cover letters, answers questions about the job, scores job cards, tracks applications. It never writes to a page. Code: extension/. | docs/map/extension.md |
-| Resume Hub | Web workspace at /resume-hub: profile, resume builder and tailoring, saved jobs, application tracker, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
+| Resume Hub | Web workspace at /resume-hub: profile (which now holds the one active resume), saved jobs with their tailored documents, get discovered, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/resumeDocs.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
 | AI platform | Signed-in chat dashboard (emotional eye UI, streaming chat via ayn-unified), World Intelligence swarm simulator, agent society, cc-generate report tools, subscriptions and credits, support system, NDA and contract signing, admin panel, landing page, i18n (en/ar/fr). Code: src/components/dashboard, eye, admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
 | Talent Pool | Employer marketplace. Phase A (data layer) and Phase B (hiring mode in dashboard chat + hybrid matcher + reveal flow) shipped. | docs/map/resume-hub.md (talent pool + employer marketplace sections) |
 
