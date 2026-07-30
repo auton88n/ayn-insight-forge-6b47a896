@@ -44,6 +44,7 @@ export default function ResumeHub() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingIntros, setPendingIntros] = useState(0);
+  const [pendingAssessments, setPendingAssessments] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -68,6 +69,13 @@ export default function ResumeHub() {
       employerApi.proposalList()
         .then(r => setPendingIntros((r.requests || []).filter(x => x.status === "pending").length))
         .catch(() => { /* silent */ });
+      // v3.13.0 — badge Assessments with anything not yet submitted.
+      assessmentApi.list()
+        .then(r => setPendingAssessments((r.assessments || [])
+          .filter(a => a.status === "sent" || a.status === "started").length))
+        .catch(() => { /* silent */ });
+
+
 
     });
   }, [navigate, toast]);
