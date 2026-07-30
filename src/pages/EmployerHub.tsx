@@ -75,6 +75,30 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     try { const r = await employerApi.sentProposals(); setSent(r.requests || []); } catch { /* silent */ }
   }, []);
 
+  /**
+   * v3.11.0 — the surface unlocks in place, no reload. Clearing a required
+   * field later re-locks it, and we say which field and what it blocks.
+   */
+  const profileComplete = isOrgComplete(org);
+  const handleOrgSaved = useCallback((next: Org) => {
+    setOrg(prev => {
+      const was = isOrgComplete(prev);
+      const now = isOrgComplete(next);
+      if (!was && now) {
+        toast({ title: "Company profile complete", description: "You can search for candidates now." });
+      } else if (was && !now) {
+        const missing = missingOrgFields(next).map(m => m.label).join(", ");
+        toast({
+          title: `${missing} is now empty`,
+          description: "Candidate search and proposals are paused until you fill it back in.",
+          variant: "destructive",
+        });
+      }
+      return next;
+    });
+  }, [toast]);
+
+
   useEffect(() => {
     employerApi.orgGet()
       .then(r => setOrg(r.org))
