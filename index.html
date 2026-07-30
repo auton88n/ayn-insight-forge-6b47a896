@@ -20,7 +20,7 @@
     <meta name="description" content="AYN fills job applications on Greenhouse, Lever, Workday and Ashby, scores your match, and writes a tailored resume. Free to start.">
     <meta name="author" content="AYN AI Team" />
     <meta name="keywords" content="AYN AI, AYN artificial intelligence, personal AI assistant, AI that learns you, perceptive AI, smart AI platform, AI employees, AI agents, business automation, Arabic AI assistant, عين AI, machine learning assistant, AI productivity tools, custom AI bots">
-    <meta name="theme-color" content="#1a1a1a" />
+    <meta name="theme-color" content="#faf8f3" />
     <meta name="robots" content="index, follow" />
     <meta name="application-name" content="AYN AI" />
 
@@ -129,12 +129,12 @@
   <script>
     (function() {
       try {
-        // Landing page owns its own charcoal canvas
+        // Landing page owns its own warm paper canvas
         var isLanding = window.location.pathname === '/' || window.location.pathname === '';
         if (isLanding) {
           document.documentElement.classList.add('light');
-          document.documentElement.style.colorScheme = 'dark';
-          document.documentElement.style.backgroundColor = '#1a1a1a';
+          document.documentElement.style.colorScheme = 'light';
+          document.documentElement.style.backgroundColor = '#faf8f3';
           return;
         }
         // Dashboard / authenticated routes: apply saved theme or default dark
@@ -180,7 +180,7 @@
       (function() {
         var isLanding = window.location.pathname === '/' || window.location.pathname === '';
         if (isLanding) {
-          document.body.style.backgroundColor = '#ffffff';
+          document.body.style.backgroundColor = '#faf8f3';
         } else {
           var saved = null;
           try { saved = localStorage.getItem('ayn-theme'); } catch(e) {}

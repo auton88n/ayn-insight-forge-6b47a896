@@ -68,13 +68,13 @@ export const Header = () => {
 
   // The landing page runs the dark Charcoal and Ember system, other marketing
   // pages stay on the light surface, so the bar flips its palette by route.
-  const onDark = location.pathname === '/';
-  const inkStrong = onDark ? '#f7f4f2' : '#0a0a0f';
-  const inkSoft = onDark ? 'rgba(247,244,242,0.58)' : 'rgba(10,10,15,0.50)';
-  const pillBg = onDark ? 'rgba(38,38,38,0.75)' : 'rgba(255,255,255,0.95)';
-  const pillBorder = onDark ? 'rgba(255,255,255,0.10)' : 'rgba(10,10,15,0.10)';
-  const pillShadow = onDark ? '0 8px 28px -14px rgba(0,0,0,0.9)' : '0 1px 8px rgba(0,0,0,0.06)';
-  const headFont = onDark ? "'Outfit', system-ui, sans-serif" : "'Space Grotesk', 'Geist', system-ui, sans-serif";
+  const onLanding = location.pathname === '/';
+  const inkStrong = '#0a0a0f';
+  const inkSoft = onLanding ? 'rgba(10,10,15,0.55)' : 'rgba(10,10,15,0.50)';
+  const pillBg = onLanding ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.95)';
+  const pillBorder = onLanding ? 'rgba(10,10,15,0.08)' : 'rgba(10,10,15,0.10)';
+  const pillShadow = onLanding ? '0 2px 14px -6px rgba(10,10,15,0.12)' : '0 1px 8px rgba(0,0,0,0.06)';
+  const headFont = onLanding ? "'Outfit', system-ui, sans-serif" : "'Space Grotesk', 'Geist', system-ui, sans-serif";
 
   return (
     <>
@@ -144,14 +144,14 @@ export const Header = () => {
                   fontFamily: headFont,
                   fontSize: 13, fontWeight: 600,
                   color: '#fff',
-                  background: onDark ? 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)' : '#0a0a0f',
+                  background: onLanding ? 'linear-gradient(135deg, #e85d3a 0%, #f2833f 100%)' : '#0a0a0f',
                   border: 'none',
                   borderRadius: 999,
                   padding: '9px 20px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   letterSpacing: '-0.01em',
-                  boxShadow: onDark ? '0 10px 26px -14px rgba(232,93,58,0.95)' : 'none',
+                  boxShadow: onLanding ? '0 10px 26px -14px rgba(232,93,58,0.95)' : 'none',
                   transition: 'filter 0.15s, background 0.15s, transform 0.1s',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1.08)'; }}

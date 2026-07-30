@@ -1651,20 +1651,20 @@ button, a, input, textarea, select {
    Outfit display / Figtree body. All colours are tokens.
    ============================================================ */
 .lp {
-  --lp-bg: 0 0% 10%;            /* #1a1a1a */
-  --lp-surface: 0 0% 15%;       /* #262626 */
-  --lp-card: 0 0% 18%;          /* #2d2d2d */
-  --lp-border: 0 0% 25%;
-  --lp-border-soft: 0 0% 21%;
-  --lp-fg: 30 20% 96%;
-  --lp-muted: 0 0% 66%;
-  --lp-dim: 0 0% 48%;
-  --lp-ember: 13 79% 57%;       /* #e85d3a */
-  --lp-ember-soft: 13 79% 62%;
-  --lp-paper: 40 20% 97%;
+  --lp-bg: 36 38% 98%;            /* warm paper #faf8f3 */
+  --lp-surface: 36 24% 96%;       /* #f3efe7 */
+  --lp-card: 40 30% 100%;         /* #ffffff */
+  --lp-border: 30 12% 86%;
+  --lp-border-soft: 30 14% 91%;
+  --lp-fg: 20 14% 13%;            /* near-black ink */
+  --lp-muted: 20 5% 40%;
+  --lp-dim: 20 5% 58%;
+  --lp-ember: 13 79% 57%;         /* #e85d3a */
+  --lp-ember-soft: 13 79% 52%;
+  --lp-paper: 40 20% 99%;
   --lp-gradient-ember: linear-gradient(135deg, hsl(var(--lp-ember)) 0%, hsl(24 85% 58%) 100%);
-  --lp-shadow-lift: 0 24px 60px -24px hsl(0 0% 0% / 0.75);
-  --lp-glow: 0 0 90px -10px hsl(var(--lp-ember) / 0.35);
+  --lp-shadow-lift: 0 24px 56px -28px hsl(20 20% 10% / 0.18);
+  --lp-glow: 0 0 90px -12px hsl(var(--lp-ember) / 0.28);
 
   background: hsl(var(--lp-bg));
   color: hsl(var(--lp-fg));
