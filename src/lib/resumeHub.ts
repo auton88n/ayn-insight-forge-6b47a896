@@ -94,7 +94,10 @@ export interface PoolSkill {
 export interface TalentPoolStatus {
   opted_in: boolean;
   consented_at: string | null;
+  /** v3.5.1 — which consent wording the user agreed to. */
+  consent_version?: string | null;
   indexed: boolean;
+
   skills_count: number;
   preview: {
     headline: string;
