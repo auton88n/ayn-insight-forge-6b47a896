@@ -54,6 +54,13 @@ const TILES = [
     art: null,
     meta: ['Saved jobs', 'Match scores', 'Resume versions', 'Cover letters'],
   },
+  {
+    span: 'lp-span-6',
+    icon: Radar,
+    title: 'Be found, not just seen',
+    desc: 'Turn on discovery and employers searching for your skills can reach you. You approve every intro.',
+    art: null,
+  },
 ];
 
 const FAQS = [
