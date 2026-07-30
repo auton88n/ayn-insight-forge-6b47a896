@@ -431,8 +431,38 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             {tab === "assessments" && <AssessmentsPanel reloadKey={assessKey} />}
 
           </main>
+
+          {/* v3.14.0 — the same four destinations, as a bottom bar on phones. */}
+          <nav
+            className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur flex"
+            aria-label="Employer navigation"
+          >
+            {EMPLOYER_NAV.map(item => {
+              const Icon = item.icon;
+              const active = tab === item.key;
+              const badge = item.key === "proposals" ? pendingSent : 0;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                  className={`relative flex-1 py-2.5 grid place-items-center gap-0.5 ${
+                    active ? "text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="w-[18px] h-[18px]" />
+                  <span className="text-[10px] font-medium">{item.label}</span>
+                  {badge > 0 && (
+                    <span className="absolute top-1.5 right-[28%] min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold leading-4 text-center">
+                      {badge > 9 ? "9+" : badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
       )}
+
 
       {/* v3.12.0 — once complete, the company profile lives behind the menu. */}
       <Dialog open={companyOpen} onOpenChange={setCompanyOpen}>
