@@ -589,7 +589,12 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
           <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.7, color: C.inkSub, margin: 0, textWrap: 'balance' as React.CSSProperties['textWrap'] }}>
             AYN tells you what it did and what it could not do. It shows which job description it read and how complete it was, which resume it compared you against, and which fields it filled, skipped, or wants you to review. Sensitive questions about work authorization, sponsorship, salary, and self identification are never guessed. You answer those.
           </p>
+
+          <div style={{ width: '100%', maxWidth: 560, margin: 'clamp(40px,6vw,64px) auto 0' }}>
+            <RunSummaryIllustration />
+          </div>
         </div>
+
       </section>
 
       {/* Section 5 — Final CTA (dark) */}
