@@ -41,6 +41,11 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
   // sit in pending_approval until the AYN team activates them.
   const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>(initialRole || 'job_seeker');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  // Landing CTAs choose the side before the modal opens.
+  useEffect(() => {
+    if (open && initialRole) setSignupRole(initialRole);
+  }, [open, initialRole]);
   
   // New states for reset confirmation view
   const [resetEmailSent, setResetEmailSent] = useState(false);
