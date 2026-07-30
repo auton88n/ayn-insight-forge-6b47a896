@@ -493,69 +493,80 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Why AYN picked them</p>
-                  <ul className="space-y-1.5">
-                    {open.why.map((w, i) => <li key={i} className="text-sm leading-relaxed">{w}</li>)}
-                  </ul>
-                </div>
+              <div className="space-y-6">
+                {open.why.length > 0 && (
+                  <section className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Why AYN picked them</p>
+                    <ul className="space-y-2">
+                      {open.why
+                        .flatMap(w => w.split(/(?<=\.)\s+(?=[A-Z])/).map(s => s.trim()).filter(Boolean))
+                        .map((w, i) => (
+                          <li key={i} className="text-sm leading-relaxed flex gap-2.5">
+                            <span className="mt-[7px] w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden />
+                            <span>{w}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </section>
+                )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Requirements met</p>
+                <section className="rounded-xl border border-border/60 grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border/60">
+                  <div className="p-4 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Requirements met</p>
                     <div className="flex flex-wrap gap-1.5">
                       {open.matched_must_haves.map(m => (
-                        <Badge key={m} variant="secondary" className="font-normal gap-1">
+                        <Badge key={m} variant="secondary" className="font-normal gap-1 py-1">
                           <CheckCircle2 className="w-3 h-3" />{m}
                         </Badge>
                       ))}
-                      {open.matched_must_haves.length === 0 && <span className="text-xs text-muted-foreground">None recorded.</span>}
+                      {open.matched_must_haves.length === 0 && <span className="text-sm text-muted-foreground">None recorded.</span>}
                     </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Gaps</p>
+                  <div className="p-4 space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Missing</p>
                     <div className="flex flex-wrap gap-1.5">
                       {open.gaps.map(g => (
-                        <Badge key={g} variant="outline" className="font-normal gap-1 text-muted-foreground">
+                        <Badge key={g} variant="outline" className="font-normal gap-1 py-1 text-muted-foreground">
                           <AlertCircle className="w-3 h-3" />{g}
                         </Badge>
                       ))}
-                      {open.gaps.length === 0 && <span className="text-xs text-muted-foreground">None found.</span>}
+                      {open.gaps.length === 0 && <span className="text-sm text-muted-foreground">Nothing missing that you named.</span>}
                     </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Backed by their resume</p>
-                    <div className="flex flex-wrap gap-1.5">
+                <section className="space-y-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Skills</p>
+                  <div className="flex flex-wrap items-start gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 pt-1">From their resume</span>
+                    <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
                       {(open.skills_extracted ?? []).map(s => <Badge key={s} variant="outline" className="font-normal">{s}</Badge>)}
-                      {(open.skills_extracted ?? []).length === 0 && <span className="text-xs text-muted-foreground">Nothing evidenced.</span>}
+                      {(open.skills_extracted ?? []).length === 0 && <span className="text-sm text-muted-foreground">Nothing evidenced.</span>}
                     </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">AYN inferred</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(open.skills_inferred ?? []).map(s => <Badge key={s} variant="secondary" className="font-normal">{s}</Badge>)}
-                      {(open.skills_inferred ?? []).length === 0 && <span className="text-xs text-muted-foreground">None inferred.</span>}
+                  <div className="flex flex-wrap items-start gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 pt-1">AYN inferred</span>
+                    <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                      {(open.skills_inferred ?? []).map(s => <Badge key={s} variant="outline" className="font-normal border-dashed">{s}</Badge>)}
+                      {(open.skills_inferred ?? []).length === 0 && <span className="text-sm text-muted-foreground">None inferred.</span>}
                     </div>
                   </div>
-                </div>
+                </section>
 
                 {open.profile ? (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Background</p>
+                  <section className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Background</p>
                     <CandidateProfile profile={open.profile} location={open.location} />
-                  </div>
+                  </section>
                 ) : open.summary ? (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Background</p>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">{open.summary}</p>
-                  </div>
+                  <section className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Background</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{open.summary}</p>
+                  </section>
                 ) : null}
 
               </div>
+
 
               <DialogFooter className="gap-2 sm:gap-3">
                 {/* v3.13.0 — check the claims before you spend a proposal. */}
