@@ -335,7 +335,6 @@ function saveBlob(blob, filename) {
 function markDownloadDone() {
   document.getElementById('dl-step-1')?.classList.add('done');
   document.getElementById('dl-step-2')?.classList.add('now');
-  document.getElementById('fill-dl-success')?.classList.remove('hidden');
 }
 
 // v2.12.1: surface honest overflow hint under a download button.
@@ -1487,14 +1486,8 @@ $('score-toggle')?.addEventListener('click', () => toggleScoring());
 $('copy-subject-btn')?.addEventListener('click', () => window.copySubject());
 $('copy-outreach-btn')?.addEventListener('click', () => window.copyOutreach());
 
-// PART B: react instantly when content.js reports a form on the active tab
+// Sidepanel-wide runtime messages.
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === 'FORM_DETECTED_PUSH' && S.tab === 'fill') {
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-      const t = tabs && tabs[0];
-      if (t && t.id === msg.tabId) applyFormReady(msg);
-    });
-  }
   // v2.11.1 — in-page FAB requested a tab focus.
   if (msg && msg.type === 'FOCUS_SIDEPANEL_TAB' && msg.tab) {
     try { switchTab(msg.tab); } catch {}
@@ -1680,86 +1673,3 @@ chrome.runtime.onMessage.addListener((msg) => {
   });
 })();
 
-// ═══════════════════════════════════════════════════════════════════
-// v2.8.4 — Listing-state extras (JD status + Open the application button)
-// One coherent card. Replaces the old empty-state + JD banner stack.
-// ═══════════════════════════════════════════════════════════════════
-(function aynListingExtrasInit() {
-  const $ = (id) => document.getElementById(id);
-  let __listingTabId = null;
-
-  window.aynRenderListingExtras = function (tabId) {
-    __listingTabId = tabId;
-    const jdEl = $('fill-listing-jd');
-    const btn = $('fill-listing-open');
-    const btnLabel = $('fill-listing-open-label');
-    if (!jdEl || !btn) return;
-    jdEl.textContent = 'Locating the job description…';
-    btn.disabled = false;
-    btnLabel.textContent = 'Open the application';
-
-    chrome.runtime.sendMessage({ type: 'RESOLVE_JD', tabId }, r => {
-      void chrome.runtime.lastError;
-      if (r && r.ok && (r.text || '').length > 0) {
-        jdEl.textContent = `JD ready · ${(r.text || '').length.toLocaleString()} chars`;
-      } else {
-        jdEl.textContent = 'No JD found yet · paste it if you have it';
-      }
-    });
-
-    // Probe the page for an Apply link so we can label the button honestly.
-    chrome.runtime.sendMessage(
-      { type: 'TAB_SEND', tabId, payload: { type: 'CLICK_APPLY_LINK', probe: true } },
-      () => void chrome.runtime.lastError,
-    );
-  };
-
-  $('fill-listing-open')?.addEventListener('click', () => {
-    if (__listingTabId == null) return;
-    const btn = $('fill-listing-open');
-    const btnLabel = $('fill-listing-open-label');
-    btn.disabled = true;
-    btnLabel.textContent = 'Opening…';
-    chrome.runtime.sendMessage(
-      { type: 'TAB_SEND', tabId: __listingTabId, payload: { type: 'CLICK_APPLY_LINK' } },
-      r => {
-        void chrome.runtime.lastError;
-        if (r && r.ok) {
-          btnLabel.textContent = 'Opened · switch to the form';
-        } else {
-          btn.disabled = true;
-          btnLabel.textContent = 'Find the Apply button on the page';
-        }
-      },
-    );
-  });
-
-  $('fill-listing-replace-jd')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    const w = $('jd-paste-wrap');
-    if (!w) return;
-    w.classList.remove('hidden');
-    $('jd-paste-input')?.focus();
-  });
-})();
-
-
-// v2.10.0 — show server-driven field-rules version in the header.
-(function aynShowCfgVersion(){
-  try {
-    const el = document.getElementById('ayn-cfg-version');
-    if (!el) return;
-    const render = (v) => { el.textContent = v ? ('Field rules v' + v) : ''; };
-    chrome.storage.local.get('ayn_ats_config', d => {
-      const p = d && d.ayn_ats_config;
-      render(p && p.version ? p.version : 0);
-    });
-    try {
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'local' || !changes.ayn_ats_config) return;
-        const nv = changes.ayn_ats_config.newValue;
-        render(nv && nv.version ? nv.version : 0);
-      });
-    } catch (_) {}
-  } catch (_) {}
-})();
