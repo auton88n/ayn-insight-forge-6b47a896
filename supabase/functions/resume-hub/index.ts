@@ -2115,6 +2115,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const { org_id, description } = payload as { org_id?: string; description?: string };
       if (!org_id || typeof description !== "string") return json({ error: "org_id and description required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const gate = await assertOrgProfileComplete(org_id);
+      if (gate) return gate;
       const text = description.trim().slice(0, 4000);
       if (!text) return json({ job_spec: {}, known: [] });
       const sys = `You extract structured hiring criteria from one description of an open role. Output ONLY JSON, no prose:
@@ -2317,6 +2319,8 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
       const { org_id, job_spec } = payload as { org_id?: string; job_spec?: Record<string, unknown> };
       if (!org_id || !job_spec) return json({ error: "org_id and job_spec required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+      const gate = await assertOrgProfileComplete(org_id);
+      if (gate) return gate;
 
       const mustHaves = Array.isArray(job_spec.must_have_skills) ? (job_spec.must_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
       const niceToHaves = Array.isArray(job_spec.nice_to_have_skills) ? (job_spec.nice_to_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
@@ -2503,6 +2507,8 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
         .select("id, org_id, ref_map").eq("id", search_id).maybeSingle();
       if (!search) return json({ error: "search not found" }, 404);
       if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+      const orgGate = await assertOrgProfileComplete(search.org_id);
+      if (orgGate) return orgGate;
       const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
       if (!candidateUserId) return json({ error: "unknown ref" }, 400);
 
