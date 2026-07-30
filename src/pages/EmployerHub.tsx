@@ -555,23 +555,31 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                   </div>
                 </section>
 
-                <section className="space-y-3">
+                {/* v3.15.1 — the two provenance rows sit in one bordered block
+                    with aligned labels, so the chips stop floating loose. */}
+                <section className="space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Skills</p>
-                  <div className="flex flex-wrap items-start gap-2">
-                    <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 pt-1">From their resume</span>
-                    <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-                      {(open.skills_extracted ?? []).map(s => <Badge key={s} variant="outline" className="font-normal">{s}</Badge>)}
-                      {(open.skills_extracted ?? []).length === 0 && <span className="text-sm text-muted-foreground">Nothing evidenced.</span>}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-start gap-2">
-                    <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 pt-1">AYN inferred</span>
-                    <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-                      {(open.skills_inferred ?? []).map(s => <Badge key={s} variant="outline" className="font-normal border-dashed">{s}</Badge>)}
-                      {(open.skills_inferred ?? []).length === 0 && <span className="text-sm text-muted-foreground">None inferred.</span>}
-                    </div>
+                  <div className="rounded-xl border border-border/60 divide-y divide-border/60">
+                    {([
+                      { label: "From their resume", note: "Evidenced", list: open.skills_extracted ?? [], dashed: false, empty: "Nothing evidenced." },
+                      { label: "AYN inferred", note: "Not evidenced", list: open.skills_inferred ?? [], dashed: true, empty: "None inferred." },
+                    ]).map(row => (
+                      <div key={row.label} className="p-4 grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-2 sm:gap-4">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium">{row.label}</p>
+                          <p className="text-[11px] text-muted-foreground">{row.note}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 min-w-0">
+                          {row.list.map(s => (
+                            <Badge key={s} variant="outline" className={`font-normal ${row.dashed ? "border-dashed" : ""}`}>{s}</Badge>
+                          ))}
+                          {row.list.length === 0 && <span className="text-xs text-muted-foreground">{row.empty}</span>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </section>
+
 
                 {open.profile ? (
                   <section className="space-y-2">
