@@ -2766,15 +2766,18 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
           responded_at: r.responded_at || r.decided_at,
           decided_at: r.decided_at,
         };
-        // Contact details are released ONLY on an accepted proposal.
+        // First name only, so a list of proposals for one role is readable.
+        // Last name, email and phone are released ONLY on an accepted proposal.
+        const { data: prof } = await adminForNew.from("user_profile_data")
+          .select("legal_first_name, legal_last_name, email, phone").eq("user_id", r.candidate_user_id).maybeSingle();
+        base.first_name = String(prof?.legal_first_name || "").trim().split(/\s+/)[0] || null;
         if (r.status === "approved") {
-          const { data: prof } = await adminForNew.from("user_profile_data")
-            .select("legal_first_name, legal_last_name, email, phone").eq("user_id", r.candidate_user_id).maybeSingle();
           const { data: authUser } = await adminForNew.auth.admin.getUserById(r.candidate_user_id);
           base.name = [prof?.legal_first_name, prof?.legal_last_name].filter(Boolean).join(" ") || null;
           base.email = prof?.email || authUser?.user?.email || null;
           base.phone = prof?.phone || null;
         }
+
         enriched.push(base);
       }
       return json({ requests: enriched });
