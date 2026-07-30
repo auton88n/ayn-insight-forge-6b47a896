@@ -2342,7 +2342,7 @@ THIS CANDIDATE: ${JSON.stringify(safeCard(mine))}
 ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.filter(c => c.ref !== ref).map(safeCard))}` : ""}`;
 
       const r = await callAI({ system: sys, user: ASK[card] });
-      return json({ answer: cleanEmployerText(r.text) });
+      return json({ answer: cleanEmployerText(r.text, String(mine.first_name || "")) });
     }
 
     // v3.9.0 — the proposal message arrives pre-written from the JobSpec and
@@ -2408,7 +2408,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
 
       const r = await callAI({ system: sys, user: "Write the message now. Output only the message text." });
-      const message = cleanEmployerText(r.text).slice(0, 1000);
+      const message = cleanEmployerText(r.text, String(mine.first_name || "")).slice(0, 1000);
       return json({ subject_hint: `${String(spec.title || "A role")} at ${company}`, message });
     }
 
