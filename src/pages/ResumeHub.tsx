@@ -15,15 +15,14 @@ import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 
 
-type TabKey = "home" | "profile" | "resumes" | "jobs" | "discovery" | "extension";
+type TabKey = "home" | "profile" | "jobs" | "discovery" | "extension";
 
-// v3.3.0 — ordered the way a user actually moves, not the way the old autofill
-// product was organised.
+// v3.4.0 — the Resumes tab is gone. A user keeps one resume and it lives in
+// Profile, because Profile is the single place they edit who they are.
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
   { key: "home",      label: "Home",              icon: Home,      hint: "Start here" },
-  { key: "profile",   label: "Profile",           icon: User,      hint: "You and your goals" },
-  { key: "resumes",   label: "Resumes",           icon: FileText,  hint: "Build and tailor" },
-  { key: "jobs",      label: "Jobs",              icon: Briefcase, hint: "Score and compare" },
+  { key: "profile",   label: "Profile",           icon: User,      hint: "You, your resume, your goals" },
+  { key: "jobs",      label: "Jobs",              icon: Briefcase, hint: "Score and tailor" },
   { key: "discovery", label: "Get discovered",    icon: Users,     hint: "Let employers find you" },
   { key: "extension", label: "Browser extension", icon: Puzzle,    hint: "Score jobs as you browse" },
 ];
@@ -163,17 +162,15 @@ export default function ResumeHub() {
             {tab === "home"      && (
               <HomeTab
                 userId={userId!}
-                onOpenResumes={() => setTab("resumes")}
                 onOpenProfile={() => setTab("profile")}
                 onOpenJobs={() => setTab("jobs")}
                 onOpenDiscovery={() => setTab("discovery")}
               />
             )}
             {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
-            {tab === "resumes"   && <BuilderTab userId={userId!} />}
             {tab === "discovery" && <DiscoveryTab userId={userId!} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
-            
+
             {tab === "extension" && <ExtensionTab userId={userId!} />}
           </section>
 
