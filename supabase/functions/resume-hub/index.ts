@@ -1465,75 +1465,13 @@ RULES:
         return json({answer:r.text,sessionId:sessionId||crypto.randomUUID()});
       }
 
-      // smart_tailor (extension path) — same as JWT smart_tailor below
+      // smart_tailor — v3.1.0: identity-grounded, section-based (no character
+      // truncation), deterministic gap analysis, two-pass quality, verified
+      // figure preservation, cached, logged. See handleSmartTailor below.
       if (action === "smart_tailor") {
-        const { resumeText, jdText, jobTitle, company, url } = payload as { resumeText?: string; jdText?: string; jobTitle?: string; company?: string; url?: string };
-        const matchedSkills = Array.isArray((payload as { matched_skills?: unknown }).matched_skills)
-          ? ((payload as { matched_skills?: string[] }).matched_skills as string[]).map(String).slice(0, 20) : undefined;
-        const missingSkills = Array.isArray((payload as { missing_skills?: unknown }).missing_skills)
-          ? ((payload as { missing_skills?: string[] }).missing_skills as string[]).map(String).slice(0, 20) : undefined;
-        const jd = await resolveJobJd(admin, url, jdText);
-        if (!resumeText || !jd) return json({ error: "resumeText and jd required" }, 400);
-        const gapBlock = (matchedSkills || missingSkills)
-          ? `\n\nGAP HINTS (from scorer):\nmatchedSkills: ${JSON.stringify(matchedSkills || [])}\nmissingSkills: ${JSON.stringify(missingSkills || [])}\nFor each missingSkill, look for genuinely related experience already present in the resume and surface it using the JD's terminology, but ONLY when the underlying work is really there. If there is no real basis, leave it out. Never add a skill to the skills section that is not supported by the resume.`
-          : "";
-
-        // v2.13.0 — pass the applicant's real header (name, email, phone,
-        // location, links) as ground truth. Previously the tailored resume
-        // silently used whatever `basics.name` was in resumeText, which
-        // could be blank on freshly parsed resumes and produced headerless
-        // tailored output.
-        const identity = await loadIdentity(admin, userId).catch(() => null);
-        const applicantBlock = identity ? identityContactBlock(identity) : "";
-        const applicantSection = applicantBlock
-          ? `\n\nAPPLICANT HEADER (use these exact lines at the top of the tailored resume — never invent alternatives, never omit):\n${applicantBlock}`
-          : "";
-
-        const r = await callAI({
-          model: QUALITY_MODEL,
-          system: `You are an ATS resume editor. Tailor the candidate's resume to this job WITHOUT inventing experience.
-
-Return ONLY this JSON (no code fences):
-{
-  "keywords": [{"text":"<keyword>","inResume": true|false, "importance":"high|medium|low"}],
-  "tailoredText": "<full plain-text ATS resume>",
-  "changes": ["<change 1>", "<change 2>", "..."],
-  "atsScore": <integer 0-100>,
-  "scoreReasoning": "<one sentence on the score>"
-}
-
-KEYWORDS (10-14): extract the most important hard skills, tools, certs, methodologies from the JD. Mark inResume=true only if the EXACT term (or a very close variant) appears in the resume text. Mark importance: high if mentioned 2+ times or in "must have" / "required"; medium otherwise; low for nice-to-haves.
-
-TAILORED RESUME:
-- Start with the APPLICANT HEADER lines verbatim if provided (name on line 1, contact on line 2, location on line 3, links on line 4). Never invent a name, email, or phone number. If no APPLICANT HEADER is provided, use the header from the original resume unchanged.
-- Keep ALL company names, titles, dates EXACTLY as in original. Never change facts.
-- Never alter numbers. Every metric, percentage, dollar figure, headcount, timeframe, date, and job title must appear in the output exactly as it appears in the input. If a bullet says 40 percent, the rewritten bullet still says 40 percent. Do not round, scale, add, or remove figures.
-- Rewrite bullets to weave in missing JD keywords WHERE the existing experience genuinely supports it. If a keyword is not supported by real work history, do NOT add it.
-- Re-order skills to surface JD-matching ones first.
-- Strengthen verbs (Led, Shipped, Reduced, Owned). Quantify when numbers exist in original. Never fabricate numbers.
-- Output as clean ATS plain text: section headers in CAPS, dashes for bullets, one column, no tables, no emojis.
-
-CHANGES (3-6): plain-language list of edits ("Added 'Kubernetes' to DevOps bullet under Acme, already implied by 'container orchestration'.").
-
-ATS SCORE: weight by keyword coverage (60%), title alignment (20%), seniority match (20%). Honest.
-
-VOICE: write bullets and changes the way a thoughtful person writes. Vary sentence length, plain natural language, no AI clichés ("leverage", "passionate", "in today's fast-paced"), no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
-          user: `TARGET ROLE: ${jobTitle||""} at ${company||""}${applicantSection}\n\nORIGINAL RESUME:\n${resumeText.slice(0,8000)}\n\nJOB DESCRIPTION:\n${jd.slice(0,6000)}${gapBlock}`,
-        });
-        let parsed: { keywords?: unknown; tailoredText?: unknown; changes?: unknown } = {};
-        try {
-          const raw = r.text.replace(/```(?:json)?\s*/gi,"").replace(/```/g,"").trim();
-          const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
-          parsed = JSON.parse(s !== -1 ? raw.slice(s, e+1) : raw);
-        } catch { return json({ error: "Failed to parse AI response" }, 500); }
-        return json({
-          keywords: Array.isArray(parsed.keywords) ? (parsed.keywords as Array<Record<string, unknown>>).slice(0,14).map(k => ({ text: String(k.text||""), inResume: Boolean(k.inResume), importance: String(k.importance||"medium") })) : [],
-          tailoredText: String(parsed.tailoredText || ""),
-          changes: Array.isArray(parsed.changes) ? (parsed.changes as string[]).slice(0,6) : [],
-          atsScore: Math.max(0, Math.min(100, Math.round(Number((parsed as Record<string, unknown>).atsScore) || 0))),
-          scoreReasoning: String((parsed as Record<string, unknown>).scoreReasoning || ""),
-        });
+        return await handleSmartTailor(admin, userId, payload as Record<string, unknown>);
       }
+
 
       if (action === "ext_profile_canonical_get") {
         const canonical = await loadCanonical(admin, userId);
