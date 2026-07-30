@@ -205,10 +205,11 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-reveal" style={{ marginBottom: 40 }}>
             <p className="lp-eyebrow">What it does</p>
-            <h2 className="lp-display lp-h2">Apply to fewer jobs, and to better ones</h2>
+            <h2 className="lp-display lp-h2">Tailored to the role, every time</h2>
             <p className="lp-lead">
-              Apply faster, and be the candidate employers surface when they search.
+              Send something built for the role, not the same file you sent last week.
             </p>
+
 
           </div>
 
