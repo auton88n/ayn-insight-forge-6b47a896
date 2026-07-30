@@ -12,11 +12,16 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users, RefreshCw, X, ShieldCheck, Check, AlertCircle } from "lucide-react";
 import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
 import { AYN_POOL_REINDEXED, setPoolOptInCache } from "@/lib/talentPoolSync";
 import type { GroupGap } from "@/lib/profileGaps";
+
 
 function relativeTime(iso: string | null): string {
   if (!iso) return "never";
