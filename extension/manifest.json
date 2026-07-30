@@ -1,25 +1,19 @@
 {
   "manifest_version": 3,
   "name": "AYN Resume Tailor",
-  "version": "2.13.0",
-  "description": "On any job posting in the US or Canada, instantly see your match score, autofill the application, find the recruiter, and tailor your resume. Powered by AYN AI.",
+  "version": "3.0.0",
+  "description": "On any job posting in the US or Canada, instantly see your match score, read the real job description, tailor your resume, write a cover letter, and ask AYN about the job.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2+nbca2st6hqvaGZ/ozoQMYrNQ2sBmLFaEHidi59M+Mb4YX3ffEH35vgrcx4NEcjKHC4faturMksyHZuIY68/A5ItGwmcjXY5zus912adaR3Tp3z1aQzNg4n9FjulollWthQnjboBYfBw9WI50499mMncIgvxJpR4xePV1/61EC/b5blIkXPPAtFR+S7lb6SAqp5MHZ9pwPuEkjgchByD++ryybaijRLigkvwClsFxZKtbUlX9UacdqqH8URNkkB7hD9axOTF0uPUKOqGn/kM/cY9R5HHEQvYUJSP0i627FOPUrPWNfoMhlupBenCklP0CsZgKR/PhlMP/IxJVj3jQIDAQAB",
   "permissions": [
     "activeTab",
     "storage",
     "sidePanel",
-    "scripting",
     "webNavigation",
     "alarms"
   ],
-
-
   "host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "https://*/*"
   ],
-  "optional_host_permissions": ["<all_urls>"],
-
   "externally_connectable": {
     "matches": [
       "https://aynn.io/*",
@@ -28,9 +22,6 @@
       "http://localhost/*"
     ]
   },
-
-
-
   "background": {
     "service_worker": "background.js"
   },
@@ -54,7 +45,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://*/*"],
+      "matches": [
+        "https://*/*"
+      ],
       "exclude_matches": [
         "*://*.cloudflare.com/*",
         "*://*.doubleclick.net/*",
@@ -68,50 +61,44 @@
         "https://*.hcaptcha.com/*",
         "https://challenges.cloudflare.com/*"
       ],
-      "js": ["constants.js", "fill-session.js", "question-engine.bundle.js", "content.bundle.js", "filler.js", "dom.js", "content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle",
-      "all_frames": true
-    },
-    {
-      "matches": ["https://*/*", "http://*/*"],
-      "exclude_matches": [
-        "*://*.cloudflare.com/*",
-        "*://*.doubleclick.net/*",
-        "*://*.googletagmanager.com/*",
-        "*://*.google-analytics.com/*",
-        "*://*.demdex.net/*",
-        "*://*.protechts.net/*",
-        "https://www.google.com/recaptcha/*",
-        "https://recaptcha.google.com/*",
-        "https://www.recaptcha.net/*",
-        "https://*.hcaptcha.com/*",
-        "https://challenges.cloudflare.com/*"
-      ],
-      "js": ["page-world.js"],
-      "world": "MAIN",
-      "run_at": "document_start",
       "all_frames": true
     },
     {
       "matches": [
         "https://aynn.io/handoff*",
         "https://*.aynn.io/handoff*",
-        "https://*.lovable.app/handoff*",
-        "http://localhost/handoff*"
+        "https://*.lovable.app/handoff*"
       ],
-      "js": ["deep-link.js"],
+      "js": [
+        "deep-link.js"
+      ],
       "run_at": "document_start",
       "all_frames": false
     },
     {
-      "matches": ["https://*/*", "http://*/*"],
-      "js": ["handoff-hydrate.js"],
+      "matches": [
+        "https://*/*"
+      ],
+      "js": [
+        "handoff-hydrate.js"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
   ],
-
   "web_accessible_resources": [
-    { "resources": ["vendor/*"], "matches": ["https://*/*", "http://*/*"] }
+    {
+      "resources": [
+        "vendor/*"
+      ],
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ]
+    }
   ]
 }
