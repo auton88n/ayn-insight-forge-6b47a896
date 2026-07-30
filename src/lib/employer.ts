@@ -147,7 +147,10 @@ export type CandidateCard = {
   why: string[];
   skills_extracted?: string[];
   skills_inferred?: string[];
+  /** Legacy embedding blob. Kept for older stored searches only. */
   summary?: string;
+  /** v3.12.0 — the structured background the dialog actually renders. */
+  profile?: CandidateProfileBlock;
 };
 
 /** v3.8.0 — skills that actually exist on opted-in candidates, with counts. */
