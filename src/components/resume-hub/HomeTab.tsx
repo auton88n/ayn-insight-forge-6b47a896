@@ -135,7 +135,7 @@ export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDisco
             <p className="text-sm font-medium">You are set up. Open a job posting and AYN will score it.</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            Primary resume: {snap.primaryResumeTitle || "none selected"} · Talent pool:{" "}
+            Your resume: {snap.primaryResumeTitle || "none yet"} · Talent pool:{" "}
             {snap.poolOptedIn ? "employers can find you" : "off"}
           </p>
         </Card>
