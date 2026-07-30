@@ -394,7 +394,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
                 <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,5vw,60px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: 'left' }}>
-                  <span>Your next application<br />should take a minute,<br />not an hour.</span>
+                  <span>Your next application<br />should take a minute.</span>
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => onStartFree?.()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
