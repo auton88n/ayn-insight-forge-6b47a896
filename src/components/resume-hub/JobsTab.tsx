@@ -179,7 +179,7 @@ export default function JobsTab({ userId }: Props) {
                 <Button onClick={calcMatch} disabled={busy || !primaryResume}><Sparkles className="w-4 h-4 mr-2" />Calculate match</Button>
                 <Button onClick={tailorResume} disabled={busy || !primaryResume} variant="outline">Tailor resume</Button>
                 <Button onClick={writeCover} disabled={busy || !primaryResume} variant="outline">Write cover letter</Button>
-                <Button onClick={addToTracker} variant="outline">Add to tracker</Button>
+                
                 {selected.source_url && (
                   <Button
                     variant="outline"
