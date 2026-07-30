@@ -1700,29 +1700,38 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_used: string | null
+          level: string | null
           provenance: string
           skill: string
           skill_norm: string
           source: string | null
           user_id: string
+          years: number | null
         }
         Insert: {
           created_at?: string
           id?: string
+          last_used?: string | null
+          level?: string | null
           provenance: string
           skill: string
           skill_norm: string
           source?: string | null
           user_id: string
+          years?: number | null
         }
         Update: {
           created_at?: string
           id?: string
+          last_used?: string | null
+          level?: string | null
           provenance?: string
           skill?: string
           skill_norm?: string
           source?: string | null
           user_id?: string
+          years?: number | null
         }
         Relationships: []
       }
