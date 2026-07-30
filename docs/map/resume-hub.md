@@ -1,7 +1,23 @@
 # Resume Hub map (web app + resume-hub backend)
 
 ## Surface
-src/pages/ResumeHub.tsx with five tabs in src/components/resume-hub/: OverviewTab (stats), ProfileTab (canonical profile, CanadianProfileForm with default_answers incl. work auth and EEO preferences), BuilderTab (resumes, versions, diff viewer, upload/parse), JobsTab (saved jobs, match score, tailor, cover letter, Open job with AYN handoff), ExtensionTab (download zip, version from ayn-extension-version.json, AYN_PING install detection, connected device tokens with revoke). TrackerTab was deleted in v3.0.1 (manual data entry nobody sustains without an email connection). v3.1.0: ProfileTab and BuilderTab fire resumeHubApi.talentPoolReindexSelf() after a client-side resume write so the talent pool index cannot go stale.
+src/pages/ResumeHub.tsx with five tabs in src/components/resume-hub/: OverviewTab (stats), ProfileTab (v3.2.0 SINGLE profile, see below), BuilderTab (resumes, versions, diff viewer, upload/parse), JobsTab (saved jobs, match score, tailor, cover letter, Open job with AYN handoff), ExtensionTab (download zip, version from ayn-extension-version.json, AYN_PING install detection, connected device tokens with revoke). TrackerTab was deleted in v3.0.1. CanadianProfileForm.tsx was deleted in v3.2.0 (its fields were autofill answers; they now live in the grouped profile as matching signals).
+
+## Single profile (v3.2.0)
+
+The Hub used to show a Profile and a Canonical Profile. Canonical is an internal engineering concept and it leaked into the UI, so ProfileTab.tsx now renders exactly ONE profile. The word canonical appears nowhere user facing. Both tables stay; this is a UI and read-path consolidation, not a migration.
+
+READ PATH: the UI mirrors _shared/identity.ts precedence, profile > canonical > resume > account. ProfileTab loads user_profile_canonical, user_profile_data, the primary resume, and auth.getUser in one Promise.all. Personal fields resolve through a `fallback` memo built from resume basics and the account email; a field shows the user-entered value when present, otherwise the fallback, with a muted source label: "You entered this", "From your resume", "From your account". Editing any field always writes the user-entered layer (user_profile_data) so it wins afterwards.
+
+FOUR GROUPS, each labelled with what it powers:
+1. About you (name, contact, location, current title and company, links) - Used in your tailored resumes and cover letters.
+2. What you're looking for (desired titles, desired locations, minimum salary and currency, remote and relocation) - Helps employers searching the talent pool find you for the right roles.
+3. Work eligibility (countries you can work in, citizenship, sponsorship now, sponsorship later) - Employers filter on this. Getting it right means fewer wrong matches.
+4. Your experience (skills, work history, education, derived years and seniority) - This is what AYN scores against a job and tailors from.
+
+TALENT POOL CARD (src/components/resume-hub/TalentPoolCard.tsx, new in v3.2.0): when opted in it renders a "What employers see" preview of the anonymized card exactly as employer_match returns it (headline, seniority, years, location, skill chips, no name and no contact). Skills are split by the candidate_skills.provenance column into "Backed by your resume" (extracted) and "AYN inferred these" (inferred); inferred chips have a delete control calling talent_pool_skill_delete. A freshness line reads "Your profile was last indexed <relative time>", and flips to "Your resume changed since AYN last indexed you" with a Refresh button when indexed_at is older than resume or profile updated_at. Completeness nudges are tied to matching, not to a percentage bar: missing work eligibility or desired titles each get one line.
+
+REINDEX TRIGGERS (v3.2.0, the real bug behind the redesign: resumes are written client side and bypass the edge function): resumeHubApi.talentPoolReindexSelf() fires non-blocking and failure-silent after resume upload in ProfileTab, resume save in BuilderTab, resume upload in BuilderTab, primary resume change, and profile save in ProfileTab. indexCandidate rebuilds both candidate_index and candidate_skills, so provenance stays accurate.
 
 Bridges: src/lib/resumeHub.ts (session JWT client for the edge function), src/lib/extension.ts (AYN_PING, AYN_PROFILE_UPDATED, handoffUrl; extension id bjbifnpjbcbdojhgjpedkakkfjpcjmdl). src/pages/Handoff.tsx fallback when extension absent. src/pages/ExtensionApprove.tsx approves link codes. src/pages/ResumeMatch.tsx standalone matcher using the resume-match function.
 
@@ -49,7 +65,8 @@ Tables:
 Web-lane actions (session JWT, in supabase/functions/resume-hub/index.ts):
 - **talent_pool_get**: returns { opted_in, consented_at, indexed, skills_count } for the caller.
 - **talent_pool_set** { opted_in: boolean }: upserts consent (consented_at/revoked_at). Turning ON runs indexCandidate() synchronously; turning OFF deletes the caller's candidate_index and candidate_skills rows immediately.
-- **talent_pool_reindex_self** (v2.9.1): re-runs indexCandidate for the caller (must be opted in) and returns { model, skills_count }. Wired to a "Re-index my profile" text link in the Talent Pool card in ProfileTab so a seeker can refresh after editing their profile.
+- **talent_pool_reindex_self** (v2.9.1): re-runs indexCandidate for the caller (must be opted in) and returns { model, skills_count }. Wired to the Refresh button in TalentPoolCard and fired automatically after every client-side write that changes indexed content (v3.2.0).
+- **talent_pool_skill_delete** (v3.2.0): deletes one candidate_skills row owned by the caller so a seeker can remove an inferred skill they disagree with.
 
 Embedding provider (v2.9.1):
 - **embedText(text)** returns `{ vector, model }`. Calls the AI gateway `/v1/embeddings` with `openai/text-embedding-3-small` and `dimensions: 768` so the existing `vector(768)` column is unchanged. On any error (missing LOVABLE_API_KEY, non-2xx, malformed body, network) it falls back to `deterministicEmbed` and returns model `'deterministic-v1'`. Logs which path was used once per call at debug level.
@@ -66,7 +83,7 @@ Indexing routine indexCandidate(admin, userId):
 
 Re-index hooks: profile_canonical_save fires reindexIfOptedIn(admin, userId) non-blocking after upsert. Toggling talent_pool_set to true also triggers a fresh index. (Resumes are saved client-side in BuilderTab.tsx; users can force a reindex today by toggling the switch off and on.)
 
-Hub UI (ProfileTab.tsx): "Let employers find me" Card wired to resumeHubApi.talentPoolGet / talentPoolSet. Shows "In the pool · N skills indexed" when on.
+Hub UI (TalentPoolCard.tsx): "Let employers find me" switch wired to resumeHubApi.talentPoolGet / talentPoolSet. talent_pool_get returns opted_in, preview (headline, seniority, location, years_experience, indexed_at, embedding_model), skills[] with provenance, and indexed_at / resume_updated_at / profile_updated_at for the freshness check.
 
 ## Employer marketplace (v2.9.0-B)
 
