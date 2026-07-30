@@ -2042,3 +2042,7 @@ button, a, input, textarea, select {
   box-shadow: 0 10px 26px -14px hsl(13 79% 57% / 0.95);
 }
 .ayn-ember-btn:hover { filter: brightness(1.05); }
+
+/* ── Single audience pain block (v3.17.0) ──────────────────── */
+.lp-pain-solo { max-width: 720px; }
+.lp-pain-solo li { font-size: 16.5px; }
