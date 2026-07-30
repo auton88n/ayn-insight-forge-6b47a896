@@ -432,7 +432,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
           </main>
 
-          {/* v3.14.0 — the same four destinations, as a bottom bar on phones. */}
+          {/* v3.15.0 — the same destinations plus sign out, as a bottom bar. */}
           <nav
             className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur flex"
             aria-label="Employer navigation"
@@ -444,7 +444,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               return (
                 <button
                   key={item.key}
-                  onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                  onClick={() => setTab(item.key)}
                   className={`relative flex-1 py-2.5 grid place-items-center gap-0.5 ${
                     active ? "text-primary" : "text-muted-foreground"
                   }`}
@@ -459,21 +459,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </button>
               );
             })}
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
+            >
+              <LogOut className="w-[18px] h-[18px]" />
+              <span className="text-[10px] font-medium">Sign out</span>
+            </button>
           </nav>
+
         </div>
       )}
 
 
-      {/* v3.12.0 — once complete, the company profile lives behind the menu. */}
-      <Dialog open={companyOpen} onOpenChange={setCompanyOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Company profile</DialogTitle>
-            <DialogDescription>Candidates see this on every proposal you send.</DialogDescription>
-          </DialogHeader>
-          <CompanyProfile org={org} onSaved={handleOrgSaved} />
-        </DialogContent>
-      </Dialog>
 
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
