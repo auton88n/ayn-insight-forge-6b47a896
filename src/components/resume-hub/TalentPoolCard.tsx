@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users, RefreshCw, X, ShieldCheck } from "lucide-react";
 import { resumeHubApi, type TalentPoolStatus, type PoolSkill } from "@/lib/resumeHub";
+import { AYN_POOL_REINDEXED, setPoolOptInCache } from "@/lib/talentPoolSync";
 
 function relativeTime(iso: string | null): string {
   if (!iso) return "never";
@@ -50,16 +51,28 @@ export default function TalentPoolCard({ refreshKey = 0, missingMatchSignals, pe
     try {
       const r = await resumeHubApi.talentPoolGet();
       setStatus(r);
+      // Seed the shared cache so client-side writes can skip the request
+      // entirely when this seeker is not in the pool.
+      setPoolOptInCache(!!r.opted_in);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  // v3.2.1 — a write elsewhere in the Hub triggered a reindex, so refresh the
+  // freshness line and the preview the moment it resolves.
+  useEffect(() => {
+    const onReindexed = () => { load(); };
+    window.addEventListener(AYN_POOL_REINDEXED, onReindexed);
+    return () => window.removeEventListener(AYN_POOL_REINDEXED, onReindexed);
+  }, [load]);
+
   const toggle = async (next: boolean) => {
     setSaving(true);
     try {
       await resumeHubApi.talentPoolSet(next);
+      setPoolOptInCache(next);
       toast({
         title: next ? "You're in the pool" : "Left the pool",
         description: next

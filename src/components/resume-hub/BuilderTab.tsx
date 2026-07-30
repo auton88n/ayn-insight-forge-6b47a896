@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, Plus, Trash2, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { ResumeUpload } from "./ResumeUpload";
+import { reindexTalentPool } from "@/lib/talentPoolSync";
+
 
 interface Props { userId: string }
 
@@ -57,9 +59,10 @@ export default function BuilderTab({ userId }: Props) {
         toast({ title: "Created" });
       }
       load();
-      // v3.1.0 — resumes are written client-side, so the talent pool index
-      // would otherwise go stale. Fire and forget.
-      resumeHubApi.talentPoolReindexSelf().catch(() => {});
+      // v3.2.1 — resumes are written client side and bypass the edge function,
+      // so the pool index would go stale. Fire and forget, opt-in gated.
+      reindexTalentPool(activeId ? "resume_update" : "resume_insert");
+
     } catch (e) {
       toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
@@ -73,20 +76,23 @@ export default function BuilderTab({ userId }: Props) {
     toast({ title: "Set as primary" });
     setBusy(false);
     load();
-    // v3.2.0 — the pool indexes the primary resume, so a switch changes it.
-    resumeHubApi.talentPoolReindexSelf().catch(() => {});
+    // profile_text is built from the primary resume, so a switch changes the index.
+    reindexTalentPool("primary_resume_change");
   };
 
 
   const removeResume = async () => {
     if (!activeId) return;
     if (!confirm("Delete this resume? This cannot be undone.")) return;
+    const wasPrimary = resumes.find((r) => r.id === activeId)?.is_primary;
     await supabase.from("resumes").delete().eq("id", activeId);
     setActiveId(null);
     setTitle("");
     setContent({ basics: { name: "", summary: "" }, work: [], education: [], skills: [] });
     load();
+    if (wasPrimary) reindexTalentPool("primary_resume_deleted");
   };
+
 
   const newResume = () => {
     setActiveId(null);
@@ -114,8 +120,9 @@ export default function BuilderTab({ userId }: Props) {
       }).select("id").single();
       if (inserted) setActiveId(inserted.id);
       await load();
-      // v3.2.0 — client-side resume write, so refresh the talent pool index.
-      resumeHubApi.talentPoolReindexSelf().catch(() => {});
+      // Client-side resume write, so refresh the talent pool index.
+      reindexTalentPool("resume_upload");
+
       toast({
         title: "Resume saved as primary",
         description: "Your profile has been pre-filled. Review each section and save it.",
@@ -149,9 +156,11 @@ export default function BuilderTab({ userId }: Props) {
       setContent(r.resume);
       if (activeId) {
         await supabase.from("resumes").update({ content: r.resume as any, ats_score: r.ats_score }).eq("id", activeId);
+        reindexTalentPool("resume_ai_rewrite");
       }
       toast({ title: `Improved (ATS: ${r.ats_score})`, description: r.suggestions.slice(0, 3).join(" • ") });
       load();
+
     } catch (e) {
       toast({ title: "AI rewrite failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }

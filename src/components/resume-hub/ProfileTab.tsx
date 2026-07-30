@@ -27,6 +27,7 @@ import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { employerApi, type RevealRequest } from "@/lib/employer";
 import TalentPoolCard from "./TalentPoolCard";
+import { reindexTalentPool } from "@/lib/talentPoolSync";
 
 // ── Types (mirror the edge-function profile shape) ───────────────────────────
 type Skill = { name: string; years?: number; level?: string };
@@ -109,7 +110,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
   const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
   const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
   const [accountEmail, setAccountEmail] = useState("");
-  const [poolRefresh, setPoolRefresh] = useState(0);
 
   // ── Intro requests from employers ───────────────────────────────────────
   const [reveals, setReveals] = useState<RevealRequest[]>([]);
@@ -227,10 +227,9 @@ export default function ProfileTab({ userId }: { userId: string }) {
       if (error) throw error;
       setResumeContent(resume);
       setCareer(prev => mapResumeToCareer(resume, prev));
-      // v3.2.0 — resumes are written client side, so the pool index would go
-      // stale. Fire and forget, never block the save.
-      resumeHubApi.talentPoolReindexSelf().catch(() => {});
-      setPoolRefresh(n => n + 1);
+      // Resumes are written client side, so the pool index would go stale.
+      // Fire and forget, opt-in gated, never blocks the save.
+      reindexTalentPool("resume_upload");
       await load();
       toast({ title: "Resume saved", description: "Review the fields below, then Save profile." });
     } catch (e) {
@@ -273,9 +272,9 @@ export default function ProfileTab({ userId }: { userId: string }) {
       if (cErr) throw new Error(cErr.message);
       if (pErr) throw new Error(pErr.message);
       void notifyProfileUpdated();
-      // Keep the talent pool index in step with the profile the user just saved.
-      resumeHubApi.talentPoolReindexSelf().catch(() => {});
-      setPoolRefresh(n => n + 1);
+      // Profile fields are upserted straight to Supabase here, they do not go
+      // through profile_canonical_save, so nothing reindexes server side.
+      reindexTalentPool("profile_save");
       toast({ title: "Profile saved" });
     } catch (e) {
       toast({ title: "Save failed", description: (e as Error).message, variant: "destructive" });
@@ -343,7 +342,6 @@ export default function ProfileTab({ userId }: { userId: string }) {
 
       {/* Talent pool */}
       <TalentPoolCard
-        refreshKey={poolRefresh}
         missingMatchSignals={missingMatchSignals}
         pendingIntros={pendingIntros}
       />

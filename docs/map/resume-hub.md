@@ -17,7 +17,22 @@ FOUR GROUPS, each labelled with what it powers:
 
 TALENT POOL CARD (src/components/resume-hub/TalentPoolCard.tsx, new in v3.2.0): when opted in it renders a "What employers see" preview of the anonymized card exactly as employer_match returns it (headline, seniority, years, location, skill chips, no name and no contact). Skills are split by the candidate_skills.provenance column into "Backed by your resume" (extracted) and "AYN inferred these" (inferred); inferred chips have a delete control calling talent_pool_skill_delete. A freshness line reads "Your profile was last indexed <relative time>", and flips to "Your resume changed since AYN last indexed you" with a Refresh button when indexed_at is older than resume or profile updated_at. Completeness nudges are tied to matching, not to a percentage bar: missing work eligibility or desired titles each get one line.
 
-REINDEX TRIGGERS (v3.2.0, the real bug behind the redesign: resumes are written client side and bypass the edge function): resumeHubApi.talentPoolReindexSelf() fires non-blocking and failure-silent after resume upload in ProfileTab, resume save in BuilderTab, resume upload in BuilderTab, primary resume change, and profile save in ProfileTab. indexCandidate rebuilds both candidate_index and candidate_skills, so provenance stays accurate.
+REINDEX TRIGGERS (v3.2.1, the real bug behind the redesign: resumes and profile fields are written client side and bypass the edge function, so the pool index never rebuilt). All call sites go through ONE helper, src/lib/talentPoolSync.ts -> reindexTalentPool(reason). The helper enforces the rules so no call site can get them wrong: fire and forget, never awaited by the save path, errors swallowed, skipped entirely when the seeker is not opted in (opt-in state cached 5 minutes and seeded by TalentPoolCard), concurrent calls coalesced, and on success it dispatches the AYN_POOL_REINDEXED window event. TalentPoolCard listens for that event and reloads, so the freshness line updates in front of the user.
+
+Call sites, one per client write that changes indexed content:
+| Write | File | reason |
+|---|---|---|
+| Resume insert or update (Save) | BuilderTab.tsx save() | resume_insert / resume_update |
+| Primary resume switch | BuilderTab.tsx setPrimary() | primary_resume_change |
+| Primary resume deleted | BuilderTab.tsx removeResume() | primary_resume_deleted |
+| Resume upload, saved as primary | BuilderTab.tsx handleFileParsed() | resume_upload |
+| AI Improve overwrites content | BuilderTab.tsx aiImprove() | resume_ai_rewrite |
+| Resume upload, saved as primary | ProfileTab.tsx handleResumeParsed() | resume_upload |
+| Profile field save (user_profile_data + user_profile_canonical upserts) | ProfileTab.tsx save() | profile_save |
+
+ResumeUpload.tsx deliberately does NOT call it: the component only parses, it never persists a row. Both of its callers reindex after their own insert, so firing inside the component would run before the row existed and double fire. ProfileTab.save() writes the two profile tables directly rather than through profile_canonical_save, so nothing reindexes server side and the client ping is required (no double fire). indexCandidate rebuilds both candidate_index and candidate_skills, so provenance stays accurate.
+
+Production embedding audit (v3.2.1, checked against project dfkoxuokfkttjhfjcecx): candidate_index has 0 rows, candidate_skills 0 rows, talent_pool_consent 0 rows and 0 opted in. There are no deterministic-v1 rows to re-index because nobody has ever been indexed. Re-run this query before marketing the pool.
 
 Bridges: src/lib/resumeHub.ts (session JWT client for the edge function), src/lib/extension.ts (AYN_PING, AYN_PROFILE_UPDATED, handoffUrl; extension id bjbifnpjbcbdojhgjpedkakkfjpcjmdl). src/pages/Handoff.tsx fallback when extension absent. src/pages/ExtensionApprove.tsx approves link codes. src/pages/ResumeMatch.tsx standalone matcher using the resume-match function.
 
