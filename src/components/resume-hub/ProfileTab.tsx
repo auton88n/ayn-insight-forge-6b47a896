@@ -21,11 +21,12 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Plus, X, FileUp, ArrowRight } from "lucide-react";
+import { Loader2, Save, Plus, X, FileUp, ArrowRight, Download, RefreshCw, Trash2 } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { reindexTalentPool } from "@/lib/talentPoolSync";
+import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 
 // ── Types (mirror the edge-function profile shape) ───────────────────────────
 type Skill = { name: string; years?: number; level?: string };
