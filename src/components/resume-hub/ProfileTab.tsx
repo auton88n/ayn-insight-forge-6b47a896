@@ -211,7 +211,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     [resumeContent]
   );
 
-  // ── Resume upload: saves as primary and drafts the profile ──────────────
+  // ── Resume upload: becomes THE active resume, previous one goes inactive ──
   const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
     setUploading(true);
     try {
@@ -226,6 +226,7 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       // Resumes are written client side, so the pool index would go stale.
       // Fire and forget, opt-in gated, never blocks the save.
       reindexTalentPool("resume_upload");
+      setReplaceOpen(false);
       await load();
       toast({ title: "Resume saved", description: "Review the fields below, then Save profile." });
     } catch (e) {
@@ -234,6 +235,25 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       setUploading(false);
     }
   };
+
+  const downloadResume = async (content: ResumeContent, name: string, kind: "pdf" | "docx") => {
+    try {
+      const text = resumeToText(content);
+      const base = fileBase(name || "Resume");
+      if (kind === "pdf") downloadBlob(buildTextPdfBlob(text), `${base}.pdf`);
+      else downloadBlob(await buildTextDocxBlob(text), `${base}.docx`);
+    } catch (e) {
+      toast({ title: "Download failed", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
+  const deleteOlderResume = async (id: string) => {
+    if (!confirm("Delete this older resume? This cannot be undone.")) return;
+    const { error } = await supabase.from("resumes").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    setOlderResumes(list => list.filter(r => r.id !== id));
+  };
+
 
   const save = async () => {
     setSaving(true);
