@@ -1,17 +1,19 @@
 # Resume Hub map (web app + resume-hub backend)
 
 ## Surface
-src/pages/ResumeHub.tsx with five tabs in src/components/resume-hub/ (Resumes removed in v3.4.0):
+src/pages/ResumeHub.tsx with six tabs in src/components/resume-hub/ (Resumes removed in v3.4.0, Proposals added in v3.6.0):
 
 | key | label | hint | component |
 |---|---|---|---|
 | home | Home | Start here | HomeTab (next actions, replaced OverviewTab) |
 | profile | Profile | You, your resume, your goals | ProfileTab (resume group + four field groups) |
 | jobs | Jobs | Score and tailor | JobsTab (saved jobs, score, tailor, cover letter, generated documents, handoff) |
-| discovery | Get discovered | Let employers find you | DiscoveryTab (TalentPoolCard + intro requests) |
+| proposals | Proposals | Roles employers want you for | ProposalsTab (pending proposal cards, accept or decline, collapsed history) |
+| discovery | Get discovered | Let employers find you | DiscoveryTab (TalentPoolCard only since v3.6.0) |
 | extension | Browser extension | Score jobs as you browse | ExtensionTab (zip download, version check, device tokens) |
 
 Old nav for reference: Overview / Profile / Resumes / Saved jobs / Extension. TrackerTab was deleted in v3.0.1, OverviewTab in v3.3.0, CanadianProfileForm.tsx in v3.2.0, BuilderTab.tsx in v3.4.0.
+
 
 ## One profile, one resume (v3.4.0)
 
@@ -174,7 +176,7 @@ Tables:
 - **orgs** (id, name, website, created_by, created_at). RLS: members select their own org rows; creator inserts.
 - **org_members** (org_id, user_id, role, pk (org_id, user_id)). RLS: members select their own rows.
 - **employer_searches** (id, org_id, created_by, job_spec jsonb, results jsonb, ref_map jsonb, created_at). RLS: NO client select policy. All reads go through the edge function via service role. **ref_map (opaque ref → user_id) never leaves the server.**
-- **reveal_requests** (id, org_id, candidate_user_id, search_id, candidate_ref, status pending|approved|declined, created_at, decided_at). RLS: candidates select/update rows where candidate_user_id = auth.uid(); employer reads go only through the edge function.
+- **reveal_requests** — since v3.6.0 this is the PROPOSALS table, name kept for compatibility. (id, org_id, candidate_user_id, search_id, candidate_ref, status pending|approved|declined, created_at, decided_at, and the v3.6.0 columns job_title text NOT NULL default '', job_location, employment_type, salary_range, job_url, message text NOT NULL default '' with a CHECK ≤1000 chars, sent_at timestamptz default now(), responded_at timestamptz). Partial unique index on (org_id, candidate_user_id) WHERE status='pending'. RLS: candidates select/update rows where candidate_user_id = auth.uid(); employer reads go only through the edge function.
 
 Web-lane actions:
 - **employer_org_create** { name, website }: creates org + admin membership.
@@ -186,12 +188,28 @@ Web-lane actions:
   3. **Grounded AI rerank (one call).** Anonymized payload only: opaque refs (c1, c2…), profile_text, seniority, years_experience, location, skills split into extracted[]/inferred[], headline. Never user_ids, names, or emails. Rules baked into the system prompt: score 1-100; must_have coverage may only cite extracted skills; inferred skills contribute at most 10 total points via nice-to-haves; every sentence in "why" must reference something literally in the provided data; if fewer than 3 candidates are genuinely strong, return fewer with a `pool_note` instead of padding.
   4. Persist to `employer_searches` (job_spec, top-3 results, ref_map). Return `{ search_id, results[≤3], pool_note }`. The ref_map stays server-side.
 
-- **employer_reveal_request** { search_id, ref }: resolves ref → user_id via the server-side ref_map, inserts `reveal_requests` (idempotent per search+candidate).
-- **reveal_list** (candidate side): pending + decided requests enriched with org name and job title (from the search's job_spec).
-- **reveal_decide** { id, approve } (candidate side): updates status + decided_at, own rows only.
-- **employer_reveal_status** { search_id }: for org members. Includes name + email ONLY for rows where status='approved' (pulled from user_profile_data and auth.users). Otherwise no PII.
+- **employer_reveal_request** { search_id, ref, job_title (required), job_location, employment_type, salary_range, job_url, message (required, ≤1000 chars) }: THE PROPOSAL. Resolves ref → user_id via the server-side ref_map, then enforces two rate limits before inserting into `reveal_requests`:
+  1. One OPEN proposal per (org, candidate). A second send while a row is `pending` returns 429 with "You already have an open proposal with this candidate."
+  2. No new proposal within 30 days of a decline from that candidate to that org (checked on `responded_at`), returns 429.
+  A partial unique index `reveal_requests_one_open_per_org_candidate` on (org_id, candidate_user_id) WHERE status='pending' enforces limit 1 at the database level too.
+- **reveal_list** (candidate side): every proposal for the signed-in candidate, newest first by `sent_at`, enriched with org name and website. Returns the full proposal body (title, location, employment type, salary range, url, message, sent_at, responded_at, status).
+- **reveal_decide** { id, approve } (candidate side): sets status approved|declined plus `decided_at` and `responded_at`, own rows only. The employer never learns a decline reason because none is collected.
+- **employer_reveal_status** { search_id? }: for org members. Without `search_id` it returns every proposal across the caller's orgs (the Sent list); with one it is scoped to that search. Includes name + email + phone ONLY for rows where status='approved' (from user_profile_data, falling back to auth.users for email). Otherwise no PII of any kind.
 
-Hub UI (DiscoveryTab.tsx, moved from ProfileTab in v3.3.0): "Intro requests" card appears when the seeker is opted in and has any reveal requests. Share contact / Decline buttons call reveal_decide; contact details are shared only after approval.
+### v3.6.0 the proposal loop, end to end
+1. Seeker turns discovery ON in Get discovered. If it is OFF they are not in `talent_pool_consent` with `opted_in=true`, so `employer_match` never loads them.
+2. Approved employer lands on `src/pages/EmployerHub.tsx` (routed from Index.tsx AuthedShell when profiles.role='employer' and employer_accounts.status='approved') and describes the role in the intake chat.
+3. `employer_match` returns up to three candidates, each with score, headline, seniority, years, location, matched must-haves, gaps, three why lines, plus `skills_extracted`, `skills_inferred`, and an anonymous `summary` slice of profile_text (v3.6.0 additions, still no PII).
+4. Candidate detail dialog shows the full reasoning and the skills provenance split. No name, email, phone or user id exists in this payload.
+5. Employer sends a proposal from the detail dialog. The button becomes "Proposal sent, waiting for a reply".
+6. Seeker sees it on the Proposals tab (`src/components/resume-hub/ProposalsTab.tsx`), badged with the pending count in the rail and as the first Home next-action.
+7. Seeker chooses "Share my contact details" or "Not interested". Accepted and declined proposals collapse into a History section.
+8. On accept only, `employer_reveal_status` starts returning name, email and phone to the org, and contact happens outside AYN.
+
+Reveal ladder, what each side can see at each step: employer sees anonymous card → anonymous full reasoning → proposal sent (still anonymous) → on accept, name + email + phone. Seeker sees the org name, the full job details and the employer's message from the first moment.
+
+NO TRANSACTIONAL EMAIL PATH EXISTS in this repo (supabase/functions holds only resume-hub, resume-match, cc-generate, sign-document, ayn-agent-society). New-proposal notification is in-app only: nav badge plus the top Home next-action.
+
 
 
 ## v3.1.0 Tailor and Cover Letter (supabase/functions/_shared/tailoring.ts)

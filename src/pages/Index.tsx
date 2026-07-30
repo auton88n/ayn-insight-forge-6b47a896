@@ -9,6 +9,8 @@ import { Navigate } from 'react-router-dom';
 // Lazy load Dashboard (authenticated users), direct import LandingPage (most common first view)
 import LandingPage from '@/components/LandingPage';
 const Dashboard = lazy(() => import('@/components/Dashboard'));
+const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
+
 
 // Module-level cache: once auth has resolved, subsequent re-mounts of <Index>
 // (e.g. navigating back to "/" from another route) reuse the result so we
@@ -114,11 +116,17 @@ const Index = () => {
 };
 
 // v2.10.0 — Route employers through the pending gate until an admin approves.
+// v3.6.0 — an APPROVED employer lands in the hiring surface, not the seeker chat.
 const AuthedShell = ({ user, session }: { user: User; session: Session }) => {
-  const { loading, role, employerStatus } = useUserRole(user.id);
+  const { loading, role, employerStatus, companyName } = useUserRole(user.id);
   if (loading) return <AYNLoader />;
-  if (role === 'employer' && employerStatus !== 'approved') {
-    return <Navigate to="/employer/pending" replace />;
+  if (role === 'employer') {
+    if (employerStatus !== 'approved') return <Navigate to="/employer/pending" replace />;
+    return (
+      <Suspense fallback={<DashboardLoader />}>
+        <EmployerHub companyName={companyName} />
+      </Suspense>
+    );
   }
   return (
     <Suspense fallback={<DashboardLoader />}>
@@ -126,5 +134,6 @@ const AuthedShell = ({ user, session }: { user: User; session: Session }) => {
     </Suspense>
   );
 };
+
 
 export default Index;

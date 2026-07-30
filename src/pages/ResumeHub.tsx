@@ -2,29 +2,31 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Home, User, Briefcase, Users, Puzzle, Download } from "lucide-react";
+import { ArrowLeft, Home, User, Briefcase, Users, Puzzle, Download, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import HomeTab from "@/components/resume-hub/HomeTab";
 import JobsTab from "@/components/resume-hub/JobsTab";
 import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
 import DiscoveryTab from "@/components/resume-hub/DiscoveryTab";
+import ProposalsTab from "@/components/resume-hub/ProposalsTab";
 import { employerApi } from "@/lib/employer";
 import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 
 
-type TabKey = "home" | "profile" | "jobs" | "discovery" | "extension";
+type TabKey = "home" | "profile" | "jobs" | "proposals" | "discovery" | "extension";
 
-// v3.4.0 — the Resumes tab is gone. A user keeps one resume and it lives in
-// Profile, because Profile is the single place they edit who they are.
+// v3.6.0 — Proposals is its own page, between Jobs and Get discovered.
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
   { key: "home",      label: "Home",              icon: Home,      hint: "Start here" },
   { key: "profile",   label: "Profile",           icon: User,      hint: "You, your resume, your goals" },
   { key: "jobs",      label: "Jobs",              icon: Briefcase, hint: "Score and tailor" },
+  { key: "proposals", label: "Proposals",         icon: Mail,      hint: "Roles employers want you for" },
   { key: "discovery", label: "Get discovered",    icon: Users,     hint: "Let employers find you" },
   { key: "extension", label: "Browser extension", icon: Puzzle,    hint: "Score jobs as you browse" },
 ];
+
 
 
 export default function ResumeHub() {
@@ -54,10 +56,11 @@ export default function ResumeHub() {
       } catch { /* silent */ }
       setUserId(data.user.id);
       setLoading(false);
-      // v2.9.1 — surface a badge on the Profile tab when employers want an intro.
-      employerApi.revealList()
+      // v3.6.0 — badge the Proposals tab with the pending count.
+      employerApi.proposalList()
         .then(r => setPendingIntros((r.requests || []).filter(x => x.status === "pending").length))
         .catch(() => { /* silent */ });
+
     });
   }, [navigate, toast]);
 
@@ -129,11 +132,11 @@ export default function ResumeHub() {
                     key={item.key}
                     onClick={() => setTab(item.key)}
                     className={`rh-navitem ${active ? "active" : ""}`}
-                    aria-label={item.label + (item.key === "discovery" && pendingIntros > 0 ? ` (${pendingIntros} intro requests)` : "")}
+                    aria-label={item.label + (item.key === "proposals" && pendingIntros > 0 ? ` (${pendingIntros} new proposals)` : "")}
                     style={{ position: "relative" }}
                   >
                     <Icon className="w-[18px] h-[18px] shrink-0" />
-                    {item.key === "discovery" && pendingIntros > 0 && (
+                    {item.key === "proposals" && pendingIntros > 0 && (
                       <span
                         aria-hidden
                         style={{
@@ -147,7 +150,7 @@ export default function ResumeHub() {
                       >{pendingIntros > 9 ? "9+" : pendingIntros}</span>
                     )}
                     <span className="rh-tip" role="tooltip">
-                      {item.label}{item.key === "discovery" && pendingIntros > 0 ? ` · ${pendingIntros} intro${pendingIntros === 1 ? "" : "s"}` : ""}
+                      {item.label}{item.key === "proposals" && pendingIntros > 0 ? ` · ${pendingIntros} new` : ""}
                     </span>
                   </button>
                 );
@@ -164,14 +167,17 @@ export default function ResumeHub() {
                 onOpenProfile={() => setTab("profile")}
                 onOpenJobs={() => setTab("jobs")}
                 onOpenDiscovery={() => setTab("discovery")}
+                onOpenProposals={() => setTab("proposals")}
               />
             )}
             {tab === "profile"   && <ProfileTab userId={userId!} onOpenDiscovery={() => setTab("discovery")} />}
             {tab === "discovery" && <DiscoveryTab userId={userId!} />}
+            {tab === "proposals" && <ProposalsTab onChanged={setPendingIntros} />}
             {tab === "jobs"      && <JobsTab userId={userId!} onOpenJob={goJob} />}
 
             {tab === "extension" && <ExtensionTab userId={userId!} />}
           </section>
+
 
           {/* Right rail */}
           <aside className="rh-aside-right">

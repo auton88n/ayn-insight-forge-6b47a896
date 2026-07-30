@@ -144,27 +144,14 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
           </div>
           {optedIn && pendingIntros > 0 && (
             <p className="text-xs font-medium text-primary mt-1">
-              {pendingIntros} {pendingIntros === 1 ? "company wants" : "companies want"} an intro
+              {pendingIntros} new job {pendingIntros === 1 ? "proposal" : "proposals"}
             </p>
           )}
-          {optedIn ? (
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
-              You are discoverable. Employers searching AYN can see your full profile, and AYN's AI
-              matches you to open roles using everything you have provided.
-              <br />
-              Your email and phone stay private until you approve an intro. Turn this off anytime and
-              your profile leaves the pool immediately.
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
-              Turn this on and employers searching AYN can see your full profile: your resume, work
-              history, skills, education, what you are looking for, and where you can work. AYN's AI
-              uses all of it to match you to roles you would not have found on your own.
-              <br />
-              Employers reach you through AYN. Your email and phone are only shared when you approve
-              a specific request.
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
+            {optedIn
+              ? "You are discoverable. Employers can send you job proposals. Your contact details stay private until you accept one."
+              : "Turn this on to be recommended to employers hiring for roles like yours."}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
@@ -180,20 +167,19 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Make your profile discoverable</AlertDialogTitle>
+            <AlertDialogTitle>Share your profile with employers</AlertDialogTitle>
             <AlertDialogDescription>
-              Employers searching AYN will be able to see everything in your profile, including your
-              resume, work history, skills, and preferences. AYN's AI will use this information to
-              match you with roles and to recommend you to employers. You can turn this off at any
-              time, and your profile is removed from the pool immediately.
+              Employers searching AYN will see your profile and can send you job proposals. Your
+              email and phone are only shared if you accept one. You can turn this off anytime.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => toggle(true)}>Turn on discovery</AlertDialogAction>
+            <AlertDialogAction onClick={() => toggle(true)}>Turn on</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
 
       {optedIn && !loading && (
@@ -227,9 +213,9 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  This is the summary employers see first. They can also see your full profile.
-                  Your email and phone are only shared when you approve an intro.
+                  Employers see this first, and can open your full profile.
                 </p>
+
 
               </>
             ) : (

@@ -50,6 +50,9 @@ export type CandidateCard = {
   matched_must_haves: string[];
   gaps: string[];
   why: string[];
+  skills_extracted?: string[];
+  skills_inferred?: string[];
+  summary?: string;
 };
 
 export type IntakeTurn = { role: "user" | "assistant"; content: string };
@@ -57,13 +60,47 @@ export type IntakeResponse =
   | { done: false; question: string }
   | { done: true; job_spec: JobSpec };
 
-export type RevealRequest = {
+/** v3.6.0 — what the employer sends and the seeker reads. */
+export type ProposalDraft = {
+  job_title: string;
+  job_location?: string;
+  employment_type?: string;
+  salary_range?: string;
+  job_url?: string;
+  message: string;
+};
+
+export type Proposal = {
   id: string;
   org_name: string;
+  org_website?: string | null;
   job_title: string;
+  job_location: string | null;
+  employment_type: string | null;
+  salary_range: string | null;
+  job_url: string | null;
+  message: string;
   status: "pending" | "approved" | "declined";
-  created_at: string;
-  decided_at: string | null;
+  sent_at: string;
+  responded_at: string | null;
+};
+
+/** Employer view. Contact fields only ever arrive when status is approved. */
+export type SentProposal = {
+  id: string;
+  ref: string;
+  status: "pending" | "approved" | "declined";
+  job_title: string;
+  job_location: string | null;
+  employment_type: string | null;
+  salary_range: string | null;
+  job_url: string | null;
+  message: string;
+  sent_at: string;
+  responded_at: string | null;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
 };
 
 export const employerApi = {
@@ -76,15 +113,14 @@ export const employerApi = {
     call<{ search_id: string | null; results: CandidateCard[]; pool_note: string }>({
       action: "employer_match", org_id, job_spec,
     }),
-  revealRequest: (search_id: string, ref: string) =>
-    call<{ ok: true; status: string; already?: boolean }>({
-      action: "employer_reveal_request", search_id, ref,
+  sendProposal: (search_id: string, ref: string, draft: ProposalDraft) =>
+    call<{ ok: true; status: string }>({
+      action: "employer_reveal_request", search_id, ref, ...draft,
     }),
-  revealStatus: (search_id: string) =>
-    call<{ requests: Array<{ id: string; ref: string; status: string; name?: string | null; email?: string | null }> }>({
-      action: "employer_reveal_status", search_id,
-    }),
-  revealList: () => call<{ requests: RevealRequest[] }>({ action: "reveal_list" }),
-  revealDecide: (id: string, approve: boolean) =>
+  sentProposals: (search_id?: string) =>
+    call<{ requests: SentProposal[] }>({ action: "employer_reveal_status", search_id }),
+  proposalList: () => call<{ requests: Proposal[] }>({ action: "reveal_list" }),
+  proposalDecide: (id: string, approve: boolean) =>
     call<{ ok: true; status: string }>({ action: "reveal_decide", id, approve }),
 };
+
