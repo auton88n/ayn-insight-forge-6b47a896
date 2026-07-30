@@ -1,161 +1,64 @@
-# AYN v2.13 — "Reliable by construction"
+## Goal
 
-Goal: fix the root causes surfaced in the second diagnostic report, not the symptoms. Ship in ordered slices so each one is verifiable before the next lands. No more incident patches on top of incident patches.
+Retire the 3D scroll-canvas hero and ship a modern, high-conversion landing page for AYN: charcoal base with ember accents, Outfit headings + Figtree body, bento-grid composition, and an animated product mockup instead of the canvas.
 
-## Ordering rationale
+Note: this overrides the stored brand fonts (Syne/Inter) with Outfit/Figtree per your pick.
 
-Instrument → unify data → delete dead weight → improve output quality → consolidate runtime. Each step de-risks the next and each is independently valuable if the later ones slip.
+## What gets removed
 
----
+- The scroll-scrubbed canvas, frame preloading, scroll chapters, and their listeners in `src/components/landing/HeroScroll.tsx` (the file is replaced by a new composition).
+- The `/frames` image sequence references in markup (files stay on disk, unused).
+- Dead 3D perspective/scroll utilities in `src/index.css` that nothing else uses.
 
-## Slice 1 — Telemetry (v2.13.0)
+## New page structure
 
-Right now we cannot answer "why do fills fail?" from the DB. Fix that before writing another patch.
-
-Add to `autofill_runs.meta` (jsonb, no schema change needed):
-
-- `identity_source: { first_name, last_name, email, phone, address, links }` — each value is `"profile" | "canonical" | "resume" | "auth" | "missing"`
-- `ungrounded_drops: [{ field_id, label, kind, rejected_shape }]` — v2.12.2 gate drops that the sidepanel already shows to the user but never persists
-- `skip_reasons: { no_supporting_data, sensitive, model_skip, ungrounded }`
-- `field_kinds: { text, radio, select, textarea, file, other }`
-- `verified_in_dom_by_kind: { text, radio, select, textarea }`
-- `jd_source: "full" | "snippet" | "manual" | "none"`, `jd_chars`, `jd_quality`
-- `resume_used: { version_id, is_tailored, chars }`
-- `model_calls: [{ purpose, model, ms, tokens_in, tokens_out }]` — one row per Gemini call
-
-Files touched: `extension/background.js` (emit), `supabase/functions/resume-hub/index.ts` `ext_log_result` (persist), `src/components/resume-hub/TrackerTab.tsx` (surface a "Why did this run skip 4 fields?" expander per row).
-
-Acceptance: one week of real fills answers the "where does time and failure go" question from SQL, no screenshots needed.
-
----
-
-## Slice 2 — Unified identity (v2.13.1) — the biggest structural fix
-
-Create `supabase/functions/_shared/identity.ts`:
-
-```
-loadIdentity(admin, userId) → Identity
-  - reads auth.users, user_profile_data, resumes primary, user_profile_canonical in parallel
-  - single documented per-field priority (profile > canonical > resume > auth)
-  - each field carries its source tag
-  - Identity.isComplete(), .missing(), .sourceDigest()
+```text
+Header (sticky, blurred charcoal)
+1  HERO            copy left, animated fill mockup right, Start free + Add to Chrome
+2  PROOF STRIP     ATS logos as text marks: Greenhouse, Ashby, Lever, Workday, iCIMS
+3  BENTO GRID      6 tiles, mixed sizes, reusing the existing SVG illustrations
+                   [ big: fill in progress ][ match score ]
+                   [ provenance ][ one-page doc ][ run summary ]
+4  HOW IT WORKS    3 compact steps, numbered, one line each
+5  FOR EMPLOYERS   #employers anchor, EmployerMatchIllustration, waitlist CTA
+6  TRUST           short paragraph + 3 assurance chips
+7  CLOSING CTA     full-width ember band, Start free
+Footer
 ```
 
-Update these call sites to use `loadIdentity` and delete their inline merge:
+All existing copy is preserved as-is (no em dashes, no en dashes, ranges use "to"). Only layout, colour, and type change; small trims where a bento tile needs a shorter line.
 
-- `ext_autofill` (index.ts ~1091-1350) — the site of the Isha Sharma bug
-- `ext_vision_fill` (~1655)
-- `ext_job_score` (~1754) — for the "candidate profile" side of scoring
-- `ext_cover_letter_text` (~2117) — currently ignores profile entirely
-- `smart_tailor` (~2272) — currently ignores profile entirely
-- `ext_bootstrap` — return `identity.missing()` so the sidepanel can prompt "add your email" instead of failing silently
+## Hero animation (replaces the 3D)
 
-Also:
-- Add `identity` block to `user_profile_canonical`
-- After `profile_canonical_save` and after resume upload, non-blocking re-run of canonical extract so canonical stops drifting
-- v2.12.2 `sourceDigest` is now computed once in `loadIdentity`, not rebuilt inline per action
+Pure CSS/SVG, no canvas, no new dependency:
+- A browser-chrome card showing a job application form.
+- Fields fill in sequence with a typing caret, a green verified tick lands on each, and a small "verified by AYN" badge slides in.
+- Loop is CSS keyframes only, respects `prefers-reduced-motion`, and pauses off-screen via `content-visibility`.
 
-Acceptance: the Isha Sharma bug is impossible by construction; deleting a user's profile row still lets fills work from resume + auth email; a new column added anywhere shows up in every action's context.
+## Design system
 
----
+In `src/index.css` and `tailwind.config.ts`, as semantic HSL tokens (no hardcoded colours in components):
+- background `#1a1a1a`, card `#2d2d2d`, border/muted `#4a4a4a`, primary/accent ember `#e85d3a`
+- gradient and glow tokens for the ember accent, soft elevation shadows
+- `--font-display: Outfit`, `--font-body: Figtree`, loaded via Google Fonts in `index.html`; `.font-display` remapped to Outfit
 
-## Slice 3 — Delete `rules/csp.json` (v2.13.2) — Chrome Web Store unblocker
+## Marketing and SEO
 
-- Confirm nothing in the fill pipeline requires CSP stripping (main-world bridge uses `chrome.scripting.executeScript` with `world:'MAIN'`; SnapDOM replaced runtime html2canvas load)
-- Test on Ashby, Workday, Greenhouse, Lever, iCIMS, Gem with the ruleset removed
-- If any specific site regresses, re-add only that single narrow rule with a written justification
-- Remove `declarativeNetRequest` permission if fully unused
+- Single H1 in the hero, semantic `section` + `h2` per band, descriptive alt/aria labels on every illustration.
+- `index.html`: title under 60 chars with the primary keyword, meta description under 160, matching `og:*` and `twitter:card`, canonical to `https://ayn-insight-forge.lovable.app/`.
+- JSON-LD: `SoftwareApplication` for the extension plus `FAQPage` for a short 4-question FAQ added above the footer (also good marketing content).
+- Lazy-load below-fold illustrations, keep the hero critical path free of images.
 
-Acceptance: same fill success rate as v2.13.1 on the 6 supported ATSs, `declarativeNetRequest` permission gone, extension is Chrome-Web-Store-submissible.
+## Files touched
 
----
+- Rewrite `src/components/landing/HeroScroll.tsx` (renamed to `LandingSections.tsx`) and update the import in `src/components/LandingPage.tsx`
+- New `src/components/landing/HeroFillMockup.tsx` (animated hero)
+- Extend `src/components/landing/ProductIllustrations.tsx` only if a bento tile needs a variant size
+- `src/index.css`, `tailwind.config.ts`, `index.html`
+- `src/components/shared/Header.tsx` / `Footer.tsx` restyled to the new tokens
 
-## Slice 4 — Tailor / cover / score quality (v2.13.3)
+Dashboard, resume hub, extension, and backend are untouched.
 
-The user says these are "not good enough". Prompt-only patches will not fix it. The fix is what we send the model and how many passes we use.
+## Verification
 
-### smart_tailor
-- Send structured `{ basics, work[], education[], skills[], projects[] }` from `loadIdentity` + canonical, not `resumeText.slice(0, 8000)` — nothing important gets truncated by chance
-- Two-pass: draft → self-critique with metric-preservation check → revised output
-- Post-generation regex verification that every number, percentage, dollar figure, and date in the input still appears in the output; single retry on failure
-- Cache last successful tailor by `(user_id, resume_version_id, jd_hash)`; instant on repeat
-- Keep `QUALITY_MODEL` (gemini-2.5-pro); add reasoning effort hint
-
-### ext_cover_letter_text
-- Structured resume input, same as tailor
-- Send both parsed JD structure and raw JD, so paragraph 1 can quote a real detail
-- Use `canonical.derived.top_skills` + a new `signature_achievements` field to pick bullets
-- Include applicant's own contact block (from loadIdentity)
-- Two-pass draft → critique → revise on the length="detailed" tier only (short/standard stay one-pass for speed)
-
-### ext_job_score
-- Cache per session by `(url_hash, resume_version_id, canonical_updated_at)`
-- Two payload tiers: `card` (JD 3000 chars, resume basics + skills) for card badges, `page` (current 15k/5k) for opened jobs
-- Score for card badges downgrades to `DEFAULT_MODEL` (flash); page-open score stays on quality
-- Cache JD resolution per session across score/tailor/cover/ask, not per-action
-
-Acceptance: repeat tailor on same JD returns in <300ms; cover letters include a specific quote from the JD; scores on the same page across features share one JD fetch; metric-preservation regex catches any silent number changes.
-
----
-
-## Slice 5 — Consolidate fill runtime (v2.13.4)
-
-The runtime is spread across 4 files with 5 overlapping recovery layers. Finish what `fill-session.js` started.
-
-Refactor to a single explicit state machine:
-
-```
-SCAN → PLAN → INJECT → VERIFY → RECOVER → LOG
-```
-
-- `fill-session.js` becomes THE pipeline; owns the mutex, snapshot/restore, signature re-anchoring, and provenance gate
-- `content.js` shrinks to: page classifier, DOM read helpers, adapter dispatch, and the state machine's I/O primitives. Target ≤ 2500 lines from 4744.
-- Delete: `aynStabilizeAfterRender` (fold into VERIFY), redundant retry loops in background, orphaned helpers
-- One writer (INJECT), one verifier (VERIFY), one recover pass (RECOVER — bounded to 1 iteration as today)
-- `AYN_SENSITIVE_NO_GUESS_TYPES`, `directValueFor`, and `supabase-store.ts` sensitive-skip merged into one shared classifier
-- Wire `question-engine/__corpus__` to CI so the good engine has a safety net
-
-Acceptance: same or higher fill success rate than v2.13.3 with fewer lines and no `aynRecover*` naming; a new engineer can trace one fill top-to-bottom in one file; corpus tests run on every push.
-
----
-
-## Slice 6 — Fuzzy answer memory hardening (v2.13.5, small)
-
-The v2.11.0 fuzzy pass at 0.7 similarity can cross-contaminate Yes/No answers. Tighten:
-
-- Require `question_kind` equality for fuzzy match
-- For option fields, require option-set overlap ≥ 0.5
-- Raise threshold to 0.8 for identity-adjacent kinds, keep 0.7 for free text
-- Log every fuzzy hit into telemetry so we can measure precision
-
----
-
-## Slice 7 — Employer chat ↔ matcher wiring (v2.13.6)
-
-Known gap you flagged. Connect `EmployerChatPanel.tsx` to `employer_intake_chat` → `employer_match` → reveal flow so the employer surface is actually usable. No new backend actions; they exist.
-
----
-
-## Explicitly out of scope (for this plan)
-
-- Real embedding model for talent pool — already tracked in v2.9.1 followup
-- Auto-update for sideloaded extension — pending Web Store submission
-- Full rewrite of `resume-hub/index.ts` into modules — do it opportunistically as each action is touched in slices 2-4, not as a big-bang
-
----
-
-## Rollout
-
-Each slice is a version bump, its own PR-sized change, verified against acceptance criteria before the next slice starts. If any slice reveals a wrong assumption (especially slice 3), stop and revise this plan rather than pushing through.
-
-## Estimated size
-
-- Slice 1: half day
-- Slice 2: 1 day (the important one)
-- Slice 3: 2 hours + testing
-- Slice 4: 1-2 days
-- Slice 5: 3-5 days (biggest, do last)
-- Slice 6: 2 hours
-- Slice 7: half day
-
-Total ~2 weeks of focused work. After it lands the product is materially better than a patchwork and defensibly better than Jobright on the two things they don't do well: honest provenance, and learning that survives page rebuilds.
+Build check, then Playwright screenshots at 390px, 826px, and 1440px to confirm no overflow and that the bento reflows to a single column on mobile.
