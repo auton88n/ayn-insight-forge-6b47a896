@@ -599,6 +599,10 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
             ))}
           </div>
 
+          <div style={{ width: '100%', maxWidth: 640, margin: '0 auto clamp(40px,6vw,56px)' }}>
+            <EmployerMatchIllustration />
+          </div>
+
           <Link to="/contact"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
