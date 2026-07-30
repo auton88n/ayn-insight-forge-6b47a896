@@ -92,12 +92,34 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
       {pending.map(p => (
         <Card key={p.id} className="p-4 sm:p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">{p.org_name}</p>
-              <p className="text-base font-medium">{p.job_title}</p>
+            <div className="flex items-start gap-3 min-w-0">
+              {p.org_logo_url && (
+                <img src={p.org_logo_url} alt={`${p.org_name} logo`} loading="lazy" className="w-9 h-9 rounded-lg object-cover border border-border/60" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{p.org_name}</p>
+                <p className="text-base font-medium">{p.job_title}</p>
+              </div>
             </div>
             <Badge variant="secondary" className="shrink-0">{when(p.sent_at)}</Badge>
           </div>
+
+          {/* v3.10.0 — who is reaching out, only what the employer actually entered. */}
+          {(p.org_industry || p.org_size || p.org_headquarters || p.org_website || p.org_about) && (
+            <div className="rounded-lg border border-border/50 p-3 space-y-1.5">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {p.org_industry && <span>{p.org_industry}</span>}
+                {p.org_size && <span>{p.org_size} people</span>}
+                {p.org_headquarters && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{p.org_headquarters}</span>}
+                {p.org_website && (
+                  <a href={p.org_website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                    <ExternalLink className="w-3.5 h-3.5" />Website
+                  </a>
+                )}
+              </div>
+              {p.org_about && <p className="text-xs leading-relaxed">{p.org_about}</p>}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
             {p.job_location && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{p.job_location}</span>}
@@ -109,6 +131,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
               </a>
             )}
           </div>
+
 
           {p.message && (
             <p className="text-sm leading-relaxed whitespace-pre-wrap rounded-lg bg-muted/30 border border-border/50 p-3">
