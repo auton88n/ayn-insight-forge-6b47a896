@@ -118,26 +118,26 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
 
   const CHAPTERS = [
     {
-      headline: 'Add your resume once.\nAYN reads it and\nbuilds your profile.',
-      body: 'Your experience, skills, education, and the answers you keep retyping.',
+      headline: 'Forty fields.\nEvery time.\nFor months.',
+      body: 'Applying is not hard. It is just endless.',
       stat: '01', unit: 'Profile',
       in: 0.15, out: 0.31
     },
     {
-      headline: 'Open any job posting.\nAYN reads the real\njob description.',
-      body: 'It scores how well you match it, and tells you which requirements you meet and which you do not.',
+      headline: 'One click.\nThe whole form.\nIncluding the hard parts.',
+      body: 'Screening questions, dropdowns, work history, all of it.',
       stat: '02', unit: 'Match',
       in: 0.34, out: 0.49
     },
     {
-      headline: 'Click fill.\nThe screening questions\nand dropdowns too.',
-      body: 'AYN completes the application, then shows you exactly what it filled and what it left for you.',
+      headline: 'Know before\nyou spend\nthe hour.',
+      body: 'See how well you match before you apply.',
       stat: '03', unit: 'Fill',
       in: 0.52, out: 0.67
     },
     {
-      headline: 'A tailored resume\nand cover letter\nfor the role.',
-      body: 'One page, real text a resume scanner can read, built from your own experience.',
+      headline: 'A resume that\nfits the role.\nEvery time.',
+      body: 'Tailored from your real experience. One page.',
       stat: '04', unit: 'Tailor',
       in: 0.70, out: 0.85
     },
@@ -358,10 +358,10 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               {/* Headline */}
               <div ref={headRef} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', willChange: 'opacity, transform' }}>
                 <h1 style={{ fontFamily: C.display, fontSize: 'clamp(32px,5.4vw,64px)', fontWeight: 700, lineHeight: 1.0, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px', textAlign: 'left' }}>
-                  Stop filling out the same job application over and over.
+                  You have filled the same form a hundred times.
                 </h1>
                 <p style={{ fontFamily: C.body, fontSize: 17, fontWeight: 400, lineHeight: 1.55, color: C.inkSub, maxWidth: 520, margin: '0 0 28px', textAlign: 'left' }}>
-                  AYN reads the job posting, scores you against it, fills the application, and writes you a tailored resume and cover letter. It works on Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.
+                  AYN applies for you. One click per job, not forty fields.
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                   <button type="button" onClick={() => onStartFree?.()}
@@ -370,16 +370,17 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
                     Start free <ArrowRight size={13} />
                   </button>
-                  <Link to="/resume-hub?tab=extension"
+                  <a href="#employers"
                     style={{ display: 'inline-flex', alignItems: 'center', padding: '12px 18px', background: 'transparent', color: C.inkMid, fontFamily: C.body, fontSize: 14, fontWeight: 400, borderRadius: 100, border: `1px solid ${C.borderMd}`, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(0,0,0,0.04)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}>
-                    Add to Chrome
-                  </Link>
+                    For employers
+                  </a>
                 </div>
                 <p style={{ fontFamily: C.body, fontSize: 13, color: C.inkMid, margin: '14px 0 0', textAlign: 'left' }}>
-                  Free to start. Your data stays yours.
+                  Free to start. Works on Greenhouse, Lever, Workday, Ashby and more.
                 </p>
+
               </div>
 
               {/* Chapters */}
@@ -393,7 +394,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               {/* Final CTA */}
               <div ref={ctaRef2} style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', opacity: 0, pointerEvents: 'none', willChange: 'opacity' }}>
                 <h2 style={{ fontFamily: C.display, fontSize: 'clamp(30px,5vw,60px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.035em', color: C.ink, margin: '0 0 28px', textAlign: 'left' }}>
-                  <span>Your next application<br />should take a minute,<br />not an hour.</span>
+                  <span>Your next application<br />should take a minute.</span>
                 </h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => onStartFree?.()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
@@ -423,9 +424,9 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 40 }}>
             {[
-              { n: '1', text: 'Add your resume once. AYN reads it and builds your profile: your experience, skills, education, and the answers you keep retyping.' },
-              { n: '2', text: 'Open any job posting. AYN pulls the real job description off the page and scores how well you match it, and tells you which requirements you meet and which you do not.' },
-              { n: '3', text: 'Click fill. AYN completes the application, including the screening questions and dropdowns that usually take the longest, then shows you exactly what it filled and what it left for you.' },
+              { n: '1', text: 'Add your resume once.' },
+              { n: '2', text: 'Open any job posting.' },
+              { n: '3', text: 'Click fill.' },
             ].map(step => (
               <div key={step.n} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 100, border: `1px solid ${C.borderMd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: C.display, fontSize: 20, fontWeight: 700, color: C.ink }}>
@@ -466,7 +467,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               Features
             </h2>
             <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.6, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'], textAlign: 'center' }}>
-              Everything you need to apply faster without losing control of what goes out with your name on it.
+              Apply faster without losing control of what goes out with your name on it.
             </p>
           </div>
 
@@ -478,36 +479,36 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
             {[
               {
                 title: 'Autofill that handles the hard parts',
-                desc: 'Names and emails are easy. AYN also handles work history, education, custom screening questions, dropdown menus, and the long forms that make you give up halfway through.',
+                desc: 'One click fills the whole form. Even the questions that make you quit.',
                 icon: Wand2
               },
               {
                 title: 'A match score you can check',
-                desc: 'AYN scores you against the actual job description it read from the page, and shows you how many characters it found and which resume it compared. If it cannot find a real job description, it says so instead of guessing.',
+                desc: 'See your real match before you waste an hour applying.',
                 icon: Target,
                 art: MatchScoreIllustration
               },
               {
                 title: 'It never invents an answer',
-                desc: 'Every answer AYN fills has to come from your own profile or resume. If it cannot verify something, it leaves the field blank and tells you, rather than making something up.',
+                desc: 'Never a made up answer. If AYN cannot verify it, it leaves it blank.',
                 icon: ShieldCheck,
                 art: ProvenanceIllustration
               },
               {
                 title: 'Tailored resumes and cover letters',
-                desc: 'One page, real text a resume scanner can read, not an image. AYN rewrites your existing experience to match the role without inventing jobs, changing your numbers, or adding skills you do not have.',
+                desc: 'A resume and cover letter built for the role. One page, ATS ready.',
                 icon: FileText,
                 art: OnePageDocIllustration
               },
 
               {
                 title: 'It learns your answers',
-                desc: 'Answer a question once and AYN remembers it, even when the next company words it differently. Sensitive questions like work authorization are always yours to answer.',
+                desc: 'Answer a question once. AYN remembers it forever.',
                 icon: Sparkles
               },
               {
                 title: 'Everything in one place',
-                desc: 'Your resumes, saved jobs, applications, and match scores live in Resume Hub, so you can see what you applied to and what happened next.',
+                desc: 'Every resume, job, and application in one place.',
                 icon: LayoutGrid
               }
             ].map((card, i) => (
@@ -571,6 +572,44 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
         </div>
       </section>
 
+      {/* Section 3b — For employers */}
+      <section id="employers" style={{ padding: 'clamp(96px,14vh,160px) clamp(20px,5vw,80px)', background: C.bgOff, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,4.5vw,58px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.04em', color: C.ink, margin: '0 0 20px' }}>
+            For employers
+          </h2>
+          <p style={{ fontFamily: C.display, fontSize: 'clamp(20px,2.4vw,26px)', fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.3, color: C.ink, margin: '0 0 18px' }}>
+            You have read a thousand resumes to find three people.
+          </p>
+          <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.7, color: C.inkSub, maxWidth: 680, margin: '0 auto', textWrap: 'balance' as React.CSSProperties['textWrap'] }}>
+            Tell AYN what the role needs. It searches candidates who chose to be found and brings you the three best fits, with the reason for each. No job board. No inbox full of maybes.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 32, textAlign: 'left', margin: 'clamp(48px,7vw,72px) 0 clamp(40px,6vw,56px)' }}>
+            {[
+              'Describe the role in plain words.',
+              'AYN searches only candidates who opted in.',
+              'Get three real fits, with evidence.',
+            ].map(t => (
+              <div key={t} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ width: 28, height: 1, background: C.borderMd }} />
+                <p style={{ fontFamily: C.body, fontSize: 17, lineHeight: 1.6, color: C.inkSub, margin: 0 }}>{t}</p>
+              </div>
+            ))}
+          </div>
+
+          <Link to="/contact"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '12px 24px', background: C.ink, color: '#fff', fontFamily: C.body, fontSize: 14, fontWeight: 500, borderRadius: 100, textDecoration: 'none', transition: 'opacity 0.2s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.85'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}>
+            Join the employer waitlist <ArrowRight size={13} />
+          </Link>
+          <p style={{ fontFamily: C.body, fontSize: 13, color: C.inkMid, margin: '14px 0 0' }}>
+            Early access. We onboard employers one at a time.
+          </p>
+        </div>
+      </section>
+
       {/* Section 4 — Trust */}
       <section id="trust" style={{
         display: 'flex',
@@ -587,7 +626,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
             Built to be honest with you
           </h2>
           <p style={{ fontFamily: C.body, fontSize: 18, fontWeight: 400, lineHeight: 1.7, color: C.inkSub, margin: 0, textWrap: 'balance' as React.CSSProperties['textWrap'] }}>
-            AYN tells you what it did and what it could not do. It shows which job description it read and how complete it was, which resume it compared you against, and which fields it filled, skipped, or wants you to review. Sensitive questions about work authorization, sponsorship, salary, and self identification are never guessed. You answer those.
+            AYN shows you what it filled, what it skipped, and what it could not verify. Work authorization, sponsorship, salary, and self identification are never guessed. You answer those.
           </p>
 
           <div style={{ width: '100%', maxWidth: 560, margin: 'clamp(40px,6vw,64px) auto 0' }}>
@@ -604,7 +643,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
         ))}
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 640, width: '100%', paddingBottom: 100, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 style={{ fontFamily: C.display, fontSize: 'clamp(32px,5.4vw,72px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.04em', color: '#fff', margin: '0 0 40px', textAlign: 'center' }}>
-            <span>Your next application should take a minute, not an hour.</span>
+            <span>Your next application should take a minute.</span>
           </h2>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button type="button" onClick={() => onStartFree?.()}
