@@ -427,18 +427,21 @@ function keywordFallbackScore(canonical: CanonicalProfile | null, fullJd: string
 // cover letter. Extracted once from primary resume + user_profile_data;
 // users can edit it in the Profile tab and edits win over re-extraction.
 type CanonicalProfile = {
-  skills: Array<{ name: string; years?: number; last_used?: string; level?: string; evidence?: string }>;
-  experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[] }>;
+  // v3.5.0 — skills carry level and recency because a bare name is unmatchable.
+  skills: Array<{ name: string; years?: number | null; last_used?: string | null; level?: string | null; evidence?: string }>;
+  experiences: Array<{ company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[]; industry?: string; team_size?: number | null; bullets_from_resume?: boolean }>;
   education: Array<{ school: string; degree?: string; field?: string; start?: string; end?: string; gpa?: string }>;
   certifications: Array<{ name: string; issuer?: string; year?: string }>;
   work_auth: {
     citizenship?: string;
+    countries?: string[];
     work_authorized_us?: boolean;
     work_authorized_ca?: boolean;
     needs_sponsorship_now?: boolean;
     needs_sponsorship_future?: boolean;
     visa_type?: string;
     notes?: string;
+    work_permit_expires?: string;
   };
   preferences: {
     open_to_remote?: boolean;
@@ -449,6 +452,9 @@ type CanonicalProfile = {
     start_date_availability?: string;
     desired_titles?: string[];
     desired_locations?: string[];
+    employment_types?: string[];
+    availability?: string;
+    company_stages?: string[];
   };
   derived: {
     total_yoe?: number;
@@ -458,8 +464,10 @@ type CanonicalProfile = {
     education_level?: string;
     current_title?: string;
     current_company?: string;
+    known_for?: string[];
   };
 };
+
 
 const EMPTY_CANONICAL: CanonicalProfile = {
   skills: [], experiences: [], education: [], certifications: [],
