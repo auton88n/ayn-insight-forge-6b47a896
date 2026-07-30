@@ -25,6 +25,7 @@ const TILES = [
     title: 'Autofill that handles the hard parts',
     desc: 'One click fills the whole form. Even the questions that make you quit.',
     art: null,
+    meta: ['Dropdowns', 'Work history', 'Screening questions'],
   },
   {
     span: 'lp-span-2',
@@ -53,6 +54,7 @@ const TILES = [
     title: 'It learns your answers',
     desc: 'Answer a question once. AYN remembers it.',
     art: null,
+    meta: ['Reusable answers', 'Editable any time'],
   },
   {
     span: 'lp-span-6',
@@ -60,6 +62,7 @@ const TILES = [
     title: 'Everything in one place',
     desc: 'Every resume, job, and application tracked in one workspace.',
     art: null,
+    meta: ['Saved jobs', 'Application tracker', 'Resume versions', 'Fill history'],
   },
 ];
 
@@ -201,6 +204,11 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
                   {Art && (
                     <div className="lp-art">
                       <Art />
+                    </div>
+                  )}
+                  {!Art && 'meta' in tile && (
+                    <div className="lp-tile-meta">
+                      {(tile as { meta: string[] }).meta.map((m) => <span key={m}>{m}</span>)}
                     </div>
                   )}
                 </article>
