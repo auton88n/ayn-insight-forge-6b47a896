@@ -328,28 +328,84 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
 
   return (
     <div className="space-y-6">
-      {/* Resume source */}
-      <Card className="p-4 sm:p-6 space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm">
-            <FileUp className="w-4 h-4 text-primary" />
-            <span className="font-medium">Your resume</span>
-            {primaryResume
-              ? <Badge variant="secondary" className="truncate max-w-[260px]">{primaryResume.title}</Badge>
-              : <Badge variant="outline">No resume yet</Badge>}
+      {/* ── 0. Your resume (v3.4.0: one active resume, no library) ──────── */}
+      <Group title="Your resume" line="Everything AYN writes starts from this.">
+        {primaryResume ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileUp className="w-4 h-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{primaryResume.title}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Added {new Date(primaryResume.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => downloadResume(resumeContent ?? {}, primaryResume.title, "pdf")}>
+                <Download className="w-4 h-4 mr-1.5" /> Download
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (replaceOpen) { setReplaceOpen(false); return; }
+                  if (confirm("Replace your resume? AYN will read the new file and update the fields below. Your current resume becomes inactive.")) {
+                    setReplaceOpen(true);
+                  }
+                }}
+              >
+                <RefreshCw className="w-4 h-4 mr-1.5" /> {replaceOpen ? "Cancel" : "Replace resume"}
+              </Button>
+            </div>
           </div>
-          {uploading && (
-            <span className="text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
-          correct what it got wrong.
-        </p>
-        <ResumeUpload onParsed={handleResumeParsed} variant="full" />
-      </Card>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
+            correct what it got wrong.
+          </p>
+        )}
+
+        {uploading && (
+          <span className="text-xs text-muted-foreground flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
+          </span>
+        )}
+
+        {(!primaryResume || replaceOpen) && <ResumeUpload onParsed={handleResumeParsed} variant="full" />}
+
+        {olderResumes.length > 0 && (
+          <div className="pt-1">
+            <p className="text-[11px] text-muted-foreground">
+              You have {olderResumes.length} older {olderResumes.length === 1 ? "resume" : "resumes"} from an earlier version of AYN.{" "}
+              <button type="button" className="underline hover:text-foreground" onClick={() => setShowOlder(v => !v)}>
+                {showOlder ? "Hide" : "View"}
+              </button>
+            </p>
+            {showOlder && (
+              <div className="mt-2 space-y-1.5">
+                {olderResumes.map(r => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 rounded-md border border-border/60 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs truncate">{r.title}</p>
+                      <p className="text-[11px] text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => downloadResume(r.content, r.title, "pdf")}>
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteOlderResume(r.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Group>
+
 
       {/* ── 1. About you ───────────────────────────────────────────────── */}
       <Group title="About you" line="Used in your tailored resumes and cover letters.">
