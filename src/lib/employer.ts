@@ -208,7 +208,9 @@ export type SentProposal = {
   message: string;
   sent_at: string;
   responded_at: string | null;
+  first_name?: string | null;
   name?: string | null;
+
   email?: string | null;
   phone?: string | null;
 };
