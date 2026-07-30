@@ -1296,6 +1296,7 @@ function bgFunc(action, payload, opts = {}) {
 function getTab(cb) { chrome.tabs.query({ active:true, currentWindow:true }, tabs => cb(tabs[0]||null)); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function cleanTitle(t) {
   return String(t||'').replace(/\s*[|\-–—]\s*Lovable\s*$/i, '').trim();
 }
 window.cleanTitle = cleanTitle;
