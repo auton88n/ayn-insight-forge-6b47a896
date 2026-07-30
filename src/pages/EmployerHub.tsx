@@ -605,6 +605,19 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* v3.13.0 — verification assessment. Rubrics never reach this client. */}
+      {org && searchId && assessFor && (
+        <AssessmentDialog
+          open={!!assessFor}
+          onOpenChange={o => { if (!o) setAssessFor(null); }}
+          orgId={org.id}
+          searchId={searchId}
+          candidateRef={assessFor.ref}
+          onSent={() => { setAssessKey(k => k + 1); setTab("assessments"); }}
+        />
+      )}
     </div>
+
   );
 }
