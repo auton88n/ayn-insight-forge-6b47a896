@@ -86,7 +86,7 @@ export function FillInProgressIllustration({ style }: { style?: React.CSSPropert
         strokeDasharray={`${2 * Math.PI * 38 * 0.72} ${2 * Math.PI * 38}`}
         transform="rotate(-90 758 86)"
       />
-      <rect x="742" y="82" width="32" height="9" rx="4.5" fill={T.ink} opacity="0.7" />
+      <text x="758" y="93" textAnchor="middle" fontFamily="'Inter Tight', Inter, system-ui, sans-serif" fontSize="22" fontWeight="700" fill={T.ink}>72%</text>
 
       {[160, 216, 272].map((y, i) => (
         <g key={y}>
