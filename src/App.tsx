@@ -120,6 +120,7 @@ const AnimatedRoutes = () => {
 
       <Route path="/contact" element={<Suspense fallback={<PageLoader />}><ContactPage /></Suspense>} />
       <Route path="/resume-match" element={<Suspense fallback={<PageLoader />}><ResumeMatch /></Suspense>} />
+      <Route path="/__profile-preview" element={<div className="resume-hub-theme p-6"><ProfilePreview userId="00000000-0000-0000-0000-000000000000" onOpenDiscovery={() => {}} /></div>} />
       <Route path="/resume-hub" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/resume-hub/*" element={<Suspense fallback={<PageLoader />}><ResumeHub /></Suspense>} />
       <Route path="/handoff" element={<Suspense fallback={<PageLoader />}><Handoff /></Suspense>} />
