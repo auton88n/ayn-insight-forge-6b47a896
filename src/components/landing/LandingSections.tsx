@@ -287,11 +287,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
             <h2 className="lp-display lp-h2" style={{ maxWidth: 720, marginInline: 'auto' }}>
-              Your next application should take a minute
+              Know before you apply
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-              Add your resume once and let AYN do the rest.
+              Add your resume once and let AYN read the job for you.
             </p>
+
             <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.()}>
                 Start free <ArrowRight size={15} />
