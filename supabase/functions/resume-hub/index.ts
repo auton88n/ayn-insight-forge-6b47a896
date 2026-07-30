@@ -2383,7 +2383,7 @@ ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.
 THE ROLE, use these words and never describe the role any other way: ${roleLine(spec)} at ${company}.
 
 Write exactly this shape, as plain prose in 4 to 6 short sentences:
-1. A warm greeting. You do not know their name, so open with "Hi there".
+1. A warm greeting. ${mine.first_name ? `Their first name is ${mine.first_name}, so open with "Hi ${mine.first_name}".` : `You do not know their name, so open with "Hi there".`}
 2. One line saying who the company is and what it does, paraphrased only from COMPANY FACTS. If a fact is null it does not exist: never guess an industry, a size, a location, a mission, or a product.
 3. One or two lines naming the role and saying, naturally, why the employer thinks they would be a good fit. At most TWO specifics about them, said in passing, in ordinary words.
 4. A clear invitation to talk.
