@@ -1,7 +1,7 @@
 /**
  * LandingSections — AYN marketing page.
  * Charcoal & Ember, Outfit + Figtree, bento grid composition.
- * v3.0.0: AYN is a read only job search copilot. Match score first, no autofill.
+ * v3.3.2: tailoring is the promise. Scoring is proof, never a headline.
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
@@ -19,40 +19,48 @@ const ATS = ['Greenhouse', 'Ashby', 'Lever', 'Workday', 'iCIMS', 'SmartRecruiter
 const TILES = [
   {
     span: 'lp-span-4',
-    icon: Target,
-    title: 'A match score you can check',
-    desc: 'See your real fit before you spend the hour writing an application.',
-    art: MatchScoreIllustration,
-  },
-  {
-    span: 'lp-span-2',
-    icon: ShieldCheck,
-    title: 'Grounded on the real posting',
-    desc: 'AYN reads the full job text, not a nav bar and a cookie banner.',
-    art: ProvenanceIllustration,
-  },
-  {
-    span: 'lp-span-2',
     icon: FileText,
-    title: 'Tailored resumes and cover letters',
-    desc: 'Written for that role. One page, ATS ready.',
+    title: 'A resume for every job',
+    desc: 'Your real experience, rewritten in the language of the posting. One page, ATS ready.',
     art: OnePageDocIllustration,
   },
   {
     span: 'lp-span-2',
     icon: MessagesSquare,
-    title: 'Ask AYN about the job',
-    desc: 'What does this role really want? Ask, and get an answer from the posting.',
+    title: 'Cover letters that are specific',
+    desc: 'It mentions the company and the role, because AYN read both. No templates.',
     art: null,
-    meta: ['Plain questions', 'Answers from the text'],
+    meta: ['Named company', 'One page'],
   },
   {
-    span: 'lp-span-6',
+    span: 'lp-span-4',
+    icon: Target,
+    title: 'It knows what to change',
+    desc: 'AYN compares the posting to your resume and shows what is strong, what it surfaced, and what you are genuinely missing.',
+    art: MatchScoreIllustration,
+  },
+  {
+    span: 'lp-span-2',
+    icon: ShieldCheck,
+    title: 'Never invented',
+    desc: 'Nothing added that is not in your background. Your numbers, dates, and titles are never altered.',
+    art: ProvenanceIllustration,
+  },
+  {
+    span: 'lp-span-3',
+    icon: LayoutGrid,
+    title: 'Works where you are',
+    desc: 'Open a posting, get your tailored version without leaving the page.',
+    art: null,
+    meta: ['Greenhouse', 'Lever', 'Workday', 'Ashby'],
+  },
+  {
+    span: 'lp-span-3',
     icon: LayoutGrid,
     title: 'Everything in one place',
-    desc: 'Every resume, saved job, and score in one workspace.',
+    desc: 'Your resumes, versions, and jobs live in Resume Hub.',
     art: null,
-    meta: ['Saved jobs', 'Match scores', 'Resume versions', 'Cover letters'],
+    meta: ['Resumes', 'Versions', 'Saved jobs', 'Cover letters'],
   },
   {
     span: 'lp-span-6',
@@ -62,6 +70,7 @@ const TILES = [
     art: null,
   },
 ];
+
 
 const FAQS = [
   {
@@ -124,11 +133,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              Applying is only <em>half the job search</em>.
+              A resume built for <em>the job you are applying to</em>.
             </h1>
             <p className="lp-lead">
-              AYN helps you apply smarter, and helps the right employers find you first.
+              AYN reads the posting and rewrites your resume and cover letter to fit. In seconds, not an evening.
             </p>
+
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
                 Start free <ArrowRight size={15} />
@@ -178,10 +188,10 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             {[
               'Add your resume once.',
               'Open any job posting.',
-              'See your score, then tailor.',
-
+              'Get a version made for that job.',
             ].map((t, i) => (
               <div className="lp-step" key={t}>
+
                 <span className="lp-step-n">STEP {i + 1}</span>
                 <p>{t}</p>
               </div>
@@ -195,10 +205,11 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-reveal" style={{ marginBottom: 40 }}>
             <p className="lp-eyebrow">What it does</p>
-            <h2 className="lp-display lp-h2">Apply to fewer jobs, and to better ones</h2>
+            <h2 className="lp-display lp-h2">Tailored to the role, every time</h2>
             <p className="lp-lead">
-              Apply faster, and be the candidate employers surface when they search.
+              Send something built for the role, not the same file you sent last week.
             </p>
+
 
           </div>
 
@@ -272,15 +283,15 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <p className="lp-eyebrow">Built to be honest</p>
             <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
             <p className="lp-lead">
-              AYN shows its work. Which job description it read, which resume it compared, what it
-              could not verify. Your profile is only shared with employers when you turn discovery
-              on, and your contact details only when you approve an intro.
+              AYN shows its work. Which posting it read, which resume it used, and what it could not
+              verify. It never invents experience you do not have.
             </p>
             <div className="lp-chips">
               <span className="lp-chip">Read only, always</span>
-              <span className="lp-chip">Evidence for every score</span>
+              <span className="lp-chip">Grounded in the posting</span>
               <span className="lp-chip">Your data stays yours</span>
             </div>
+
           </div>
         </div>
       </section>
@@ -309,11 +320,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
         <div className="lp-shell">
           <div className="lp-closing lp-reveal">
             <h2 className="lp-display lp-h2" style={{ maxWidth: 720, marginInline: 'auto' }}>
-              Apply less. Get found more.
+              Stop sending the same resume.
             </h2>
             <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
-              Add your resume once and let AYN read the job for you.
+              Add your resume once and get a version made for every job.
             </p>
+
 
             <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.()}>
