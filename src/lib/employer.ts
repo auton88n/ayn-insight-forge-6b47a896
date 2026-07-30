@@ -64,6 +64,9 @@ export type CandidateCard = {
 /** v3.8.0 — skills that actually exist on opted-in candidates, with counts. */
 export type SkillOption = { skill: string; skill_norm: string; count: number };
 
+/** v3.9.0 — the four fixed questions that replaced the results chat. */
+export type CardKey = "why_score" | "what_is_missing" | "compare" | "screen_questions";
+
 
 /** v3.6.0 — what the employer sends and the seeker reads. */
 export type ProposalDraft = {
