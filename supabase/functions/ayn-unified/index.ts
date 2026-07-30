@@ -35,7 +35,10 @@ const MAX_MESSAGES_PER_CHAT = 100;
 const MAX_CONTEXT_MESSAGES = 15;
 const MAX_CHARS_PER_MESSAGE = 8000;
 
-type AnyClient = ReturnType<typeof createClient>;
+// Deno type checking across two supabase-js entry points is noisy and adds no
+// safety here, so the client is loosely typed at the boundary.
+// deno-lint-ignore no-explicit-any
+type AnyClient = any;
 
 /** Plan limit. Fails open: our bug must never block a paying user. */
 async function checkUserLimit(supabase: AnyClient, userId: string): Promise<{ allowed: boolean; reason?: string }> {
@@ -80,7 +83,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase: AnyClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) return json({ error: "Missing authorization" }, 401);
@@ -133,7 +136,7 @@ Deno.serve(async (req) => {
         user_id: isInternalCall ? null : userId,
         details: { input_preview: lastMessage.slice(0, 200), function: "ayn-unified" },
         severity: "high",
-      }).then(() => {}).catch(() => {});
+      }).then(() => {}, () => {});
     }
 
     // Per-chat cap.
@@ -154,7 +157,7 @@ Deno.serve(async (req) => {
       isInternalCall ? Promise.resolve({ allowed: true } as const) : checkUserLimit(supabase, userId),
       isInternalCall
         ? Promise.resolve({ text: "no user context (internal call)", hasResume: false, hasProfile: false, summary: null })
-        : buildJobSearchContext(supabase as never, userId).catch((e) => {
+        : buildJobSearchContext(supabase, userId).catch((e) => {
             console.error("[ayn-unified] context build failed:", e instanceof Error ? e.message : e);
             return { text: "context unavailable this turn. say so plainly rather than guessing.", hasResume: false, hasProfile: false, summary: null };
           }),
