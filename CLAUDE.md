@@ -43,7 +43,7 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product area
                     ▼
  job page ───► extension sidepanel + background.js ───► resume-hub edge fn ───► Supabase tables
  (content.js         JD resolver ladder                 (14 ext actions,          (jobs, resumes,
-  read only)         score / tailor / cover / ask        3 auth lanes)             job_applications)
+  read only)         score / tailor / cover / ask        2 auth lanes)             ai_result_cache)
                     ▲
                     └── saved jobs, scores and applications ──► Hub tabs read the same tables
 ```
@@ -52,7 +52,7 @@ Four loops carry everything:
 
 1. READ LOOP: content.js extracts the JD from the live page (site selector map, JSON-LD and meta fallback); the background JD resolver ladder (manual paste, current page, opener tab, registry, listing fetch, backend lookup) upgrades it until jdQuality >= 45. Everything downstream is grounded on that text.
 2. SYNC LOOP: profile edited in the Hub -> AYN_PROFILE_UPDATED clears the extension's cached identity -> next read refetches. 24h TTL is the fallback for closed browsers.
-3. TRACKING LOOP: the user saves or marks a job -> job_applications upsert -> Tracker board in both the sidepanel and the Hub, enriched with the score from LAST_MATCH.
+3. GAP LOOP (v3.1.0): _shared/tailoring.ts computes matched / missing / nice-to-have deterministically from the JD against structured sections, the model only surfaces and phrases, and the same analysis is returned to the sidepanel so the user sees what is genuinely missing from their background.
 4. HANDOFF LOOP: Hub tailors a resume for a job -> deep link carries resumeId -> sidepanel preselects that resume_versions row for scoring, tailoring, and cover letters.
 5. MATCH LOOP (v2.9.0-B): seeker opts in -> indexCandidate builds anonymized profile_text + 768d embedding + extracted/inferred skills -> employer opens hiring mode in the dashboard chat -> employer_intake_chat distills a JobSpec -> employer_match runs extracted-only prefilter (must-haves), pgvector recall (top 12), then a single grounded rerank on opaque refs (inferred capped at 10 pts) -> top 3 anonymized cards -> employer requests intro -> candidate approves in ProfileTab intro requests -> contact revealed only then. The ref_map that binds refs to real users never leaves the edge function.
 
