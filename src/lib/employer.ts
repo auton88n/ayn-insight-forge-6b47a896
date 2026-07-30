@@ -119,8 +119,14 @@ export const employerApi = {
     }),
   skillCatalog: (org_id: string) =>
     call<{ pool_size: number; skills: SkillOption[] }>({ action: "employer_skill_catalog", org_id }),
-  resultsChat: (search_id: string, messages: { role: "user" | "assistant"; content: string }[]) =>
-    call<{ reply: string }>({ action: "employer_results_chat", search_id, messages }),
+  /** v3.9.0 — four fixed questions replace the free-form results chat. */
+  cardAnswer: (search_id: string, ref: string, card: CardKey) =>
+    call<{ answer: string }>({ action: "employer_card_answer", search_id, ref, card }),
+  /** v3.9.0 — a pre-written proposal message the employer edits. */
+  draftProposal: (org_id: string, search_id: string, ref: string) =>
+    call<{ subject_hint: string; message: string }>({
+      action: "employer_draft_proposal", org_id, search_id, ref,
+    }),
   match: (org_id: string, job_spec: JobSpec) =>
     call<{ search_id: string | null; results: CandidateCard[]; pool_note: string }>({
       action: "employer_match", org_id, job_spec,
