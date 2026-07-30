@@ -5,7 +5,7 @@ import { Check, Sparkles, Loader2, CreditCard, Zap, PlusCircle } from 'lucide-re
 import { useSubscription, SUBSCRIPTION_TIERS, TOPUP_PRICE, TOPUP_CREDITS } from '@/contexts/SubscriptionContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
-import { DashboardContainer } from './DashboardContainer';
+
 import { useUsageTracking } from '@/hooks/useUsageTracking';
 
 // Pricing configuration mimicking the landing page but structured for dashboard
