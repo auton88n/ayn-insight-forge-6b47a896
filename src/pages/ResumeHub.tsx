@@ -14,21 +14,25 @@ import ExtensionTab from "@/components/resume-hub/ExtensionTab";
 import ProfileTab from "@/components/resume-hub/ProfileTab";
 import DiscoveryTab from "@/components/resume-hub/DiscoveryTab";
 import ProposalsTab from "@/components/resume-hub/ProposalsTab";
+import AssessmentsTab from "@/components/resume-hub/AssessmentsTab";
 import { employerApi } from "@/lib/employer";
+import { assessmentApi } from "@/lib/assessments";
 import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 
 
-type TabKey = "home" | "profile" | "jobs" | "proposals" | "discovery" | "extension";
+type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "discovery" | "extension";
 
 // v3.6.0 — Proposals is its own page, between Jobs and Get discovered.
+// v3.13.0 — Assessments sits right after it, badged the same way.
 const NAV: { key: TabKey; label: string; icon: typeof Home; hint: string }[] = [
-  { key: "home",      label: "Home",              icon: Home,      hint: "Start here" },
-  { key: "profile",   label: "Profile",           icon: User,      hint: "You, your resume, your goals" },
-  { key: "jobs",      label: "Jobs",              icon: Briefcase, hint: "Score and tailor" },
-  { key: "proposals", label: "Proposals",         icon: Mail,      hint: "Roles employers want you for" },
-  { key: "discovery", label: "Get discovered",    icon: Users,     hint: "Let employers find you" },
-  { key: "extension", label: "Browser extension", icon: Puzzle,    hint: "Score jobs as you browse" },
+  { key: "home",        label: "Home",              icon: Home,           hint: "Start here" },
+  { key: "profile",     label: "Profile",           icon: User,           hint: "You, your resume, your goals" },
+  { key: "jobs",        label: "Jobs",              icon: Briefcase,      hint: "Score and tailor" },
+  { key: "proposals",   label: "Proposals",         icon: Mail,           hint: "Roles employers want you for" },
+  { key: "assessments", label: "Assessments",       icon: ClipboardCheck, hint: "Questions about your own work" },
+  { key: "discovery",   label: "Get discovered",    icon: Users,          hint: "Let employers find you" },
+  { key: "extension",   label: "Browser extension", icon: Puzzle,         hint: "Score jobs as you browse" },
 ];
 
 
