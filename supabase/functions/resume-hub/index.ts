@@ -808,10 +808,11 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
   return [
     derived,
     knownFor ? `Known for: ${knownFor}` : "",
-    `Skills: ${skills}`,
+    skills ? `Skills: ${skills}` : "",
     emphasised ? `Strongest current skills: ${emphasised}` : "",
-    `Experience:\n${exp}`,
-    `Education: ${edu}`,
+    exp ? `Experience:\n${exp}` : "",
+    edu ? `Education: ${edu}` : "",
+
     certs ? `Certifications: ${certs}` : "",
     seeking ? `Seeking: ${seeking}` : "",
     resumeSummary ? `Summary: ${resumeSummary}` : "",
