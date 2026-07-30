@@ -47,6 +47,7 @@ export type EmployerAssessment = {
   ref: string | null;
   search_id: string | null;
   job_title: string | null;
+  first_name?: string | null;
   status: AssessmentStatus;
   question_count: number;
   time_limit_seconds: number;

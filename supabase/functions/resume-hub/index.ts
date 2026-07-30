@@ -2980,7 +2980,7 @@ Write the assessment now.`,
       if (!orgIds.length) return json({ assessments: [] });
 
       let q = adminForNew.from("assessments")
-        .select("id, org_id, search_id, candidate_ref, job_title, status, questions, answers, time_limit_seconds, started_at, submitted_at, sent_at, expires_at, created_at")
+        .select("id, org_id, search_id, candidate_ref, candidate_user_id, job_title, status, questions, answers, time_limit_seconds, started_at, submitted_at, sent_at, expires_at, created_at")
         .in("org_id", orgIds).neq("status", "draft")
         .order("created_at", { ascending: false }).limit(100);
       if (search_id) q = q.eq("search_id", search_id);
@@ -2994,11 +2994,22 @@ Write the assessment now.`,
         : { data: [] };
       const byId = new Map((results || []).map(r => [r.assessment_id, r]));
 
+      // First name only, so a list of assessments for one role is readable.
+      const candIds = [...new Set((rows || []).map(r => r.candidate_user_id).filter(Boolean))];
+      const { data: profs } = candIds.length
+        ? await adminForNew.from("user_profile_data")
+          .select("user_id, legal_first_name").in("user_id", candIds)
+        : { data: [] };
+      const nameByUser = new Map(
+        (profs || []).map(p => [p.user_id, String(p.legal_first_name || "").trim().split(/\s+/)[0] || null]),
+      );
+
       const out = (rows || []).map(r => {
         const expired = r.status !== "submitted" && r.expires_at && new Date(r.expires_at).getTime() < Date.now();
         const res = byId.get(r.id) || null;
         return {
           id: r.id, ref: r.candidate_ref, search_id: r.search_id, job_title: r.job_title,
+          first_name: nameByUser.get(r.candidate_user_id) || null,
           status: expired ? "expired" : r.status,
           question_count: ((r.questions as unknown[]) || []).length,
           time_limit_seconds: r.time_limit_seconds,
