@@ -2576,6 +2576,9 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       // v3.12.0 — attach a structured, anonymous profile block for the three
       // cards we actually return, so the client renders a candidate profile
       // instead of the embedding blob. Three canonical loads, top three only.
+      // v3.15.1 — also attach the FIRST NAME only. "Candidate c1" reads like a
+      // row id; a first name is human and still not identifying. Last name,
+      // email and phone stay locked until the candidate accepts a proposal.
       for (const card of top) {
         const uid = refMap[card.ref];
         if (!uid) continue;
@@ -2585,7 +2588,16 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         } catch (e) {
           console.error("profile block failed", card.ref, (e as Error).message);
         }
+        try {
+          const { data: prof } = await adminForNew.from("user_profile_data")
+            .select("legal_first_name").eq("user_id", uid).maybeSingle();
+          const first = String(prof?.legal_first_name || "").trim().split(/\s+/)[0] || "";
+          if (first) (card as Record<string, unknown>).first_name = first;
+        } catch (e) {
+          console.error("first name lookup failed", card.ref, (e as Error).message);
+        }
       }
+
 
 
 
