@@ -496,12 +496,6 @@
     return 'unknown';
   }
 
-  // Walk up the DOM and harvest the nearest visible question text near the input.
-  // Tightened: only accept text that actually looks like a question/prompt,
-  // not any capitalized blob — stops autofill from mislabeling fields.
-  const QUESTION_RE = /\?\s*$|^(what|how|are|is|do|did|have|has|why|when|where|which|will|would|can|could|may|should|please|describe|tell|list|provide|select|choose|enter|specify)\b/i;
-
-  }
 
   // ══════════════════════════════════════════════════════════════════
   // 4. JOB CARD SCORING — inject badges onto search result cards
