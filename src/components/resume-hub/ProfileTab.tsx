@@ -206,6 +206,8 @@ export default function ProfileTab({ userId }: { userId: string }) {
       if (insErr) throw insErr;
       setParsedResume(resume);
       await loadPrimary();
+      // v3.1.0 — keep the talent pool index in sync with client-side writes.
+      resumeHubApi.talentPoolReindexSelf().catch(() => {});
     } catch (e) {
       toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
       setUploading(false);
