@@ -118,8 +118,11 @@ const Index = () => {
 };
 
 // v2.10.0 — Route employers through the pending gate until an admin approves.
-// v3.6.0 — an APPROVED employer lands in the hiring surface, not the seeker chat.
-const AuthedShell = ({ user, session }: { user: User; session: Session }) => {
+// v3.6.0 — an APPROVED employer lands in the hiring surface.
+// v3.8.0 — a job seeker lands in Resume Hub. The open ended dashboard chat is
+// gone; Ask AYN in the extension, grounded in a real job description, is where
+// a seeker talks to AYN now.
+const AuthedShell = ({ user, session: _session }: { user: User; session: Session }) => {
   const { loading, role, employerStatus, companyName } = useUserRole(user.id);
   if (loading) return <AYNLoader />;
   if (role === 'employer') {
@@ -130,12 +133,9 @@ const AuthedShell = ({ user, session }: { user: User; session: Session }) => {
       </Suspense>
     );
   }
-  return (
-    <Suspense fallback={<DashboardLoader />}>
-      <Dashboard user={user} session={session} />
-    </Suspense>
-  );
+  return <Navigate to="/resume-hub" replace />;
 };
+
 
 
 export default Index;
