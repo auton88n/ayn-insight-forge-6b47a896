@@ -30,7 +30,7 @@ const LandingPage = memo(() => {
     <>
       <SEO
         title="AYN, autofill job applications and tailor your resume"
-        description="AYN reads the job posting, scores your match, fills the application, and writes a tailored resume and cover letter. Works on Greenhouse, Lever, Workday, Ashby and more. Free to start."
+        description="AYN fills job applications for job seekers and finds real candidates for employers. One click per job. Free to start."
         canonical="/"
         keywords="autofill job applications, job application autofill, tailored resume, AI cover letter, Greenhouse autofill, Workday autofill"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
