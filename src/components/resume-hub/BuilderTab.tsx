@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, Plus, Trash2, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { ResumeUpload } from "./ResumeUpload";
+import { reindexTalentPool } from "@/lib/talentPoolSync";
+
 
 interface Props { userId: string }
 
