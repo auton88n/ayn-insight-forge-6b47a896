@@ -10,14 +10,14 @@ const LandingPage = memo(() => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { direction } = useLanguage();
 
-  // The landing page owns a dark charcoal canvas, independent of app theme.
+  // The landing page owns a warm paper canvas, independent of app theme.
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
     const prevHtmlBg = html.style.backgroundColor;
     const prevBodyBg = body.style.backgroundColor;
-    html.style.backgroundColor = '#1a1a1a';
-    body.style.backgroundColor = '#1a1a1a';
+    html.style.backgroundColor = '#faf8f3';
+    body.style.backgroundColor = '#faf8f3';
     return () => {
       html.style.backgroundColor = prevHtmlBg;
       body.style.backgroundColor = prevBodyBg;
@@ -40,7 +40,7 @@ const LandingPage = memo(() => {
         keywords="autofill job applications, job application autofill, tailored resume, AI cover letter, Greenhouse autofill, Workday autofill"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
       />
-      <div dir={direction} style={{ background: '#1a1a1a', minHeight: '100vh' }}>
+      <div dir={direction} style={{ background: '#faf8f3', minHeight: '100vh' }}>
         <Header />
         <LandingSections onStartFree={() => setShowAuthModal(true)} />
         <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
