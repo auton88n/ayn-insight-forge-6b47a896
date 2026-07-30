@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '2.13.0'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '3.0.0'; } })();
   // v2.11.2 — hard cap the JD payload we ship out to backend/scoring. Bigger
   // payloads were mostly boilerplate (nav/footer/cookie banners) and pushed
   // real role signal out of the model's window.
@@ -684,7 +684,7 @@
   }
 
   // v2.8.1 — Page classifier gate. classifyPage() returns
-  //   { kind: 'apply' | 'listing' | 'other', confidence, signals }
+  //   { kind: 'job' | 'other', confidence, signals }
   // Prevents AYN from treating any page with inputs (youtube.com, gmail,
   // reddit search…) as a job application. Consumer denylist is EXACT-host so
   // careers subdomains (careers.google.com, www.amazon.jobs) still pass.
@@ -806,10 +806,10 @@
       else applyScore += s.weight;
     }
     const total = applyScore + listingScore;
+    // v3.0.0 — apply-vs-listing only ever mattered for filling. Collapsed to
+    // "a job page we can read" ('job') versus everything else ('other').
     let kind = 'other';
-    if (applyScore >= 5 && (hasContactCluster || hasResumeFileInput)) kind = 'apply';
-    else if (listingScore >= 2) kind = 'listing';
-    else if (total >= 4) kind = 'listing';
+    if ((applyScore >= 5 && (hasContactCluster || hasResumeFileInput)) || listingScore >= 2 || total >= 4) kind = 'job';
     const confidence = Math.max(0, Math.min(100, total * 10));
     return { kind, confidence, signals, applyScore, listingScore };
   }
