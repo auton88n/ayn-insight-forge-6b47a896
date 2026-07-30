@@ -151,7 +151,7 @@ export const Header = () => {
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   letterSpacing: '-0.01em',
-                  boxShadow: onDark ? '0 10px 26px -14px rgba(232,93,58,0.95)' : 'none',
+                  boxShadow: onLanding ? '0 10px 26px -14px rgba(232,93,58,0.95)' : 'none',
                   transition: 'filter 0.15s, background 0.15s, transform 0.1s',
                 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1.08)'; }}
