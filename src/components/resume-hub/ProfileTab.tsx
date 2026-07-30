@@ -1,36 +1,47 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+/**
+ * ProfileTab.tsx — v3.2.0 "one profile, and show what it powers"
+ *
+ * There used to be two surfaces here: a "Profile" and a "Canonical Profile".
+ * Canonical is an internal engineering concept and it leaked into the UI.
+ * A job seeker sees exactly one profile now. _shared/identity.ts already
+ * resolves precedence (profile > canonical > resume > account), so this view
+ * mirrors that order, shows one value per field with a small source label,
+ * and always writes edits to the user-entered layer so they win afterwards.
+ *
+ * Fields are grouped by what they power, because since autofill was removed
+ * their purpose changed: they are matching signals for the talent pool and
+ * generation inputs for scoring, tailoring, and cover letters.
+ */
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, Save, Plus, X, ShieldCheck, FileUp, Users } from "lucide-react";
+import { Loader2, Save, Plus, X, FileUp, Users } from "lucide-react";
 import { notifyProfileUpdated } from "@/lib/extension";
-import { Progress } from "@/components/ui/progress";
 import { ResumeUpload } from "@/components/resume-hub/ResumeUpload";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { employerApi, type RevealRequest } from "@/lib/employer";
-import CanadianProfileForm, { type CanadianProfileFormHandle } from "./CanadianProfileForm";
+import TalentPoolCard from "./TalentPoolCard";
 
-// Canonical profile types must mirror the edge-function CanonicalProfile.
-type Skill = { name: string; years?: number; last_used?: string; level?: string };
-type Exp = { company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[]; tech?: string[] };
-type Edu = { school: string; degree?: string; field?: string; start?: string; end?: string; gpa?: string };
+// ── Types (mirror the edge-function profile shape) ───────────────────────────
+type Skill = { name: string; years?: number; level?: string };
+type Exp = { company: string; title: string; location?: string; start?: string; end?: string; current?: boolean; bullets?: string[] };
+type Edu = { school: string; degree?: string; field?: string; start?: string; end?: string };
 type Cert = { name: string; issuer?: string; year?: string };
 type WorkAuth = {
-  citizenship?: string;
+  citizenship?: string; countries?: string[];
   work_authorized_us?: boolean; work_authorized_ca?: boolean;
   needs_sponsorship_now?: boolean; needs_sponsorship_future?: boolean;
   visa_type?: string; notes?: string;
 };
 type Prefs = {
-  open_to_remote?: boolean; open_to_relocation?: boolean; open_to_travel?: boolean;
+  open_to_remote?: boolean; open_to_relocation?: boolean;
   salary_min_usd?: number; salary_currency?: string;
-  start_date_availability?: string;
   desired_titles?: string[]; desired_locations?: string[];
 };
 type Derived = {
@@ -38,14 +49,29 @@ type Derived = {
   top_skills?: string[]; education_level?: string;
   current_title?: string; current_company?: string;
 };
-type Canonical = {
+type Career = {
   skills: Skill[]; experiences: Exp[]; education: Edu[]; certifications: Cert[];
   work_auth: WorkAuth; preferences: Prefs; derived: Derived;
 };
 
-const EMPTY: Canonical = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
+const EMPTY: Career = { skills: [], experiences: [], education: [], certifications: [], work_auth: {}, preferences: {}, derived: {} };
 
-function mapResumeToCanonical(resume: ResumeContent, prev: Canonical): Canonical {
+const WORK_COUNTRIES = ["Canada", "United States", "United Kingdom", "European Union", "Australia", "United Arab Emirates"];
+
+type SourceTag = "entered" | "resume" | "account" | "none";
+const SOURCE_LABEL: Record<SourceTag, string> = {
+  entered: "You entered this",
+  resume: "From your resume",
+  account: "From your account",
+  none: "",
+};
+
+/** Personal fields live in user_profile_data, the user-entered layer. */
+type PersonalKey = "first_name" | "last_name" | "email" | "phone" | "city" | "linkedin" | "github" | "portfolio";
+type Personal = Record<PersonalKey, string>;
+const EMPTY_PERSONAL: Personal = { first_name: "", last_name: "", email: "", phone: "", city: "", linkedin: "", github: "", portfolio: "" };
+
+function mapResumeToCareer(resume: ResumeContent, prev: Career): Career {
   const work = resume.work || [];
   const edu = resume.education || [];
   const skills = (resume.skills || []).filter(Boolean);
@@ -55,88 +81,43 @@ function mapResumeToCanonical(resume: ResumeContent, prev: Canonical): Canonical
   return {
     ...prev,
     skills: skills.length ? skills.map(name => ({ name })) : prev.skills,
-    experiences: work.length ? work.map(w => ({ company: w.company || "", title: w.title || "", location: w.location, start: w.start, end: w.end, current: !w.end, bullets: w.bullets || [] })) : prev.experiences,
-    education: edu.length ? edu.map(e => ({ school: e.school || "", degree: e.degree, field: e.field, start: e.start, end: e.end })) : prev.education,
+    experiences: work.length
+      ? work.map(w => ({ company: w.company || "", title: w.title || "", location: w.location, start: w.start, end: w.end, current: !w.end, bullets: w.bullets || [] }))
+      : prev.experiences,
+    education: edu.length
+      ? edu.map(e => ({ school: e.school || "", degree: e.degree, field: e.field, start: e.start, end: e.end }))
+      : prev.education,
     derived: {
       ...prev.derived,
-      current_title: resume.basics?.title || work[0]?.title || prev.derived?.current_title,
-      current_company: work[0]?.company || prev.derived?.current_company,
-      education_level: edu[0]?.degree || prev.derived?.education_level,
+      current_title: prev.derived?.current_title || resume.basics?.title || work[0]?.title,
+      current_company: prev.derived?.current_company || work[0]?.company,
+      education_level: prev.derived?.education_level || edu[0]?.degree,
       total_yoe,
       top_skills: skills.length ? skills.slice(0, 8) : prev.derived?.top_skills,
     },
   };
 }
 
-function computeCompleteness(p: Canonical): { pct: number; checks: { label: string; done: boolean }[] } {
-  const checks = [
-    { label: "Current title", done: !!p.derived?.current_title },
-    { label: "Total years of experience", done: typeof p.derived?.total_yoe === "number" },
-    { label: "5+ skills", done: (p.skills?.length || 0) >= 5 },
-    { label: "1+ experience", done: (p.experiences?.length || 0) >= 1 },
-    { label: "1+ education", done: (p.education?.length || 0) >= 1 },
-    { label: "Work authorization set", done: !!(p.work_auth?.citizenship || p.work_auth?.work_authorized_us || p.work_auth?.work_authorized_ca) },
-    { label: "Salary preference", done: typeof p.preferences?.salary_min_usd === "number" },
-    { label: "Desired titles", done: (p.preferences?.desired_titles?.length || 0) >= 1 },
-  ];
-  const pct = Math.round((checks.filter(c => c.done).length / checks.length) * 100);
-  return { pct, checks };
-}
-
 export default function ProfileTab({ userId }: { userId: string }) {
   const { toast } = useToast();
-  const [profile, setProfile] = useState<Canonical>(EMPTY);
+  const [career, setCareer] = useState<Career>(EMPTY);
+  const [personal, setPersonal] = useState<Personal>(EMPTY_PERSONAL);
+  const [personalTouched, setPersonalTouched] = useState<Partial<Record<PersonalKey, boolean>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [extracting, setExtracting] = useState(false);
-  const [hasProfile, setHasProfile] = useState(false);
-  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
-  const [primaryResumeContent, setPrimaryResumeContent] = useState<ResumeContent | null>(null);
-  const [parsedResume, setParsedResume] = useState<ResumeContent | null>(null);
   const [uploading, setUploading] = useState(false);
-  const canadianRef = useRef<CanadianProfileFormHandle>(null);
+  const [primaryResume, setPrimaryResume] = useState<{ id: string; title: string } | null>(null);
+  const [resumeContent, setResumeContent] = useState<ResumeContent | null>(null);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [poolRefresh, setPoolRefresh] = useState(0);
 
-  // v2.9.0-A — Talent Pool consent state.
-  const [poolLoading, setPoolLoading] = useState(true);
-  const [poolSaving, setPoolSaving] = useState(false);
-  const [poolOptedIn, setPoolOptedIn] = useState(false);
-  const [poolSkillsCount, setPoolSkillsCount] = useState(0);
-  const [poolIndexed, setPoolIndexed] = useState(false);
-  const loadPool = useCallback(async () => {
-    try {
-      const r = await resumeHubApi.talentPoolGet();
-      setPoolOptedIn(!!r.opted_in);
-      setPoolSkillsCount(r.skills_count || 0);
-      setPoolIndexed(!!r.indexed);
-    } catch { /* silent */ }
-    finally { setPoolLoading(false); }
-  }, []);
-  useEffect(() => { loadPool(); }, [loadPool]);
-  const togglePool = async (next: boolean) => {
-    setPoolSaving(true);
-    try {
-      await resumeHubApi.talentPoolSet(next);
-      setPoolOptedIn(next);
-      toast({
-        title: next ? "You're in the pool" : "Left the pool",
-        description: next
-          ? "Employers can discover your anonymized profile."
-          : "Your data left the pool.",
-      });
-      await loadPool();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Network error";
-      toast({ title: "Couldn't update", description: msg, variant: "destructive" });
-    } finally { setPoolSaving(false); }
-  };
-
-  // v2.9.0-B — Intro requests from employers who searched the pool.
+  // ── Intro requests from employers ───────────────────────────────────────
   const [reveals, setReveals] = useState<RevealRequest[]>([]);
   const [revealBusy, setRevealBusy] = useState<Record<string, boolean>>({});
   const loadReveals = useCallback(async () => {
     try { const r = await employerApi.revealList(); setReveals(r.requests || []); } catch { /* silent */ }
   }, []);
-  useEffect(() => { if (poolOptedIn) loadReveals(); }, [poolOptedIn, loadReveals]);
+  useEffect(() => { loadReveals(); }, [loadReveals]);
   const decideReveal = async (id: string, approve: boolean) => {
     setRevealBusy(p => ({ ...p, [id]: true }));
     try {
@@ -148,135 +129,204 @@ export default function ProfileTab({ userId }: { userId: string }) {
     } finally { setRevealBusy(p => ({ ...p, [id]: false })); }
   };
 
-  const loadPrimary = useCallback(async () => {
-    const { data } = await supabase
-      .from("resumes")
-      .select("id, title, content")
-      .eq("user_id", userId)
-      .eq("is_primary", true)
-      .maybeSingle();
-    if (data) {
-      setPrimaryResume({ id: data.id, title: data.title });
-      setPrimaryResumeContent((data.content as ResumeContent) ?? null);
-    } else {
-      setPrimaryResume(null);
-      setPrimaryResumeContent(null);
-    }
-  }, [userId]);
-
+  // ── Load everything the single profile reads from ───────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("user_profile_canonical")
-        .select("skills, experiences, education, certifications, work_auth, preferences, derived")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) {
-        setProfile({ ...EMPTY, ...((data ?? {}) as unknown as Partial<Canonical>) });
-        setHasProfile(true);
-      } else {
-        setProfile(EMPTY);
-        setHasProfile(false);
+      const [{ data: canon }, { data: prof }, { data: resumeRow }, { data: auth }] = await Promise.all([
+        supabase.from("user_profile_canonical")
+          .select("skills, experiences, education, certifications, work_auth, preferences, derived")
+          .eq("user_id", userId).maybeSingle(),
+        supabase.from("user_profile_data")
+          .select("legal_first_name, legal_last_name, email, phone, address, links")
+          .eq("user_id", userId).maybeSingle(),
+        supabase.from("resumes").select("id, title, content")
+          .eq("user_id", userId).eq("is_primary", true).maybeSingle(),
+        supabase.auth.getUser(),
+      ]);
+
+      setCareer({ ...EMPTY, ...((canon ?? {}) as unknown as Partial<Career>) });
+
+      if (prof) {
+        const addr = (prof.address ?? {}) as Record<string, string>;
+        const lk = (prof.links ?? {}) as Record<string, string>;
+        const next: Personal = {
+          first_name: prof.legal_first_name ?? "",
+          last_name: prof.legal_last_name ?? "",
+          email: prof.email ?? "",
+          phone: prof.phone ?? "",
+          city: addr.city ?? "",
+          linkedin: lk.linkedin ?? "",
+          github: lk.github ?? "",
+          portfolio: lk.portfolio ?? "",
+        };
+        setPersonal(next);
+        const touched: Partial<Record<PersonalKey, boolean>> = {};
+        (Object.keys(next) as PersonalKey[]).forEach(k => { if (next[k]) touched[k] = true; });
+        setPersonalTouched(touched);
       }
+
+      if (resumeRow) {
+        setPrimaryResume({ id: resumeRow.id, title: resumeRow.title });
+        setResumeContent((resumeRow.content as ResumeContent) ?? null);
+      }
+      setAccountEmail(auth?.user?.email ?? "");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Network error";
-      toast({ title: "Couldn't load profile", description: msg, variant: "destructive" });
+      toast({ title: "Couldn't load profile", description: (e as Error).message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   }, [toast, userId]);
 
+  useEffect(() => { load(); }, [load]);
 
-  useEffect(() => { load(); loadPrimary(); }, [load, loadPrimary]);
+  // ── Fallback layer: resume, then account. Mirrors identity.ts order. ────
+  const fallback = useMemo(() => {
+    const b = resumeContent?.basics ?? {};
+    const nameParts = (b.name || "").trim().split(/\s+/).filter(Boolean);
+    const links = (b.links ?? []) as Array<{ label?: string; url?: string }>;
+    const findLink = (needle: string) =>
+      links.find(l => `${l.label || ""} ${l.url || ""}`.toLowerCase().includes(needle))?.url || "";
+    const map: Record<PersonalKey, { value: string; source: SourceTag }> = {
+      first_name: { value: nameParts[0] || "", source: nameParts.length ? "resume" : "none" },
+      last_name: { value: nameParts.slice(1).join(" "), source: nameParts.length > 1 ? "resume" : "none" },
+      email: b.email ? { value: b.email, source: "resume" } : { value: accountEmail, source: accountEmail ? "account" : "none" },
+      phone: { value: b.phone || "", source: b.phone ? "resume" : "none" },
+      city: { value: b.location || "", source: b.location ? "resume" : "none" },
+      linkedin: { value: findLink("linkedin"), source: findLink("linkedin") ? "resume" : "none" },
+      github: { value: findLink("github"), source: findLink("github") ? "resume" : "none" },
+      portfolio: { value: findLink("portfolio"), source: findLink("portfolio") ? "resume" : "none" },
+    };
+    return map;
+  }, [resumeContent, accountEmail]);
 
+  const field = (k: PersonalKey) => {
+    const entered = personal[k];
+    if (personalTouched[k] || entered) return { value: entered, source: "entered" as SourceTag };
+    return fallback[k];
+  };
+  const setPersonalField = (k: PersonalKey, v: string) => {
+    setPersonal(p => ({ ...p, [k]: v }));
+    setPersonalTouched(t => ({ ...t, [k]: true }));
+  };
+
+  const resumeSkillSet = useMemo(
+    () => new Set((resumeContent?.skills ?? []).map(s => String(s).toLowerCase().trim())),
+    [resumeContent]
+  );
+
+  // ── Resume upload: saves as primary and drafts the profile ──────────────
   const handleResumeParsed = async ({ resume }: { resume: ResumeContent; plainText: string }) => {
     setUploading(true);
     try {
-      // Save as primary resume (replace existing primary)
       await supabase.from("resumes").update({ is_primary: false }).eq("user_id", userId);
-      const autoTitle = resume.basics?.name ? `${resume.basics.name} – Resume` : "Uploaded Resume";
-      const { error: insErr } = await supabase.from("resumes").insert({
-        user_id: userId,
-        title: autoTitle,
-        content: resume as never,
-        is_primary: true,
+      const autoTitle = resume.basics?.name ? `${resume.basics.name} Resume` : "Uploaded Resume";
+      const { error } = await supabase.from("resumes").insert({
+        user_id: userId, title: autoTitle, content: resume as never, is_primary: true,
       });
-      if (insErr) throw insErr;
-      setParsedResume(resume);
-      await loadPrimary();
-      // v3.1.0 — keep the talent pool index in sync with client-side writes.
+      if (error) throw error;
+      setResumeContent(resume);
+      setCareer(prev => mapResumeToCareer(resume, prev));
+      // v3.2.0 — resumes are written client side, so the pool index would go
+      // stale. Fire and forget, never block the save.
       resumeHubApi.talentPoolReindexSelf().catch(() => {});
+      setPoolRefresh(n => n + 1);
+      await load();
+      toast({ title: "Resume saved", description: "Review the fields below, then Save profile." });
     } catch (e) {
-      toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast({ title: "Upload failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
       setUploading(false);
-      return;
     }
-    setUploading(false);
-    setProfile(prev => mapResumeToCanonical(resume, prev));
-    toast({ title: "Profile drafted from your resume", description: "Review the fields, then click Save all." });
   };
 
   const save = async () => {
     setSaving(true);
     try {
-      const payload = {
-        user_id: userId,
-        skills: profile.skills ?? [],
-        experiences: profile.experiences ?? [],
-        education: profile.education ?? [],
-        certifications: profile.certifications ?? [],
-        work_auth: profile.work_auth ?? {},
-        preferences: profile.preferences ?? {},
-        derived: profile.derived ?? {},
-        updated_at: new Date().toISOString(),
-      } as unknown as never;
-      const { error } = await supabase.from("user_profile_canonical").upsert(payload, { onConflict: "user_id" });
-      if (error) throw new Error(error.message);
-      await canadianRef.current?.save();
-      setHasProfile(true);
-      // v2.7.0 — invalidate the extension's profile cache so autofill picks up
-      // these edits on the very next form, not 30 minutes later. No-op if the
-      // extension isn't installed.
+      const [{ error: cErr }, { error: pErr }] = await Promise.all([
+        supabase.from("user_profile_canonical").upsert({
+          user_id: userId,
+          skills: career.skills ?? [],
+          experiences: career.experiences ?? [],
+          education: career.education ?? [],
+          certifications: career.certifications ?? [],
+          work_auth: career.work_auth ?? {},
+          preferences: career.preferences ?? {},
+          derived: career.derived ?? {},
+          updated_at: new Date().toISOString(),
+        } as unknown as never, { onConflict: "user_id" }),
+        supabase.from("user_profile_data").upsert({
+          user_id: userId,
+          legal_first_name: field("first_name").value || null,
+          legal_last_name: field("last_name").value || null,
+          email: field("email").value || null,
+          phone: field("phone").value || null,
+          address: { city: field("city").value || "" },
+          links: {
+            linkedin: field("linkedin").value || "",
+            github: field("github").value || "",
+            portfolio: field("portfolio").value || "",
+          },
+          updated_at: new Date().toISOString(),
+        } as unknown as never, { onConflict: "user_id" }),
+      ]);
+      if (cErr) throw new Error(cErr.message);
+      if (pErr) throw new Error(pErr.message);
       void notifyProfileUpdated();
-      toast({ title: "Profile saved", description: "Career profile and application details updated." });
+      // Keep the talent pool index in step with the profile the user just saved.
+      resumeHubApi.talentPoolReindexSelf().catch(() => {});
+      setPoolRefresh(n => n + 1);
+      toast({ title: "Profile saved" });
     } catch (e) {
-      toast({ title: "Save failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast({ title: "Save failed", description: (e as Error).message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
+  const setDerived = (k: keyof Derived, v: unknown) => setCareer(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
+  const setWA = (k: keyof WorkAuth, v: unknown) => setCareer(p => ({ ...p, work_auth: { ...p.work_auth, [k]: v } }));
+  const setPref = (k: keyof Prefs, v: unknown) => setCareer(p => ({ ...p, preferences: { ...p.preferences, [k]: v } }));
 
-  const extract = () => {
-    if (!primaryResumeContent) {
-      toast({ title: "Upload a resume first", variant: "destructive" });
-      return;
-    }
-    setProfile(prev => mapResumeToCanonical(primaryResumeContent, prev));
-    toast({ title: "Filled from your resume", description: "Review, then Save all." });
+  const countries = career.work_auth.countries ?? [
+    ...(career.work_auth.work_authorized_ca ? ["Canada"] : []),
+    ...(career.work_auth.work_authorized_us ? ["United States"] : []),
+  ];
+  const toggleCountry = (c: string) => {
+    const next = countries.includes(c) ? countries.filter(x => x !== c) : [...countries, c];
+    setCareer(p => ({
+      ...p,
+      work_auth: {
+        ...p.work_auth,
+        countries: next,
+        work_authorized_ca: next.includes("Canada"),
+        work_authorized_us: next.includes("United States"),
+      },
+    }));
+  };
+
+  const missingMatchSignals = {
+    eligibility: countries.length === 0 && !career.work_auth.citizenship,
+    desiredTitles: (career.preferences.desired_titles?.length ?? 0) === 0,
   };
 
   if (loading) {
     return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading profile…</div>;
   }
 
-  const setDerived = (k: keyof Derived, v: unknown) => setProfile(p => ({ ...p, derived: { ...p.derived, [k]: v } }));
-  const setWA = (k: keyof WorkAuth, v: unknown) => setProfile(p => ({ ...p, work_auth: { ...p.work_auth, [k]: v } }));
-  const setPref = (k: keyof Prefs, v: unknown) => setProfile(p => ({ ...p, preferences: { ...p.preferences, [k]: v } }));
+  const pendingIntros = reveals.filter(r => r.status === "pending").length;
 
   return (
     <div className="space-y-6">
-      {/* Resume upload — feeds canonical extraction */}
+      {/* Resume source */}
       <Card className="p-4 sm:p-6 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-sm">
             <FileUp className="w-4 h-4 text-primary" />
-            <span className="font-medium">Resume source</span>
+            <span className="font-medium">Your resume</span>
             {primaryResume
-              ? <Badge variant="secondary" className="truncate max-w-[260px]">Primary: {primaryResume.title}</Badge>
-              : <Badge variant="outline">No primary resume yet</Badge>}
+              ? <Badge variant="secondary" className="truncate max-w-[260px]">{primaryResume.title}</Badge>
+              : <Badge variant="outline">No resume yet</Badge>}
           </div>
           {uploading && (
             <span className="text-xs text-muted-foreground flex items-center gap-2">
@@ -285,96 +335,36 @@ export default function ProfileTab({ userId }: { userId: string }) {
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Upload a PDF, DOCX, or TXT. AYN saves it as your primary resume and instantly drafts your canonical profile below.
+          Upload a PDF, DOCX, or TXT. AYN reads it once and fills in everything below, so you only
+          correct what it got wrong.
         </p>
         <ResumeUpload onParsed={handleResumeParsed} variant="full" />
       </Card>
 
-      <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm">
-            <ShieldCheck className="w-4 h-4 text-primary" />
-            <span className="font-medium">Canonical Profile</span>
-            {hasProfile ? <Badge variant="secondary">Saved</Badge> : <Badge variant="outline">Not saved</Badge>}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            One source of truth for skills, experience, work authorization, and preferences.
-            Used by Autofill, Job Score, Tailor, and Cover Letter so every answer stays consistent.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={extract} disabled={extracting}>
-            {extracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-            {hasProfile ? "Re-extract from resume" : "Draft from my resume"}
-          </Button>
-        </div>
-      </Card>
+      {/* Talent pool */}
+      <TalentPoolCard
+        refreshKey={poolRefresh}
+        missingMatchSignals={missingMatchSignals}
+        pendingIntros={pendingIntros}
+      />
 
-      {/* v2.9.0-A / v2.9.1 — Talent Pool consent */}
-      <Card className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="w-4 h-4 text-primary" />
-            <span className="font-medium">Let employers find me</span>
-            {poolOptedIn
-              ? <Badge variant="secondary">On</Badge>
-              : <Badge variant="outline">Off</Badge>}
-          </div>
-          {poolOptedIn && reveals.filter(r => r.status === "pending").length > 0 && (
-            <p className="text-xs font-medium text-primary mt-1">
-              {reveals.filter(r => r.status === "pending").length} {reveals.filter(r => r.status === "pending").length === 1 ? "company wants" : "companies want"} an intro
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            When on, AYN can present your anonymized profile (skills, experience, seniority) to verified employers searching for candidates. Your name and contact details are never shared until you approve a specific request. Turn this off anytime and your data leaves the pool immediately.
-          </p>
-          {poolOptedIn && !poolLoading && (
-            <p className="text-xs text-muted-foreground mt-2">
-              In the pool · {poolSkillsCount} skills indexed{poolIndexed ? "" : " (indexing…)"}
-              {" · "}
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const r = await resumeHubApi.talentPoolReindexSelf();
-                    await loadPool();
-                    toast({ title: "Profile re-indexed", description: `${r.skills_count} skills, ${r.model}` });
-                  } catch (e) {
-                    toast({ title: "Couldn't re-index", description: (e as Error).message, variant: "destructive" });
-                  }
-                }}
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                Re-index my profile
-              </button>
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {poolSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          <Switch checked={poolOptedIn} disabled={poolLoading || poolSaving} onCheckedChange={togglePool} />
-        </div>
-      </Card>
-
-
-      {/* v2.9.0-B — Intro requests from employers */}
-      {poolOptedIn && reveals.length > 0 && (
+      {/* Intro requests */}
+      {reveals.length > 0 && (
         <Card className="p-4 sm:p-6 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Users className="w-4 h-4 text-primary" />
             Intro requests
           </div>
           <p className="text-xs text-muted-foreground">
-            Employers who searched the pool and want to reach out. Your name and email stay private until you approve.
+            Employers who searched the pool and want to reach out. Your name and email stay private
+            until you approve.
           </p>
           <div className="space-y-2">
             {reveals.map(r => (
               <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{r.org_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {r.job_title || "Role"} · {r.status}
-                  </div>
+                  <div className="text-xs text-muted-foreground truncate">{r.job_title || "Role"} · {r.status}</div>
                 </div>
                 {r.status === "pending" ? (
                   <div className="flex items-center gap-2">
@@ -392,187 +382,235 @@ export default function ProfileTab({ userId }: { userId: string }) {
         </Card>
       )}
 
-      {/* Completeness meter */}
-      {(() => {
-        const { pct, checks } = computeCompleteness(profile);
-        return (
-          <Card className="p-4 sm:p-6 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Profile completeness</h3>
-              <span className="text-sm font-mono tabular-nums">{pct}%</span>
+      {/* ── 1. About you ───────────────────────────────────────────────── */}
+      <Group title="About you" line="Used in your tailored resumes and cover letters.">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <SourcedField label="First name" f={field("first_name")} onChange={v => setPersonalField("first_name", v)} />
+          <SourcedField label="Last name" f={field("last_name")} onChange={v => setPersonalField("last_name", v)} />
+          <SourcedField label="Email" f={field("email")} onChange={v => setPersonalField("email", v)} />
+          <SourcedField label="Phone" f={field("phone")} onChange={v => setPersonalField("phone", v)} />
+          <SourcedField label="Location" f={field("city")} onChange={v => setPersonalField("city", v)} placeholder="City, region" />
+          <SourcedField
+            label="Current title"
+            f={{
+              value: career.derived.current_title || "",
+              source: career.derived.current_title ? "entered" : "none",
+            }}
+            onChange={v => setDerived("current_title", v)}
+          />
+          <SourcedField
+            label="Current company"
+            f={{
+              value: career.derived.current_company || "",
+              source: career.derived.current_company ? "entered" : "none",
+            }}
+            onChange={v => setDerived("current_company", v)}
+          />
+          <SourcedField label="LinkedIn" f={field("linkedin")} onChange={v => setPersonalField("linkedin", v)} placeholder="https://" />
+          <SourcedField label="GitHub" f={field("github")} onChange={v => setPersonalField("github", v)} placeholder="https://" />
+          <SourcedField label="Portfolio" f={field("portfolio")} onChange={v => setPersonalField("portfolio", v)} placeholder="https://" />
+        </div>
+      </Group>
+
+      {/* ── 2. What you're looking for ─────────────────────────────────── */}
+      <Group title="What you're looking for" line="Helps employers searching the talent pool find you for the right roles.">
+        <ChipList
+          label="Desired titles"
+          values={career.preferences.desired_titles || []}
+          onChange={v => setPref("desired_titles", v)}
+          placeholder="Add a title"
+        />
+        <ChipList
+          label="Desired locations"
+          values={career.preferences.desired_locations || []}
+          onChange={v => setPref("desired_locations", v)}
+          placeholder="Add a city or region"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <SourcedField
+            label="Minimum salary"
+            type="number"
+            f={{ value: String(career.preferences.salary_min_usd ?? ""), source: career.preferences.salary_min_usd != null ? "entered" : "none" }}
+            onChange={v => setPref("salary_min_usd", v === "" ? undefined : Number(v))}
+            placeholder="80000"
+          />
+          <SourcedField
+            label="Currency"
+            f={{ value: career.preferences.salary_currency || "", source: career.preferences.salary_currency ? "entered" : "none" }}
+            onChange={v => setPref("salary_currency", v)}
+            placeholder="CAD, USD, EUR"
+          />
+          <Toggle label="Open to remote" value={!!career.preferences.open_to_remote} onChange={v => setPref("open_to_remote", v)} />
+          <Toggle label="Open to relocation" value={!!career.preferences.open_to_relocation} onChange={v => setPref("open_to_relocation", v)} />
+        </div>
+      </Group>
+
+      {/* ── 3. Work eligibility ────────────────────────────────────────── */}
+      <Group title="Work eligibility" line="Employers filter on this. Getting it right means fewer wrong matches.">
+        <div>
+          <Label className="text-xs text-muted-foreground">Countries you can work in</Label>
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {WORK_COUNTRIES.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => toggleCountry(c)}
+                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                  countries.includes(c)
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <SourcedField
+            label="Citizenship"
+            f={{ value: career.work_auth.citizenship || "", source: career.work_auth.citizenship ? "entered" : "none" }}
+            onChange={v => setWA("citizenship", v)}
+            placeholder="e.g. Canada"
+          />
+          <Toggle label="I need sponsorship now" value={!!career.work_auth.needs_sponsorship_now} onChange={v => setWA("needs_sponsorship_now", v)} />
+          <Toggle label="I will need sponsorship later" value={!!career.work_auth.needs_sponsorship_future} onChange={v => setWA("needs_sponsorship_future", v)} />
+        </div>
+      </Group>
+
+      {/* ── 4. Your experience ─────────────────────────────────────────── */}
+      <Group title="Your experience" line="This is what AYN scores against a job and tailors from.">
+        {/* Skills */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Skills ({career.skills.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, skills: [...p.skills, { name: "" }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add skill
+            </Button>
+          </div>
+          {career.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Upload a resume and AYN fills these in.</p>}
+          {career.skills.map((s, i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 items-center">
+              <Input className="col-span-6" placeholder="Skill" value={s.name} onChange={e => updateAt(setCareer, "skills", i, { ...s, name: e.target.value })} />
+              <Input className="col-span-2" type="number" placeholder="Years" value={s.years ?? ""} onChange={e => updateAt(setCareer, "skills", i, { ...s, years: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              <span className="col-span-3 text-[11px] text-muted-foreground">
+                {resumeSkillSet.has(s.name.toLowerCase().trim()) ? SOURCE_LABEL.resume : SOURCE_LABEL.entered}
+              </span>
+              <Button variant="ghost" size="icon" className="col-span-1" onClick={() => removeAt(setCareer, "skills", i)}><X className="w-4 h-4" /></Button>
             </div>
-            <Progress value={pct} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
-              {checks.map((c, i) => (
-                <div key={i} className={`text-xs flex items-center gap-2 ${c.done ? "text-foreground" : "text-muted-foreground"}`}>
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${c.done ? "bg-primary" : "bg-muted-foreground/40"}`} />
-                  {c.label}
-                </div>
-              ))}
+          ))}
+        </div>
+
+        {/* Work history */}
+        <div className="space-y-2 pt-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Work history ({career.experiences.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, experiences: [...p.experiences, { company: "", title: "" }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add role
+            </Button>
+          </div>
+          {career.experiences.length === 0 && <p className="text-xs text-muted-foreground">No roles yet.</p>}
+          {career.experiences.map((e, i) => (
+            <div key={i} className="rounded-lg border p-3 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Input placeholder="Title" value={e.title} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, title: ev.target.value })} />
+                <Input placeholder="Company" value={e.company} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, company: ev.target.value })} />
+                <Input placeholder="Start" value={e.start || ""} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, start: ev.target.value })} />
+                <Input placeholder="End (or Present)" value={e.end || ""} onChange={ev => updateAt(setCareer, "experiences", i, { ...e, end: ev.target.value })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Switch checked={!!e.current} onCheckedChange={v => updateAt(setCareer, "experiences", i, { ...e, current: v })} />
+                  Current role
+                </label>
+                <Button variant="ghost" size="sm" onClick={() => removeAt(setCareer, "experiences", i)}>Remove</Button>
+              </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">A higher score means Autofill, Score, Tailor, and Cover Letter have more accurate facts to work with.</p>
-          </Card>
-        );
-      })()}
+          ))}
+        </div>
 
-      {/* Additional application fields — part of the one profile, powers Autofill */}
-      <CanadianProfileForm
-        ref={canadianRef}
-        userId={userId}
-        resumeData={parsedResume ?? primaryResumeContent ?? undefined}
-        hideSaveButton
-        middle={
-          <>
-            {/* Derived snapshot */}
-            <Card className="p-4 sm:p-6 space-y-4">
-              <h3 className="text-sm font-semibold">Snapshot</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <Field label="Current title" value={profile.derived.current_title || ""} onChange={v => setDerived("current_title", v)} />
-                <Field label="Current company" value={profile.derived.current_company || ""} onChange={v => setDerived("current_company", v)} />
-                <Field label="Primary function" value={profile.derived.primary_function || ""} onChange={v => setDerived("primary_function", v)} placeholder="e.g. Product, Backend, Design" />
-                <Field label="Total YoE" value={String(profile.derived.total_yoe ?? "")} onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))} placeholder="0" />
-                <Field label="Seniority" value={profile.derived.seniority || ""} onChange={v => setDerived("seniority", v)} placeholder="entry | mid | senior | staff | manager" />
-                <Field label="Education level" value={profile.derived.education_level || ""} onChange={v => setDerived("education_level", v)} placeholder="Bachelor's | Master's" />
+        {/* Education */}
+        <div className="space-y-2 pt-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Education ({career.education.length})</p>
+            <Button variant="ghost" size="sm" onClick={() => setCareer(p => ({ ...p, education: [...p.education, { school: "" }] }))}>
+              <Plus className="w-4 h-4 mr-1" /> Add school
+            </Button>
+          </div>
+          {career.education.length === 0 && <p className="text-xs text-muted-foreground">No education entries yet.</p>}
+          {career.education.map((e, i) => (
+            <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3">
+              <Input placeholder="School" value={e.school} onChange={ev => updateAt(setCareer, "education", i, { ...e, school: ev.target.value })} />
+              <Input placeholder="Degree" value={e.degree || ""} onChange={ev => updateAt(setCareer, "education", i, { ...e, degree: ev.target.value })} />
+              <Input placeholder="Field" value={e.field || ""} onChange={ev => updateAt(setCareer, "education", i, { ...e, field: ev.target.value })} />
+              <Input placeholder="End year" value={e.end || ""} onChange={ev => updateAt(setCareer, "education", i, { ...e, end: ev.target.value })} />
+              <div className="sm:col-span-2 flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => removeAt(setCareer, "education", i)}>Remove</Button>
               </div>
-            </Card>
+            </div>
+          ))}
+        </div>
 
-            {/* Work Auth */}
-            <Card className="p-4 sm:p-6 space-y-4">
-              <h3 className="text-sm font-semibold">Work authorization</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <Field label="Citizenship" value={profile.work_auth.citizenship || ""} onChange={v => setWA("citizenship", v)} placeholder="e.g. Canada" />
-                <Field label="Visa type (if any)" value={profile.work_auth.visa_type || ""} onChange={v => setWA("visa_type", v)} placeholder="e.g. H-1B, OPT, PR" />
-                <Toggle label="Authorized to work in US" value={!!profile.work_auth.work_authorized_us} onChange={v => setWA("work_authorized_us", v)} />
-                <Toggle label="Authorized to work in Canada" value={!!profile.work_auth.work_authorized_ca} onChange={v => setWA("work_authorized_ca", v)} />
-                <Toggle label="Need sponsorship now" value={!!profile.work_auth.needs_sponsorship_now} onChange={v => setWA("needs_sponsorship_now", v)} />
-                <Toggle label="Need sponsorship in future" value={!!profile.work_auth.needs_sponsorship_future} onChange={v => setWA("needs_sponsorship_future", v)} />
-              </div>
-              <Textarea
-                placeholder="Notes (optional). Anything recruiters should know."
-                value={profile.work_auth.notes || ""}
-                onChange={e => setWA("notes", e.target.value)}
-              />
-            </Card>
+        {/* Derived signals employers and scoring both use */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <SourcedField
+            label="Total years of experience"
+            type="number"
+            f={{ value: String(career.derived.total_yoe ?? ""), source: career.derived.total_yoe != null ? "entered" : "none" }}
+            onChange={v => setDerived("total_yoe", v === "" ? undefined : Number(v))}
+          />
+          <SourcedField
+            label="Seniority"
+            f={{ value: career.derived.seniority || "", source: career.derived.seniority ? "entered" : "none" }}
+            onChange={v => setDerived("seniority", v)}
+            placeholder="entry, mid, senior, staff"
+          />
+          <SourcedField
+            label="Primary function"
+            f={{ value: career.derived.primary_function || "", source: career.derived.primary_function ? "entered" : "none" }}
+            onChange={v => setDerived("primary_function", v)}
+            placeholder="Backend, Product, Design"
+          />
+        </div>
+      </Group>
 
-            {/* Preferences */}
-            <Card className="p-4 sm:p-6 space-y-4">
-              <h3 className="text-sm font-semibold">Preferences</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <Toggle label="Open to remote" value={!!profile.preferences.open_to_remote} onChange={v => setPref("open_to_remote", v)} />
-                <Toggle label="Open to relocation" value={!!profile.preferences.open_to_relocation} onChange={v => setPref("open_to_relocation", v)} />
-                <Toggle label="Open to travel" value={!!profile.preferences.open_to_travel} onChange={v => setPref("open_to_travel", v)} />
-                <Field label="Minimum salary" type="number" value={String(profile.preferences.salary_min_usd ?? "")} onChange={v => setPref("salary_min_usd", v === "" ? undefined : Number(v))} placeholder="80000" />
-                <Field label="Currency" value={profile.preferences.salary_currency || ""} onChange={v => setPref("salary_currency", v)} placeholder="USD | CAD | EUR" />
-                <Field label="Start date availability" value={profile.preferences.start_date_availability || ""} onChange={v => setPref("start_date_availability", v)} placeholder="Immediately | 2 weeks | 1 month" />
-              </div>
-              <ChipList
-                label="Desired titles"
-                values={profile.preferences.desired_titles || []}
-                onChange={values => setPref("desired_titles", values)}
-                placeholder="Add a title"
-              />
-              <ChipList
-                label="Desired locations"
-                values={profile.preferences.desired_locations || []}
-                onChange={values => setPref("desired_locations", values)}
-                placeholder="Add a city / region"
-              />
-            </Card>
-
-            {/* Skills */}
-            <Card className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Skills ({profile.skills.length})</h3>
-                <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, skills: [...p.skills, { name: "" }] }))}>
-                  <Plus className="w-4 h-4 mr-1" /> Add skill
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {profile.skills.length === 0 && <p className="text-xs text-muted-foreground">No skills yet. Use "Draft from my resume" to auto-fill.</p>}
-                {profile.skills.map((s, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-2">
-                    <Input className="col-span-7" placeholder="Skill name" value={s.name} onChange={e => updateAt(setProfile, "skills", i, { ...s, name: e.target.value })} />
-                    <Input className="col-span-2" type="number" placeholder="Years" value={s.years ?? ""} onChange={e => updateAt(setProfile, "skills", i, { ...s, years: e.target.value === "" ? undefined : Number(e.target.value) })} />
-                    <Input className="col-span-2" placeholder="Level" value={s.level || ""} onChange={e => updateAt(setProfile, "skills", i, { ...s, level: e.target.value })} />
-                    <Button variant="ghost" size="icon" className="col-span-1" onClick={() => removeAt(setProfile, "skills", i)}><X className="w-4 h-4" /></Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Experiences */}
-            <Card className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Experience ({profile.experiences.length})</h3>
-                <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, experiences: [...p.experiences, { company: "", title: "" }] }))}>
-                  <Plus className="w-4 h-4 mr-1" /> Add role
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {profile.experiences.map((e, i) => (
-                  <div key={i} className="rounded-lg border p-3 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Input placeholder="Title" value={e.title} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, title: ev.target.value })} />
-                      <Input placeholder="Company" value={e.company} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, company: ev.target.value })} />
-                      <Input placeholder="Start (e.g. Jan 2021)" value={e.start || ""} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, start: ev.target.value })} />
-                      <Input placeholder="End (or Present)" value={e.end || ""} onChange={ev => updateAt(setProfile, "experiences", i, { ...e, end: ev.target.value })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Switch checked={!!e.current} onCheckedChange={v => updateAt(setProfile, "experiences", i, { ...e, current: v })} />
-                        Current role
-                      </label>
-                      <Button variant="ghost" size="sm" onClick={() => removeAt(setProfile, "experiences", i)}>Remove</Button>
-                    </div>
-                  </div>
-                ))}
-                {profile.experiences.length === 0 && <p className="text-xs text-muted-foreground">No experience yet.</p>}
-              </div>
-            </Card>
-
-            {/* Education */}
-            <Card className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Education ({profile.education.length})</h3>
-                <Button variant="ghost" size="sm" onClick={() => setProfile(p => ({ ...p, education: [...p.education, { school: "" }] }))}>
-                  <Plus className="w-4 h-4 mr-1" /> Add school
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {profile.education.map((e, i) => (
-                  <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-2 border rounded-lg p-3">
-                    <Input placeholder="School" value={e.school} onChange={ev => updateAt(setProfile, "education", i, { ...e, school: ev.target.value })} />
-                    <Input placeholder="Degree" value={e.degree || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, degree: ev.target.value })} />
-                    <Input placeholder="Field" value={e.field || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, field: ev.target.value })} />
-                    <Input placeholder="End year" value={e.end || ""} onChange={ev => updateAt(setProfile, "education", i, { ...e, end: ev.target.value })} />
-                    <div className="sm:col-span-2 flex justify-end">
-                      <Button variant="ghost" size="sm" onClick={() => removeAt(setProfile, "education", i)}>Remove</Button>
-                    </div>
-                  </div>
-                ))}
-                {profile.education.length === 0 && <p className="text-xs text-muted-foreground">No education entries yet.</p>}
-              </div>
-            </Card>
-          </>
-        }
-      />
-
-      {/* Single Save all — saves both canonical career profile and application details */}
       <div className="sticky bottom-4 z-10 flex justify-end pt-2">
         <Button size="lg" onClick={save} disabled={saving} className="shadow-lg">
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Save all
+          Save profile
         </Button>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange, placeholder, type }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+// ── Presentation helpers ─────────────────────────────────────────────────────
+function Group({ title, line, children }: { title: string; line: string; children: React.ReactNode }) {
+  return (
+    <Card className="p-4 sm:p-6 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">{line}</p>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
+function SourcedField({
+  label, f, onChange, placeholder, type,
+}: {
+  label: string;
+  f: { value: string; source: SourceTag };
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
   return (
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
-      <Input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type} />
+      <Input value={f.value} onChange={e => onChange(e.target.value)} placeholder={placeholder} type={type} />
+      {f.source !== "none" && <p className="text-[11px] text-muted-foreground">{SOURCE_LABEL[f.source]}</p>}
     </div>
   );
 }
@@ -613,24 +651,21 @@ function ChipList({ label, values, onChange, placeholder }: { label: string; val
   );
 }
 
-// Update array item in canonical state by key + index.
 function updateAt<K extends "skills" | "experiences" | "education" | "certifications">(
-  setProfile: React.Dispatch<React.SetStateAction<Canonical>>,
-  key: K, i: number, value: Canonical[K][number]
+  setCareer: React.Dispatch<React.SetStateAction<Career>>, key: K, i: number, value: Career[K][number]
 ) {
-  setProfile(p => {
-    const arr = [...p[key]] as Canonical[K];
-    (arr as unknown as Array<Canonical[K][number]>)[i] = value;
+  setCareer(p => {
+    const arr = [...p[key]] as Career[K];
+    (arr as unknown as Array<Career[K][number]>)[i] = value;
     return { ...p, [key]: arr };
   });
 }
 
 function removeAt<K extends "skills" | "experiences" | "education" | "certifications">(
-  setProfile: React.Dispatch<React.SetStateAction<Canonical>>,
-  key: K, i: number
+  setCareer: React.Dispatch<React.SetStateAction<Career>>, key: K, i: number
 ) {
-  setProfile(p => {
-    const arr = (p[key] as unknown as Array<Canonical[K][number]>).filter((_, j) => j !== i);
-    return { ...p, [key]: arr as Canonical[K] };
+  setCareer(p => {
+    const arr = (p[key] as unknown as Array<Career[K][number]>).filter((_, j) => j !== i);
+    return { ...p, [key]: arr as Career[K] };
   });
 }
