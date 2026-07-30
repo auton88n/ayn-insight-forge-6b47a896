@@ -2257,6 +2257,39 @@ export type Database = {
         }
         Relationships: []
       }
+      employer_intake_drafts: {
+        Row: {
+          answered: string[]
+          created_at: string
+          id: string
+          job_spec: Json
+          opening: string
+          org_id: string
+          phase: string
+          updated_at: string
+        }
+        Insert: {
+          answered?: string[]
+          created_at?: string
+          id?: string
+          job_spec?: Json
+          opening?: string
+          org_id: string
+          phase?: string
+          updated_at?: string
+        }
+        Update: {
+          answered?: string[]
+          created_at?: string
+          id?: string
+          job_spec?: Json
+          opening?: string
+          org_id?: string
+          phase?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       employer_searches: {
         Row: {
           created_at: string
@@ -3324,23 +3357,41 @@ export type Database = {
       }
       orgs: {
         Row: {
+          about: string | null
+          company_size: string | null
           created_at: string
           created_by: string | null
+          headquarters: string | null
           id: string
+          industry: string | null
+          linkedin_url: string | null
+          logo_url: string | null
           name: string
           website: string | null
         }
         Insert: {
+          about?: string | null
+          company_size?: string | null
           created_at?: string
           created_by?: string | null
+          headquarters?: string | null
           id?: string
+          industry?: string | null
+          linkedin_url?: string | null
+          logo_url?: string | null
           name: string
           website?: string | null
         }
         Update: {
+          about?: string | null
+          company_size?: string | null
           created_at?: string
           created_by?: string | null
+          headquarters?: string | null
           id?: string
+          industry?: string | null
+          linkedin_url?: string | null
+          logo_url?: string | null
           name?: string
           website?: string | null
         }
