@@ -2519,7 +2519,9 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
       const enriched: Array<Record<string, unknown>> = [];
       for (const r of (rows || [])) {
         const [{ data: org }, { data: s }] = await Promise.all([
-          adminForNew.from("orgs").select("name, website").eq("id", r.org_id).maybeSingle(),
+          adminForNew.from("orgs")
+            .select("name, website, industry, company_size, headquarters, about, logo_url, linkedin_url")
+            .eq("id", r.org_id).maybeSingle(),
           r.search_id
             ? adminForNew.from("employer_searches").select("job_spec").eq("id", r.search_id).maybeSingle()
             : Promise.resolve({ data: null }),
@@ -2528,6 +2530,13 @@ WHAT THE MATCH FOUND: ${JSON.stringify({
           id: r.id,
           org_name: org?.name || "A company",
           org_website: org?.website || null,
+          // v3.10.0 — who is reaching out, so the candidate can judge it.
+          org_industry: org?.industry || null,
+          org_size: org?.company_size || null,
+          org_headquarters: org?.headquarters || null,
+          org_about: org?.about || null,
+          org_logo_url: org?.logo_url || null,
+          org_linkedin_url: org?.linkedin_url || null,
           job_title: r.job_title || (s?.job_spec as { title?: string } | null)?.title || "",
           job_location: r.job_location || null,
           employment_type: r.employment_type || null,
