@@ -23,7 +23,6 @@ import { useEmotionOrchestrator } from "@/hooks/useEmotionOrchestrator";
 import { useEmpathyReaction } from "@/hooks/useEmpathyReaction";
 import type { Message, AIMode, AIModeConfig } from "@/types/dashboard.types";
 
-import { useCopilotStarters } from "@/hooks/useCopilotStarters";
 
 // Fallback follow-ups when the suggestions API fails mid conversation.
 const DEFAULT_SUGGESTIONS = [
