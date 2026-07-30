@@ -424,9 +424,9 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 40 }}>
             {[
-              { n: '1', text: 'Add your resume once. AYN reads it and builds your profile: your experience, skills, education, and the answers you keep retyping.' },
-              { n: '2', text: 'Open any job posting. AYN pulls the real job description off the page and scores how well you match it, and tells you which requirements you meet and which you do not.' },
-              { n: '3', text: 'Click fill. AYN completes the application, including the screening questions and dropdowns that usually take the longest, then shows you exactly what it filled and what it left for you.' },
+              { n: '1', text: 'Add your resume once.' },
+              { n: '2', text: 'Open any job posting.' },
+              { n: '3', text: 'Click fill.' },
             ].map(step => (
               <div key={step.n} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 100, border: `1px solid ${C.borderMd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: C.display, fontSize: 20, fontWeight: 700, color: C.ink }}>
