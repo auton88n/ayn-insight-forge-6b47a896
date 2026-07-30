@@ -1086,6 +1086,31 @@ function renderResult(text, changes) {
   (changes.length?changes:['Keywords woven in where your experience supported it.']).forEach(c => {
     list.innerHTML += `<li><div class="cdot"></div><span>${esc(c)}</span></li>`;
   });
+  renderGap(S.gap);
+}
+
+// v3.1.0 — the gap analysis is computed in code, not guessed by the model,
+// so it is safe to show the user exactly what is genuinely missing.
+function renderGap(gap) {
+  const wrap = $('gap-report'), body = $('gap-body');
+  if (!wrap || !body) return;
+  if (!gap) { wrap.classList.add('hidden'); return; }
+  const chips = (arr, cls) => (arr || []).slice(0, 8)
+    .map(t => `<span class="kc ${cls}">${esc(typeof t === 'string' ? t : (t.text || ''))}</span>`).join('');
+  const parts = [];
+  if ((gap.surfaced || []).length) {
+    parts.push(`<div class="mt6"><b>Surfaced for this job</b><div class="kw-chips">${chips(gap.surfaced, 'matched')}</div></div>`);
+  }
+  if ((gap.alreadyStrong || []).length) {
+    parts.push(`<div class="mt6"><b>Already strong</b><div class="kw-chips">${chips(gap.alreadyStrong, 'matched')}</div></div>`);
+  }
+  if ((gap.stillMissing || []).length) {
+    parts.push(`<div class="mt6"><b>Genuinely missing from your background</b><div class="kw-chips">${chips(gap.stillMissing, 'missing')}</div>
+      <div style="opacity:.7;margin-top:6px">AYN left these out on purpose. Nothing in your resume supports them yet.</div></div>`);
+  }
+  if (!parts.length) { wrap.classList.add('hidden'); return; }
+  body.innerHTML = parts.join('');
+  wrap.classList.remove('hidden');
 }
 
 $('back-t1').addEventListener('click', () => show('v-t1'));
