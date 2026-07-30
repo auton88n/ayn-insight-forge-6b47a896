@@ -118,8 +118,9 @@ export default function CompanyProfile({
   };
 
   const missing = missingOrgFields(org);
-  const expanded = onboarding || open;
+  const expanded = onboarding || page || open;
   const aboutLen = (form.about ?? "").trim().length;
+
 
   const fields = (
     <div className="space-y-4 employer-step-in">
@@ -200,23 +201,30 @@ export default function CompanyProfile({
     </div>
   );
 
-  if (onboarding) {
+  if (onboarding || page) {
     return (
       <Card className="p-5 sm:p-7 space-y-5">
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-primary" />
-            <h1 className="text-lg font-semibold">Tell candidates who you are</h1>
+          <div className="flex items-center gap-3">
+            {org.logo_url
+              ? <img src={org.logo_url} alt={`${org.name} logo`} className="w-10 h-10 rounded-lg object-cover border border-border/60" loading="lazy" />
+              : <span className="w-10 h-10 rounded-lg grid place-items-center bg-muted border border-border/60"><Building2 className="w-4 h-4 text-primary" /></span>}
+            <h1 className="text-lg font-semibold">
+              {onboarding ? "Tell candidates who you are" : org.name || "Company profile"}
+            </h1>
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
           </div>
           <p className="text-sm text-muted-foreground">
-            Candidates see this on every proposal. AYN cannot search until it is filled in.
+            {onboarding
+              ? "Candidates see this on every proposal. AYN cannot search until it is filled in."
+              : "Candidates see this on every proposal you send. Changes save as you go."}
           </p>
         </div>
         {fields}
       </Card>
     );
   }
+
 
   return (
     <Card className="p-4 sm:p-6 space-y-4">
