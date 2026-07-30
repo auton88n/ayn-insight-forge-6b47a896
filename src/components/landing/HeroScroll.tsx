@@ -540,19 +540,26 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
                   t.style.background = 'rgba(255, 255, 255, 0.4)';
                   t.style.borderColor = 'rgba(255, 255, 255, 0.5)';
                 }}>
-                <div style={{ 
-                  width: 60, 
-                  height: 60, 
-                  borderRadius: 20, 
-                  background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  marginBottom: 28,
-                  border: '1px solid rgba(0,0,0,0.03)'
-                }}>
-                  <card.icon size={28} color={C.ink} strokeWidth={1.5} />
+                {/* Illustration slot, same height on every card so the grid stays even */}
+                <div style={{ height: 150, marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: (card as { art?: unknown }).art ? 'center' : 'flex-start' }}>
+                  {(card as { art?: React.ComponentType<{ style?: React.CSSProperties }> }).art ? (
+                    (() => { const Art = (card as { art: React.ComponentType<{ style?: React.CSSProperties }> }).art; return <Art style={{ maxWidth: 240, maxHeight: 150 }} />; })()
+                  ) : (
+                    <div style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: 20,
+                      background: 'linear-gradient(135deg, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(0,0,0,0.03)'
+                    }}>
+                      <card.icon size={28} color={C.ink} strokeWidth={1.5} />
+                    </div>
+                  )}
                 </div>
+
                 <h3 dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.display, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: C.ink, marginBottom: 16, textAlign: isAr ? 'right' : 'left' }}>{card.title}</h3>
                 <p dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: C.body, fontSize: 16, color: C.inkSub, lineHeight: 1.6, flexGrow: 1, textAlign: isAr ? 'right' : 'left' }}>{card.desc}</p>
                 
