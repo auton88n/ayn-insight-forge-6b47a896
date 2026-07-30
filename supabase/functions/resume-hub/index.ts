@@ -766,17 +766,32 @@ function buildProfileText(c: CanonicalProfile, resumeContent: Record<string, unk
 
   const exp = c.experiences.map(e => {
     const bullets = (e.bullets || []).filter(Boolean).slice(0, 5).join(" | ");
-    const head = `${e.title || ""} at ${e.company || ""} ${e.start || ""}-${e.end || (e.current ? "Now" : "")}`.trim();
+    // v3.12.0 — never emit a label with an empty value. The old template
+    // produced strings like "at " and "Education: BSc  at", which the
+    // employer surface then rendered verbatim.
+    const dates = [e.start, e.end || (e.current ? "Now" : "")].filter(Boolean).join(" to ");
+    const head = [
+      [e.title, e.company].filter(Boolean).join(" at "),
+      dates,
+    ].filter(Boolean).join(", ");
     const ctx = [
       e.industry ? `Industry: ${e.industry}` : "",
       e.team_size ? `Managed a team of ${e.team_size}` : "",
     ].filter(Boolean).join(". ");
     return [head, ctx, bullets].filter(Boolean).join(". ");
-  }).join("\n");
+  }).filter(Boolean).join("\n");
 
-  const edu = c.education.map(e => `${e.degree || ""} ${e.field || ""} at ${e.school || ""}`.trim()).join("; ");
+  const edu = c.education
+    .map(e => [[e.degree, e.field].filter(Boolean).join(" "), e.school].filter(Boolean).join(" at "))
+    .filter(Boolean).join("; ");
   const certs = c.certifications.map(c => c.name).filter(Boolean).join(", ");
-  const derived = `Seniority: ${c.derived.seniority || ""}. Function: ${c.derived.primary_function || ""}. YoE: ${c.derived.total_yoe ?? ""}. Current title: ${c.derived.current_title || ""}.`;
+  const derived = [
+    c.derived.seniority ? `Seniority: ${c.derived.seniority}` : "",
+    c.derived.primary_function ? `Function: ${c.derived.primary_function}` : "",
+    c.derived.total_yoe != null ? `Years of experience: ${c.derived.total_yoe}` : "",
+    c.derived.current_title ? `Current title: ${c.derived.current_title}` : "",
+  ].filter(Boolean).join(". ");
+
   const knownFor = (c.derived.known_for || []).filter(Boolean).join(". ");
   const p = c.preferences;
   const seeking = [
