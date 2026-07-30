@@ -15,6 +15,8 @@ import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Preselects the signup role and opens the signup tab (landing page CTAs). */
+  initialRole?: 'job_seeker' | 'employer';
 }
 
 // Mask email for privacy (john.doe@gmail.com → j***e@gmail.com)
@@ -27,7 +29,7 @@ const maskEmail = (email: string): string => {
   return `${masked}@${domain}`;
 };
 
-export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
+export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -37,7 +39,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [companyWebsite, setCompanyWebsite] = useState('');
   // v2.10.0 — role picker on signup. job_seekers get instant access; employers
   // sit in pending_approval until the AYN team activates them.
-  const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>('job_seeker');
+  const [signupRole, setSignupRole] = useState<'job_seeker' | 'employer'>(initialRole || 'job_seeker');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
   // New states for reset confirmation view
@@ -481,7 +483,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="signin" className="w-full">
+        <Tabs defaultValue={initialRole ? 'signup' : 'signin'} className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-neutral-900/80 border border-white/10">
             <TabsTrigger value="signin">{t('auth.signIn')}</TabsTrigger>
             <TabsTrigger value="signup">{t('auth.signUp')}</TabsTrigger>
