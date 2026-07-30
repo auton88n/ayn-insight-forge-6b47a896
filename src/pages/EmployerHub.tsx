@@ -30,7 +30,6 @@ import {
 import IntakeWizard from "@/components/employer/IntakeWizard";
 import CompanyProfile from "@/components/employer/CompanyProfile";
 import CandidateResultCard from "@/components/employer/CandidateResultCard";
-import CandidateCardSkeleton from "@/components/employer/CandidateCardSkeleton";
 import CandidateProfile from "@/components/employer/CandidateProfile";
 import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
