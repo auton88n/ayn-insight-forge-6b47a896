@@ -1895,6 +1895,8 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({
         opted_in: !!consent?.opted_in,
         consented_at: consent?.consented_at ?? null,
+        consent_version: (consent as { consent_version?: string } | null)?.consent_version ?? null,
+
         indexed: !!idx,
         skills_count: skills.length,
         preview: idx
