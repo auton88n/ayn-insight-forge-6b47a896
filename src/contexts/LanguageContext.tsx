@@ -1,8 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/**
+ * LanguageContext — English only.
+ *
+ * AYN ships in English. This is a thin shim kept so the components that read
+ * `language`, `direction` or `t` keep working; there is no way to change it
+ * and every localized branch resolves to the English one.
+ */
+import React, { createContext, useContext, useEffect } from 'react';
 import { translations } from '@/i18n';
 
-export type Language = 'en' | 'ar' | 'fr';
-export type Direction = 'ltr' | 'rtl';
+export type Language = 'en';
+export type Direction = 'ltr';
 
 interface LanguageContextType {
   language: Language;
@@ -11,52 +18,23 @@ interface LanguageContextType {
   t: (key: string) => string;
 }
 
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+const value: LanguageContextType = {
+  language: 'en',
+  direction: 'ltr',
+  setLanguage: () => {},
+  t: (key: string) => translations.en?.[key] || key,
+};
 
-interface LanguageProviderProps {
-  children: React.ReactNode;
-}
+const LanguageContext = createContext<LanguageContextType>(value);
 
-export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('en');
-  const direction: Direction = 'ltr'; // Always LTR as per user request to preserve premium design layout even for Arabic
-
+export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
-    // Load saved language from localStorage
-    const savedLang = localStorage.getItem('ayn-language') as Language;
-    if (savedLang && (savedLang === 'en' || savedLang === 'ar' || savedLang === 'fr')) {
-      setLanguageState(savedLang);
-    }
+    document.documentElement.lang = 'en';
+    document.documentElement.dir = 'ltr';
+    try { localStorage.removeItem('ayn-language'); } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => {
-    // Update document direction and language for public pages (Landing, Services, Pricing)
-    // Dashboard overrides this with its own dir="ltr" container
-    document.documentElement.lang = language;
-    // Direction is applied per-page via dir={direction}, not globally,
-    // to prevent dashboard portals (modals, toasts, dropdowns) from breaking
-  }, [language, direction]);
-
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem('ayn-language', lang);
-  };
-
-  const t = (key: string): string => {
-    return translations[language]?.[key] || key;
-  };
-
-  return (
-    <LanguageContext.Provider value={{ language, direction, setLanguage, t }}>
-      {children}
-    </LanguageContext.Provider>
-  );
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
-export const useLanguage = () => {
-  const context = useContext(LanguageContext);
-  if (context === undefined) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
-  }
-  return context;
-};
+export const useLanguage = () => useContext(LanguageContext);
