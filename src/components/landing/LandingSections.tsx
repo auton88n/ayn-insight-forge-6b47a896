@@ -283,15 +283,15 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
             <p className="lp-eyebrow">Built to be honest</p>
             <h2 className="lp-display lp-h2">It tells you what it could not read</h2>
             <p className="lp-lead">
-              AYN shows its work. Which job description it read, which resume it compared, what it
-              could not verify. Your profile is only shared with employers when you turn discovery
-              on, and your contact details only when you approve an intro.
+              AYN shows its work. Which posting it read, which resume it used, and what it could not
+              verify. It never invents experience you do not have.
             </p>
             <div className="lp-chips">
               <span className="lp-chip">Read only, always</span>
-              <span className="lp-chip">Evidence for every score</span>
+              <span className="lp-chip">Grounded in the posting</span>
               <span className="lp-chip">Your data stays yours</span>
             </div>
+
           </div>
         </div>
       </section>
