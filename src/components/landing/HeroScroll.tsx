@@ -427,7 +427,7 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               </div>
             ))}
           </div>
-          </div>
+
 
           {/* Fill in progress illustration */}
           <div style={{ width: '100%', maxWidth: 900, margin: 'clamp(56px,8vw,96px) auto 0' }}>
