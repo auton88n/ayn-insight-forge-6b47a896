@@ -262,15 +262,72 @@ export default function JobsTab({ userId }: Props) {
               </Card>
             )}
 
-            {letter && (
-              <Card className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">Cover letter</h3>
-                  <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(letter); toast({ title: "Copied" }); }}>Copy</Button>
+            {(tailored || cover) && (
+              <Card className="p-5 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Documents for this job</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Written from your resume and this posting. Generating again replaces the copy stored here.
+                  </p>
                 </div>
-                <pre className="text-sm whitespace-pre-wrap font-sans">{letter}</pre>
+
+                {tailored && (
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-sm font-medium">Tailored resume</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Generated {new Date(tailored.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(resumeToText(tailored.content), fileBase(selected.company, selected.title, "Resume"), "pdf")}>
+                          <Download className="w-4 h-4 mr-1.5" />PDF
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(resumeToText(tailored.content), fileBase(selected.company, selected.title, "Resume"), "docx")}>
+                          <Download className="w-4 h-4 mr-1.5" />Word
+                        </Button>
+                        {primaryResume && (
+                          <Button size="sm" variant="ghost" onClick={() => setShowDiff(v => !v)}>
+                            {showDiff ? "Hide changes" : "See what changed"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {showDiff && primaryResume && (
+                      <ResumeDiffViewer
+                        original={resumeToText(primaryResume.content)}
+                        improved={resumeToText(tailored.content)}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {cover && (
+                  <div className="rounded-lg border border-border/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-sm font-medium">Cover letter</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Generated {new Date(cover.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "pdf")}>
+                          <Download className="w-4 h-4 mr-1.5" />PDF
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => downloadDoc(cover.body, fileBase(selected.company, selected.title, "Cover_Letter"), "docx")}>
+                          <Download className="w-4 h-4 mr-1.5" />Word
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(cover.body); toast({ title: "Copied" }); }}>Copy</Button>
+                      </div>
+                    </div>
+                    <pre className="text-sm whitespace-pre-wrap font-sans max-h-72 overflow-auto">{cover.body}</pre>
+                  </div>
+                )}
               </Card>
             )}
+
 
             {selected.jd_text && (
               <Card className="p-5">
