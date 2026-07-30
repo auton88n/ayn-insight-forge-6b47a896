@@ -2241,8 +2241,18 @@ ${card === "compare" ? `OTHER CANDIDATES IN THIS SEARCH: ${JSON.stringify(cards.
       const mine = cards.find(c => c.ref === ref);
       if (!mine) return json({ error: "unknown ref" }, 400);
       const spec = (search.job_spec || {}) as Record<string, unknown>;
-      const { data: org } = await adminForNew.from("orgs").select("name").eq("id", org_id).maybeSingle();
+      const { data: org } = await adminForNew.from("orgs")
+        .select("name, industry, company_size, headquarters, about, website").eq("id", org_id).maybeSingle();
       const company = String(org?.name || "our company");
+      // v3.10.0 — the only company facts the model may use are the ones the
+      // employer typed into their company profile. Nothing else exists.
+      const companyFacts = {
+        name: company,
+        industry: org?.industry || null,
+        company_size: org?.company_size || null,
+        headquarters: org?.headquarters || null,
+        about: org?.about || null,
+      };
 
       const sys = `You write one short job proposal message from an employer to a candidate they found through AYN. The candidate reads it inside AYN.
 
@@ -2252,10 +2262,13 @@ Rules, strict:
 - 4 to 6 short sentences of plain prose. No greeting line breaks needed beyond normal paragraphs.
 - Open by naming the role and the company.
 - Say specifically why this person fits, citing only the matched requirements and the why lines given below. Invent nothing about them.
+- One sentence may describe what the company does, and only by paraphrasing COMPANY FACTS below. If a company fact is null, it does not exist: never guess an industry, a size, a location, a mission, or a product.
 - End by saying what happens next: if they accept, the employer receives their contact details and reaches out directly.
 - You do not know their name. Open with "Hi there".
 ${VOICE_RULES}
 - No salesy language, no flattery, no markdown, no bullet characters.
+
+COMPANY FACTS: ${JSON.stringify(companyFacts)}
 
 ROLE SPEC: ${JSON.stringify(spec)}
 
