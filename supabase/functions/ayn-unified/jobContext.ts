@@ -80,7 +80,7 @@ export async function buildJobSearchContext(
     admin.from("user_memory").select("key, value").eq("user_id", userId).limit(20),
   ]);
 
-  const canon = (canonRes?.data as Row) || null;
+  const canon = (canonRes?.data as unknown as Row) || null;
   const skills = arr(canon?.skills);
   const experiences = arr(canon?.experiences);
   const education = arr(canon?.education);
