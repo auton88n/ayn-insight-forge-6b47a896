@@ -238,105 +238,192 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     );
   }
 
+  const pendingSent = sent.filter(s => s.status === "pending").length;
+
   return (
     <div className="employer-surface min-h-screen bg-background">
-      <header className="border-b border-border/60">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Hiring</p>
-            <h1 className="text-lg font-semibold truncate">{org.name}</h1>
+      {/* v3.12.0 — AYN branded header with a company menu, so the employer
+          surface reads as the same product as the seeker side. */}
+      <header className="border-b border-border/60 sticky top-0 z-30 bg-background/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 shrink-0" aria-label="AYN">
+              <Brain className="w-5 h-5" />
+              <span className="font-semibold tracking-tight">AYN</span>
+            </div>
+            <div className="w-px h-6 bg-border" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground leading-none">Hiring</p>
+              <h1 className="text-sm font-semibold truncate leading-tight">{org.name}</h1>
+            </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}>
-            <LogOut className="w-4 h-4 mr-1.5" /> Sign out
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Company menu">
+                {org.logo_url
+                  ? <img src={org.logo_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                  : <Building2 className="w-4 h-4" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="truncate">{org.name}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => { if (profileComplete) setCompanyOpen(true); }}
+                disabled={!profileComplete}
+              >
+                <Building2 className="w-4 h-4 mr-2" /> Company profile
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => supabase.auth.signOut()}>
+                <LogOut className="w-4 h-4 mr-2" /> Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/**
-         * v3.11.0 — the gate. While a required company field is missing the
-         * onboarding profile is the ONLY thing rendered, so there is nothing
-         * to click around. The backend enforces the same rule.
-         */}
-        {!profileComplete ? (
+      {/**
+       * v3.11.0 — the gate. While a required company field is missing the
+       * onboarding profile is the ONLY thing rendered, and v3.12.0 keeps the
+       * nav out of the page too. The backend enforces the same rule.
+       */}
+      {!profileComplete ? (
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
           <CompanyProfile org={org} onSaved={handleOrgSaved} onboarding />
-        ) : (
-          <>
-            {/* 1 and 2. Widget intake, then the editable spec summary. */}
-            <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+        </main>
+      ) : (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex gap-6">
+          {/* Left nav, same language as Resume Hub */}
+          <aside className="hidden md:block w-56 shrink-0" aria-label="Employer navigation">
+            <nav className="space-y-1 sticky top-24">
+              {EMPLOYER_NAV.map(item => {
+                const Icon = item.icon;
+                const active = tab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                    className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors ${
+                      active ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {item.label}
+                      {item.key === "proposals" && pendingSent > 0 && (
+                        <Badge variant="secondary" className="ml-auto">{pendingSent}</Badge>
+                      )}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground mt-0.5 pl-6">{item.hint}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-            {/* Who is reaching out. Editable at any time, and used in proposals. */}
-            <CompanyProfile org={org} onSaved={handleOrgSaved} />
-          </>
-        )}
+          <main className="flex-1 min-w-0 space-y-6">
+            {/* Mobile nav */}
+            <div className="md:hidden flex gap-2">
+              {EMPLOYER_NAV.map(item => (
+                <Button
+                  key={item.key}
+                  size="sm"
+                  variant={tab === item.key ? "default" : "outline"}
+                  onClick={() => { if (item.key === "company") setCompanyOpen(true); else setTab(item.key); }}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
 
+            {tab === "search" && (
+              <>
+                {/* 1 and 2. Widget intake, then the editable spec summary. */}
+                <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
 
-
-
-        {/* 3. Results */}
-        {profileComplete && (results.length > 0 || poolNote) && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold">Candidates</h2>
-            {poolNote && <p className="text-xs text-muted-foreground">{poolNote}</p>}
-            {results.map(c => (
-              <Card key={c.ref} className="p-4 sm:p-5 space-y-3">
-                <div className="flex items-start gap-4">
-                  <ScoreRing score={c.score} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{c.headline || "Candidate"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[c.seniority, c.years_experience != null ? `${c.years_experience} years` : "", c.location]
-                        .filter(Boolean).join(" · ")}
-                    </p>
+                {/* 3. Results */}
+                {(results.length > 0 || poolNote) && (
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-semibold">Candidates</h2>
+                    {poolNote && <p className="text-xs text-muted-foreground">{poolNote}</p>}
+                    {results.map(c => (
+                      <Card key={c.ref} className="p-4 sm:p-5 space-y-3">
+                        <div className="flex items-start gap-4">
+                          <ScoreRing score={c.score} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{c.headline || "Candidate"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {[c.seniority, c.years_experience != null ? `${c.years_experience} years` : "", c.location]
+                                .filter(Boolean).join(" · ")}
+                            </p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => { setOpen(c); setFormOpen(false); }}>Open</Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {c.matched_must_haves.map(m => <Badge key={m} variant="secondary" className="font-normal">{m}</Badge>)}
+                          {c.gaps.map(g => <Badge key={g} variant="outline" className="font-normal text-muted-foreground">{g}</Badge>)}
+                        </div>
+                        <ul className="space-y-1">
+                          {c.why.slice(0, 3).map((w, i) => (
+                            <li key={i} className="text-xs text-muted-foreground leading-relaxed">{w}</li>
+                          ))}
+                        </ul>
+                        {searchId && (
+                          <CandidateAskCards searchId={searchId} candidateRef={c.ref} total={results.length} />
+                        )}
+                      </Card>
+                    ))}
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => { setOpen(c); setFormOpen(false); }}>Open</Button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {c.matched_must_haves.map(m => <Badge key={m} variant="secondary" className="font-normal">{m}</Badge>)}
-                  {c.gaps.map(g => <Badge key={g} variant="outline" className="font-normal text-muted-foreground">{g}</Badge>)}
-                </div>
-                <ul className="space-y-1">
-                  {c.why.slice(0, 3).map((w, i) => (
-                    <li key={i} className="text-xs text-muted-foreground leading-relaxed">{w}</li>
-                  ))}
-                </ul>
-                {searchId && (
-                  <CandidateAskCards searchId={searchId} candidateRef={c.ref} total={results.length} />
                 )}
-              </Card>
-            ))}
-          </div>
-        )}
+              </>
+            )}
 
-
-
-
-        {/* 4. Sent proposals */}
-        {profileComplete && sent.length > 0 && (
-          <Card className="p-4 sm:p-6 space-y-3">
-            <h2 className="text-sm font-semibold">Proposals you sent</h2>
-            {sent.map(s => (
-              <div key={s.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-1">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium truncate">{s.job_title || "Role"}</p>
-                  <Badge variant={s.status === "approved" ? "secondary" : "outline"}>
-                    {s.status === "pending" ? "Waiting for a reply" : s.status === "approved" ? "Accepted" : "Declined"}
-                  </Badge>
-                </div>
-                {s.status === "approved" && (
-                  <p className="text-xs">
-                    <span className="font-medium">{s.name || "Candidate"}</span>
-                    {s.email ? ` · ${s.email}` : ""}{s.phone ? ` · ${s.phone}` : ""}
+            {tab === "proposals" && (
+              <Card className="p-4 sm:p-6 space-y-3">
+                <h2 className="text-sm font-semibold">Proposals you sent</h2>
+                {sent.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Nothing sent yet. Find a candidate first, then send them a proposal.
                   </p>
                 )}
-                {s.status === "declined" && (
-                  <p className="text-xs text-muted-foreground">They passed on this role.</p>
-                )}
-              </div>
-            ))}
-          </Card>
-        )}
-      </main>
+                {sent.map(s => (
+                  <div key={s.id} className="rounded-lg border border-border/50 px-3 py-2.5 space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium truncate">{s.job_title || "Role"}</p>
+                      <Badge variant={s.status === "approved" ? "secondary" : "outline"}>
+                        {s.status === "pending" ? "Waiting for a reply" : s.status === "approved" ? "Accepted" : "Declined"}
+                      </Badge>
+                    </div>
+                    {s.status === "approved" && (
+                      <p className="text-xs">
+                        <span className="font-medium">{s.name || "Candidate"}</span>
+                        {s.email ? ` · ${s.email}` : ""}{s.phone ? ` · ${s.phone}` : ""}
+                      </p>
+                    )}
+                    {s.status === "declined" && (
+                      <p className="text-xs text-muted-foreground">They passed on this role.</p>
+                    )}
+                  </div>
+                ))}
+              </Card>
+            )}
+          </main>
+        </div>
+      )}
+
+      {/* v3.12.0 — once complete, the company profile lives behind the menu. */}
+      <Dialog open={companyOpen} onOpenChange={setCompanyOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Company profile</DialogTitle>
+            <DialogDescription>Candidates see this on every proposal you send.</DialogDescription>
+          </DialogHeader>
+          <CompanyProfile org={org} onSaved={handleOrgSaved} />
+        </DialogContent>
+      </Dialog>
+
 
       {/* Candidate detail. No name, email, phone, or user id at this stage. */}
       <Dialog open={!!open && !formOpen} onOpenChange={o => { if (!o) setOpen(null); }}>
