@@ -34,8 +34,8 @@ const LandingPage = memo(() => {
   return (
     <>
       <SEO
-        title="AYN, know your match score before you apply"
-        description="Employers now search for candidates instead of waiting for applications. AYN scores jobs, tailors your resume, and makes you findable. Free to start."
+        title="AYN, a resume tailored to every job you apply to"
+        description="AYN rewrites your resume and cover letter for every job you apply to. It reads the posting, uses your real experience, and never invents anything. Free to start."
         canonical="/"
         keywords="job match score, resume match to job description, tailored resume, AI cover letter, job search copilot, Chrome extension for job seekers"
         jsonLd={{ '@graph': [organizationSchema, websiteSchema, softwareApplicationSchema, faqSchema] }}
