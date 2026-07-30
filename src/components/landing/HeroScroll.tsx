@@ -118,26 +118,26 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
 
   const CHAPTERS = [
     {
-      headline: 'Add your resume once.\nAYN reads it and\nbuilds your profile.',
-      body: 'Your experience, skills, education, and the answers you keep retyping.',
+      headline: 'Forty fields.\nEvery time.\nFor months.',
+      body: 'Applying is not hard. It is just endless.',
       stat: '01', unit: 'Profile',
       in: 0.15, out: 0.31
     },
     {
-      headline: 'Open any job posting.\nAYN reads the real\njob description.',
-      body: 'It scores how well you match it, and tells you which requirements you meet and which you do not.',
+      headline: 'One click.\nThe whole form.\nIncluding the hard parts.',
+      body: 'Screening questions, dropdowns, work history, all of it.',
       stat: '02', unit: 'Match',
       in: 0.34, out: 0.49
     },
     {
-      headline: 'Click fill.\nThe screening questions\nand dropdowns too.',
-      body: 'AYN completes the application, then shows you exactly what it filled and what it left for you.',
+      headline: 'Know before\nyou spend\nthe hour.',
+      body: 'See how well you match before you apply.',
       stat: '03', unit: 'Fill',
       in: 0.52, out: 0.67
     },
     {
-      headline: 'A tailored resume\nand cover letter\nfor the role.',
-      body: 'One page, real text a resume scanner can read, built from your own experience.',
+      headline: 'A resume that\nfits the role.\nEvery time.',
+      body: 'Tailored from your real experience. One page.',
       stat: '04', unit: 'Tailor',
       in: 0.70, out: 0.85
     },
