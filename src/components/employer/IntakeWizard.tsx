@@ -768,18 +768,27 @@ export default function IntakeWizard({
           At least one must have skill is not held by anyone in the pool. The search will return nobody until you change it.
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={() => onSearch(spec)} disabled={searching || !spec.title.trim() || spec.must_have_skills.length === 0}>
-          {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-          Find candidates
-        </Button>
-        <Button variant="outline" size="sm" onClick={startOver}>
-          <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Start over
-        </Button>
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <Sparkle className="w-3 h-3" /> AYN searches candidates who opted into discovery, nothing else.
-        </span>
+      {/* v3.12.0 — one clear primary, one clearly secondary, same height,
+          real gap between them, and the note on its own line. */}
+      <div className="pt-1 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <Button
+            className="h-11 px-6 w-full sm:w-auto"
+            onClick={() => onSearch(spec)}
+            disabled={searching || !spec.title.trim() || spec.must_have_skills.length === 0}
+          >
+            {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+            Find candidates
+          </Button>
+          <Button variant="outline" className="h-11 px-5 w-full sm:w-auto" onClick={startOver}>
+            <RotateCcw className="w-4 h-4 mr-2" /> Start over
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Sparkle className="w-3 h-3 shrink-0" /> AYN searches candidates who opted into discovery, nothing else.
+        </p>
       </div>
+
     </Card>
   );
 }
