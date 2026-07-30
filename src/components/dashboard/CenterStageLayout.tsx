@@ -23,11 +23,14 @@ import { useEmotionOrchestrator } from "@/hooks/useEmotionOrchestrator";
 import { useEmpathyReaction } from "@/hooks/useEmpathyReaction";
 import type { Message, AIMode, AIModeConfig } from "@/types/dashboard.types";
 
-// Fallback suggestions when API fails
+import { useCopilotStarters } from "@/hooks/useCopilotStarters";
+
+// Fallback follow-ups when the suggestions API fails mid conversation.
 const DEFAULT_SUGGESTIONS = [
-  { content: "Tell me more", emoji: "💬" },
-  { content: "Explain simpler", emoji: "🔍" },
-  { content: "Give examples", emoji: "📝" },
+  { content: "Why does that matter for me?", emoji: "💬" },
+  { content: "Give me a concrete example", emoji: "📝" },
+  { content: "What should I do next?", emoji: "🎯" },
+
 ];
 
 interface CenterStageLayoutProps {
