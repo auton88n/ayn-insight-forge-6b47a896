@@ -1,16 +1,15 @@
 /**
- * EmployerHub.tsx — v3.6.0 "the proposal loop", employer side.
+ * EmployerHub.tsx — v3.8.0 "the chat is candidate search, nothing else".
  *
- * Before this page an approved employer landed in the seeker dashboard and
- * could not search at all: employerApi.intake, .match and .sendProposal had
- * zero callers. This is the surface that uses them.
+ * The employer surface, and now the only conversational surface in the app.
+ * Four steps in one page: answer the intake widgets, review the JobSpec, read
+ * the candidates AYN found, send a proposal. The chat under the results is
+ * scoped to evaluating those candidates and nothing else.
  *
- * Four steps, in one page: describe the role, review the JobSpec, read the
- * candidates AYN found, send a proposal. No candidate identity is ever
- * rendered here. Name, email and phone only appear in the Sent list, and only
- * after the candidate accepted.
+ * No candidate identity is ever rendered here. Name, email and phone only
+ * appear in the Sent list, and only after the candidate accepted.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,16 +22,14 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, Send, Search, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
+  Loader2, Send, ArrowLeft, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
 } from "lucide-react";
+import IntakeWizard from "@/components/employer/IntakeWizard";
+import CandidateChat from "@/components/employer/CandidateChat";
 import {
-  employerApi, type CandidateCard, type IntakeTurn, type JobSpec, type Org, type SentProposal,
+  employerApi, type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
 
-const EMPTY_SPEC: JobSpec = {
-  title: "", seniority: "mid", must_have_skills: [], nice_to_have_skills: [],
-  location_preference: "", remote_ok: false, min_years: 0, notes: "",
-};
 
 function ScoreRing({ score }: { score: number }) {
   const pct = Math.max(0, Math.min(100, score));
@@ -55,10 +52,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [orgName, setOrgName] = useState(companyName || "");
   const [orgBusy, setOrgBusy] = useState(false);
 
-  const [turns, setTurns] = useState<IntakeTurn[]>([]);
-  const [draft, setDraft] = useState("");
-  const [asking, setAsking] = useState(false);
   const [spec, setSpec] = useState<JobSpec | null>(null);
+
 
   const [searching, setSearching] = useState(false);
   const [searchId, setSearchId] = useState<string | null>(null);
@@ -71,7 +66,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [form, setForm] = useState({ job_title: "", job_location: "", employment_type: "", salary_range: "", job_url: "", message: "" });
 
   const [sent, setSent] = useState<SentProposal[]>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadSent = useCallback(async () => {
     try { const r = await employerApi.sentProposals(); setSent(r.requests || []); } catch { /* silent */ }
@@ -85,8 +79,6 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     loadSent();
   }, [loadSent]);
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: 999999, behavior: "smooth" }); }, [turns, asking]);
-
   const createOrg = async () => {
     if (!orgName.trim()) return;
     setOrgBusy(true);
@@ -98,32 +90,16 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     } finally { setOrgBusy(false); }
   };
 
-  const ask = async () => {
-    if (!org || !draft.trim() || asking) return;
-    const next: IntakeTurn[] = [...turns, { role: "user", content: draft.trim() }];
-    setTurns(next);
-    setDraft("");
-    setAsking(true);
-    try {
-      const r = await employerApi.intake(org.id, next);
-      if (r.done) {
-        setSpec({ ...EMPTY_SPEC, ...r.job_spec });
-        setTurns([...next, { role: "assistant", content: "I have enough to search. Review the role below and edit anything that is off." }]);
-      } else {
-        setTurns([...next, { role: "assistant", content: r.question }]);
-      }
-    } catch (e) {
-      toast({ title: "AYN could not respond", description: (e as Error).message, variant: "destructive" });
-    } finally { setAsking(false); }
-  };
 
-  const runMatch = async () => {
-    if (!org || !spec) return;
+  const runMatch = async (nextSpec: JobSpec) => {
+    if (!org) return;
+    setSpec(nextSpec);
     setSearching(true);
     setResults([]);
     setPoolNote("");
+    setSearchId(null);
     try {
-      const r = await employerApi.match(org.id, spec);
+      const r = await employerApi.match(org.id, nextSpec);
       setSearchId(r.search_id);
       setResults(r.results || []);
       setPoolNote(r.pool_note || "");
@@ -132,11 +108,15 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     } finally { setSearching(false); }
   };
 
+  const EMPLOYMENT_LABEL: Record<string, string> = {
+    full_time: "Full time", contract: "Contract", part_time: "Part time", internship: "Internship",
+  };
+
   const openProposal = (c: CandidateCard) => {
     setForm({
       job_title: spec?.title || "",
       job_location: spec?.location_preference || "",
-      employment_type: "",
+      employment_type: EMPLOYMENT_LABEL[spec?.employment_type || ""] || "",
       salary_range: "",
       job_url: "",
       message: "",
@@ -144,6 +124,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
     setOpen(c);
     setFormOpen(true);
   };
+
 
   const submitProposal = async () => {
     if (!searchId || !open) return;
@@ -205,93 +186,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* 1. Intake chat */}
-        <Card className="p-4 sm:p-6 space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold">Describe the role</h2>
-            <p className="text-xs text-muted-foreground">Tell AYN what you need. It asks at most three questions.</p>
-          </div>
-          <div ref={scrollRef} className="max-h-72 overflow-y-auto space-y-3 pr-1">
-            {turns.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                For example: we need a senior backend engineer in Toronto, strong Python and Postgres, five years or more.
-              </p>
-            )}
-            {turns.map((t, i) => (
-              <div key={i} className={t.role === "user" ? "flex justify-end" : ""}>
-                <p className={t.role === "user"
-                  ? "max-w-[80%] rounded-2xl bg-primary text-primary-foreground px-3 py-2 text-sm"
-                  : "max-w-[85%] text-sm leading-relaxed"}>
-                  {t.content}
-                </p>
-              </div>
-            ))}
-            {asking && <p className="text-sm text-muted-foreground animate-pulse">Thinking…</p>}
-          </div>
-          <div className="flex gap-2">
-            <Textarea
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } }}
-              placeholder="Describe the role"
-              className="min-h-[44px] max-h-32"
-            />
-            <Button onClick={ask} disabled={asking || !draft.trim()} size="icon" className="shrink-0">
-              {asking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </Button>
-          </div>
-        </Card>
+        {/* 1 and 2. Widget intake, then the editable spec summary. */}
+        <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
 
-        {/* 2. JobSpec */}
-        {spec && (
-          <Card className="p-4 sm:p-6 space-y-4">
-            <h2 className="text-sm font-semibold">The role AYN will search for</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Title</Label>
-                <Input value={spec.title} onChange={e => setSpec({ ...spec, title: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Seniority</Label>
-                <Input value={spec.seniority} onChange={e => setSpec({ ...spec, seniority: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Must have skills, comma separated</Label>
-                <Input
-                  value={spec.must_have_skills.join(", ")}
-                  onChange={e => setSpec({ ...spec, must_have_skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Nice to have skills, comma separated</Label>
-                <Input
-                  value={spec.nice_to_have_skills.join(", ")}
-                  onChange={e => setSpec({ ...spec, nice_to_have_skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Location</Label>
-                <Input value={spec.location_preference || ""} onChange={e => setSpec({ ...spec, location_preference: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Minimum years</Label>
-                <Input
-                  type="number"
-                  value={spec.min_years ?? 0}
-                  onChange={e => setSpec({ ...spec, min_years: Number(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={spec.notes || ""} onChange={e => setSpec({ ...spec, notes: e.target.value })} className="min-h-[60px]" />
-            </div>
-            <Button onClick={runMatch} disabled={searching || !spec.title.trim()}>
-              {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-              Find candidates
-            </Button>
-          </Card>
-        )}
 
         {/* 3. Results */}
         {(results.length > 0 || poolNote) && (
@@ -324,6 +221,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
             ))}
           </div>
         )}
+
+        {/* 3b. The only chat: evaluating the candidates this search returned. */}
+        {searchId && results.length > 0 && (
+          <CandidateChat searchId={searchId} count={results.length} />
+        )}
+
+
 
         {/* 4. Sent proposals */}
         {sent.length > 0 && (

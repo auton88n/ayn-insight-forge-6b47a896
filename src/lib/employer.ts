@@ -35,8 +35,14 @@ export type JobSpec = {
   must_have_skills: string[];
   nice_to_have_skills: string[];
   location_preference?: string;
+  /** v3.8.0 — onsite, hybrid or remote. */
+  work_mode?: string;
+  /** v3.8.0 — full_time, contract, part_time or internship. */
+  employment_type?: string;
   remote_ok?: boolean;
   min_years?: number;
+  /** v3.8.0 — authorized_required or open_to_sponsoring. */
+  work_authorization?: string;
   notes?: string;
 };
 
@@ -55,10 +61,9 @@ export type CandidateCard = {
   summary?: string;
 };
 
-export type IntakeTurn = { role: "user" | "assistant"; content: string };
-export type IntakeResponse =
-  | { done: false; question: string }
-  | { done: true; job_spec: JobSpec };
+/** v3.8.0 — skills that actually exist on opted-in candidates, with counts. */
+export type SkillOption = { skill: string; skill_norm: string; count: number };
+
 
 /** v3.6.0 — what the employer sends and the seeker reads. */
 export type ProposalDraft = {
@@ -107,8 +112,15 @@ export const employerApi = {
   orgGet: () => call<{ org: Org | null; role?: string }>({ action: "employer_org_get" }),
   orgCreate: (name: string, website?: string) =>
     call<{ org: Org }>({ action: "employer_org_create", name, website }),
-  intake: (org_id: string, messages: IntakeTurn[]) =>
-    call<IntakeResponse>({ action: "employer_intake_chat", org_id, messages }),
+  /** v3.8.0 — one pass over the opening description, no conversation. */
+  specExtract: (org_id: string, description: string) =>
+    call<{ job_spec: Partial<JobSpec>; known: string[] }>({
+      action: "employer_spec_extract", org_id, description,
+    }),
+  skillCatalog: (org_id: string) =>
+    call<{ pool_size: number; skills: SkillOption[] }>({ action: "employer_skill_catalog", org_id }),
+  resultsChat: (search_id: string, messages: { role: "user" | "assistant"; content: string }[]) =>
+    call<{ reply: string }>({ action: "employer_results_chat", search_id, messages }),
   match: (org_id: string, job_spec: JobSpec) =>
     call<{ search_id: string | null; results: CandidateCard[]; pool_note: string }>({
       action: "employer_match", org_id, job_spec,

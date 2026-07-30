@@ -23,7 +23,6 @@ import { useEmotionOrchestrator } from "@/hooks/useEmotionOrchestrator";
 import { useEmpathyReaction } from "@/hooks/useEmpathyReaction";
 import type { Message, AIMode, AIModeConfig } from "@/types/dashboard.types";
 
-import { useCopilotStarters } from "@/hooks/useCopilotStarters";
 
 // Fallback follow-ups when the suggestions API fails mid conversation.
 const DEFAULT_SUGGESTIONS = [
@@ -289,18 +288,8 @@ export const CenterStageLayout = ({
     }
   }, [messages.length, clearResponseBubbles, clearSuggestions, setEmotion, setIsResponding]);
 
-  // v3.7.0: an empty chat opens with prompts built from this person's own
-  // state (an unscored saved job, a pending proposal, an empty profile group)
-  // rather than "Tell me more".
-  const isEmptyChat = messages.length === 0;
-  const copilotStarters = useCopilotStarters(isEmptyChat);
-  useEffect(() => {
-    if (!isEmptyChat || copilotStarters.length === 0) return;
-    // currentSessionId is a dependency because the session-switch effect below
-    // clears suggestions, so the starters must be re-emitted after a switch.
-    const t = setTimeout(() => emitSuggestions(copilotStarters), 0);
-    return () => clearTimeout(t);
-  }, [isEmptyChat, copilotStarters, emitSuggestions, currentSessionId]);
+  // v3.8.0: the seeker copilot starters are gone with the seeker chat itself.
+
 
 
 

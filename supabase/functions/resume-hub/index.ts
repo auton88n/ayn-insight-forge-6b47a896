@@ -2017,22 +2017,110 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       return json({ org: org || null, role: mem.role });
     }
 
-    if (action === "employer_intake_chat") {
-      const { org_id, messages } = payload as { org_id?: string; messages?: Array<{ role: string; content: string }> };
-      if (!org_id || !Array.isArray(messages)) return json({ error: "org_id and messages required" }, 400);
+    // v3.8.0 — intake is a widget wizard on the client, not a conversation.
+    // The model's only job here is to read the employer's opening description
+    // once and prefill whatever fields it genuinely stated, so the wizard can
+    // skip those questions. It never asks anything and never chats.
+    if (action === "employer_spec_extract") {
+      const { org_id, description } = payload as { org_id?: string; description?: string };
+      if (!org_id || typeof description !== "string") return json({ error: "org_id and description required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
-      const sys = `You are AYN's recruiting intake assistant. The user is an employer describing a role they need to fill. Ask AT MOST 3 short clarifying questions, one at a time, ONLY about genuinely missing fields (title, seniority, must-have skills, nice-to-have skills, location/remote, min years, notes). When you have enough to search, output ONLY JSON: {"done":true,"job_spec":{"title":"","seniority":"","must_have_skills":[],"nice_to_have_skills":[],"location_preference":"","remote_ok":false,"min_years":0,"notes":""}}. seniority must be one of: intern, entry, mid, senior, staff, principal, manager, director. Cap must_have_skills and nice_to_have_skills at 6 each. Otherwise output ONLY JSON: {"done":false,"question":"..."}. Questions must be plain prose. Never use em dashes, en dashes, or markdown symbols. Use the word "to" for ranges.`;
-      const userTurn = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
-      const r = await callAI({ system: sys, user: userTurn });
-      let parsed: Record<string, unknown> = {};
+      const text = description.trim().slice(0, 4000);
+      if (!text) return json({ job_spec: {}, known: [] });
+      const sys = `You extract structured hiring criteria from one description of an open role. Output ONLY JSON, no prose:
+{"job_spec":{"title":"","seniority":"","must_have_skills":[],"nice_to_have_skills":[],"location_preference":"","work_mode":"","employment_type":"","min_years":0,"work_authorization":"","notes":""},"known":[]}
+Rules, strict:
+- Only fill a field if the description actually states it. Leave anything unstated as an empty string, an empty array, or 0.
+- "known" lists the field keys you filled from an explicit statement. Never list a field you guessed.
+- seniority must be one of: intern, entry, mid, senior, staff_principal, manager, director_plus.
+- work_mode must be one of: onsite, hybrid, remote.
+- employment_type must be one of: full_time, contract, part_time, internship.
+- work_authorization must be one of: authorized_required, open_to_sponsoring.
+- Cap must_have_skills and nice_to_have_skills at 6 each. Skills are short plain names.
+- Never invent a company, a salary, or a benefit. Never write em dashes or en dashes.`;
+      const r = await callAI({ system: sys, user: text });
+      let parsed: Record<string, unknown> = { job_spec: {}, known: [] };
       try { parsed = JSON.parse(r.text); }
       catch {
         const m = r.text.match(/\{[\s\S]*\}/);
-        try { parsed = m ? JSON.parse(m[0]) : { done: false, question: "Could you tell me a bit more about the role?" }; }
-        catch { parsed = { done: false, question: "Could you tell me a bit more about the role?" }; }
+        try { parsed = m ? JSON.parse(m[0]) : { job_spec: {}, known: [] }; } catch { /* keep default */ }
       }
-      return json(parsed);
+      return json({ job_spec: parsed.job_spec || {}, known: Array.isArray(parsed.known) ? parsed.known : [] });
     }
+
+    // v3.8.0 — the must-have and nice-to-have chip inputs autocomplete from
+    // skills that actually exist on opted-in candidates, with a live count, so
+    // an employer cannot filter the pool down to zero on a skill nobody has.
+    if (action === "employer_skill_catalog") {
+      const { org_id } = payload as { org_id?: string };
+      if (!org_id) return json({ error: "org_id required" }, 400);
+      if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
+
+      const { data: consented } = await adminForNew.from("talent_pool_consent")
+        .select("user_id").eq("opted_in", true);
+      const ids = (consented || []).map(r => r.user_id);
+      if (ids.length === 0) return json({ pool_size: 0, skills: [] });
+
+      const { data: rows } = await adminForNew.from("candidate_skills")
+        .select("user_id, skill, skill_norm, provenance").in("user_id", ids)
+        .eq("provenance", "extracted");
+      const byNorm = new Map<string, { label: string; users: Set<string> }>();
+      for (const r of (rows || [])) {
+        const norm = String(r.skill_norm || "").trim();
+        if (!norm) continue;
+        if (!byNorm.has(norm)) byNorm.set(norm, { label: String(r.skill || norm), users: new Set() });
+        byNorm.get(norm)!.users.add(r.user_id);
+      }
+      const skills = [...byNorm.entries()]
+        .map(([norm, v]) => ({ skill: v.label, skill_norm: norm, count: v.users.size }))
+        .sort((a, b) => b.count - a.count || a.skill_norm.localeCompare(b.skill_norm))
+        .slice(0, 500);
+      return json({ pool_size: ids.length, skills });
+    }
+
+    // v3.8.0 — the chat after a search exists only to evaluate the candidates
+    // that search returned. It reads the stored result cards for that
+    // search_id and nothing else. No PII is ever loaded: the stored cards are
+    // already opaque refs with no name, email, phone or user id.
+    if (action === "employer_results_chat") {
+      const { search_id, messages } = payload as {
+        search_id?: string; messages?: Array<{ role: string; content: string }>;
+      };
+      if (!search_id || !Array.isArray(messages)) return json({ error: "search_id and messages required" }, 400);
+      const { data: search } = await adminForNew.from("employer_searches")
+        .select("id, org_id, job_spec, results").eq("id", search_id).maybeSingle();
+      if (!search) return json({ error: "search not found" }, 404);
+      if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+
+      const cards = (Array.isArray(search.results) ? search.results : []) as Array<Record<string, unknown>>;
+      const safeCards = cards.map(c => ({
+        ref: c.ref, score: c.score, headline: c.headline, seniority: c.seniority,
+        years_experience: c.years_experience, location: c.location,
+        matched_must_haves: c.matched_must_haves, gaps: c.gaps, why: c.why,
+        skills_extracted: c.skills_extracted, skills_inferred: c.skills_inferred,
+        summary: typeof c.summary === "string" ? c.summary.slice(0, 900) : "",
+      }));
+
+      const sys = `You are AYN. The person you are talking to is an employer who just ran one candidate search. Your only job now is to help them evaluate the candidates below.
+
+What you may do: compare these candidates, explain a score, explain a gap, say which one fits the role best and why, point out what the search did not tell them.
+
+Rules, strict:
+- Ground every statement in the JSON below. If a detail is not in it, say it is not available. Never guess.
+- Never praise a candidate without pointing to the specific evidence in their card. Never say perfect fit, huge asset, exactly what you are looking for, or anything like it.
+- Refer to candidates by their ref only. You do not have their name, email, phone or identity, and you cannot get it. Contact details are released only if the candidate accepts a proposal.
+- You cannot search job boards, find open roles, contact candidates, or see candidates who have not opted into discovery. If asked, say so plainly in one sentence.
+- If they ask anything that is not about evaluating these candidates, reply in one short sentence that you only help evaluate the candidates from this search, and stop. Do not answer the question. Do not lecture.
+- Plain prose. No markdown symbols, no asterisks, no bullet characters, no headings. Short sentences. No em dashes, no en dashes. Write ranges with the word "to".
+
+ROLE SPEC: ${JSON.stringify(search.job_spec)}
+
+CANDIDATES: ${JSON.stringify(safeCards)}`;
+      const convo = messages.slice(-10).map(m => `${m.role.toUpperCase()}: ${String(m.content).slice(0, 2000)}`).join("\n\n");
+      const r = await callAI({ system: sys, user: convo });
+      return json({ reply: String(r.text || "").replace(/[*_#`]/g, "").trim() });
+    }
+
 
     if (action === "employer_match") {
       const { org_id, job_spec } = payload as { org_id?: string; job_spec?: Record<string, unknown> };
