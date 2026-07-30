@@ -643,6 +643,129 @@ export type Database = {
         }
         Relationships: []
       }
+      assessment_results: {
+        Row: {
+          assessment_id: string
+          concerns: Json
+          created_at: string
+          employer_summary: string | null
+          id: string
+          overall_score: number
+          per_question: Json
+          seeker_growth_note: string | null
+          strengths: Json
+          verification_verdict: string
+        }
+        Insert: {
+          assessment_id: string
+          concerns?: Json
+          created_at?: string
+          employer_summary?: string | null
+          id?: string
+          overall_score?: number
+          per_question?: Json
+          seeker_growth_note?: string | null
+          strengths?: Json
+          verification_verdict?: string
+        }
+        Update: {
+          assessment_id?: string
+          concerns?: Json
+          created_at?: string
+          employer_summary?: string | null
+          id?: string
+          overall_score?: number
+          per_question?: Json
+          seeker_growth_note?: string | null
+          strengths?: Json
+          verification_verdict?: string
+        }
+        Relationships: []
+      }
+      assessment_rubrics: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          id: string
+          question_id: string
+          rubric: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          id?: string
+          question_id: string
+          rubric: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          id?: string
+          question_id?: string
+          rubric?: string
+        }
+        Relationships: []
+      }
+      assessments: {
+        Row: {
+          answers: Json
+          candidate_ref: string | null
+          candidate_user_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          job_title: string | null
+          org_id: string
+          questions: Json
+          search_id: string | null
+          sent_at: string | null
+          started_at: string | null
+          status: string
+          submitted_at: string | null
+          time_limit_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          candidate_ref?: string | null
+          candidate_user_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          job_title?: string | null
+          org_id: string
+          questions?: Json
+          search_id?: string | null
+          sent_at?: string | null
+          started_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          time_limit_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          candidate_ref?: string | null
+          candidate_user_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          job_title?: string | null
+          org_id?: string
+          questions?: Json
+          search_id?: string | null
+          sent_at?: string | null
+          started_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          time_limit_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ats_config: {
         Row: {
           config: Json
