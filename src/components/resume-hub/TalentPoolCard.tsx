@@ -55,6 +55,9 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
+  // v3.5.1 — opting in requires an explicit confirmation step.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
 
   const load = useCallback(async () => {
     try {
