@@ -118,6 +118,23 @@ export type JobSpec = {
   notes?: string;
 };
 
+/**
+ * v3.12.0 — a structured, anonymous background block. Replaces rendering
+ * `profile_text` (the embedding blob) into the candidate dialog.
+ */
+export type CandidateProfileBlock = {
+  seniority: string;
+  years_experience: number | null;
+  current_title: string;
+  primary_function: string;
+  known_for: string[];
+  skills_by_level: Array<{ level: string; skills: Array<{ name: string; years: number | null }> }>;
+  experience: Array<{ title: string; company: string; dates: string; industry: string }>;
+  education: Array<{ line: string }>;
+  certifications: string[];
+  seeking: string[];
+};
+
 export type CandidateCard = {
   ref: string;
   score: number;
