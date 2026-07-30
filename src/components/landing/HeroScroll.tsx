@@ -484,18 +484,22 @@ export const HeroScroll = memo(({ onStartFree }: { onStartFree?: () => void }) =
               {
                 title: 'A match score you can check',
                 desc: 'AYN scores you against the actual job description it read from the page, and shows you how many characters it found and which resume it compared. If it cannot find a real job description, it says so instead of guessing.',
-                icon: Target
+                icon: Target,
+                art: MatchScoreIllustration
               },
               {
                 title: 'It never invents an answer',
                 desc: 'Every answer AYN fills has to come from your own profile or resume. If it cannot verify something, it leaves the field blank and tells you, rather than making something up.',
-                icon: ShieldCheck
+                icon: ShieldCheck,
+                art: ProvenanceIllustration
               },
               {
                 title: 'Tailored resumes and cover letters',
                 desc: 'One page, real text a resume scanner can read, not an image. AYN rewrites your existing experience to match the role without inventing jobs, changing your numbers, or adding skills you do not have.',
-                icon: FileText
+                icon: FileText,
+                art: OnePageDocIllustration
               },
+
               {
                 title: 'It learns your answers',
                 desc: 'Answer a question once and AYN remembers it, even when the next company words it differently. Sensitive questions like work authorization are always yours to answer.',
