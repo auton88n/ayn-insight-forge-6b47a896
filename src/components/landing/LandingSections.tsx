@@ -133,11 +133,12 @@ export const LandingSections = memo(({ onStartFree }: { onStartFree?: () => void
               <b>Free to start</b> no credit card <i />
             </span>
             <h1 className="lp-display lp-h1">
-              Applying is only <em>half the job search</em>.
+              A resume built for <em>the job you are applying to</em>.
             </h1>
             <p className="lp-lead">
-              AYN helps you apply smarter, and helps the right employers find you first.
+              AYN reads the posting and rewrites your resume and cover letter to fit. In seconds, not an evening.
             </p>
+
             <div className="lp-cta-row" style={{ marginTop: 30 }}>
               <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.()}>
                 Start free <ArrowRight size={15} />
