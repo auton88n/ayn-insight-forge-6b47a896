@@ -5,7 +5,7 @@
  */
 import { memo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid } from 'lucide-react';
+import { ArrowRight, Target, ShieldCheck, FileText, MessagesSquare, LayoutGrid, Radar } from 'lucide-react';
 import { HeroFillMockup } from './HeroFillMockup';
 import {
   MatchScoreIllustration,
