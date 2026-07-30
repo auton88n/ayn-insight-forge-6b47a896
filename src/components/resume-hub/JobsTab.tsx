@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { resumeHubApi, type ResumeContent } from "@/lib/resumeHub";
 import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2 } from "lucide-react";
-import { triggerAutofill, handoffUrl } from "@/lib/extension";
+import { handoffUrl } from "@/lib/extension";
 
 interface Props { userId: string; onOpenJob: (id: string) => void }
 
