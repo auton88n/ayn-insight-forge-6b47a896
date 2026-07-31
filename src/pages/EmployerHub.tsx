@@ -34,6 +34,7 @@ import CandidateProfile from "@/components/employer/CandidateProfile";
 import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import {
+import aynLogo from "@/assets/ayn-logo.png";
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
@@ -261,9 +262,8 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       <header className="border-b border-border/60 sticky top-0 z-30 bg-background/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 shrink-0" aria-label="AYN">
-              <Brain className="w-5 h-5" />
-              <span className="font-semibold tracking-tight">AYN</span>
+            <div className="flex items-center shrink-0" aria-label="AYN">
+              <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
             </div>
             <div className="w-px h-6 bg-border" aria-hidden />
             <div className="min-w-0">
