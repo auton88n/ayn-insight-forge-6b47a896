@@ -80,7 +80,7 @@ export default function Billing() {
 
   return (
     <div className={`min-h-screen bg-background ${audience === "employer" ? "employer-surface" : ""}`}>
-      <SEO title="Billing | AYN" description="Your AYN plan, credits and usage." noindex />
+      <SEO title="Billing | AYN" description="Your AYN plan, credits and usage." noIndex />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <button
           onClick={() => navigate(audience === "employer" ? "/employer" : "/resume-hub")}
