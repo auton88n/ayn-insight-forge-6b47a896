@@ -40,7 +40,7 @@ export function AynLoader({
         />
         {/* the mark */}
         <img
-          src={aynMark.url}
+          src={AYN_MARK}
           alt=""
           aria-hidden
           className="relative ayn-loader-mark select-none"
