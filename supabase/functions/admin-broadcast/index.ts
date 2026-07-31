@@ -75,17 +75,13 @@ Deno.serve(async (req) => {
       }
       recipients = [{ user_id: callerId, email: testTo }];
     } else {
-      const { data: pool, error: poolErr } = await admin.rpc('get_admin_email_audience');
+      const { data: pool, error: poolErr } = await admin.rpc('get_broadcast_recipients', {
+        p_admin_id: callerId,
+        p_audience: audience,
+      });
       if (poolErr) throw poolErr;
       const rows: any[] = Array.isArray(pool) ? pool : [];
-      recipients = rows
-        .filter(u =>
-          audience === 'all' ? true
-            : audience === 'employers' ? !!u.is_employer
-              : audience === 'discoverable' ? !!u.discoverable
-                : !u.is_employer)
-        .filter(u => !!u.email)
-        .map(u => ({ user_id: u.user_id ?? null, email: u.email }));
+      recipients = rows.filter(u => !!u?.email).map(u => ({ user_id: u.user_id ?? null, email: u.email }));
     }
 
     if (recipients.length === 0) {
