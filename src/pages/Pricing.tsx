@@ -34,6 +34,14 @@ const FREE_FOREVER = [
   'Downloading every document you make',
 ];
 
+const EMPLOYER_STEPS = [
+  { title: 'Request access', line: 'Tell us the company and the role you are hiring for.' },
+  { title: 'We approve you', line: 'A person reviews it. We keep the pool small on purpose.' },
+  { title: 'A free month', line: 'Search, contact candidates and send assessments, no card needed.' },
+  { title: 'Then a plan', line: 'Priced by how many candidates you contact, from $199 a month.' },
+];
+
+
 const Pricing = () => {
   const navigate = useNavigate();
   const [signedIn, setSignedIn] = useState(false);
