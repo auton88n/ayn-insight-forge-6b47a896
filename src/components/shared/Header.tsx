@@ -216,12 +216,7 @@ export const Header = () => {
                 >
                   {/* Ember brand mark */}
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center"
-                      style={{ background: EMBER, boxShadow: '0 10px 24px -14px rgba(232,93,58,0.95)' }}
-                    >
-                      <Brain className="w-6 h-6" style={{ color: '#fff' }} />
-                    </div>
+                    <img src={aynLogo} alt="AYN" style={{ height: 40, width: 'auto', display: 'block' }} />
                     <span style={{ fontFamily: headFont, fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
                   </div>
 
