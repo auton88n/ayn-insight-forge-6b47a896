@@ -26,18 +26,33 @@ Preceded by "v3.0.1 tracker removal" and "v3.0.0 autofill removal — the extens
 
 ## What AYN is
 
-One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx), four product areas plus shared infrastructure. Solo founder: Ghazi. Site aynn.io. Deployed via Lovable (project a2fa8496-aed3-4f21-93fc-bbbabc069583) which pushes to this GitHub repo.
+AYN is a job search product with two sides.
+
+For job seekers: a Chrome extension that reads the job posting off the page, scores it against their resume and profile, and generates a tailored resume and cover letter for that specific role. Plus Resume Hub, a web app holding one resume, one profile, saved jobs, and proposals.
+
+For employers: a chat that turns a described role into a structured spec, searches candidates who opted into discovery, returns the three best fits with the evidence behind each, and lets them send an assessment or a job proposal. Contact details are shared only when the candidate accepts.
+
+Stack: React and Vite frontend, Supabase (Postgres, pgvector, edge functions, auth, storage), Stripe for billing, Chrome MV3 extension.
+
+Matching: a deterministic prefilter on extracted skills, then vector recall, then a grounded rerank. Candidates are never invented and skills are tagged extracted or inferred.
+
+One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx). Solo founder: Ghazi. Site aynn.io. Deployed via Lovable (project a2fa8496-aed3-4f21-93fc-bbbabc069583) which pushes to this GitHub repo.
 
 | Area | What it is | Map file |
 |---|---|---|
-| Chrome extension | Sideloaded MV3 extension, READ ONLY since v3.0.0: reads the real job description off the page, scores the match, tailors resumes and cover letters, answers questions about the job, scores job cards, tracks applications. It never writes to a page. Code: extension/. | docs/map/extension.md |
-| Resume Hub | Web workspace at /resume-hub: profile (which now holds the one active resume), saved jobs with their tailored documents, get discovered, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/resumeDocs.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
-| AI platform | Signed-in chat dashboard (emotional eye UI, streaming chat via ayn-unified), World Intelligence swarm simulator, agent society, cc-generate report tools, subscriptions and credits, support system, NDA and contract signing, admin panel, landing page, i18n (en/ar/fr). Code: src/components/dashboard, eye, admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
-| Talent Pool | Employer marketplace. Phase A (data layer) and Phase B (hiring mode in dashboard chat + hybrid matcher + reveal flow) shipped. | docs/map/resume-hub.md (talent pool + employer marketplace sections) |
+| Chrome extension | Sideloaded MV3 extension, READ ONLY since v3.0.0: reads the real job description off the page, scores the match, tailors resumes and cover letters, answers questions about the job. It never writes to a page. Code: extension/. | docs/map/extension.md |
+| Resume Hub | Web workspace at /resume-hub: one profile holding the one active resume, saved jobs with their tailored documents, get discovered, proposals, assessments, extension management. Code: src/components/resume-hub/, src/lib/resumeHub.ts, src/lib/resumeDocs.ts, src/lib/extension.ts. Backend: supabase/functions/resume-hub. | docs/map/resume-hub.md |
+| Employer surface | /`EmployerHub`: company profile gate, widget intake to JobSpec, candidate match, ask cards, assessments, proposals. Backend: employer actions in supabase/functions/resume-hub. | docs/map/platform.md |
+| Platform | Admin panel, billing and credits, support, landing page, World Intelligence simulator. Code: src/components/admin, support, landing; src/admin-app; src/pages/*. | docs/map/platform.md |
 
 ## Routes (src/App.tsx)
 
-/ (landing or Dashboard when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /settings, /pricing, /dashboard/pricing, /support, /contact, /world-intelligence, /sign/:token, /nda/:token, /terms, /privacy, /reset-password, /subscription-success|canceled, /approval-result, /admin/custom-orders, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose).
+/ (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /support, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
+
+## Edge functions (v3.21.0)
+
+Only these remain: resume-hub (the monolith: extension actions, hub actions, employer actions, assessments), resume-match, stripe-billing, stripe-webhook, sign-document, ayn-agent-society, plus _shared. Everything else was deleted in v3.21.0.
+
 
 ## Global rules (apply everywhere)
 
