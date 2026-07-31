@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Brain, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import aynLogo from '@/assets/ayn-logo.png';
 
