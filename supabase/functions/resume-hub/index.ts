@@ -3724,14 +3724,17 @@ RULES:
     sectionsUsed: { chars: bundle.chars, dropped: bundle.dropped },
   };
 
+  const charge = await creditSpend(admin, userId, COST_COVER, "cover_letter", jdHash);
+  if (!charge.ok) return insufficientCredits(charge.balance, COST_COVER, "cover letter");
+
   cacheSet(admin, cacheKey, userId, "cover_letter", result, TAILOR_TTL);
   logAiCall(admin, {
     user_id: userId, purpose: "cover_letter", model: QUALITY_MODEL, duration_ms: Date.now() - started,
     cache_hit: false, source_map: identity?.sourceMap() || null,
     gap_matched: gap.matched.length, gap_missing: gap.missing.length,
-    meta: { jd_chars: jd.length, section_chars: bundle.chars, length: lengthKey, passes, company_ctx: !!companyCtx.text, figures_ok: missingFigures.length === 0 },
+    meta: { jd_chars: jd.length, section_chars: bundle.chars, length: lengthKey, passes, company_ctx: !!companyCtx.text, figures_ok: missingFigures.length === 0, credits_spent: COST_COVER },
   });
 
-  return json(result);
+  return json({ ...result, credits: { spent: COST_COVER, balance: charge.balance } });
 }
 
