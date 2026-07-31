@@ -2973,6 +2973,12 @@ Write the assessment now.`,
       if (!(await assertOrgMember(a.org_id))) return json({ error: "not an org member" }, 403);
       if (a.status !== "draft") return json({ error: "This assessment was already sent." }, 409);
 
+      // v3.14.0 — assessments limit per billing period.
+      const assBilling = await employerBilling(adminForNew, userId, a.org_id);
+      const assGate = planLimitReached(assBilling, "assessment");
+      if (assGate) return assGate;
+
+
       const all = (a.questions as Array<Record<string, unknown>>) || [];
       const keep = Array.isArray(keep_ids) && keep_ids.length
         ? all.filter(q => keep_ids.map(String).includes(String(q.id)))
