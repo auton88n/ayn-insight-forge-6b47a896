@@ -3652,6 +3652,12 @@ async function handleCoverLetter(
     return json({ ...cached, cached: true });
   }
 
+  // v3.14.0 — a cover letter costs one credit. Cache hits above are free.
+  const creditGate = await assertCredits(admin, userId, COST_COVER, "cover letter");
+  if (creditGate) return creditGate;
+
+
+
   const applicantBlock = identity ? identityContactBlock(identity) : "";
   const applicantSection = applicantBlock
     ? `\n\nAPPLICANT (use these exact contact details in the header and signature, never invent alternatives):\n${applicantBlock}`
