@@ -2095,3 +2095,38 @@ button, a, input, textarea, select {
   border-color: hsl(13 79% 57% / 0.6);
   background: hsl(13 79% 57% / 0.09);
 }
+
+/* ============================================================
+   v3.20.0 — the admin runs on the same AYN ember language as the
+   rest of the product. Same approach as .employer-surface: retint
+   the tokens and the two non-token Button variants inside the
+   scope, and put the class on <body> so Radix portals inherit it.
+   ============================================================ */
+.admin-surface {
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 24 95% 53%;
+  --ayn-orange: 24 95% 53%;
+  --ayn-orange-active: 21 90% 48%;
+}
+.admin-surface .bg-primary:hover,
+.admin-surface button.bg-primary:hover { background-color: hsl(var(--ayn-orange-active)); }
+.admin-surface button.bg-foreground {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.admin-surface button.bg-foreground:hover {
+  background-color: hsl(var(--ayn-orange-active));
+  color: hsl(var(--primary-foreground));
+}
+.admin-surface button.border-foreground {
+  border-width: 1px;
+  border-color: hsl(var(--primary) / 0.45);
+  color: hsl(var(--primary));
+  background-color: transparent;
+  box-shadow: none;
+}
+.admin-surface button.border-foreground:hover {
+  background-color: hsl(var(--primary) / 0.08);
+  border-color: hsl(var(--primary));
+}
