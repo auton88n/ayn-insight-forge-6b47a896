@@ -34,6 +34,7 @@ import CandidateResultCard from "@/components/employer/CandidateResultCard";
 import CandidateProfile from "@/components/employer/CandidateProfile";
 import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
+import { AynLoader } from "@/components/shared/AynLoader";
 import aynLogo from "@/assets/ayn-logo.png";
 import {
   employerApi, isOrgComplete, missingOrgFields,
@@ -361,10 +362,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
             {tab === "search" && searching && (
               <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
-                <span
-                  aria-hidden
-                  className="w-12 h-12 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin"
-                />
+                <AynLoader size="md" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">AYN is reading the pool</p>
                   <p className="text-sm text-muted-foreground">

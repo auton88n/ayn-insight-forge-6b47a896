@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Send, Trash2, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AynLoader } from "@/components/shared/AynLoader";
 import { assessmentApi, ASSESSMENT_LIMIT_NOTE, type PubQuestion } from "@/lib/assessments";
 
 const LIMITS = [
@@ -97,12 +98,8 @@ export default function AssessmentDialog({
         </DialogHeader>
 
         {busy ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-            <span
-              aria-hidden
-              className="w-10 h-10 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin"
-            />
-            AYN is writing questions from their background.
+          <div className="py-12 flex items-center justify-center">
+            <AynLoader size="md" label="AYN is writing questions from their background." />
           </div>
         ) : (
 

@@ -2130,3 +2130,24 @@ button, a, input, textarea, select {
   background-color: hsl(var(--primary) / 0.08);
   border-color: hsl(var(--primary));
 }
+
+/* AYN loader: breathing mark inside a rotating ember arc */
+@keyframes ayn-loader-breathe {
+  0%, 100% { transform: scale(0.94); opacity: 0.85; }
+  50%      { transform: scale(1.06); opacity: 1; }
+}
+@keyframes ayn-loader-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ayn-loader-glow {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50%      { opacity: 0.75; transform: scale(1.08); }
+}
+.ayn-loader-mark { animation: ayn-loader-breathe 1.8s ease-in-out infinite; }
+.ayn-loader-arc  { animation: ayn-loader-spin 1.1s linear infinite; }
+.ayn-loader-glow { animation: ayn-loader-glow 2.4s ease-in-out infinite; }
+.ayn-loader-label { animation: ayn-loader-glow 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ayn-loader-mark, .ayn-loader-arc, .ayn-loader-glow, .ayn-loader-label { animation: none; }
+  .ayn-loader-glow { opacity: 0.5; }
+}
