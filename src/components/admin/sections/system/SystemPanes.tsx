@@ -112,8 +112,8 @@ export function AccountsPane() {
 export function SupportPane() {
   const query = useAdminSupportTickets();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [reply, setReply] = useState('');
-  const [sending, setSending] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState<string | null>(null);
 
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
@@ -122,14 +122,15 @@ export function SupportPane() {
   const open = tickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
 
   const send = async (ticketId: string) => {
-    if (!reply.trim()) return;
-    setSending(true);
+    const text = (drafts[ticketId] || '').trim();
+    if (!text) return;
+    setSending(ticketId);
     const { error } = await supabase.rpc('admin_insert_ticket_message', {
-      p_ticket_id: ticketId, p_content: reply.trim(), p_sender: 'admin',
+      p_ticket_id: ticketId, p_content: text, p_sender: 'admin',
     });
-    setSending(false);
+    setSending(null);
     if (error) { toast.error(error.message); return; }
-    setReply('');
+    setDrafts(d => ({ ...d, [ticketId]: '' }));
     toast.success('Reply sent');
     query.refetch();
   };
