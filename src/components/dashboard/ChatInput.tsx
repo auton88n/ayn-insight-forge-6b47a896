@@ -438,7 +438,7 @@ export const ChatInput = forwardRef<HTMLDivElement, ChatInputProps>(({
               <p className="text-sm text-muted-foreground text-center">
                 You've used all your messages for today. Come back tomorrow or upgrade for more.
               </p>
-              <Button onClick={() => navigate('/dashboard/pricing')} size="sm" className="gap-2 bg-foreground text-background hover:bg-foreground/90 border-0 font-medium">
+              <Button onClick={() => navigate('/pricing')} size="sm" className="gap-2 bg-foreground text-background hover:bg-foreground/90 border-0 font-medium">
                 <Sparkles className="w-4 h-4" />
                 Upgrade Plan
               </Button>
