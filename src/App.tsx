@@ -67,7 +67,6 @@ const Handoff = lazy(() => import("./pages/Handoff"));
 // const TicketingApply = lazy(() => import("./pages/services/TicketingApply"));
 const Support = lazy(() => import("./pages/Support"));
 const Pricing = lazy(() => import("./pages/Pricing"));
-const DashboardPricing = lazy(() => import("./components/dashboard/DashboardPricing"));
 const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -101,7 +100,7 @@ const AnimatedRoutes = () => {
   useVisitorTracking();
 
   // Fast routes skip animation for instant navigation
-  const fastRoutes = ['/settings', '/pricing', '/dashboard/pricing'];
+  const fastRoutes = ['/settings', '/pricing'];
   const isFastRoute = fastRoutes.some(route => location.pathname.startsWith(route));
   
   const routes = (
@@ -115,7 +114,6 @@ const AnimatedRoutes = () => {
       {/* Fast routes - no animation wrapper */}
       <Route path="/settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
       <Route path="/pricing" element={<Suspense fallback={<PageLoader />}><Pricing /></Suspense>} />
-      <Route path="/dashboard/pricing" element={<Suspense fallback={<PageLoader />}><DashboardPricing /></Suspense>} />
 
       <Route path="/reset-password" element={<Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>} />
 
