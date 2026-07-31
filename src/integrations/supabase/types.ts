@@ -3623,6 +3623,8 @@ export type Database = {
           price_cents: number
           proposals_limit: number | null
           sort: number
+          stripe_price_id: string | null
+          stripe_product_id: string | null
           updated_at: string
         }
         Insert: {
@@ -3637,6 +3639,8 @@ export type Database = {
           price_cents?: number
           proposals_limit?: number | null
           sort?: number
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -3651,6 +3655,8 @@ export type Database = {
           price_cents?: number
           proposals_limit?: number | null
           sort?: number
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
           updated_at?: string
         }
         Relationships: []
