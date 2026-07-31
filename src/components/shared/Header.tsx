@@ -210,14 +210,19 @@ export const Header = () => {
                 style={{ background: onLanding ? '#fffdfa' : undefined }}
               >
                 <div
-                  className="flex flex-col gap-7"
-                  style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))' }}
+                  className="flex flex-col gap-5"
+                  style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top, 0px))' }}
                 >
                   <div className="flex items-center">
-                    <img src={aynLogo} alt="AYN" style={{ height: 38, width: 'auto', display: 'block' }} />
+                    <img src={aynLogo} alt="AYN" style={{ height: 32, width: 'auto', display: 'block' }} />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
+                  {/*
+                    Navigation scale, not display scale: 17px medium, 44px tap
+                    target, 8px between rows, so all six links plus both
+                    actions fit one 360px screen without scrolling.
+                  */}
+                  <div className="flex flex-col gap-2">
                     {navLinks.map((link) => {
                       const active = isActive(link.path);
                       return (
@@ -227,12 +232,17 @@ export const Header = () => {
                           onClick={(e) => handleNavClick(e, link.path)}
                           style={{
                             fontFamily: headFont,
-                            fontSize: 16,
-                            fontWeight: active ? 600 : 500,
-                            padding: '13px 14px',
-                            borderRadius: 14,
+                            fontSize: 17,
+                            lineHeight: '22px',
+                            fontWeight: 500,
+                            minHeight: 44,
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '11px 14px',
+                            borderRadius: 12,
                             textDecoration: 'none',
-                            color: active ? '#c2410c' : 'rgba(10,10,15,0.62)',
+                            letterSpacing: '-0.01em',
+                            color: active ? '#c2410c' : 'rgba(10,10,15,0.66)',
                             background: active ? 'rgba(232,93,58,0.10)' : 'transparent',
                           }}
                         >
@@ -252,7 +262,7 @@ export const Header = () => {
                       <button
                         onClick={() => { setSheetOpen(false); handleSignOut(); }}
                         style={{
-                          width: '100%', padding: '13px 18px', borderRadius: 999,
+                          width: '100%', minHeight: 44, padding: '11px 18px', borderRadius: 999,
                           fontFamily: headFont, fontSize: 15, fontWeight: 600,
                           color: '#c2410c', background: 'transparent',
                           border: '1.5px solid rgba(232,93,58,0.45)', cursor: 'pointer',
@@ -262,11 +272,22 @@ export const Header = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="px-1">
+                    <div className="px-1 flex flex-col gap-2.5">
                       <button
                         onClick={() => { setSheetOpen(false); setShowAuthModal(true); }}
                         style={{
-                          width: '100%', padding: '14px 20px', borderRadius: 999,
+                          width: '100%', minHeight: 44, padding: '11px 18px', borderRadius: 999,
+                          fontFamily: headFont, fontSize: 15, fontWeight: 600,
+                          color: '#c2410c', background: 'transparent',
+                          border: '1.5px solid rgba(232,93,58,0.40)', cursor: 'pointer',
+                        }}
+                      >
+                        Sign in
+                      </button>
+                      <button
+                        onClick={() => { setSheetOpen(false); setShowAuthModal(true); }}
+                        style={{
+                          width: '100%', minHeight: 44, padding: '12px 20px', borderRadius: 999,
                           fontFamily: headFont, fontSize: 15, fontWeight: 600,
                           color: '#fff', background: EMBER, border: 'none',
                           boxShadow: '0 14px 30px -16px rgba(232,93,58,0.95)',
@@ -278,6 +299,7 @@ export const Header = () => {
                     </div>
                   )}
                 </div>
+
               </SheetContent>
             </Sheet>
           </div>
