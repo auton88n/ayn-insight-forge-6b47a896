@@ -1,51 +1,44 @@
-## Goal
+## What I verified first
 
-The admin panel keeps a legacy look and legacy panes, and at least one section is broken (Candidates fails with `column f.consented_at does not exist`). Rebuild it so every section is AYN branded and every button, stat and action reads or writes real data.
-
-## Confirmed problems (verified by reading the code and the database)
-
-- `get_admin_candidates` orders by `f.consented_at`, but the inner subselect aliased `f` does not select that column, so the whole Candidates section 500s. This is the error in the screenshot.
-- The System section still mounts eight legacy components (`UserManagement`, `SupportManagement`, `ErrorMonitoring`, `RateLimitMonitoring`, `AICostDashboard`, `EmailBroadcast`, `TermsConsentViewer`, `SystemSettings`) written for the old platform-era admin. They carry the old visual language and some read RPCs tied to retired products.
-- `useAdminQuery.ts` still declares hooks for ~25 retired RPCs (test results, visitor analytics, NDAs, custom orders, credit gifts, LLM management, beta feedback, message ratings, conversations, applications). Dead surface area.
-- `AdminPanel.tsx` header has a Sun/Moon `next-themes` toggle to remove.
-- The admin PIN screen and loader use raw black/white and a generic spinner rather than the AYN mark.
+- Every RPC the panel calls exists in the database: the six section functions (`get_admin_overview`, `_employers`, `_candidates`, `_marketplace`, `_money`), the eight System pane readers (`get_admin_accounts`, `_support_tickets`, `_error_monitoring`, `_rate_limit_stats`, `_ai_usage`, `_email_audience`, `_terms_consent`, `_system_config`) and the mutations (`admin_employer_approve/_decline/_override`, `admin_mark_candidates_stale`, `admin_insert_ticket_message`, `admin_update_ticket`, `admin_unblock_user`, `admin_set_pin`, `admin_upsert_system_config`). Argument names and defaults all match the calls in the frontend.
+- `send-email` is deployed but rejects what the admin Email pane sends: the pane posts `{to, subject, html}` and the function answers `Missing required fields: to, emailType`, then `Unknown email type` for anything not in its internal template list. **The broadcast pane cannot send a single email today.** This is the one confirmed dead button.
+- The Errors pane calls `useMemo` after early `return` statements for loading and error. That is a conditional hook: the pane will throw a React hook-order error the moment it transitions from loading to loaded. Confirmed by reading the file, not yet observed in the browser.
+- I could not execute the admin RPC bodies from here (the query role is denied EXECUTE on them), so "the function exists with the right signature" is confirmed but "the function returns without a SQL error" is not. That gets verified by a live run, below, exactly the way the Candidates `consented_at` crash was found.
 
 ## Plan
 
-### 1. Fix the data layer, one RPC at a time
-One migration that recreates the six section RPCs plus the mutations, each one checked against the real schema before shipping:
-- `get_admin_candidates`: carry `consented_at` into the ordered subselect (fixes the current crash).
-- Re-verify `get_admin_overview`, `_employers`, `_marketplace`, `_money`, `admin_employer_approve/_decline/_override`, `admin_mark_candidates_stale`, `admin_upsert_system_config`, `admin_unblock_user` by executing each body's inner query directly against the database first, so no section can fail on a missing column again.
-- Keep the `has_role(auth.uid(),'admin')` guard and SECURITY DEFINER on every one.
+### 1. Real broadcast email (replaces the dead pane)
+New repo-owned edge function `supabase/functions/admin-broadcast/index.ts`:
+- Validates the caller's JWT in code and requires the `admin` role via `has_role`, otherwise 403.
+- Accepts `{audience, subject, body}` where audience is all / seekers / employers / discoverable, resolves the recipient list server side from the same source as `get_admin_email_audience` (so the browser never carries the address list).
+- Sends through Resend with `RESEND_API_KEY`, in batches, plain AYN-branded HTML wrapper, and returns `{sent, failed, errors}`.
+- Writes one row per send to `email_logs` so the pane can show history.
 
-### 2. Rebuild System as native AYN panes
-Replace the eight legacy imports with panes written in the same language as the other five sections (`SectionHeader`, `Stat`, `Card`, `EmptyRow`):
-- **Accounts** — real users list with search, role, plan, credits, block/unblock.
-- **Support** — real tickets with status change and reply.
-- **Errors** — real error log with resolve.
-- **Rate limits** — real counters and unblock.
-- **AI cost** — real `llm_usage_logs` spend by model and by day.
-- **Email** — kept only if a real send path exists; otherwise the pane is removed rather than left as a non-working form.
-- **Terms consent** — real consent log.
-- **Settings** — real `app_settings` writes, including changing the admin PIN.
-Any pane whose backing data or action does not actually exist gets deleted instead of shipped as a stub. I will report which ones, if any, fall in that bucket.
+Email pane rewrite: one call instead of a per-user client loop, a confirmation step showing the exact recipient count, a test-send-to-me button, and a "recent broadcasts" list read from `email_logs`.
 
-### 3. Delete the dead layer
-- Remove retired hooks and query keys from `useAdminQuery.ts`.
-- Delete the legacy components under `src/components/admin/` that are no longer mounted.
-- Leave database tables alone; I will list any that are now unreferenced.
+### 2. Fix the Errors pane hook order
+Move the grouping `useMemo` above the loading and error returns, computed from a safe empty array. Also make "Where" clickable and add a copy-message action.
 
-### 4. AYN branding pass
-- Remove the Sun/Moon theme toggle and the `next-themes` dependency from `AdminPanel.tsx`; the admin is a single light Ember surface.
-- Header: AYN mark, Syne headings, Inter body, JetBrains Mono for numeric stats, consistent icon weight and size across the rail and section headers.
-- PIN and login screens rebranded onto the AYN paper surface with the `AynLoader` mark instead of the black screen and generic spinner.
-- Section loading and error states use `AynLoader` and Ember accents.
+### 3. Live smoke test of every pane, then fix whatever breaks
+Sign in as the admin, pass the PIN, and drive all six sections plus all eight System panes in a headless browser, capturing console and network. For each pane, confirm the RPC returns 200 and the pane renders real numbers rather than the "Could not load this section" block. Then exercise the write paths against real rows where safe:
+- Employers: approve, decline with note, plan change, trial extension.
+- Candidates: select and reindex (bounded to 25).
+- System > Support: reply, resolve, close.
+- System > Rate limits: unblock.
+- System > Settings: maintenance toggle save, PIN change validation path.
 
-### 5. Verify
-- Typecheck and build.
-- Sign in as admin through `/manage-bae76e99d97e188b` with the PIN and open all six sections plus every System pane in the browser, confirming each one renders real data with no console error, and exercise one write action (employer approve, mark stale, settings save).
+Anything that errors gets fixed at the source: a SQL fix through a migration if the RPC body is wrong, a frontend fix if the shape is wrong.
+
+### 4. Close the remaining gaps
+- Employer approve and decline currently only refresh the Employers and Overview queries; they also change Accounts and Money, so widen the invalidation.
+- Overview and Marketplace are read only. Add the actions the numbers imply: from Overview, the pending-employer callout jumps into the queue; from Marketplace, open an employer or candidate in place rather than being a dead end.
+- Support pane shares one `reply` state across all tickets, so typing in one row leaks into another when a second row is expanded. Scope the draft per ticket.
+
+### 5. Ship
+Typecheck, `check-wiring`, build, version v3.23.0, and a short note in CLAUDE.md recording that the admin broadcast now runs through `admin-broadcast` rather than `send-email`.
 
 ## Technical notes
-- Access control is unchanged: login, `user_roles` admin check, then the server-side PIN.
-- Ember tokens continue to come from `.admin-surface` on `<body>` so Radix portals inherit them.
-- No changes to the seeker or employer surfaces.
+
+- New secret usage: none. `RESEND_API_KEY` is already configured.
+- No table schema changes are planned. A migration will only be issued if the smoke test proves an RPC body is wrong.
+- The admin PIN gate, the `/manage-bae76e99d97e188b` route and the `has_role` guard on every RPC stay exactly as they are.
