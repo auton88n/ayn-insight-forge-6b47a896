@@ -192,10 +192,9 @@ export function SupportPane() {
 /* ────────────────────────────── ERRORS ────────────────────────────── */
 export function ErrorsPane() {
   const query = useAdminErrorMonitoring();
-  if (query.isLoading) return <LoadingBlock />;
-  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
-
   const errors: any[] = (query.data as any)?.errors || [];
+
+  // Hooks must run on every render, so the grouping sits above the guards.
   const groups = useMemo(() => {
     const m = new Map<string, { message: string; count: number; last: string; url?: string }>();
     for (const e of errors) {
@@ -207,6 +206,9 @@ export function ErrorsPane() {
     return [...m.values()].sort((a, b) => b.count - a.count);
   }, [errors]);
 
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
   const last24 = errors.filter(e => Date.now() - new Date(e.created_at).getTime() < 86400000).length;
 
   return (
@@ -216,14 +218,23 @@ export function ErrorsPane() {
         <Stat label="Last 24 hours" value={last24} accent />
         <Stat label="Distinct" value={groups.length} />
       </div>
-      <Table head={['Error', 'Count', 'Last seen', 'Where']}>
-        {groups.length === 0 && <tr><td colSpan={4}><EmptyRow>No errors logged. Good.</EmptyRow></td></tr>}
+      <Table head={['Error', 'Count', 'Last seen', 'Where', '']}>
+        {groups.length === 0 && <tr><td colSpan={5}><EmptyRow>No errors logged. Good.</EmptyRow></td></tr>}
         {groups.slice(0, 100).map(g => (
           <Row key={g.message}>
             <Cell><span className="font-mono text-xs">{g.message}</span></Cell>
             <Cell mono>{g.count}</Cell>
             <Cell>{when(g.last)}</Cell>
-            <Cell><span className="text-xs text-muted-foreground break-all">{g.url || '—'}</span></Cell>
+            <Cell>
+              {g.url
+                ? <a href={g.url} target="_blank" rel="noreferrer" className="text-xs text-primary break-all hover:underline">{g.url}</a>
+                : <span className="text-xs text-muted-foreground">—</span>}
+            </Cell>
+            <Cell>
+              <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(g.message); toast.success('Copied'); }}>
+                Copy
+              </Button>
+            </Cell>
           </Row>
         ))}
       </Table>
