@@ -308,7 +308,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
 
             <div className="lp-audience" key={audience}>
               <h1 className="lp-display lp-h1" style={{ marginTop: 22 }}>{hero.headline}</h1>
-              <h1 className="lp-display lp-h1">{hero.headline}</h1>
+              
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
               <div className="lp-cta-row" style={{ marginTop: 30 }}>
