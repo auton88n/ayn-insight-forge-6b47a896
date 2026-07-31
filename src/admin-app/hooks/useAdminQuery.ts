@@ -365,3 +365,51 @@ export function useAdminMutation<TVariables = unknown>(
     },
   });
 }
+
+// ─── v3.20.0 new admin: six sections ────────────────────────
+export const adminV2Keys = {
+  overview: ['admin', 'v2', 'overview'] as const,
+  employers: ['admin', 'v2', 'employers'] as const,
+  candidates: ['admin', 'v2', 'candidates'] as const,
+  marketplace: ['admin', 'v2', 'marketplace'] as const,
+  money: ['admin', 'v2', 'money'] as const,
+};
+
+export function useAdminOverview() {
+  return useQuery({ queryKey: adminV2Keys.overview, queryFn: () => adminRpc<any>('get_admin_overview'), staleTime: FAST_STALE_TIME });
+}
+export function useAdminEmployers() {
+  return useQuery({ queryKey: adminV2Keys.employers, queryFn: () => adminRpc<any>('get_admin_employers'), staleTime: FAST_STALE_TIME });
+}
+export function useAdminCandidates() {
+  return useQuery({ queryKey: adminV2Keys.candidates, queryFn: () => adminRpc<any>('get_admin_candidates'), staleTime: ADMIN_STALE_TIME });
+}
+export function useAdminMarketplace() {
+  return useQuery({ queryKey: adminV2Keys.marketplace, queryFn: () => adminRpc<any>('get_admin_marketplace'), staleTime: ADMIN_STALE_TIME });
+}
+export function useAdminMoney() {
+  return useQuery({ queryKey: adminV2Keys.money, queryFn: () => adminRpc<any>('get_admin_money'), staleTime: ADMIN_STALE_TIME });
+}
+
+export function useEmployerAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { fn: 'admin_employer_approve' | 'admin_employer_decline' | 'admin_employer_override'; params: Record<string, unknown> }) =>
+      adminRpc(v.fn, v.params),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminV2Keys.employers });
+      qc.invalidateQueries({ queryKey: adminV2Keys.overview });
+      toast.success('Done');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Action failed'),
+  });
+}
+
+export function useMarkCandidatesStale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => adminRpc('admin_mark_candidates_stale', { p_user_ids: ids }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: adminV2Keys.candidates }); toast.success('Queued for reindex'); },
+    onError: (e: Error) => toast.error(e.message || 'Reindex failed'),
+  });
+}

@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
-import { NotificationLogViewer } from './NotificationLogViewer';
 import { 
   AlertTriangle, 
   Users, 
@@ -601,7 +600,6 @@ export const SystemSettings = ({ systemConfig, onUpdateConfig }: SystemSettingsP
 
       {/* Notification Log */}
       <motion.div variants={itemVariants}>
-        <NotificationLogViewer />
       </motion.div>
     </motion.div>
   );

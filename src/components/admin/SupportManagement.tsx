@@ -32,7 +32,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { toast } from 'sonner';
 import TicketDetailModal from './TicketDetailModal';
-import ContactMessagesView from './ContactMessagesView';
 
 interface Ticket {
   id: string;
@@ -241,15 +240,7 @@ const SupportManagement: React.FC = () => {
               <MessageSquare className="h-4 w-4" />
               Tickets ({tickets.length})
             </TabsTrigger>
-            <TabsTrigger value="messages" className="gap-2">
-              <MailOpen className="h-4 w-4" />
-              Contact Messages
-            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="messages" className="mt-6">
-            <ContactMessagesView />
-          </TabsContent>
 
           <TabsContent value="tickets" className="mt-6 space-y-6">
             {/* Ticket Export/Refresh buttons */}

@@ -2374,6 +2374,7 @@ export type Database = {
           created_at: string
           hiring_need: string | null
           id: string
+          internal_note: string | null
           package_notes: string | null
           phone: string | null
           status: Database["public"]["Enums"]["employer_status"]
@@ -2388,6 +2389,7 @@ export type Database = {
           created_at?: string
           hiring_need?: string | null
           id?: string
+          internal_note?: string | null
           package_notes?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["employer_status"]
@@ -2402,6 +2404,7 @@ export type Database = {
           created_at?: string
           hiring_need?: string | null
           id?: string
+          internal_note?: string | null
           package_notes?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["employer_status"]
@@ -5245,8 +5248,24 @@ export type Database = {
         Returns: boolean
       }
       admin_delete_custom_order: { Args: { p_id: string }; Returns: boolean }
+      admin_employer_approve: {
+        Args: { p_note?: string; p_user_id: string }
+        Returns: Json
+      }
+      admin_employer_decline: {
+        Args: { p_note: string; p_user_id: string }
+        Returns: Json
+      }
+      admin_employer_override: {
+        Args: { p_extend_days?: number; p_plan_key?: string; p_user_id: string }
+        Returns: Json
+      }
       admin_insert_ticket_message: {
         Args: { p_content: string; p_sender?: string; p_ticket_id: string }
+        Returns: Json
+      }
+      admin_mark_candidates_stale: {
+        Args: { p_user_ids: string[] }
         Returns: Json
       }
       admin_unblock_user: {
@@ -5433,6 +5452,7 @@ export type Database = {
       get_admin_ai_limits: { Args: never; Returns: Json }
       get_admin_applications: { Args: never; Returns: Json }
       get_admin_beta_feedback: { Args: never; Returns: Json }
+      get_admin_candidates: { Args: never; Returns: Json }
       get_admin_churn_alerts: { Args: never; Returns: Json }
       get_admin_contact_messages: { Args: { p_limit?: number }; Returns: Json }
       get_admin_conversations: { Args: never; Returns: Json }
@@ -5440,15 +5460,19 @@ export type Database = {
       get_admin_custom_orders: { Args: never; Returns: Json }
       get_admin_dashboard_stats: { Args: never; Returns: Json }
       get_admin_email_broadcast_users: { Args: never; Returns: Json }
+      get_admin_employers: { Args: never; Returns: Json }
       get_admin_error_logs: { Args: { p_limit?: number }; Returns: Json }
       get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
       get_admin_error_monitoring_data: { Args: never; Returns: Json }
       get_admin_llm_management: { Args: never; Returns: Json }
       get_admin_llm_stats: { Args: { p_hours?: number }; Returns: Json }
+      get_admin_marketplace: { Args: never; Returns: Json }
       get_admin_message_ratings: { Args: never; Returns: Json }
+      get_admin_money: { Args: never; Returns: Json }
       get_admin_nda_agreements: { Args: never; Returns: Json }
       get_admin_nda_list: { Args: never; Returns: Json }
       get_admin_notification_log: { Args: never; Returns: Json }
+      get_admin_overview: { Args: never; Returns: Json }
       get_admin_rate_limit_stats: { Args: never; Returns: Json }
       get_admin_subscriptions: { Args: never; Returns: Json }
       get_admin_support_data: { Args: never; Returns: Json }
