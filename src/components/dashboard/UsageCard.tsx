@@ -303,7 +303,7 @@ export const UsageCard = ({
       {/* Upgrade CTA for free users */}
       {isFree && (
         <button
-          onClick={() => navigate('/dashboard/pricing')}
+          onClick={() => navigate('/pricing')}
           className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors pt-1"
         >
           Upgrade for more messages

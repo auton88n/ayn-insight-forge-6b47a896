@@ -176,7 +176,7 @@ export const CreditUpgradeCard = ({
 
         {isFree ? (
           <motion.button
-            onClick={() => navigate('/dashboard/pricing')}
+            onClick={() => navigate('/pricing')}
             className={cn(
               "w-full flex items-center justify-center gap-1.5",
               "text-xs font-medium text-primary",
@@ -188,7 +188,7 @@ export const CreditUpgradeCard = ({
           </motion.button>
         ) : (
           <Button
-            onClick={() => navigate('/dashboard/pricing')}
+            onClick={() => navigate('/pricing')}
             size="sm"
             variant="outline"
             className="w-full h-8 text-xs"
@@ -290,7 +290,7 @@ export const CreditUpgradeCard = ({
       {/* Upgrade Link for Free Tier */}
       {isFree && !showEarnButton && (
         <motion.button
-          onClick={() => navigate('/dashboard/pricing')}
+          onClick={() => navigate('/pricing')}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
