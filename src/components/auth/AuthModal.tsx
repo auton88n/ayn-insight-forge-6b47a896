@@ -481,14 +481,15 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="ayn-auth-surface sm:max-w-md">
-        <DialogHeader>
+      <DialogContent aria-describedby={undefined} className="ayn-auth-surface sm:max-w-md max-h-[85dvh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="text-center text-2xl font-semibold ayn-auth-title">
             {t('auth.welcomeToAyn')}
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue={initialRole ? 'signup' : 'signin'} className="w-full">
+        <Tabs defaultValue={initialRole ? 'signup' : 'signin'} className="w-full flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6">
+
           <TabsList className="ayn-auth-tabs grid w-full grid-cols-2">
             <TabsTrigger value="signin">{t('auth.signIn')}</TabsTrigger>
             <TabsTrigger value="signup">{t('auth.signUp')}</TabsTrigger>
