@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase } from './adminSupabase';
-import aynLogo from '@/assets/ayn-logo.png';
+import aynMark from '/ayn-mark.svg';
 import { AdminPanel } from '@/components/AdminPanel';
 
 const LOCKOUT_MINUTES = 5;
@@ -13,8 +13,8 @@ const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
 
 function Loader() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="w-8 h-8 border border-white/20 border-t-white rounded-full animate-spin" />
+    <div className="min-h-screen bg-[#faf7f2] flex items-center justify-center">
+      <img src={aynMark} alt="AYN" className="w-10 h-10 animate-pulse" />
     </div>
   );
 }
@@ -114,31 +114,31 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
   const secs = countdown % 60;
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#faf7f2] flex items-center justify-center p-4">
       <div className="text-center">
-        <img src={aynLogo} alt="AYN" className="h-9 w-auto mx-auto mb-6" />
+        <img src={aynMark} alt="AYN" className="h-10 w-10 mx-auto mb-6" />
         {lockedUntil ? (
           <div>
-            <div className="text-red-400 text-sm mb-2">Too many failed attempts</div>
-            <div className="text-4xl font-mono font-bold text-white mb-2">{mins}:{secs.toString().padStart(2,'0')}</div>
-            <div className="text-white/30 text-xs mt-4">Try again later</div>
+            <div className="text-destructive text-sm mb-2">Too many failed attempts</div>
+            <div className="text-4xl font-mono font-bold text-foreground mb-2">{mins}:{secs.toString().padStart(2,'0')}</div>
+            <div className="text-muted-foreground text-xs mt-4">Try again later</div>
           </div>
         ) : (
           <>
-            <div className="text-white/50 text-sm mb-8">Enter admin PIN</div>
+            <div className="text-muted-foreground text-sm mb-8">Enter admin PIN</div>
             <div className="flex gap-3 justify-center mb-4">
               {pin.map((digit, i) => (
                 <input key={i} ref={el => inputs.current[i] = el} type="password" inputMode="numeric"
                   maxLength={1} value={digit} onChange={e => handleChange(i, e.target.value)}
                   onKeyDown={e => handleKey(i, e)}
                   disabled={checking}
-                  className={`w-12 h-14 text-center text-xl font-bold bg-white/5 border rounded-xl text-white focus:outline-none transition-all disabled:opacity-50 ${
-                    error ? 'border-red-500/60 bg-red-500/5' : digit ? 'border-[#f97316]/60' : 'border-white/10 focus:border-[#f97316]/60'}`} />
+                  className={`w-12 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
+                    error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#f97316]' : 'border-black/10 focus:border-[#f97316]'}`} />
               ))}
             </div>
-            {checking && <p className="text-white/30 text-xs">Verifying...</p>}
-            {error && !checking && <p className="text-red-400 text-xs">{error}</p>}
-            <button onClick={() => { adminSupabase.auth.signOut(); }} className="text-white/20 text-xs mt-6 underline">
+            {checking && <p className="text-muted-foreground text-xs">Verifying...</p>}
+            {error && !checking && <p className="text-destructive text-xs">{error}</p>}
+            <button onClick={() => { adminSupabase.auth.signOut(); }} className="text-muted-foreground text-xs mt-6 underline">
               Sign out
             </button>
           </>
@@ -163,19 +163,19 @@ function LoginScreen({ onSuccess }: { onSuccess: (s: Session) => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#faf7f2] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src={aynLogo} alt="AYN" className="h-9 w-auto mx-auto mb-5" />
-          <div className="text-xl font-bold text-white mb-1">Admin access</div>
-          <div className="text-white/30 text-sm">Sign in to continue</div>
+          <img src={aynMark} alt="AYN" className="h-10 w-10 mx-auto mb-5" />
+          <div className="text-xl font-bold text-foreground mb-1">Admin access</div>
+          <div className="text-muted-foreground text-sm">Sign in to continue</div>
         </div>
         <form onSubmit={handleLogin} className="space-y-3">
           <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 text-sm" required />
+            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#f97316] text-sm" required />
           <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 text-sm" required />
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+            className="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-foreground shadow-sm placeholder-muted-foreground focus:outline-none focus:border-[#f97316] text-sm" required />
+          {error && <p className="text-destructive text-xs">{error}</p>}
           <button type="submit" disabled={loading}
             className="w-full bg-[#f97316] text-white rounded-xl py-3 text-sm font-medium hover:bg-[#ea580c] disabled:opacity-50">
             {loading ? 'Signing in...' : 'Sign in'}
@@ -188,10 +188,10 @@ function LoginScreen({ onSuccess }: { onSuccess: (s: Session) => void }) {
 
 function AccessDenied() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="min-h-screen bg-[#faf7f2] flex items-center justify-center">
       <div className="text-center">
-        <div className="text-white/50 mb-4">Access denied — admins only</div>
-        <button onClick={() => adminSupabase.auth.signOut()} className="text-white/30 text-sm underline">Sign out</button>
+        <div className="text-foreground mb-4">Access denied, admins only</div>
+        <button onClick={() => adminSupabase.auth.signOut()} className="text-muted-foreground text-sm underline">Sign out</button>
       </div>
     </div>
   );
