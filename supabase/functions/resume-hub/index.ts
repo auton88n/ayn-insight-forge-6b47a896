@@ -3498,6 +3498,13 @@ async function handleSmartTailor(
     return json({ ...cached, cached: true });
   }
 
+  // v3.14.0 — a tailored resume costs credits. Refuse before spending any
+  // model time; the charge itself happens only after the result exists.
+  const creditGate = await assertCredits(admin, userId, COST_TAILOR, "tailored resume");
+  if (creditGate) return creditGate;
+
+
+
   const applicantBlock = identity ? identityContactBlock(identity) : "";
   const applicantSection = applicantBlock
     ? `\n\nAPPLICANT HEADER (use these exact lines at the top of the tailored resume, never invent alternatives, never omit):\n${applicantBlock}`
@@ -3586,15 +3593,19 @@ Keep everything that was already correct. Do not add new claims to fix a gap.${T
     sectionsUsed: { chars: bundle.chars, dropped: bundle.dropped },
   };
 
+  // Charge now that the generation actually succeeded.
+  const charge = await creditSpend(admin, userId, COST_TAILOR, "tailored_resume", jdHash);
+  if (!charge.ok) return insufficientCredits(charge.balance, COST_TAILOR, "tailored resume");
+
   cacheSet(admin, cacheKey, userId, "tailor", result, TAILOR_TTL);
   logAiCall(admin, {
     user_id: userId, purpose: "tailor", model: QUALITY_MODEL, duration_ms: Date.now() - started,
     cache_hit: false, source_map: identity?.sourceMap() || null,
     gap_matched: gap.matched.length, gap_missing: gap.missing.length, gap_surfaced: surfaced.length,
-    meta: { jd_chars: jd.length, section_chars: bundle.chars, dropped: bundle.dropped, figures_ok: missingFigures.length === 0, passes: 2 },
+    meta: { jd_chars: jd.length, section_chars: bundle.chars, dropped: bundle.dropped, figures_ok: missingFigures.length === 0, passes: 2, credits_spent: COST_TAILOR },
   });
 
-  return json(result);
+  return json({ ...result, credits: { spent: COST_TAILOR, balance: charge.balance } });
 }
 
 async function handleCoverLetter(
