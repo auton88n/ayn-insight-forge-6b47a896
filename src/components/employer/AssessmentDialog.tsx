@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Send, Trash2, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AynLoader } from "@/components/shared/AynLoader";
 import { assessmentApi, ASSESSMENT_LIMIT_NOTE, type PubQuestion } from "@/lib/assessments";
 
 const LIMITS = [
