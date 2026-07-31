@@ -490,6 +490,7 @@ export function SettingsPane({
 }) {
   const [local, setLocal] = useState(systemConfig);
   const [saving, setSaving] = useState(false);
+  const [currentPin, setCurrentPin] = useState('');
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
@@ -502,22 +503,25 @@ export function SettingsPane({
   };
 
   const changePin = async () => {
+    if (!/^\d{4,6}$/.test(currentPin)) { toast.error('Enter the current PIN'); return; }
     if (!/^\d{4,6}$/.test(pin)) { toast.error('PIN must be 4 to 6 digits'); return; }
     if (pin !== confirm) { toast.error('PINs do not match'); return; }
     setPinSaving(true);
     try {
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-      const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-      const { error } = await supabase.rpc('admin_set_pin', { p_hash: hash });
+      const { data, error } = await supabase.functions.invoke('admin-auth-pin', {
+        body: { action: 'set', pin: currentPin, new_pin: pin },
+      });
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Could not update the PIN');
       toast.success('Admin PIN updated');
-      setPin(''); setConfirm('');
+      setCurrentPin(''); setPin(''); setConfirm('');
     } catch (e) {
       toast.error((e as Error).message || 'Could not update the PIN');
     } finally {
       setPinSaving(false);
     }
   };
+
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -547,15 +551,17 @@ export function SettingsPane({
         <CardContent className="p-5 space-y-4">
           <div>
             <h3 className="font-semibold">Admin PIN</h3>
-            <p className="text-sm text-muted-foreground">The second gate after sign in. Four to six digits.</p>
+            <p className="text-sm text-muted-foreground">The second gate after sign in. Four to six digits. The current PIN is required to change it.</p>
           </div>
+          <Input value={currentPin} onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))} maxLength={6} type="password" placeholder="Current PIN" />
           <div className="grid grid-cols-2 gap-3">
             <Input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={6} type="password" placeholder="New PIN" />
             <Input value={confirm} onChange={e => setConfirm(e.target.value.replace(/\D/g, ''))} maxLength={6} type="password" placeholder="Confirm PIN" />
           </div>
-          <Button variant="outline" onClick={changePin} disabled={pinSaving || !pin || !confirm}>
+          <Button variant="outline" onClick={changePin} disabled={pinSaving || !currentPin || !pin || !confirm}>
             {pinSaving ? 'Updating' : 'Update PIN'}
           </Button>
+
         </CardContent>
       </Card>
     </div>

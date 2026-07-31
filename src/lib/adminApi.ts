@@ -161,14 +161,11 @@ export const adminApi = {
   },
 
   verifyAdminPin(pin: string) {
-    return adminApi.invoke<{ valid: boolean; success: boolean }>('verify-admin-pin', { pin });
+    return adminApi.invoke<{ success: boolean; error?: string }>('admin-auth-pin', { action: 'verify', pin });
   },
 
   setAdminPin(pin: string, new_pin: string) {
-    return adminApi.invoke<{ ok: boolean; success: boolean }>('set-admin-pin', { pin, new_pin });
+    return adminApi.invoke<{ success: boolean; error?: string }>('admin-auth-pin', { action: 'set', pin, new_pin });
   },
 
-  aiAssistant(message: string, context?: string) {
-    return adminApi.invoke<{ content: string; ok: boolean }>('admin-ai-assistant', { message, context });
-  },
 };
