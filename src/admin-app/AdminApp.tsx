@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { adminSupabase } from './adminSupabase';
 import { AdminPanel } from '@/components/AdminPanel';
-import AdminCustomOrders from '@/pages/AdminCustomOrders';
 
 const LOCKOUT_MINUTES = 5;
 const MAX_ATTEMPTS = 3;
@@ -260,7 +259,6 @@ export default function AdminApp() {
   return (
     <Routes>
       <Route path="/" element={<AdminPanel session={session!} isAdmin={true} onBackClick={() => {}} />} />
-      <Route path="/custom-orders" element={<AdminCustomOrders />} />
       <Route path="*" element={<Navigate to="/manage-bae76e99d97e188b" replace />} />
     </Routes>
   );

@@ -73,7 +73,6 @@ const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
-const AdminCustomOrders = lazy(() => import("./pages/AdminCustomOrders"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
 const ExtensionApprove = lazy(() => import("./pages/ExtensionApprove"));
@@ -134,7 +133,6 @@ const AnimatedRoutes = () => {
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
-      <Route path="/admin/custom-orders" element={<Suspense fallback={<PageLoader />}><AdminCustomOrders /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
       <Route path="/extension/approve" element={<Suspense fallback={<PageLoader />}><ExtensionApprove /></Suspense>} />
