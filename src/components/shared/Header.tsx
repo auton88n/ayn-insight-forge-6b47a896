@@ -141,7 +141,7 @@ export const Header = () => {
         </div>
 
         {/* Right cell — auth on desktop, menu button below lg */}
-        <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
+        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
 
           {/* Auth — desktop */}
           <div className="hidden lg:block">
