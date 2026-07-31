@@ -1,33 +1,35 @@
 ## Goal
 
-Bring the site header fully onto the new AYN ember orange brand, stop the nav from overlapping itself on iPad, make the mobile bar read clearly, and remove the small badge cards sitting under the audience switcher.
+Use the uploaded AYN triangle mark as (1) the animated loading indicator and (2) the browser tab icon, background removed, high resolution.
 
-## 1. Mobile menu panel is off-brand (image 1)
+## 1. Prepare the asset
 
-`src/components/shared/Header.tsx`, the `SheetContent` panel:
+- Take the uploaded mark, remove the white background, and produce a clean transparent PNG at high resolution.
+- Store it as a Lovable CDN asset (`src/assets/ayn-mark.png.asset.json`) for in-app use.
+- Also write real files in `public/` for the tab icon, since favicons cannot be CDN pointers:
+  - `public/favicon.png` (512px, transparent) — replaces the current one
+  - `public/apple-touch-icon.png` (180px)
+  - `public/ayn-icon-128.png` (128px, used by the extension surface)
 
-- The brand block still uses the old black rounded square with the Brain glyph. Replace it with the ember mark: orange gradient tile, white glyph, "AYN" in the landing heading font.
-- Nav links get more breathing room and a larger touch target, with the active item marked by an ember tint rather than a grey `bg-muted`.
-- "Start Free" becomes the same ember gradient pill used on desktop, not the default black shadcn button. Same for the signed-in "Sign Out" (outline in ember).
-- Panel width goes from 280px to a comfortable ~320px with proper top padding under the notch (`pt-[max(2rem,env(safe-area-inset-top))]`).
+## 2. Animated loader component
 
-## 2. Mobile bar sits too high and reads unclearly (image 2)
+New `src/components/shared/AynLoader.tsx`:
 
-- Increase the vertical padding floor so the bar is not pinned to the very top edge, and respect `env(safe-area-inset-top)`.
-- Give the mobile row a defined presence: the AYN wordmark on the left and a hamburger on the right, both sitting on a soft translucent surface so they stay legible over the warm hero gradient. The hamburger becomes a properly bordered round button in ember ink instead of a bare ghost icon.
+- The AYN mark centered, at a size prop (`sm` / `md` / `lg`).
+- Motion: a slow breathing scale-and-opacity pulse on the mark, plus a thin Ember-orange arc rotating around it, and a soft ember glow that fades in and out. Pure CSS keyframes (no Framer Motion) so it stays cheap during route loads.
+- Optional caption line under the mark (e.g. "Loading", or "AYN is reading the pool").
+- Respects `prefers-reduced-motion`: static mark with a gentle opacity fade only.
 
-## 3. Nav pill overlaps "Start Free" on iPad (image 3)
+Keyframes added to `src/index.css` alongside the existing animation utilities, using semantic tokens for the arc color.
 
-Cause: the centered nav pill is centered on the full viewport width while "Start Free" is absolutely positioned on the right, so at tablet widths they occupy the same space.
+## 3. Replace the old loading UI
 
-Fix: rebuild the bar as a single flex row with three cells (brand, nav pill, CTA) instead of absolute positioning, so the pill can never sit under the button. The full pill plus CTA layout only appears at `lg` and above; between `md` and `lg` the iPad gets the compact layout (wordmark plus menu button), which is where that width actually belongs. The CTA keeps the ember gradient.
+- `src/App.tsx`: `PageLoader` renders `AynLoader` instead of the current spinner.
+- Swap the full-screen/blocking spinners that are branded moments for the same component: employer search "AYN is reading the pool" state in `EmployerHub.tsx`, assessment generation in `AssessmentDialog.tsx`, and the Resume Hub initial load.
+- Small inline button spinners (`Loader2` inside buttons) stay as they are — a logo mark inside a 32px button would look wrong.
 
-## 4. Remove the small cards under the switcher (images 4 and 5)
+## 4. Verify
 
-In `src/components/landing/LandingSections.tsx`, drop the `lp-pill` badge row from the hero for both audiences ("Free to start, no credit card" and "Employer access, onboarded one at a time") and remove the now-unused `pill` entries from the `HERO` record. The headline moves up directly under the switcher, and the switcher spacing is retuned so the hero stays balanced.
+Typecheck and build, then screenshot the loader in the preview to confirm the animation and the tab icon.
 
-## Technical notes
-
-- Work is limited to `src/components/shared/Header.tsx`, `src/components/landing/LandingSections.tsx`, and a small amount of ember token CSS in `src/index.css`. No behaviour or backend changes.
-- Ember values reuse the existing landing tokens (`--lp-ember`, the `#e85d3a` to `#f2833f` gradient), so the header matches the hero CTA exactly.
-- Verified afterwards at phone, iPad portrait, iPad landscape and desktop widths with the menu open and closed.
+Note: browsers cache favicons aggressively, so the new tab icon may need a hard refresh to appear.
