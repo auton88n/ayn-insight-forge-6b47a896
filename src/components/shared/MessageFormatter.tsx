@@ -10,7 +10,6 @@ import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
-import { persistDalleImage } from '@/hooks/useImagePersistence';
 import { isDocumentStorageUrl, isSupabaseStorageUrl, openDocumentUrl } from '@/lib/documentUrlUtils';
 
 interface MessageFormatterProps {
