@@ -33,8 +33,8 @@ import CandidateResultCard from "@/components/employer/CandidateResultCard";
 import CandidateProfile from "@/components/employer/CandidateProfile";
 import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
-import {
 import aynLogo from "@/assets/ayn-logo.png";
+import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
