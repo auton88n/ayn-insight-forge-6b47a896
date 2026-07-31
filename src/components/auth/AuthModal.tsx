@@ -422,7 +422,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
   if (resetEmailSent) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent aria-describedby={undefined} className="bg-neutral-950 border border-white/20 backdrop-blur-xl shadow-2xl sm:max-w-md">
+        <DialogContent aria-describedby={undefined} className="ayn-auth-surface sm:max-w-md">
           <div className="flex flex-col items-center text-center py-6 space-y-6">
             {/* Success Icon */}
             <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
@@ -481,7 +481,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="bg-neutral-950 border border-white/20 backdrop-blur-xl shadow-2xl sm:max-w-md">
+      <DialogContent aria-describedby={undefined} className="ayn-auth-surface sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center gradient-text-hero text-2xl">
             {t('auth.welcomeToAyn')}
@@ -515,13 +515,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 <Separator className="w-full" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-neutral-950 px-2 text-muted-foreground">{t('auth.orDivider')}</span>
+                <span className="bg-card px-2 text-muted-foreground">{t('auth.orDivider')}</span>
               </div>
             </div>
 
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="signin-email" className="auth-label">{t('auth.email')}</Label>
+                <Label htmlFor="signin-email" className="ayn-auth-label">{t('auth.email')}</Label>
                 <Input
                   id="signin-email"
                   type="email"
@@ -529,13 +529,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
-                  className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 auth-input-text"
+                  className="ayn-auth-input"
                 />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between rtl:flex-row-reverse">
-                  <Label htmlFor="signin-password" className="auth-label">{t('auth.password')}</Label>
+                  <Label htmlFor="signin-password" className="ayn-auth-label">{t('auth.password')}</Label>
                   <button
                     type="button"
                     onClick={handleForgotPassword}
@@ -552,7 +552,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
-                  className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 auth-input-text"
+                  className="ayn-auth-input"
                 />
               </div>
 
@@ -590,7 +590,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 <Separator className="w-full" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-neutral-950 px-2 text-muted-foreground">{t('auth.orDivider')}</span>
+                <span className="bg-card px-2 text-muted-foreground">{t('auth.orDivider')}</span>
               </div>
             </div>
 
@@ -621,7 +621,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
 
               <div className={signupRole === 'employer' ? 'grid grid-cols-1 sm:grid-cols-2 gap-4' : ''}>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name" className="auth-label">{t('auth.fullName')} *</Label>
+                  <Label htmlFor="signup-name" className="ayn-auth-label">{t('auth.fullName')} *</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -631,14 +631,14 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       disabled={isLoading}
-                      className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 pl-10 auth-input-text"
+                      className="ayn-auth-input pl-10"
                     />
                   </div>
                 </div>
 
                 {signupRole === 'employer' && (
                   <div className="space-y-2">
-                    <Label htmlFor="signup-company" className="auth-label">Company name *</Label>
+                    <Label htmlFor="signup-company" className="ayn-auth-label">Company name *</Label>
                     <div className="relative">
                       <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -648,7 +648,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
                         disabled={isLoading}
-                        className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 pl-10 auth-input-text"
+                        className="ayn-auth-input pl-10"
                       />
                     </div>
                   </div>
@@ -657,7 +657,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
 
               {signupRole === 'employer' && (
                 <div className="space-y-2">
-                  <Label htmlFor="signup-website" className="auth-label">Company website</Label>
+                  <Label htmlFor="signup-website" className="ayn-auth-label">Company website</Label>
                   <Input
                     id="signup-website"
                     type="url"
@@ -665,13 +665,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                     value={companyWebsite}
                     onChange={(e) => setCompanyWebsite(e.target.value)}
                     disabled={isLoading}
-                    className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 auth-input-text"
+                    className="ayn-auth-input"
                   />
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="signup-email" className="auth-label">
+                <Label htmlFor="signup-email" className="ayn-auth-label">
                   {signupRole === 'employer' ? `${t('auth.businessEmail')} *` : `${t('auth.email')} *`}
                 </Label>
                 <Input
@@ -681,13 +681,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
-                  className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 auth-input-text"
+                  className="ayn-auth-input"
                 />
               </div>
 
 
               <div className="space-y-2">
-                <Label htmlFor="signup-password" className="auth-label">{t('auth.password')} *</Label>
+                <Label htmlFor="signup-password" className="ayn-auth-label">{t('auth.password')} *</Label>
                 <Input
                   id="signup-password"
                   type="password"
@@ -695,7 +695,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
-                  className="bg-neutral-900/80 border-white/15 placeholder:text-gray-400 auth-input-text"
+                  className="ayn-auth-input"
                 />
                 <PasswordStrengthIndicator password={password} />
               </div>
