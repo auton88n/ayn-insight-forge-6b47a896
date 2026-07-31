@@ -91,6 +91,41 @@ export const billingApi = {
   employer: (org_id: string) => call<EmployerBilling>({ action: "employer_billing_get", org_id }),
   upgradeIntent: (plan_key: string, note?: string) =>
     call<{ ok: boolean; plan: string; message: string }>({ action: "billing_upgrade_intent", plan_key, note }),
+  checkout: async (plan_key: string) => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Not signed in");
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "checkout", plan_key }),
+    });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok || !out?.url) throw new Error(out?.error || "Could not start checkout");
+    return out.url as string;
+  },
+  portal: async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Not signed in");
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "portal" }),
+    });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok || !out?.url) throw new Error(out?.error || "Could not open billing");
+    return out.url as string;
+  },
+
   adminEmployers: () => call<{ employers: AdminEmployerRow[] }>({ action: "admin_employer_list" }).then(r => r.employers),
   adminDecide: (user_id: string, decision: "approve" | "decline" | "suspend", note?: string) =>
     call<{ ok: boolean; status: string }>({ action: "admin_employer_decide", user_id, decision, note }),
