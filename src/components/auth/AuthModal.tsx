@@ -431,7 +431,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             
             {/* Title */}
             <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-white">
+              <h2 className="text-xl font-semibold text-foreground">
                 {t('auth.resetEmailSentTitle')}
               </h2>
               <p className="text-muted-foreground text-sm">
@@ -440,9 +440,9 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             </div>
             
             {/* Email Icon */}
-            <div className="flex items-center gap-2 bg-neutral-900/50 border border-white/10 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-lg px-4 py-3">
               <Mail className="w-5 h-5 text-primary" />
-              <span className="text-sm text-white/80">{maskEmail(resetSentToEmail)}</span>
+              <span className="text-sm text-foreground/80">{maskEmail(resetSentToEmail)}</span>
             </div>
             
             {/* Check spam notice */}
@@ -455,7 +455,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
               variant="outline"
               onClick={handleForgotPassword}
               disabled={resendCooldown > 0 || isResettingPassword}
-              className="w-full border-white/20 text-white hover:bg-white hover:text-neutral-950 disabled:opacity-50"
+              className="w-full disabled:opacity-50"
             >
               {isResettingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {resendCooldown > 0 
@@ -468,7 +468,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             <button
               type="button"
               onClick={handleBackToSignIn}
-              className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               {t('auth.backToSignIn')}
@@ -483,13 +483,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined} className="ayn-auth-surface sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-center gradient-text-hero text-2xl">
+          <DialogTitle className="text-center text-2xl font-semibold ayn-auth-title">
             {t('auth.welcomeToAyn')}
           </DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue={initialRole ? 'signup' : 'signin'} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-neutral-900/80 border border-white/10">
+          <TabsList className="ayn-auth-tabs grid w-full grid-cols-2">
             <TabsTrigger value="signin">{t('auth.signIn')}</TabsTrigger>
             <TabsTrigger value="signup">{t('auth.signUp')}</TabsTrigger>
           </TabsList>
@@ -498,7 +498,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             <Button
               type="button"
               variant="outline"
-              className="w-full border-white/20 bg-white text-neutral-900 hover:bg-white/90 font-medium"
+              className="ayn-auth-google w-full font-medium"
               onClick={handleGoogleSignIn}
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -540,7 +540,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                     type="button"
                     onClick={handleForgotPassword}
                     disabled={isResettingPassword}
-                    className="text-sm text-white/80 hover:text-white hover:underline transition-colors disabled:opacity-50"
+                    className="text-sm ayn-auth-link hover:underline transition-colors disabled:opacity-50"
                   >
                     {isResettingPassword ? t('auth.forgotPasswordSending') : t('auth.forgotPassword')}
                   </button>
@@ -559,7 +559,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
               <Button
                 type="submit"
                 variant="default"
-                className="w-full"
+                className="ayn-ember-btn w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -573,7 +573,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             <Button
               type="button"
               variant="outline"
-              className="w-full border-white/20 bg-white text-neutral-900 hover:bg-white/90 font-medium"
+              className="ayn-auth-google w-full font-medium"
               onClick={handleGoogleSignIn}
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -604,18 +604,18 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 <button
                   type="button"
                   onClick={() => setSignupRole('job_seeker')}
-                  className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'job_seeker' ? 'border-primary bg-primary/10' : 'border-white/15 bg-neutral-900/60 hover:border-white/30'}`}
+                  className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'job_seeker' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
                 >
-                  <div className="text-sm font-semibold text-white">I'm looking for a job</div>
-                  <div className="text-[11px] text-white/60 leading-tight mt-1">Resume Hub, autofill, 3 free credits/day</div>
+                  <div className="text-sm font-semibold text-foreground">I'm looking for a job</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-1">Resume Hub, autofill, 3 free credits/day</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSignupRole('employer')}
-                  className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'employer' ? 'border-primary bg-primary/10' : 'border-white/15 bg-neutral-900/60 hover:border-white/30'}`}
+                  className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'employer' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
                 >
-                  <div className="text-sm font-semibold text-white">I'm hiring</div>
-                  <div className="text-[11px] text-white/60 leading-tight mt-1">Search talent through AYN chat (approval required)</div>
+                  <div className="text-sm font-semibold text-foreground">I'm hiring</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-1">Search talent through AYN chat (approval required)</div>
                 </button>
               </div>
 
@@ -710,14 +710,14 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 />
                 <label 
                   htmlFor="terms-checkbox" 
-                  className="text-xs text-white/70 leading-relaxed cursor-pointer select-none"
+                  className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none"
                 >
                   {t('auth.termsCheckboxLabel')}{' '}
                   <a 
                     href="/terms" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline"
+                    className="ayn-auth-link hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {t('auth.termsLink')}
@@ -728,7 +728,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
               <Button
                 type="submit"
                 variant="default"
-                className="w-full"
+                className="ayn-ember-btn w-full"
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
