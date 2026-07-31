@@ -456,12 +456,23 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                   <p className="lp-note">
                     This checks depth of experience. It cannot prove someone answered unaided.
                   </p>
+                  {/* v3.19.0 — employer pricing lives here, the single public
+                      source. The higher tiers stay unpublished on purpose. */}
+                  <div className="lp-reveal" style={{ marginTop: 26 }}>
+                    <p className="lp-display" style={{ fontSize: 'clamp(1.25rem, 2.4vw, 1.6rem)', fontWeight: 600, margin: 0 }}>
+                      Free for your first month.
+                    </p>
+                    <p className="lp-note" style={{ marginTop: 8 }}>
+                      Then from $199 a month, based on how many candidates you contact. Searching is always unlimited.
+                    </p>
+                  </div>
                   <div className="lp-cta-row" style={{ marginTop: 22 }}>
                     <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('employer')}>
                       Request employer access <ArrowRight size={15} />
                     </button>
-                    <span className="lp-note" style={{ margin: 0 }}>We onboard employers one at a time.</span>
+                    <span className="lp-note" style={{ margin: 0 }}>We approve employers one at a time.</span>
                   </div>
+
                 </div>
               </div>
             </div>

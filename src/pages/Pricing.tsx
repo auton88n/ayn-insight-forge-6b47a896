@@ -1,3 +1,5 @@
+// v3.19.0 — job seeker pricing only. Employer pricing lives in the
+// "For employers" section of the landing page, the single public source.
 // v3.14.0 — seeker pricing. Credits buy the two things that cost real
 // model time: a tailored resume (2 credits) and a cover letter (1 credit).
 // Everything else is free forever on every plan. Payments are not wired
@@ -34,14 +36,6 @@ const FREE_FOREVER = [
   'Downloading every document you make',
 ];
 
-const EMPLOYER_STEPS = [
-  { title: 'Request access', line: 'Tell us the company and the role you are hiring for.' },
-  { title: 'We approve you', line: 'A person reviews it. We keep the pool small on purpose.' },
-  { title: 'A free month', line: 'Search, contact candidates and send assessments, no card needed.' },
-  { title: 'Then a plan', line: 'Priced by how many candidates you contact, from $199 a month.' },
-];
-
-
 const Pricing = () => {
   const navigate = useNavigate();
   const [signedIn, setSignedIn] = useState(false);
@@ -75,7 +69,7 @@ const Pricing = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <SEO
-        title="Pricing | AYN"
+        title="Pricing for job seekers | AYN"
         description="AYN credits pay for tailored resumes and cover letters. Match scoring, Ask AYN, the extension and being discovered by employers are free on every plan."
       />
       <Header />
@@ -83,11 +77,12 @@ const Pricing = () => {
       <main className="flex-1 pt-28 pb-20 px-4">
         <div className="max-w-5xl mx-auto">
           <div className="text-center space-y-4 mb-10">
-            <Badge className="ayn-ember-badge">Pricing</Badge>
+            <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
             <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">Pay for the writing, nothing else</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
               A tailored resume costs 2 credits. A cover letter costs 1. That is the whole meter.
               Scoring a job, asking AYN about it, the extension, and being found by employers are free forever, on every plan.
+              Hiring on AYN? Employer pricing is on the home page, under For employers.
             </p>
           </div>
 
@@ -152,39 +147,11 @@ const Pricing = () => {
           </div>
 
           {/*
-            v3.18.0 — employers. We are onboarding one company at a time and
-            the tier numbers above Starter are still hypotheses, so the public
-            page shows the model and the entry price only. The full tier list
-            lives behind sign in, on /billing.
+            v3.19.0 — employer pricing moved to the landing "For employers"
+            section, which is now the single public source. Nothing about
+            employer tiers belongs on this page.
           */}
-          <div id="employers" className="mt-8 rounded-2xl border bg-card p-7">
-            <Badge className="ayn-ember-badge">For employers</Badge>
-            <h2 className="mt-4 text-2xl font-semibold tracking-tight">Hiring on AYN is invite first</h2>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-2xl">
-              We are onboarding companies one at a time so every search is worth the candidate's attention.
-              Here is exactly how it goes, with nothing hidden.
-            </p>
 
-            <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {EMPLOYER_STEPS.map((s, i) => (
-                <li key={s.title} className="rounded-xl border bg-background p-4">
-                  <span className="text-xs font-semibold text-primary">Step {i + 1}</span>
-                  <p className="mt-1.5 font-medium text-sm">{s.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{s.line}</p>
-                </li>
-              ))}
-            </ol>
-
-            <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
-              <Button onClick={() => (signedIn ? navigate('/') : setShowAuth(true))} className="sm:w-auto">
-                Request employer access
-              </Button>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Paid plans start at $199 a month and scale with how many candidates you contact.
-                You see your exact plan and usage inside your hub once your free month ends.
-              </p>
-            </div>
-          </div>
         </div>
       </main>
 
