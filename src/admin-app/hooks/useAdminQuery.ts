@@ -225,3 +225,74 @@ export function useMarkCandidatesStale() {
     onError: (e: Error) => toast.error(e.message || 'Reindex failed'),
   });
 }
+
+// ─── v3.23.0 admin controls: moderation, kill switches, credits ────────
+export const adminControlKeys = {
+  moderation: ['admin', 'v2', 'moderation'] as const,
+  flags: ['admin', 'v2', 'flags'] as const,
+  snapshot: (id: string) => ['admin', 'v2', 'snapshot', id] as const,
+};
+
+export function useAdminModeration() {
+  return useQuery({
+    queryKey: adminControlKeys.moderation,
+    queryFn: () => adminRpc<any>('get_admin_moderation', { p_limit: 60 }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useModerateItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { kind: 'proposal' | 'assessment'; id: string; note?: string }) =>
+      v.kind === 'proposal'
+        ? adminRpc('admin_moderate_proposal', { p_id: v.id, p_action: 'cancel', p_note: v.note ?? null })
+        : adminRpc('admin_moderate_assessment', { p_id: v.id, p_note: v.note ?? null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminControlKeys.moderation });
+      qc.invalidateQueries({ queryKey: adminV2Keys.marketplace });
+      toast.success('Cancelled');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not cancel'),
+  });
+}
+
+export function useAdminFeatureFlags() {
+  return useQuery({
+    queryKey: adminControlKeys.flags,
+    queryFn: () => adminRpc<any>('get_admin_feature_flags'),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useSetFeatureFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { key: string; enabled: boolean }) =>
+      adminRpc('admin_set_feature_flag', { p_key: v.key, p_enabled: v.enabled }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: adminControlKeys.flags }); toast.success('Saved'); },
+    onError: (e: Error) => toast.error(e.message || 'Could not save'),
+  });
+}
+
+export function useAdjustCredits() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { userId: string; amount: number; reason: string }) =>
+      adminRpc<any>('admin_adjust_credits', { p_user_id: v.userId, p_amount: v.amount, p_reason: v.reason }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: adminKeys.all });
+      toast.success(`New balance: ${res?.balance ?? '—'}`);
+    },
+    onError: (e: Error) => toast.error(e.message || 'Adjustment failed'),
+  });
+}
+
+export function useUserSnapshot(userId: string | null) {
+  return useQuery({
+    queryKey: adminControlKeys.snapshot(userId || 'none'),
+    queryFn: () => adminRpc<any>('admin_user_snapshot', { p_user_id: userId }),
+    enabled: !!userId,
+    staleTime: FAST_STALE_TIME,
+  });
+}
