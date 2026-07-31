@@ -47,10 +47,17 @@ export const AdminPanel = (_props: AdminPanelProps) => {
   const pendingEmployers = Number((overviewQuery.data as any)?.employers_pending || 0);
 
   // Ember scope lives on <body> so Radix portals inherit it too.
+  // Admin is light only, so the dark class comes off while it is mounted.
   useEffect(() => {
     document.body.classList.add('admin-surface');
-    return () => document.body.classList.remove('admin-surface');
+    const wasDark = document.documentElement.classList.contains('dark');
+    if (wasDark) document.documentElement.classList.remove('dark');
+    return () => {
+      document.body.classList.remove('admin-surface');
+      if (wasDark) document.documentElement.classList.add('dark');
+    };
   }, []);
+
 
   useLayoutEffect(() => {
     const ob = document.body.style.overflow;
