@@ -1,15 +1,15 @@
-// v3.20.0 — the admin for the product AYN actually is: a two sided
-// hiring marketplace. Six sections, AYN ember branding, real data.
+// v3.22.0 — the admin for the product AYN actually is: a two sided
+// hiring marketplace. Six sections, AYN ember branding, real data, light only.
 import { useState, useLayoutEffect, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
-import { LogOut, RefreshCw, Sun, Moon } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { LogOut, RefreshCw } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
-import aynLogo from '@/assets/ayn-logo.png';
+import aynMark from '/ayn-mark.svg';
+
 import {
   useAdminSystemConfig,
   useAdminRefresh,
@@ -35,8 +35,7 @@ interface AdminPanelProps {
   isDuty?: boolean;
 }
 
-export const AdminPanel = ({ session }: AdminPanelProps) => {
-  const { theme, setTheme } = useTheme();
+export const AdminPanel = (_props: AdminPanelProps) => {
   const queryClient = useQueryClient();
   const { refreshAll } = useAdminRefresh();
   const [activeTab, setActiveTab] = useState<AdminTabId>('overview');
@@ -48,10 +47,17 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
   const pendingEmployers = Number((overviewQuery.data as any)?.employers_pending || 0);
 
   // Ember scope lives on <body> so Radix portals inherit it too.
+  // Admin is light only, so the dark class comes off while it is mounted.
   useEffect(() => {
     document.body.classList.add('admin-surface');
-    return () => document.body.classList.remove('admin-surface');
+    const wasDark = document.documentElement.classList.contains('dark');
+    if (wasDark) document.documentElement.classList.remove('dark');
+    return () => {
+      document.body.classList.remove('admin-surface');
+      if (wasDark) document.documentElement.classList.add('dark');
+    };
   }, []);
+
 
   useLayoutEffect(() => {
     const ob = document.body.style.overflow;
@@ -113,7 +119,7 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
     <div className="h-screen flex flex-col bg-background">
       <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border/60">
         <div className="flex items-center gap-3">
-          <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
+          <img src={aynMark} alt="AYN" className="h-7 w-7" />
           <div>
             <h1 className="text-base font-bold leading-tight">Admin</h1>
             <p className="text-[11px] text-muted-foreground leading-tight">Employers, candidates, marketplace, money</p>
@@ -122,9 +128,6 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={handleRefresh} className="w-9 h-9 rounded-xl border border-border/60">
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-9 h-9 rounded-xl border border-border/60">
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
           <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()} title="Sign out" className="w-9 h-9 rounded-xl border border-border/60">
             <LogOut className="w-4 h-4" />
@@ -150,7 +153,7 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
                 {activeTab === 'marketplace' && <MarketplaceSection />}
                 {activeTab === 'money' && <MoneySection />}
                 {activeTab === 'system' && (
-                  <SystemSection session={session} systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />
+                  <SystemSection systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />
                 )}
               </Suspense>
             </ErrorBoundary>

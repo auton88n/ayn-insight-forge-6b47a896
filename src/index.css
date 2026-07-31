@@ -2130,6 +2130,19 @@ button, a, input, textarea, select {
   background-color: hsl(var(--primary) / 0.08);
   border-color: hsl(var(--primary));
 }
+/* Admin is light only, on AYN warm paper, in the AYN type system */
+.admin-surface {
+  color-scheme: light;
+  background-color: #faf7f2;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.admin-surface h1,
+.admin-surface h2,
+.admin-surface h3 { font-family: 'Syne', 'Inter', sans-serif; letter-spacing: -0.01em; }
+.admin-surface .font-mono,
+.admin-surface code { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+
 
 /* AYN loader: breathing mark inside a rotating ember arc */
 @keyframes ayn-loader-breathe {

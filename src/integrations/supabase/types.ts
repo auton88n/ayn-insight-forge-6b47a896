@@ -5268,6 +5268,7 @@ export type Database = {
         Args: { p_user_ids: string[] }
         Returns: Json
       }
+      admin_set_pin: { Args: { p_hash: string }; Returns: Json }
       admin_unblock_user: {
         Args: { p_endpoint?: string; p_user_id: string }
         Returns: undefined
@@ -5447,9 +5448,11 @@ export type Database = {
         Returns: boolean
       }
       generate_monthly_summaries: { Args: never; Returns: number }
+      get_admin_accounts: { Args: { p_search?: string }; Returns: Json }
       get_admin_activity_log: { Args: { p_limit?: number }; Returns: Json }
       get_admin_ai_cost_stats: { Args: never; Returns: Json }
       get_admin_ai_limits: { Args: never; Returns: Json }
+      get_admin_ai_usage: { Args: never; Returns: Json }
       get_admin_applications: { Args: never; Returns: Json }
       get_admin_beta_feedback: { Args: never; Returns: Json }
       get_admin_candidates: { Args: never; Returns: Json }
@@ -5459,6 +5462,7 @@ export type Database = {
       get_admin_credit_gifts: { Args: never; Returns: Json }
       get_admin_custom_orders: { Args: never; Returns: Json }
       get_admin_dashboard_stats: { Args: never; Returns: Json }
+      get_admin_email_audience: { Args: never; Returns: Json }
       get_admin_email_broadcast_users: { Args: never; Returns: Json }
       get_admin_employers: { Args: never; Returns: Json }
       get_admin_error_logs: { Args: { p_limit?: number }; Returns: Json }
