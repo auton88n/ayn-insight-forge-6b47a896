@@ -83,7 +83,7 @@ export default function Billing() {
       <SEO title="Billing | AYN" description="Your AYN plan, credits and usage." noIndex />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <button
-          onClick={() => navigate(audience === "employer" ? "/employer" : "/resume-hub")}
+          onClick={() => navigate(audience === "employer" ? "/" : "/resume-hub")}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" /> Back to your hub
