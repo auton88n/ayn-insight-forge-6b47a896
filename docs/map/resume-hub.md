@@ -111,7 +111,7 @@ Web lane (JWT): link_approve, token_mint, token_list, token_revoke, parse, parse
 Dual-auth lane (v2.8.4 — accept EITHER x-ayn-ext-token OR a session JWT): answers_list, answers_update, answers_delete, ext_ingest_job. Defined by DUAL_AUTH_ACTIONS in supabase/functions/resume-hub/index.ts. When called from src/lib/resumeHub.ts (Learned Answers UI in ProfileTab, save-job in JobsTab), the edge function resolves userId from the Bearer JWT and runs the same handler with the admin client. All other EXT_ACTIONS keep the strict ext-token requirement.
 
 resolveResumeContent(admin, userId, resumeVersionId): honors a tailored resume_versions row when passed, otherwise the is_primary resume. loadIdentity(admin, userId, { resume_version_id }) in supabase/functions/_shared/identity.ts is the single identity source of truth and is now wired into ext_job_score, smart_tailor and ext_cover_letter_text.
-Aux functions: resume-match (standalone web matcher), cc-generate (report tools). All fill-only functions were deleted in v3.0.0.
+Aux functions: resume-match (standalone web matcher). All fill-only functions were deleted in v3.0.0 and every other unused function was deleted in v3.21.0.
 
 ## Tables
 resumes (content jsonb, is_primary), resume_versions (content, created_for_job_id), jobs (jd_text, source_url, dedupe_hash sha256 of company|title|urlPath), job_matches, cover_letters, job_cache (url_hash, full_jd, parsed, expires_at 24h), device tokens (token_prefix, device_label, last_used_at, revoked_at), user_profile_data (legal names, email, phone, address jsonb, links jsonb, default_answers jsonb), canonical profile (loadCanonical / profile_canonical_*), candidate_index (talent pool embeddings). v3.1.0 adds ai_result_cache (cache_key, purpose, payload, expires_at) and ai_call_telemetry (purpose, model, duration_ms, cache_hit, source_map, gap_matched/missing/surfaced, meta). DEPRECATED: applications table (old split-brain tracker), job_applications (tracker removed in v3.0.1); never write to either.
@@ -210,7 +210,7 @@ Web-lane actions:
 
 Reveal ladder, what each side can see at each step: employer sees anonymous card → anonymous full reasoning → proposal sent (still anonymous) → on accept, name + email + phone. Seeker sees the org name, the full job details and the employer's message from the first moment.
 
-NO TRANSACTIONAL EMAIL PATH EXISTS in this repo (supabase/functions holds only resume-hub, resume-match, cc-generate, sign-document, ayn-agent-society). New-proposal notification is in-app only: nav badge plus the top Home next-action.
+NO TRANSACTIONAL EMAIL PATH EXISTS in this repo (supabase/functions holds only resume-hub, resume-match, stripe-billing, stripe-webhook, sign-document, ayn-agent-society). New-proposal notification is in-app only: nav badge plus the top Home next-action.
 
 
 
