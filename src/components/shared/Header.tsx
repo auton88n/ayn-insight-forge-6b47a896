@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Menu, LogOut, User } from 'lucide-react';
+import { Menu, LogOut, User } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { supabase } from '@/integrations/supabase/client';
+import aynLogo from '@/assets/ayn-logo.png';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navLinks = [
@@ -95,6 +96,7 @@ export const Header = () => {
 
         {/* Brand — left cell */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flex: '1 1 0', minWidth: 0 }}>
+          <img src={aynLogo} alt="AYN" style={{ height: 30, width: 'auto', display: 'block' }} />
           <span style={{ fontFamily: headFont, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
         </Link>
 
@@ -214,12 +216,7 @@ export const Header = () => {
                 >
                   {/* Ember brand mark */}
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center"
-                      style={{ background: EMBER, boxShadow: '0 10px 24px -14px rgba(232,93,58,0.95)' }}
-                    >
-                      <Brain className="w-6 h-6" style={{ color: '#fff' }} />
-                    </div>
+                    <img src={aynLogo} alt="AYN" style={{ height: 40, width: 'auto', display: 'block' }} />
                     <span style={{ fontFamily: headFont, fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
                   </div>
 
