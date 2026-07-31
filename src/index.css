@@ -2046,3 +2046,52 @@ button, a, input, textarea, select {
 /* ── Single audience pain block (v3.17.0) ──────────────────── */
 .lp-pain-solo { max-width: 720px; }
 .lp-pain-solo li { font-size: 16.5px; }
+
+/* ── AYN auth modal (ember brand) ───────────────────────────── */
+.ayn-auth-surface {
+  background:
+    radial-gradient(120% 120% at 0% 0%, hsl(13 79% 57% / 0.07) 0%, transparent 55%),
+    hsl(var(--card));
+  border: 1px solid hsl(13 79% 57% / 0.18);
+  box-shadow: 0 32px 80px -40px hsl(13 79% 40% / 0.45);
+  color: hsl(var(--foreground));
+}
+.ayn-auth-title {
+  background: linear-gradient(135deg, hsl(13 79% 52%) 0%, hsl(24 85% 56%) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ayn-auth-label { color: hsl(var(--foreground)); font-weight: 500; }
+.ayn-auth-input {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+.ayn-auth-input::placeholder { color: hsl(var(--muted-foreground)); }
+.ayn-auth-input:focus-visible {
+  border-color: hsl(13 79% 57% / 0.7);
+  box-shadow: 0 0 0 3px hsl(13 79% 57% / 0.14);
+  outline: none;
+}
+.ayn-auth-tabs {
+  background: hsl(13 40% 96%);
+  border: 1px solid hsl(13 79% 57% / 0.16);
+}
+.ayn-auth-tabs [data-state="active"] {
+  background: linear-gradient(135deg, hsl(13 79% 57%) 0%, hsl(24 85% 58%) 100%);
+  color: #fff;
+  box-shadow: 0 8px 20px -12px hsl(13 79% 50% / 0.9);
+}
+.ayn-auth-google {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+.ayn-auth-google:hover { background: hsl(13 40% 97%); border-color: hsl(13 79% 57% / 0.35); }
+.ayn-auth-link { color: hsl(13 79% 50%); }
+.ayn-auth-link:hover { color: hsl(13 79% 44%); }
+.ayn-auth-role-active {
+  border-color: hsl(13 79% 57% / 0.6);
+  background: hsl(13 79% 57% / 0.09);
+}
