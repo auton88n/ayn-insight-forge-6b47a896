@@ -94,15 +94,16 @@ export const Header = () => {
       >
 
         {/* Brand — left cell */}
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flex: '0 0 auto' }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flex: '1 1 0', minWidth: 0 }}>
           <span style={{ fontFamily: headFont, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
         </Link>
 
         {/* Centered glassmorphism pill — desktop only */}
         <div className="hidden lg:flex" style={{
-          flex: '1 1 auto',
+          flex: '0 0 auto',
           justifyContent: 'center',
         }}>
+
           <div style={{
             display: 'flex',
             alignItems: 'center',
