@@ -1,37 +1,33 @@
 ## Goal
 
-The switch at the top ("I am looking for a job" / "I am hiring") should change the whole page, not just the hero. Scrolling down in seeker mode shows only seeker content; hiring mode shows only employer content. No mixing.
+Bring the site header fully onto the new AYN ember orange brand, stop the nav from overlapping itself on iPad, make the mobile bar read clearly, and remove the small badge cards sitting under the audience switcher.
 
-## What changes
+## 1. Mobile menu panel is off-brand (image 1)
 
-**One audience state drives the page** (`src/components/landing/LandingSections.tsx`)
+`src/components/shared/Header.tsx`, the `SheetContent` panel:
 
-The existing `audience` state already controls the hero. Every section below the hero becomes audience-owned:
+- The brand block still uses the old black rounded square with the Brain glyph. Replace it with the ember mark: orange gradient tile, white glyph, "AYN" in the landing heading font.
+- Nav links get more breathing room and a larger touch target, with the active item marked by an ember tint rather than a grey `bg-muted`.
+- "Start Free" becomes the same ember gradient pill used on desktop, not the default black shadcn button. Same for the signed-in "Sign Out" (outline in ember).
+- Panel width goes from 280px to a comfortable ~320px with proper top padding under the notch (`pt-[max(2rem,env(safe-area-inset-top))]`).
 
-| Section | Seeker mode | Hiring mode |
-|---|---|---|
-| Logo strip ("Reads job posts on") | shown | replaced by a hiring-side line (candidates who opted in, evidence, assessments) |
-| The problem | only the job seeker pain column, full width | only the employer pain column, full width |
-| Seeker showcase (tailored docs + feature tiles) | shown | hidden |
-| Employer showcase (candidate card, 4 steps, assessments) | hidden | shown |
-| Trust | shown, with seeker-worded chips | shown, with employer-worded chips |
-| FAQ | seeker questions only | employer questions only |
-| Closing | single "Start free" CTA | single "Request employer access" CTA |
+## 2. Mobile bar sits too high and reads unclearly (image 2)
 
-The `PAINS`, `FAQS` and trust chip data get split into a seeker set and an employer set, so nothing from the other side leaks in. Every CTA on the page passes the current audience, so there is never a mixed "Start free / I am hiring" pair below the fold.
+- Increase the vertical padding floor so the bar is not pinned to the very top edge, and respect `env(safe-area-inset-top)`.
+- Give the mobile row a defined presence: the AYN wordmark on the left and a hamburger on the right, both sitting on a soft translucent surface so they stay legible over the warm hero gradient. The hamburger becomes a properly bordered round button in ember ink instead of a bare ghost icon.
 
-**Switching feels intentional**
+## 3. Nav pill overlaps "Start Free" on iPad (image 3)
 
-Switching re-keys the page body so the new sections fade in the same way the hero already does, and it scrolls back to the top of the hero so the user sees the new story from its beginning rather than landing mid-page in unrelated content. The choice keeps persisting to localStorage.
+Cause: the centered nav pill is centered on the full viewport width while "Start Free" is absolutely positioned on the right, so at tablet widths they occupy the same space.
 
-**Header nav follows the mode**
+Fix: rebuild the bar as a single flex row with three cells (brand, nav pill, CTA) instead of absolute positioning, so the pill can never sit under the button. The full pill plus CTA layout only appears at `lg` and above; between `md` and `lg` the iPad gets the compact layout (wordmark plus menu button), which is where that width actually belongs. The CTA keeps the ember gradient.
 
-The top nav currently always shows "For employers". In hiring mode the anchors point at the employer sections; in seeker mode "For employers" becomes the way to flip the switch rather than a link to a hidden section, so no nav item can scroll to something that is not rendered.
+## 4. Remove the small cards under the switcher (images 4 and 5)
+
+In `src/components/landing/LandingSections.tsx`, drop the `lp-pill` badge row from the hero for both audiences ("Free to start, no credit card" and "Employer access, onboarded one at a time") and remove the now-unused `pill` entries from the `HERO` record. The headline moves up directly under the switcher, and the switcher spacing is retuned so the hero stays balanced.
 
 ## Technical notes
 
-- All work is in `src/components/landing/LandingSections.tsx`, with small anchor-handling changes in `src/components/shared/Header.tsx` and minor CSS in `src/index.css` (single-column pain block, fade on audience change).
-- Sections are conditionally rendered, not hidden with CSS, so the hidden side is not read by screen readers or search crawlers as duplicate content on the same viewport. Both stories remain in the DOM across a switch only for the duration of the fade.
-- Anchor ids (`#features`, `#employers`, `#trust`, `#faq`) stay stable; clicking an anchor for the other side flips the audience first, then scrolls.
-- The reveal-on-scroll observer is re-run after a switch so newly mounted sections animate in instead of sitting invisible.
-- Verified at phone, tablet and desktop widths after the change.
+- Work is limited to `src/components/shared/Header.tsx`, `src/components/landing/LandingSections.tsx`, and a small amount of ember token CSS in `src/index.css`. No behaviour or backend changes.
+- Ember values reuse the existing landing tokens (`--lp-ember`, the `#e85d3a` to `#f2833f` gradient), so the header matches the hero CTA exactly.
+- Verified afterwards at phone, iPad portrait, iPad landscape and desktop widths with the menu open and closed.

@@ -192,7 +192,6 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
 };
 
 const HERO: Record<Audience, {
-  pill: JSX.Element;
   headline: JSX.Element;
   lead: string;
   cta: string;
@@ -200,7 +199,6 @@ const HERO: Record<Audience, {
   art: JSX.Element;
 }> = {
   job_seeker: {
-    pill: <><b>Free to start</b> no credit card <i /></>,
     headline: <>Stop rewriting your resume for <em>every single job.</em></>,
     lead: 'A resume and cover letter written for the exact posting in front of you, from your real history, in the time it takes to read the ad.',
     cta: 'Start free',
@@ -208,7 +206,6 @@ const HERO: Record<Audience, {
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
-    pill: <><b>Employer access</b> onboarded one at a time <i /></>,
     headline: <>Three people worth talking to, <em>not six hundred maybes.</em></>,
     lead: 'Describe the role once. AYN searches people who chose to be found and returns the strongest fits with the evidence, the gaps and a way to verify them before you commit.',
     cta: 'Request employer access',
@@ -216,6 +213,7 @@ const HERO: Record<Audience, {
     art: <CandidateCardMockup />,
   },
 };
+
 
 export const LandingSections = memo(({ onStartFree }: Props) => {
   const root = useRef<HTMLDivElement>(null);
@@ -309,8 +307,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             </div>
 
             <div className="lp-audience" key={audience}>
-              <div><span className="lp-pill">{hero.pill}</span></div>
-              <h1 className="lp-display lp-h1">{hero.headline}</h1>
+              <h1 className="lp-display lp-h1" style={{ marginTop: 22 }}>{hero.headline}</h1>
+              
               <p className="lp-lead" style={{ maxWidth: 660 }}>{hero.lead}</p>
 
               <div className="lp-cta-row" style={{ marginTop: 30 }}>
