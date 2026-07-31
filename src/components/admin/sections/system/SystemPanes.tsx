@@ -166,9 +166,9 @@ export function SupportPane() {
                       <p className="mt-1 whitespace-pre-wrap">{r.message || r.content}</p>
                     </div>
                   ))}
-                  <Textarea value={reply} onChange={e => setReply(e.target.value)} rows={3} placeholder="Write a reply" />
+                  <Textarea value={drafts[t.id] || ''} onChange={e => setDrafts(d => ({ ...d, [t.id]: e.target.value }))} rows={3} placeholder="Write a reply" />
                   <div className="flex gap-2">
-                    <Button size="sm" disabled={sending || !reply.trim()} onClick={() => send(t.id)}>Send reply</Button>
+                    <Button size="sm" disabled={sending === t.id || !(drafts[t.id] || '').trim()} onClick={() => send(t.id)}>Send reply</Button>
                     <Button size="sm" variant="outline" onClick={() => setStatus(t.id, 'resolved')}>Resolve</Button>
                     <Button size="sm" variant="ghost" onClick={() => setStatus(t.id, 'closed')}>Close</Button>
                   </div>
