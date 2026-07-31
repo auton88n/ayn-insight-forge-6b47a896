@@ -5243,6 +5243,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_adjust_credits: {
+        Args: { p_amount: number; p_reason: string; p_user_id: string }
+        Returns: Json
+      }
       admin_can_view_message_with_logging: {
         Args: { message_user_id: string }
         Returns: boolean
@@ -5268,6 +5272,18 @@ export type Database = {
         Args: { p_user_ids: string[] }
         Returns: Json
       }
+      admin_moderate_assessment: {
+        Args: { p_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_moderate_proposal: {
+        Args: { p_action: string; p_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_set_feature_flag: {
+        Args: { p_enabled: boolean; p_key: string }
+        Returns: Json
+      }
       admin_set_pin: { Args: { p_hash: string }; Returns: Json }
       admin_unblock_user: {
         Args: { p_endpoint?: string; p_user_id: string }
@@ -5285,6 +5301,7 @@ export type Database = {
         Args: { p_key: string; p_value: Json }
         Returns: boolean
       }
+      admin_user_snapshot: { Args: { p_user_id: string }; Returns: Json }
       admin_view_contact_with_logging: { Args: never; Returns: boolean }
       apply_credit_topup: {
         Args: { _credits?: number; _user_id: string }
@@ -5468,10 +5485,12 @@ export type Database = {
       get_admin_error_logs: { Args: { p_limit?: number }; Returns: Json }
       get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
       get_admin_error_monitoring_data: { Args: never; Returns: Json }
+      get_admin_feature_flags: { Args: never; Returns: Json }
       get_admin_llm_management: { Args: never; Returns: Json }
       get_admin_llm_stats: { Args: { p_hours?: number }; Returns: Json }
       get_admin_marketplace: { Args: never; Returns: Json }
       get_admin_message_ratings: { Args: never; Returns: Json }
+      get_admin_moderation: { Args: { p_limit?: number }; Returns: Json }
       get_admin_money: { Args: never; Returns: Json }
       get_admin_nda_agreements: { Args: never; Returns: Json }
       get_admin_nda_list: { Args: never; Returns: Json }
