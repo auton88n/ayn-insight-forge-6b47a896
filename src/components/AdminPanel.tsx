@@ -1,15 +1,15 @@
-// v3.20.0 — the admin for the product AYN actually is: a two sided
-// hiring marketplace. Six sections, AYN ember branding, real data.
+// v3.22.0 — the admin for the product AYN actually is: a two sided
+// hiring marketplace. Six sections, AYN ember branding, real data, light only.
 import { useState, useLayoutEffect, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
-import { LogOut, RefreshCw, Sun, Moon } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { LogOut, RefreshCw } from 'lucide-react';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
-import aynLogo from '@/assets/ayn-logo.png';
+import aynMark from '/ayn-mark.svg';
+
 import {
   useAdminSystemConfig,
   useAdminRefresh,
