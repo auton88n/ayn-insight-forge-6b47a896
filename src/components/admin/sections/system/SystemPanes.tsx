@@ -551,15 +551,17 @@ export function SettingsPane({
         <CardContent className="p-5 space-y-4">
           <div>
             <h3 className="font-semibold">Admin PIN</h3>
-            <p className="text-sm text-muted-foreground">The second gate after sign in. Four to six digits.</p>
+            <p className="text-sm text-muted-foreground">The second gate after sign in. Four to six digits. The current PIN is required to change it.</p>
           </div>
+          <Input value={currentPin} onChange={e => setCurrentPin(e.target.value.replace(/\D/g, ''))} maxLength={6} type="password" placeholder="Current PIN" />
           <div className="grid grid-cols-2 gap-3">
             <Input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} maxLength={6} type="password" placeholder="New PIN" />
             <Input value={confirm} onChange={e => setConfirm(e.target.value.replace(/\D/g, ''))} maxLength={6} type="password" placeholder="Confirm PIN" />
           </div>
-          <Button variant="outline" onClick={changePin} disabled={pinSaving || !pin || !confirm}>
+          <Button variant="outline" onClick={changePin} disabled={pinSaving || !currentPin || !pin || !confirm}>
             {pinSaving ? 'Updating' : 'Update PIN'}
           </Button>
+
         </CardContent>
       </Card>
     </div>
