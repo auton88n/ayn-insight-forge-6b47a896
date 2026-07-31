@@ -140,11 +140,46 @@ const Pricing = () => {
             <p className="mt-5 text-xs text-muted-foreground leading-relaxed">
               Regenerating the same document for the same job and the same resume costs nothing.
               If a generation fails you are not charged. Credits reset at the start of each period and do not roll over.
-              Hiring? See the employer plans inside your hub after your free month.
             </p>
+          </div>
+
+          {/*
+            v3.18.0 — employers. We are onboarding one company at a time and
+            the tier numbers above Starter are still hypotheses, so the public
+            page shows the model and the entry price only. The full tier list
+            lives behind sign in, on /billing.
+          */}
+          <div id="employers" className="mt-8 rounded-2xl border bg-card p-7">
+            <Badge className="ayn-ember-badge">For employers</Badge>
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight">Hiring on AYN is invite first</h2>
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-2xl">
+              We are onboarding companies one at a time so every search is worth the candidate's attention.
+              Here is exactly how it goes, with nothing hidden.
+            </p>
+
+            <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {EMPLOYER_STEPS.map((s, i) => (
+                <li key={s.title} className="rounded-xl border bg-background p-4">
+                  <span className="text-xs font-semibold text-primary">Step {i + 1}</span>
+                  <p className="mt-1.5 font-medium text-sm">{s.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{s.line}</p>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
+              <Button onClick={() => (signedIn ? navigate('/') : setShowAuth(true))} className="sm:w-auto">
+                Request employer access
+              </Button>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Paid plans start at $199 a month and scale with how many candidates you contact.
+                You see your exact plan and usage inside your hub once your free month ends.
+              </p>
+            </div>
           </div>
         </div>
       </main>
+
 
       <Footer />
       <AuthModal open={showAuth} onOpenChange={setShowAuth} />
