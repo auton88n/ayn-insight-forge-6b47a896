@@ -99,7 +99,7 @@ export default function AssessmentDialog({
 
         {busy ? (
           <div className="py-12 flex items-center justify-center">
-            <AynLoader size="md" label="AYN is writing questions from their background." />
+            <AynLoader size="md" label="Loading" />
           </div>
         ) : (
 
