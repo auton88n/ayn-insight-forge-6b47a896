@@ -4,6 +4,7 @@ import { Brain, Menu, LogOut, User } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { supabase } from '@/integrations/supabase/client';
+import aynLogo from '@/assets/ayn-logo.png';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navLinks = [
