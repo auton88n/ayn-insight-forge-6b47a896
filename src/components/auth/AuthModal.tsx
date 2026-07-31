@@ -607,7 +607,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'job_seeker' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
                 >
                   <div className="text-sm font-semibold text-foreground">I'm looking for a job</div>
-                  <div className="text-[11px] text-muted-foreground leading-tight mt-1">Resume Hub, autofill, 3 free credits/day</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-1">Resume Hub, tailored resumes, free to start</div>
                 </button>
                 <button
                   type="button"
