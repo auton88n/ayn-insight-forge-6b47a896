@@ -3294,6 +3294,119 @@ Grade it now.`,
 
 const TAILOR_TTL = 7 * 24 * 60 * 60 * 1000;
 
+// ══════════════════════════════════════════════════════════════
+// v3.14.0 — BILLING
+// Seeker credits: a tailored resume costs 2, a cover letter costs 1.
+// Everything else (scoring, Ask AYN, the extension, the profile, talent
+// pool discovery, proposals, assessments, downloads) is free on every
+// tier and is never touched by this code. Cache hits cost nothing.
+// Employer limits: proposals and assessments are metered per period,
+// searching is unlimited with a soft abuse cap.
+// Balances are the sum of credit_ledger rows, never a bare counter.
+// ══════════════════════════════════════════════════════════════
+const COST_TAILOR = 2;
+const COST_COVER = 1;
+const EMPLOYER_SEARCH_SOFT_CAP = 200;
+
+type Anyish = SupabaseClient<any, any, any>;
+
+async function billingEnsure(admin: Anyish, userId: string, audience: "seeker" | "employer" = "seeker") {
+  const { data } = await admin.rpc("billing_ensure", { _user_id: userId, _audience: audience });
+  return (Array.isArray(data) ? data[0] : data) as
+    | { user_id: string; plan_key: string; status: string; current_period_start: string; current_period_end: string; trial_ends_at: string | null }
+    | null;
+}
+
+async function creditBalance(admin: Anyish, userId: string): Promise<number> {
+  const { data } = await admin.rpc("credit_balance", { _user_id: userId });
+  return Number(data ?? 0);
+}
+
+async function creditSpend(admin: Anyish, userId: string, amount: number, reason: string, ref?: string) {
+  const { data } = await admin.rpc("credit_spend", {
+    _user_id: userId, _amount: amount, _reason: reason, _ref: ref ?? null,
+  });
+  return (data || { ok: false, balance: 0, cost: amount }) as { ok: boolean; balance: number; cost: number };
+}
+
+async function creditRefund(admin: Anyish, userId: string, amount: number, reason: string, ref?: string) {
+  try { await admin.rpc("credit_grant", { _user_id: userId, _amount: amount, _reason: reason, _ref: ref ?? null }); }
+  catch (e) { console.error("credit refund failed", (e as Error).message); }
+}
+
+function insufficientCredits(balance: number, cost: number, what: string): Response {
+  return json({
+    error: "insufficient_credits",
+    code: "insufficient_credits",
+    balance,
+    cost,
+    message: `A ${what} costs ${cost} ${cost === 1 ? "credit" : "credits"} and you have ${balance} left. Credits reset at the start of your next period.`,
+  }, 402);
+}
+
+// Enough credit to run? Charge only after the generation succeeds.
+async function assertCredits(admin: Anyish, userId: string, cost: number, what: string): Promise<Response | null> {
+  await billingEnsure(admin, userId, "seeker");
+  const balance = await creditBalance(admin, userId);
+  if (balance < cost) return insufficientCredits(balance, cost, what);
+  return null;
+}
+
+interface EmployerBilling {
+  plan: { key: string; name: string; price_cents: number; interval: string; proposals_limit: number | null; assessments_limit: number | null };
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  trial_ends_at: string | null;
+  proposals_used: number;
+  assessments_used: number;
+  searches_used: number;
+}
+
+async function employerBilling(admin: Anyish, userId: string, orgId: string): Promise<EmployerBilling> {
+  const sub = await billingEnsure(admin, userId, "employer");
+  const planKey = sub?.plan_key || "employer_trial";
+  const { data: plan } = await admin.from("plans")
+    .select("key, name, price_cents, interval, proposals_limit, assessments_limit").eq("key", planKey).maybeSingle();
+  const start = sub?.current_period_start || new Date(Date.now() - 30 * 86400000).toISOString();
+
+  const [{ count: proposals }, { count: assessments }, { count: searches }] = await Promise.all([
+    admin.from("reveal_requests").select("id", { count: "exact", head: true }).eq("org_id", orgId).gte("created_at", start),
+    admin.from("assessments").select("id", { count: "exact", head: true }).eq("org_id", orgId).neq("status", "draft").gte("sent_at", start),
+    admin.from("employer_searches").select("id", { count: "exact", head: true }).eq("org_id", orgId).gte("created_at", start),
+  ]);
+
+  return {
+    plan: plan || { key: planKey, name: "Free month", price_cents: 0, interval: "month", proposals_limit: 5, assessments_limit: 3 },
+    status: sub?.status || "trialing",
+    current_period_start: start,
+    current_period_end: sub?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
+    trial_ends_at: sub?.trial_ends_at || null,
+    proposals_used: proposals || 0,
+    assessments_used: assessments || 0,
+    searches_used: searches || 0,
+  };
+}
+
+function planLimitReached(b: EmployerBilling, kind: "proposal" | "assessment"): Response | null {
+  const limit = kind === "proposal" ? b.plan.proposals_limit : b.plan.assessments_limit;
+  const used = kind === "proposal" ? b.proposals_used : b.assessments_used;
+  if (limit === null || limit === undefined) return null;
+  if (used < limit) return null;
+  const noun = kind === "proposal" ? "proposals" : "assessments";
+  return json({
+    error: "plan_limit_reached",
+    code: "plan_limit_reached",
+    kind,
+    used,
+    limit,
+    plan: b.plan.name,
+    message: `Your ${b.plan.name} plan includes ${limit} ${noun} per period and you have used all of them. Your period resets on ${new Date(b.current_period_end).toDateString()}. Upgrade to send more.`,
+  }, 402);
+}
+
+
+
 function parseJsonLoose<T>(text: string): T | null {
   try {
     const raw = String(text || "").replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
