@@ -112,8 +112,8 @@ export function AccountsPane() {
 export function SupportPane() {
   const query = useAdminSupportTickets();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [reply, setReply] = useState('');
-  const [sending, setSending] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState<string | null>(null);
 
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
@@ -122,14 +122,15 @@ export function SupportPane() {
   const open = tickets.filter(t => t.status !== 'closed' && t.status !== 'resolved');
 
   const send = async (ticketId: string) => {
-    if (!reply.trim()) return;
-    setSending(true);
+    const text = (drafts[ticketId] || '').trim();
+    if (!text) return;
+    setSending(ticketId);
     const { error } = await supabase.rpc('admin_insert_ticket_message', {
-      p_ticket_id: ticketId, p_content: reply.trim(), p_sender: 'admin',
+      p_ticket_id: ticketId, p_content: text, p_sender: 'admin',
     });
-    setSending(false);
+    setSending(null);
     if (error) { toast.error(error.message); return; }
-    setReply('');
+    setDrafts(d => ({ ...d, [ticketId]: '' }));
     toast.success('Reply sent');
     query.refetch();
   };
@@ -165,9 +166,9 @@ export function SupportPane() {
                       <p className="mt-1 whitespace-pre-wrap">{r.message || r.content}</p>
                     </div>
                   ))}
-                  <Textarea value={reply} onChange={e => setReply(e.target.value)} rows={3} placeholder="Write a reply" />
+                  <Textarea value={drafts[t.id] || ''} onChange={e => setDrafts(d => ({ ...d, [t.id]: e.target.value }))} rows={3} placeholder="Write a reply" />
                   <div className="flex gap-2">
-                    <Button size="sm" disabled={sending || !reply.trim()} onClick={() => send(t.id)}>Send reply</Button>
+                    <Button size="sm" disabled={sending === t.id || !(drafts[t.id] || '').trim()} onClick={() => send(t.id)}>Send reply</Button>
                     <Button size="sm" variant="outline" onClick={() => setStatus(t.id, 'resolved')}>Resolve</Button>
                     <Button size="sm" variant="ghost" onClick={() => setStatus(t.id, 'closed')}>Close</Button>
                   </div>
@@ -192,10 +193,9 @@ export function SupportPane() {
 /* ────────────────────────────── ERRORS ────────────────────────────── */
 export function ErrorsPane() {
   const query = useAdminErrorMonitoring();
-  if (query.isLoading) return <LoadingBlock />;
-  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
-
   const errors: any[] = (query.data as any)?.errors || [];
+
+  // Hooks must run on every render, so the grouping sits above the guards.
   const groups = useMemo(() => {
     const m = new Map<string, { message: string; count: number; last: string; url?: string }>();
     for (const e of errors) {
@@ -207,6 +207,9 @@ export function ErrorsPane() {
     return [...m.values()].sort((a, b) => b.count - a.count);
   }, [errors]);
 
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
   const last24 = errors.filter(e => Date.now() - new Date(e.created_at).getTime() < 86400000).length;
 
   return (
@@ -216,14 +219,23 @@ export function ErrorsPane() {
         <Stat label="Last 24 hours" value={last24} accent />
         <Stat label="Distinct" value={groups.length} />
       </div>
-      <Table head={['Error', 'Count', 'Last seen', 'Where']}>
-        {groups.length === 0 && <tr><td colSpan={4}><EmptyRow>No errors logged. Good.</EmptyRow></td></tr>}
+      <Table head={['Error', 'Count', 'Last seen', 'Where', '']}>
+        {groups.length === 0 && <tr><td colSpan={5}><EmptyRow>No errors logged. Good.</EmptyRow></td></tr>}
         {groups.slice(0, 100).map(g => (
           <Row key={g.message}>
             <Cell><span className="font-mono text-xs">{g.message}</span></Cell>
             <Cell mono>{g.count}</Cell>
             <Cell>{when(g.last)}</Cell>
-            <Cell><span className="text-xs text-muted-foreground break-all">{g.url || '—'}</span></Cell>
+            <Cell>
+              {g.url
+                ? <a href={g.url} target="_blank" rel="noreferrer" className="text-xs text-primary break-all hover:underline">{g.url}</a>
+                : <span className="text-xs text-muted-foreground">—</span>}
+            </Cell>
+            <Cell>
+              <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(g.message); toast.success('Copied'); }}>
+                Copy
+              </Button>
+            </Cell>
           </Row>
         ))}
       </Table>
@@ -341,7 +353,9 @@ export function EmailPane() {
   const [audience, setAudience] = useState<'all' | 'seekers' | 'employers' | 'discoverable'>('all');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
+  const [testTo, setTestTo] = useState('');
+  const [sending, setSending] = useState<'send' | 'test' | null>(null);
+  const [result, setResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
 
   if (query.isLoading) return <LoadingBlock />;
   if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
@@ -353,18 +367,28 @@ export function EmailPane() {
     : audience === 'discoverable' ? u.discoverable
     : !u.is_employer);
 
-  const send = async () => {
+  const broadcast = async (mode: 'send' | 'test') => {
     if (!subject.trim() || !body.trim()) { toast.error('Subject and message are required'); return; }
-    setSending(true);
-    let ok = 0, failed = 0;
-    for (const u of list) {
-      const { error } = await supabase.functions.invoke('send-email', {
-        body: { to: u.email, subject, html: `<p>${body.replace(/\n/g, '<br/>')}</p>` },
-      });
-      if (error) failed++; else ok++;
-    }
-    setSending(false);
-    toast[failed ? 'warning' : 'success'](`Sent ${ok}, failed ${failed}`);
+    if (mode === 'test' && !testTo.trim()) { toast.error('Enter a test address'); return; }
+    if (mode === 'send' && !window.confirm(`Send to ${list.length} ${list.length === 1 ? 'person' : 'people'}?`)) return;
+
+    setSending(mode);
+    setResult(null);
+    const { data, error } = await supabase.functions.invoke('admin-broadcast', {
+      body: {
+        audience: mode === 'test' ? 'test' : audience,
+        subject: subject.trim(),
+        message: body.trim(),
+        test_to: testTo.trim(),
+      },
+    });
+    setSending(null);
+
+    if (error) { toast.error(error.message || 'Broadcast failed'); return; }
+    const r = data as any;
+    if (r?.error) { toast.error(r.error); return; }
+    setResult({ sent: r?.sent ?? 0, failed: r?.failed ?? 0, errors: r?.errors ?? [] });
+    toast[r?.failed ? 'warning' : 'success'](`Sent ${r?.sent ?? 0}, failed ${r?.failed ?? 0}`);
   };
 
   return (
@@ -387,12 +411,35 @@ export function EmailPane() {
               </button>
             ))}
           </div>
-          <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" />
-          <Textarea value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Message" />
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Goes to {list.length} {list.length === 1 ? 'person' : 'people'}.</p>
-            <Button onClick={send} disabled={sending || list.length === 0}>{sending ? 'Sending' : 'Send'}</Button>
+          <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" maxLength={200} />
+          <Textarea value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Message. Blank lines become paragraphs." />
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <Input value={testTo} onChange={e => setTestTo(e.target.value)} placeholder="Send a test to this address" className="sm:max-w-xs" />
+            <Button variant="outline" onClick={() => broadcast('test')} disabled={sending !== null}>
+              {sending === 'test' ? 'Sending' : 'Send test'}
+            </Button>
           </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-sm text-muted-foreground">
+              Goes to {list.length} {list.length === 1 ? 'person' : 'people'}.
+            </p>
+            <Button onClick={() => broadcast('send')} disabled={sending !== null || list.length === 0}>
+              {sending === 'send' ? 'Sending' : 'Send broadcast'}
+            </Button>
+          </div>
+
+          {result && (
+            <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm">
+              <p>Sent {result.sent}, failed {result.failed}.</p>
+              {result.errors.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {result.errors.map((e, i) => <li key={i} className="font-mono break-all">{e}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

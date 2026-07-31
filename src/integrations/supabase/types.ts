@@ -5513,6 +5513,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_broadcast_recipients: {
+        Args: { p_admin_id: string; p_audience: string }
+        Returns: Json
+      }
       get_extension_security_status: {
         Args: never
         Returns: {
