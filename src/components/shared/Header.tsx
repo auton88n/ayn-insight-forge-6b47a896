@@ -95,6 +95,7 @@ export const Header = () => {
 
         {/* Brand — left cell */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flex: '1 1 0', minWidth: 0 }}>
+          <img src={aynLogo} alt="AYN" style={{ height: 30, width: 'auto', display: 'block' }} />
           <span style={{ fontFamily: headFont, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
         </Link>
 
