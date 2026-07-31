@@ -1,3 +1,5 @@
+// v3.19.0 — job seeker pricing only. Employer pricing lives in the
+// "For employers" section of the landing page, the single public source.
 // v3.14.0 — seeker pricing. Credits buy the two things that cost real
 // model time: a tailored resume (2 credits) and a cover letter (1 credit).
 // Everything else is free forever on every plan. Payments are not wired
@@ -34,14 +36,6 @@ const FREE_FOREVER = [
   'Downloading every document you make',
 ];
 
-const EMPLOYER_STEPS = [
-  { title: 'Request access', line: 'Tell us the company and the role you are hiring for.' },
-  { title: 'We approve you', line: 'A person reviews it. We keep the pool small on purpose.' },
-  { title: 'A free month', line: 'Search, contact candidates and send assessments, no card needed.' },
-  { title: 'Then a plan', line: 'Priced by how many candidates you contact, from $199 a month.' },
-];
-
-
 const Pricing = () => {
   const navigate = useNavigate();
   const [signedIn, setSignedIn] = useState(false);
@@ -75,7 +69,7 @@ const Pricing = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <SEO
-        title="Pricing | AYN"
+        title="Pricing for job seekers | AYN"
         description="AYN credits pay for tailored resumes and cover letters. Match scoring, Ask AYN, the extension and being discovered by employers are free on every plan."
       />
       <Header />
@@ -83,11 +77,12 @@ const Pricing = () => {
       <main className="flex-1 pt-28 pb-20 px-4">
         <div className="max-w-5xl mx-auto">
           <div className="text-center space-y-4 mb-10">
-            <Badge className="ayn-ember-badge">Pricing</Badge>
+            <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
             <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">Pay for the writing, nothing else</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
               A tailored resume costs 2 credits. A cover letter costs 1. That is the whole meter.
               Scoring a job, asking AYN about it, the extension, and being found by employers are free forever, on every plan.
+              Hiring on AYN? Employer pricing is on the home page, under For employers.
             </p>
           </div>
 
