@@ -5,10 +5,7 @@ import { adminSupabase } from './adminSupabase';
 import aynMark from '/ayn-mark.svg';
 import { AdminPanel } from '@/components/AdminPanel';
 
-const LOCKOUT_MINUTES = 5;
-const MAX_ATTEMPTS = 3;
 const LOCKOUT_KEY = 'ayn_admin_lockout';
-const ATTEMPTS_KEY = 'ayn_admin_attempts';
 const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
 
 function Loader() {
@@ -19,24 +16,22 @@ function Loader() {
   );
 }
 
-// PIN screen — shown AFTER login since verify-admin-pin requires a JWT
+// PIN screen — shown AFTER login since admin-auth-pin requires a JWT.
+// Attempts and lockout are decided by the server, the browser only displays them.
 function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => void }) {
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
-  const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [countdown, setCountdown] = useState(0);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     const lockout = localStorage.getItem(LOCKOUT_KEY);
-    const saved = parseInt(localStorage.getItem(ATTEMPTS_KEY) || '0');
-    setAttempts(saved);
     if (lockout) {
       const until = parseInt(lockout);
       if (Date.now() < until) setLockedUntil(until);
-      else { localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY); }
+      else localStorage.removeItem(LOCKOUT_KEY);
     }
     // Focus first input
     setTimeout(() => inputs.current[0]?.focus(), 100);
@@ -47,57 +42,53 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
     const interval = setInterval(() => {
       const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
       if (remaining <= 0) {
-        setLockedUntil(null); setAttempts(0);
-        localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
+        setLockedUntil(null);
+        localStorage.removeItem(LOCKOUT_KEY);
       } else { setCountdown(remaining); }
     }, 1000);
     return () => clearInterval(interval);
   }, [lockedUntil]);
 
+  const resetEntry = () => {
+    setPin(['', '', '', '']);
+    setTimeout(() => inputs.current[0]?.focus(), 100);
+  };
+
   const checkPin = async (fullPin: string) => {
     if (lockedUntil || checking) return;
     setChecking(true);
     try {
-      // Use the edge function — requires authenticated session
-      const { data, error: fnError } = await adminSupabase.functions.invoke('verify-admin-pin', {
-        body: { pin: fullPin },
+      const { data } = await adminSupabase.functions.invoke('admin-auth-pin', {
+        body: { action: 'verify', pin: fullPin },
       });
 
-      if (fnError || !data?.success) {
-        if (data?.locked) {
-          // Server-side lockout
-          const until = Date.now() + (data.lockoutRemaining || 300) * 1000;
-          localStorage.setItem(LOCKOUT_KEY, until.toString());
-          setLockedUntil(until);
-          return;
-        }
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        localStorage.setItem(ATTEMPTS_KEY, newAttempts.toString());
-        if (newAttempts >= MAX_ATTEMPTS) {
-          const until = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
-          localStorage.setItem(LOCKOUT_KEY, until.toString());
-          localStorage.setItem(ATTEMPTS_KEY, MAX_ATTEMPTS.toString());
-          setLockedUntil(until);
-          try { await adminSupabase.functions.invoke('admin-pin-alert', { body: {} }); } catch {}
-        } else {
-          setError(`Incorrect PIN. ${MAX_ATTEMPTS - newAttempts} attempt${MAX_ATTEMPTS - newAttempts === 1 ? '' : 's'} remaining.`);
-          setPin(['', '', '', '']);
-          setTimeout(() => inputs.current[0]?.focus(), 100);
-        }
-      } else {
-        localStorage.removeItem(LOCKOUT_KEY); localStorage.removeItem(ATTEMPTS_KEY);
+      if (data?.success) {
+        localStorage.removeItem(LOCKOUT_KEY);
         sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
         onSuccess();
+        return;
       }
+
+      if (data?.locked) {
+        const until = Date.now() + (data.lockoutRemaining || 900) * 1000;
+        localStorage.setItem(LOCKOUT_KEY, until.toString());
+        setLockedUntil(until);
+        return;
+      }
+
+      const left = typeof data?.attemptsRemaining === 'number' ? data.attemptsRemaining : null;
+      setError(left === null
+        ? (data?.error || 'Incorrect PIN.')
+        : `Incorrect PIN. ${left} attempt${left === 1 ? '' : 's'} remaining.`);
+      resetEntry();
     } catch {
       setError('Unable to verify PIN. Please try again.');
-      setPin(['', '', '', '']);
-      setTimeout(() => inputs.current[0]?.focus(), 100);
+      resetEntry();
     } finally {
       setChecking(false);
     }
   };
+
 
   const handleChange = (i: number, val: string) => {
     if (lockedUntil || !/^\d*$/.test(val) || checking) return;
