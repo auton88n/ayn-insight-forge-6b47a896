@@ -11,6 +11,7 @@
  * appear in the Sent list, and only after the candidate accepted.
  */
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2, Send, Building2, MapPin, CheckCircle2, AlertCircle, LogOut,
-  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft,
+  Brain, Search as SearchIcon, Mail, ClipboardCheck, ArrowLeft, CreditCard,
 } from "lucide-react";
 
 import IntakeWizard from "@/components/employer/IntakeWizard";
@@ -65,6 +66,7 @@ function ScoreRing({ score }: { score: number }) {
 
 export default function EmployerHub({ companyName }: { companyName?: string | null }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [org, setOrg] = useState<Org | null>(null);
   const [orgLoading, setOrgLoading] = useState(true);
@@ -321,6 +323,14 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               {/* v3.15.0 — sign out lives in the nav, not the header. */}
               <span className="my-1 h-px w-6 self-center bg-border" aria-hidden />
               <button
+                onClick={() => navigate("/billing")}
+                aria-label="Plan and billing"
+                className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <CreditCard className="w-[18px] h-[18px]" />
+                <span className="text-[11px] font-medium leading-none">Plan</span>
+              </button>
+              <button
                 onClick={() => supabase.auth.signOut()}
                 aria-label="Sign out"
                 className="w-full rounded-xl py-2.5 flex flex-col items-center gap-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -479,6 +489,13 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 </button>
               );
             })}
+            <button
+              onClick={() => navigate("/billing")}
+              className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
+            >
+              <CreditCard className="w-[18px] h-[18px]" />
+              <span className="text-[10px] font-medium">Plan</span>
+            </button>
             <button
               onClick={() => supabase.auth.signOut()}
               className="flex-1 py-2.5 grid place-items-center gap-0.5 text-muted-foreground"
