@@ -7,11 +7,15 @@ import {
   AccountsPane, SupportPane, ErrorsPane, LimitsPane,
   AiPane, EmailPane, ConsentPane, SettingsPane,
 } from './system/SystemPanes';
+import { ModerationPane, FlagsPane, CreditsPane } from './system/ControlPanes';
 
-type Pane = 'accounts' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'settings';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'settings';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
+  { id: 'credits', label: 'Credits' },
+  { id: 'moderation', label: 'Moderation' },
+  { id: 'flags', label: 'Kill switches' },
   { id: 'support', label: 'Support' },
   { id: 'errors', label: 'Errors' },
   { id: 'limits', label: 'Rate limits' },
@@ -20,6 +24,7 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'consent', label: 'Terms consent' },
   { id: 'settings', label: 'Settings' },
 ];
+
 
 export default function SystemSection({
   systemConfig,
