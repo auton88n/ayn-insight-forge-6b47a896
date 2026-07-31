@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Brain, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import aynLogo from '@/assets/ayn-logo.png';
 
 const DiscordIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -22,11 +23,8 @@ export const Footer = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
           {/* Brand + Social Icons */}
           <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-foreground flex items-center justify-center">
-                <Brain className="w-5 h-5 text-background" />
-              </div>
-              <span className="text-xl font-bold">AYN</span>
+            <div className="flex items-center mb-3">
+              <img src={aynLogo} alt="AYN" className="h-8 w-auto" />
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               Advanced AI Solutions

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Home, User, Briefcase, Users, Puzzle, Download, Mail, Brain, LogOut, ClipboardCheck } from "lucide-react";
+import { Home, User, Briefcase, Users, Puzzle, Download, Mail, LogOut, ClipboardCheck } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -19,6 +19,7 @@ import { employerApi } from "@/lib/employer";
 import { assessmentApi } from "@/lib/assessments";
 import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
+import aynLogo from "@/assets/ayn-logo.png";
 
 
 type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "discovery" | "extension";
@@ -116,9 +117,8 @@ export default function ResumeHub() {
               was removed. The AYN mark takes its place, and Sign out moved
               into a menu on the right, matching the employer header. */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 shrink-0" aria-label="AYN">
-              <Brain className="w-5 h-5 text-[color:var(--rh-ink)]" />
-              <span className="font-semibold tracking-tight text-[color:var(--rh-ink)]">AYN</span>
+            <div className="flex items-center shrink-0" aria-label="AYN">
+              <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
             </div>
             <div className="w-px h-6 bg-[color:var(--rh-line)]" aria-hidden />
             <div className="min-w-0">
