@@ -55,12 +55,14 @@ const Pricing = () => {
     if (key === 'seeker_free') { navigate('/resume-hub'); return; }
     setBusy(key);
     try {
-      const r = await billingApi.upgradeIntent(key);
-      toast.success(r.message);
+      const url = await billingApi.checkout(key);
+      window.location.href = url;
     } catch (e) {
       toast.error((e as Error).message);
-    } finally { setBusy(null); }
+      setBusy(null);
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
