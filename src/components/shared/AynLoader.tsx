@@ -1,5 +1,6 @@
-import aynMark from '@/assets/ayn-mark.png.asset.json';
 import { cn } from '@/lib/utils';
+
+const AYN_MARK = '/ayn-mark.png';
 
 const SIZES = {
   sm: { box: 40, ring: 60 },
