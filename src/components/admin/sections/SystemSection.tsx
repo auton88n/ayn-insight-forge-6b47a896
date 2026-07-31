@@ -57,6 +57,9 @@ export default function SystemSection({
       </div>
 
       {pane === 'accounts' && <AccountsPane />}
+      {pane === 'credits' && <CreditsPane />}
+      {pane === 'moderation' && <ModerationPane />}
+      {pane === 'flags' && <FlagsPane />}
       {pane === 'support' && <SupportPane />}
       {pane === 'errors' && <ErrorsPane />}
       {pane === 'limits' && <LimitsPane />}
