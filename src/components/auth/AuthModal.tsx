@@ -516,7 +516,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 <Separator className="w-full" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">{t('auth.orDivider')}</span>
+                <span className="bg-background px-2 text-muted-foreground">{t('auth.orDivider')}</span>
               </div>
             </div>
 
@@ -591,7 +591,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 <Separator className="w-full" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">{t('auth.orDivider')}</span>
+                <span className="bg-background px-2 text-muted-foreground">{t('auth.orDivider')}</span>
               </div>
             </div>
 
