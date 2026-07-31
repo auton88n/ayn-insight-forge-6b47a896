@@ -213,10 +213,8 @@ export const Header = () => {
                   className="flex flex-col gap-7"
                   style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))' }}
                 >
-                  {/* Ember brand mark */}
-                  <div className="flex items-center gap-3">
-                    <img src={aynLogo} alt="AYN" style={{ height: 40, width: 'auto', display: 'block' }} />
-                    <span style={{ fontFamily: headFont, fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', color: inkStrong }}>AYN</span>
+                  <div className="flex items-center">
+                    <img src={aynLogo} alt="AYN" style={{ height: 38, width: 'auto', display: 'block' }} />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
