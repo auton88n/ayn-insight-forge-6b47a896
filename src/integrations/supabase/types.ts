@@ -2053,6 +2053,36 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_ledger: {
+        Row: {
+          balance_after: number
+          created_at: string
+          delta: number
+          id: string
+          reason: string
+          ref_id: string | null
+          user_id: string
+        }
+        Insert: {
+          balance_after: number
+          created_at?: string
+          delta: number
+          id?: string
+          reason: string
+          ref_id?: string | null
+          user_id: string
+        }
+        Update: {
+          balance_after?: number
+          created_at?: string
+          delta?: number
+          id?: string
+          reason?: string
+          ref_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_orders: {
         Row: {
           additional_services: string | null
@@ -3580,6 +3610,51 @@ export type Database = {
         }
         Relationships: []
       }
+      plans: {
+        Row: {
+          active: boolean
+          assessments_limit: number | null
+          audience: string
+          created_at: string
+          credits: number | null
+          interval: string
+          key: string
+          name: string
+          price_cents: number
+          proposals_limit: number | null
+          sort: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assessments_limit?: number | null
+          audience: string
+          created_at?: string
+          credits?: number | null
+          interval?: string
+          key: string
+          name: string
+          price_cents?: number
+          proposals_limit?: number | null
+          sort?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assessments_limit?: number | null
+          audience?: string
+          created_at?: string
+          credits?: number | null
+          interval?: string
+          key?: string
+          name?: string
+          price_cents?: number
+          proposals_limit?: number | null
+          sort?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           account_status: string | null
@@ -3963,6 +4038,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          plan_key: string
+          status: string
+          trial_ends_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          plan_key: string
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          plan_key?: string
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       support_admin_reads: {
         Row: {
@@ -4441,6 +4557,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      upgrade_intents: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          plan_key: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          plan_key: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          plan_key?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       usage_logs: {
         Row: {
@@ -5126,6 +5269,25 @@ export type Database = {
         Returns: undefined
       }
       backfill_missing_session_titles: { Args: never; Returns: number }
+      billing_ensure: {
+        Args: { _audience?: string; _user_id: string }
+        Returns: {
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          plan_key: string
+          status: string
+          trial_ends_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscriptions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       call_agent_if_not_debounced: {
         Args: {
           p_agent_name: string
@@ -5201,6 +5363,25 @@ export type Database = {
           p_user_id?: string
         }
         Returns: string
+      }
+      credit_balance: { Args: { _user_id: string }; Returns: number }
+      credit_grant: {
+        Args: {
+          _amount: number
+          _reason: string
+          _ref?: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      credit_spend: {
+        Args: {
+          _amount: number
+          _reason: string
+          _ref?: string
+          _user_id: string
+        }
+        Returns: Json
       }
       decrypt_email: {
         Args: { encrypted_email: string; encryption_key: string }
