@@ -2553,7 +2553,10 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 - Output ONLY JSON: {"results":[{"ref":"c1","score":87,"why":["...","...","..."],"matched_must_haves":[],"gaps":[]}],"pool_note":""}
 - Plain prose only. No markdown, no em dashes, no en dashes. Use the word "to" for ranges.`;
       const rerankUser = JSON.stringify({ job_spec: { title: job_spec.title, seniority: job_spec.seniority, must_have_skills: mustHaves, nice_to_have_skills: niceToHaves, min_years: job_spec.min_years, location_preference: job_spec.location_preference, remote_ok: job_spec.remote_ok, notes: job_spec.notes }, candidates: rerankInput });
-      const rr = await callAI({ system: rerankSys, user: rerankUser.slice(0, 40000) });
+      // v3.14.0 cost control — the pro model adds nothing when ranking a handful
+      // of people, so it is only used once the prefilter leaves a real shortlist.
+      const rerankModel = rerankInput.length < 5 ? DEFAULT_MODEL : QUALITY_MODEL;
+      const rr = await callAI({ model: rerankModel, system: rerankSys, user: rerankUser.slice(0, 40000) });
       let rrParsed: { results?: Array<{ ref: string; score: number; why?: string[]; matched_must_haves?: string[]; gaps?: string[] }>; pool_note?: string } = {};
       try { rrParsed = JSON.parse(rr.text); }
       catch {
