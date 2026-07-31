@@ -2670,6 +2670,12 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         return json({ error: "This candidate declined a proposal from you in the last 30 days. You can try again after that." }, 429);
       }
 
+      // v3.14.0 — proposals limit per billing period.
+      const propBilling = await employerBilling(adminForNew, userId, search.org_id);
+      const propGate = planLimitReached(propBilling, "proposal");
+      if (propGate) return propGate;
+
+
       const { error: iErr } = await adminForNew.from("reveal_requests").insert({
         org_id: search.org_id,
         candidate_user_id: candidateUserId,
