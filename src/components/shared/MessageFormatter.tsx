@@ -10,7 +10,6 @@ import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
-import { persistDalleImage } from '@/hooks/useImagePersistence';
 import { isDocumentStorageUrl, isSupabaseStorageUrl, openDocumentUrl } from '@/lib/documentUrlUtils';
 
 interface MessageFormatterProps {
@@ -177,49 +176,18 @@ const decodeHtmlEntities = (text: string): string => {
 export function MessageFormatter({ content, className }: MessageFormatterProps) {
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
-  const [persistedUrls, setPersistedUrls] = useState<Map<string, string>>(new Map());
-  const [savingImages, setSavingImages] = useState<Set<string>>(new Set());
+  const [savingImages] = useState<Set<string>>(new Set());
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   const normalizeImageUrl = useCallback((url: string) => {
     return (url || '').trim().replace(/^['"]+|['"]+$/g, '');
   }, []);
 
-  // Auto-persist DALL-E images when content changes
-  useEffect(() => {
-    const dalleUrlRegex = /https:\/\/oaidalleapiprodscus\.blob\.core\.windows\.net[^\s)]+/g;
-    const matches = content.match(dalleUrlRegex);
-
-    if (matches) {
-      matches.forEach(async (rawUrl) => {
-        const url = normalizeImageUrl(rawUrl);
-        if (!url) return;
-        if (persistedUrls.has(url) || savingImages.has(url)) return;
-
-        setSavingImages(prev => new Set(prev).add(url));
-        try {
-          const permanentUrl = await persistDalleImage(url);
-          if (permanentUrl !== url) {
-            setPersistedUrls(prev => new Map(prev).set(url, permanentUrl));
-          }
-        } catch {
-          setFailedImages(prev => new Set(prev).add(url));
-        } finally {
-          setSavingImages(prev => {
-            const next = new Set(prev);
-            next.delete(url);
-            return next;
-          });
-        }
-      });
-    }
-  }, [content, persistedUrls, savingImages, normalizeImageUrl]);
-
   // Helper to get the best URL for an image
   const getImageUrl = useCallback((originalUrl: string) => {
-    const clean = normalizeImageUrl(originalUrl);
-    return persistedUrls.get(clean) || clean;
-  }, [persistedUrls, normalizeImageUrl]);
+    return normalizeImageUrl(originalUrl);
+  }, [normalizeImageUrl]);
+
 
   // Step 1: Detect and convert JSON image responses to markdown
   const imageProcessedContent = detectImageJsonResponse(content);
