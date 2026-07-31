@@ -35,8 +35,7 @@ interface AdminPanelProps {
   isDuty?: boolean;
 }
 
-export const AdminPanel = ({ session }: AdminPanelProps) => {
-  const { theme, setTheme } = useTheme();
+export const AdminPanel = (_props: AdminPanelProps) => {
   const queryClient = useQueryClient();
   const { refreshAll } = useAdminRefresh();
   const [activeTab, setActiveTab] = useState<AdminTabId>('overview');
@@ -113,7 +112,7 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
     <div className="h-screen flex flex-col bg-background">
       <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border/60">
         <div className="flex items-center gap-3">
-          <img src={aynLogo} alt="AYN" className="h-7 w-auto" />
+          <img src={aynMark} alt="AYN" className="h-7 w-7" />
           <div>
             <h1 className="text-base font-bold leading-tight">Admin</h1>
             <p className="text-[11px] text-muted-foreground leading-tight">Employers, candidates, marketplace, money</p>
@@ -122,9 +121,6 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={handleRefresh} className="w-9 h-9 rounded-xl border border-border/60">
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-9 h-9 rounded-xl border border-border/60">
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
           <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()} title="Sign out" className="w-9 h-9 rounded-xl border border-border/60">
             <LogOut className="w-4 h-4" />
@@ -150,7 +146,7 @@ export const AdminPanel = ({ session }: AdminPanelProps) => {
                 {activeTab === 'marketplace' && <MarketplaceSection />}
                 {activeTab === 'money' && <MoneySection />}
                 {activeTab === 'system' && (
-                  <SystemSection session={session} systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />
+                  <SystemSection systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />
                 )}
               </Suspense>
             </ErrorBoundary>
