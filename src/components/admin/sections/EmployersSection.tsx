@@ -74,7 +74,7 @@ export default function EmployersSection() {
       </Card>
 
       <Card className="border border-border/60 bg-card">
-        <CardHeader className="pb-3"><CardTitle className="text-base">Approved and suspended</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Approved, declined and suspended</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {active.length === 0 ? <EmptyRow>No employers yet.</EmptyRow> : active.map(e => (
             <div key={e.user_id} className="rounded-xl border border-border/60 p-4 flex items-start justify-between gap-4 flex-wrap">
@@ -85,7 +85,7 @@ export default function EmployersSection() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">{e.requester_email} · approved {when(e.approved_at)}</p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {e.plan_name || e.plan_key} · proposals {e.proposals_used ?? 0}/{e.proposals_limit ?? '∞'} · assessments {e.assessments_used ?? 0}/{e.assessments_limit ?? '∞'}
+                  {e.plan_name || e.plan_key} · proposals {e.proposals_used ?? 0}/{e.proposals_limit ?? '∞'} · assessments {e.assessments_used ?? 0}/{e.assessments_limit ?? '∞'} · searches {e.searches_used ?? 0}/{e.searches_limit ?? '∞'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {e.trial_ends_at ? `Free month ends ${when(e.trial_ends_at)}` : `Period ends ${when(e.current_period_end)}`}

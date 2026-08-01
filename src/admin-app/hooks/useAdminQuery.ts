@@ -58,7 +58,6 @@ async function adminRpc<T = unknown>(
 export const adminKeys = {
   all: ['admin'] as const,
   accounts: (search: string) => [...adminKeys.all, 'accounts', search] as const,
-  systemConfig: () => [...adminKeys.all, 'systemConfig'] as const,
   supportTickets: () => [...adminKeys.all, 'supportTickets'] as const,
   aiUsage: () => [...adminKeys.all, 'aiUsage'] as const,
   errorMonitoring: () => [...adminKeys.all, 'errorMonitoring'] as const,
@@ -81,33 +80,6 @@ export function useAdminAccounts(search = '') {
     staleTime: FAST_STALE_TIME,
   });
 }
-
-export function useAdminSystemConfig() {
-  return useQuery({
-    queryKey: adminKeys.systemConfig(),
-    queryFn: () => adminRpc('get_admin_system_config'),
-    staleTime: ADMIN_STALE_TIME,
-  });
-}
-
-// Settings writes go through adminRpc too, so they carry the explicit admin
-// Authorization header instead of whichever GoTrueClient answers first.
-export function useSetSystemConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (updates: Record<string, unknown>) => {
-      for (const [key, value] of Object.entries(updates)) {
-        await adminRpc('admin_upsert_system_config', { p_key: key, p_value: JSON.stringify(value) });
-      }
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminKeys.systemConfig() });
-      toast.success('Settings updated');
-    },
-    onError: (e: Error) => toast.error(e.message || 'Failed to update settings'),
-  });
-}
-
 
 export function useAdminSupportTickets() {
   return useQuery({

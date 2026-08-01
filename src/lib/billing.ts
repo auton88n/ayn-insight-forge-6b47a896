@@ -50,7 +50,7 @@ export type SeekerBilling = {
 };
 
 export type EmployerBilling = {
-  plan: { key: string; name: string; price_cents: number; interval: string; proposals_limit: number | null; assessments_limit: number | null };
+  plan: { key: string; name: string; price_cents: number; interval: string; proposals_limit: number | null; assessments_limit: number | null; searches_limit: number | null };
   status: string;
   current_period_start: string;
   current_period_end: string;
@@ -64,7 +64,7 @@ export type EmployerBilling = {
 export type AdminEmployerRow = {
   id: string;
   user_id: string;
-  status: "pending_approval" | "approved" | "suspended";
+  status: "pending_approval" | "approved" | "declined" | "suspended";
   company_name: string | null;
   website: string | null;
   industry: string | null;
@@ -81,7 +81,7 @@ export type AdminEmployerRow = {
     plan: string;
     proposals_used: number; proposals_limit: number | null;
     assessments_used: number; assessments_limit: number | null;
-    searches_used: number; period_end: string;
+    searches_used: number; searches_limit: number | null; period_end: string;
   } | null;
 };
 

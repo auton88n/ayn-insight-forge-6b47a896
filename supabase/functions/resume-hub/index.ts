@@ -2144,7 +2144,9 @@ RULES — YOU MUST FOLLOW EVERY ONE:
           usage = {
             plan: b.plan.name, proposals_used: b.proposals_used, proposals_limit: b.plan.proposals_limit,
             assessments_used: b.assessments_used, assessments_limit: b.plan.assessments_limit,
-            searches_used: b.searches_used, period_end: b.current_period_end,
+            searches_used: b.searches_used, searches_limit: b.plan.searches_limit,
+            period_end: b.current_period_end,
+
           };
         }
         rows.push({
@@ -2169,7 +2171,10 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       if (!user_id || !["approve", "decline", "suspend"].includes(String(decision))) {
         return json({ error: "user_id and a decision of approve, decline or suspend are required" }, 400);
       }
-      const status = decision === "approve" ? "approved" : "suspended";
+      // Declined and suspended are different things: declined never got in,
+      // suspended was approved and then stopped.
+      const status = decision === "approve" ? "approved" : decision === "decline" ? "declined" : "suspended";
+
       const { error } = await adminForNew.from("employer_accounts").update({
         status,
         approved_at: decision === "approve" ? new Date().toISOString() : null,
@@ -2700,16 +2705,19 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const gate = await assertOrgProfileComplete(org_id);
       if (gate) return gate;
 
-      // v3.14.0 — searching is unlimited on every plan. The only ceiling is a
-      // soft abuse cap, and it is deliberately friendly.
+      // v3.27.0 — searches are a plan allowance like proposals and assessments.
+      // Plans with no allowance recorded still hit the friendly soft abuse cap.
       const searchBilling = await employerBilling(adminForNew, userId, org_id);
-      if (searchBilling.searches_used >= EMPLOYER_SEARCH_SOFT_CAP) {
+      const searchGate = planLimitReached(searchBilling, "search");
+      if (searchGate) return searchGate;
+      if (searchBilling.plan.searches_limit == null && searchBilling.searches_used >= EMPLOYER_SEARCH_SOFT_CAP) {
         return json({
           error: "search_soft_cap",
           code: "search_soft_cap",
           message: `You have run ${searchBilling.searches_used} searches this period, which is more than anyone hiring normally needs. Get in touch and we will lift the cap on your account.`,
         }, 429);
       }
+
 
 
       const mustHaves = Array.isArray(job_spec.must_have_skills) ? (job_spec.must_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
@@ -3662,7 +3670,7 @@ async function assertCredits(admin: Anyish, userId: string, cost: number, what: 
 }
 
 interface EmployerBilling {
-  plan: { key: string; name: string; price_cents: number; interval: string; proposals_limit: number | null; assessments_limit: number | null };
+  plan: { key: string; name: string; price_cents: number; interval: string; proposals_limit: number | null; assessments_limit: number | null; searches_limit: number | null };
   status: string;
   current_period_start: string;
   current_period_end: string;
@@ -3676,7 +3684,7 @@ async function employerBilling(admin: Anyish, userId: string, orgId: string): Pr
   const sub = await billingEnsure(admin, userId, "employer");
   const planKey = sub?.plan_key || "employer_trial";
   const { data: plan } = await admin.from("plans")
-    .select("key, name, price_cents, interval, proposals_limit, assessments_limit").eq("key", planKey).maybeSingle();
+    .select("key, name, price_cents, interval, proposals_limit, assessments_limit, searches_limit").eq("key", planKey).maybeSingle();
   const start = sub?.current_period_start || new Date(Date.now() - 30 * 86400000).toISOString();
 
   const [{ count: proposals }, { count: assessments }, { count: searches }] = await Promise.all([
@@ -3686,7 +3694,7 @@ async function employerBilling(admin: Anyish, userId: string, orgId: string): Pr
   ]);
 
   return {
-    plan: plan || { key: planKey, name: "Free month", price_cents: 0, interval: "month", proposals_limit: 5, assessments_limit: 3 },
+    plan: plan || { key: planKey, name: "Free month", price_cents: 0, interval: "month", proposals_limit: 5, assessments_limit: 3, searches_limit: 25 },
     status: sub?.status || "trialing",
     current_period_start: start,
     current_period_end: sub?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -3697,12 +3705,16 @@ async function employerBilling(admin: Anyish, userId: string, orgId: string): Pr
   };
 }
 
-function planLimitReached(b: EmployerBilling, kind: "proposal" | "assessment"): Response | null {
-  const limit = kind === "proposal" ? b.plan.proposals_limit : b.plan.assessments_limit;
-  const used = kind === "proposal" ? b.proposals_used : b.assessments_used;
+function planLimitReached(b: EmployerBilling, kind: "proposal" | "assessment" | "search"): Response | null {
+  const limit = kind === "proposal" ? b.plan.proposals_limit
+    : kind === "assessment" ? b.plan.assessments_limit
+    : b.plan.searches_limit;
+  const used = kind === "proposal" ? b.proposals_used
+    : kind === "assessment" ? b.assessments_used
+    : b.searches_used;
   if (limit === null || limit === undefined) return null;
   if (used < limit) return null;
-  const noun = kind === "proposal" ? "proposals" : "assessments";
+  const noun = kind === "proposal" ? "proposals" : kind === "assessment" ? "assessments" : "candidate searches";
   return json({
     error: "plan_limit_reached",
     code: "plan_limit_reached",
@@ -3710,9 +3722,10 @@ function planLimitReached(b: EmployerBilling, kind: "proposal" | "assessment"): 
     used,
     limit,
     plan: b.plan.name,
-    message: `Your ${b.plan.name} plan includes ${limit} ${noun} per period and you have used all of them. Your period resets on ${new Date(b.current_period_end).toDateString()}. Upgrade to send more.`,
+    message: `Your ${b.plan.name} plan includes ${limit} ${noun} per period and you have used all of them. Your period resets on ${new Date(b.current_period_end).toDateString()}. Upgrade to ${kind === "search" ? "search more" : "send more"}.`,
   }, 402);
 }
+
 
 
 

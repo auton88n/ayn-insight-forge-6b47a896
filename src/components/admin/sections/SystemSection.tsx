@@ -26,14 +26,9 @@ const PANES: { id: Pane; label: string }[] = [
 ];
 
 
-export default function SystemSection({
-  systemConfig,
-  onUpdateConfig,
-}: {
-  systemConfig: any;
-  onUpdateConfig: (updates: any) => Promise<void>;
-}) {
+export default function SystemSection() {
   const [pane, setPane] = useState<Pane>('accounts');
+
 
   return (
     <div>
@@ -66,7 +61,7 @@ export default function SystemSection({
       {pane === 'ai' && <AiPane />}
       {pane === 'email' && <EmailPane />}
       {pane === 'consent' && <ConsentPane />}
-      {pane === 'settings' && <SettingsPane systemConfig={systemConfig} onUpdateConfig={onUpdateConfig} />}
+      {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}
     </div>
   );
 }

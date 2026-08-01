@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { adminSupabase as supabase } from '@/admin-app/adminSupabase';
 import {
@@ -481,26 +479,16 @@ export function ConsentPane() {
 }
 
 /* ────────────────────────────── SETTINGS ────────────────────────────── */
-export function SettingsPane({
-  systemConfig,
-  onUpdateConfig,
-}: {
-  systemConfig: any;
-  onUpdateConfig: (updates: any) => Promise<void>;
-}) {
-  const [local, setLocal] = useState(systemConfig);
-  const [saving, setSaving] = useState(false);
+// v3.27.0 — the config controls that used to live here wrote keys nothing read.
+// Maintenance is the Kill switches pane and nothing else. Employer approval is
+// unconditional. Credits come from the plans table. Login attempts and session
+// length belong to Supabase auth and cannot be set from here. All of it is gone,
+// so what is left is the one setting this pane can genuinely change.
+export function SettingsPane({ onGoToFlags }: { onGoToFlags?: () => void }) {
   const [currentPin, setCurrentPin] = useState('');
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
-
-  const dirty = JSON.stringify(local) !== JSON.stringify(systemConfig);
-
-  const save = async () => {
-    setSaving(true);
-    try { await onUpdateConfig(local); } finally { setSaving(false); }
-  };
 
   const changePin = async () => {
     if (!/^\d{4,6}$/.test(currentPin)) { toast.error('Enter the current PIN'); return; }
@@ -522,31 +510,8 @@ export function SettingsPane({
     }
   };
 
-
   return (
     <div className="space-y-5 max-w-2xl">
-      <Card className="border border-border/60 bg-card">
-        <CardContent className="p-5 space-y-5">
-          <div>
-            <h3 className="font-semibold">Maintenance</h3>
-            <p className="text-sm text-muted-foreground">Turn the product off for everyone while you work on it.</p>
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="maint">Maintenance mode</Label>
-            <Switch id="maint" checked={!!local.maintenanceMode}
-              onCheckedChange={v => setLocal({ ...local, maintenanceMode: v })} />
-          </div>
-          <Textarea rows={3} value={local.maintenanceMessage || ''} placeholder="What people see while it is off"
-            onChange={e => setLocal({ ...local, maintenanceMessage: e.target.value })} />
-          <div className="flex items-center justify-between">
-            <Label htmlFor="approval">Require employer approval</Label>
-            <Switch id="approval" checked={!!local.requireApproval}
-              onCheckedChange={v => setLocal({ ...local, requireApproval: v })} />
-          </div>
-          <Button onClick={save} disabled={!dirty || saving}>{saving ? 'Saving' : 'Save settings'}</Button>
-        </CardContent>
-      </Card>
-
       <Card className="border border-border/60 bg-card">
         <CardContent className="p-5 space-y-4">
           <div>
@@ -561,9 +526,26 @@ export function SettingsPane({
           <Button variant="outline" onClick={changePin} disabled={pinSaving || !currentPin || !pin || !confirm}>
             {pinSaving ? 'Updating' : 'Update PIN'}
           </Button>
+        </CardContent>
+      </Card>
 
+      <Card className="border border-border/60 bg-card">
+        <CardContent className="p-5 space-y-3">
+          <div>
+            <h3 className="font-semibold">Maintenance lives in Kill switches</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              There is one maintenance mechanism and it is the Kill switches pane. Turning off Whole platform stops every signed in surface,
+              on the server as well as in the app, and shows people the note you write there.
+            </p>
+          </div>
+          {onGoToFlags && <Button variant="outline" onClick={onGoToFlags}>Open Kill switches</Button>}
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Employer approval is always required, credit allowances come from the plans table, and sign in attempts and session length are
+            owned by Supabase auth. None of those are settings here any more, because setting them here changed nothing.
+          </p>
         </CardContent>
       </Card>
     </div>
   );
 }
+

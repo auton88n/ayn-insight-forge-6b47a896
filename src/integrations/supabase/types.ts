@@ -3625,6 +3625,7 @@ export type Database = {
           name: string
           price_cents: number
           proposals_limit: number | null
+          searches_limit: number | null
           sort: number
           stripe_price_id: string | null
           stripe_product_id: string | null
@@ -3641,6 +3642,7 @@ export type Database = {
           name: string
           price_cents?: number
           proposals_limit?: number | null
+          searches_limit?: number | null
           sort?: number
           stripe_price_id?: string | null
           stripe_product_id?: string | null
@@ -3657,6 +3659,7 @@ export type Database = {
           name?: string
           price_cents?: number
           proposals_limit?: number | null
+          searches_limit?: number | null
           sort?: number
           stripe_price_id?: string | null
           stripe_product_id?: string | null
@@ -5251,7 +5254,6 @@ export type Database = {
         Args: { message_user_id: string }
         Returns: boolean
       }
-      admin_delete_custom_order: { Args: { p_id: string }; Returns: boolean }
       admin_employer_approve: {
         Args: { p_note?: string; p_user_id: string }
         Returns: Json
@@ -5296,10 +5298,6 @@ export type Database = {
       admin_update_ticket: {
         Args: { p_data: Json; p_id: string }
         Returns: boolean
-      }
-      admin_upsert_custom_order: {
-        Args: { p_data: Json; p_id?: string }
-        Returns: Json
       }
       admin_upsert_system_config: {
         Args: { p_key: string; p_value: Json }
@@ -5470,56 +5468,24 @@ export type Database = {
       }
       generate_monthly_summaries: { Args: never; Returns: number }
       get_admin_accounts: { Args: { p_search?: string }; Returns: Json }
-      get_admin_activity_log: { Args: { p_limit?: number }; Returns: Json }
       get_admin_ai_cost_stats: { Args: never; Returns: Json }
-      get_admin_ai_limits: { Args: never; Returns: Json }
       get_admin_ai_usage: { Args: never; Returns: Json }
-      get_admin_applications: { Args: never; Returns: Json }
-      get_admin_beta_feedback: { Args: never; Returns: Json }
       get_admin_candidates: { Args: never; Returns: Json }
-      get_admin_churn_alerts: { Args: never; Returns: Json }
-      get_admin_contact_messages: { Args: { p_limit?: number }; Returns: Json }
-      get_admin_conversations: { Args: never; Returns: Json }
-      get_admin_credit_gifts: { Args: never; Returns: Json }
-      get_admin_custom_orders: { Args: never; Returns: Json }
-      get_admin_dashboard_stats: { Args: never; Returns: Json }
       get_admin_email_audience: { Args: never; Returns: Json }
-      get_admin_email_broadcast_users: { Args: never; Returns: Json }
       get_admin_employers: { Args: never; Returns: Json }
-      get_admin_error_logs: { Args: { p_limit?: number }; Returns: Json }
       get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
-      get_admin_error_monitoring_data: { Args: never; Returns: Json }
       get_admin_feature_flags: { Args: never; Returns: Json }
-      get_admin_llm_management: { Args: never; Returns: Json }
-      get_admin_llm_stats: { Args: { p_hours?: number }; Returns: Json }
       get_admin_marketplace: { Args: never; Returns: Json }
-      get_admin_message_ratings: { Args: never; Returns: Json }
       get_admin_moderation: { Args: { p_limit?: number }; Returns: Json }
       get_admin_money: { Args: never; Returns: Json }
-      get_admin_nda_agreements: { Args: never; Returns: Json }
-      get_admin_nda_list: { Args: never; Returns: Json }
-      get_admin_notification_log: { Args: never; Returns: Json }
       get_admin_overview: { Args: never; Returns: Json }
       get_admin_rate_limit_stats: { Args: never; Returns: Json }
-      get_admin_subscriptions: { Args: never; Returns: Json }
-      get_admin_support_data: { Args: never; Returns: Json }
       get_admin_support_tickets: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: Json
       }
       get_admin_system_config: { Args: never; Returns: Json }
-      get_admin_system_metrics: { Args: never; Returns: Json }
-      get_admin_system_monitoring: { Args: never; Returns: Json }
       get_admin_terms_consent: { Args: never; Returns: Json }
-      get_admin_test_results: { Args: never; Returns: Json }
-      get_admin_test_results_data: { Args: never; Returns: Json }
-      get_admin_user_growth: { Args: never; Returns: Json }
-      get_admin_user_messages: {
-        Args: { p_limit?: number; p_user_id: string }
-        Returns: Json
-      }
-      get_admin_users: { Args: never; Returns: Json }
-      get_admin_visitor_analytics: { Args: { p_days?: number }; Returns: Json }
       get_alert_history_with_emails: {
         Args: { p_alert_id?: string; p_encryption_key?: string }
         Returns: {
@@ -5787,7 +5753,11 @@ export type Database = {
         | "interview"
         | "offer"
         | "rejected"
-      employer_status: "pending_approval" | "approved" | "suspended"
+      employer_status:
+        | "pending_approval"
+        | "approved"
+        | "suspended"
+        | "declined"
       support_ticket_category:
         | "general"
         | "billing"
@@ -5938,7 +5908,12 @@ export const Constants = {
         "offer",
         "rejected",
       ],
-      employer_status: ["pending_approval", "approved", "suspended"],
+      employer_status: [
+        "pending_approval",
+        "approved",
+        "suspended",
+        "declined",
+      ],
       support_ticket_category: [
         "general",
         "billing",

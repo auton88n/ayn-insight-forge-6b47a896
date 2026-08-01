@@ -10,12 +10,7 @@ import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import aynMark from '/ayn-mark.svg';
 
-import {
-  useAdminSystemConfig,
-  useSetSystemConfig,
-  useAdminRefresh,
-  useAdminOverview,
-} from '@/admin-app/hooks/useAdminQuery';
+import { useAdminRefresh, useAdminOverview } from '@/admin-app/hooks/useAdminQuery';
 
 
 const OverviewSection = lazy(() => import('@/components/admin/sections/OverviewSection'));
@@ -41,7 +36,6 @@ export const AdminPanel = (_props: AdminPanelProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const systemConfigQuery = useAdminSystemConfig();
   const overviewQuery = useAdminOverview();
   const pendingEmployers = Number((overviewQuery.data as any)?.employers_pending || 0);
 
@@ -66,44 +60,9 @@ export const AdminPanel = (_props: AdminPanelProps) => {
     return () => { document.body.style.overflow = ob; document.documentElement.style.overflow = oh; };
   }, []);
 
-  const configData = (systemConfigQuery.data as any)?.config || [];
-  const configMap = new Map((Array.isArray(configData) ? configData : []).map((c: any) => [c.key, c.value]));
-  const systemConfig = {
-    maintenanceMode: (configMap.get('maintenance_mode') as boolean) || false,
-    maintenanceMessage: (configMap.get('maintenance_message') as string) || '',
-    maintenanceStartTime: (configMap.get('maintenance_start_time') as string) || '',
-    maintenanceEndTime: (configMap.get('maintenance_end_time') as string) || '',
-    preMaintenanceNotice: (configMap.get('pre_maintenance_notice') as boolean) || false,
-    preMaintenanceMessage: (configMap.get('pre_maintenance_message') as string) || '',
-    defaultMonthlyLimit: (configMap.get('default_monthly_limit') as number) || 100,
-    requireApproval: (configMap.get('require_approval') as boolean) ?? true,
-    maxLoginAttempts: (configMap.get('max_login_attempts') as number) || 5,
-    sessionTimeout: (configMap.get('session_timeout') as number) || 30,
-  };
+  // v3.27.0 — the system_config settings form is gone. Maintenance is the
+  // Kill switches pane, and every other key it wrote had no reader.
 
-  const setConfig = useSetSystemConfig();
-
-  const updateSystemConfig = async (updates: Record<string, unknown>) => {
-    const keyMap: Record<string, string> = {
-      maintenanceMode: 'maintenance_mode',
-      maintenanceMessage: 'maintenance_message',
-      maintenanceStartTime: 'maintenance_start_time',
-      maintenanceEndTime: 'maintenance_end_time',
-      preMaintenanceNotice: 'pre_maintenance_notice',
-      preMaintenanceMessage: 'pre_maintenance_message',
-      defaultMonthlyLimit: 'default_monthly_limit',
-      requireApproval: 'require_approval',
-      maxLoginAttempts: 'max_login_attempts',
-      sessionTimeout: 'session_timeout',
-    };
-    const mapped: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(updates)) {
-      const dbKey = keyMap[key];
-      if (dbKey) mapped[dbKey] = value;
-    }
-    if (Object.keys(mapped).length === 0) return;
-    await setConfig.mutateAsync(mapped);
-  };
 
 
   const handleRefresh = useCallback(() => {
@@ -149,9 +108,7 @@ export const AdminPanel = (_props: AdminPanelProps) => {
                 {activeTab === 'candidates' && <CandidatesSection />}
                 {activeTab === 'marketplace' && <MarketplaceSection />}
                 {activeTab === 'money' && <MoneySection />}
-                {activeTab === 'system' && (
-                  <SystemSection systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />
-                )}
+                {activeTab === 'system' && <SystemSection />}
               </Suspense>
             </ErrorBoundary>
           </div>
