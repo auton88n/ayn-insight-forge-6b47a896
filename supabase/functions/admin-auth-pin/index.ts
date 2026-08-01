@@ -3,8 +3,10 @@
 // set-admin-pin and admin-pin-alert.
 //
 // Actions:
-//   verify { pin }                 -> { success, locked?, lockoutRemaining?, attemptsRemaining? }
+//   verify { pin }                 -> { success, ticket?, ticketTtl?, locked?, lockoutRemaining?, attemptsRemaining? }
+//   check  { ticket }              -> { success } (re-verifies a minted ticket)
 //   set    { pin, new_pin }        -> { success }
+
 //
 // Every call validates the JWT in code, then has_role(uid,'admin').
 // Attempts and lockout live server side in app_settings.admin_pin_attempts,
