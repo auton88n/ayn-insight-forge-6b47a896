@@ -3961,7 +3961,7 @@ export type Database = {
       reveal_requests: {
         Row: {
           candidate_ref: string | null
-          candidate_user_id: string
+          candidate_user_id: string | null
           created_at: string
           decided_at: string | null
           employment_type: string | null
@@ -3979,7 +3979,7 @@ export type Database = {
         }
         Insert: {
           candidate_ref?: string | null
-          candidate_user_id: string
+          candidate_user_id?: string | null
           created_at?: string
           decided_at?: string | null
           employment_type?: string | null
@@ -3997,7 +3997,7 @@ export type Database = {
         }
         Update: {
           candidate_ref?: string | null
-          candidate_user_id?: string
+          candidate_user_id?: string | null
           created_at?: string
           decided_at?: string | null
           employment_type?: string | null
