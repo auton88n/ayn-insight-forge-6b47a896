@@ -4,40 +4,39 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AYN Resume Tailor</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap"/>
+  <link rel="stylesheet" href="fonts/local-fonts.css"/>
+  <link rel="stylesheet" href="fonts/tabler-icons.css"/>
   <style>
     /* ═══════════════════════════════════════════════════════════
-       Design tokens — White + Orange (v1.9.1)
+       Design tokens, paper and ember (v3.2.0)
+       Same palette as the AYN landing mockups.
        ═══════════════════════════════════════════════════════════ */
     :root {
-      --ayn-orange: #f97316;
-      --ayn-orange-2: #ea580c;
-      --ayn-orange-soft: #fff4ea;
-      --ayn-orange-border: #fed7aa;
-      --ayn-green: #15803d;
-      --ayn-green-soft: #ecfdf5;
+      --ayn-orange: #e85d3a;
+      --ayn-orange-2: #c2410c;
+      --ayn-orange-soft: rgba(232, 93, 58, .10);
+      --ayn-orange-border: rgba(232, 93, 58, .28);
+      --ayn-green: #3f9d6a;
+      --ayn-green-soft: rgba(63, 157, 106, .10);
       --ayn-amber: #b45309;
       --ayn-red: #b91c1c;
-      --ayn-red-soft: #fef2f2;
-      --ayn-blue: #1d4ed8;
-      --ayn-blue-soft: #eff6ff;
-      --ayn-ink: #0a0a0a;
-      --ayn-text: #1f2937;
-      --ayn-muted: #6b7280;
-      --ayn-faint: #9ca3af;
-      --ayn-border: #ececec;
-      --ayn-border-2: #f3f4f6;
+      --ayn-red-soft: rgba(185, 28, 28, .07);
+      --ayn-blue: #3D3F45;
+      --ayn-blue-soft: rgba(11, 12, 15, .05);
+      --ayn-ink: #0B0C0F;
+      --ayn-text: #3D3F45;
+      --ayn-muted: #6E7076;
+      --ayn-faint: #9A9CA2;
+      --ayn-border: rgba(0, 0, 0, .09);
+      --ayn-border-2: rgba(0, 0, 0, .05);
       --ayn-card: #ffffff;
-      --ayn-bg: #ffffff;
-      --shadow-sm: 0 1px 2px rgba(15, 15, 15, .04);
-      --shadow-md: 0 4px 14px rgba(15, 15, 15, .05);
-      --shadow-lg: 0 10px 28px -14px rgba(15, 15, 15, .15);
-      --font-display: 'Inter Tight', 'Inter', system-ui, sans-serif;
-      --font-body: 'Inter', 'DM Sans', system-ui, sans-serif;
-      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+      --ayn-bg: #f5f2ec;
+      --shadow-sm: 0 1px 2px rgba(11, 12, 15, .04);
+      --shadow-md: 0 6px 18px -12px rgba(11, 12, 15, .22);
+      --shadow-lg: 0 14px 34px -18px rgba(11, 12, 15, .3);
+      --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+      --font-body: 'Inter', system-ui, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
