@@ -3797,8 +3797,18 @@ async function assertCredits(admin: Anyish, userId: string, cost: number, what: 
   return null;
 }
 
+interface LimitOverride {
+  proposals_limit: number | null;
+  assessments_limit: number | null;
+  searches_limit: number | null;
+  monthly_credits: number | null;
+  reason: string;
+}
+
 interface EmployerBilling {
   plan: { key: string; name: string; price_cents: number; interval: string; proposals_limit: number | null; assessments_limit: number | null; searches_limit: number | null };
+  /** v3.29.0 per account override. Null on a field means fall back to the plan, 0 is a real zero. */
+  override: LimitOverride | null;
   status: string;
   current_period_start: string;
   current_period_end: string;
@@ -3808,11 +3818,27 @@ interface EmployerBilling {
   searches_used: number;
 }
 
+/** The one place null versus zero is decided. Null override falls back to the plan. */
+function effectiveLimit(b: EmployerBilling, kind: "proposal" | "assessment" | "search"): { limit: number | null; overridden: boolean } {
+  const planValue = kind === "proposal" ? b.plan.proposals_limit
+    : kind === "assessment" ? b.plan.assessments_limit
+    : b.plan.searches_limit;
+  const ovValue = !b.override ? null
+    : kind === "proposal" ? b.override.proposals_limit
+    : kind === "assessment" ? b.override.assessments_limit
+    : b.override.searches_limit;
+  if (ovValue !== null && ovValue !== undefined) return { limit: ovValue, overridden: true };
+  return { limit: planValue ?? null, overridden: false };
+}
+
 async function employerBilling(admin: Anyish, userId: string, orgId: string): Promise<EmployerBilling> {
   const sub = await billingEnsure(admin, userId, "employer");
   const planKey = sub?.plan_key || "employer_trial";
   const { data: plan } = await admin.from("plans")
     .select("key, name, price_cents, interval, proposals_limit, assessments_limit, searches_limit").eq("key", planKey).maybeSingle();
+  const { data: override } = await admin.from("account_limit_overrides")
+    .select("proposals_limit, assessments_limit, searches_limit, monthly_credits, reason")
+    .eq("user_id", userId).maybeSingle();
   const start = sub?.current_period_start || new Date(Date.now() - 30 * 86400000).toISOString();
 
   const [{ count: proposals }, { count: assessments }, { count: searches }] = await Promise.all([
@@ -3823,6 +3849,7 @@ async function employerBilling(admin: Anyish, userId: string, orgId: string): Pr
 
   return {
     plan: plan || { key: planKey, name: "Free month", price_cents: 0, interval: "month", proposals_limit: 5, assessments_limit: 3, searches_limit: 25 },
+    override: (override as LimitOverride | null) || null,
     status: sub?.status || "trialing",
     current_period_start: start,
     current_period_end: sub?.current_period_end || new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -3834,25 +3861,31 @@ async function employerBilling(admin: Anyish, userId: string, orgId: string): Pr
 }
 
 function planLimitReached(b: EmployerBilling, kind: "proposal" | "assessment" | "search"): Response | null {
-  const limit = kind === "proposal" ? b.plan.proposals_limit
-    : kind === "assessment" ? b.plan.assessments_limit
-    : b.plan.searches_limit;
+  const { limit, overridden } = effectiveLimit(b, kind);
   const used = kind === "proposal" ? b.proposals_used
     : kind === "assessment" ? b.assessments_used
     : b.searches_used;
   if (limit === null || limit === undefined) return null;
   if (used < limit) return null;
   const noun = kind === "proposal" ? "proposals" : kind === "assessment" ? "assessments" : "candidate searches";
+  const resets = new Date(b.current_period_end).toDateString();
+  const message = overridden
+    ? limit === 0
+      ? `This account is set to 0 ${noun} per period. Contact support if you need that changed.`
+      : `This account is set to ${limit} ${noun} per period and you have used all of them. Your period resets on ${resets}. Contact support if you need a higher number.`
+    : `Your ${b.plan.name} plan includes ${limit} ${noun} per period and you have used all of them. Your period resets on ${resets}. Upgrade to ${kind === "search" ? "search more" : "send more"}.`;
   return json({
     error: "plan_limit_reached",
     code: "plan_limit_reached",
     kind,
     used,
     limit,
+    overridden,
     plan: b.plan.name,
-    message: `Your ${b.plan.name} plan includes ${limit} ${noun} per period and you have used all of them. Your period resets on ${new Date(b.current_period_end).toDateString()}. Upgrade to ${kind === "search" ? "search more" : "send more"}.`,
+    message,
   }, 402);
 }
+
 
 
 
