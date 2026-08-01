@@ -374,9 +374,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                   <p className="lp-eyebrow">For job seekers</p>
                   <h2 className="lp-display lp-h2">One posting in, one tailored application out</h2>
                   <p className="lp-lead">
-                    Open a job. AYN reads the whole posting off the live page, scores you against it, then
-                    writes a one page resume and a cover letter from your own history. Both stay attached to
-                    that job so you can find them again.
+                    Open a job. Get a score, a resume and a cover letter for that posting.
                   </p>
                   <div className="lp-cta-row" style={{ marginTop: 26 }}>
                     <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
