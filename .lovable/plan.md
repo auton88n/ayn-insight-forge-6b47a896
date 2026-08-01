@@ -1,26 +1,30 @@
-## Goal
+## Answer first: what is "Auto-score job cards"?
 
-The extension icon should be the AYN mark alone, the same shape the loader spins, with nothing behind it. No rounded square, no tile, no background colour.
+It is a browsing toggle, not a hidden feature. When it is on, `content.js` walks the job cards on a search results page (LinkedIn, Indeed, and similar) and pins a small AYN badge next to each card title showing a 1 to 10 fit number, so you can triage a results list without opening every posting. When it is off, nothing is injected. It is read only, same as the rest of the extension. The 1 to 10 number is a quick page level fit check and is deliberately coarser than the 0 to 100 match score on aynn.io.
 
-## What is there now
+## What I will change
 
-`extension/icons/icon16/32/48/128.png` were rebuilt from `public/ayn-mark.svg` last release. The 128 already has a transparent background, but the mark itself is drawn with a thick 24px round join stroke, so the triangle reads as a fat rounded black slab that fills the frame and looks like a square tile at small sizes. That is the square the screenshot shows.
+### 1. White surface instead of cream
+In `extension/sidepanel.html` design tokens:
+- `--ayn-bg` moves from `#f5f2ec` to `#ffffff`.
+- Because cards were white on cream, cards get a faint separation again: `--ayn-card` stays white and card borders step up slightly, plus subtle surface tint `--ayn-surface: #FAFAFA` used for the tab rail, the header bar and inset blocks so the panel does not read as one flat sheet.
+- Header and tab rail backgrounds re-pointed to the new tokens, dividers unchanged.
 
-## The change
+### 2. Real AYN mark in the header
+The header logo is currently a CSS circle with an orange dot, which is not the brand. Replace it with the actual AYN mark:
+- Add `extension/icons/ayn-mark.svg` (the triangle with the ember eye, same artwork as `public/ayn-mark.svg`, transparent).
+- `.logo-eye` becomes a plain transparent box that renders that SVG at 26px, no ring, no dot, no background circle. Remove the `::after` pupil rule and the `img { display: none }` rule.
+- Same mark used on the sign in screen hero in place of the current ring and dot, sized larger with a soft ember glow behind it so the welcome screen still has a focal point.
+- Wordmark stays "AYN Resume Tailor" in the display font.
 
-1. Re-render all four sizes from `public/ayn-mark.svg` with:
-   - fully transparent background, alpha channel preserved at every size
-   - the artwork scaled to fit the canvas with a small even margin, so the triangle silhouette is readable as a triangle and not cropped into a block
-   - the ember eye kept at the mark's own colour, no recolouring
-2. Keep the manifest paths unchanged, so nothing else needs touching.
-3. Bump `extension/manifest.json` to 3.2.1 and the `AYN_BUILD` fallback in `extension/content.js` to match, since an installed copy only picks up new icons on a reinstall of a new version.
-4. Run `node extension/build.mjs`, which reruns the wiring check and rewrites `public/ayn-extension.zip` and `public/ayn-extension-version.json`.
-5. Add the version line to `docs/map/extension.md` in the same commit.
+### 3. Remove the Email formats block
+- Delete the `Email formats for <domain>` label and `#email-fmts` container from `extension/sidepanel.html` (around lines 964 to 965) and the `.email-fmt` styles.
+- Delete the format building loop in `renderContacts` in `extension/sidepanel.js` and drop `emailFormats` and `companyDomain` from the destructured args where they are no longer used. The rest of the Contacts tab (people, LinkedIn search links, subject line, outreach draft) stays as is.
 
-## Verification
+### 4. Ship it
+- Bump `extension/manifest.json` and the `AYN_BUILD` fallback in `extension/content.js` to 3.2.3.
+- Run `node extension/build.mjs` to regenerate `public/ayn-extension.zip` and `public/ayn-extension-version.json`.
+- Add the v3.2.3 line to `docs/map/extension.md` in the same commit.
+- Verify the rendered panel with a headless screenshot so I can confirm the white surface and the mark before reporting done.
 
-Render each PNG on both a white and a dark checkerboard and inspect them at true 16px, 32px, 48px and 128px to confirm the background is transparent and the shape still reads at the smallest size.
-
-## Technical notes
-
-Files changed: `extension/icons/*.png`, `extension/manifest.json`, `extension/content.js` (version literal only), `docs/map/extension.md`, plus the two generated files in `public/`. No backend, no schema, no web surface.
+No copy uses em dashes or en dashes.
