@@ -51,7 +51,7 @@ const SubscriptionSuccess = () => {
             {isLoading || !refreshed ? (
               <div className="flex flex-col items-center gap-4">
                 <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                <p className="text-muted-foreground">Confirming your subscription...</p>
+                <p className="text-muted-foreground">Confirming your subscription…</p>
               </div>
             ) : (
               <>
@@ -84,10 +84,10 @@ const SubscriptionSuccess = () => {
 
                 <div className="flex flex-col gap-3">
                   <Button onClick={() => navigate('/')} className="w-full">
-                    Go to Dashboard
+                    Continue to AYN
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Redirecting automatically in 5 seconds...
+                    Redirecting automatically in 5 seconds.
                   </p>
                 </div>
               </>

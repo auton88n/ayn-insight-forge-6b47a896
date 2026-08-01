@@ -1,5 +1,8 @@
 # AYN AI platform map (everything besides the extension and Resume Hub)
 
+## Public copy (v3.29.1 corrections)
+Public text has to match what shipped. The landing employer pricing block is still the single public source, and it now names the real allowances from the plans table instead of claiming unlimited searching: free month 25 searches and 5 proposals, Starter 100 and 10, Growth 400 and 40, Scale 1200 and 120. AuthModal describes the employer path as a short intake about the role and no longer says "AYN chat", which has not existed since v3.9.0. Handoff.tsx and the extension handoff toast describe reading, scoring and tailoring, never autofill, which has not existed since v3.0.0. SubscriptionSuccess sends people to "/" and the button says Continue to AYN, because /dashboard redirects. Both role pickers now read "I am looking for a job" and "I am hiring", and the ellipsis character is the single style.
+
 ## The chat (v3.8.0: it is candidate search, nothing else)
 There is exactly ONE conversational surface in the product's web app, and it belongs to employers. It takes an employer from "I have a role to fill" to "here are the three best candidates". It is not a career coach, not a general assistant, and it does not chat about anything else.
 

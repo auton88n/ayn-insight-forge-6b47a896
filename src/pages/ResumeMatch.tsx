@@ -171,7 +171,7 @@ const ResumeMatch = () => {
   return (
     <>
       <SEO title="Resume Match - AYN AI | See Your Fit Score"
-        description="Paste your resume and a job description. Get an instant match score, keyword gaps, comparison table, and a one-click AI rewrite."
+        description="Paste your resume and a job description. Get an instant match score, keyword gaps, a comparison table, and an AI rewrite grounded in your own history."
         canonical="/resume-match" />
       <div className="min-h-screen bg-background">
         <Header />
