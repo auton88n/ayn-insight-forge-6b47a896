@@ -18,6 +18,7 @@ import {
   TailoredDocsMockup,
   CandidateCardMockup,
   AssessmentMockup,
+  ShortlistMockup,
 } from './AppMockups';
 import { BeforeAfterProof } from './BeforeAfterProof';
 
@@ -433,7 +434,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               </div>
 
               <div className="lp-art lp-art-plain lp-reveal">
-                <CandidateCardMockup />
+                <ShortlistMockup />
               </div>
 
               <div className="lp-flow lp-reveal" style={{ marginTop: 36 }}>
