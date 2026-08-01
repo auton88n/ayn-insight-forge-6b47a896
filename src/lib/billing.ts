@@ -125,6 +125,27 @@ export const billingApi = {
     if (!r.ok || !out?.url) throw new Error(out?.error || "Could not open billing");
     return out.url as string;
   },
+  // v3.30.0 — cancel from inside the product. Takes effect at the end of the
+  // period already paid for. Nothing is refunded.
+  cancel: async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Not signed in");
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "cancel" }),
+    });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok || !out?.ok) throw new Error(out?.error || "Could not cancel the subscription");
+    return out as { ok: true; cancel_at_period_end: boolean; current_period_end: number | null };
+  },
+
+
 
   adminEmployers: () => call<{ employers: AdminEmployerRow[] }>({ action: "admin_employer_list" }).then(r => r.employers),
   adminDecide: (user_id: string, decision: "approve" | "decline" | "suspend", note?: string) =>
