@@ -298,3 +298,53 @@ export function useUserSnapshot(userId: string | null) {
     staleTime: FAST_STALE_TIME,
   });
 }
+
+// ─── v3.28.0 account moderation ────────────────────────────
+export const accountKeys = {
+  detail: (id: string) => ['admin', 'v2', 'accountDetail', id] as const,
+};
+
+export function useAdminAccountDetail(userId: string | null) {
+  return useQuery({
+    queryKey: accountKeys.detail(userId || 'none'),
+    queryFn: () => adminRpc<any>('get_admin_account_detail', { p_user_id: userId }),
+    enabled: !!userId,
+    staleTime: 15 * 1000,
+  });
+}
+
+/** Suspend, restore, or switch one capability off for one account. */
+export function useAccountModeration(userId: string | null) {
+  const qc = useQueryClient();
+  const done = (msg: string) => {
+    qc.invalidateQueries({ queryKey: accountKeys.detail(userId || 'none') });
+    qc.invalidateQueries({ queryKey: adminKeys.all });
+    toast.success(msg);
+  };
+  const fail = (e: Error) => toast.error(e.message || 'Action failed');
+
+  const suspend = useMutation({
+    mutationFn: (v: { reason: string; until: string | null }) =>
+      adminRpc('admin_suspend_account', { p_user_id: userId, p_reason: v.reason, p_until: v.until }),
+    onSuccess: () => done('Account suspended'),
+    onError: fail,
+  });
+
+  const restore = useMutation({
+    mutationFn: () => adminRpc('admin_restore_account', { p_user_id: userId }),
+    onSuccess: () => done('Account restored'),
+    onError: fail,
+  });
+
+  const setRestriction = useMutation({
+    mutationFn: (v: { capability: string; on: boolean; reason?: string }) =>
+      adminRpc('admin_set_restriction', {
+        p_user_id: userId, p_capability: v.capability, p_on: v.on, p_reason: v.reason ?? null,
+      }),
+    onSuccess: () => done('Restrictions updated'),
+    onError: fail,
+  });
+
+  return { suspend, restore, setRestriction };
+}
+

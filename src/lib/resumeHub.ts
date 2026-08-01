@@ -28,7 +28,13 @@ async function call<T>(fn: string, body: unknown): Promise<T> {
   if (!r.ok) {
     const maintenance = maintenanceErrorFrom(data);
     if (maintenance) throw maintenance;
-    throw new Error((data as { error?: string })?.error || `Request failed (${r.status})`);
+    // v3.28.0 — suspension and per account restrictions answer with a code and
+    // a written message. Show the message, not the code.
+    const coded = data as { code?: string; message?: string; error?: string };
+    if (coded?.code === "account_suspended" || coded?.code === "account_restricted") {
+      throw new Error(coded.message || "This account cannot do that right now.");
+    }
+    throw new Error(coded?.error || `Request failed (${r.status})`);
   }
   return data as T;
 }
@@ -97,6 +103,9 @@ export interface PoolSkill {
 }
 
 export interface TalentPoolStatus {
+  /** v3.28.0 — an admin has taken this profile out of the pool. */
+  discovery_restricted?: boolean;
+  discovery_restriction_reason?: string;
   opted_in: boolean;
   consented_at: string | null;
   /** v3.5.1 — which consent wording the user agreed to. */

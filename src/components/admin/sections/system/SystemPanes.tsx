@@ -1,5 +1,6 @@
 // v3.22.0 — SYSTEM panes, written for AYN as it is now. Every pane reads a real
 // admin RPC. Nothing here is a placeholder.
+import { AccountDetailDialog } from './AccountDetail';
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,8 @@ const Cell = ({ children, mono }: { children: React.ReactNode; mono?: boolean })
 export function AccountsPane() {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
+  // v3.28.0 — a row opens into the detail and moderation view.
+  const [openUser, setOpenUser] = useState<string | null>(null);
   const query = useAdminAccounts(q);
   const d = query.data as any;
 
@@ -76,9 +79,9 @@ export function AccountsPane() {
         {q && <Button type="button" variant="ghost" onClick={() => { setSearch(''); setQ(''); }}>Clear</Button>}
       </form>
 
-      <Table head={['Person', 'Type', 'Plan', 'Credits', 'Discoverable', 'Joined', 'Last sign in']}>
+      <Table head={['Person', 'Type', 'Plan', 'Credits', 'Discoverable', 'Joined', 'Last sign in', '']}>
         {rows.length === 0 && (
-          <tr><td colSpan={7}><EmptyRow>No accounts match.</EmptyRow></td></tr>
+          <tr><td colSpan={8}><EmptyRow>No accounts match.</EmptyRow></td></tr>
         )}
         {rows.map(r => (
           <Row key={r.user_id}>
@@ -99,9 +102,18 @@ export function AccountsPane() {
             <Cell>{r.discoverable ? <span className="text-primary font-medium">Yes</span> : <span className="text-muted-foreground">No</span>}</Cell>
             <Cell>{when(r.signed_up_at)}</Cell>
             <Cell>{when(r.last_sign_in_at)}</Cell>
+            <Cell>
+              <Button variant="outline" size="sm" onClick={() => setOpenUser(r.user_id)}>Open</Button>
+            </Cell>
           </Row>
         ))}
       </Table>
+
+      <AccountDetailDialog
+        userId={openUser}
+        open={!!openUser}
+        onOpenChange={v => { if (!v) setOpenUser(null); }}
+      />
     </div>
   );
 }

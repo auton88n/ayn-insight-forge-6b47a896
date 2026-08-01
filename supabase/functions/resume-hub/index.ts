@@ -142,6 +142,96 @@ async function featureGate(
 }
 
 // ─────────────────────────────────────────────────────────────
+// v3.28.0 ACCOUNT MODERATION
+// Same answer shape as the v3.25.0 maintenance gate, different codes.
+// Order is deliberate: the global switch is checked first (above), then the
+// account suspension, then the one capability the account is restricted from.
+// ─────────────────────────────────────────────────────────────
+type AccountCapability = "discovery" | "proposals" | "assessments" | "ai";
+
+/** Which capability an action needs. Anything absent needs none. */
+const ACTION_CAPABILITY: Record<string, AccountCapability> = {
+  employer_draft_proposal: "proposals",
+  employer_reveal_request: "proposals",
+  employer_assessment_generate: "assessments",
+  employer_assessment_send: "assessments",
+  tailor: "ai",
+  cover_letter: "ai",
+  score: "ai",
+  ext_ask: "ai",
+  ext_job_score: "ai",
+  ext_cover_letter_text: "ai",
+  ext_suggest_roles: "ai",
+  smart_tailor: "ai",
+};
+
+const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {
+  discovery: "Your profile has been removed from the talent pool by an administrator.",
+  proposals: "Sending proposals is switched off for this account by an administrator.",
+  assessments: "Assessments are switched off for this account by an administrator.",
+  ai: "AI features are switched off for this account by an administrator.",
+};
+
+/** True when this person cannot appear in the talent pool. */
+async function discoveryRestriction(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+): Promise<{ restricted: boolean; reason: string }> {
+  const { data } = await admin.from("account_restrictions")
+    .select("reason").eq("user_id", userId).eq("capability", "discovery").maybeSingle();
+  return { restricted: !!data, reason: (data as { reason?: string } | null)?.reason || "" };
+}
+
+/** Every user id in the given list that is restricted from discovery. */
+async function discoveryRestrictedIds(
+  admin: SupabaseClient<any, any, any>,
+  ids: string[],
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data } = await admin.from("account_restrictions")
+    .select("user_id").eq("capability", "discovery").in("user_id", ids);
+  return new Set((data || []).map((r: { user_id: string }) => r.user_id));
+}
+
+async function accountGate(
+  admin: SupabaseClient<any, any, any>,
+  userId: string,
+  action: string,
+): Promise<Response | null> {
+  const [{ data: susp }, { data: restrictions }] = await Promise.all([
+    admin.from("account_suspensions")
+      .select("reason, until, suspended_at").eq("user_id", userId).eq("active", true).maybeSingle(),
+    admin.from("account_restrictions").select("capability, reason").eq("user_id", userId),
+  ]);
+
+  if (susp) {
+    const until = (susp as { until?: string }).until;
+    return json({
+      code: "account_suspended",
+      error: "account_suspended",
+      reason: (susp as { reason?: string }).reason || "",
+      until: until || null,
+      message: until
+        ? `This account is suspended until ${new Date(until).toLocaleDateString("en-CA")}. Contact support if you think this is wrong.`
+        : "This account is suspended. Contact support if you think this is wrong.",
+    }, 403);
+  }
+
+  const needed = ACTION_CAPABILITY[action];
+  if (!needed) return null;
+  const hit = (restrictions || []).find((r: { capability: string }) => r.capability === needed);
+  if (!hit) return null;
+  return json({
+    code: "account_restricted",
+    error: "account_restricted",
+    capability: needed,
+    reason: (hit as { reason?: string }).reason || "",
+    message: RESTRICTION_MESSAGE[needed],
+  }, 403);
+}
+
+
+// ─────────────────────────────────────────────────────────────
 // v3.24.0 AI USAGE LOGGING
 // Every gateway call writes one row to llm_usage_logs so the admin AI cost
 // pane reads real numbers. Best effort: logging never fails a request.
@@ -1203,6 +1293,12 @@ Deno.serve(async (req) => {
         const off = await featureGate(admin, "tailoring");
         if (off) return off;
       }
+      // v3.28.0 — suspension and per account restrictions apply to the
+      // extension lane exactly as they do to the web lane.
+      {
+        const blocked = await accountGate(admin, userId, String(action || ""));
+        if (blocked) return blocked;
+      }
 
 
 
@@ -2055,6 +2151,14 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const owner = ACTION_FLAG[String(action || "")];
       if (owner) { const off = await featureGate(adminForNew, owner); if (off) return off; }
     }
+    // v3.28.0 — the same shape, one account at a time. Global switch first,
+    // then this person's suspension, then the capability they are restricted from.
+    {
+      const blocked = await accountGate(adminForNew, userId, String(action || ""));
+      if (blocked) return blocked;
+    }
+
+
 
 
     // ─────────────────────────────────────────────────────────────
@@ -2256,7 +2360,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         adminForNew.from("user_profile_canonical").select("updated_at").eq("user_id", userId).maybeSingle(),
       ]);
       const skills = (skillRows ?? []) as Array<{ id: string; skill: string; provenance: string; source: string }>;
+      // v3.28.0 — say it plainly when an admin has taken this profile out of
+      // the pool, instead of showing a toggle that quietly does nothing.
+      const discoveryBlock = await discoveryRestriction(adminForNew, userId);
       return json({
+        discovery_restricted: discoveryBlock.restricted,
+        discovery_restriction_reason: discoveryBlock.reason,
         opted_in: !!consent?.opted_in,
         consented_at: consent?.consented_at ?? null,
         consent_version: (consent as { consent_version?: string } | null)?.consent_version ?? null,
@@ -2296,6 +2405,19 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     if (action === "talent_pool_set") {
       const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
       if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
+      // v3.28.0 — cannot opt back in while restricted from discovery.
+      if (opted_in) {
+        const block = await discoveryRestriction(adminForNew, userId);
+        if (block.restricted) {
+          return json({
+            code: "account_restricted",
+            error: "account_restricted",
+            capability: "discovery",
+            reason: block.reason,
+            message: RESTRICTION_MESSAGE.discovery,
+          }, 403);
+        }
+      }
       const now = new Date().toISOString();
       // v3.5.1 — record WHICH consent wording the user agreed to, so a future
       // copy change never leaves us guessing what they were shown.
@@ -2518,7 +2640,10 @@ Rules, strict:
 
       const { data: consented } = await adminForNew.from("talent_pool_consent")
         .select("user_id").eq("opted_in", true);
-      const ids = (consented || []).map(r => r.user_id);
+      // v3.28.0 — a person restricted from discovery is not in the pool.
+      const consentedIds = (consented || []).map(r => r.user_id);
+      const hiddenCatalog = await discoveryRestrictedIds(adminForNew, consentedIds);
+      const ids = consentedIds.filter(id => !hiddenCatalog.has(id));
       if (ids.length === 0) return json({ pool_size: 0, skills: [] });
 
       const { data: rows } = await adminForNew.from("candidate_skills")
@@ -2726,7 +2851,10 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       // Load opted-in candidates.
       const { data: consented } = await adminForNew.from("talent_pool_consent")
         .select("user_id").eq("opted_in", true);
-      const candidateIds = (consented || []).map(r => r.user_id);
+      // v3.28.0 — drop anyone an admin has restricted from discovery.
+      const consentedMatchIds = (consented || []).map(r => r.user_id);
+      const hiddenMatch = await discoveryRestrictedIds(adminForNew, consentedMatchIds);
+      const candidateIds = consentedMatchIds.filter(id => !hiddenMatch.has(id));
       if (candidateIds.length === 0) {
         return json({ search_id: null, results: [], pool_note: "No candidates are in the pool yet." });
       }
