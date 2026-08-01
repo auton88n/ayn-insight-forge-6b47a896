@@ -5284,6 +5284,10 @@ export type Database = {
         Args: { p_enabled: boolean; p_key: string }
         Returns: Json
       }
+      admin_set_feature_message: {
+        Args: { p_key: string; p_message: string }
+        Returns: Json
+      }
       admin_set_pin: { Args: { p_hash: string }; Returns: Json }
       admin_unblock_user: {
         Args: { p_endpoint?: string; p_user_id: string }
@@ -5545,6 +5549,7 @@ export type Database = {
           security_risk: string
         }[]
       }
+      get_feature_flags: { Args: never; Returns: Json }
       get_global_intelligence_dashboard: { Args: never; Returns: Json }
       get_predictions_by_domain: {
         Args: { p_domain?: string; p_region?: string }
