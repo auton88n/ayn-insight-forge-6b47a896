@@ -10,12 +10,7 @@ import { AdminSidebar, AdminTabId } from '@/components/admin/AdminSidebar';
 import { AdminSkeleton } from '@/admin-app/hooks/AdminSkeleton';
 import aynMark from '/ayn-mark.svg';
 
-import {
-  useAdminSystemConfig,
-  useSetSystemConfig,
-  useAdminRefresh,
-  useAdminOverview,
-} from '@/admin-app/hooks/useAdminQuery';
+import { useAdminRefresh, useAdminOverview } from '@/admin-app/hooks/useAdminQuery';
 
 
 const OverviewSection = lazy(() => import('@/components/admin/sections/OverviewSection'));
@@ -41,7 +36,6 @@ export const AdminPanel = (_props: AdminPanelProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const systemConfigQuery = useAdminSystemConfig();
   const overviewQuery = useAdminOverview();
   const pendingEmployers = Number((overviewQuery.data as any)?.employers_pending || 0);
 
@@ -114,9 +108,7 @@ export const AdminPanel = (_props: AdminPanelProps) => {
                 {activeTab === 'candidates' && <CandidatesSection />}
                 {activeTab === 'marketplace' && <MarketplaceSection />}
                 {activeTab === 'money' && <MoneySection />}
-                {activeTab === 'system' && (
-                  <SystemSection systemConfig={systemConfig} onUpdateConfig={updateSystemConfig} />
-                )}
+                {activeTab === 'system' && <SystemSection />}
               </Suspense>
             </ErrorBoundary>
           </div>
