@@ -2055,6 +2055,14 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       const owner = ACTION_FLAG[String(action || "")];
       if (owner) { const off = await featureGate(adminForNew, owner); if (off) return off; }
     }
+    // v3.28.0 — the same shape, one account at a time. Global switch first,
+    // then this person's suspension, then the capability they are restricted from.
+    {
+      const blocked = await accountGate(adminForNew, userId, String(action || ""));
+      if (blocked) return blocked;
+    }
+
+
 
 
     // ─────────────────────────────────────────────────────────────
