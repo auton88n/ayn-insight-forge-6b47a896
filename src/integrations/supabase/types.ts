@@ -65,6 +65,75 @@ export type Database = {
         }
         Relationships: []
       }
+      account_restrictions: {
+        Row: {
+          capability: Database["public"]["Enums"]["account_capability"]
+          created_at: string
+          reason: string
+          set_by: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capability: Database["public"]["Enums"]["account_capability"]
+          created_at?: string
+          reason: string
+          set_by?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capability?: Database["public"]["Enums"]["account_capability"]
+          created_at?: string
+          reason?: string
+          set_by?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      account_suspensions: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          reason: string
+          restored_at: string | null
+          restored_by: string | null
+          suspended_at: string
+          suspended_by: string | null
+          until: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          reason: string
+          restored_at?: string | null
+          restored_by?: string | null
+          suspended_at?: string
+          suspended_by?: string | null
+          until?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          reason?: string
+          restored_at?: string | null
+          restored_by?: string | null
+          suspended_at?: string
+          suspended_by?: string | null
+          until?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_ai_conversations: {
         Row: {
           actions_taken: Json | null
@@ -5282,6 +5351,7 @@ export type Database = {
         Args: { p_action: string; p_id: string; p_note?: string }
         Returns: Json
       }
+      admin_restore_account: { Args: { p_user_id: string }; Returns: Json }
       admin_set_feature_flag: {
         Args: { p_enabled: boolean; p_key: string }
         Returns: Json
@@ -5291,6 +5361,19 @@ export type Database = {
         Returns: Json
       }
       admin_set_pin: { Args: { p_hash: string }; Returns: Json }
+      admin_set_restriction: {
+        Args: {
+          p_capability: string
+          p_on: boolean
+          p_reason?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      admin_suspend_account: {
+        Args: { p_reason: string; p_until?: string; p_user_id: string }
+        Returns: Json
+      }
       admin_unblock_user: {
         Args: { p_endpoint?: string; p_user_id: string }
         Returns: undefined
@@ -5467,6 +5550,7 @@ export type Database = {
         Returns: boolean
       }
       generate_monthly_summaries: { Args: never; Returns: number }
+      get_admin_account_detail: { Args: { p_user_id: string }; Returns: Json }
       get_admin_accounts: { Args: { p_search?: string }; Returns: Json }
       get_admin_ai_cost_stats: { Args: never; Returns: Json }
       get_admin_ai_usage: { Args: never; Returns: Json }
@@ -5746,6 +5830,7 @@ export type Database = {
       verify_encryption_configured: { Args: never; Returns: boolean }
     }
     Enums: {
+      account_capability: "discovery" | "proposals" | "assessments" | "ai"
       app_role: "admin" | "user" | "duty"
       application_status:
         | "saved"
@@ -5900,6 +5985,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_capability: ["discovery", "proposals", "assessments", "ai"],
       app_role: ["admin", "user", "duty"],
       application_status: [
         "saved",
