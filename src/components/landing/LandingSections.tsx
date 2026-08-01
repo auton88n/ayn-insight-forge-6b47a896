@@ -352,9 +352,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
 
         {/* ── BEFORE AND AFTER ───────────────────────────────── */}
         {seeker && (
-          <div id="proof" style={{ paddingBlockStart: 'clamp(48px, 7vw, 88px)' }}>
-            <BeforeAfterProof />
-          </div>
+          <div id="proof"><BeforeAfterProof /></div>
         )}
 
 

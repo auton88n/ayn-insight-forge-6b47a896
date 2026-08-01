@@ -22,7 +22,7 @@ const AFTER: Line[] = [
 ];
 
 export const BeforeAfterProof = memo(() => (
-  <section className="lp-section lp-proof-section" style={{ paddingBlockStart: 0 }}>
+  <section className="lp-section lp-proof-section" style={{ paddingBlockEnd: 'clamp(24px, 4vw, 48px)' }}>
     <div className="lp-shell">
       <div className="lp-reveal" style={{ marginBottom: 26 }}>
         <p className="lp-eyebrow">The difference</p>
