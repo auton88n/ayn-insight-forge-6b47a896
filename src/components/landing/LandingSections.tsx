@@ -418,8 +418,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <p className="lp-eyebrow">For employers</p>
                 <h2 className="lp-display lp-h2">Read three people properly instead of skimming six hundred</h2>
                 <p className="lp-lead">
-                  Describe the role in a few taps. AYN searches candidates who chose to be found and returns
-                  the strongest fits, each one with the evidence, the gaps and where every skill came from.
+                  Describe the role in a few taps. Read the strongest fits, with the evidence.
                 </p>
               </div>
 
