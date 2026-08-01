@@ -573,7 +573,8 @@ async function runScoreFlow({ auto = false } = {}) {
         <span><b style="color:#d97706">4 to 5</b> Fair</span>
         <span>·</span>
         <span><b style="color:#b91c1c">0 to 3</b> Low</span>
-      </div>`;
+      </div>
+      <div style="margin-top:6px;font-size:10px;color:#9ca3af;">This is a fit score out of 10 for the posting on this page. Resume Match on aynn.io is a different check, a keyword score out of 100 for text you paste in.</div>`;
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
 
