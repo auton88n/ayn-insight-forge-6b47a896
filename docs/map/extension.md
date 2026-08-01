@@ -71,3 +71,4 @@ Device tokens only, never passwords. `LINK_START` gets a code (public `link_star
 - v2.12.x — one-page document fit, provenance gate (removed in v3.0.0 with the write path).
 - v2.11.x — in-page presence, JD extraction quality scoring and fixtures.
 - v2.8.x — JD resolver ladder, page classifier gate, scoring transparency, dual auth.
+- v3.2.0 — the panel looks like the product. Paper and ember palette, Outfit and Inter, the AYN eye as header mark and as the toolbar icon (rendered from public/ayn-mark.svg), card tabs with an ember underline, and all fonts and icon glyphs bundled locally so nothing is fetched from a CDN at runtime.
