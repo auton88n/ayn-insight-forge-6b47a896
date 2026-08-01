@@ -90,6 +90,25 @@ export function useAdminSystemConfig() {
   });
 }
 
+// Settings writes go through adminRpc too, so they carry the explicit admin
+// Authorization header instead of whichever GoTrueClient answers first.
+export function useSetSystemConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: Record<string, unknown>) => {
+      for (const [key, value] of Object.entries(updates)) {
+        await adminRpc('admin_upsert_system_config', { p_key: key, p_value: JSON.stringify(value) });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminKeys.systemConfig() });
+      toast.success('Settings updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to update settings'),
+  });
+}
+
+
 export function useAdminSupportTickets() {
   return useQuery({
     queryKey: adminKeys.supportTickets(),
