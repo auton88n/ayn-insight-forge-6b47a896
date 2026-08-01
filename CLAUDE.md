@@ -57,9 +57,9 @@ One repo, one Supabase backend (project dfkoxuokfkttjhfjcecx). Solo founder: Gha
 
 / (landing, or role based routing when signed in), /resume-hub, /resume-match, /handoff, /extension/approve, /employer/pending, /settings, /pricing, /billing, /support, /contact, /world-intelligence, /sign/:token, /nda/:token (legacy signing pages, still live), /terms, /privacy, /reset-password, /subscription-success|canceled, /approval-result, /manage-bae76e99d97e188b (admin app; /admin redirects to 404 on purpose). /dashboard and /dashboard/* redirect to /.
 
-## Edge functions (v3.21.0)
+## Edge functions (v3.27.0)
 
-Only these remain: resume-hub (the monolith: extension actions, hub actions, employer actions, assessments), resume-match, stripe-billing, stripe-webhook, sign-document, ayn-agent-society, plus _shared. Everything else was deleted in v3.21.0.
+Eight functions, and that is the whole list: resume-hub (the monolith: extension actions, hub actions, employer actions, assessments), resume-match, stripe-billing, stripe-webhook, sign-document, ayn-agent-society, admin-auth-pin (the admin gate: verifies the 4 digit PIN with a server side lockout, mints and re-verifies the HMAC signed 8 hour admin ticket, and changes the PIN), admin-broadcast (sends an admin written email to a chosen audience, called from the System Email pane), plus _shared. Everything else was deleted in v3.21.0.
 
 
 ## Global rules (apply everywhere)
