@@ -1327,6 +1327,12 @@ Deno.serve(async (req) => {
       const authHeader = req.headers.get("Authorization") ?? "";
       const bearerJwt = authHeader.replace(/^Bearer\s+/i, "");
       const admin = createClient(supabaseUrl, serviceKey);
+      // v3.31.0 — an out of date sideloaded build is refused before it can
+      // authenticate, spend money, or write anything.
+      {
+        const stale = await extVersionGate(admin, req);
+        if (stale) return stale;
+      }
       let userId: string | null = null;
       let deviceLabel: string | null = null;
 
