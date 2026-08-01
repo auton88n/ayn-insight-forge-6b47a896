@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import aynLogo from '@/assets/ayn-logo.png';
+import { openCookiePreferences } from '@/components/shared/CookieConsent';
 
 const DiscordIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
