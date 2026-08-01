@@ -110,6 +110,16 @@ Deno.serve(async (req) => {
     const action = String(body.action ?? 'verify');
     const pin = String(body.pin ?? '');
 
+    // check { ticket } -> was this browser really given a ticket by a correct
+    // PIN entry, for this same account, and is it still inside its window.
+    // The browser cannot forge one, the signature is server side only.
+    if (action === 'check') {
+      const ok = await verifyTicket(String(body.ticket ?? ''), callerId);
+      return new Response(JSON.stringify({ success: ok, valid: ok }), { status: ok ? 200 : 401, headers });
+    }
+
+
+
     if (!/^\d{4,6}$/.test(pin)) {
       return new Response(JSON.stringify({ success: false, error: 'PIN must be 4 to 6 digits' }), { status: 400, headers });
     }
