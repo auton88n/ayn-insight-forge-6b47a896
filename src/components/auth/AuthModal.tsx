@@ -33,6 +33,8 @@ const maskEmail = (email: string): string => {
 
 export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
+  const signups = useFeature('signups');
+
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
