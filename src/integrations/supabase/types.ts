@@ -4504,7 +4504,10 @@ export type Database = {
           accepted_at: string
           ai_disclaimer_accepted: boolean
           id: string
+          ip_address: string | null
           privacy_accepted: boolean
+          privacy_version: string | null
+          source: string
           terms_accepted: boolean
           terms_version: string
           user_agent: string | null
@@ -4514,7 +4517,10 @@ export type Database = {
           accepted_at?: string
           ai_disclaimer_accepted?: boolean
           id?: string
+          ip_address?: string | null
           privacy_accepted?: boolean
+          privacy_version?: string | null
+          source?: string
           terms_accepted?: boolean
           terms_version?: string
           user_agent?: string | null
@@ -4524,7 +4530,10 @@ export type Database = {
           accepted_at?: string
           ai_disclaimer_accepted?: boolean
           id?: string
+          ip_address?: string | null
           privacy_accepted?: boolean
+          privacy_version?: string | null
+          source?: string
           terms_accepted?: boolean
           terms_version?: string
           user_agent?: string | null
