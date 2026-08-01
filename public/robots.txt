@@ -1,23 +1,23 @@
-# AYN AI - Robots.txt
+# AYN - Robots.txt
 # https://aynn.io
 
 User-agent: *
 Allow: /
 
-# Disallow private/authenticated pages
+# Signed in, token based or transactional routes. Nothing here is a landing page.
 Disallow: /admin
 Disallow: /settings
+Disallow: /billing
+Disallow: /resume-hub
+Disallow: /handoff
+Disallow: /extension/approve
+Disallow: /employer/pending
+Disallow: /sign/
+Disallow: /nda/
 Disallow: /reset-password
 Disallow: /approval-result
 Disallow: /subscription-success
 Disallow: /subscription-canceled
-
-# Disallow application forms (contain user data)
-Disallow: /services/ai-employee/apply
-Disallow: /services/ai-agents/apply
-Disallow: /services/automation/apply
-Disallow: /services/ticketing/apply
-Disallow: /services/content-creator-sites/apply
 
 # Sitemap location
 Sitemap: https://aynn.io/sitemap.xml
