@@ -120,6 +120,7 @@ export function ModerationPane() {
 
 /* ─────────────────────────── FEATURE SWITCHES ───────────────────────── */
 const FLAGS: { key: string; label: string; hint: string }[] = [
+  { key: 'platform', label: 'Whole platform', hint: 'Turning this off puts every signed in surface into maintenance' },
   { key: 'candidate_search', label: 'Candidate search', hint: 'Employers can run a search against the pool' },
   { key: 'proposals', label: 'Job proposals', hint: 'Employers can send proposals to candidates' },
   { key: 'assessments', label: 'Assessments', hint: 'Employers can generate and send assessments' },
@@ -130,48 +131,79 @@ const FLAGS: { key: string; label: string; hint: string }[] = [
 export function FlagsPane() {
   const q = useAdminFeatureFlags();
   const set = useSetFeatureFlag();
+  const setMsg = useSetFeatureMessage();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   if (q.isLoading) return <LoadingBlock />;
   if (q.error) return <ErrorBlock error={q.error} onRetry={() => q.refetch()} />;
 
   const d = (q.data || {}) as any;
   const flags = d.flags || {};
+  const messages = d.messages || {};
   const defaults = d.defaults || {};
   const value = (k: string) => (k in flags ? !!flags[k] : defaults[k] !== false);
+  const msg = (k: string) => (k in drafts ? drafts[k] : (messages[k] || ''));
 
   return (
     <div className="space-y-4">
       <Card className="border border-border/60 bg-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Kill switches</CardTitle>
-          <p className="text-xs text-muted-foreground">Turning one off stops that part of the product for everyone. Every change is written to the security audit log.</p>
+          <p className="text-xs text-muted-foreground">
+            Turning one off stops that part of the product for everyone, in the app and on the server, and shows people a maintenance notice.
+            Every change is written to the security audit log.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-border/60">
-            {FLAGS.map(f => (
-              <div key={f.key} className="px-5 py-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <Label className="text-sm font-medium">{f.label}</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">{f.hint}</p>
+            {FLAGS.map(f => {
+              const on = value(f.key);
+              return (
+                <div key={f.key} className="px-5 py-4 space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <Label className="text-sm font-medium">{f.label}</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">{f.hint}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={`text-xs font-medium ${on ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {on ? 'On' : 'Under maintenance'}
+                      </span>
+                      <Switch
+                        checked={on}
+                        disabled={set.isPending}
+                        onCheckedChange={c => set.mutate({ key: f.key, enabled: c })}
+                      />
+                    </div>
+                  </div>
+
+                  {!on && (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        value={msg(f.key)}
+                        maxLength={300}
+                        placeholder="What people see while this is off. Leave empty for the standard notice."
+                        onChange={e => setDrafts(s => ({ ...s, [f.key]: e.target.value }))}
+                      />
+                      <Button
+                        variant="outline"
+                        disabled={setMsg.isPending}
+                        onClick={() => setMsg.mutate({ key: f.key, message: msg(f.key) })}
+                      >
+                        Save note
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-xs font-medium ${value(f.key) ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {value(f.key) ? 'On' : 'Off'}
-                  </span>
-                  <Switch
-                    checked={value(f.key)}
-                    disabled={set.isPending}
-                    onCheckedChange={c => set.mutate({ key: f.key, enabled: c })}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
     </div>
   );
 }
+
 
 /* ──────────────────────────── CREDITS / USER ────────────────────────── */
 export function CreditsPane() {
