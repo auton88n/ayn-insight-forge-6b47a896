@@ -252,7 +252,7 @@ export default function AdminApp() {
 
   if (step === 'checking') return <Loader />;
   if (step === 'login') return <LoginScreen onSuccess={handleLoginSuccess} />;
-  if (step === 'pin') return <PinScreen session={session!} onSuccess={handlePinSuccess} />;
+  if (step === 'pin') return <PinScreen onSuccess={handlePinSuccess} />;
   if (step === 'denied') return <AccessDenied />;
 
   return (
