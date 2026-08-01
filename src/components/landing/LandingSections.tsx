@@ -548,9 +548,17 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
       {/* ── FOOTER ───────────────────────────────────────────── */}
       <footer className="lp-footer">
         <div className="lp-shell lp-footer-row">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', alignItems: 'center' }}>
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
+            <Link to="/do-not-sell">Do Not Sell or Share My Personal Information</Link>
+            <button
+              type="button"
+              onClick={openCookiePreferences}
+              style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+            >
+              Cookie choices
+            </button>
             <Link to="/contact">Contact</Link>
             <Link to="/pricing">Pricing</Link>
           </div>
