@@ -364,7 +364,7 @@ async function toggleScoring() {
   $('score-switch').classList.toggle('on', scoringOn);
   $('score-status-note').textContent = scoringOn
     ? 'ON. AYN scores every job card as you scroll.'
-    : 'Turn on to see a 1-10 match score on every job card.';
+    : 'Turn on to see a 1 to 10 match score on every job card.';
   if (!scoringOn) {
     getTab(tab => { if (tab) chrome.tabs.sendMessage(tab.id, { type: 'STOP_CARD_SCORING' }); });
     toast('Job scoring OFF', 'ok');
