@@ -41,7 +41,16 @@ src/contexts/SubscriptionContext: tiers (free plus paid; paid gives unlimited cr
 /sign/:token (ClientSign) and /nda/:token (NDASign) are the last remnants of a retired document signing product. They still resolve, backed by the sign-document edge function, so links already sent do not break. No admin surface points at them any more.
 
 ## Admin app
-/manage-bae76e99d97e188b mounts src/admin-app (AdminApp, adminSupabase client, useAdminQuery with adminRpc). /admin deliberately 404s. Six sections in src/components/admin/sections: Overview, Employers, Candidates, Marketplace, Money, System. Admin gate: AdminPinGate.
+/manage-bae76e99d97e188b mounts src/admin-app (AdminApp, adminSupabase client, useAdminQuery with adminRpc). /admin deliberately 404s. Six sections in src/components/admin/sections: Overview, Employers, Candidates, Marketplace, Money, System.
+
+### The gate (v3.26.0)
+Sign in, then user_roles must say 'admin', then the 4 digit PIN. Two things changed. The 'duty' role is gone from the gate: every admin RPC checks has_role(auth.uid(),'admin') only, so a duty user used to pass the PIN and then read "Admin access required" on every panel. Duty is now denied at the door. And the PIN can no longer be skipped from devtools: checkAdmin reads user_roles BEFORE it looks at any cached flag, and the cache no longer holds a user id it holds an HMAC signed ticket minted by admin-auth-pin on a correct PIN (payload userId.exp, signed server side, 8 hour window). A new admin-auth-pin action, check { ticket }, re-verifies it, so a hand written sessionStorage value fails and drops the browser back to the PIN screen.
+
+Every admin read and write goes through adminRpc in useAdminQuery, which sets the Authorization header explicitly to dodge the "Multiple GoTrueClient" session conflict. The last hold out, the settings write in AdminPanel, now goes through useSetSystemConfig on the same path instead of calling supabase.rpc directly.
+
+### Reindex (v3.26.0)
+candidate_index.indexed_at and candidate_index.embedding_model are nullable. The admin Candidates reindex button calls admin_mark_candidates_stale, which nulls both columns; while they were NOT NULL that call would have thrown on the first real candidate. employer_match coerces with (r.embedding_model || FALLBACK_EMBED_MODEL), so a nulled row reads as stale against the current spec model and is picked up by the bounded 25 per run inline reindex.
+
 
 ### Kill switches (v3.25.0, real for the first time)
 Six keys, every one defaulting to ON when absent: platform, candidate_search, proposals, assessments, tailoring, signups. The admin panel writes them with admin_set_feature_flag and the optional per switch message with admin_set_feature_message (max 300 chars), both into system_config under feature_flags and feature_flag_messages. Three readers:
