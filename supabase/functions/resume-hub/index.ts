@@ -2405,6 +2405,19 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     if (action === "talent_pool_set") {
       const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
       if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
+      // v3.28.0 — cannot opt back in while restricted from discovery.
+      if (opted_in) {
+        const block = await discoveryRestriction(adminForNew, userId);
+        if (block.restricted) {
+          return json({
+            code: "account_restricted",
+            error: "account_restricted",
+            capability: "discovery",
+            reason: block.reason,
+            message: RESTRICTION_MESSAGE.discovery,
+          }, 403);
+        }
+      }
       const now = new Date().toISOString();
       // v3.5.1 — record WHICH consent wording the user agreed to, so a future
       // copy change never leaves us guessing what they were shown.
