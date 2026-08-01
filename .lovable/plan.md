@@ -1,30 +1,48 @@
-## Answer first: what is "Auto-score job cards"?
+## Goal
 
-It is a browsing toggle, not a hidden feature. When it is on, `content.js` walks the job cards on a search results page (LinkedIn, Indeed, and similar) and pins a small AYN badge next to each card title showing a 1 to 10 fit number, so you can triage a results list without opening every posting. When it is off, nothing is injected. It is read only, same as the rest of the extension. The 1 to 10 number is a quick page level fit check and is deliberately coarser than the 0 to 100 match score on aynn.io.
+Every headline, lead and description gets cut to the shortest honest version. The hero you showed is the target rhythm: one short headline, one line of support, one button, one small note. Nothing else on the site should be denser than that.
 
-## What I will change
+## Copy rules applied everywhere
 
-### 1. White surface instead of cream
-In `extension/sidepanel.html` design tokens:
-- `--ayn-bg` moves from `#f5f2ec` to `#ffffff`.
-- Because cards were white on cream, cards get a faint separation again: `--ayn-card` stays white and card borders step up slightly, plus subtle surface tint `--ayn-surface: #FAFAFA` used for the tab rail, the header bar and inset blocks so the panel does not read as one flat sheet.
-- Header and tab rail backgrounds re-pointed to the new tokens, dividers unchanged.
+- Lead paragraphs: one sentence, 12 to 18 words. Never two clauses joined by "then".
+- Card and tile descriptions: one sentence, under 15 words.
+- Bullets: under 10 words each.
+- FAQ answers: two sentences maximum.
+- No em dashes, no en dashes, ranges use "to".
+- Cut every sentence that only restates the heading.
 
-### 2. Real AYN mark in the header
-The header logo is currently a CSS circle with an orange dot, which is not the brand. Replace it with the actual AYN mark:
-- Add `extension/icons/ayn-mark.svg` (the triangle with the ember eye, same artwork as `public/ayn-mark.svg`, transparent).
-- `.logo-eye` becomes a plain transparent box that renders that SVG at 26px, no ring, no dot, no background circle. Remove the `::after` pupil rule and the `img { display: none }` rule.
-- Same mark used on the sign in screen hero in place of the current ring and dot, sized larger with a soft ember glow behind it so the welcome screen still has a focal point.
-- Wordmark stays "AYN Resume Tailor" in the display font.
+## Part A, landing page (src/components/landing/LandingSections.tsx)
 
-### 3. Remove the Email formats block
-- Delete the `Email formats for <domain>` label and `#email-fmts` container from `extension/sidepanel.html` (around lines 964 to 965) and the `.email-fmt` styles.
-- Delete the format building loop in `renderContacts` in `extension/sidepanel.js` and drop `emailFormats` and `companyDomain` from the destructured args where they are no longer used. The rest of the Contacts tab (people, LinkedIn search links, subject line, outreach draft) stays as is.
+Rewrite the copy constants in place, no layout or logic changes.
 
-### 4. Ship it
-- Bump `extension/manifest.json` and the `AYN_BUILD` fallback in `extension/content.js` to 3.2.3.
-- Run `node extension/build.mjs` to regenerate `public/ayn-extension.zip` and `public/ayn-extension-version.json`.
-- Add the v3.2.3 line to `docs/map/extension.md` in the same commit.
-- Verify the rendered panel with a headless screenshot so I can confirm the white surface and the mark before reporting done.
+- HERO: seeker lead becomes one line ("A resume and cover letter written for the exact job in front of you."). Employer lead becomes one line. Notes shortened to a half line.
+- PAIN: drop the `lead` paragraph entirely for both audiences, keep the title and the three bullets, each cut to under 10 words.
+- SEEKER_TILES: six descriptions cut to one short sentence each. The lead tile loses its second clause.
+- EMPLOYER_STEPS: four descriptions cut to one short sentence each.
+- TRUST: titles shortened, leads cut to one sentence, chips shortened to three or four words each.
+- FAQS: all twelve answers cut to two sentences maximum.
+- Section headings in the seeker and employer showcases: the long explanatory lead under "One posting in, one tailored application out" collapses to one line.
 
-No copy uses em dashes or en dashes.
+## Part B, the rest of the app
+
+Same treatment, copy only, on the surfaces a user actually reads:
+
+- `src/components/auth/AuthModal.tsx`: role tile descriptions and helper text.
+- `src/pages/Pricing.tsx`: plan blurbs and feature lines.
+- `src/components/resume-hub/*`: HomeTab next-action text, DiscoveryTab and TalentPoolCard explanations, ProposalsTab and AssessmentsTab empty states, ExtensionTab install copy, ProfileTab group hints.
+- `src/pages/EmployerHub.tsx` and `src/components/employer/*`: intake wizard prompts, ask card labels, company profile nudges, proposal dialog helper text.
+- `src/pages/Handoff.tsx`, `ResumeMatch.tsx`, `SubscriptionSuccess.tsx`, `NotFound.tsx`: shorten the standing explanations.
+- Extension `extension/sidepanel.html`: section subtitles and empty states, matched to the same rhythm.
+
+Legal pages (Terms, Privacy, Do Not Sell), the cookie banner and any consent wording are left alone, since those need to stay precise.
+
+## Technical notes
+
+- All edits are string constants and JSX text. No component structure, props, state or backend changes.
+- Line lengths shrink, so a few tiles will look shorter than their neighbours. Where that leaves a visibly empty card, the fix is CSS alignment in `src/index.css` or `src/styles/resume-hub.css`, not padding the copy back out.
+- Extension copy changes mean a version bump in `extension/manifest.json` and `extension/content.js`, then `node extension/build.mjs`, per the repo rule.
+- `docs/map/*` only gets updated if a seam changes. Nothing here changes a seam, so the map files stay as they are apart from the extension version line.
+
+## Verification
+
+Screenshot the landing page in both audience modes and the main Resume Hub tabs before and after, and check no line in a card runs past three rendered lines. we keep it simple but infomative not to wordy 
