@@ -81,15 +81,14 @@ let flagCache: { at: number; flags: Record<string, boolean>; messages: Record<st
 async function readFlags(admin: SupabaseClient<any, any, any>) {
   if (flagCache && Date.now() - flagCache.at < 30_000) return flagCache;
   try {
-    const { data } = await admin.from("system_config")
-      .select("key, value").in("key", ["feature_flags", "feature_flag_messages"]);
-    const rows = (data || []) as { key: string; value: Record<string, unknown> }[];
-    flagCache = {
-      at: Date.now(),
-      flags: (rows.find(r => r.key === "feature_flags")?.value || {}) as Record<string, boolean>,
-      messages: (rows.find(r => r.key === "feature_flag_messages")?.value || {}) as Record<string, string>,
-    };
+    // get_feature_flags is the same reader the frontend uses, so the server and
+    // the screen can never disagree about what is switched off.
+    const { data, error } = await admin.rpc("get_feature_flags");
+    if (error) throw error;
+    const d = (data || {}) as { flags?: Record<string, boolean>; messages?: Record<string, string> };
+    flagCache = { at: Date.now(), flags: d.flags || {}, messages: d.messages || {} };
   } catch {
+    // A read failure must never take the product down.
     flagCache = { at: Date.now(), flags: {}, messages: {} };
   }
   return flagCache;
@@ -104,6 +103,22 @@ const MAINTENANCE_FALLBACK: Record<FeatureKey, string> = {
   signups: "New accounts are paused for maintenance.",
 };
 
+/** Which switch owns which action. Anything absent is only gated by platform. */
+const ACTION_FLAG: Record<string, FeatureKey> = {
+  employer_spec_extract: "candidate_search",
+  employer_skill_catalog: "candidate_search",
+  employer_match: "candidate_search",
+  employer_draft_proposal: "proposals",
+  employer_reveal_request: "proposals",
+  employer_assessment_generate: "assessments",
+  employer_assessment_send: "assessments",
+  assessment_start: "assessments",
+  assessment_answer: "assessments",
+  assessment_submit: "assessments",
+  tailor: "tailoring",
+  cover_letter: "tailoring",
+};
+
 /**
  * Returns a 503 Response when the feature (or the whole platform) is off,
  * otherwise null. Callers do: const off = await featureGate(admin, 'x'); if (off) return off;
@@ -116,6 +131,7 @@ async function featureGate(
   for (const k of ["platform", key] as FeatureKey[]) {
     if (f.flags[k] === false) {
       return json({
+        code: "feature_disabled",
         error: "maintenance",
         feature: k,
         message: (f.messages[k] || "").trim() || MAINTENANCE_FALLBACK[k],
@@ -2033,6 +2049,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // v3.24.0 — every AI call made below is attributed to this person and action.
     setAiCtx(adminForNew, userId, String(action || "unknown"));
     { const off = await featureGate(adminForNew, "platform"); if (off) return off; }
+    // v3.25.0 — one place that says which switch owns which action. Reading
+    // history (assessment_list, employer_assessment_list) is never gated.
+    {
+      const owner = ACTION_FLAG[String(action || "")];
+      if (owner) { const off = await featureGate(adminForNew, owner); if (off) return off; }
+    }
 
 
     // ─────────────────────────────────────────────────────────────
