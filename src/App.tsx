@@ -73,6 +73,9 @@ const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const DoNotSell = lazy(() => import("./pages/DoNotSell"));
+// v3.32.0 — every other legal document is the same renderer with a different slug.
+const LegalIndex = lazy(() => import("./pages/LegalIndex"));
+const LegalDoc = lazy(() => import("./components/legal/LegalPage"));
 import { CookieConsent } from "@/components/shared/CookieConsent";
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
@@ -135,6 +138,13 @@ const AnimatedRoutes = () => {
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/do-not-sell" element={<Suspense fallback={<PageLoader />}><DoNotSell /></Suspense>} />
+      <Route path="/legal" element={<Suspense fallback={<PageLoader />}><LegalIndex /></Suspense>} />
+      <Route path="/cookies" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="cookies" /></Suspense>} />
+      <Route path="/security" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="security" /></Suspense>} />
+      <Route path="/subprocessors" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="subprocessors" /></Suspense>} />
+      <Route path="/dpa" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="dpa" /></Suspense>} />
+      <Route path="/sla" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="sla" /></Suspense>} />
+      <Route path="/copyright" element={<Suspense fallback={<PageLoader />}><LegalDoc slug="copyright" /></Suspense>} />
 
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />

@@ -2208,3 +2208,97 @@ button, a, input, textarea, select {
   .ayn-loader-mark, .ayn-loader-arc, .ayn-loader-glow, .ayn-loader-label { animation: none; }
   .ayn-loader-glow { opacity: 0.5; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   v3.32.0 LEGAL DOCUMENTS
+   One renderer serves eight markdown documents. Long legal text needs a
+   readable measure on screen, tables that survive a phone, an anchor on
+   every clause, and something sane on paper because procurement prints it.
+   ───────────────────────────────────────────────────────────── */
+.legal-measure {
+  width: 100%;
+  max-width: 46rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.legal-doc {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+.legal-doc h1.legal-h1 { display: none; } /* the page header already shows it */
+.legal-doc h2 {
+  font-size: 1.125rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid hsl(var(--border));
+}
+.legal-doc h3 { font-size: 1rem; margin-top: 1.75rem; }
+.legal-doc p, .legal-doc li { color: hsl(var(--muted-foreground)); }
+.legal-doc strong { color: hsl(var(--foreground)); }
+.legal-doc a { text-underline-offset: 3px; }
+
+.legal-anchor { position: relative; scroll-margin-top: 6rem; }
+.legal-anchor-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4rem;
+  opacity: 0;
+  vertical-align: middle;
+  color: hsl(var(--muted-foreground));
+  transition: opacity 0.15s ease;
+}
+.legal-anchor:hover .legal-anchor-link,
+.legal-anchor-link:focus-visible { opacity: 1; }
+
+.legal-toc {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.25rem;
+  background: hsl(var(--muted) / 0.35);
+}
+
+/* Tables are used heavily by the subprocessor list and the SLA. */
+.legal-table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+.legal-doc table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.legal-doc th, .legal-doc td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.legal-doc th { background: hsl(var(--muted) / 0.5); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .legal-doc { font-size: 0.9375rem; line-height: 1.7; }
+  .legal-doc h2 { font-size: 1.0625rem; }
+  .legal-doc table { min-width: 28rem; font-size: 0.8125rem; }
+}
+
+@media print {
+  .legal-noprint, .legal-toc, .legal-anchor-link { display: none !important; }
+  body { background: #fff !important; }
+  .legal-measure { max-width: none; }
+  .legal-doc, .legal-doc p, .legal-doc li, .legal-doc th, .legal-doc td,
+  h1, h2, h3 { color: #000 !important; }
+  .legal-doc { font-size: 10.5pt; line-height: 1.5; }
+  .legal-doc h2 {
+    page-break-after: avoid;
+    break-after: avoid;
+    border-top: 1px solid #999;
+  }
+  .legal-doc h3 { page-break-after: avoid; break-after: avoid; }
+  .legal-doc table, .legal-doc tr, .legal-doc li {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .legal-doc th { background: #eee !important; }
+  .legal-doc a { color: #000 !important; text-decoration: underline; }
+  .legal-table-wrap { overflow: visible; }
+  @page { margin: 18mm 16mm; }
+}
