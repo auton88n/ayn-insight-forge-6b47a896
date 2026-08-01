@@ -323,6 +323,9 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
                   {hero.cta} <ArrowRight size={15} />
                 </button>
+                {seeker && (
+                  <a href="#proof" className="lp-quiet-link">See the difference</a>
+                )}
               </div>
               <p className="lp-note">{hero.note}</p>
             </div>
@@ -345,6 +348,14 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             ))}
           </div>
         </div>
+
+        {/* ── BEFORE AND AFTER ───────────────────────────────── */}
+        {seeker && (
+          <div id="proof" style={{ paddingBlockStart: 'clamp(48px, 7vw, 88px)' }}>
+            <BeforeAfterProof />
+          </div>
+        )}
+
 
         {/* ── THE PAIN ───────────────────────────────────────── */}
         <section className="lp-section">
