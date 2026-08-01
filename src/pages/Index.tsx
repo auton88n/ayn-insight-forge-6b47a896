@@ -11,6 +11,8 @@ import { Navigate } from 'react-router-dom';
 // employer candidate search in EmployerHub.
 import LandingPage from '@/components/LandingPage';
 const EmployerHub = lazy(() => import('@/pages/EmployerHub'));
+import { useFeature } from '@/hooks/useFeatureFlags';
+import { PlatformMaintenanceScreen } from '@/components/shared/MaintenanceNotice';
 
 
 
