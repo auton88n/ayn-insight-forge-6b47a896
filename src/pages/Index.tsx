@@ -124,7 +124,9 @@ const Index = () => {
 // a seeker talks to AYN now.
 const AuthedShell = ({ user, session: _session }: { user: User; session: Session }) => {
   const { loading, role, employerStatus, companyName } = useUserRole(user.id);
+  const platform = useFeature('platform');
   if (loading) return <AYNLoader />;
+  if (platform.loaded && !platform.enabled) return <PlatformMaintenanceScreen />;
   if (role === 'employer') {
     if (employerStatus !== 'approved') return <Navigate to="/employer/pending" replace />;
     return (
@@ -135,6 +137,7 @@ const AuthedShell = ({ user, session: _session }: { user: User; session: Session
   }
   return <Navigate to="/resume-hub" replace />;
 };
+
 
 
 
