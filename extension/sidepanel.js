@@ -62,7 +62,7 @@ async function startSignIn() {
 
   // Build a friendly device label
   const platformInfo = await (chrome.runtime.getPlatformInfo?.() || Promise.resolve({ os: 'Chrome' }));
-  const deviceLabel = `Chrome — ${platformInfo.os || 'Browser'}`;
+  const deviceLabel = `Chrome, ${platformInfo.os || 'Browser'}`;
 
   chrome.runtime.sendMessage({ type: 'LINK_START', deviceLabel }, resp => {
     if (!resp?.ok) {
@@ -363,7 +363,7 @@ async function toggleScoring() {
   scoringOn = !scoringOn;
   $('score-switch').classList.toggle('on', scoringOn);
   $('score-status-note').textContent = scoringOn
-    ? 'ON — AYN scores every job card as you scroll.'
+    ? 'ON. AYN scores every job card as you scroll.'
     : 'Turn on to see a 1-10 match score on every job card.';
   if (!scoringOn) {
     getTab(tab => { if (tab) chrome.tabs.sendMessage(tab.id, { type: 'STOP_CARD_SCORING' }); });
@@ -556,23 +556,23 @@ async function runScoreFlow({ auto = false } = {}) {
     let legend = $('score-legend');
     if (!legend) { legend = document.createElement('div'); legend.id = 'score-legend'; $('score-result').appendChild(legend); }
     const tierCopy = {
-      's-strong': { title: 'Strong match — apply with confidence', body: 'Your profile covers most must-haves. You are competitive for this role.' },
-      's-good':   { title: 'Good match — worth applying',          body: 'You hit the core requirements. Tailoring your resume will lift this further.' },
-      's-fair':   { title: 'Fair match — apply if interested',     body: 'You meet some requirements but a few key skills are missing or weak.' },
-      's-poor':   { title: 'Low match — likely a stretch',         body: 'Several must-haves are missing. Consider tailoring heavily or skipping.' },
+      's-strong': { title: 'Strong match, apply with confidence', body: 'Your profile covers most must-haves. You are competitive for this role.' },
+      's-good':   { title: 'Good match, worth applying',          body: 'You hit the core requirements. Tailoring your resume will lift this further.' },
+      's-fair':   { title: 'Fair match, apply if interested',     body: 'You meet some requirements but a few key skills are missing or weak.' },
+      's-poor':   { title: 'Low match, likely a stretch',         body: 'Several must-haves are missing. Consider tailoring heavily or skipping.' },
     }[tier] || { title: '', body: '' };
     legend.style.cssText = 'margin-top:10px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font-size:12px;line-height:1.5;color:#374151;';
     legend.innerHTML = `
       <div style="font-weight:700;color:#111827;margin-bottom:4px;">${tierCopy.title}</div>
       <div style="color:#4b5563;margin-bottom:6px;">${tierCopy.body}</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:10px;color:#6b7280;">
-        <span><b style="color:#15803d">8–10</b> Strong</span>
+        <span><b style="color:#15803d">8 to 10</b> Strong</span>
         <span>·</span>
-        <span><b style="color:#65a30d">6–7</b> Good</span>
+        <span><b style="color:#65a30d">6 to 7</b> Good</span>
         <span>·</span>
-        <span><b style="color:#d97706">4–5</b> Fair</span>
+        <span><b style="color:#d97706">4 to 5</b> Fair</span>
         <span>·</span>
-        <span><b style="color:#b91c1c">0–3</b> Low</span>
+        <span><b style="color:#b91c1c">0 to 3</b> Low</span>
       </div>`;
     const ul = $('score-reasons'); ul.innerHTML = '';
     (d.reasons || []).forEach(rsn => { const li = document.createElement('li'); li.textContent = rsn; ul.appendChild(li); });
@@ -647,7 +647,7 @@ async function runScoreFlow({ auto = false } = {}) {
       mkWrap.appendChild(chipRow);
       const tip = document.createElement('div');
       tip.style.cssText = 'font-size:10px;color:#78350f;margin-top:8px;font-style:italic;';
-      tip.textContent = 'Tip: open the Resume tab and run “Tailor” — AYN will weave the ones you have into your bullets automatically.';
+      tip.textContent = 'Tip: open the Resume tab and run “Tailor” and AYN will weave the ones you have into your bullets automatically.';
       mkWrap.appendChild(tip);
       mkWrap.style.display = '';
     } else {
@@ -1256,7 +1256,7 @@ async function detectForAsk() {
     if (ASK.jobTitle || ASK.company) {
       pill.innerHTML = `<div class="ask-context-pill"><i class="ti ti-target-arrow"></i>${[ASK.jobTitle, ASK.company].filter(Boolean).join(' · ').slice(0, 80)}</div>`;
     } else {
-      pill.innerHTML = `<div class="ask-context-pill" style="background:#f3f4f6;border-color:#e5e7eb;color:#6b7280"><i class="ti ti-info-circle"></i>No job detected — I'll answer using your resume only.</div>`;
+      pill.innerHTML = `<div class="ask-context-pill" style="background:#f3f4f6;border-color:#e5e7eb;color:#6b7280"><i class="ti ti-info-circle"></i>No job detected, so I will answer using your resume only.</div>`;
     }
     ASK.loaded = true;
   } catch {
