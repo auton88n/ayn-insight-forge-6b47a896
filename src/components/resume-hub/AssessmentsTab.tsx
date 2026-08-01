@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Timer, CheckCircle2, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { assessmentApi, type SeekerAssessment, type StartedAssessment } from "@/lib/assessments";
+import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 
 function mmss(total: number): string {
   const s = Math.max(0, total);
