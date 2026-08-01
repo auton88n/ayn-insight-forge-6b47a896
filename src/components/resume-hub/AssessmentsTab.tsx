@@ -189,6 +189,8 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
         </p>
       </div>
 
+      <MaintenanceNotice feature="assessments" />
+
       {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
       {!loading && rows.length === 0 && (
         <Card className="p-5">
