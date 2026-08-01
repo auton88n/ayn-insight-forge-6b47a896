@@ -61,40 +61,40 @@ const SEEKER_TILES = [
     span: 'lp-span-6',
     icon: Search,
     title: 'It reads the posting you are looking at',
-    desc: 'Open a job, open the side panel, and AYN pulls the real description off the live page, then tells you where you stand out of 10 before you spend an evening on it.',
+    desc: 'Open a job, open the side panel, and see where you stand out of 10.',
     meta: ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever', 'Company sites'],
   },
   {
     span: 'lp-span-3',
     icon: FileText,
     title: 'A resume written for that one job',
-    desc: 'Your real experience, phrased in the language of the posting, on one page that an ATS can read.',
+    desc: 'Your real experience, in the language of the posting, on one page.',
     meta: ['PDF', 'DOCX', 'One page', 'Kept with the job'],
   },
   {
     span: 'lp-span-3',
     icon: MessagesSquare,
     title: 'A cover letter that names things',
-    desc: 'It mentions the company and the role because AYN read both of them. No template sentences.',
+    desc: 'It names the company and the role. No template sentences.',
     meta: ['Named company', 'Grounded in the posting'],
   },
   {
     span: 'lp-span-2',
     icon: Target,
     title: 'The honest gap list',
-    desc: 'Matched, missing and nice to have, worked out from the posting against your background before the model writes a word.',
+    desc: 'Matched, missing and nice to have, worked out before a word is written.',
   },
   {
     span: 'lp-span-2',
     icon: ShieldCheck,
     title: 'Nothing invented',
-    desc: 'No skill, number, date or title appears that is not already yours. If AYN cannot verify it, it says so.',
+    desc: 'No skill, number or title appears that is not already yours.',
   },
   {
     span: 'lp-span-2',
     icon: Radar,
     title: 'Be found while you sleep',
-    desc: 'Turn on discovery and employers searching AYN can reach you. Email and phone stay private until you accept.',
+    desc: 'Employers can reach you. Your email and phone stay private until you accept.',
   },
 ];
 
@@ -102,22 +102,22 @@ const EMPLOYER_STEPS = [
   {
     icon: Building2,
     title: 'Describe the role once',
-    desc: 'Title, seniority, must have skills with live counts of who exists, location, eligibility. No free text guessing.',
+    desc: 'Title, seniority, must have skills, location. No free text guessing.',
   },
   {
     icon: Search,
     title: 'AYN reads the pool',
-    desc: 'Skill prefilter, then semantic recall, then one grounded rerank. You get the strongest fits with the evidence and the gaps.',
+    desc: 'You get the strongest fits, with the evidence and the gaps.',
   },
   {
     icon: ClipboardCheck,
     title: 'Verify before you commit',
-    desc: 'Send a short assessment written from that person\u2019s own background. You see score, observations and time per answer.',
+    desc: 'A short assessment written from that person\u2019s own background.',
   },
   {
     icon: MailCheck,
     title: 'Invite the right one',
-    desc: 'Send a proposal with the role, location, salary range and a message AYN drafts for you. Contact opens when they accept.',
+    desc: 'Send a proposal. Contact opens when they accept.',
   },
 ];
 
