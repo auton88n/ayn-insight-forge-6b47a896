@@ -36,12 +36,13 @@ import AssessmentDialog from "@/components/employer/AssessmentDialog";
 import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import { AynLoader } from "@/components/shared/AynLoader";
 import aynLogo from "@/assets/ayn-logo.png";
-import {
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
+import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
+
 
 /** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
 type EmployerTab = "search" | "proposals" | "assessments" | "company";
