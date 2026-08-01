@@ -35,23 +35,23 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
   job_seeker: {
     eyebrow: 'The problem',
     title: 'You are guessing what they want',
-    lead: 'A job post is a wish list written for everybody, and your resume is a summary written for nobody in particular. AYN puts the real posting between them.',
+    lead: 'The posting is written for everybody. Your resume is written for nobody.',
     who: 'If you are applying',
     lines: [
-      'You send the same resume to forty postings and hear nothing back.',
-      'Rewriting it properly for one job costs you an evening.',
-      'You never find out which line lost you the interview.',
+      'Same resume, forty postings, no replies.',
+      'Rewriting it properly costs you an evening.',
+      'You never learn which line lost you the interview.',
     ],
   },
   employer: {
     eyebrow: 'The problem',
     title: 'You are guessing who can actually do it',
-    lead: 'A resume is a summary of a person written for nobody in particular. AYN puts evidence, provenance and a real assessment behind every name it gives you.',
+    lead: 'A resume is a claim. You need the evidence behind it.',
     who: 'If you are hiring',
     lines: [
-      'One posting brings six hundred resumes, most of them wrong.',
-      'The good ones are already employed and never see your ad.',
-      'A confident resume tells you nothing about whether they did the work.',
+      'Six hundred resumes, most of them wrong.',
+      'The good ones never see your ad.',
+      'Confidence on paper proves nothing.',
     ],
   },
 };
