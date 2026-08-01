@@ -44,6 +44,9 @@ async function load(): Promise<FlagState> {
   return inflight;
 }
 
+/** Force a re-read, used after a 503 maintenance answer. */
+export const refreshFeatureFlags = () => load();
+
 const POLL_MS = 60_000;
 
 export function useFeatureFlags() {
