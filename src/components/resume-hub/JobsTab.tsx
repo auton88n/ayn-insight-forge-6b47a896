@@ -20,6 +20,7 @@ import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBa
 import ResumeDiffViewer from "./ResumeDiffViewer";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
+import { isFeatureDisabled } from "@/lib/featureError";
 
 interface Props { userId: string; onOpenJob: (id: string) => void }
 
@@ -85,7 +86,9 @@ export default function JobsTab({ userId }: Props) {
         score: m.score, breakdown: m.breakdown,
       });
     } catch (e) {
-      toast({ title: "Match failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast(isFeatureDisabled(e)
+        ? { title: "Under maintenance", description: e.message }
+        : { title: "Match failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
   };
 
@@ -103,7 +106,9 @@ export default function JobsTab({ userId }: Props) {
       await loadDocs(selected.id);
       toast({ title: "Tailored resume ready", description: "Download it below." });
     } catch (e) {
-      toast({ title: "Tailor failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast(isFeatureDisabled(e)
+        ? { title: "Under maintenance", description: e.message }
+        : { title: "Tailor failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
   };
 
@@ -116,7 +121,9 @@ export default function JobsTab({ userId }: Props) {
       await supabase.from("cover_letters").insert({ user_id: userId, job_id: selected.id, resume_id: primaryResume.id, body });
       await loadDocs(selected.id);
     } catch (e) {
-      toast({ title: "Cover letter failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
+      toast(isFeatureDisabled(e)
+        ? { title: "Under maintenance", description: e.message }
+        : { title: "Cover letter failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" });
     } finally { setBusy(false); }
   };
 
