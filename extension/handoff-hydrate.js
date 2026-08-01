@@ -32,7 +32,7 @@
           () => void chrome.runtime.lastError,
         );
       } catch {}
-      showToast('AYN: context restored. Open the side panel to autofill.');
+      showToast('AYN: context restored. Open the side panel to score this job and tailor your resume.');
     });
 
     function showToast(msg) {
