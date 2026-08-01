@@ -212,6 +212,7 @@ async function callAI(opts: {
     // Up to 3 attempts per model with exponential backoff on 429 / transient 5xx.
     for (let attempt = 0; attempt < 3; attempt++) {
       let r: Response;
+      const startedAt = Date.now();
       try {
         r = await fetch(GATEWAY_URL, {
           method: "POST",
@@ -226,6 +227,15 @@ async function callAI(opts: {
 
       if (r.ok) {
         const data = await r.json();
+        const usage = data?.usage || {};
+        logAiUsage({
+          model,
+          inputTokens: Number(usage.prompt_tokens ?? usage.input_tokens ?? 0),
+          outputTokens: Number(usage.completion_tokens ?? usage.output_tokens ?? 0),
+          ms: Date.now() - startedAt,
+          wasFallback: mi > 0,
+          fallbackReason: mi > 0 ? lastErr || "primary model unavailable" : undefined,
+        });
         const choice = data?.choices?.[0];
         const finishReason = choice?.finish_reason || choice?.finishReason || data?.stop_reason;
         if (finishReason === "length" || finishReason === "max_tokens") {
@@ -239,6 +249,7 @@ async function callAI(opts: {
         }
         return { text: msg?.content ?? "" };
       }
+
 
       // 402 = credits — don't retry same model, jump to next in chain.
       if (r.status === 402) {
