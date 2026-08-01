@@ -1,16 +1,15 @@
 // _shared/identity.ts — v2.13.0 (Slice 2 of "Reliable by construction")
 //
 // Single Source of Truth for applicant identity across every edge action
-// that needs it (ext_autofill, ext_cover_letter_text, smart_tailor,
-// ext_bootstrap, ext_profile, ext_vision_fill).
+// that needs it (ext_bootstrap, ext_profile, ext_job_score, smart_tailor,
+// ext_cover_letter_text).
 //
-// WHY THIS EXISTS: on 2026-07-28 a Greenhouse fill wrote synthetic PII
-// ("isha.sharma@example.com", "+1234567890", "Sharma") because the
-// per-action inline merge in ext_autofill quietly returned an empty
+// WHY THIS EXISTS: per action inline merges used to return an empty
 // identity when the user had a resume but no profile row, and never
-// consulted auth.users.email as a fallback. v2.12.2 added four defensive
-// layers. This file is the structural fix: one function, one priority
-// order, one digest, one place to change when a source is added.
+// consulted auth.users.email as a fallback, so generated documents could
+// carry a name and an email that were not the applicant's. This file is
+// the structural fix: one function, one priority order, one digest, one
+// place to change when a source is added.
 //
 // PRIORITY (per field, highest first):
 //   profile (user_profile_data) > canonical (user_profile_canonical.identity
@@ -371,53 +370,10 @@ export async function loadIdentity(
 }
 
 /**
- * Convenience helper: flattens Identity into the shape ext_autofill's
- * legacy `merged` map used, so the existing rule engine below it keeps
- * working while the caller adopts loadIdentity() incrementally.
- */
-export function identityToLegacyMerged(id: Identity, profile: Record<string, any> | null): Record<string, unknown> {
-  const cwa = (id.canonical?.work_auth || {}) as Record<string, any>;
-  const pwa = (profile?.work_auth || {}) as Record<string, any>;
-  const addr = (profile?.address || {}) as Record<string, string>;
-  const merged: Record<string, unknown> = {
-    first_name: id.first_name.value,
-    last_name: id.last_name.value,
-    full_name: id.full_name.value,
-    email: id.email.value,
-    phone: id.phone.value,
-    location: id.location.value,
-    city: id.city.value,
-    region: id.region.value,
-    region_full: id.region_full.value,
-    country: id.country.value,
-    summary: String((id.resume.basics as any).summary || ""),
-    computed_years_experience: id.computed_years_experience.value,
-    computed_education_level: id.computed_education_level.value,
-    current_title: id.current_title.value,
-    current_company: id.current_company.value,
-    seniority: id.seniority.value,
-    primary_function: id.primary_function.value,
-  };
-  if (id.linkedin_url.value) merged.linkedin_url = id.linkedin_url.value;
-  if (id.portfolio_url.value) merged.portfolio_url = id.portfolio_url.value;
-  if (id.github_url.value) merged.github_url = id.github_url.value;
-  merged.work_auth = {
-    citizenship: cwa.citizenship || (String(pwa.type || "").toLowerCase() === "citizen" ? (addr.country || "") : "") || "",
-    authorized_us: (typeof cwa.work_authorized_us === "boolean") ? cwa.work_authorized_us : undefined,
-    authorized_ca: (typeof cwa.work_authorized_ca === "boolean") ? cwa.work_authorized_ca : undefined,
-    needs_sponsorship: (typeof cwa.needs_sponsorship_now === "boolean") ? cwa.needs_sponsorship_now
-      : (typeof cwa.needs_sponsorship_future === "boolean") ? cwa.needs_sponsorship_future
-        : (typeof pwa.requires_sponsorship === "boolean") ? pwa.requires_sponsorship : undefined,
-  };
-  return merged;
-}
-
-/**
  * Plain-text applicant contact block for cover letter / tailored resume
  * headers. Ensures generated documents carry the real applicant's
  * identity instead of whatever the model would otherwise invent from
- * the resume `basics.name` alone (which was empty in the Isha Sharma
- * incident).
+ * the resume `basics.name` alone.
  */
 export function identityContactBlock(id: Identity): string {
   const lines: string[] = [];

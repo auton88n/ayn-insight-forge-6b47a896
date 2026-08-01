@@ -1,5 +1,7 @@
 // Resume Hub — unified AI edge function.
-// Actions: parse, rewrite, tailor, match, cover-letter, autofill
+// Actions: extension lane (ext_bootstrap, ext_profile, ext_ingest_job,
+// ext_job_score, ext_cover_letter_text, smart_tailor, ext_ask), hub lane
+// (profile, resumes, jobs, proposals, assessments) and employer lane.
 // Auth: requires the caller's Supabase JWT (Authorization: Bearer ...).
 // All DB writes use the caller's JWT so RLS enforces per-user isolation.
 
@@ -9,7 +11,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // "Identity" section. Every action that reads applicant PII goes through
 // loadIdentity() so a new source (canonical.identity, auth.users) is
 // picked up everywhere at once, not re-derived per action.
-import { loadIdentity, identityToLegacyMerged, identityContactBlock, type Identity } from "../_shared/identity.ts";
+import { loadIdentity, identityContactBlock, type Identity } from "../_shared/identity.ts";
 // v3.1.0 — structured sections (no truncation), deterministic gap analysis,
 // figure preservation, result cache, company context, AI telemetry.
 import {
@@ -641,7 +643,7 @@ function keywordFallbackScore(canonical: CanonicalProfile | null, fullJd: string
 
 // ---------------- Canonical structured profile (Phase 1) ----------------
 // Single source of truth for skills, experiences, work auth, and derived
-// fields like total YoE / seniority. Read by autofill, scoring, tailoring,
+// fields like total YoE / seniority. Read by scoring, tailoring,
 // cover letter. Extracted once from primary resume + user_profile_data;
 // users can edit it in the Profile tab and edits win over re-extraction.
 type CanonicalProfile = {
