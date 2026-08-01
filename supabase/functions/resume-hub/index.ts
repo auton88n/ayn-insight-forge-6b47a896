@@ -1178,6 +1178,16 @@ Deno.serve(async (req) => {
       }
 
       const tok = { device_label: deviceLabel };
+      setAiCtx(admin, userId, String(action || "unknown"));
+      {
+        const off = await featureGate(admin, "platform");
+        if (off) return off;
+      }
+      if (action === "ext_tailor" || action === "ext_cover_letter") {
+        const off = await featureGate(admin, "tailoring");
+        if (off) return off;
+      }
+
 
 
       if (action === "ext_bootstrap") {
