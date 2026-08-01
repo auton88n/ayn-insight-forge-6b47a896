@@ -499,9 +499,9 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             <h2 className="lp-display lp-h2">{trust.title}</h2>
             <p className="lp-lead">{trust.lead}</p>
             <div className="lp-chips">
-              {trust.chips.map((c, i) => (
+              {trust.chips.map((c) => (
                 <span className="lp-chip" key={c}>
-                  {i === 0 && <Eye size={14} style={{ marginInlineEnd: 6, verticalAlign: -2 }} />}
+                  <Eye size={14} />
                   {c}
                 </span>
               ))}
