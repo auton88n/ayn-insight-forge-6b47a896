@@ -528,8 +528,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               </h2>
               <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
                 {seeker
-                  ? 'Add your background once. Every application after that is written for the job in front of you.'
-                  : 'Describe the role once. AYN brings you the evidence, and a way to verify it.'}
+                  ? 'Add your background once. Every application after that is written for the job.'
+                  : 'Describe the role once. Get the evidence, and a way to verify it.'}
               </p>
               <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
                 <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>
