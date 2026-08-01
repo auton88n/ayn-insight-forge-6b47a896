@@ -26,14 +26,9 @@ const PANES: { id: Pane; label: string }[] = [
 ];
 
 
-export default function SystemSection({
-  systemConfig,
-  onUpdateConfig,
-}: {
-  systemConfig: any;
-  onUpdateConfig: (updates: any) => Promise<void>;
-}) {
+export default function SystemSection() {
   const [pane, setPane] = useState<Pane>('accounts');
+
 
   return (
     <div>
