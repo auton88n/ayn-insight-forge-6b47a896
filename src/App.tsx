@@ -73,6 +73,7 @@ const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const DoNotSell = lazy(() => import("./pages/DoNotSell"));
+import { CookieConsent } from "@/components/shared/CookieConsent";
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
