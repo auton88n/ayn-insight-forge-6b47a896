@@ -80,9 +80,7 @@ const Pricing = () => {
             <Badge className="ayn-ember-badge">Pricing for job seekers</Badge>
             <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">Pay for the writing, nothing else</h1>
             <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              A tailored resume costs 2 credits. A cover letter costs 1. That is the whole meter.
-              Scoring a job, asking AYN about it, the extension, and being found by employers are free forever, on every plan.
-              Hiring on AYN? Employer pricing is on the home page, under For employers.
+              A tailored resume costs 2 credits. A cover letter costs 1. Everything else is free.
             </p>
           </div>
 
