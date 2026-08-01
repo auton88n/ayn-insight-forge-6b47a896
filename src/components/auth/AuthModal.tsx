@@ -612,7 +612,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   onClick={() => setSignupRole('job_seeker')}
                   className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'job_seeker' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
                 >
-                  <div className="text-sm font-semibold text-foreground">I'm looking for a job</div>
+                  <div className="text-sm font-semibold text-foreground">I am looking for a job</div>
                   <div className="text-[11px] text-muted-foreground leading-tight mt-1">Resume Hub, tailored resumes, free to start</div>
                 </button>
                 <button
@@ -620,8 +620,8 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                   onClick={() => setSignupRole('employer')}
                   className={`rounded-lg border p-3 text-left transition-all ${signupRole === 'employer' ? 'ayn-auth-role-active' : 'border-border bg-muted/40 hover:border-foreground/25'}`}
                 >
-                  <div className="text-sm font-semibold text-foreground">I'm hiring</div>
-                  <div className="text-[11px] text-muted-foreground leading-tight mt-1">Search talent through AYN chat (approval required)</div>
+                  <div className="text-sm font-semibold text-foreground">I am hiring</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-1">Answer a short intake about the role, then see matching candidates (approval required)</div>
                 </button>
               </div>
 
