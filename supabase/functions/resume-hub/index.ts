@@ -1183,10 +1183,11 @@ Deno.serve(async (req) => {
         const off = await featureGate(admin, "platform");
         if (off) return off;
       }
-      if (action === "ext_tailor" || action === "ext_cover_letter") {
+      if (action === "smart_tailor" || action === "ext_cover_letter_text") {
         const off = await featureGate(admin, "tailoring");
         if (off) return off;
       }
+
 
 
 
