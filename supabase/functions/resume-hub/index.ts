@@ -2246,9 +2246,10 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         if (org?.id && sub) {
           const b = await employerBilling(adminForNew, a.user_id, String(org.id));
           usage = {
-            plan: b.plan.name, proposals_used: b.proposals_used, proposals_limit: b.plan.proposals_limit,
-            assessments_used: b.assessments_used, assessments_limit: b.plan.assessments_limit,
-            searches_used: b.searches_used, searches_limit: b.plan.searches_limit,
+            plan: b.plan.name, proposals_used: b.proposals_used, proposals_limit: effectiveLimit(b, "proposal").limit,
+            assessments_used: b.assessments_used, assessments_limit: effectiveLimit(b, "assessment").limit,
+            searches_used: b.searches_used, searches_limit: effectiveLimit(b, "search").limit,
+            overridden: !!b.override,
             period_end: b.current_period_end,
 
           };
