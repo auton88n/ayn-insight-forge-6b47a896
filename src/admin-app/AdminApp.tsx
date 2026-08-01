@@ -66,12 +66,13 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
         body: { action: 'verify', pin: fullPin },
       });
 
-      if (data?.success) {
+      if (data?.success && data?.ticket) {
         localStorage.removeItem(LOCKOUT_KEY);
-        sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
+        sessionStorage.setItem(ADMIN_TICKET_KEY, data.ticket);
         onSuccess();
         return;
       }
+
 
       if (data?.locked) {
         const until = Date.now() + (data.lockoutRemaining || 900) * 1000;
