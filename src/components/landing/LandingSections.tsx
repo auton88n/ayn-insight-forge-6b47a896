@@ -35,23 +35,23 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
   job_seeker: {
     eyebrow: 'The problem',
     title: 'You are guessing what they want',
-    lead: 'A job post is a wish list written for everybody, and your resume is a summary written for nobody in particular. AYN puts the real posting between them.',
+    lead: 'The posting is written for everybody. Your resume is written for nobody.',
     who: 'If you are applying',
     lines: [
-      'You send the same resume to forty postings and hear nothing back.',
-      'Rewriting it properly for one job costs you an evening.',
-      'You never find out which line lost you the interview.',
+      'Same resume, forty postings, no replies.',
+      'Rewriting it properly costs you an evening.',
+      'You never learn which line lost you the interview.',
     ],
   },
   employer: {
     eyebrow: 'The problem',
     title: 'You are guessing who can actually do it',
-    lead: 'A resume is a summary of a person written for nobody in particular. AYN puts evidence, provenance and a real assessment behind every name it gives you.',
+    lead: 'A resume is a claim. You need the evidence behind it.',
     who: 'If you are hiring',
     lines: [
-      'One posting brings six hundred resumes, most of them wrong.',
-      'The good ones are already employed and never see your ad.',
-      'A confident resume tells you nothing about whether they did the work.',
+      'Six hundred resumes, most of them wrong.',
+      'The good ones never see your ad.',
+      'Confidence on paper proves nothing.',
     ],
   },
 };
@@ -61,40 +61,40 @@ const SEEKER_TILES = [
     span: 'lp-span-6',
     icon: Search,
     title: 'It reads the posting you are looking at',
-    desc: 'Open a job, open the side panel, and AYN pulls the real description off the live page, then tells you where you stand out of 10 before you spend an evening on it.',
+    desc: 'Open a job, open the side panel, and see where you stand out of 10.',
     meta: ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever', 'Company sites'],
   },
   {
     span: 'lp-span-3',
     icon: FileText,
     title: 'A resume written for that one job',
-    desc: 'Your real experience, phrased in the language of the posting, on one page that an ATS can read.',
+    desc: 'Your real experience, in the language of the posting, on one page.',
     meta: ['PDF', 'DOCX', 'One page', 'Kept with the job'],
   },
   {
     span: 'lp-span-3',
     icon: MessagesSquare,
     title: 'A cover letter that names things',
-    desc: 'It mentions the company and the role because AYN read both of them. No template sentences.',
+    desc: 'It names the company and the role. No template sentences.',
     meta: ['Named company', 'Grounded in the posting'],
   },
   {
     span: 'lp-span-2',
     icon: Target,
     title: 'The honest gap list',
-    desc: 'Matched, missing and nice to have, worked out from the posting against your background before the model writes a word.',
+    desc: 'Matched, missing and nice to have, worked out before a word is written.',
   },
   {
     span: 'lp-span-2',
     icon: ShieldCheck,
     title: 'Nothing invented',
-    desc: 'No skill, number, date or title appears that is not already yours. If AYN cannot verify it, it says so.',
+    desc: 'No skill, number or title appears that is not already yours.',
   },
   {
     span: 'lp-span-2',
     icon: Radar,
     title: 'Be found while you sleep',
-    desc: 'Turn on discovery and employers searching AYN can reach you. Email and phone stay private until you accept.',
+    desc: 'Employers can reach you. Your email and phone stay private until you accept.',
   },
 ];
 
@@ -102,44 +102,44 @@ const EMPLOYER_STEPS = [
   {
     icon: Building2,
     title: 'Describe the role once',
-    desc: 'Title, seniority, must have skills with live counts of who exists, location, eligibility. No free text guessing.',
+    desc: 'Title, seniority, must have skills, location. No free text guessing.',
   },
   {
     icon: Search,
     title: 'AYN reads the pool',
-    desc: 'Skill prefilter, then semantic recall, then one grounded rerank. You get the strongest fits with the evidence and the gaps.',
+    desc: 'You get the strongest fits, with the evidence and the gaps.',
   },
   {
     icon: ClipboardCheck,
     title: 'Verify before you commit',
-    desc: 'Send a short assessment written from that person\u2019s own background. You see score, observations and time per answer.',
+    desc: 'A short assessment written from that person\u2019s own background.',
   },
   {
     icon: MailCheck,
     title: 'Invite the right one',
-    desc: 'Send a proposal with the role, location, salary range and a message AYN drafts for you. Contact opens when they accept.',
+    desc: 'Send a proposal. Contact opens when they accept.',
   },
 ];
 
 const TRUST: Record<Audience, { title: string; lead: string; chips: string[] }> = {
   job_seeker: {
-    title: 'It shows its work, including what it could not read',
-    lead: 'AYN tells you which posting it read, which resume it used, which skills came from your own words and which it inferred. Guessing is labelled as guessing.',
+    title: 'It shows its work',
+    lead: 'You see the posting it read, the resume it used, and what it inferred.',
     chips: [
       'Read only, always',
       'Grounded in the real posting',
-      'Nothing invented about you',
-      'Your contact details stay yours until you accept',
+      'Nothing invented',
+      'Your details stay yours',
     ],
   },
   employer: {
-    title: 'Every claim comes with where it came from',
-    lead: 'Each candidate card separates what the person wrote themselves from what AYN inferred, names the gaps out loud, and never dresses a weak fit up as a strong one.',
+    title: 'Every claim comes with a source',
+    lead: 'Claimed and inferred are kept apart, and the gaps are named out loud.',
     chips: [
       'Skills split by provenance',
       'Gaps stated, not hidden',
       'Assessments timed on the server',
-      'Contact details released on accept only',
+      'Contact on accept only',
     ],
   },
 };
@@ -148,7 +148,7 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
   job_seeker: [
     {
       q: 'What does AYN do for me?',
-      a: 'It reads the job posting on the page in front of you, scores you against it, then writes a one page resume and a cover letter from your own history. Both stay attached to that job.',
+      a: 'It reads the posting in front of you and scores you against it. Then it writes a one page resume and a cover letter from your own history.',
     },
     {
       q: 'Which job sites does the extension work on?',
@@ -156,45 +156,45 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
     },
     {
       q: 'Does AYN fill or submit applications for me?',
-      a: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.',
+      a: 'No. It only reads the page.',
     },
     {
       q: 'Can employers see my name and email?',
-      a: 'Not until you accept their proposal. Before that they see your professional profile and your match evidence, never your email or phone.',
+      a: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.',
     },
     {
       q: 'Will it invent experience to make me look better?',
-      a: 'No. Nothing appears in a tailored document that is not already in your profile. Missing requirements are shown to you as gaps instead of being written over.',
+      a: 'No. Anything missing is shown to you as a gap instead.',
     },
     {
       q: 'Is AYN free to try?',
-      a: 'Yes, free to start and no credit card is required.',
+      a: 'Yes, free to start and no credit card needed.',
     },
   ],
   employer: [
     {
       q: 'Where do the candidates come from?',
-      a: 'People who built a profile on AYN and explicitly turned on discovery. Nobody is scraped, and nobody is in the pool without saying yes to it.',
+      a: 'People who built a profile here and turned on discovery. Nobody is scraped.',
     },
     {
       q: 'How does the matching actually work?',
-      a: 'A hard prefilter on your must have skills, semantic recall over the pool, then one grounded rerank. You get the strongest fits with the evidence, the gaps, and where every skill came from.',
+      a: 'A hard filter on your must have skills, then semantic recall, then one grounded rerank. You see the evidence and the gaps behind every name.',
     },
     {
       q: 'What is a verification assessment?',
-      a: 'A short set of questions generated from that candidate\u2019s own claimed background against your role. It probes lived experience rather than textbook knowledge. You see the score, the per question observations and the time spent on each answer.',
+      a: 'A short set of questions built from that candidate\u2019s own background and your role. You see the score, the observations and the time spent per answer.',
     },
     {
       q: 'When do I get their contact details?',
-      a: 'Only when the candidate accepts your proposal. Everything before that step is anonymous, enforced on the server rather than in the interface.',
+      a: 'Only when the candidate accepts. Everything before that is anonymous, enforced on the server.',
     },
     {
       q: 'Can I message everyone at once?',
-      a: 'No. One open proposal per candidate at a time, and no new proposal for thirty days after a decline. The pool is protected on purpose.',
+      a: 'No. One open proposal per candidate, and none for thirty days after a decline.',
     },
     {
       q: 'How do I get access?',
-      a: 'Request employer access and we onboard companies one at a time, starting with a company profile so candidates know who is reaching out.',
+      a: 'Request employer access. We onboard companies one at a time, starting with your company profile.',
     },
   ],
 };
@@ -208,16 +208,16 @@ const HERO: Record<Audience, {
 }> = {
   job_seeker: {
     headline: <>Stop rewriting your resume for <em>every single job.</em></>,
-    lead: 'A resume and cover letter written for the exact posting in front of you, from your real history, in the time it takes to read the ad.',
+    lead: 'A resume and cover letter written for the exact job in front of you.',
     cta: 'Start free',
-    note: 'Read only on every page. AYN never types into a form and never submits anything for you.',
+    note: 'Read only. AYN never types or submits anything for you.',
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
     headline: <>Three people worth talking to, <em>not six hundred maybes.</em></>,
-    lead: 'Describe the role once. AYN searches people who chose to be found and returns the strongest fits with the evidence, the gaps and a way to verify them before you commit.',
+    lead: 'Describe the role once. Get the strongest fits, with the evidence and the gaps.',
     cta: 'Request employer access',
-    note: 'Contact details stay private until the candidate accepts your proposal.',
+    note: 'Contact details stay private until the candidate accepts.',
     art: <CandidateCardMockup />,
   },
 };
@@ -374,9 +374,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                   <p className="lp-eyebrow">For job seekers</p>
                   <h2 className="lp-display lp-h2">One posting in, one tailored application out</h2>
                   <p className="lp-lead">
-                    Open a job. AYN reads the whole posting off the live page, scores you against it, then
-                    writes a one page resume and a cover letter from your own history. Both stay attached to
-                    that job so you can find them again.
+                    Open a job. Get a score, a resume and a cover letter for that posting.
                   </p>
                   <div className="lp-cta-row" style={{ marginTop: 26 }}>
                     <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
@@ -420,8 +418,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <p className="lp-eyebrow">For employers</p>
                 <h2 className="lp-display lp-h2">Read three people properly instead of skimming six hundred</h2>
                 <p className="lp-lead">
-                  Describe the role in a few taps. AYN searches candidates who chose to be found and returns
-                  the strongest fits, each one with the evidence, the gaps and where every skill came from.
+                  Describe the role in a few taps. Read the strongest fits, with the evidence.
                 </p>
               </div>
 
@@ -451,18 +448,16 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                   <p className="lp-eyebrow">Verification assessments</p>
                   <h2 className="lp-display lp-h2">Find out who actually did the work</h2>
                   <p className="lp-lead">
-                    Before you spend a proposal, send a short assessment generated from that candidate’s own
-                    claimed background against your role. The questions probe lived experience, so doing the
-                    work is the only way to answer well.
+                    Send a short assessment built from their own background and your role.
                   </p>
                   <div className="lp-chips">
-                    <span className="lp-chip">Score and observations, per question</span>
-                    <span className="lp-chip">Time spent on each answer</span>
+                    <span className="lp-chip">Score and observations</span>
+                    <span className="lp-chip">Time spent per answer</span>
                     <span className="lp-chip">Server enforced timer</span>
-                    <span className="lp-chip">The candidate only sees growth notes</span>
+                    <span className="lp-chip">Candidate sees growth notes only</span>
                   </div>
                   <p className="lp-note">
-                    This checks depth of experience. It cannot prove someone answered unaided.
+                    It checks depth of experience, not who was in the room.
                   </p>
                   {/* v3.19.0 — employer pricing lives here, the single public
                       source. The higher tiers stay unpublished on purpose. */}
@@ -471,7 +466,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                       Free for your first month.
                     </p>
                     <p className="lp-note" style={{ marginTop: 8 }}>
-                      Then from $199 a month. Every plan carries a monthly allowance: 100 searches and 10 proposals on Starter, 400 and 40 on Growth, 1200 and 120 on Scale. The free month gives you 25 searches and 5 proposals.
+                      Then from $199 a month. Starter gives you 100 searches and 10 proposals, Growth 400 and 40, Scale 1200 and 120. The free month gives you 25 and 5.
                     </p>
                   </div>
                   <div className="lp-cta-row" style={{ marginTop: 22 }}>
@@ -533,8 +528,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               </h2>
               <p className="lp-lead" style={{ color: 'hsl(0 0% 100% / 0.85)' }}>
                 {seeker
-                  ? 'Add your background once. Every application after that is written for the job in front of you.'
-                  : 'Describe the role once. AYN brings you the evidence, and a way to verify it.'}
+                  ? 'Add your background once. Every application after that is written for the job.'
+                  : 'Describe the role once. Get the evidence, and a way to verify it.'}
               </p>
               <div className="lp-cta-row" style={{ justifyContent: 'center', marginTop: 30 }}>
                 <button type="button" className="lp-btn lp-btn-invert" onClick={() => onStartFree?.(audience)}>

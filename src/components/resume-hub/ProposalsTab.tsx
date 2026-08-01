@@ -141,7 +141,7 @@ export default function ProposalsTab({ onChanged }: { onChanged?: (pending: numb
 
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Accepting shares your name, email, and phone with this employer so they can contact you directly.
+              Accepting shares your name, email and phone with this employer.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={busy[p.id]} onClick={() => decide(p.id, true)}>
