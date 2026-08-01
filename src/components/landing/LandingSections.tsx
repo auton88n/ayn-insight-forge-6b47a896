@@ -19,6 +19,7 @@ import {
   CandidateCardMockup,
   AssessmentMockup,
 } from './AppMockups';
+import { BeforeAfterProof } from './BeforeAfterProof';
 
 type Audience = 'job_seeker' | 'employer';
 type Props = { onStartFree?: (role?: Audience) => void };
@@ -46,11 +47,11 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
   employer: {
     eyebrow: 'The problem',
     title: 'You are guessing who can actually do it',
-    lead: 'A resume is a claim. You need the evidence behind it.',
+    lead: 'A resume is a claim. Hiring needs the evidence behind it.',
     who: 'If you are hiring',
     lines: [
       'Six hundred resumes, most of them wrong.',
-      'The good ones never see your ad.',
+      'The right people never see your ad.',
       'Confidence on paper proves nothing.',
     ],
   },
@@ -60,41 +61,41 @@ const SEEKER_TILES = [
   {
     span: 'lp-span-6',
     icon: Search,
-    title: 'It reads the posting you are looking at',
-    desc: 'Open a job, open the side panel, and see where you stand out of 10.',
-    meta: ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever', 'Company sites'],
+    title: 'The posting, read for you',
+    desc: 'Open a job, open the panel, see where you stand out of 10.',
+    meta: ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever'],
   },
   {
     span: 'lp-span-3',
     icon: FileText,
-    title: 'A resume written for that one job',
-    desc: 'Your real experience, in the language of the posting, on one page.',
+    title: 'A resume for that one job',
+    desc: 'Your real experience, in the language of the posting.',
     meta: ['PDF', 'DOCX', 'One page', 'Kept with the job'],
   },
   {
     span: 'lp-span-3',
     icon: MessagesSquare,
     title: 'A cover letter that names things',
-    desc: 'It names the company and the role. No template sentences.',
+    desc: 'The company, the role, the reason. No template sentences.',
     meta: ['Named company', 'Grounded in the posting'],
   },
   {
     span: 'lp-span-2',
     icon: Target,
     title: 'The honest gap list',
-    desc: 'Matched, missing and nice to have, worked out before a word is written.',
+    desc: 'Matched, missing and nice to have, before a word is written.',
   },
   {
     span: 'lp-span-2',
     icon: ShieldCheck,
     title: 'Nothing invented',
-    desc: 'No skill, number or title appears that is not already yours.',
+    desc: 'No skill, number or title that is not already yours.',
   },
   {
     span: 'lp-span-2',
     icon: Radar,
-    title: 'Be found while you sleep',
-    desc: 'Employers can reach you. Your email and phone stay private until you accept.',
+    title: 'Found while you sleep',
+    desc: 'Employers can reach you. Your contact stays private until you accept.',
   },
 ];
 
@@ -102,17 +103,17 @@ const EMPLOYER_STEPS = [
   {
     icon: Building2,
     title: 'Describe the role once',
-    desc: 'Title, seniority, must have skills, location. No free text guessing.',
+    desc: 'Title, seniority, must have skills, location.',
   },
   {
     icon: Search,
-    title: 'AYN reads the pool',
-    desc: 'You get the strongest fits, with the evidence and the gaps.',
+    title: 'Read the strongest fits',
+    desc: 'A short list, each name with its evidence and its gaps.',
   },
   {
     icon: ClipboardCheck,
     title: 'Verify before you commit',
-    desc: 'A short assessment written from that person\u2019s own background.',
+    desc: 'A short assessment built from that person\u2019s own background.',
   },
   {
     icon: MailCheck,
@@ -124,22 +125,22 @@ const EMPLOYER_STEPS = [
 const TRUST: Record<Audience, { title: string; lead: string; chips: string[] }> = {
   job_seeker: {
     title: 'It shows its work',
-    lead: 'You see the posting it read, the resume it used, and what it inferred.',
+    lead: 'You see the posting it read, the resume it used and what it inferred.',
     chips: [
-      'Read only, always',
-      'Grounded in the real posting',
+      'Read only',
+      'Grounded in the posting',
       'Nothing invented',
       'Your details stay yours',
     ],
   },
   employer: {
-    title: 'Every claim comes with a source',
-    lead: 'Claimed and inferred are kept apart, and the gaps are named out loud.',
+    title: 'Every claim has a source',
+    lead: 'Claimed and inferred stay apart, and the gaps are named out loud.',
     chips: [
-      'Skills split by provenance',
-      'Gaps stated, not hidden',
-      'Assessments timed on the server',
-      'Contact on accept only',
+      'Skills by provenance',
+      'Gaps stated plainly',
+      'Server timed assessments',
+      'Contact on accept',
     ],
   },
 };
@@ -151,11 +152,11 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
       a: 'It reads the posting in front of you and scores you against it. Then it writes a one page resume and a cover letter from your own history.',
     },
     {
-      q: 'Which job sites does the extension work on?',
+      q: 'Which job sites does it work on?',
       a: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.',
     },
     {
-      q: 'Does AYN fill or submit applications for me?',
+      q: 'Does it apply for me?',
       a: 'No. It only reads the page.',
     },
     {
@@ -163,11 +164,11 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
       a: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.',
     },
     {
-      q: 'Will it invent experience to make me look better?',
+      q: 'Will it invent experience?',
       a: 'No. Anything missing is shown to you as a gap instead.',
     },
     {
-      q: 'Is AYN free to try?',
+      q: 'Is it free to try?',
       a: 'Yes, free to start and no credit card needed.',
     },
   ],
@@ -177,15 +178,15 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
       a: 'People who built a profile here and turned on discovery. Nobody is scraped.',
     },
     {
-      q: 'How does the matching actually work?',
+      q: 'How does the matching work?',
       a: 'A hard filter on your must have skills, then semantic recall, then one grounded rerank. You see the evidence and the gaps behind every name.',
     },
     {
       q: 'What is a verification assessment?',
-      a: 'A short set of questions built from that candidate\u2019s own background and your role. You see the score, the observations and the time spent per answer.',
+      a: 'A short set of questions built from that candidate\u2019s background and your role. You see the score, the observations and the time spent per answer.',
     },
     {
-      q: 'When do I get their contact details?',
+      q: 'When do I get contact details?',
       a: 'Only when the candidate accepts. Everything before that is anonymous, enforced on the server.',
     },
     {
@@ -207,17 +208,17 @@ const HERO: Record<Audience, {
   art: JSX.Element;
 }> = {
   job_seeker: {
-    headline: <>Stop rewriting your resume for <em>every single job.</em></>,
-    lead: 'A resume and cover letter written for the exact job in front of you.',
+    headline: <>A resume that fits <em>the job in front of you.</em></>,
+    lead: 'AYN reads the posting and writes from your real experience, in a minute.',
     cta: 'Start free',
-    note: 'Read only. AYN never types or submits anything for you.',
+    note: 'Read only. It never types or submits for you.',
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
-    headline: <>Three people worth talking to, <em>not six hundred maybes.</em></>,
-    lead: 'Describe the role once. Get the strongest fits, with the evidence and the gaps.',
+    headline: <>Three candidates with evidence, <em>not six hundred maybes.</em></>,
+    lead: 'Describe the role once. Read the strongest fits, with the proof and the gaps.',
     cta: 'Request employer access',
-    note: 'Contact details stay private until the candidate accepts.',
+    note: 'Contact stays private until the candidate accepts.',
     art: <CandidateCardMockup />,
   },
 };
@@ -323,6 +324,9 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                 <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.(audience)}>
                   {hero.cta} <ArrowRight size={15} />
                 </button>
+                {seeker && (
+                  <a href="#proof" className="lp-quiet-link">See the difference</a>
+                )}
               </div>
               <p className="lp-note">{hero.note}</p>
             </div>
@@ -345,6 +349,12 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             ))}
           </div>
         </div>
+
+        {/* ── BEFORE AND AFTER ───────────────────────────────── */}
+        {seeker && (
+          <div id="proof"><BeforeAfterProof /></div>
+        )}
+
 
         {/* ── THE PAIN ───────────────────────────────────────── */}
         <section className="lp-section">
@@ -372,9 +382,9 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               <div className="lp-split lp-reveal">
                 <div>
                   <p className="lp-eyebrow">For job seekers</p>
-                  <h2 className="lp-display lp-h2">One posting in, one tailored application out</h2>
+                  <h2 className="lp-display lp-h2">One posting in, one application out</h2>
                   <p className="lp-lead">
-                    Open a job. Get a score, a resume and a cover letter for that posting.
+                    Open a job. Get a score, a resume and a cover letter for it.
                   </p>
                   <div className="lp-cta-row" style={{ marginTop: 26 }}>
                     <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
