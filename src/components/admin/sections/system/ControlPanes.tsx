@@ -11,9 +11,10 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
   useAdminModeration, useModerateItem,
-  useAdminFeatureFlags, useSetFeatureFlag,
+  useAdminFeatureFlags, useSetFeatureFlag, useSetFeatureMessage,
   useAdjustCredits, useUserSnapshot, useAdminAccounts,
 } from '@/admin-app/hooks/useAdminQuery';
+
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
 
 /* ───────────────────────────── MODERATION ───────────────────────────── */
