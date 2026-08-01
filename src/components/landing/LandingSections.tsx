@@ -463,7 +463,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                       Free for your first month.
                     </p>
                     <p className="lp-note" style={{ marginTop: 8 }}>
-                      Then from $199 a month, based on how many candidates you contact. Searching is always unlimited.
+                      Then from $199 a month. Every plan carries a monthly allowance: 100 searches and 10 proposals on Starter, 400 and 40 on Growth, 1200 and 120 on Scale. The free month gives you 25 searches and 5 proposals.
                     </p>
                   </div>
                   <div className="lp-cta-row" style={{ marginTop: 22 }}>

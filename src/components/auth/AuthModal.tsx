@@ -633,7 +633,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="Your full name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       disabled={isLoading}
