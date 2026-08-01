@@ -33,6 +33,39 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// ── PIN tickets ──
+// A correct PIN mints a short lived HMAC signed ticket bound to the caller.
+// The browser stores it, but it cannot mint or edit one, so setting a key by
+// hand in devtools no longer opens the panel.
+const TICKET_TTL_SECONDS = 8 * 60 * 60;
+
+async function hmac(payload: string): Promise<string> {
+  const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(`ayn-admin-pin:${secret}`),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function mintTicket(userId: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + TICKET_TTL_SECONDS;
+  const payload = `${userId}.${exp}`;
+  return `${payload}.${await hmac(payload)}`;
+}
+
+async function verifyTicket(ticket: string, userId: string): Promise<boolean> {
+  const parts = ticket.split('.');
+  if (parts.length !== 3) return false;
+  const [uid, expRaw, sig] = parts;
+  if (uid !== userId) return false;
+  const exp = Number(expRaw);
+  if (!Number.isFinite(exp) || exp * 1000 < Date.now()) return false;
+  return timingSafeEqual(sig, await hmac(`${uid}.${exp}`));
+}
+
+
 async function readSetting(admin: any, key: string): Promise<string | null> {
   const { data } = await admin.from('app_settings').select('value').eq('key', key).maybeSingle();
   return data?.value ?? null;
