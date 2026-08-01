@@ -22,7 +22,7 @@ function Loader() {
 
 // PIN screen — shown AFTER login since admin-auth-pin requires a JWT.
 // Attempts and lockout are decided by the server, the browser only displays them.
-function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => void }) {
+function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
