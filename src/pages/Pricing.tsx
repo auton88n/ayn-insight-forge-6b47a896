@@ -139,8 +139,7 @@ const Pricing = () => {
               ))}
             </div>
             <p className="mt-5 text-xs text-muted-foreground leading-relaxed">
-              Regenerating the same document for the same job and the same resume costs nothing.
-              If a generation fails you are not charged. Credits reset at the start of each period and do not roll over.
+              Regenerating the same document is free. Failed generations are not charged. Credits reset each period and do not roll over.
             </p>
           </div>
 
