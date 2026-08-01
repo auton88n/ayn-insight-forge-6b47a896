@@ -2835,7 +2835,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const searchBilling = await employerBilling(adminForNew, userId, org_id);
       const searchGate = planLimitReached(searchBilling, "search");
       if (searchGate) return searchGate;
-      if (searchBilling.plan.searches_limit == null && searchBilling.searches_used >= EMPLOYER_SEARCH_SOFT_CAP) {
+      if (effectiveLimit(searchBilling, "search").limit == null && searchBilling.searches_used >= EMPLOYER_SEARCH_SOFT_CAP) {
         return json({
           error: "search_soft_cap",
           code: "search_soft_cap",
