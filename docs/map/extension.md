@@ -72,3 +72,4 @@ Device tokens only, never passwords. `LINK_START` gets a code (public `link_star
 - v2.11.x — in-page presence, JD extraction quality scoring and fixtures.
 - v2.8.x — JD resolver ladder, page classifier gate, scoring transparency, dual auth.
 - v3.2.0 — the panel looks like the product. Paper and ember palette, Outfit and Inter, the AYN eye as header mark and as the toolbar icon (rendered from public/ayn-mark.svg), card tabs with an ember underline, and all fonts and icon glyphs bundled locally so nothing is fetched from a CDN at runtime.
+- v3.2.1 — the toolbar icon is the bare mark. The four PNGs in extension/icons are re-rendered from public/ayn-mark.svg on a fully transparent canvas, framed on the artwork's own bounding box with a 4 percent margin, so the triangle reads as the mark and not as a black rounded tile. Nothing else changed.
