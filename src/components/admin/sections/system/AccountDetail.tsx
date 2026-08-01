@@ -62,6 +62,8 @@ export function AccountDetailDialog({
 }: { userId: string | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const query = useAdminAccountDetail(open ? userId : null);
   const { suspend, restore, setRestriction } = useAccountModeration(userId);
+  const gov = useAccountGovernance(open ? userId : null);
+  const { setOverride, clearOverride, erase, purge } = useAccountGovernanceActions(userId);
 
   const [reason, setReason] = useState('');
   const [until, setUntil] = useState('');
@@ -71,23 +73,52 @@ export function AccountDetailDialog({
   const [capReason, setCapReason] = useState('');
   const [confirmLift, setConfirmLift] = useState<{ key: string; label: string } | null>(null);
 
+  // limit override form
+  const [ov, setOv] = useState<Record<string, string>>({});
+  const [ovReason, setOvReason] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  // erase and purge
+  const [danger, setDanger] = useState<'erase' | 'purge' | null>(null);
+  const [dangerStep, setDangerStep] = useState(1);
+  const [dangerReason, setDangerReason] = useState('');
+  const [dangerEmail, setDangerEmail] = useState('');
+
   const d = query.data as any;
+  const g = gov.data as any;
+  const override = g?.override || null;
+  const erasure = g?.erasure || null;
   const restrictions: any[] = d?.restrictions || [];
   const has = (k: string) => restrictions.some(r => r.capability === k);
   const restrictionOf = (k: string) => restrictions.find(r => r.capability === k);
   const suspension = d?.suspension || null;
   const isAdmin = d?.system_role === 'admin';
 
+  useEffect(() => {
+    setOv({
+      proposals_limit: fromValue(override?.proposals_limit),
+      assessments_limit: fromValue(override?.assessments_limit),
+      searches_limit: fromValue(override?.searches_limit),
+      monthly_credits: fromValue(override?.monthly_credits),
+    });
+    setOvReason(override?.reason || '');
+  }, [override?.proposals_limit, override?.assessments_limit, override?.searches_limit, override?.monthly_credits, override?.reason]);
+
+  const closeDanger = () => { setDanger(null); setDangerStep(1); setDangerReason(''); setDangerEmail(''); };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[85dvh] overflow-y-auto overscroll-contain bg-background">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
               {d?.display_name || 'Account'}
               {isAdmin && <Badge className="bg-primary text-primary-foreground text-[10px]">Admin</Badge>}
               {suspension && <Badge variant="destructive" className="text-[10px]">Suspended</Badge>}
+              {override && <Badge variant="outline" className="text-[10px]">Limit override</Badge>}
+              {erasure && <Badge variant="destructive" className="text-[10px]">{erasure.purged_at ? 'Purged' : 'Erased'}</Badge>}
             </DialogTitle>
+
             <DialogDescription>{d?.email || 'Loading the account'}</DialogDescription>
           </DialogHeader>
 
