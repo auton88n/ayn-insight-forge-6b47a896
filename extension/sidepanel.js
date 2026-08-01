@@ -825,7 +825,7 @@ $('find-contacts-btn').addEventListener('click', async () => {
   } finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-search"></i>Find Who to Contact'; }
 });
 
-function renderContacts({ contacts = [], emailFormats = [], companyDomain = '', coldOutreach = '', subjectLine = '' }) {
+function renderContacts({ contacts = [], coldOutreach = '', subjectLine = '' }) {
   const cards = $('contact-cards'); cards.innerHTML = '';
   contacts.forEach(c => {
     const titles = (c.titles || [c.role]).join(', ');
@@ -843,18 +843,6 @@ function renderContacts({ contacts = [], emailFormats = [], companyDomain = '', 
   });
   cards.querySelectorAll('button.copy').forEach(b => {
     b.addEventListener('click', () => copyToClip(b.dataset.link, 'LinkedIn search link copied'));
-  });
-
-  const domain = companyDomain || (C.company || '').toLowerCase().replace(/\s+/g,'')+'.com';
-  $('domain-name').textContent = domain;
-  const fmts = $('email-fmts'); fmts.innerHTML = '';
-  const exampleFormats = emailFormats.length ? emailFormats : ['firstname.lastname@' + domain, 'f.lastname@' + domain, 'firstname@' + domain];
-  exampleFormats.forEach(fmt => {
-    const btn = document.createElement('button');
-    btn.className = 'email-fmt';
-    btn.textContent = fmt;
-    btn.addEventListener('click', () => copyToClip(fmt, `Copied: ${fmt}`));
-    fmts.appendChild(btn);
   });
 
   $('subject-line').textContent = subjectLine || `Re: ${C.jobTitle} at ${C.company}`;
