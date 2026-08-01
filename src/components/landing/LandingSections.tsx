@@ -57,6 +57,13 @@ const PAIN: Record<Audience, { eyebrow: string; title: string; lead: string; who
 
 const SEEKER_TILES = [
   {
+    span: 'lp-span-6',
+    icon: Search,
+    title: 'It reads the posting you are looking at',
+    desc: 'Open a job, open the side panel, and AYN pulls the real description off the live page, then tells you where you stand out of 10 before you spend an evening on it.',
+    meta: ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever', 'Company sites'],
+  },
+  {
     span: 'lp-span-3',
     icon: FileText,
     title: 'A resume written for that one job',
