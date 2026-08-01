@@ -37,6 +37,8 @@ import AssessmentsPanel from "@/components/employer/AssessmentsPanel";
 import { AynLoader } from "@/components/shared/AynLoader";
 import aynLogo from "@/assets/ayn-logo.png";
 import {
+import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
+import { useFeature } from "@/hooks/useFeatureFlags";
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
@@ -83,6 +85,10 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
   const [searching, setSearching] = useState(false);
+  // v3.24.0 — maintenance switches, set from the admin panel.
+  const searchFeature = useFeature("candidate_search");
+  const proposalFeature = useFeature("proposals");
+  const assessFeature = useFeature("assessments");
   const [searchId, setSearchId] = useState<string | null>(null);
   const [results, setResults] = useState<CandidateCard[]>([]);
   const [poolNote, setPoolNote] = useState("");
@@ -368,7 +374,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
 
 
             {tab === "search" && !searching && stage === "spec" && (
-              <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+              searchFeature.enabled
+                ? <IntakeWizard orgId={org.id} searching={searching} onSearch={runMatch} />
+                : <MaintenanceNotice feature="candidate_search" />
             )}
 
             {tab === "search" && !searching && stage === "results" && (
@@ -614,7 +622,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 {/* v3.13.0 — check the claims before you spend a proposal. */}
                 <Button
                   variant="outline"
-                  disabled={!searchId}
+                  disabled={!searchId || !assessFeature.enabled}
                   onClick={() => { setAssessFor(open); setOpen(null); }}
                 >
                   <ClipboardCheck className="w-4 h-4 mr-2" /> Send an assessment
@@ -622,7 +630,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
                 {sentRefs.has(open.ref) ? (
                   <Button disabled variant="secondary">Proposal sent, waiting for a reply</Button>
                 ) : (
-                  <Button onClick={() => openProposal(open)}>Send a job proposal</Button>
+                  <Button onClick={() => openProposal(open)} disabled={!proposalFeature.enabled}>Send a job proposal</Button>
                 )}
               </DialogFooter>
 
