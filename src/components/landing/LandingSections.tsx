@@ -8,6 +8,7 @@
  */
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { openCookiePreferences } from '@/components/shared/CookieConsent';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
   Search, ClipboardCheck, MailCheck, Building2, Eye,
