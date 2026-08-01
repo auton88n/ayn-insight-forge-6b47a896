@@ -65,6 +65,81 @@ export type Database = {
         }
         Relationships: []
       }
+      account_erasures: {
+        Row: {
+          created_at: string
+          email_at_erasure: string | null
+          erased_at: string
+          erased_by: string | null
+          purge_reason: string | null
+          purged_at: string | null
+          purged_by: string | null
+          reason: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_at_erasure?: string | null
+          erased_at?: string
+          erased_by?: string | null
+          purge_reason?: string | null
+          purged_at?: string | null
+          purged_by?: string | null
+          reason: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_at_erasure?: string | null
+          erased_at?: string
+          erased_by?: string | null
+          purge_reason?: string | null
+          purged_at?: string | null
+          purged_by?: string | null
+          reason?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      account_limit_overrides: {
+        Row: {
+          assessments_limit: number | null
+          created_at: string
+          monthly_credits: number | null
+          proposals_limit: number | null
+          reason: string
+          searches_limit: number | null
+          set_by: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assessments_limit?: number | null
+          created_at?: string
+          monthly_credits?: number | null
+          proposals_limit?: number | null
+          reason: string
+          searches_limit?: number | null
+          set_by?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assessments_limit?: number | null
+          created_at?: string
+          monthly_credits?: number | null
+          proposals_limit?: number | null
+          reason?: string
+          searches_limit?: number | null
+          set_by?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       account_restrictions: {
         Row: {
           capability: Database["public"]["Enums"]["account_capability"]
@@ -5323,6 +5398,7 @@ export type Database = {
         Args: { message_user_id: string }
         Returns: boolean
       }
+      admin_clear_limit_override: { Args: { p_user_id: string }; Returns: Json }
       admin_employer_approve: {
         Args: { p_note?: string; p_user_id: string }
         Returns: Json
@@ -5333,6 +5409,10 @@ export type Database = {
       }
       admin_employer_override: {
         Args: { p_extend_days?: number; p_plan_key?: string; p_user_id: string }
+        Returns: Json
+      }
+      admin_erase_account: {
+        Args: { p_confirm_email: string; p_reason: string; p_user_id: string }
         Returns: Json
       }
       admin_insert_ticket_message: {
@@ -5351,6 +5431,10 @@ export type Database = {
         Args: { p_action: string; p_id: string; p_note?: string }
         Returns: Json
       }
+      admin_purge_account: {
+        Args: { p_confirm_email: string; p_reason: string; p_user_id: string }
+        Returns: Json
+      }
       admin_restore_account: { Args: { p_user_id: string }; Returns: Json }
       admin_set_feature_flag: {
         Args: { p_enabled: boolean; p_key: string }
@@ -5358,6 +5442,17 @@ export type Database = {
       }
       admin_set_feature_message: {
         Args: { p_key: string; p_message: string }
+        Returns: Json
+      }
+      admin_set_limit_override: {
+        Args: {
+          p_assessments_limit: number
+          p_monthly_credits: number
+          p_proposals_limit: number
+          p_reason: string
+          p_searches_limit: number
+          p_user_id: string
+        }
         Returns: Json
       }
       admin_set_pin: { Args: { p_hash: string }; Returns: Json }
@@ -5551,6 +5646,10 @@ export type Database = {
       }
       generate_monthly_summaries: { Args: never; Returns: number }
       get_admin_account_detail: { Args: { p_user_id: string }; Returns: Json }
+      get_admin_account_governance: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       get_admin_accounts: { Args: { p_search?: string }; Returns: Json }
       get_admin_ai_cost_stats: { Args: never; Returns: Json }
       get_admin_ai_usage: { Args: never; Returns: Json }
