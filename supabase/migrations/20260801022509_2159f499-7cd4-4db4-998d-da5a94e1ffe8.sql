@@ -1,0 +1,1 @@
+UPDATE public.profiles SET role = 'job_seeker', updated_at = now() WHERE user_id = 'd2ceaad6-af0d-4001-a739-6b57f040e404';
