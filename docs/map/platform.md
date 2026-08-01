@@ -43,6 +43,19 @@ src/contexts/SubscriptionContext: tiers (free plus paid; paid gives unlimited cr
 ## Admin app
 /manage-bae76e99d97e188b mounts src/admin-app (AdminApp, adminSupabase client, useAdminQuery with adminRpc). /admin deliberately 404s. Six sections in src/components/admin/sections: Overview, Employers, Candidates, Marketplace, Money, System.
 
+### Edge functions the admin depends on
+admin-auth-pin: verifies the 4 digit PIN with a server side lockout, mints the HMAC signed 8 hour admin ticket, re-verifies it through check { ticket }, and changes the PIN through set { pin, new_pin }. admin-broadcast: sends an admin written email to a chosen audience, called from the System Email pane. Both were missing from the edge function list in CLAUDE.md until v3.27.0.
+
+### Settings, and the one maintenance mechanism (v3.27.0)
+The Settings pane used to save ten system_config keys that nothing read: maintenance_mode, maintenance_message, maintenance_start_time, maintenance_end_time, pre_maintenance_notice, pre_maintenance_message, default_monthly_limit, require_approval, max_login_attempts, session_timeout. Flipping maintenance_mode did not put anything into maintenance. All ten controls are deleted and the rows removed from system_config, along with useAdminSystemConfig and useSetSystemConfig. Maintenance is the v3.25.0 kill switches and nothing else, and the pane now holds the admin PIN plus a link to that pane. Employer approval is unconditional by design, credit allowances come from the plans table, and sign in attempts and session length belong to Supabase auth, so none of them is a setting here.
+
+### Migration history (v3.27.0)
+Six admin functions existed only in the live database and are now recorded verbatim in supabase/migrations: admin_insert_ticket_message, admin_update_ticket, admin_upsert_system_config, get_admin_system_config, get_admin_error_monitoring, get_admin_support_tickets. Another 31 undocumented admin functions, every one a leftover of the admin deleted in v3.20.0 with no caller in src or supabase/functions, were dropped rather than recorded (custom orders, NDA, test results, visitor analytics, LLM management, message ratings, conversations, applications, beta feedback, credit gifts, churn alerts, dashboard stats, email broadcast users, user growth, subscriptions, system metrics and monitoring, AI limits, activity log, error logs and the *_data duplicates).
+
+### Employer plan limits and statuses (v3.27.0)
+plans.searches_limit is a real column and planLimitReached takes kind "search" next to "proposal" and "assessment": 25 searches per period on the free month, 100 Starter, 400 Growth, 1200 Scale. The old EMPLOYER_SEARCH_SOFT_CAP of 200 only applies to a plan that records no limit. employer_billing_get and the admin Employers list both report searches used against the allowance. employer_status gained 'declined': admin_employer_decline and the admin_employer_decide "decline" branch set it, 'suspended' is now reserved for an employer who was approved and then stopped, and EmployerPending words the two differently.
+
+
 ### The gate (v3.26.0)
 Sign in, then user_roles must say 'admin', then the 4 digit PIN. Two things changed. The 'duty' role is gone from the gate: every admin RPC checks has_role(auth.uid(),'admin') only, so a duty user used to pass the PIN and then read "Admin access required" on every panel. Duty is now denied at the door. And the PIN can no longer be skipped from devtools: checkAdmin reads user_roles BEFORE it looks at any cached flag, and the cache no longer holds a user id it holds an HMAC signed ticket minted by admin-auth-pin on a correct PIN (payload userId.exp, signed server side, 8 hour window). A new admin-auth-pin action, check { ticket }, re-verifies it, so a hand written sessionStorage value fails and drops the browser back to the PIN screen.
 
