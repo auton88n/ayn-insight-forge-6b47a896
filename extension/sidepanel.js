@@ -1166,6 +1166,11 @@ function bgFunc(action, payload, opts = {}) {
       }
       if (!resp.ok) {
         console.warn('[AYN] err', action, resp.error);
+        // v3.3.0 — an out of date build is told plainly, not left guessing.
+        if (resp.code === 'extension_outdated') {
+          showOutdated(resp.error);
+          return reject(new Error(resp.error || 'Extension out of date'));
+        }
         const isAuthErr = /Not signed in|Invalid token|Token revoked|HTTP 401/i.test(resp.error || '');
         if (isAuthErr) {
           // Silent/background calls never bounce to login.
@@ -1187,6 +1192,17 @@ function bgFunc(action, payload, opts = {}) {
       resolve(resp.data);
     });
   });
+}
+
+// v3.3.0 — persistent notice when the backend refuses this build.
+function showOutdated(message) {
+  try {
+    const el = document.getElementById('outdated-banner');
+    if (!el) return;
+    const sub = document.getElementById('outdated-sub');
+    if (sub && message) sub.textContent = message;
+    el.classList.remove('hidden');
+  } catch {}
 }
 
 // ── Helpers ──

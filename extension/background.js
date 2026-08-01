@@ -327,6 +327,8 @@ async function callFunction(action, body) {
       'Content-Type': 'application/json',
       'apikey': SUPABASE_ANON_KEY,
       'x-ayn-ext-token': token,
+      // v3.3.0 — the backend refuses builds below the configured minimum.
+      'x-ayn-ext-version': chrome.runtime.getManifest().version,
     },
     body: JSON.stringify({ action, ...body }),
   });
@@ -335,8 +337,9 @@ async function callFunction(action, body) {
     // Do NOT wipe ayn_token on 401. A single spurious 401 must never
     // destroy the stored session; sidepanel verifies via ext_bootstrap
     // before deciding to sign out.
-    const err = new Error(data.error || `HTTP ${r.status}`);
+    const err = new Error(data.message || data.error || `HTTP ${r.status}`);
     if (r.status === 401) err.status = 401;
+    if (data.code) err.code = data.code;
     throw err;
   }
   return data;
@@ -374,7 +377,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const resp = await fetch(message.url, { credentials: 'omit' });
         const text = await resp.text();
         sendResponse({ ok: true, text: text.slice(0, 200000) });
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+      } catch (e) { sendResponse({ ok: false, error: e.message, code: e.code || null }); }
     })();
     return true;
   }
