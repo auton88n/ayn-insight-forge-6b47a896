@@ -35,7 +35,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel = (_props: AdminPanelProps) => {
-  const { refreshAll: _unusedRefresh } = { refreshAll: undefined as unknown as () => void };
+  const { refreshAll } = useAdminRefresh();
   const { refreshAll } = useAdminRefresh();
   const [activeTab, setActiveTab] = useState<AdminTabId>('overview');
   const [collapsed, setCollapsed] = useState(false);
