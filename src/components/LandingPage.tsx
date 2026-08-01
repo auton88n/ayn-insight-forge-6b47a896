@@ -26,12 +26,12 @@ const LandingPage = memo(() => {
   }, []);
 
   const faqSchema = createFAQSchema([
-    { question: 'What is AYN?', answer: 'Two things that share one profile. For job seekers, AYN reads a posting and writes a resume and cover letter tailored to it. For employers, AYN searches people who chose to be found and returns the strongest fits with evidence.' },
-    { question: 'Which job sites does the extension work on?', answer: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.' },
-    { question: 'Does AYN fill or submit applications for me?', answer: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.' },
-    { question: 'Can employers see my name and email?', answer: 'Not until you accept their proposal. Before that they see your professional profile and your match evidence, never your email or phone.' },
-    { question: 'What is a verification assessment?', answer: 'A short set of questions generated from a candidate own claimed background. It probes lived experience rather than textbook knowledge. The employer sees the score, the candidate only ever sees growth notes.' },
-    { question: 'Is AYN free to try?', answer: 'Yes, free to start for job seekers and no credit card is required. Employers are onboarded one at a time.' },
+    { question: 'What is AYN?', answer: 'Two products, one profile. For job seekers, AYN reads a posting and writes a resume and cover letter for it. For employers, AYN returns the strongest fits from people who chose to be found.' },
+    { question: 'Which job sites does it work on?', answer: 'Greenhouse, Lever, Workday, Ashby, iCIMS, SmartRecruiters and most company career pages.' },
+    { question: 'Does AYN apply for me?', answer: 'No. It only reads the page. It never types into a form and never submits anything for you.' },
+    { question: 'Can employers see my name and email?', answer: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.' },
+    { question: 'What is a verification assessment?', answer: 'A short set of questions built from a candidate own background. The employer sees the score, the candidate sees growth notes only.' },
+    { question: 'Is AYN free to try?', answer: 'Yes, free to start and no credit card needed. Employers are onboarded one at a time.' },
   ]);
 
   return (

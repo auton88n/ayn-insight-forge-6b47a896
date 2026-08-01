@@ -384,9 +384,9 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
               <div className="lp-split lp-reveal">
                 <div>
                   <p className="lp-eyebrow">For job seekers</p>
-                  <h2 className="lp-display lp-h2">One posting in, one tailored application out</h2>
+                  <h2 className="lp-display lp-h2">One posting in, one application out</h2>
                   <p className="lp-lead">
-                    Open a job. Get a score, a resume and a cover letter for that posting.
+                    Open a job. Get a score, a resume and a cover letter for it.
                   </p>
                   <div className="lp-cta-row" style={{ marginTop: 26 }}>
                     <button type="button" className="lp-btn lp-btn-primary" onClick={() => onStartFree?.('job_seeker')}>
