@@ -159,7 +159,10 @@ const ACTION_CAPABILITY: Record<string, AccountCapability> = {
   cover_letter: "ai",
   score: "ai",
   ext_ask: "ai",
-  ask: "ai",
+  ext_job_score: "ai",
+  ext_cover_letter_text: "ai",
+  ext_suggest_roles: "ai",
+  smart_tailor: "ai",
 };
 
 const RESTRICTION_MESSAGE: Record<AccountCapability, string> = {
@@ -1289,6 +1292,12 @@ Deno.serve(async (req) => {
       if (action === "smart_tailor" || action === "ext_cover_letter_text") {
         const off = await featureGate(admin, "tailoring");
         if (off) return off;
+      }
+      // v3.28.0 — suspension and per account restrictions apply to the
+      // extension lane exactly as they do to the web lane.
+      {
+        const blocked = await accountGate(admin, userId, String(action || ""));
+        if (blocked) return blocked;
       }
 
 
