@@ -123,23 +123,23 @@ const EMPLOYER_STEPS = [
 
 const TRUST: Record<Audience, { title: string; lead: string; chips: string[] }> = {
   job_seeker: {
-    title: 'It shows its work, including what it could not read',
-    lead: 'AYN tells you which posting it read, which resume it used, which skills came from your own words and which it inferred. Guessing is labelled as guessing.',
+    title: 'It shows its work',
+    lead: 'You see the posting it read, the resume it used, and what it inferred.',
     chips: [
       'Read only, always',
       'Grounded in the real posting',
-      'Nothing invented about you',
-      'Your contact details stay yours until you accept',
+      'Nothing invented',
+      'Your details stay yours',
     ],
   },
   employer: {
-    title: 'Every claim comes with where it came from',
-    lead: 'Each candidate card separates what the person wrote themselves from what AYN inferred, names the gaps out loud, and never dresses a weak fit up as a strong one.',
+    title: 'Every claim comes with a source',
+    lead: 'Claimed and inferred are kept apart, and the gaps are named out loud.',
     chips: [
       'Skills split by provenance',
       'Gaps stated, not hidden',
       'Assessments timed on the server',
-      'Contact details released on accept only',
+      'Contact on accept only',
     ],
   },
 };
@@ -148,7 +148,7 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
   job_seeker: [
     {
       q: 'What does AYN do for me?',
-      a: 'It reads the job posting on the page in front of you, scores you against it, then writes a one page resume and a cover letter from your own history. Both stay attached to that job.',
+      a: 'It reads the posting in front of you and scores you against it. Then it writes a one page resume and a cover letter from your own history.',
     },
     {
       q: 'Which job sites does the extension work on?',
@@ -156,45 +156,45 @@ const FAQS: Record<Audience, { q: string; a: string }[]> = {
     },
     {
       q: 'Does AYN fill or submit applications for me?',
-      a: 'No. AYN only reads the page. It never types into a form and never submits anything on your behalf.',
+      a: 'No. It only reads the page.',
     },
     {
       q: 'Can employers see my name and email?',
-      a: 'Not until you accept their proposal. Before that they see your professional profile and your match evidence, never your email or phone.',
+      a: 'Not until you accept their proposal. Before that they see your profile and your match evidence only.',
     },
     {
       q: 'Will it invent experience to make me look better?',
-      a: 'No. Nothing appears in a tailored document that is not already in your profile. Missing requirements are shown to you as gaps instead of being written over.',
+      a: 'No. Anything missing is shown to you as a gap instead.',
     },
     {
       q: 'Is AYN free to try?',
-      a: 'Yes, free to start and no credit card is required.',
+      a: 'Yes, free to start and no credit card needed.',
     },
   ],
   employer: [
     {
       q: 'Where do the candidates come from?',
-      a: 'People who built a profile on AYN and explicitly turned on discovery. Nobody is scraped, and nobody is in the pool without saying yes to it.',
+      a: 'People who built a profile here and turned on discovery. Nobody is scraped.',
     },
     {
       q: 'How does the matching actually work?',
-      a: 'A hard prefilter on your must have skills, semantic recall over the pool, then one grounded rerank. You get the strongest fits with the evidence, the gaps, and where every skill came from.',
+      a: 'A hard filter on your must have skills, then semantic recall, then one grounded rerank. You see the evidence and the gaps behind every name.',
     },
     {
       q: 'What is a verification assessment?',
-      a: 'A short set of questions generated from that candidate\u2019s own claimed background against your role. It probes lived experience rather than textbook knowledge. You see the score, the per question observations and the time spent on each answer.',
+      a: 'A short set of questions built from that candidate\u2019s own background and your role. You see the score, the observations and the time spent per answer.',
     },
     {
       q: 'When do I get their contact details?',
-      a: 'Only when the candidate accepts your proposal. Everything before that step is anonymous, enforced on the server rather than in the interface.',
+      a: 'Only when the candidate accepts. Everything before that is anonymous, enforced on the server.',
     },
     {
       q: 'Can I message everyone at once?',
-      a: 'No. One open proposal per candidate at a time, and no new proposal for thirty days after a decline. The pool is protected on purpose.',
+      a: 'No. One open proposal per candidate, and none for thirty days after a decline.',
     },
     {
       q: 'How do I get access?',
-      a: 'Request employer access and we onboard companies one at a time, starting with a company profile so candidates know who is reaching out.',
+      a: 'Request employer access. We onboard companies one at a time, starting with your company profile.',
     },
   ],
 };
@@ -208,16 +208,16 @@ const HERO: Record<Audience, {
 }> = {
   job_seeker: {
     headline: <>Stop rewriting your resume for <em>every single job.</em></>,
-    lead: 'A resume and cover letter written for the exact posting in front of you, from your real history, in the time it takes to read the ad.',
+    lead: 'A resume and cover letter written for the exact job in front of you.',
     cta: 'Start free',
-    note: 'Read only on every page. AYN never types into a form and never submits anything for you.',
+    note: 'Read only. AYN never types or submits anything for you.',
     art: <ExtensionOnPostingMockup />,
   },
   employer: {
     headline: <>Three people worth talking to, <em>not six hundred maybes.</em></>,
-    lead: 'Describe the role once. AYN searches people who chose to be found and returns the strongest fits with the evidence, the gaps and a way to verify them before you commit.',
+    lead: 'Describe the role once. Get the strongest fits, with the evidence and the gaps.',
     cta: 'Request employer access',
-    note: 'Contact details stay private until the candidate accepts your proposal.',
+    note: 'Contact details stay private until the candidate accepts.',
     art: <CandidateCardMockup />,
   },
 };
