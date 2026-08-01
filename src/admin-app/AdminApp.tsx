@@ -6,7 +6,11 @@ import aynMark from '/ayn-mark.svg';
 import { AdminPanel } from '@/components/AdminPanel';
 
 const LOCKOUT_KEY = 'ayn_admin_lockout';
-const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
+// Holds the HMAC signed ticket the server mints on a correct PIN, not a user
+// id. A hand written value fails the server side check, so the PIN cannot be
+// skipped from devtools.
+const ADMIN_TICKET_KEY = 'ayn_admin_ticket';
+
 
 function Loader() {
   return (
