@@ -1808,6 +1808,43 @@ button, a, input, textarea, select {
 .lp-faq-item h3 { font-family: 'Outfit', system-ui, sans-serif; font-size: 17px; font-weight: 600; margin: 0 0 8px; color: hsl(var(--lp-fg)); }
 .lp-faq-item p { margin: 0; font-size: 15px; line-height: 1.6; color: hsl(var(--lp-muted)); }
 
+/* --- before and after proof --- */
+.lp-proof { display: grid; gap: 18px; grid-template-columns: 1fr; align-items: stretch; }
+@media (min-width: 800px) { .lp-proof { grid-template-columns: 1fr 1fr; gap: 22px; } }
+.lp-proof-card {
+  border: 1px solid hsl(var(--lp-border-soft)); border-radius: 22px;
+  padding: clamp(20px, 3vw, 30px);
+  background: hsl(var(--lp-surface) / 0.55);
+}
+.lp-proof-card.is-after {
+  background: hsl(var(--lp-card));
+  border-color: hsl(var(--lp-ember) / 0.35);
+  box-shadow: var(--lp-shadow-lift);
+}
+.lp-proof-tag {
+  display: inline-block; font-family: 'Outfit', system-ui, sans-serif;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: hsl(var(--lp-dim)); margin-bottom: 16px;
+}
+.lp-proof-tag.is-on { color: hsl(var(--lp-ember)); }
+.lp-proof-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.lp-proof-card li {
+  font-size: 15.5px; line-height: 1.6; color: hsl(var(--lp-dim));
+  padding-inline-start: 16px; position: relative;
+}
+.lp-proof-card li::before {
+  content: ''; position: absolute; inset-inline-start: 0; top: 10px;
+  width: 6px; height: 1px; background: hsl(var(--lp-border));
+}
+.lp-proof-card.is-after li { color: hsl(var(--lp-fg)); }
+.lp-proof-card.is-after li::before { background: hsl(var(--lp-ember) / 0.6); }
+.lp-proof-card mark {
+  background: hsl(var(--lp-ember) / 0.14); color: hsl(var(--lp-ember-soft));
+  padding: 1px 4px; border-radius: 5px;
+}
+.lp-proof-note { text-align: center; margin-top: 20px; }
+
+
 /* --- closing band --- */
 .lp-closing {
   position: relative; overflow: hidden; text-align: center; border-radius: 32px;
