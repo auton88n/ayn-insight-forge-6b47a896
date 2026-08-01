@@ -33,7 +33,7 @@ export default function Handoff() {
       <div className="max-w-md text-center space-y-4">
         <h1 className="text-2xl font-semibold">AYN extension not detected</h1>
         <p className="text-sm text-muted-foreground">
-          Install the AYN Resume Tailor extension. It reads the posting on the page, scores your match, and writes a tailored resume and cover letter for this job.
+          Install the AYN extension to score this job and tailor your resume for it.
         </p>
         <div className="flex flex-col gap-2">
           {jobUrl && (
