@@ -199,28 +199,32 @@ export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null);
 
   const checkAdmin = useCallback(async (s: Session) => {
-    // Check sessionStorage cache first — skip DB call if already verified this session
-    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-    if (cached === s.user.id) { setStep('ready'); return; }
+    // Role first, always. The cached PIN ticket is only consulted after
+    // user_roles says this account is an admin, and the ticket itself is
+    // re-checked by the server, so neither half can be faked in the browser.
     try {
       const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
-      if (data?.role === 'admin' || data?.role === 'duty') {
-        // Verified as admin — now require PIN
-        setStep('pin');
-      } else {
-        setStep('denied');
-      }
-    } catch { setStep('denied'); }
+      if (data?.role !== 'admin') { sessionStorage.removeItem(ADMIN_TICKET_KEY); setStep('denied'); return; }
+    } catch { setStep('denied'); return; }
+
+    const ticket = sessionStorage.getItem(ADMIN_TICKET_KEY);
+    if (ticket) {
+      try {
+        const { data } = await adminSupabase.functions.invoke('admin-auth-pin', {
+          body: { action: 'check', ticket },
+        });
+        if (data?.success) { setStep('ready'); return; }
+      } catch { /* fall through to the PIN screen */ }
+      sessionStorage.removeItem(ADMIN_TICKET_KEY);
+    }
+    setStep('pin');
   }, []);
 
   useEffect(() => {
     adminSupabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setSession(session);
-        // If already PIN-verified this session, go straight to ready
-        const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-        if (cached === session.user.id) { setStep('ready'); }
-        else { checkAdmin(session); }
+        checkAdmin(session);
       } else {
         setStep('login');
       }
@@ -228,12 +232,13 @@ export default function AdminApp() {
 
     const { data: { subscription } } = adminSupabase.auth.onAuthStateChange((_e, s) => {
       if (!s) {
-        sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
+        sessionStorage.removeItem(ADMIN_TICKET_KEY);
         setStep('login'); setSession(null);
       }
     });
     return () => subscription.unsubscribe();
   }, [checkAdmin]);
+
 
   const handleLoginSuccess = useCallback((s: Session) => {
     setSession(s);
