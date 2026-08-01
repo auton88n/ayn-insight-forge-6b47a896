@@ -1,7 +1,8 @@
 // v3.28.0 — one account, opened from the Accounts pane.
 // Read only picture of the person on the left, moderation on the right.
 // Nothing here signs in as anyone, and nothing reads assessment results.
-import { useState } from 'react';
+// v3.29.0 adds per account limit overrides and the erase and purge levers.
+import { useEffect, useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -15,8 +16,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { useAdminAccountDetail, useAccountModeration } from '@/admin-app/hooks/useAdminQuery';
+import { Loader2, ShieldAlert, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
+import {
+  useAdminAccountDetail, useAccountModeration,
+  useAccountGovernance, useAccountGovernanceActions,
+} from '@/admin-app/hooks/useAdminQuery';
 import { LoadingBlock, ErrorBlock, when } from '../ui';
 
 const CAPABILITIES: Array<{ key: string; label: string; blurb: string }> = [
@@ -25,6 +29,24 @@ const CAPABILITIES: Array<{ key: string; label: string; blurb: string }> = [
   { key: 'assessments', label: 'Assessments', blurb: 'An employer account cannot generate or send assessments.' },
   { key: 'ai', label: 'AI features', blurb: 'Cannot spend credits on tailoring, cover letters, scoring or Ask AYN.' },
 ];
+
+const LIMIT_FIELDS: Array<{ key: 'proposals_limit' | 'assessments_limit' | 'searches_limit' | 'monthly_credits'; label: string }> = [
+  { key: 'proposals_limit', label: 'Proposals per period' },
+  { key: 'assessments_limit', label: 'Assessments per period' },
+  { key: 'searches_limit', label: 'Candidate searches per period' },
+  { key: 'monthly_credits', label: 'Credits granted per period' },
+];
+
+/** Empty box means fall back to the plan. A typed 0 is a real zero. */
+const toNumberOrNull = (raw: string): number | null => {
+  const t = raw.trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+};
+const fromValue = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v));
+const showLimit = (v: number | null | undefined) => (v === null || v === undefined ? 'No limit' : String(v));
+
 
 const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-border/40 last:border-0">
