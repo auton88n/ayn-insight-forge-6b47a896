@@ -68,9 +68,110 @@ const json = (data: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// ─────────────────────────────────────────────────────────────
+// v3.24.0 MAINTENANCE SWITCHES
+// The admin panel writes system_config.feature_flags. Every action that
+// spends money or touches the marketplace asks here first, so turning a
+// switch off actually stops the work, not just the button.
+// ─────────────────────────────────────────────────────────────
+type FeatureKey = "platform" | "candidate_search" | "proposals" | "assessments" | "tailoring" | "signups";
+
+let flagCache: { at: number; flags: Record<string, boolean>; messages: Record<string, string> } | null = null;
+
+async function readFlags(admin: SupabaseClient<any, any, any>) {
+  if (flagCache && Date.now() - flagCache.at < 30_000) return flagCache;
+  try {
+    const { data } = await admin.from("system_config")
+      .select("key, value").in("key", ["feature_flags", "feature_flag_messages"]);
+    const rows = (data || []) as { key: string; value: Record<string, unknown> }[];
+    flagCache = {
+      at: Date.now(),
+      flags: (rows.find(r => r.key === "feature_flags")?.value || {}) as Record<string, boolean>,
+      messages: (rows.find(r => r.key === "feature_flag_messages")?.value || {}) as Record<string, string>,
+    };
+  } catch {
+    flagCache = { at: Date.now(), flags: {}, messages: {} };
+  }
+  return flagCache;
+}
+
+const MAINTENANCE_FALLBACK: Record<FeatureKey, string> = {
+  platform: "AYN is under maintenance right now. We are back shortly.",
+  candidate_search: "Candidate search is paused for maintenance.",
+  proposals: "Sending proposals is paused for maintenance.",
+  assessments: "Assessments are paused for maintenance.",
+  tailoring: "Tailored resumes and cover letters are paused for maintenance. No credits are being spent.",
+  signups: "New accounts are paused for maintenance.",
+};
+
+/**
+ * Returns a 503 Response when the feature (or the whole platform) is off,
+ * otherwise null. Callers do: const off = await featureGate(admin, 'x'); if (off) return off;
+ */
+async function featureGate(
+  admin: SupabaseClient<any, any, any>,
+  key: FeatureKey,
+): Promise<Response | null> {
+  const f = await readFlags(admin);
+  for (const k of ["platform", key] as FeatureKey[]) {
+    if (f.flags[k] === false) {
+      return json({
+        error: "maintenance",
+        feature: k,
+        message: (f.messages[k] || "").trim() || MAINTENANCE_FALLBACK[k],
+      }, 503);
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// v3.24.0 AI USAGE LOGGING
+// Every gateway call writes one row to llm_usage_logs so the admin AI cost
+// pane reads real numbers. Best effort: logging never fails a request.
+// ─────────────────────────────────────────────────────────────
+type AiCtx = { admin: SupabaseClient<any, any, any> | null; userId: string | null; feature: string };
+let aiCtx: AiCtx = { admin: null, userId: null, feature: "unknown" };
+function setAiCtx(admin: SupabaseClient<any, any, any> | null, userId: string | null, feature: string) {
+  aiCtx = { admin, userId, feature };
+}
+
+// Rough USD per 1M tokens, in, out. Only used to give the admin a signal.
+const PRICES: Record<string, [number, number]> = {
+  "google/gemini-2.5-pro": [1.25, 10],
+  "google/gemini-2.5-flash": [0.30, 2.50],
+  "google/gemini-2.5-flash-lite": [0.10, 0.40],
+  "openai/text-embedding-3-small": [0.02, 0],
+};
+
+function logAiUsage(opts: {
+  model: string; inputTokens: number; outputTokens: number; ms: number;
+  wasFallback: boolean; fallbackReason?: string;
+}) {
+  const { admin, userId, feature } = aiCtx;
+  if (!admin || !userId) return;
+  const [pin, pout] = PRICES[opts.model] || [0.30, 2.50];
+  const cost = (opts.inputTokens / 1_000_000) * pin + (opts.outputTokens / 1_000_000) * pout;
+  admin.from("llm_usage_logs").insert({
+    user_id: userId,
+    intent_type: feature,
+    model_name: opts.model,
+    input_tokens: opts.inputTokens,
+    output_tokens: opts.outputTokens,
+    cost_sar: Number(cost.toFixed(6)),
+    response_time_ms: opts.ms,
+    was_fallback: opts.wasFallback,
+    fallback_reason: opts.fallbackReason ?? null,
+  }).then(({ error }: { error: unknown }) => {
+    if (error) console.error("llm_usage_logs insert failed", error);
+  }, (e: unknown) => console.error("llm_usage_logs insert threw", e));
+}
+
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash";
 const QUALITY_MODEL = "google/gemini-2.5-pro";
+
+
 
 async function callAI(opts: {
   model?: string;
