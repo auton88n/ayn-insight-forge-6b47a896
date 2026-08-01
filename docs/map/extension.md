@@ -1,4 +1,4 @@
-# AYN Chrome extension map (v3.2.0)
+# AYN Chrome extension map (v3.2.1)
 
 The extension is READ ONLY. It never writes to a page and never fills a form. It exists to read the job description off the page the user is looking at, and to put four features one click away: JD detection, match score, tailored resume and cover letter, and Ask AYN about the job.
 
