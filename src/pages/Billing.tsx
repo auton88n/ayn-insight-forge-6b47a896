@@ -67,6 +67,22 @@ export default function Billing() {
     catch (e) { toast.error((e as Error).message); setBusy(null); }
   };
 
+  // v3.30.0 — cancelling is possible from inside the product, not only by
+  // emailing support. It takes effect at the end of the paid period.
+  const cancelSubscription = async () => {
+    const ok = window.confirm(
+      "Cancel your subscription? You keep access until the end of the period you have already paid for, it does not renew after that, and fees already paid are not refunded."
+    );
+    if (!ok) return;
+    setBusy("cancel");
+    try {
+      await billingApi.cancel();
+      toast.success("Cancelled. You keep access until the end of this period.");
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(null);
+  };
+
+
   const tiers = plans.filter(p => p.audience === audience);
   const currentKey = audience === "employer" ? employer?.plan?.key : seeker?.plan?.key;
 
