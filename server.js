@@ -22,9 +22,27 @@ app.use(express.static(DIST, {
   },
 }));
 
-// All routes serve index.html — React Router handles the rest
+// Every real route in src/App.tsx. Anything not in here is a genuine 404,
+// so we still serve the SPA shell but with a 404 status, otherwise Google
+// indexes every junk path as a live page.
+const ROUTES = [
+  '/', '/pricing', '/resume-match', '/resume-hub', '/contact', '/support',
+  '/world-intelligence', '/terms', '/privacy', '/settings', '/billing',
+  '/handoff', '/extension/approve', '/employer/pending', '/reset-password',
+  '/approval-result', '/subscription-success', '/subscription-canceled',
+  '/dashboard', '/admin',
+];
+const PREFIXES = ['/resume-hub/', '/dashboard/', '/admin/', '/sign/', '/nda/', '/manage-'];
+
+function isKnownRoute(pathname) {
+  if (ROUTES.includes(pathname)) return true;
+  return PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+// React Router handles rendering; the status code is decided here.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(DIST, 'index.html'));
+  const status = isKnownRoute(req.path) ? 200 : 404;
+  res.status(status).sendFile(path.join(DIST, 'index.html'));
 });
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
