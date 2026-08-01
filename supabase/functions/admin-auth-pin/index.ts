@@ -172,7 +172,13 @@ Deno.serve(async (req) => {
     }
 
     await log(admin, callerId, 'admin_pin_verified', 'low', { email: callerEmail });
-    return new Response(JSON.stringify({ success: true, valid: true }), { headers });
+    return new Response(JSON.stringify({
+      success: true,
+      valid: true,
+      ticket: await mintTicket(callerId),
+      ticketTtl: TICKET_TTL_SECONDS,
+    }), { headers });
+
   } catch (e) {
     console.error('admin-auth-pin failed', e);
     return new Response(JSON.stringify({ success: false, error: (e as Error).message || 'PIN check failed' }), { status: 500, headers });
