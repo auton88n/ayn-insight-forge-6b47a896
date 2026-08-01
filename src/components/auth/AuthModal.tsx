@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { recordLegalConsent, LEGAL } from '@/lib/legal';
 import { Loader2, Building, User, KeyRound, CheckCircle2, ArrowLeft, Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -361,6 +362,9 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
         // v2.10.0 — best-effort role setup. Trigger handle_new_user creates
         // the profile row; we stamp role + create employer_accounts here.
         if (data.user) {
+          // v3.30.0 — record exactly what was accepted: Terms version, Privacy
+          // version, timestamp and IP. Best effort, never blocks the signup.
+          void recordLegalConsent('signup');
           try {
             // Cast: types.ts is regenerated after migration approval — until then
             // 'role' on profiles and the employer_accounts table are unknown to TS.
@@ -727,7 +731,18 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                     onClick={(e) => e.stopPropagation()}
                   >
                     {t('auth.termsLink')}
-                  </a>
+                </a>
+                {' '}and{' '}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ayn-auth-link hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </a>
+                {' '}(version {LEGAL.termsVersion}, {LEGAL.effectiveDate}). We record the date, time and version you accept.
                 </label>
               </div>
 

@@ -34,6 +34,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { initPerformanceMonitoring } from '@/lib/performanceMonitor';
+import { initAnalyticsFromConsent } from '@/lib/analytics';
 
 // Global handler for unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
@@ -42,6 +43,8 @@ window.addEventListener('unhandledrejection', (event) => {
 
 createRoot(document.getElementById("root")!).render(<App />);
 initPerformanceMonitoring();
+initAnalyticsFromConsent();
+
 
 // Register service worker for offline support
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

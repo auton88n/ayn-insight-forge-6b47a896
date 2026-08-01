@@ -72,6 +72,8 @@ const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const DoNotSell = lazy(() => import("./pages/DoNotSell"));
+import { CookieConsent } from "@/components/shared/CookieConsent";
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
@@ -132,6 +134,8 @@ const AnimatedRoutes = () => {
       <Route path="/subscription-canceled" element={<SubscriptionCanceled />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/do-not-sell" element={<Suspense fallback={<PageLoader />}><DoNotSell /></Suspense>} />
+
       <Route path="/world-intelligence" element={<Suspense fallback={<PageLoader />}><WorldIntelligence /></Suspense>} />
       <Route path="/sign/:token" element={<Suspense fallback={<PageLoader />}><ClientSign /></Suspense>} />
       <Route path="/nda/:token" element={<Suspense fallback={<PageLoader />}><NDASign /></Suspense>} />
@@ -171,6 +175,7 @@ const App = () => {
                           <AnimatedRoutes />
                         </Suspense>
                       </ErrorBoundary>
+                      <CookieConsent />
                     </BrowserRouter>
                   </TooltipProvider>
               </SubscriptionProvider>

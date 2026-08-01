@@ -49,6 +49,32 @@ Deno.serve(async (req) => {
       return json({ url: portal.url });
     }
 
+    // v3.30.0 — cancel from inside the product, not only by email or by the
+    // hosted portal. Cancellation takes effect at the end of the period that
+    // has already been paid for, and nothing is refunded.
+    if (action === "cancel") {
+      if (!customerId) return json({ error: "No billing account yet" }, 400);
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
+      const sub = subs.data[0];
+      if (!sub) return json({ error: "No active subscription to cancel" }, 400);
+      const updated = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+      return json({
+        ok: true,
+        cancel_at_period_end: updated.cancel_at_period_end,
+        current_period_end: updated.items.data[0]?.current_period_end ?? null,
+      });
+    }
+
+    if (action === "resume") {
+      if (!customerId) return json({ error: "No billing account yet" }, 400);
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
+      const sub = subs.data[0];
+      if (!sub) return json({ error: "No subscription found" }, 400);
+      await stripe.subscriptions.update(sub.id, { cancel_at_period_end: false });
+      return json({ ok: true, cancel_at_period_end: false });
+    }
+
+
     const planKey = String(body?.plan_key || "");
     if (!planKey) return json({ error: "plan_key is required" }, 400);
 
@@ -77,6 +103,14 @@ Deno.serve(async (req) => {
       client_reference_id: user.id,
       subscription_data: { metadata: { user_id: user.id, plan_key: plan.key } },
       metadata: { user_id: user.id, plan_key: plan.key },
+      // v3.30.0 — cancellation terms are shown before payment, not only in the
+      // Terms. Several consumer laws require this at the point of purchase.
+      custom_text: {
+        submit: {
+          message:
+            "This subscription renews automatically until you cancel. You can cancel at any time from Billing inside AYN. Cancellation takes effect at the end of the period you have already paid for, and you keep access until then. Fees already paid are not refunded.",
+        },
+      },
       success_url: `${origin}/subscription-success?plan=${encodeURIComponent(plan.key)}`,
       cancel_url: `${origin}/subscription-canceled`,
     });

@@ -166,7 +166,39 @@ export function AccountDetailDialog({
                     <Field label="Plan" value={`${d.plan_key}${d.sub_status ? ` / ${d.sub_status}` : ''}`} />
                   </CardContent>
                 </Card>
+
+                {/* v3.30.0 — what this person accepted, and when. */}
+                <Card className="border border-border/60">
+                  <CardContent className="p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-2">Legal consent</p>
+                    {d.legal_consent ? (
+                      <>
+                        <Field label="Terms version" value={d.legal_consent.terms_version || '—'} />
+                        <Field label="Privacy version" value={d.legal_consent.privacy_version || 'Not recorded'} />
+                        <Field label="Accepted" value={when(d.legal_consent.accepted_at)} />
+                        <Field label="IP address" value={d.legal_consent.ip_address || 'Not recorded'} />
+                        <Field label="Recorded at" value={d.legal_consent.source || 'signup'} />
+                        {(d.legal_consent_history || []).length > 1 && (
+                          <div className="mt-3 pt-3 border-t border-border/60 space-y-1">
+                            <p className="text-xs text-muted-foreground">Earlier acceptances</p>
+                            {(d.legal_consent_history || []).slice(1).map((h: any, i: number) => (
+                              <p key={i} className="text-xs text-muted-foreground">
+                                Terms {h.terms_version || '—'}, privacy {h.privacy_version || '—'}, {when(h.accepted_at)}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No acceptance recorded. This account signed up before we started
+                        versioning the documents.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
+
 
               <div className="space-y-5">
                 <Card className="border border-border/60">

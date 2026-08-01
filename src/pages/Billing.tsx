@@ -67,6 +67,22 @@ export default function Billing() {
     catch (e) { toast.error((e as Error).message); setBusy(null); }
   };
 
+  // v3.30.0 — cancelling is possible from inside the product, not only by
+  // emailing support. It takes effect at the end of the paid period.
+  const cancelSubscription = async () => {
+    const ok = window.confirm(
+      "Cancel your subscription? You keep access until the end of the period you have already paid for, it does not renew after that, and fees already paid are not refunded."
+    );
+    if (!ok) return;
+    setBusy("cancel");
+    try {
+      await billingApi.cancel();
+      toast.success("Cancelled. You keep access until the end of this period.");
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(null);
+  };
+
+
   const tiers = plans.filter(p => p.audience === audience);
   const currentKey = audience === "employer" ? employer?.plan?.key : seeker?.plan?.key;
 
@@ -140,9 +156,19 @@ export default function Billing() {
             )}
           </div>
 
-          <Button variant="outline" className="mt-5" onClick={openPortal} disabled={busy === "portal"}>
-            {busy === "portal" ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Manage payment method <ExternalLink className="w-3.5 h-3.5 ml-2" /></>}
-          </Button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={openPortal} disabled={busy === "portal"}>
+              {busy === "portal" ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Manage payment method <ExternalLink className="w-3.5 h-3.5 ml-2" /></>}
+            </Button>
+            <Button variant="ghost" onClick={cancelSubscription} disabled={busy === "cancel"}>
+              {busy === "cancel" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel subscription"}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+            Your plan renews automatically. You can cancel at any time. Cancellation takes
+            effect at the end of the period you have already paid for, and fees already paid
+            are not refunded.
+          </p>
         </div>
 
         {/* Usage this period */}

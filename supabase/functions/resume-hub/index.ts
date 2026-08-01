@@ -2419,6 +2419,34 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     }
 
 
+    // v3.30.0 — record what a person accepted: the Terms version, the Privacy
+    // Policy version, the timestamp and the IP address, which only the server
+    // can see. Append only, so a future materially changed version is simply a
+    // new row and an unaccepted version shows up as a missing one.
+    if (action === "legal_consent_record") {
+      const { terms_version, privacy_version, source } = payload as {
+        terms_version?: string; privacy_version?: string; source?: string;
+      };
+      if (!terms_version || !privacy_version) {
+        return json({ error: "terms_version and privacy_version required" }, 400);
+      }
+      const fwd = req.headers.get("x-forwarded-for") || "";
+      const ip = (fwd.split(",")[0] || req.headers.get("cf-connecting-ip") || "").trim() || null;
+      const { error } = await adminForNew.from("terms_consent_log").insert({
+        user_id: userId,
+        terms_version: String(terms_version).slice(0, 32),
+        privacy_version: String(privacy_version).slice(0, 32),
+        privacy_accepted: true,
+        terms_accepted: true,
+        ip_address: ip,
+        source: source === "reaccept" ? "reaccept" : "signup",
+        user_agent: (req.headers.get("user-agent") || "").slice(0, 500),
+      });
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+
     if (action === "talent_pool_set") {
       const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
       if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);

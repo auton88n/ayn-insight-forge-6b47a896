@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import aynLogo from '@/assets/ayn-logo.png';
+import { openCookiePreferences } from '@/components/shared/CookieConsent';
 
 const DiscordIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -63,6 +64,16 @@ export const Footer = () => {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
               <li><Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+              <li><Link to="/do-not-sell" className="hover:text-foreground transition-colors">Do Not Sell or Share My Personal Information</Link></li>
+              <li>
+                <button
+                  type="button"
+                  onClick={openCookiePreferences}
+                  className="hover:text-foreground transition-colors text-left"
+                >
+                  Cookie choices
+                </button>
+              </li>
             </ul>
           </div>
         </div>
