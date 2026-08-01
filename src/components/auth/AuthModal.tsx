@@ -731,7 +731,18 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                     onClick={(e) => e.stopPropagation()}
                   >
                     {t('auth.termsLink')}
-                  </a>
+                </a>
+                {' '}and{' '}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ayn-auth-link hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </a>
+                {' '}(version {LEGAL.termsVersion}, {LEGAL.effectiveDate}). We record the date, time and version you accept.
                 </label>
               </div>
 
