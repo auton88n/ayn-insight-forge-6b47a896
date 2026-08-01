@@ -3,8 +3,10 @@
 // set-admin-pin and admin-pin-alert.
 //
 // Actions:
-//   verify { pin }                 -> { success, locked?, lockoutRemaining?, attemptsRemaining? }
+//   verify { pin }                 -> { success, ticket?, ticketTtl?, locked?, lockoutRemaining?, attemptsRemaining? }
+//   check  { ticket }              -> { success } (re-verifies a minted ticket)
 //   set    { pin, new_pin }        -> { success }
+
 //
 // Every call validates the JWT in code, then has_role(uid,'admin').
 // Attempts and lockout live server side in app_settings.admin_pin_attempts,
@@ -32,6 +34,39 @@ function timingSafeEqual(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
+
+// ── PIN tickets ──
+// A correct PIN mints a short lived HMAC signed ticket bound to the caller.
+// The browser stores it, but it cannot mint or edit one, so setting a key by
+// hand in devtools no longer opens the panel.
+const TICKET_TTL_SECONDS = 8 * 60 * 60;
+
+async function hmac(payload: string): Promise<string> {
+  const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(`ayn-admin-pin:${secret}`),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function mintTicket(userId: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + TICKET_TTL_SECONDS;
+  const payload = `${userId}.${exp}`;
+  return `${payload}.${await hmac(payload)}`;
+}
+
+async function verifyTicket(ticket: string, userId: string): Promise<boolean> {
+  const parts = ticket.split('.');
+  if (parts.length !== 3) return false;
+  const [uid, expRaw, sig] = parts;
+  if (uid !== userId) return false;
+  const exp = Number(expRaw);
+  if (!Number.isFinite(exp) || exp * 1000 < Date.now()) return false;
+  return timingSafeEqual(sig, await hmac(`${uid}.${exp}`));
+}
+
 
 async function readSetting(admin: any, key: string): Promise<string | null> {
   const { data } = await admin.from('app_settings').select('value').eq('key', key).maybeSingle();
@@ -110,6 +145,16 @@ Deno.serve(async (req) => {
     const action = String(body.action ?? 'verify');
     const pin = String(body.pin ?? '');
 
+    // check { ticket } -> was this browser really given a ticket by a correct
+    // PIN entry, for this same account, and is it still inside its window.
+    // The browser cannot forge one, the signature is server side only.
+    if (action === 'check') {
+      const ok = await verifyTicket(String(body.ticket ?? ''), callerId);
+      return new Response(JSON.stringify({ success: ok, valid: ok }), { status: ok ? 200 : 401, headers });
+    }
+
+
+
     if (!/^\d{4,6}$/.test(pin)) {
       return new Response(JSON.stringify({ success: false, error: 'PIN must be 4 to 6 digits' }), { status: 400, headers });
     }
@@ -172,7 +217,13 @@ Deno.serve(async (req) => {
     }
 
     await log(admin, callerId, 'admin_pin_verified', 'low', { email: callerEmail });
-    return new Response(JSON.stringify({ success: true, valid: true }), { headers });
+    return new Response(JSON.stringify({
+      success: true,
+      valid: true,
+      ticket: await mintTicket(callerId),
+      ticketTtl: TICKET_TTL_SECONDS,
+    }), { headers });
+
   } catch (e) {
     console.error('admin-auth-pin failed', e);
     return new Response(JSON.stringify({ success: false, error: (e as Error).message || 'PIN check failed' }), { status: 500, headers });

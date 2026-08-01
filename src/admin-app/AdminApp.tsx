@@ -6,7 +6,11 @@ import aynMark from '/ayn-mark.svg';
 import { AdminPanel } from '@/components/AdminPanel';
 
 const LOCKOUT_KEY = 'ayn_admin_lockout';
-const ADMIN_VERIFIED_KEY = 'ayn_admin_verified';
+// Holds the HMAC signed ticket the server mints on a correct PIN, not a user
+// id. A hand written value fails the server side check, so the PIN cannot be
+// skipped from devtools.
+const ADMIN_TICKET_KEY = 'ayn_admin_ticket';
+
 
 function Loader() {
   return (
@@ -18,7 +22,7 @@ function Loader() {
 
 // PIN screen — shown AFTER login since admin-auth-pin requires a JWT.
 // Attempts and lockout are decided by the server, the browser only displays them.
-function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => void }) {
+function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   const [pin, setPin] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
@@ -62,12 +66,13 @@ function PinScreen({ session, onSuccess }: { session: Session; onSuccess: () => 
         body: { action: 'verify', pin: fullPin },
       });
 
-      if (data?.success) {
+      if (data?.success && data?.ticket) {
         localStorage.removeItem(LOCKOUT_KEY);
-        sessionStorage.setItem(ADMIN_VERIFIED_KEY, session.user.id);
+        sessionStorage.setItem(ADMIN_TICKET_KEY, data.ticket);
         onSuccess();
         return;
       }
+
 
       if (data?.locked) {
         const until = Date.now() + (data.lockoutRemaining || 900) * 1000;
@@ -195,28 +200,32 @@ export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null);
 
   const checkAdmin = useCallback(async (s: Session) => {
-    // Check sessionStorage cache first — skip DB call if already verified this session
-    const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-    if (cached === s.user.id) { setStep('ready'); return; }
+    // Role first, always. The cached PIN ticket is only consulted after
+    // user_roles says this account is an admin, and the ticket itself is
+    // re-checked by the server, so neither half can be faked in the browser.
     try {
       const { data } = await adminSupabase.from('user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
-      if (data?.role === 'admin' || data?.role === 'duty') {
-        // Verified as admin — now require PIN
-        setStep('pin');
-      } else {
-        setStep('denied');
-      }
-    } catch { setStep('denied'); }
+      if (data?.role !== 'admin') { sessionStorage.removeItem(ADMIN_TICKET_KEY); setStep('denied'); return; }
+    } catch { setStep('denied'); return; }
+
+    const ticket = sessionStorage.getItem(ADMIN_TICKET_KEY);
+    if (ticket) {
+      try {
+        const { data } = await adminSupabase.functions.invoke('admin-auth-pin', {
+          body: { action: 'check', ticket },
+        });
+        if (data?.success) { setStep('ready'); return; }
+      } catch { /* fall through to the PIN screen */ }
+      sessionStorage.removeItem(ADMIN_TICKET_KEY);
+    }
+    setStep('pin');
   }, []);
 
   useEffect(() => {
     adminSupabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setSession(session);
-        // If already PIN-verified this session, go straight to ready
-        const cached = sessionStorage.getItem(ADMIN_VERIFIED_KEY);
-        if (cached === session.user.id) { setStep('ready'); }
-        else { checkAdmin(session); }
+        checkAdmin(session);
       } else {
         setStep('login');
       }
@@ -224,12 +233,13 @@ export default function AdminApp() {
 
     const { data: { subscription } } = adminSupabase.auth.onAuthStateChange((_e, s) => {
       if (!s) {
-        sessionStorage.removeItem(ADMIN_VERIFIED_KEY);
+        sessionStorage.removeItem(ADMIN_TICKET_KEY);
         setStep('login'); setSession(null);
       }
     });
     return () => subscription.unsubscribe();
   }, [checkAdmin]);
+
 
   const handleLoginSuccess = useCallback((s: Session) => {
     setSession(s);
@@ -242,7 +252,7 @@ export default function AdminApp() {
 
   if (step === 'checking') return <Loader />;
   if (step === 'login') return <LoginScreen onSuccess={handleLoginSuccess} />;
-  if (step === 'pin') return <PinScreen session={session!} onSuccess={handlePinSuccess} />;
+  if (step === 'pin') return <PinScreen onSuccess={handlePinSuccess} />;
   if (step === 'denied') return <AccessDenied />;
 
   return (

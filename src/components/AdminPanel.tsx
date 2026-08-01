@@ -12,12 +12,11 @@ import aynMark from '/ayn-mark.svg';
 
 import {
   useAdminSystemConfig,
+  useSetSystemConfig,
   useAdminRefresh,
   useAdminOverview,
-  adminKeys,
 } from '@/admin-app/hooks/useAdminQuery';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+
 
 const OverviewSection = lazy(() => import('@/components/admin/sections/OverviewSection'));
 const EmployersSection = lazy(() => import('@/components/admin/sections/EmployersSection'));
@@ -36,8 +35,8 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel = (_props: AdminPanelProps) => {
-  const queryClient = useQueryClient();
   const { refreshAll } = useAdminRefresh();
+
   const [activeTab, setActiveTab] = useState<AdminTabId>('overview');
   const [collapsed, setCollapsed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,6 +81,8 @@ export const AdminPanel = (_props: AdminPanelProps) => {
     sessionTimeout: (configMap.get('session_timeout') as number) || 30,
   };
 
+  const setConfig = useSetSystemConfig();
+
   const updateSystemConfig = async (updates: Record<string, unknown>) => {
     const keyMap: Record<string, string> = {
       maintenanceMode: 'maintenance_mode',
@@ -95,19 +96,15 @@ export const AdminPanel = (_props: AdminPanelProps) => {
       maxLoginAttempts: 'max_login_attempts',
       sessionTimeout: 'session_timeout',
     };
-    try {
-      for (const [key, value] of Object.entries(updates)) {
-        const dbKey = keyMap[key];
-        if (!dbKey) continue;
-        const { error } = await supabase.rpc('admin_upsert_system_config', { p_key: dbKey, p_value: JSON.stringify(value) });
-        if (error) throw new Error(`Failed to update ${dbKey}: ${error.message}`);
-      }
-      queryClient.invalidateQueries({ queryKey: adminKeys.systemConfig() });
-      toast.success('Settings updated');
-    } catch (e) {
-      toast.error((e as Error).message || 'Failed to update settings');
+    const mapped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      const dbKey = keyMap[key];
+      if (dbKey) mapped[dbKey] = value;
     }
+    if (Object.keys(mapped).length === 0) return;
+    await setConfig.mutateAsync(mapped);
   };
+
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);

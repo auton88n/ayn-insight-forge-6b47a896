@@ -1781,9 +1781,9 @@ export type Database = {
         Row: {
           embedded_at: string | null
           embedding: string | null
-          embedding_model: string
+          embedding_model: string | null
           headline: string | null
-          indexed_at: string
+          indexed_at: string | null
           location: string | null
           profile_text: string | null
           seniority: string | null
@@ -1794,9 +1794,9 @@ export type Database = {
         Insert: {
           embedded_at?: string | null
           embedding?: string | null
-          embedding_model?: string
+          embedding_model?: string | null
           headline?: string | null
-          indexed_at?: string
+          indexed_at?: string | null
           location?: string | null
           profile_text?: string | null
           seniority?: string | null
@@ -1807,9 +1807,9 @@ export type Database = {
         Update: {
           embedded_at?: string | null
           embedding?: string | null
-          embedding_model?: string
+          embedding_model?: string | null
           headline?: string | null
-          indexed_at?: string
+          indexed_at?: string | null
           location?: string | null
           profile_text?: string | null
           seniority?: string | null
