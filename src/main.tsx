@@ -43,6 +43,8 @@ window.addEventListener('unhandledrejection', (event) => {
 
 createRoot(document.getElementById("root")!).render(<App />);
 initPerformanceMonitoring();
+initAnalyticsFromConsent();
+
 
 // Register service worker for offline support
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
