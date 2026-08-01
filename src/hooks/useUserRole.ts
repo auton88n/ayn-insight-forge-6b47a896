@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export type UserRole = 'job_seeker' | 'employer';
-export type EmployerStatus = 'pending_approval' | 'approved' | 'suspended';
+export type EmployerStatus = 'pending_approval' | 'approved' | 'declined' | 'suspended';
 
 export interface UserRoleState {
   loading: boolean;
