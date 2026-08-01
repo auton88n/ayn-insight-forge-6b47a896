@@ -18,7 +18,7 @@ const EXT = __dirname;
 
 async function main() {
   // v2.8.4 — wiring self-check runs FIRST. Fails the build on any seam mismatch.
-  execSync(`node ${resolve(ROOT, "scripts/check-wiring.mjs")}`, { stdio: "inherit" });
+  execSync(`node "${resolve(ROOT, "scripts/check-wiring.mjs")}"`, { stdio: "inherit" });
 
   // v2.7.0 — manifest.json is the single source of truth for extension version.
   const manifest = JSON.parse(readFileSync(resolve(EXT, "manifest.json"), "utf8"));

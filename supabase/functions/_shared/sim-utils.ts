@@ -1,12 +1,32 @@
 // Shared helpers for the World Simulation v2 edge functions.
-export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// ── CORS — echo back only allowed origins, never wildcard ──────────────────
+const ALLOWED_ORIGINS = [
+  'https://aynn.io',
+  'https://www.aynn.io',
+  'https://ayn-insight-forge.lovable.app',
+  'http://localhost:5173',
+  'http://localhost:8080',
+];
+
+function resolveOrigin(req: Request): string {
+  const origin = req.headers.get('Origin') || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+\.lovableproject\.com$/.test(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+--[a-z0-9-]+\.lovable\.app$/.test(origin)) return origin;
+  return ALLOWED_ORIGINS[0];
+}
+
+export const corsHeaders = (req?: Request) => ({
+  "Access-Control-Allow-Origin": req ? resolveOrigin(req) : ALLOWED_ORIGINS[0],
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+  "Vary": "Origin",
+});
 
-export const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+export const json = (data: unknown, status = 200, req?: Request) =>
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
 
 export const badRequest = (msg: string) => json({ error: msg }, 400);
 
@@ -74,14 +94,13 @@ export async function callGeminiJSON<T>(opts: {
 export async function requireUser(req: Request): Promise<{ userId: string; authHeader: string }> {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) throw new Error("unauthorized");
-  const token = authHeader.slice(7);
-  const part = token.split(".")[1];
-  if (!part) throw new Error("unauthorized");
-  try {
-    const padded = part + "===".slice((part.length + 3) % 4);
-    const jsonStr = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
-    const claims = JSON.parse(jsonStr);
-    if (!claims.sub) throw new Error("unauthorized");
-    return { userId: claims.sub as string, authHeader };
-  } catch { throw new Error("unauthorized"); }
+  // ── Cryptographic JWT verification via Supabase (NOT raw base64 decode) ──
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const supa = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: u, error } = await supa.auth.getUser();
+  if (error || !u?.user?.id) throw new Error("unauthorized");
+  return { userId: u.user.id, authHeader };
 }

@@ -42,7 +42,13 @@ function timingSafeEqual(a: string, b: string): boolean {
 const TICKET_TTL_SECONDS = 8 * 60 * 60;
 
 async function hmac(payload: string): Promise<string> {
-  const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  // Prefer a dedicated HMAC secret so admin tickets are decoupled from the
+  // Supabase service role key.  Add ADMIN_PIN_HMAC_SECRET to your edge-function
+  // secrets in the Supabase dashboard (at least 32 random chars).
+  const secret =
+    Deno.env.get('ADMIN_PIN_HMAC_SECRET') ??
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
+    '';
   const key = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(`ayn-admin-pin:${secret}`),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
