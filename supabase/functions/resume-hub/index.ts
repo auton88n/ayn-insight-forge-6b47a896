@@ -1989,6 +1989,7 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
     // ---------------- tailor ----------------
     if (action === "tailor") {
+      { const off = await featureGate(createClient(supabaseUrl, serviceKey), "tailoring"); if (off) return off; }
       const { resume, jdText } = payload as { resume: unknown; jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
       const r = await callAI({
@@ -2016,6 +2017,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
     // ---------------- cover_letter ----------------
     if (action === "cover_letter") {
+      { const off = await featureGate(createClient(supabaseUrl, serviceKey), "tailoring"); if (off) return off; }
       const { resume, jdText, tone, company } = payload as { resume: unknown; jdText: string; tone?: string; company?: string };
       const r = await callAI({
         system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés ("I am excited to", "leverage", "passionate"). Pull concrete achievements from the resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
@@ -2668,6 +2670,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
 
     if (action === "employer_match") {
+      { const off = await featureGate(adminForNew, "candidate_search"); if (off) return off; }
       const { org_id, job_spec } = payload as { org_id?: string; job_spec?: Record<string, unknown> };
       if (!org_id || !job_spec) return json({ error: "org_id and job_spec required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
@@ -2884,6 +2887,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
     // what the role is and write a message. Contact details are still only
     // released after the candidate accepts (see employer_reveal_status).
     if (action === "employer_reveal_request") {
+      { const off = await featureGate(adminForNew, "proposals"); if (off) return off; }
       const {
         search_id, ref, job_title, job_location, employment_type, salary_range, job_url, message,
       } = payload as {
@@ -3096,6 +3100,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
     // ---- Employer: generate a draft assessment from the candidate profile ----
     if (action === "employer_assessment_generate") {
+      { const off = await featureGate(adminForNew, "assessments"); if (off) return off; }
       const { org_id, search_id, ref } = payload as { org_id?: string; search_id?: string; ref?: string };
       if (!org_id || !search_id || !ref) return json({ error: "org_id, search_id and ref required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
@@ -3215,6 +3220,7 @@ Write the assessment now.`,
 
     // ---- Employer: send the draft, minus any question they removed ----
     if (action === "employer_assessment_send") {
+      { const off = await featureGate(adminForNew, "assessments"); if (off) return off; }
       const { assessment_id, keep_ids, time_limit_seconds, expires_days } = payload as {
         assessment_id?: string; keep_ids?: string[];
         time_limit_seconds?: number; expires_days?: number;
