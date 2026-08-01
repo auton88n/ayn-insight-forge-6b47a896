@@ -68,9 +68,110 @@ const json = (data: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// ─────────────────────────────────────────────────────────────
+// v3.24.0 MAINTENANCE SWITCHES
+// The admin panel writes system_config.feature_flags. Every action that
+// spends money or touches the marketplace asks here first, so turning a
+// switch off actually stops the work, not just the button.
+// ─────────────────────────────────────────────────────────────
+type FeatureKey = "platform" | "candidate_search" | "proposals" | "assessments" | "tailoring" | "signups";
+
+let flagCache: { at: number; flags: Record<string, boolean>; messages: Record<string, string> } | null = null;
+
+async function readFlags(admin: SupabaseClient<any, any, any>) {
+  if (flagCache && Date.now() - flagCache.at < 30_000) return flagCache;
+  try {
+    const { data } = await admin.from("system_config")
+      .select("key, value").in("key", ["feature_flags", "feature_flag_messages"]);
+    const rows = (data || []) as { key: string; value: Record<string, unknown> }[];
+    flagCache = {
+      at: Date.now(),
+      flags: (rows.find(r => r.key === "feature_flags")?.value || {}) as Record<string, boolean>,
+      messages: (rows.find(r => r.key === "feature_flag_messages")?.value || {}) as Record<string, string>,
+    };
+  } catch {
+    flagCache = { at: Date.now(), flags: {}, messages: {} };
+  }
+  return flagCache;
+}
+
+const MAINTENANCE_FALLBACK: Record<FeatureKey, string> = {
+  platform: "AYN is under maintenance right now. We are back shortly.",
+  candidate_search: "Candidate search is paused for maintenance.",
+  proposals: "Sending proposals is paused for maintenance.",
+  assessments: "Assessments are paused for maintenance.",
+  tailoring: "Tailored resumes and cover letters are paused for maintenance. No credits are being spent.",
+  signups: "New accounts are paused for maintenance.",
+};
+
+/**
+ * Returns a 503 Response when the feature (or the whole platform) is off,
+ * otherwise null. Callers do: const off = await featureGate(admin, 'x'); if (off) return off;
+ */
+async function featureGate(
+  admin: SupabaseClient<any, any, any>,
+  key: FeatureKey,
+): Promise<Response | null> {
+  const f = await readFlags(admin);
+  for (const k of ["platform", key] as FeatureKey[]) {
+    if (f.flags[k] === false) {
+      return json({
+        error: "maintenance",
+        feature: k,
+        message: (f.messages[k] || "").trim() || MAINTENANCE_FALLBACK[k],
+      }, 503);
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// v3.24.0 AI USAGE LOGGING
+// Every gateway call writes one row to llm_usage_logs so the admin AI cost
+// pane reads real numbers. Best effort: logging never fails a request.
+// ─────────────────────────────────────────────────────────────
+type AiCtx = { admin: SupabaseClient<any, any, any> | null; userId: string | null; feature: string };
+let aiCtx: AiCtx = { admin: null, userId: null, feature: "unknown" };
+function setAiCtx(admin: SupabaseClient<any, any, any> | null, userId: string | null, feature: string) {
+  aiCtx = { admin, userId, feature };
+}
+
+// Rough USD per 1M tokens, in, out. Only used to give the admin a signal.
+const PRICES: Record<string, [number, number]> = {
+  "google/gemini-2.5-pro": [1.25, 10],
+  "google/gemini-2.5-flash": [0.30, 2.50],
+  "google/gemini-2.5-flash-lite": [0.10, 0.40],
+  "openai/text-embedding-3-small": [0.02, 0],
+};
+
+function logAiUsage(opts: {
+  model: string; inputTokens: number; outputTokens: number; ms: number;
+  wasFallback: boolean; fallbackReason?: string;
+}) {
+  const { admin, userId, feature } = aiCtx;
+  if (!admin || !userId) return;
+  const [pin, pout] = PRICES[opts.model] || [0.30, 2.50];
+  const cost = (opts.inputTokens / 1_000_000) * pin + (opts.outputTokens / 1_000_000) * pout;
+  admin.from("llm_usage_logs").insert({
+    user_id: userId,
+    intent_type: feature,
+    model_name: opts.model,
+    input_tokens: opts.inputTokens,
+    output_tokens: opts.outputTokens,
+    cost_sar: Number(cost.toFixed(6)),
+    response_time_ms: opts.ms,
+    was_fallback: opts.wasFallback,
+    fallback_reason: opts.fallbackReason ?? null,
+  }).then(({ error }: { error: unknown }) => {
+    if (error) console.error("llm_usage_logs insert failed", error);
+  }, (e: unknown) => console.error("llm_usage_logs insert threw", e));
+}
+
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash";
 const QUALITY_MODEL = "google/gemini-2.5-pro";
+
+
 
 async function callAI(opts: {
   model?: string;
@@ -111,6 +212,7 @@ async function callAI(opts: {
     // Up to 3 attempts per model with exponential backoff on 429 / transient 5xx.
     for (let attempt = 0; attempt < 3; attempt++) {
       let r: Response;
+      const startedAt = Date.now();
       try {
         r = await fetch(GATEWAY_URL, {
           method: "POST",
@@ -125,6 +227,15 @@ async function callAI(opts: {
 
       if (r.ok) {
         const data = await r.json();
+        const usage = data?.usage || {};
+        logAiUsage({
+          model,
+          inputTokens: Number(usage.prompt_tokens ?? usage.input_tokens ?? 0),
+          outputTokens: Number(usage.completion_tokens ?? usage.output_tokens ?? 0),
+          ms: Date.now() - startedAt,
+          wasFallback: mi > 0,
+          fallbackReason: mi > 0 ? lastErr || "primary model unavailable" : undefined,
+        });
         const choice = data?.choices?.[0];
         const finishReason = choice?.finish_reason || choice?.finishReason || data?.stop_reason;
         if (finishReason === "length" || finishReason === "max_tokens") {
@@ -138,6 +249,7 @@ async function callAI(opts: {
         }
         return { text: msg?.content ?? "" };
       }
+
 
       // 402 = credits — don't retry same model, jump to next in chain.
       if (r.status === 402) {
@@ -1066,6 +1178,17 @@ Deno.serve(async (req) => {
       }
 
       const tok = { device_label: deviceLabel };
+      setAiCtx(admin, userId, String(action || "unknown"));
+      {
+        const off = await featureGate(admin, "platform");
+        if (off) return off;
+      }
+      if (action === "smart_tailor" || action === "ext_cover_letter_text") {
+        const off = await featureGate(admin, "tailoring");
+        if (off) return off;
+      }
+
+
 
 
       if (action === "ext_bootstrap") {
@@ -1866,6 +1989,7 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
     // ---------------- tailor ----------------
     if (action === "tailor") {
+      { const off = await featureGate(createClient(supabaseUrl, serviceKey), "tailoring"); if (off) return off; }
       const { resume, jdText } = payload as { resume: unknown; jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
       const r = await callAI({
@@ -1893,6 +2017,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
     // ---------------- cover_letter ----------------
     if (action === "cover_letter") {
+      { const off = await featureGate(createClient(supabaseUrl, serviceKey), "tailoring"); if (off) return off; }
       const { resume, jdText, tone, company } = payload as { resume: unknown; jdText: string; tone?: string; company?: string };
       const r = await callAI({
         system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés ("I am excited to", "leverage", "passionate"). Pull concrete achievements from the resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
@@ -1905,6 +2030,10 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // These run after JWT validation using supa client with RLS
     const userId = user.id;
     const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    // v3.24.0 — every AI call made below is attributed to this person and action.
+    setAiCtx(adminForNew, userId, String(action || "unknown"));
+    { const off = await featureGate(adminForNew, "platform"); if (off) return off; }
+
 
     // ─────────────────────────────────────────────────────────────
     // v3.14.0 — Billing
@@ -2542,6 +2671,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
 
     if (action === "employer_match") {
+      { const off = await featureGate(adminForNew, "candidate_search"); if (off) return off; }
       const { org_id, job_spec } = payload as { org_id?: string; job_spec?: Record<string, unknown> };
       if (!org_id || !job_spec) return json({ error: "org_id and job_spec required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
@@ -2758,6 +2888,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
     // what the role is and write a message. Contact details are still only
     // released after the candidate accepts (see employer_reveal_status).
     if (action === "employer_reveal_request") {
+      { const off = await featureGate(adminForNew, "proposals"); if (off) return off; }
       const {
         search_id, ref, job_title, job_location, employment_type, salary_range, job_url, message,
       } = payload as {
@@ -2970,6 +3101,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
 
     // ---- Employer: generate a draft assessment from the candidate profile ----
     if (action === "employer_assessment_generate") {
+      { const off = await featureGate(adminForNew, "assessments"); if (off) return off; }
       const { org_id, search_id, ref } = payload as { org_id?: string; search_id?: string; ref?: string };
       if (!org_id || !search_id || !ref) return json({ error: "org_id, search_id and ref required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
@@ -3089,6 +3221,7 @@ Write the assessment now.`,
 
     // ---- Employer: send the draft, minus any question they removed ----
     if (action === "employer_assessment_send") {
+      { const off = await featureGate(adminForNew, "assessments"); if (off) return off; }
       const { assessment_id, keep_ids, time_limit_seconds, expires_days } = payload as {
         assessment_id?: string; keep_ids?: string[];
         time_limit_seconds?: number; expires_days?: number;

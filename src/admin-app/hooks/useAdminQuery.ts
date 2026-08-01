@@ -275,6 +275,17 @@ export function useSetFeatureFlag() {
   });
 }
 
+export function useSetFeatureMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { key: string; message: string }) =>
+      adminRpc('admin_set_feature_message', { p_key: v.key, p_message: v.message }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: adminControlKeys.flags }); toast.success('Maintenance note saved'); },
+    onError: (e: Error) => toast.error(e.message || 'Could not save'),
+  });
+}
+
+
 export function useAdjustCredits() {
   const qc = useQueryClient();
   return useMutation({
