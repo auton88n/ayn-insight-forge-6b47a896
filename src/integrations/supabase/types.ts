@@ -5415,6 +5415,7 @@ export type Database = {
         Args: { p_confirm_email: string; p_reason: string; p_user_id: string }
         Returns: Json
       }
+      admin_erase_storage: { Args: { p_user_id: string }; Returns: number }
       admin_insert_ticket_message: {
         Args: { p_content: string; p_sender?: string; p_ticket_id: string }
         Returns: Json
