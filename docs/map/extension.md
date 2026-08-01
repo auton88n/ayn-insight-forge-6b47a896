@@ -2,6 +2,8 @@
 
 The extension is READ ONLY. It never writes to a page and never fills a form. It exists to read the job description off the page the user is looking at, and to put four features one click away: JD detection, match score, tailored resume and cover letter, and Ask AYN about the job.
 
+Copy rules (v3.1.1). Shipped extension text carries no em dashes and no en dashes, ranges are written "to", and there is no autofill language anywhere: the handoff toast, the sign in panel, the Contacts empty state and the Tailor placeholders all describe reading, scoring and tailoring only. The Ask grid is written in the user's voice throughout, question as the title and what they get as the subtitle, with no "vs." or "+" shorthand. The score legend states plainly that the side panel score is a fit score out of 10 for the posting on the page, and that Resume Match on aynn.io is a separate keyword score out of 100 for pasted text, because the two scales are different checks and used to look like a contradiction.
+
 ## Build and versioning
 `node extension/build.mjs`: runs `scripts/check-wiring.mjs`, writes `public/ayn-extension-version.json` from manifest.version, then zips the folder into `public/ayn-extension.zip`. Nothing is bundled any more (esbuild, question-engine, content.entry.js all removed in v3.0.0); every shipped script is plain JS edited directly. Distribution is sideload only (Load unpacked); no auto update. The Hub compares the version file to the installed version from `AYN_PING`.
 
