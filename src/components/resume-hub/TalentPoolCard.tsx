@@ -123,6 +123,10 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
   };
 
   const optedIn = !!status?.opted_in;
+  // v3.28.0 — when an admin restricts discovery the toggle would otherwise
+  // look normal and do nothing, so say what happened instead.
+  const discoveryRestricted = !!status?.discovery_restricted;
+  const restrictionReason = status?.discovery_restriction_reason || "";
   const extracted = (status?.skills ?? []).filter(s => s.provenance === "extracted");
   const inferred = (status?.skills ?? []).filter(s => s.provenance === "inferred");
 
@@ -147,6 +151,13 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
               {pendingIntros} new job {pendingIntros === 1 ? "proposal" : "proposals"}
             </p>
           )}
+          {discoveryRestricted && (
+            <p className="text-xs text-destructive mt-1 max-w-xl leading-relaxed">
+              An administrator has removed your profile from the talent pool, so employers cannot
+              find you right now.{restrictionReason ? ` Reason given: ${restrictionReason}.` : ""} Contact
+              support if you think this is wrong.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mt-1 max-w-xl leading-relaxed">
             {optedIn
               ? "You are discoverable. Employers can send you job proposals. Your contact details stay private until you accept one."
@@ -157,7 +168,7 @@ export default function TalentPoolCard({ refreshKey = 0, groupGaps, pendingIntro
           {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           <Switch
             checked={optedIn}
-            disabled={loading || saving}
+            disabled={loading || saving || discoveryRestricted}
             onCheckedChange={(next) => (next ? setConfirmOpen(true) : toggle(false))}
           />
         </div>

@@ -97,6 +97,9 @@ export interface PoolSkill {
 }
 
 export interface TalentPoolStatus {
+  /** v3.28.0 — an admin has taken this profile out of the pool. */
+  discovery_restricted?: boolean;
+  discovery_restriction_reason?: string;
   opted_in: boolean;
   consented_at: string | null;
   /** v3.5.1 — which consent wording the user agreed to. */
