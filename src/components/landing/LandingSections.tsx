@@ -19,6 +19,7 @@ import {
   CandidateCardMockup,
   AssessmentMockup,
 } from './AppMockups';
+import { BeforeAfterProof } from './BeforeAfterProof';
 
 type Audience = 'job_seeker' | 'employer';
 type Props = { onStartFree?: (role?: Audience) => void };
