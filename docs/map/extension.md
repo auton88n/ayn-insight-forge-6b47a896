@@ -1,6 +1,8 @@
-# AYN Chrome extension map (v3.0.0)
+# AYN Chrome extension map (v3.2.0)
 
 The extension is READ ONLY. It never writes to a page and never fills a form. It exists to read the job description off the page the user is looking at, and to put four features one click away: JD detection, match score, tailored resume and cover letter, and Ask AYN about the job.
+
+Look and assets (v3.2.0). The side panel now wears the same paper and ember palette as the AYN landing mockups: paper `#f5f2ec`, card white, ember `#e85d3a` with `#c2410c` on press, ink `#0B0C0F`, Outfit for headings and Inter for body. The header and sign in mark are the AYN eye, a ring with a filled pupil, drawn in CSS rather than a bitmap, and `extension/icons/*.png` are rendered from `public/ayn-mark.svg` so the toolbar icon is the same mark the web app spins while loading. Tabs are an inset rail of cards on paper with an ember underline on the active one. Every font and icon glyph now ships inside the package (`extension/fonts/`: Inter and Outfit variable subsets, plus a Tabler icon font subset holding only the 32 glyphs the panel uses, 7 KB), so the panel renders offline and makes no request to fonts.googleapis.com or jsdelivr, which is also what MV3 expects.
 
 Copy rules (v3.1.1). Shipped extension text carries no em dashes and no en dashes, ranges are written "to", and there is no autofill language anywhere: the handoff toast, the sign in panel, the Contacts empty state and the Tailor placeholders all describe reading, scoring and tailoring only. The Ask grid is written in the user's voice throughout, question as the title and what they get as the subtitle, with no "vs." or "+" shorthand. The score legend states plainly that the side panel score is a fit score out of 10 for the posting on the page, and that Resume Match on aynn.io is a separate keyword score out of 100 for pasted text, because the two scales are different checks and used to look like a contradiction.
 
@@ -69,3 +71,4 @@ Device tokens only, never passwords. `LINK_START` gets a code (public `link_star
 - v2.12.x — one-page document fit, provenance gate (removed in v3.0.0 with the write path).
 - v2.11.x — in-page presence, JD extraction quality scoring and fixtures.
 - v2.8.x — JD resolver ladder, page classifier gate, scoring transparency, dual auth.
+- v3.2.0 — the panel looks like the product. Paper and ember palette, Outfit and Inter, the AYN eye as header mark and as the toolbar icon (rendered from public/ayn-mark.svg), card tabs with an ember underline, and all fonts and icon glyphs bundled locally so nothing is fetched from a CDN at runtime.

@@ -243,7 +243,7 @@ function setHeroRing(wrapId, numId, pct) {
     bar.setAttribute('stroke-dasharray', circ.toFixed(2));
     bar.setAttribute('stroke-dashoffset', (circ * (1 - v / 100)).toFixed(2));
     // tier-tinted stroke
-    const stroke = v >= 75 ? '#16a34a' : v >= 50 ? '#f97316' : v >= 30 ? '#d97706' : '#b91c1c';
+    const stroke = v >= 75 ? '#3f9d6a' : v >= 50 ? '#e85d3a' : v >= 30 ? '#d97706' : '#b91c1c';
     bar.setAttribute('stroke', stroke);
   }
   const n = $(numId); if (n) n.textContent = v;
@@ -364,7 +364,7 @@ async function toggleScoring() {
   $('score-switch').classList.toggle('on', scoringOn);
   $('score-status-note').textContent = scoringOn
     ? 'ON. AYN scores every job card as you scroll.'
-    : 'Turn on to see a 1-10 match score on every job card.';
+    : 'Turn on to see a 1 to 10 match score on every job card.';
   if (!scoringOn) {
     getTab(tab => { if (tab) chrome.tabs.sendMessage(tab.id, { type: 'STOP_CARD_SCORING' }); });
     toast('Job scoring OFF', 'ok');
