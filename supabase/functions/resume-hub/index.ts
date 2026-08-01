@@ -2700,16 +2700,19 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const gate = await assertOrgProfileComplete(org_id);
       if (gate) return gate;
 
-      // v3.14.0 — searching is unlimited on every plan. The only ceiling is a
-      // soft abuse cap, and it is deliberately friendly.
+      // v3.27.0 — searches are a plan allowance like proposals and assessments.
+      // Plans with no allowance recorded still hit the friendly soft abuse cap.
       const searchBilling = await employerBilling(adminForNew, userId, org_id);
-      if (searchBilling.searches_used >= EMPLOYER_SEARCH_SOFT_CAP) {
+      const searchGate = planLimitReached(searchBilling, "search");
+      if (searchGate) return searchGate;
+      if (searchBilling.plan.searches_limit == null && searchBilling.searches_used >= EMPLOYER_SEARCH_SOFT_CAP) {
         return json({
           error: "search_soft_cap",
           code: "search_soft_cap",
           message: `You have run ${searchBilling.searches_used} searches this period, which is more than anyone hiring normally needs. Get in touch and we will lift the cap on your account.`,
         }, 429);
       }
+
 
 
       const mustHaves = Array.isArray(job_spec.must_have_skills) ? (job_spec.must_have_skills as string[]).map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
