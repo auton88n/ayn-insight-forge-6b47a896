@@ -1,61 +1,50 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Brain, Home, ArrowLeft } from "lucide-react";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { SEO } from "@/components/shared/SEO";
 
 const NotFound = () => {
   const location = useLocation();
-  const { t } = useLanguage();
 
   useEffect(() => {
-    console.error(
-      "404 Error: User attempted to access non-existent route:",
-      location.pathname
-    );
+    console.error("404: no route for", location.pathname);
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <SEO title="Page Not Found - AYN" description="The page you're looking for doesn't exist." noIndex={true} />
-      <Card className="glass text-center p-12 max-w-lg bg-neutral-900/90 backdrop-blur-xl border border-white/20">
-        <div className="w-24 h-24 rounded-full bg-gradient-primary mx-auto mb-6 flex items-center justify-center animate-pulse-glow">
-          <Brain className="w-12 h-12 text-white" />
-        </div>
-        
-        <h1 className="text-6xl font-bold mb-4 gradient-text-hero">404</h1>
-        <h2 className="text-2xl font-semibold mb-4 text-white">{t('notFound.pageNotFound')}</h2>
-        <p className="text-white/70 mb-8 leading-relaxed">
-          {t('notFound.description')}
+    <div className="min-h-screen flex items-center justify-center px-6 py-16 bg-background">
+      <SEO
+        title="Page not found, AYN"
+        description="This page does not exist on aynn.io."
+        noIndex={true}
+      />
+      <div className="w-full max-w-lg text-center">
+        <p className="font-mono text-sm tracking-widest text-muted-foreground">404</p>
+        <h1 className="mt-4 text-3xl font-semibold text-foreground sm:text-4xl">
+          There is nothing at this address
+        </h1>
+        <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+          The page you asked for does not exist, or it belonged to something we retired.
+          AYN is a job search product now: it reads the posting you are looking at, scores
+          your match, and writes a resume and cover letter for that one job.
         </p>
-        
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button 
-            onClick={() => window.history.back()}
-            variant="outline"
-            className="glass glass-hover text-white"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {t('notFound.goBack')}
+
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Button asChild>
+            <Link to="/">Back to the home page</Link>
           </Button>
-          
-          <Button 
-            onClick={() => window.location.href = "/"}
-            className="bg-gradient-primary hover:scale-105 transition-all neon-purple text-white"
-          >
-            <Home className="w-4 h-4 mr-2" />
-            {t('notFound.returnHome')}
+          <Button asChild variant="outline">
+            <Link to="/resume-hub">Open Resume Hub</Link>
           </Button>
         </div>
-        
-        <div className="mt-8 pt-6 border-t border-white/20">
-          <p className="text-sm text-white/50">
-            {t('notFound.needHelp')}
-          </p>
-        </div>
-      </Card>
+
+        <p className="mt-8 text-sm text-muted-foreground">
+          Landed here from a link of ours? Tell us at{" "}
+          <Link to="/support" className="underline underline-offset-4 hover:text-foreground">
+            support
+          </Link>{" "}
+          and we will fix it.
+        </p>
+      </div>
     </div>
   );
 };
