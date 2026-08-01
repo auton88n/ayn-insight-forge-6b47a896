@@ -479,6 +479,81 @@ export function AccountDetailDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear the override?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This account goes back to the numbers its plan gives everyone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { clearOverride.mutate(); setConfirmClear(false); }}>
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* erase, two confirmations, and purge, one */}
+      <AlertDialog open={!!danger} onOpenChange={v => !v && closeDanger()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {danger === 'purge'
+                ? 'Purge this account for good?'
+                : dangerStep === 1 ? 'Erase this account?' : 'Type the email to confirm'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {danger === 'purge'
+                ? 'The login record itself is removed. This cannot be undone and there is nothing to restore afterwards.'
+                : dangerStep === 1
+                  ? 'Deleted: resume, profile, saved jobs, tailored documents, talent pool entry, extension tokens and learned answers. Kept: the credit ledger and subscription for accounting, and the proposals and assessments the person received so the employer history stays whole, with the candidate reduced to an opaque reference. The login is disabled.'
+                  : 'Type the account email exactly as it appears on the account. Nothing is filled in for you.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {(danger === 'purge' || dangerStep === 2) && (
+            <div className="space-y-2">
+              <Textarea
+                value={dangerReason}
+                onChange={e => setDangerReason(e.target.value)}
+                rows={2}
+                placeholder="Reason. Required and recorded."
+              />
+              <Input
+                value={dangerEmail}
+                onChange={e => setDangerEmail(e.target.value)}
+                placeholder="Account email"
+                autoComplete="off"
+              />
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closeDanger}>Cancel</AlertDialogCancel>
+            {danger === 'erase' && dangerStep === 1 ? (
+              <Button variant="destructive" onClick={() => setDangerStep(2)}>Continue</Button>
+            ) : (
+              <Button
+                variant="destructive"
+                disabled={!dangerReason.trim() || !dangerEmail.trim() || erase.isPending || purge.isPending}
+                onClick={() => {
+                  const v = { reason: dangerReason.trim(), confirmEmail: dangerEmail.trim() };
+                  if (danger === 'purge') purge.mutate(v, { onSuccess: closeDanger });
+                  else erase.mutate(v, { onSuccess: closeDanger });
+                }}
+              >
+                {(erase.isPending || purge.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {danger === 'purge' ? 'Purge' : 'Erase'}
+              </Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }
