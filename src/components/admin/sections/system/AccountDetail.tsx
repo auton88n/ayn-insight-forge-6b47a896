@@ -253,6 +253,130 @@ export function AccountDetailDialog({
                   </CardContent>
                 </Card>
 
+                <Card className={`border ${override ? 'border-primary/60' : 'border-border/60'}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
+                        <SlidersHorizontal className="w-4 h-4" />
+                        Limits for this account
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Leave a box empty to use the plan. A typed 0 is a real zero and blocks the action.
+                        An override stays in place through a plan change until you clear it.
+                      </p>
+                    </div>
+
+                    {gov.isLoading && <p className="text-xs text-muted-foreground">Loading the limits</p>}
+
+                    {g && (
+                      <>
+                        {override && (
+                          <p className="text-xs text-primary">
+                            Override set {when(override.set_at)} by {override.set_by_email || 'an admin'}. Reason: {override.reason}
+                          </p>
+                        )}
+                        <div className="space-y-2">
+                          {LIMIT_FIELDS.map(f => (
+                            <div key={f.key} className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">{f.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Plan {showLimit(g.plan?.[f.key])} · in force {showLimit(g.effective?.[f.key])}
+                                </p>
+                              </div>
+                              <Input
+                                value={ov[f.key] ?? ''}
+                                onChange={e => setOv(s => ({ ...s, [f.key]: e.target.value.replace(/[^0-9]/g, '') }))}
+                                placeholder="Plan"
+                                inputMode="numeric"
+                                className="w-24 text-right"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <Textarea
+                          value={ovReason}
+                          onChange={e => setOvReason(e.target.value)}
+                          rows={2}
+                          placeholder="Why does this account get different numbers? Required."
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            disabled={
+                              !ovReason.trim() || setOverride.isPending ||
+                              LIMIT_FIELDS.every(f => toNumberOrNull(ov[f.key] ?? '') === null)
+                            }
+                            onClick={() => setOverride.mutate({
+                              proposals_limit: toNumberOrNull(ov.proposals_limit ?? ''),
+                              assessments_limit: toNumberOrNull(ov.assessments_limit ?? ''),
+                              searches_limit: toNumberOrNull(ov.searches_limit ?? ''),
+                              monthly_credits: toNumberOrNull(ov.monthly_credits ?? ''),
+                              reason: ovReason.trim(),
+                            })}
+                          >
+                            {setOverride.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Save override
+                          </Button>
+                          {override && (
+                            <Button variant="outline" disabled={clearOverride.isPending} onClick={() => setConfirmClear(true)}>
+                              Clear override
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-destructive/50">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-2 text-destructive">
+                      <Trash2 className="w-4 h-4" />
+                      Erasure
+                    </p>
+                    {isAdmin ? (
+                      <p className="text-sm text-muted-foreground">An admin account cannot be erased from here.</p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Erase removes the person from the product: resume, profile, saved jobs, tailored documents,
+                          talent pool entry, extension tokens and learned answers are deleted, and the login is disabled.
+                          What is kept, and why: the credit ledger and the subscription record for accounting, and the
+                          proposals and assessments an employer sent them so the employer's own history stays intact,
+                          with the candidate reduced to an opaque reference carrying no name, email or phone.
+                        </p>
+                        {erasure ? (
+                          <div className="space-y-2">
+                            <p className="text-sm">
+                              Erased {when(erasure.erased_at)}. Reason: {erasure.reason}
+                            </p>
+                            {erasure.purged_at ? (
+                              <p className="text-sm text-muted-foreground">
+                                Purged {when(erasure.purged_at)}. Nothing is left to act on.
+                              </p>
+                            ) : (
+                              <Button
+                                variant="destructive"
+                                onClick={() => { setDangerReason(''); setDangerEmail(''); setDangerStep(1); setDanger('purge'); }}
+                              >
+                                Purge the login record
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            onClick={() => { setDangerReason(''); setDangerEmail(''); setDangerStep(1); setDanger('erase'); }}
+                          >
+                            Erase this account
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+
                 {(d.suspension_history || []).length > 0 && (
                   <Card className="border border-border/60">
                     <CardContent className="p-4">
