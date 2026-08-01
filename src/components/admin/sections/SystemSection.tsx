@@ -61,7 +61,7 @@ export default function SystemSection() {
       {pane === 'ai' && <AiPane />}
       {pane === 'email' && <EmailPane />}
       {pane === 'consent' && <ConsentPane />}
-      {pane === 'settings' && <SettingsPane systemConfig={systemConfig} onUpdateConfig={onUpdateConfig} />}
+      {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}
     </div>
   );
 }
