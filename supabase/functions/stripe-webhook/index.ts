@@ -88,15 +88,30 @@ Deno.serve(async (req) => {
         const priceId = invoice.lines.data[0]?.pricing?.price_details?.price ||
           (invoice.lines.data[0] as unknown as { price?: { id?: string } })?.price?.id || "";
         const plan = priceId ? await planFromPriceId(String(priceId)) : null;
-        if (!plan || plan.audience !== "seeker" || !plan.credits) break;
+        if (!plan || plan.audience !== "seeker") break;
 
         const userId = await userIdForCustomer(String(invoice.customer));
         if (!userId) break;
 
+        // v3.29.0 — a per account override beats the plan. Null means fall back
+        // to the plan, 0 is a real zero and grants nothing.
+        const { data: override } = await admin
+          .from("account_limit_overrides")
+          .select("monthly_credits")
+          .eq("user_id", userId)
+          .maybeSingle();
+        const overrideCredits = override?.monthly_credits;
+        const amount = overrideCredits !== null && overrideCredits !== undefined
+          ? overrideCredits
+          : (plan.credits ?? 0);
+        if (!amount) break;
+
         await admin.rpc("credit_grant", {
           _user_id: userId,
-          _amount: plan.credits,
-          _reason: `${plan.key} period`,
+          _amount: amount,
+          _reason: overrideCredits !== null && overrideCredits !== undefined
+            ? `${plan.key} period, account override`
+            : `${plan.key} period`,
           _ref: invoice.id,
         });
         break;
