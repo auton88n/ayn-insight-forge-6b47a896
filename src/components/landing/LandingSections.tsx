@@ -448,18 +448,16 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                   <p className="lp-eyebrow">Verification assessments</p>
                   <h2 className="lp-display lp-h2">Find out who actually did the work</h2>
                   <p className="lp-lead">
-                    Before you spend a proposal, send a short assessment generated from that candidate’s own
-                    claimed background against your role. The questions probe lived experience, so doing the
-                    work is the only way to answer well.
+                    Send a short assessment built from their own background and your role.
                   </p>
                   <div className="lp-chips">
-                    <span className="lp-chip">Score and observations, per question</span>
-                    <span className="lp-chip">Time spent on each answer</span>
+                    <span className="lp-chip">Score and observations</span>
+                    <span className="lp-chip">Time spent per answer</span>
                     <span className="lp-chip">Server enforced timer</span>
-                    <span className="lp-chip">The candidate only sees growth notes</span>
+                    <span className="lp-chip">Candidate sees growth notes only</span>
                   </div>
                   <p className="lp-note">
-                    This checks depth of experience. It cannot prove someone answered unaided.
+                    It checks depth of experience, not who was in the room.
                   </p>
                   {/* v3.19.0 — employer pricing lives here, the single public
                       source. The higher tiers stay unpublished on purpose. */}
@@ -468,7 +466,7 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
                       Free for your first month.
                     </p>
                     <p className="lp-note" style={{ marginTop: 8 }}>
-                      Then from $199 a month. Every plan carries a monthly allowance: 100 searches and 10 proposals on Starter, 400 and 40 on Growth, 1200 and 120 on Scale. The free month gives you 25 searches and 5 proposals.
+                      Then from $199 a month. Starter gives you 100 searches and 10 proposals, Growth 400 and 40, Scale 1200 and 120. The free month gives you 25 and 5.
                     </p>
                   </div>
                   <div className="lp-cta-row" style={{ marginTop: 22 }}>
