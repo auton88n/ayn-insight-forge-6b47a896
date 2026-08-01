@@ -2144,7 +2144,9 @@ RULES — YOU MUST FOLLOW EVERY ONE:
           usage = {
             plan: b.plan.name, proposals_used: b.proposals_used, proposals_limit: b.plan.proposals_limit,
             assessments_used: b.assessments_used, assessments_limit: b.plan.assessments_limit,
-            searches_used: b.searches_used, period_end: b.current_period_end,
+            searches_used: b.searches_used, searches_limit: b.plan.searches_limit,
+            period_end: b.current_period_end,
+
           };
         }
         rows.push({
