@@ -2360,7 +2360,12 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         adminForNew.from("user_profile_canonical").select("updated_at").eq("user_id", userId).maybeSingle(),
       ]);
       const skills = (skillRows ?? []) as Array<{ id: string; skill: string; provenance: string; source: string }>;
+      // v3.28.0 — say it plainly when an admin has taken this profile out of
+      // the pool, instead of showing a toggle that quietly does nothing.
+      const discoveryBlock = await discoveryRestriction(adminForNew, userId);
       return json({
+        discovery_restricted: discoveryBlock.restricted,
+        discovery_restriction_reason: discoveryBlock.reason,
         opted_in: !!consent?.opted_in,
         consented_at: consent?.consented_at ?? null,
         consent_version: (consent as { consent_version?: string } | null)?.consent_version ?? null,
@@ -2622,7 +2627,10 @@ Rules, strict:
 
       const { data: consented } = await adminForNew.from("talent_pool_consent")
         .select("user_id").eq("opted_in", true);
-      const ids = (consented || []).map(r => r.user_id);
+      // v3.28.0 — a person restricted from discovery is not in the pool.
+      const consentedIds = (consented || []).map(r => r.user_id);
+      const hiddenCatalog = await discoveryRestrictedIds(adminForNew, consentedIds);
+      const ids = consentedIds.filter(id => !hiddenCatalog.has(id));
       if (ids.length === 0) return json({ pool_size: 0, skills: [] });
 
       const { data: rows } = await adminForNew.from("candidate_skills")
@@ -2830,7 +2838,10 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       // Load opted-in candidates.
       const { data: consented } = await adminForNew.from("talent_pool_consent")
         .select("user_id").eq("opted_in", true);
-      const candidateIds = (consented || []).map(r => r.user_id);
+      // v3.28.0 — drop anyone an admin has restricted from discovery.
+      const consentedMatchIds = (consented || []).map(r => r.user_id);
+      const hiddenMatch = await discoveryRestrictedIds(adminForNew, consentedMatchIds);
+      const candidateIds = consentedMatchIds.filter(id => !hiddenMatch.has(id));
       if (candidateIds.length === 0) {
         return json({ search_id: null, results: [], pool_note: "No candidates are in the pool yet." });
       }
