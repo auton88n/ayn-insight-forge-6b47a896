@@ -174,6 +174,7 @@ const App = () => {
                           <AnimatedRoutes />
                         </Suspense>
                       </ErrorBoundary>
+                      <CookieConsent />
                     </BrowserRouter>
                   </TooltipProvider>
               </SubscriptionProvider>
