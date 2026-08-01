@@ -11,6 +11,8 @@ import { Loader2, Building, User, KeyRound, CheckCircle2, ArrowLeft, Mail } from
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
+import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
+import { useFeature } from "@/hooks/useFeatureFlags";
 
 interface AuthModalProps {
   open: boolean;
@@ -571,6 +573,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
           </TabsContent>
 
           <TabsContent value="signup" className="space-y-4 mt-6">
+            <MaintenanceNotice feature="signups" />
             <Button
               type="button"
               variant="outline"
@@ -730,7 +733,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 type="submit"
                 variant="default"
                 className="ayn-ember-btn w-full"
-                disabled={isLoading}
+                disabled={isLoading || !signups.enabled}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('auth.signUp')}
