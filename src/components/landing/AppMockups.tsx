@@ -271,3 +271,56 @@ export function AssessmentMockup({ style }: { style?: React.CSSProperties }) {
     </svg>
   );
 }
+
+/* ── 5. Role spec to a shortlist of three ──────────────────── */
+export function ShortlistMockup({ style }: { style?: React.CSSProperties }) {
+  const W = 760, H = 400;
+  const spec: [string, string][] = [
+    ['Role', 'Senior Frontend Engineer'],
+    ['Must have', 'React, TypeScript, design systems'],
+    ['Location', 'Toronto, hybrid'],
+    ['Experience', '5 years or more'],
+  ];
+  const rows: [string, string, string, string][] = [
+    ['M', 'Maya', '7 years · Toronto · hybrid', '91'],
+    ['D', 'Devon', '6 years · Ottawa · remote', '84'],
+    ['S', 'Sana', '5 years · Toronto · onsite', '79'],
+  ];
+  return (
+    <svg {...a11y} aria-label="A role described once on the left, and the three strongest candidates ranked on the right" viewBox={`0 0 ${W} ${H}`} style={{ ...svgBase, ...style }} preserveAspectRatio="xMidYMid meet">
+      {/* the spec */}
+      <rect x="0.5" y="0.5" width="292" height={H - 1} rx="16" fill={T.surface} stroke={T.borderMd} />
+      <text x="26" y="38" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">THE ROLE, ONCE</text>
+      {spec.map(([k, v], i) => (
+        <g key={k}>
+          <rect x="26" y={58 + i * 62} width="240" height="50" rx="12" fill="#fff" stroke={T.border} />
+          <text x="42" y={78 + i * 62} fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="0.8">{k.toUpperCase()}</text>
+          <text x="42" y={97 + i * 62} fontFamily={F} fontSize="11.5" fill={T.inkMid}>{v}</text>
+        </g>
+      ))}
+      <rect x="26" y="318" width="150" height="34" rx="9" fill={T.ember} />
+      <text x="101" y="340" textAnchor="middle" fontFamily={F} fontSize="12" fontWeight="700" fill="#fff">Find candidates</text>
+      <text x="26" y="372" fontFamily={F} fontSize="10.5" fill={T.inkSub}>No boolean strings, no keyword filters.</text>
+
+      {/* the shortlist */}
+      <rect x="312.5" y="0.5" width="447" height={H - 1} rx="16" fill={T.paper} stroke={T.borderMd} />
+      <text x="338" y="38" fontFamily={F} fontSize="10" fontWeight="700" fill={T.inkSub} letterSpacing="1">THE THREE STRONGEST FITS</text>
+      {rows.map(([initial, name, meta, score], i) => {
+        const y = 58 + i * 92;
+        return (
+          <g key={name}>
+            <rect x="338" y={y} width="396" height="76" rx="14" fill={i === 0 ? T.surface : '#fff'} stroke={i === 0 ? T.borderMd : T.border} />
+            <circle cx="376" cy={y + 38} r="18" fill="rgba(232,93,58,0.14)" stroke="rgba(232,93,58,0.3)" />
+            <text x="376" y={y + 43} textAnchor="middle" fontFamily={FD} fontSize="13" fontWeight="700" fill={T.emberDeep}>{initial}</text>
+            <text x="406" y={y + 32} fontFamily={FD} fontSize="14" fontWeight="700" fill={T.ink}>{name}</text>
+            <text x="406" y={y + 51} fontFamily={F} fontSize="11" fill={T.inkSub}>{meta}</text>
+            <rect x="640" y={y + 20} width="76" height="36" rx="10" fill="#fff" stroke={T.borderMd} />
+            <text x="678" y={y + 44} textAnchor="middle" fontFamily={FD} fontSize="15" fontWeight="700" fill={T.ink}>{score}</text>
+          </g>
+        );
+      })}
+      <text x="338" y="360" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Ranked on evidence in their own history.</text>
+      <text x="338" y="378" fontFamily={F} fontSize="10.5" fill={T.inkSub}>Names and contact stay private until they accept.</text>
+    </svg>
+  );
+}
