@@ -2447,6 +2447,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     }
 
 
+    if (action === "talent_pool_set") {
       const { opted_in, consent_version } = payload as { opted_in?: boolean; consent_version?: string };
       if (typeof opted_in !== "boolean") return json({ error: "opted_in required" }, 400);
       // v3.28.0 — cannot opt back in while restricted from discovery.
