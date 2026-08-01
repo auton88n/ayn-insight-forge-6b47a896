@@ -20,6 +20,8 @@ import { assessmentApi } from "@/lib/assessments";
 import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 import aynLogo from "@/assets/ayn-logo.png";
+import { useFeature } from "@/hooks/useFeatureFlags";
+import { PlatformMaintenanceScreen } from "@/components/shared/MaintenanceNotice";
 
 
 type TabKey = "home" | "profile" | "jobs" | "proposals" | "assessments" | "discovery" | "extension";
@@ -46,6 +48,8 @@ export default function ResumeHub() {
   const [loading, setLoading] = useState(true);
   const [pendingIntros, setPendingIntros] = useState(0);
   const [pendingAssessments, setPendingAssessments] = useState(0);
+  // v3.25.0 — a platform wide stop shows one message instead of a broken hub.
+  const platform = useFeature("platform");
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -107,6 +111,8 @@ export default function ResumeHub() {
       })
       .catch((err) => toast({ title: "Download failed", description: err.message, variant: "destructive" }));
   };
+
+  if (platform.loaded && !platform.enabled) return <PlatformMaintenanceScreen />;
 
   return (
     <div className="resume-hub-theme">

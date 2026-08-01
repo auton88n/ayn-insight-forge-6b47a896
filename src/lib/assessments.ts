@@ -8,6 +8,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL } from "@/config";
+import { maintenanceErrorFrom } from "@/lib/featureError";
 
 const FN = `${SUPABASE_URL}/functions/v1/resume-hub`;
 
@@ -27,7 +28,11 @@ async function call<T>(body: unknown): Promise<T> {
   const text = await r.text();
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { parsed = { error: text }; }
-  if (!r.ok) throw new Error((parsed as { error?: string })?.error || `Request failed (${r.status})`);
+  if (!r.ok) {
+    const maintenance = maintenanceErrorFrom(parsed);
+    if (maintenance) throw maintenance;
+    throw new Error((parsed as { error?: string })?.error || `Request failed (${r.status})`);
+  }
   return parsed as T;
 }
 

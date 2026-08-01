@@ -38,6 +38,7 @@ import { AynLoader } from "@/components/shared/AynLoader";
 import aynLogo from "@/assets/ayn-logo.png";
 import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
 import { useFeature } from "@/hooks/useFeatureFlags";
+import { isFeatureDisabled } from "@/lib/featureError";
 import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
@@ -183,7 +184,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       setPoolNote(r.pool_note || "");
     } catch (e) {
       setStage("spec");
-      toast({ title: "Search failed", description: (e as Error).message, variant: "destructive" });
+      toast(isFeatureDisabled(e)
+        ? { title: "Under maintenance", description: e.message }
+        : { title: "Search failed", description: (e as Error).message, variant: "destructive" });
     } finally { setSearching(false); }
   };
 

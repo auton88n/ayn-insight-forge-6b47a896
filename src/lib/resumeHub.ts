@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL } from "@/config";
+import { maintenanceErrorFrom } from "@/lib/featureError";
 
 const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
 
@@ -24,7 +25,11 @@ async function call<T>(fn: string, body: unknown): Promise<T> {
   const text = await r.text();
   let data: unknown;
   try { data = JSON.parse(text); } catch { data = { error: text }; }
-  if (!r.ok) throw new Error((data as { error?: string })?.error || `Request failed (${r.status})`);
+  if (!r.ok) {
+    const maintenance = maintenanceErrorFrom(data);
+    if (maintenance) throw maintenance;
+    throw new Error((data as { error?: string })?.error || `Request failed (${r.status})`);
+  }
   return data as T;
 }
 
