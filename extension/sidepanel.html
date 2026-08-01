@@ -27,10 +27,11 @@
       --ayn-text: #3D3F45;
       --ayn-muted: #6E7076;
       --ayn-faint: #9A9CA2;
-      --ayn-border: rgba(0, 0, 0, .09);
-      --ayn-border-2: rgba(0, 0, 0, .05);
+      --ayn-border: rgba(0, 0, 0, .11);
+      --ayn-border-2: rgba(0, 0, 0, .06);
       --ayn-card: #ffffff;
-      --ayn-bg: #f5f2ec;
+      --ayn-bg: #ffffff;
+      --ayn-surface: #FAFAFA;
       --shadow-sm: 0 1px 2px rgba(11, 12, 15, .04);
       --shadow-md: 0 6px 18px -12px rgba(11, 12, 15, .22);
       --shadow-lg: 0 14px 34px -18px rgba(11, 12, 15, .3);
@@ -54,7 +55,7 @@
       letter-spacing: -.012em;
     }
     .score-num, .fill-stat, .progress-meta b,
-    .email-fmt, .score-salary, .resume-out,
+    .score-salary, .resume-out,
     #fill-resume-steps li::before {
       font-family: var(--font-mono);
       font-variant-numeric: tabular-nums;
@@ -71,21 +72,15 @@
     .header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 12px 14px; gap: 10px;
-      background: var(--ayn-bg); border-bottom: 1px solid var(--ayn-border);
+      background: var(--ayn-surface); border-bottom: 1px solid var(--ayn-border);
       flex-shrink: 0; min-height: 56px;
     }
     .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13.5px; color: var(--ayn-ink); letter-spacing: .01em; min-width: 0; }
     .logo-eye {
-      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-      position: relative; display: inline-flex; align-items: center; justify-content: center;
-      border: 2.5px solid var(--ayn-orange);
-      background: radial-gradient(circle at 50% 50%, rgba(232,93,58,.14), transparent 70%);
+      width: 28px; height: 28px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
     }
-    .logo-eye::after {
-      content: ''; width: 8px; height: 8px; border-radius: 50%;
-      background: var(--ayn-orange);
-    }
-    .logo-eye img { display: none; }
+    .logo-eye img { width: 100%; height: 100%; object-fit: contain; display: block; }
     .hdr-right { display: flex; align-items: center; gap: 6px; position: relative; flex-shrink: 0; }
     .user-email {
       display: inline-flex; align-items: center; gap: 6px;
@@ -121,7 +116,7 @@
        ═══════════════════════════════════════════════════════════ */
     .tabs {
       display: flex; gap: 4px;
-      background: var(--ayn-bg);
+      background: var(--ayn-surface);
       border-bottom: 1px solid var(--ayn-border);
       flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
       padding: 0 10px 10px;
@@ -186,17 +181,14 @@
       padding: 44px 24px; gap: 24px; text-align: center;
     }
     .login-logo {
-      width: 76px; height: 76px; border-radius: 50%; flex-shrink: 0;
+      width: 84px; height: 84px; flex-shrink: 0;
       position: relative; display: inline-flex; align-items: center; justify-content: center;
-      border: 5px solid var(--ayn-orange);
-      background: radial-gradient(circle at 50% 50%, rgba(232,93,58,.16), transparent 70%);
-      box-shadow: 0 18px 40px -22px rgba(232,93,58,.7);
     }
-    .login-logo::after {
-      content: ''; width: 22px; height: 22px; border-radius: 50%;
-      background: var(--ayn-orange);
+    .login-logo::before {
+      content: ''; position: absolute; inset: -14px; border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(232,93,58,.18), transparent 70%);
     }
-    .login-logo img { display: none; }
+    .login-logo img { position: relative; width: 100%; height: 100%; object-fit: contain; display: block; }
     .login-title { font-size: 22px; font-weight: 800; color: var(--ayn-ink); letter-spacing: -.02em; }
     .login-sub { font-size: 13.5px; color: var(--ayn-muted); line-height: 1.6; max-width: 290px; margin-top: 6px; }
     .signin-btn {
@@ -408,13 +400,6 @@
     .contact-link.linkedin:hover { background: var(--ayn-blue-soft); }
     .contact-link.copy { color: var(--ayn-orange); border-color: var(--ayn-orange-border); background: var(--ayn-orange-soft); }
     .contact-link.copy:hover { background: var(--ayn-orange-soft); }
-    .email-fmt {
-      display: inline-flex; align-items: center; padding: 5px 11px;
-      border-radius: 7px; font-size: 11.5px; font-family: 'SF Mono', monospace;
-      color: var(--ayn-text); background: var(--ayn-bg);
-      border: 1px solid var(--ayn-border); cursor: pointer; margin: 3px; transition: all .15s;
-    }
-    .email-fmt:hover { border-color: var(--ayn-orange); color: var(--ayn-orange); background: var(--ayn-orange-soft); }
 
     /* Section label */
     .sl {
@@ -715,7 +700,7 @@
 
 <div class="header">
   <div class="logo">
-    <div class="logo-eye"><img src="icons/icon128.png" alt="AYN"/></div>
+    <div class="logo-eye"><img src="icons/ayn-mark.svg" alt="AYN"/></div>
     AYN Resume Tailor
   </div>
   <div class="hdr-right">
@@ -748,7 +733,7 @@
   <!-- ════════════ LOGIN ════════════ -->
   <div class="view active" id="v-login">
     <div class="login-wrap">
-      <div class="login-logo"><img src="icons/icon128.png" alt="AYN"/></div>
+      <div class="login-logo"><img src="icons/ayn-mark.svg" alt="AYN"/></div>
       <div>
         <div class="login-title">Welcome to AYN</div>
         <div class="login-sub">One tap to sign in. Approve this browser in your AYN tab and you are in, with no passwords and no copy and paste.</div>
@@ -958,11 +943,6 @@
     <div id="contact-results" class="hidden mt12">
       <div class="sl">Best people to reach</div>
       <div id="contact-cards"></div>
-
-      <div class="divider"></div>
-
-      <div class="sl">Email formats for <span id="domain-name" style="font-family:'SF Mono',monospace;color:var(--ayn-orange);font-weight:700;text-transform:none;letter-spacing:0"></span></div>
-      <div id="email-fmts" class="mt8"></div>
 
       <div class="divider"></div>
 
