@@ -2169,7 +2169,10 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       if (!user_id || !["approve", "decline", "suspend"].includes(String(decision))) {
         return json({ error: "user_id and a decision of approve, decline or suspend are required" }, 400);
       }
-      const status = decision === "approve" ? "approved" : "suspended";
+      // Declined and suspended are different things: declined never got in,
+      // suspended was approved and then stopped.
+      const status = decision === "approve" ? "approved" : decision === "decline" ? "declined" : "suspended";
+
       const { error } = await adminForNew.from("employer_accounts").update({
         status,
         approved_at: decision === "approve" ? new Date().toISOString() : null,
