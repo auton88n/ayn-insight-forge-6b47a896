@@ -18,6 +18,8 @@ import { Loader2, Sparkles, ExternalLink, Plus, Trash2, FileText, Wand2, Downloa
 import { handoffUrl } from "@/lib/extension";
 import { resumeToText, buildTextPdfBlob, buildTextDocxBlob, downloadBlob, fileBase } from "@/lib/resumeDocs";
 import ResumeDiffViewer from "./ResumeDiffViewer";
+import { MaintenanceNotice } from "@/components/shared/MaintenanceNotice";
+import { useFeature } from "@/hooks/useFeatureFlags";
 
 interface Props { userId: string; onOpenJob: (id: string) => void }
 
@@ -32,6 +34,7 @@ export default function JobsTab({ userId }: Props) {
   const [primaryResume, setPrimaryResume] = useState<{ id: string; content: ResumeContent } | null>(null);
   const [matchData, setMatchData] = useState<{ score: number; breakdown: Record<string, number>; missing_keywords: string[]; summary: string } | null>(null);
   const [tailored, setTailored] = useState<TailoredRow | null>(null);
+  const tailoring = useFeature("tailoring");
   const [cover, setCover] = useState<CoverRow | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -216,10 +219,12 @@ export default function JobsTab({ userId }: Props) {
                 )}
               </div>
 
+              <MaintenanceNotice feature="tailoring" className="mt-4" />
+
               <div className="flex flex-wrap gap-2 mt-4">
                 <Button onClick={calcMatch} disabled={busy || !primaryResume}><Sparkles className="w-4 h-4 mr-2" />Score this job</Button>
-                <Button onClick={tailorResume} disabled={busy || !primaryResume} variant="outline">Tailor resume</Button>
-                <Button onClick={writeCover} disabled={busy || !primaryResume} variant="outline">Write cover letter</Button>
+                <Button onClick={tailorResume} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Tailor resume</Button>
+                <Button onClick={writeCover} disabled={busy || !primaryResume || !tailoring.enabled} variant="outline">Write cover letter</Button>
                 
                 {selected.source_url && (
                   <Button
