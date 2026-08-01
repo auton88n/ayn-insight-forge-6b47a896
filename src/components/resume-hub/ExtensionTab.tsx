@@ -94,7 +94,7 @@ export default function ExtensionTab({ userId: _userId }: Props) {
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-2">
-              Score any job posting while you browse, and tailor your resume without leaving the page. AYN only reads the page, it never types into it.
+              Score and tailor without leaving the page. AYN only reads it.
             </p>
           </div>
         </div>
