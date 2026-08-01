@@ -1,4 +1,4 @@
-# AYN Chrome extension map (v3.2.2)
+# AYN Chrome extension map (v3.2.3)
 
 The extension is READ ONLY. It never writes to a page and never fills a form. It exists to read the job description off the page the user is looking at, and to put four features one click away: JD detection, match score, tailored resume and cover letter, and Ask AYN about the job.
 
@@ -74,3 +74,4 @@ Device tokens only, never passwords. `LINK_START` gets a code (public `link_star
 - v3.2.0 — the panel looks like the product. Paper and ember palette, Outfit and Inter, the AYN eye as header mark and as the toolbar icon (rendered from public/ayn-mark.svg), card tabs with an ember underline, and all fonts and icon glyphs bundled locally so nothing is fetched from a CDN at runtime.
 - v3.2.1 — the toolbar icon is the bare mark. The four PNGs in extension/icons are re-rendered from public/ayn-mark.svg on a fully transparent canvas, framed on the artwork's own bounding box with a 4 percent margin, so the triangle reads as the mark and not as a black rounded tile. Nothing else changed.
 - v3.2.2 — the transparent bare mark is synchronized across the extension toolbar icon, browser favicon and Apple touch icon. No square tile or background is baked into any icon file.
+- v3.2.3 — the side panel surface is white instead of cream, with a light #FAFAFA header and tab rail for separation. The header and sign in marks are the real AYN mark (icons/ayn-mark.svg) instead of a CSS ring and dot. The Email formats block was removed from the Contacts tab.
