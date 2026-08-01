@@ -2017,6 +2017,9 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     // These run after JWT validation using supa client with RLS
     const userId = user.id;
     const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    // v3.24.0 — every AI call made below is attributed to this person and action.
+    setAiCtx(adminForNew, userId, String(action || "unknown"));
+
 
     // ─────────────────────────────────────────────────────────────
     // v3.14.0 — Billing
