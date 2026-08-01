@@ -1,6 +1,6 @@
 # AYN Resume Tailor — Chrome Extension v2.3.0
 
-Side-panel Chrome extension. Autofills applications, scores jobs, finds recruiters, writes cover letters, tracks applications, and tailors your resume. Now powered by the AYN Universal Question Engine.
+Side-panel Chrome extension. Reads the job posting off the page, scores your match, finds recruiters, writes cover letters, and tailors your resume. Read only: it never writes to, clicks, or types into a page.
 
 ## Install (Developer Mode)
 
