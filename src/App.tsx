@@ -72,6 +72,7 @@ const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCanceled = lazy(() => import("./pages/SubscriptionCanceled"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const DoNotSell = lazy(() => import("./pages/DoNotSell"));
 const WorldIntelligence = lazy(() => import("./pages/WorldIntelligence"));
 const ClientSign = lazy(() => import("./pages/ClientSign"));
 const NDASign = lazy(() => import("./pages/NDASign"));
