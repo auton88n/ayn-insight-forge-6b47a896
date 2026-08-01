@@ -243,7 +243,7 @@ function setHeroRing(wrapId, numId, pct) {
     bar.setAttribute('stroke-dasharray', circ.toFixed(2));
     bar.setAttribute('stroke-dashoffset', (circ * (1 - v / 100)).toFixed(2));
     // tier-tinted stroke
-    const stroke = v >= 75 ? '#16a34a' : v >= 50 ? '#f97316' : v >= 30 ? '#d97706' : '#b91c1c';
+    const stroke = v >= 75 ? '#3f9d6a' : v >= 50 ? '#e85d3a' : v >= 30 ? '#d97706' : '#b91c1c';
     bar.setAttribute('stroke', stroke);
   }
   const n = $(numId); if (n) n.textContent = v;
