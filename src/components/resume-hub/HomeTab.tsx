@@ -71,7 +71,7 @@ export default function HomeTab({ userId, onOpenProfile, onOpenJobs, onOpenDisco
       key: "resume",
       icon: FileText,
       title: "Add your resume",
-      body: "Nothing else works without it. AYN reads it once and fills in your profile, scoring, and tailoring.",
+      body: "Nothing else works without it. AYN reads it once to build your profile, scoring, and tailoring.",
       cta: "Go to Profile",
       onClick: onOpenProfile,
     });

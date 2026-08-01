@@ -1,5 +1,7 @@
 // Resume Hub — unified AI edge function.
-// Actions: parse, rewrite, tailor, match, cover-letter, autofill
+// Actions: extension lane (ext_bootstrap, ext_profile, ext_ingest_job,
+// ext_job_score, ext_cover_letter_text, smart_tailor, ext_ask), hub lane
+// (profile, resumes, jobs, proposals, assessments) and employer lane.
 // Auth: requires the caller's Supabase JWT (Authorization: Bearer ...).
 // All DB writes use the caller's JWT so RLS enforces per-user isolation.
 
@@ -9,7 +11,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // "Identity" section. Every action that reads applicant PII goes through
 // loadIdentity() so a new source (canonical.identity, auth.users) is
 // picked up everywhere at once, not re-derived per action.
-import { loadIdentity, identityToLegacyMerged, identityContactBlock, type Identity } from "../_shared/identity.ts";
+import { loadIdentity, identityContactBlock, type Identity } from "../_shared/identity.ts";
 // v3.1.0 — structured sections (no truncation), deterministic gap analysis,
 // figure preservation, result cache, company context, AI telemetry.
 import {
@@ -140,6 +142,75 @@ async function featureGate(
   }
   return null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// v3.31.0 MINIMUM EXTENSION VERSION
+// The extension is sideloaded, so an old build keeps running whatever code
+// it shipped with. Every extension lane request carries x-ayn-ext-version.
+// Anything below the configured minimum is refused with the same answer
+// shape as the v3.25.0 maintenance gate, so the sidepanel can show the
+// message plainly instead of failing silently. The minimum lives in
+// system_config.extension_min_version, so raising it needs no redeploy.
+// ─────────────────────────────────────────────────────────────
+const EXT_MIN_VERSION_FALLBACK = "3.3.0";
+
+let minVerCache: { at: number; version: string } | null = null;
+
+async function readMinExtVersion(admin: SupabaseClient<any, any, any>): Promise<string> {
+  if (minVerCache && Date.now() - minVerCache.at < 30_000) return minVerCache.version;
+  let version = EXT_MIN_VERSION_FALLBACK;
+  try {
+    const { data } = await admin
+      .from("system_config")
+      .select("value")
+      .eq("key", "extension_min_version")
+      .maybeSingle();
+    const v = (data?.value as { version?: string } | string | null) ?? null;
+    const raw = typeof v === "string" ? v : (v?.version || "");
+    if (/^\d+(\.\d+)*$/.test(String(raw))) version = String(raw);
+  } catch {
+    // A read failure must never lock every extension out.
+    version = EXT_MIN_VERSION_FALLBACK;
+  }
+  minVerCache = { at: Date.now(), version };
+  return version;
+}
+
+/** Compares dotted numeric versions. Returns true when a is older than b. */
+function versionOlder(a: string, b: string): boolean {
+  const pa = String(a || "0").split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = String(b || "0").split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x < y;
+  }
+  return false;
+}
+
+/**
+ * Returns a 426 Response when the calling extension build is too old,
+ * otherwise null. A build that sends no version header at all predates the
+ * header, so it is treated as 0.0.0 and refused.
+ */
+async function extVersionGate(
+  admin: SupabaseClient<any, any, any>,
+  req: Request,
+): Promise<Response | null> {
+  const min = await readMinExtVersion(admin);
+  const reported = (req.headers.get("x-ayn-ext-version") || "").trim();
+  const client = /^\d+(\.\d+)*$/.test(reported) ? reported : "0.0.0";
+  if (!versionOlder(client, min)) return null;
+  return json({
+    code: "extension_outdated",
+    error: "extension_outdated",
+    feature: "extension",
+    min_version: min,
+    your_version: client === "0.0.0" ? null : client,
+    message: `This AYN extension build is out of date and no longer works. Download the current version from aynn.io and reinstall it. Minimum supported version is ${min}.`,
+  }, 426);
+}
+
+
 
 // ─────────────────────────────────────────────────────────────
 // v3.28.0 ACCOUNT MODERATION
@@ -641,7 +712,7 @@ function keywordFallbackScore(canonical: CanonicalProfile | null, fullJd: string
 
 // ---------------- Canonical structured profile (Phase 1) ----------------
 // Single source of truth for skills, experiences, work auth, and derived
-// fields like total YoE / seniority. Read by autofill, scoring, tailoring,
+// fields like total YoE / seniority. Read by scoring, tailoring,
 // cover letter. Extracted once from primary resume + user_profile_data;
 // users can edit it in the Profile tab and edits win over re-extraction.
 type CanonicalProfile = {
@@ -1256,6 +1327,12 @@ Deno.serve(async (req) => {
       const authHeader = req.headers.get("Authorization") ?? "";
       const bearerJwt = authHeader.replace(/^Bearer\s+/i, "");
       const admin = createClient(supabaseUrl, serviceKey);
+      // v3.31.0 — an out of date sideloaded build is refused before it can
+      // authenticate, spend money, or write anything.
+      {
+        const stale = await extVersionGate(admin, req);
+        if (stale) return stale;
+      }
       let userId: string | null = null;
       let deviceLabel: string | null = null;
 

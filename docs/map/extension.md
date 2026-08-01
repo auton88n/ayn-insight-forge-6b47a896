@@ -1,4 +1,4 @@
-# AYN Chrome extension map (v3.2.3)
+# AYN Chrome extension map (v3.3.0)
 
 The extension is READ ONLY. It never writes to a page and never fills a form. It exists to read the job description off the page the user is looking at, and to put four features one click away: JD detection, match score, tailored resume and cover letter, and Ask AYN about the job.
 
@@ -8,6 +8,8 @@ Copy rules (v3.1.1). Shipped extension text carries no em dashes and no en dashe
 
 ## Build and versioning
 `node extension/build.mjs`: runs `scripts/check-wiring.mjs`, writes `public/ayn-extension-version.json` from manifest.version, then zips the folder into `public/ayn-extension.zip`. Nothing is bundled any more (esbuild, question-engine, content.entry.js all removed in v3.0.0); every shipped script is plain JS edited directly. Distribution is sideload only (Load unpacked); no auto update. The Hub compares the version file to the installed version from `AYN_PING`.
+
+Minimum supported version (v3.3.0). Sideload means an old build keeps running whatever code it shipped with, so the backend now decides which builds are allowed. Every extension lane call sends `x-ayn-ext-version` from `chrome.runtime.getManifest().version`. `extVersionGate` in `supabase/functions/resume-hub/index.ts` reads `system_config.extension_min_version` (value `{"version":"3.3.0"}`, cached 30 seconds, fallback `3.3.0`) and refuses anything older with 426 and `{ code: "extension_outdated", error, feature: "extension", min_version, your_version, message }`, the same answer shape as the v3.25.0 maintenance gate. A build that sends no version header predates the header and counts as 0.0.0, so it is refused too. Raising the bar is a one row update, no redeploy. The gate runs before token checks, so an old build cannot spend anything, and the `link_*` pairing actions sit above it so reinstall and sign in still work. In the panel, `bgFunc` in `sidepanel.js` sees the code and reveals the persistent `#outdated-banner` in `sidepanel.html`, which tells the user to reinstall from aynn.io rather than failing silently.
 
 Version bump protocol: `manifest.json` version plus the `AYN_BUILD` fallback literal in `content.js` (the real value is read from the manifest), then run build.mjs.
 
