@@ -302,7 +302,9 @@ export function useUserSnapshot(userId: string | null) {
 // ─── v3.28.0 account moderation ────────────────────────────
 export const accountKeys = {
   detail: (id: string) => ['admin', 'v2', 'accountDetail', id] as const,
+  governance: (id: string) => ['admin', 'v2', 'accountGovernance', id] as const,
 };
+
 
 export function useAdminAccountDetail(userId: string | null) {
   return useQuery({
