@@ -2032,6 +2032,7 @@ RULES — YOU MUST FOLLOW EVERY ONE:
     const adminForNew = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     // v3.24.0 — every AI call made below is attributed to this person and action.
     setAiCtx(adminForNew, userId, String(action || "unknown"));
+    { const off = await featureGate(adminForNew, "platform"); if (off) return off; }
 
 
     // ─────────────────────────────────────────────────────────────
