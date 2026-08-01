@@ -2203,7 +2203,23 @@ RULES — YOU MUST FOLLOW EVERY ONE:
       if (!org_id) return json({ error: "org_id required" }, 400);
       if (!(await assertOrgMember(org_id))) return json({ error: "not an org member" }, 403);
       const b = await employerBilling(adminForNew, userId, org_id);
-      return json({ ...b, search_soft_cap: EMPLOYER_SEARCH_SOFT_CAP });
+      // v3.29.0 — the surface reads the limits actually in force, not the raw plan.
+      return json({
+        ...b,
+        plan: {
+          ...b.plan,
+          proposals_limit: effectiveLimit(b, "proposal").limit,
+          assessments_limit: effectiveLimit(b, "assessment").limit,
+          searches_limit: effectiveLimit(b, "search").limit,
+        },
+        plan_limits: {
+          proposals_limit: b.plan.proposals_limit,
+          assessments_limit: b.plan.assessments_limit,
+          searches_limit: b.plan.searches_limit,
+        },
+        overridden: !!b.override,
+        search_soft_cap: EMPLOYER_SEARCH_SOFT_CAP,
+      });
     }
 
     // Payments are not wired yet, so an upgrade records intent and the team follows up.
