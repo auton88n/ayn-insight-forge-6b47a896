@@ -1,7 +1,8 @@
 // v3.28.0 — one account, opened from the Accounts pane.
 // Read only picture of the person on the left, moderation on the right.
 // Nothing here signs in as anyone, and nothing reads assessment results.
-import { useState } from 'react';
+// v3.29.0 adds per account limit overrides and the erase and purge levers.
+import { useEffect, useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -15,8 +16,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { useAdminAccountDetail, useAccountModeration } from '@/admin-app/hooks/useAdminQuery';
+import { Loader2, ShieldAlert, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
+import {
+  useAdminAccountDetail, useAccountModeration,
+  useAccountGovernance, useAccountGovernanceActions,
+} from '@/admin-app/hooks/useAdminQuery';
 import { LoadingBlock, ErrorBlock, when } from '../ui';
 
 const CAPABILITIES: Array<{ key: string; label: string; blurb: string }> = [
@@ -25,6 +29,24 @@ const CAPABILITIES: Array<{ key: string; label: string; blurb: string }> = [
   { key: 'assessments', label: 'Assessments', blurb: 'An employer account cannot generate or send assessments.' },
   { key: 'ai', label: 'AI features', blurb: 'Cannot spend credits on tailoring, cover letters, scoring or Ask AYN.' },
 ];
+
+const LIMIT_FIELDS: Array<{ key: 'proposals_limit' | 'assessments_limit' | 'searches_limit' | 'monthly_credits'; label: string }> = [
+  { key: 'proposals_limit', label: 'Proposals per period' },
+  { key: 'assessments_limit', label: 'Assessments per period' },
+  { key: 'searches_limit', label: 'Candidate searches per period' },
+  { key: 'monthly_credits', label: 'Credits granted per period' },
+];
+
+/** Empty box means fall back to the plan. A typed 0 is a real zero. */
+const toNumberOrNull = (raw: string): number | null => {
+  const t = raw.trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+};
+const fromValue = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v));
+const showLimit = (v: number | null | undefined) => (v === null || v === undefined ? 'No limit' : String(v));
+
 
 const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-border/40 last:border-0">
@@ -40,6 +62,8 @@ export function AccountDetailDialog({
 }: { userId: string | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const query = useAdminAccountDetail(open ? userId : null);
   const { suspend, restore, setRestriction } = useAccountModeration(userId);
+  const gov = useAccountGovernance(open ? userId : null);
+  const { setOverride, clearOverride, erase, purge } = useAccountGovernanceActions(userId);
 
   const [reason, setReason] = useState('');
   const [until, setUntil] = useState('');
@@ -49,23 +73,52 @@ export function AccountDetailDialog({
   const [capReason, setCapReason] = useState('');
   const [confirmLift, setConfirmLift] = useState<{ key: string; label: string } | null>(null);
 
+  // limit override form
+  const [ov, setOv] = useState<Record<string, string>>({});
+  const [ovReason, setOvReason] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  // erase and purge
+  const [danger, setDanger] = useState<'erase' | 'purge' | null>(null);
+  const [dangerStep, setDangerStep] = useState(1);
+  const [dangerReason, setDangerReason] = useState('');
+  const [dangerEmail, setDangerEmail] = useState('');
+
   const d = query.data as any;
+  const g = gov.data as any;
+  const override = g?.override || null;
+  const erasure = g?.erasure || null;
   const restrictions: any[] = d?.restrictions || [];
   const has = (k: string) => restrictions.some(r => r.capability === k);
   const restrictionOf = (k: string) => restrictions.find(r => r.capability === k);
   const suspension = d?.suspension || null;
   const isAdmin = d?.system_role === 'admin';
 
+  useEffect(() => {
+    setOv({
+      proposals_limit: fromValue(override?.proposals_limit),
+      assessments_limit: fromValue(override?.assessments_limit),
+      searches_limit: fromValue(override?.searches_limit),
+      monthly_credits: fromValue(override?.monthly_credits),
+    });
+    setOvReason(override?.reason || '');
+  }, [override?.proposals_limit, override?.assessments_limit, override?.searches_limit, override?.monthly_credits, override?.reason]);
+
+  const closeDanger = () => { setDanger(null); setDangerStep(1); setDangerReason(''); setDangerEmail(''); };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[85dvh] overflow-y-auto overscroll-contain bg-background">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
               {d?.display_name || 'Account'}
               {isAdmin && <Badge className="bg-primary text-primary-foreground text-[10px]">Admin</Badge>}
               {suspension && <Badge variant="destructive" className="text-[10px]">Suspended</Badge>}
+              {override && <Badge variant="outline" className="text-[10px]">Limit override</Badge>}
+              {erasure && <Badge variant="destructive" className="text-[10px]">{erasure.purged_at ? 'Purged' : 'Erased'}</Badge>}
             </DialogTitle>
+
             <DialogDescription>{d?.email || 'Loading the account'}</DialogDescription>
           </DialogHeader>
 
@@ -200,6 +253,130 @@ export function AccountDetailDialog({
                   </CardContent>
                 </Card>
 
+                <Card className={`border ${override ? 'border-primary/60' : 'border-border/60'}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
+                        <SlidersHorizontal className="w-4 h-4" />
+                        Limits for this account
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Leave a box empty to use the plan. A typed 0 is a real zero and blocks the action.
+                        An override stays in place through a plan change until you clear it.
+                      </p>
+                    </div>
+
+                    {gov.isLoading && <p className="text-xs text-muted-foreground">Loading the limits</p>}
+
+                    {g && (
+                      <>
+                        {override && (
+                          <p className="text-xs text-primary">
+                            Override set {when(override.set_at)} by {override.set_by_email || 'an admin'}. Reason: {override.reason}
+                          </p>
+                        )}
+                        <div className="space-y-2">
+                          {LIMIT_FIELDS.map(f => (
+                            <div key={f.key} className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">{f.label}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Plan {showLimit(g.plan?.[f.key])} · in force {showLimit(g.effective?.[f.key])}
+                                </p>
+                              </div>
+                              <Input
+                                value={ov[f.key] ?? ''}
+                                onChange={e => setOv(s => ({ ...s, [f.key]: e.target.value.replace(/[^0-9]/g, '') }))}
+                                placeholder="Plan"
+                                inputMode="numeric"
+                                className="w-24 text-right"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <Textarea
+                          value={ovReason}
+                          onChange={e => setOvReason(e.target.value)}
+                          rows={2}
+                          placeholder="Why does this account get different numbers? Required."
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            disabled={
+                              !ovReason.trim() || setOverride.isPending ||
+                              LIMIT_FIELDS.every(f => toNumberOrNull(ov[f.key] ?? '') === null)
+                            }
+                            onClick={() => setOverride.mutate({
+                              proposals_limit: toNumberOrNull(ov.proposals_limit ?? ''),
+                              assessments_limit: toNumberOrNull(ov.assessments_limit ?? ''),
+                              searches_limit: toNumberOrNull(ov.searches_limit ?? ''),
+                              monthly_credits: toNumberOrNull(ov.monthly_credits ?? ''),
+                              reason: ovReason.trim(),
+                            })}
+                          >
+                            {setOverride.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Save override
+                          </Button>
+                          {override && (
+                            <Button variant="outline" disabled={clearOverride.isPending} onClick={() => setConfirmClear(true)}>
+                              Clear override
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-destructive/50">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-2 text-destructive">
+                      <Trash2 className="w-4 h-4" />
+                      Erasure
+                    </p>
+                    {isAdmin ? (
+                      <p className="text-sm text-muted-foreground">An admin account cannot be erased from here.</p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Erase removes the person from the product: resume, profile, saved jobs, tailored documents,
+                          talent pool entry, extension tokens and learned answers are deleted, and the login is disabled.
+                          What is kept, and why: the credit ledger and the subscription record for accounting, and the
+                          proposals and assessments an employer sent them so the employer's own history stays intact,
+                          with the candidate reduced to an opaque reference carrying no name, email or phone.
+                        </p>
+                        {erasure ? (
+                          <div className="space-y-2">
+                            <p className="text-sm">
+                              Erased {when(erasure.erased_at)}. Reason: {erasure.reason}
+                            </p>
+                            {erasure.purged_at ? (
+                              <p className="text-sm text-muted-foreground">
+                                Purged {when(erasure.purged_at)}. Nothing is left to act on.
+                              </p>
+                            ) : (
+                              <Button
+                                variant="destructive"
+                                onClick={() => { setDangerReason(''); setDangerEmail(''); setDangerStep(1); setDanger('purge'); }}
+                              >
+                                Purge the login record
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            onClick={() => { setDangerReason(''); setDangerEmail(''); setDangerStep(1); setDanger('erase'); }}
+                          >
+                            Erase this account
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+
                 {(d.suspension_history || []).length > 0 && (
                   <Card className="border border-border/60">
                     <CardContent className="p-4">
@@ -302,6 +479,81 @@ export function AccountDetailDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear the override?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This account goes back to the numbers its plan gives everyone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { clearOverride.mutate(); setConfirmClear(false); }}>
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* erase, two confirmations, and purge, one */}
+      <AlertDialog open={!!danger} onOpenChange={v => !v && closeDanger()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {danger === 'purge'
+                ? 'Purge this account for good?'
+                : dangerStep === 1 ? 'Erase this account?' : 'Type the email to confirm'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {danger === 'purge'
+                ? 'The login record itself is removed. This cannot be undone and there is nothing to restore afterwards.'
+                : dangerStep === 1
+                  ? 'Deleted: resume, profile, saved jobs, tailored documents, talent pool entry, extension tokens and learned answers. Kept: the credit ledger and subscription for accounting, and the proposals and assessments the person received so the employer history stays whole, with the candidate reduced to an opaque reference. The login is disabled.'
+                  : 'Type the account email exactly as it appears on the account. Nothing is filled in for you.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {(danger === 'purge' || dangerStep === 2) && (
+            <div className="space-y-2">
+              <Textarea
+                value={dangerReason}
+                onChange={e => setDangerReason(e.target.value)}
+                rows={2}
+                placeholder="Reason. Required and recorded."
+              />
+              <Input
+                value={dangerEmail}
+                onChange={e => setDangerEmail(e.target.value)}
+                placeholder="Account email"
+                autoComplete="off"
+              />
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closeDanger}>Cancel</AlertDialogCancel>
+            {danger === 'erase' && dangerStep === 1 ? (
+              <Button variant="destructive" onClick={() => setDangerStep(2)}>Continue</Button>
+            ) : (
+              <Button
+                variant="destructive"
+                disabled={!dangerReason.trim() || !dangerEmail.trim() || erase.isPending || purge.isPending}
+                onClick={() => {
+                  const v = { reason: dangerReason.trim(), confirmEmail: dangerEmail.trim() };
+                  if (danger === 'purge') purge.mutate(v, { onSuccess: closeDanger });
+                  else erase.mutate(v, { onSuccess: closeDanger });
+                }}
+              >
+                {(erase.isPending || purge.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {danger === 'purge' ? 'Purge' : 'Erase'}
+              </Button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+
   );
 }

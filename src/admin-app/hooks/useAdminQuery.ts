@@ -302,7 +302,9 @@ export function useUserSnapshot(userId: string | null) {
 // ─── v3.28.0 account moderation ────────────────────────────
 export const accountKeys = {
   detail: (id: string) => ['admin', 'v2', 'accountDetail', id] as const,
+  governance: (id: string) => ['admin', 'v2', 'accountGovernance', id] as const,
 };
+
 
 export function useAdminAccountDetail(userId: string | null) {
   return useQuery({
@@ -347,4 +349,70 @@ export function useAccountModeration(userId: string | null) {
 
   return { suspend, restore, setRestriction };
 }
+
+// ─── v3.29.0 limit overrides and erasure ───────────────────
+
+/** Plan values, the override if any, what is in force, and the erasure record. */
+export function useAccountGovernance(userId: string | null) {
+  return useQuery({
+    queryKey: accountKeys.governance(userId || 'none'),
+    queryFn: () => adminRpc<any>('get_admin_account_governance', { p_user_id: userId }),
+    enabled: !!userId,
+    staleTime: 15 * 1000,
+  });
+}
+
+export function useAccountGovernanceActions(userId: string | null) {
+  const qc = useQueryClient();
+  const done = (msg: string) => {
+    qc.invalidateQueries({ queryKey: accountKeys.governance(userId || 'none') });
+    qc.invalidateQueries({ queryKey: accountKeys.detail(userId || 'none') });
+    qc.invalidateQueries({ queryKey: adminKeys.all });
+    toast.success(msg);
+  };
+  const fail = (e: Error) => toast.error(e.message || 'Action failed');
+
+  const setOverride = useMutation({
+    mutationFn: (v: {
+      proposals_limit: number | null; assessments_limit: number | null;
+      searches_limit: number | null; monthly_credits: number | null; reason: string;
+    }) => adminRpc('admin_set_limit_override', {
+      p_user_id: userId,
+      p_proposals_limit: v.proposals_limit,
+      p_assessments_limit: v.assessments_limit,
+      p_searches_limit: v.searches_limit,
+      p_monthly_credits: v.monthly_credits,
+      p_reason: v.reason,
+    }),
+    onSuccess: () => done('Override saved'),
+    onError: fail,
+  });
+
+  const clearOverride = useMutation({
+    mutationFn: () => adminRpc('admin_clear_limit_override', { p_user_id: userId }),
+    onSuccess: () => done('Override cleared, the plan applies again'),
+    onError: fail,
+  });
+
+  const erase = useMutation({
+    mutationFn: (v: { reason: string; confirmEmail: string }) =>
+      adminRpc('admin_erase_account', {
+        p_user_id: userId, p_reason: v.reason, p_confirm_email: v.confirmEmail,
+      }),
+    onSuccess: () => done('Account erased'),
+    onError: fail,
+  });
+
+  const purge = useMutation({
+    mutationFn: (v: { reason: string; confirmEmail: string }) =>
+      adminRpc('admin_purge_account', {
+        p_user_id: userId, p_reason: v.reason, p_confirm_email: v.confirmEmail,
+      }),
+    onSuccess: () => done('Account purged'),
+    onError: fail,
+  });
+
+  return { setOverride, clearOverride, erase, purge };
+}
+
 
