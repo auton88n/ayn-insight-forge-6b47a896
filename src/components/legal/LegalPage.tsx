@@ -19,7 +19,9 @@ import {
   buildToc,
   linkCrossReferences,
   slugifyHeading,
+  stripDocHeader,
 } from '@/lib/legalDocs';
+
 
 interface Props {
   slug: string;
@@ -45,9 +47,10 @@ export default function LegalPage({ slug }: Props) {
   const parsed = useMemo(() => {
     if (!raw) return null;
     const meta = parseDocMeta(raw);
-    const body = linkCrossReferences(meta.body, slug);
-    return { ...meta, body, toc: buildToc(meta.body) };
+    const body = linkCrossReferences(stripDocHeader(meta.body), slug);
+    return { ...meta, body, toc: buildToc(body) };
   }, [raw, slug]);
+
 
   // Deep link to a clause: scroll to the anchor once the document is painted.
   useEffect(() => {
@@ -121,7 +124,10 @@ export default function LegalPage({ slug }: Props) {
             <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">{title}</h1>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {parsed.version && <span>Version {parsed.version}</span>}
-              {parsed.effective && <span>Effective {parsed.effective}</span>}
+              {parsed.effective
+                ? <span>Effective {parsed.effective}</span>
+                : parsed.updated && <span>Updated {parsed.updated}</span>}
+
               <button
                 type="button"
                 onClick={() => window.print()}

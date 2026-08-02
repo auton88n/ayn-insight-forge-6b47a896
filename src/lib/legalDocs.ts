@@ -65,11 +65,12 @@ export const LEGAL_DOCS: LegalDoc[] = [
   {
     slug: 'dpa',
     path: '/dpa',
-    title: 'Data Processing Addendum',
+    title: 'Data Processing Agreement',
     description: 'For employers who need a processor agreement on file.',
     inFooter: false,
-    aliases: ['DPA'],
+    aliases: ['DPA', 'Data Processing Addendum'],
   },
+
   {
     slug: 'sla',
     path: '/sla',
@@ -107,11 +108,14 @@ export function rawMarkdown(slug: string): string | null {
 export interface DocMeta {
   version: string | null;
   effective: string | null;
+  /** Some documents state only a last updated date and no effective date. */
+  updated: string | null;
   /** The document title as written in its own first heading. */
   heading: string | null;
   /** The markdown body with the metadata header removed. */
   body: string;
 }
+
 
 /**
  * Reads the version and the effective date from the top of a document.
@@ -128,6 +132,7 @@ export function parseDocMeta(md: string): DocMeta {
   let body = md.replace(/^\uFEFF/, '');
   let version: string | null = null;
   let effective: string | null = null;
+  let updated: string | null = null;
 
   const fm = body.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (fm) {
@@ -138,6 +143,7 @@ export function parseDocMeta(md: string): DocMeta {
       const v = m[2].replace(/^["']|["']$/g, '').trim();
       if (k === 'version') version = v;
       if (k === 'effective' || k === 'effective_date' || k === 'effectivedate') effective = v;
+      if (k === 'updated' || k === 'last_updated' || k === 'lastupdated') updated = v;
     }
     body = body.slice(fm[0].length);
   }
@@ -151,12 +157,41 @@ export function parseDocMeta(md: string): DocMeta {
     const m = head.match(/\*{0,2}Effective(?:\s+(?:date|from|as of))?\*{0,2}\s*:?\s*([^\n*|]+)/i);
     if (m) effective = m[1].trim().replace(/[.,;]\s*$/, '');
   }
+  // Four of the documents state only when they were last updated. Read that
+  // rather than leaving the header with a version and no date.
+  if (!updated) {
+    const m = head.match(/\*{0,2}Last\s+updated\*{0,2}\s*:?\s*([^\n*|]+)/i);
+    if (m) updated = m[1].trim().replace(/[.,;]\s*$/, '');
+  }
 
   const h = body.match(/^\s*#\s+(.+)$/m);
   const heading = h ? h[1].trim() : null;
 
-  return { version, effective, heading, body };
+  return { version, effective, updated, heading, body };
 }
+
+/**
+ * Removes the title and the version and date lines from the top of a document,
+ * because the page header already shows all three. Nothing else is touched:
+ * the first real section onwards is untouched text.
+ */
+export function stripDocHeader(body: string): string {
+  const lines = body.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i < lines.length && /^#\s+/.test(lines[i])) i++;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (t === '' || t === '---' || /^\*{0,2}(Version|Last\s+updated|Effective)\b/i.test(t)) {
+      i++;
+      continue;
+    }
+    break;
+  }
+  return lines.slice(i).join('\n');
+}
+
+
 
 /** Stable anchor id for a heading, so a clause can be linked to directly. */
 export function slugifyHeading(text: string): string {
