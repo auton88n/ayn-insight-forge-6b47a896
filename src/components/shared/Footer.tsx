@@ -30,7 +30,7 @@ export const Footer = () => {
               <img src={aynLogo} alt="AYN" className="h-8 w-auto" />
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              Advanced AI Solutions
+              {COMPANY_TAGLINE}
             </p>
             <div className="flex items-center gap-3 text-muted-foreground">
               <a href="mailto:info@aynn.io" className="hover:text-foreground transition-colors" aria-label="Email">
@@ -51,10 +51,11 @@ export const Footer = () => {
               Navigate
             </h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/" className="hover:text-foreground transition-colors">Home</Link></li>
-              <li><Link to="/#how" className="hover:text-foreground transition-colors">How it works</Link></li>
-              <li><Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-              <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
+              {NAV_LINKS.map(l => (
+                <li key={l.to}>
+                  <Link to={l.to} className="hover:text-foreground transition-colors">{l.label}</Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -64,12 +65,11 @@ export const Footer = () => {
               Legal
             </h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
-              <li><Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
-              <li><Link to="/cookies" className="hover:text-foreground transition-colors">Cookie Policy</Link></li>
-              <li><Link to="/security" className="hover:text-foreground transition-colors">Security</Link></li>
-              <li><Link to="/subprocessors" className="hover:text-foreground transition-colors">Subprocessors</Link></li>
-              <li><Link to="/do-not-sell" className="hover:text-foreground transition-colors">Do Not Sell or Share My Personal Information</Link></li>
+              {LEGAL_LINKS.map(l => (
+                <li key={l.to}>
+                  <Link to={l.to} className="hover:text-foreground transition-colors">{l.label}</Link>
+                </li>
+              ))}
               <li>
                 <button
                   type="button"
@@ -84,8 +84,9 @@ export const Footer = () => {
         </div>
         <Separator className="mb-6" />
         <p className="text-xs text-muted-foreground text-center">
-          © 2026 AYN AI. All rights reserved.
+          {COPYRIGHT_LINE}
         </p>
+
       </div>
     </footer>
   );
