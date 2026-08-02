@@ -167,8 +167,30 @@ export function parseDocMeta(md: string): DocMeta {
   const heading = h ? h[1].trim() : null;
 
   return { version, effective, updated, heading, body };
-
 }
+
+/**
+ * Removes the title and the version and date lines from the top of a document,
+ * because the page header already shows all three. Nothing else is touched:
+ * the first real section onwards is untouched text.
+ */
+export function stripDocHeader(body: string): string {
+  const lines = body.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i < lines.length && /^#\s+/.test(lines[i])) i++;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (t === '' || t === '---' || /^\*{0,2}(Version|Last\s+updated|Effective)\b/i.test(t)) {
+      i++;
+      continue;
+    }
+    break;
+  }
+  return lines.slice(i).join('\n');
+}
+
+
 
 /** Stable anchor id for a heading, so a clause can be linked to directly. */
 export function slugifyHeading(text: string): string {
