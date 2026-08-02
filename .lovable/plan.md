@@ -1,58 +1,45 @@
-## Goal
+## What arrived
 
-Rewrite the landing page as a calm, premium, high conversion page. Same product, sharper positioning, fewer words, one new proof section. No claims we cannot back, no invented customers or numbers.
+Ten .docx files plus the earlier .md archive. Compared them all:
 
-## Voice rules
+- Seven documents are identical in both formats (terms, privacy, cookies, security, subprocessors, dpa, sla). Word counts match exactly; the only differences are smart quotes and pandoc formatting, so the markdown originals are the cleaner source.
+- `ayn-security-overview-2.docx` is byte for byte identical to `ayn-security-overview.docx`. Duplicate, ignore.
+- `ayn-copyright-policy.docx` is **newer**: Version 1.1, retitled "AYN Copyright Policy", the United States DMCA section 512 machinery replaced with a plainer Canadian notice and counter notice process. This supersedes the 1.0 in the archive.
+- `ayn-legal-gap-analysis.docx` is an internal working note for a lawyer, not a public document. It does not get a page. It does flag things worth acting on later (NYC Local Law 144 bias audit, Illinois and Colorado AI hiring rules, the checkout immediate performance acknowledgement). Out of scope here, raised separately.
 
-- Calm and premium. Quiet confidence, no hype words, no exclamation marks.
-- Headline: one idea, under 9 words. Lead: one sentence, 12 to 16 words.
-- Card copy under 14 words. Bullets under 9 words.
-- No em dashes, no en dashes, ranges use "to".
-- Every claim maps to something the product actually does.
+All eight publishable documents are clean of em dashes and en dashes.
 
-## Part A, hero
+## Plan
 
-Both audiences keep the switch, the single CTA and the small note, and get a tighter promise.
+1. Fill the eight placeholder files under `src/content/legal/`, exact text, no rewording, no reordering:
 
-- Seeker headline moves from "Stop rewriting your resume for every single job." to a calmer, more premium line in the same rhythm, with the emphasis word carried by the existing `<em>`.
-- Seeker lead states the outcome in one line, not the mechanism.
-- Employer headline keeps the "three, not six hundred" contrast but loses the shouty framing.
-- Notes shortened to a half line each.
-- Add a quiet second action under the primary CTA ("See how it works", scrolls to the new proof section). Text link styling, not a second button, so the page keeps one clear action.
+| Source | Destination | Version | Sections |
+|---|---|---|---|
+| ayn-terms-of-service-FINAL.md | terms.md | 1.0, effective 1 August 2026 | 21 |
+| ayn-privacy-policy-FINAL.md | privacy.md | 1.0, effective 1 August 2026 | 14 |
+| ayn-cookie-policy.md | cookies.md | 1.0, updated 1 August 2026 | 8 |
+| ayn-security-overview.md | security.md | 1.0, updated 1 August 2026 | 11 |
+| ayn-subprocessors.md | subprocessors.md | 1.0, updated 1 August 2026 | 5 |
+| ayn-copyright-policy.docx | copyright.md | 1.1, updated 1 August 2026 | 8 |
+| ayn-data-processing-agreement.md | dpa.md | 1.0, effective 1 August 2026 | 16 |
+| ayn-sla.md | sla.md | 1.0, effective 1 August 2026 | 10 |
 
-## Part B, new section, before and after proof
+The copyright document is converted from the .docx with smart quotes normalised to straight quotes so it matches the other seven, and its own header lines kept verbatim.
 
-A new section placed directly under the hero, seeker mode only, employer mode keeps the current flow.
+2. Each document already states its own version and date at the top, so the placeholder YAML frontmatter is removed rather than kept beside it. Two version statements on one legal page is a liability.
 
-- Two panels side by side: "Your resume" and "Your resume, for this job".
-- The left panel shows three flat generic lines, greyed. The right shows the same three lines rewritten against a posting, with the changed phrases quietly highlighted in ember.
-- A single caption under the pair: one line, states that nothing was invented, only reordered and reworded.
-- Built as a new component in `src/components/landing/AppMockups.tsx` style, rendered from `LandingSections.tsx`. Static markup, no data, no backend.
-- Mobile: panels stack, left panel collapses to a short preview so the interesting half stays above the fold.
+3. One parser change in `src/lib/legalDocs.ts`: four documents state "Last updated" and no "Effective" date, so today they would render a version with no date. Add a fallback that reads "Last updated" when no effective date is stated, and label it "Updated" rather than "Effective" in the page header and on /legal. Nothing invented: a document stating neither still shows neither.
 
-## Part C, tighten the existing sections
+4. Also update the copyright entry in the registry: title becomes "Copyright Policy" and the alias list keeps "DMCA Policy" so any cross reference in the other documents still links.
 
-Copy only, in `src/components/landing/LandingSections.tsx`.
+5. Verify all eight routes in a real browser: header version and date line, table of contents on Terms, DPA, Privacy, Security and SLA and not on the three short ones, the Subprocessors tables rendering through remark-gfm, heading anchors, cross references turned into working links and none double wrapped or landing inside a heading, print stylesheet intact. Screenshot each.
 
-- PAIN: keep the three lines per audience, cut the lead to a single calm sentence.
-- SEEKER_TILES: six titles rewritten as noun phrases rather than sentences, descriptions cut to one short line, meta chips trimmed to four each.
-- EMPLOYER_STEPS: verbs first, one line each.
-- TRUST: title and lead calmer, chips shortened to three words each.
-- FAQS: keep all twelve questions, answers cut to two sentences maximum, phrased plainly.
-- Closing section: one line and one button.
+6. Confirm `src/lib/legal.ts` still matches what the pages now say: Terms 1.0, Privacy 1.0, effective 1 August 2026. Checked, not assumed.
 
-## Part D, remove what does not earn its place
-
-- The logo and marks strip above the fold repeats what the tiles already say. Keep it, but as a single quiet line of names, no chips, no label duplication.
-- Any sentence that only restates its heading gets deleted rather than reworded.
-- No new sections beyond the before and after panel, so the page stays short.
+7. Same commit: `CLAUDE.md` and `docs/map/platform.md` updated to record that the eight documents hold real text, that copyright is at 1.1, and the "Last updated" parser fallback.
 
 ## Technical notes
 
-- Files touched: `src/components/landing/LandingSections.tsx` (copy plus one new section), `src/components/landing/AppMockups.tsx` (the before and after panels), `src/index.css` (styles for the new section, using existing `lp-` tokens and the ember accent).
-- No props, state, routing, backend or SEO schema changes. The FAQ schema in `src/components/LandingPage.tsx` gets its answers matched to the new FAQ wording so structured data and page text agree.
-- Nothing in `docs/map/*` changes, since no seam changes.
-
-## Verification
-
-Screenshot the page in both audience modes at desktop and mobile widths, confirm no card runs past three rendered lines, and confirm the before and after section reads clearly on a 390px viewport.
+- No route, footer or sitemap change needed; that wiring shipped in v3.32.0 and the glob picks the files up automatically.
+- No backend, database or edge function change.
+- The gap analysis stays out of the repo. If you want its findings turned into work, that is a separate pass.
