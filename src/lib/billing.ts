@@ -127,23 +127,19 @@ export const billingApi = {
   },
   // v3.30.0 — cancel from inside the product. Takes effect at the end of the
   // period already paid for. Nothing is refunded.
-  cancel: async () => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("Not signed in");
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action: "cancel" }),
-    });
-    const out = await r.json().catch(() => ({}));
-    if (!r.ok || !out?.ok) throw new Error(out?.error || "Could not cancel the subscription");
-    return out as { ok: true; cancel_at_period_end: boolean; current_period_end: number | null };
-  },
+  cancel: () => stripeCall<{ ok: true; cancel_at_period_end: boolean; current_period_end: number | null }>({ action: "cancel" }),
+
+  // v3.34.0 — the rest of the self service set: undo a cancellation, move down
+  // a tier or all the way to Free, and read the receipts.
+  resume: () => stripeCall<{ ok: true; cancel_at_period_end: false }>({ action: "resume" }),
+  changePlan: (plan_key: string) =>
+    stripeCall<{ ok?: boolean; needs_checkout?: boolean; moved_to?: string; cancel_at_period_end?: boolean; current_period_end?: number | null }>(
+      { action: "change_plan", plan_key },
+    ),
+  state: () => stripeCall<{ subscription: StripeSubscriptionState | null }>({ action: "state" }),
+  invoices: () => stripeCall<{ invoices: Invoice[] }>({ action: "invoices" }).then(r => r.invoices),
+
+
 
 
 
