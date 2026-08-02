@@ -1,7 +1,12 @@
-// v3.18.0 — Stripe billing. Two actions:
-//   checkout  -> a Stripe Checkout subscription session for a plan key
-//   portal    -> the Stripe customer portal so people can cancel or change card
+// v3.34.0 — Stripe billing. Actions:
+//   checkout     -> a Stripe Checkout subscription session for a plan key
+//   portal       -> the Stripe customer portal, for the card on file
+//   cancel       -> stop renewing at the end of the paid period
+//   resume       -> undo a cancellation before the period ends
+//   change_plan  -> move up or down between paid plans, or down to Free
+//   invoices     -> billing history with a receipt link for each charge
 // Plans and their Stripe price ids live in public.plans. Nothing is hardcoded here.
+
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
