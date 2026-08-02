@@ -131,6 +131,7 @@ export function parseDocMeta(md: string): DocMeta {
   let body = md.replace(/^\uFEFF/, '');
   let version: string | null = null;
   let effective: string | null = null;
+  let updated: string | null = null;
 
   const fm = body.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (fm) {
@@ -141,6 +142,7 @@ export function parseDocMeta(md: string): DocMeta {
       const v = m[2].replace(/^["']|["']$/g, '').trim();
       if (k === 'version') version = v;
       if (k === 'effective' || k === 'effective_date' || k === 'effectivedate') effective = v;
+      if (k === 'updated' || k === 'last_updated' || k === 'lastupdated') updated = v;
     }
     body = body.slice(fm[0].length);
   }
@@ -154,11 +156,18 @@ export function parseDocMeta(md: string): DocMeta {
     const m = head.match(/\*{0,2}Effective(?:\s+(?:date|from|as of))?\*{0,2}\s*:?\s*([^\n*|]+)/i);
     if (m) effective = m[1].trim().replace(/[.,;]\s*$/, '');
   }
+  // Four of the documents state only when they were last updated. Read that
+  // rather than leaving the header with a version and no date.
+  if (!updated) {
+    const m = head.match(/\*{0,2}Last\s+updated\*{0,2}\s*:?\s*([^\n*|]+)/i);
+    if (m) updated = m[1].trim().replace(/[.,;]\s*$/, '');
+  }
 
   const h = body.match(/^\s*#\s+(.+)$/m);
   const heading = h ? h[1].trim() : null;
 
-  return { version, effective, heading, body };
+  return { version, effective, updated, heading, body };
+
 }
 
 /** Stable anchor id for a heading, so a clause can be linked to directly. */
