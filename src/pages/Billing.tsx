@@ -1,11 +1,13 @@
-// v3.18.0 — in-app billing, behind sign in. Public /pricing sells; this
+// v3.34.0 — in-app billing, behind sign in. Public /pricing sells; this
 // screen manages. Seekers see plan, credit balance, renewal date and the
 // ledger for this period. Employers see plan, trial end, proposal and
 // assessment usage, and the FULL employer tier list including Growth and
 // Scale, which are deliberately absent from the public page.
+// Self service is complete here: move up a tier, move down a tier, move down
+// to Free, undo a cancellation before the period ends, and download receipts.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, ArrowLeft, ExternalLink } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +16,13 @@ import { toast } from "sonner";
 import {
   billingApi, priceLabel,
   type Plan, type SeekerBilling, type EmployerBilling,
+  type Invoice, type StripeSubscriptionState,
 } from "@/lib/billing";
 import { employerApi } from "@/lib/employer";
+
+const CREDITS_NOTE =
+  "Credits are for the period they were granted in. Unused credits expire at the end of the period and do not roll over.";
+
 
 const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString() : "—");
 
