@@ -5910,7 +5910,9 @@ export type Database = {
       }
       self_delete_account: { Args: { p_confirm_email: string }; Returns: Json }
       self_export_account: { Args: never; Returns: Json }
+      self_list_sessions: { Args: never; Returns: Json }
       self_pause_account: { Args: never; Returns: Json }
+      self_revoke_session: { Args: { p_session_id: string }; Returns: Json }
       trigger_emergency_alert: {
         Args: {
           _alert_level: string
