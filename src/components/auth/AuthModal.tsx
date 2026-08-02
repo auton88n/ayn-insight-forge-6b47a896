@@ -759,7 +759,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 >
                   Privacy Policy
                 </a>
-                {' '}(version {LEGAL.termsVersion}, {LEGAL.effectiveDate}). We record the date, time and version you accept.
+                {' '}(Terms {LEGAL.termsVersion} and Privacy {LEGAL.privacyVersion}, effective {LEGAL.effectiveDate}). We record the date, time and versions you accept.
                 </label>
               </div>
 
