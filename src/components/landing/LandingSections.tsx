@@ -9,6 +9,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
+import { COPYRIGHT_LINE, LEGAL_LINKS } from '@/components/shared/siteLinks';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
   Search, ClipboardCheck, MailCheck, Building2, Eye,
@@ -556,9 +557,9 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
       <footer className="lp-footer">
         <div className="lp-shell lp-footer-row">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', alignItems: 'center' }}>
-            <Link to="/privacy">Privacy</Link>
-            <Link to="/terms">Terms</Link>
-            <Link to="/do-not-sell">Do Not Sell or Share My Personal Information</Link>
+            {LEGAL_LINKS.map(l => (
+              <Link key={l.to} to={l.to}>{l.label}</Link>
+            ))}
             <button
               type="button"
               onClick={openCookiePreferences}
@@ -569,7 +570,8 @@ export const LandingSections = memo(({ onStartFree }: Props) => {
             <Link to="/contact">Contact</Link>
             <Link to="/pricing">Pricing</Link>
           </div>
-          <span style={{ fontSize: 13, color: 'hsl(var(--lp-dim))' }}>© 2026 AYN Intelligence</span>
+          <span style={{ fontSize: 13, color: 'hsl(var(--lp-dim))' }}>{COPYRIGHT_LINE}</span>
+
         </div>
       </footer>
     </div>

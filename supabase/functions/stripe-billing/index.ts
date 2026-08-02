@@ -1,7 +1,12 @@
-// v3.18.0 — Stripe billing. Two actions:
-//   checkout  -> a Stripe Checkout subscription session for a plan key
-//   portal    -> the Stripe customer portal so people can cancel or change card
+// v3.34.0 — Stripe billing. Actions:
+//   checkout     -> a Stripe Checkout subscription session for a plan key
+//   portal       -> the Stripe customer portal, for the card on file
+//   cancel       -> stop renewing at the end of the paid period
+//   resume       -> undo a cancellation before the period ends
+//   change_plan  -> move up or down between paid plans, or down to Free
+//   invoices     -> billing history with a receipt link for each charge
 // Plans and their Stripe price ids live in public.plans. Nothing is hardcoded here.
+
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
@@ -72,6 +77,83 @@ Deno.serve(async (req) => {
       if (!sub) return json({ error: "No subscription found" }, 400);
       await stripe.subscriptions.update(sub.id, { cancel_at_period_end: false });
       return json({ ok: true, cancel_at_period_end: false });
+    }
+
+    // v3.34.0 — the current state of the subscription, so the screen can tell
+    // the difference between renewing, ending at the period end, and none.
+    if (action === "state") {
+      if (!customerId) return json({ subscription: null });
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 5 });
+      const sub = subs.data.find((s) => s.status === "active" || s.status === "trialing" || s.status === "past_due");
+      if (!sub) return json({ subscription: null });
+      return json({
+        subscription: {
+          id: sub.id,
+          status: sub.status,
+          cancel_at_period_end: sub.cancel_at_period_end,
+          current_period_end: sub.items.data[0]?.current_period_end ?? null,
+          price_id: sub.items.data[0]?.price?.id ?? null,
+        },
+      });
+    }
+
+    // v3.34.0 — receipts. People need them, and the portal is a round trip.
+    if (action === "invoices") {
+      if (!customerId) return json({ invoices: [] });
+      const list = await stripe.invoices.list({ customer: customerId, limit: 24 });
+      return json({
+        invoices: list.data.map((i) => ({
+          id: i.id,
+          number: i.number,
+          status: i.status,
+          amount_paid: i.amount_paid,
+          amount_due: i.amount_due,
+          currency: i.currency,
+          created: i.created,
+          hosted_invoice_url: i.hosted_invoice_url,
+          invoice_pdf: i.invoice_pdf,
+        })),
+      });
+    }
+
+    // v3.34.0 — moving between plans in either direction. Down to Free means
+    // stopping the renewal, which is the same thing as cancelling.
+    if (action === "change_plan") {
+      const key = String(body?.plan_key || "");
+      if (!key) return json({ error: "plan_key is required" }, 400);
+      if (!customerId) return json({ error: "No billing account yet" }, 400);
+
+      const adminC = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+      const { data: target } = await adminC
+        .from("plans").select("key, name, price_cents, stripe_price_id, active")
+        .eq("key", key).maybeSingle();
+      if (!target || !target.active) return json({ error: "Unknown plan" }, 400);
+
+      const subs = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
+      const sub = subs.data[0];
+
+      if (!target.stripe_price_id || target.price_cents === 0) {
+        if (!sub) return json({ ok: true, moved_to: target.key, cancel_at_period_end: false });
+        const updated = await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+        return json({
+          ok: true, moved_to: target.key, cancel_at_period_end: true,
+          current_period_end: updated.items.data[0]?.current_period_end ?? null,
+        });
+      }
+
+      if (!sub) return json({ needs_checkout: true });
+
+      const item = sub.items.data[0];
+      const updated = await stripe.subscriptions.update(sub.id, {
+        cancel_at_period_end: false,
+        items: [{ id: item.id, price: target.stripe_price_id }],
+        proration_behavior: "create_prorations",
+        metadata: { user_id: user.id, plan_key: target.key },
+      });
+      return json({
+        ok: true, moved_to: target.key,
+        current_period_end: updated.items.data[0]?.current_period_end ?? null,
+      });
     }
 
 

@@ -1,18 +1,33 @@
+// v3.34.0 — data management that actually works.
+//
+// The delete button posted to functions/v1/delete-account, deleted in the
+// v3.21.0 cleanup, so it 404'd silently. Deletion now runs in the database
+// through self_delete_account. Export is new, and the dialog offers pausing
+// as the lighter thing most people clicking delete are really after.
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useUserSettings } from '@/hooks/useUserSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseApi } from '@/lib/supabaseApi';
-
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, AlertTriangle, Download, PauseCircle } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 import { MemoryManagement } from './MemoryManagement';
+import {
+  DELETION_KEPT, DELETION_REMOVED, clearLocalTraces, downloadJson,
+  selfDeleteAccount, selfExportAccount, selfPauseAccount,
+} from '@/lib/account';
 
 interface PrivacySettingsProps {
   userId: string;
@@ -23,77 +38,84 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
   const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { settings, loading, updating, updateSettings } = useUserSettings(userId, session.access_token);
 
   const token = session.access_token;
+  const email = session.user?.email || '';
+
+  const [exporting, setExporting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [typedEmail, setTypedEmail] = useState('');
+  const [working, setWorking] = useState<'delete' | 'pause' | null>(null);
 
   const handleDeleteChatHistory = async () => {
     if (!userId) return;
-
     try {
       await supabaseApi.delete(`messages?user_id=eq.${userId}`, token);
-
-      toast({
-        title: t('common.success'),
-        description: t('settings.chatHistoryDeleted'),
-      });
+      toast({ title: t('common.success'), description: t('settings.chatHistoryDeleted') });
     } catch (error) {
       console.error('Error deleting chat history:', error);
+      toast({ title: t('common.error'), description: 'Failed to delete chat history', variant: 'destructive' });
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const payload = await selfExportAccount();
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadJson(`ayn-export-${stamp}.json`, payload);
+      toast({ title: 'Export ready', description: 'Your data has been downloaded as a JSON file.' });
+    } catch (error) {
       toast({
         title: t('common.error'),
-        description: 'Failed to delete chat history',
+        description: error instanceof Error ? error.message : 'Could not build the export',
         variant: 'destructive',
       });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handlePause = async () => {
+    setWorking('pause');
+    try {
+      await selfPauseAccount();
+      setDeleteOpen(false);
+      toast({
+        title: 'Account paused',
+        description: 'Employers can no longer find you and we have turned every email off. Nothing was deleted.',
+      });
+    } catch (error) {
+      toast({
+        title: t('common.error'),
+        description: error instanceof Error ? error.message : 'Could not pause the account',
+        variant: 'destructive',
+      });
+    } finally {
+      setWorking(null);
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (!userId) return;
-
+    setWorking('delete');
     try {
-      // Call edge function to fully delete account including auth.users
-      const response = await fetch(
-        'https://dfkoxuokfkttjhfjcecx.supabase.co/functions/v1/delete-account',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete account');
-      }
-
-      // Sign out locally and redirect
+      await selfDeleteAccount(typedEmail.trim());
+      clearLocalTraces();
       await supabase.auth.signOut();
-      
-      toast({
-        title: t('common.success'),
-        description: t('settings.accountDeleted'),
-      });
-      
+      toast({ title: 'Account deleted', description: 'Your account and its contents have been removed.' });
       navigate('/');
     } catch (error) {
-      console.error('Error deleting account:', error);
       toast({
         title: t('common.error'),
-        description: 'Failed to delete account',
+        description: error instanceof Error ? error.message : 'Could not delete the account',
         variant: 'destructive',
       });
+    } finally {
+      setWorking(null);
     }
   };
 
-  if (loading || !settings) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const emailMatches = typedEmail.trim().toLowerCase() === email.toLowerCase() && email.length > 0;
 
   return (
     <div className="space-y-6">
@@ -103,7 +125,20 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
       <Card className="p-6 bg-card/50 backdrop-blur-xl border-border/50">
         <h2 className="text-xl font-semibold mb-6">{t('settings.dataManagement')}</h2>
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label>Download your data</Label>
+              <p className="text-sm text-muted-foreground">
+                One file with your profile, resume, tailored documents, saved jobs, proposals and assessment history.
+              </p>
+            </div>
+            <Button variant="outline" className="gap-2 shrink-0" onClick={handleExport} disabled={exporting}>
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exporting ? 'Preparing' : 'Export'}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 pt-4 border-t border-border">
             <div className="space-y-0.5">
               <Label>{t('settings.deleteChatHistory')}</Label>
               <p className="text-sm text-muted-foreground">
@@ -112,7 +147,7 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2 shrink-0">
                   <Trash2 className="h-4 w-4" />
                   {t('settings.delete')}
                 </Button>
@@ -134,38 +169,90 @@ export const PrivacySettings = ({ userId, session }: PrivacySettingsProps) => {
             </AlertDialog>
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-border">
+          <div className="flex items-center justify-between gap-4 pt-4 border-t border-border">
             <div className="space-y-0.5">
               <Label className="text-destructive">{t('settings.deleteAccount')}</Label>
               <p className="text-sm text-muted-foreground">
-                {t('settings.deleteAccountDesc')}
+                Removes your account and everything in it. This cannot be undone.
               </p>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="gap-2">
+            <Dialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) setTypedEmail(''); }}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" className="gap-2 shrink-0">
                   <AlertTriangle className="h-4 w-4" />
                   {t('settings.deleteAccount')}
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('settings.confirmDeleteAccount')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t('settings.confirmDeleteAccountDesc')}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                  <AlertDialogAction
+              </DialogTrigger>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Delete your account</DialogTitle>
+                  <DialogDescription>
+                    This is permanent. Read what goes and what stays before you confirm.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <p className="font-medium text-destructive">What is removed</p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground list-disc pl-5">
+                      {DELETION_REMOVED.map(item => <li key={item}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="font-medium">What is kept, and why</p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground list-disc pl-5">
+                      {DELETION_KEPT.map(item => <li key={item}>{item}</li>)}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-muted/40 p-4">
+                    <p className="font-medium flex items-center gap-2">
+                      <PauseCircle className="h-4 w-4" /> Want to stop rather than destroy?
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Pausing hides you from employers and turns every email off. Your resume, profile and
+                      documents stay exactly where they are, and you can turn discovery back on at any time.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={handlePause} disabled={working !== null}>
+                        {working === 'pause' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Pause instead'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleExport} disabled={exporting}>
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Download my data first'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-email">
+                      Type {email} to confirm
+                    </Label>
+                    <Input
+                      id="confirm-email"
+                      value={typedEmail}
+                      onChange={(e) => setTypedEmail(e.target.value)}
+                      placeholder={email}
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setDeleteOpen(false)} disabled={working !== null}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    variant="destructive"
                     onClick={handleDeleteAccount}
-                    className="bg-destructive text-destructive-foreground"
+                    disabled={!emailMatches || working !== null}
                   >
-                    {t('settings.deleteAccount')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    {working === 'delete'
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : 'Delete my account permanently'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </Card>

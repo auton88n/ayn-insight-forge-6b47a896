@@ -16,7 +16,9 @@ import { PageLoader } from "@/components/ui/page-loader";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { OfflineBanner } from "@/components/shared/OfflineBanner";
 import { ScrollToTop } from "@/components/shared/ScrollToTop";
-import { useVisitorTracking } from "@/hooks/useVisitorTracking";
+// v3.34.0 — visitor tracking removed. It posted to an edge function that was
+// deleted in v3.21.0, so every page view was a failed request.
+
 import { HelmetProvider } from 'react-helmet-async';
 
 // Warm only the routes used inside the dashboard. Preloading the whole site
@@ -101,8 +103,6 @@ const queryClient = new QueryClient({
 const AnimatedRoutes = () => {
   const location = useLocation();
   
-  // Track page visits for analytics
-  useVisitorTracking();
 
   // Fast routes skip animation for instant navigation
   const fastRoutes = ['/settings', '/pricing'];
