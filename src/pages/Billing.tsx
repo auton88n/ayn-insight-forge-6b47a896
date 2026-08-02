@@ -297,10 +297,15 @@ export default function Billing() {
 
         {/* Full tier list, including the employer tiers we do not publish. */}
         <div className="rounded-2xl border bg-card p-6">
-          <h2 className="font-semibold">Upgrade options</h2>
+          <h2 className="font-semibold">Change your plan</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You can move up or down at any time, including down to Free. {CREDITS_NOTE}
+          </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
             {tiers.map(p => {
               const current = p.key === currentKey;
+              const isDown = p.price_cents < currentPrice;
+              const label = current ? "Current plan" : isDown ? (p.price_cents === 0 ? "Move to Free" : "Move down") : "Move up";
               return (
                 <div key={p.key} className={`rounded-xl border p-4 flex flex-col ${current ? "border-primary" : ""}`}>
                   <div className="flex items-center justify-between gap-2">
@@ -315,17 +320,18 @@ export default function Billing() {
                   </p>
                   <Button
                     className="mt-4 w-full"
-                    variant={current ? "outline" : "default"}
-                    disabled={current || p.price_cents === 0 || busy === p.key}
-                    onClick={() => upgrade(p.key)}
+                    variant={current || isDown ? "outline" : "default"}
+                    disabled={current || busy === p.key || (p.price_cents === 0 && !hasSubscription)}
+                    onClick={() => (hasSubscription ? changePlan(p) : upgrade(p.key))}
                   >
-                    {busy === p.key ? <Loader2 className="w-4 h-4 animate-spin" /> : current ? "Current plan" : "Choose"}
+                    {busy === p.key ? <Loader2 className="w-4 h-4 animate-spin" /> : label}
                   </Button>
                 </div>
               );
             })}
           </div>
         </div>
+
       </div>
     </div>
   );
