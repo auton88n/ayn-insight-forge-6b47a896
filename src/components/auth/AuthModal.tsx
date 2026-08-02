@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { recordLegalConsent, LEGAL } from '@/lib/legal';
+import { consentSignupMetadata, attachConsentIp, LEGAL } from '@/lib/legal';
 import { Loader2, Building, User, KeyRound, CheckCircle2, ArrowLeft, Mail } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -330,6 +330,19 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
       return;
     }
 
+    // v3.33.0 — the consent record is written server side by the account
+    // creation trigger, from this metadata, in the same transaction as the
+    // account. If we have no version to record, we do not create the account.
+    const consent = consentSignupMetadata();
+    if (!consent) {
+      toast({
+        title: t('auth.termsRequired'),
+        description: 'We could not read the current document versions. Please reload and try again.',
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -341,11 +354,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             full_name: fullName,
             company_name: companyName,
             role: signupRole,
+            ...consent,
           }
         }
       });
 
       if (error) {
+
         toast({
           title: t('auth.registrationError'),
           description: error.message,
@@ -362,9 +377,11 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
         // v2.10.0 — best-effort role setup. Trigger handle_new_user creates
         // the profile row; we stamp role + create employer_accounts here.
         if (data.user) {
-          // v3.30.0 — record exactly what was accepted: Terms version, Privacy
-          // version, timestamp and IP. Best effort, never blocks the signup.
-          void recordLegalConsent('signup');
+          // v3.33.0 — the acceptance itself is already recorded by the account
+          // creation trigger. This only attaches the IP, which only the server
+          // can see, and it is allowed to fail without losing the record.
+          void attachConsentIp('signup');
+
           try {
             // Cast: types.ts is regenerated after migration approval — until then
             // 'role' on profiles and the employer_accounts table are unknown to TS.
@@ -742,7 +759,7 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
                 >
                   Privacy Policy
                 </a>
-                {' '}(version {LEGAL.termsVersion}, {LEGAL.effectiveDate}). We record the date, time and version you accept.
+                {' '}(Terms {LEGAL.termsVersion} and Privacy {LEGAL.privacyVersion}, effective {LEGAL.effectiveDate}). We record the date, time and versions you accept.
                 </label>
               </div>
 

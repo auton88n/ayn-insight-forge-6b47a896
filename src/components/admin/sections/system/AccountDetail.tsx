@@ -167,13 +167,15 @@ export function AccountDetailDialog({
                   </CardContent>
                 </Card>
 
-                {/* v3.30.0 — what this person accepted, and when. */}
+                {/* v3.33.0 — what this person accepted, and when. A record
+                    that captured no acceptance says so in words. */}
                 <Card className="border border-border/60">
                   <CardContent className="p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide mb-2">Legal consent</p>
-                    {d.legal_consent ? (
+                    {d.legal_consent && d.legal_consent.terms_accepted && d.legal_consent.terms_version ? (
                       <>
-                        <Field label="Terms version" value={d.legal_consent.terms_version || '—'} />
+                        <Field label="Status" value="Recorded" />
+                        <Field label="Terms version" value={d.legal_consent.terms_version} />
                         <Field label="Privacy version" value={d.legal_consent.privacy_version || 'Not recorded'} />
                         <Field label="Accepted" value={when(d.legal_consent.accepted_at)} />
                         <Field label="IP address" value={d.legal_consent.ip_address || 'Not recorded'} />
@@ -183,20 +185,26 @@ export function AccountDetailDialog({
                             <p className="text-xs text-muted-foreground">Earlier acceptances</p>
                             {(d.legal_consent_history || []).slice(1).map((h: any, i: number) => (
                               <p key={i} className="text-xs text-muted-foreground">
-                                Terms {h.terms_version || '—'}, privacy {h.privacy_version || '—'}, {when(h.accepted_at)}
+                                Terms {h.terms_version || 'not recorded'}, privacy {h.privacy_version || 'not recorded'}, {when(h.accepted_at)}
                               </p>
                             ))}
                           </div>
                         )}
                       </>
                     ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No acceptance recorded. This account signed up before we started
-                        versioning the documents.
-                      </p>
+                      <>
+                        <Field label="Status" value="Never captured" />
+                        <p className="text-sm text-muted-foreground mt-2">
+                          No acceptance was ever recorded for this account. The row on file
+                          {d.legal_consent?.source ? ` (${d.legal_consent.source})` : ''} states that
+                          plainly rather than claiming a version. This account should be asked to
+                          accept the current Terms and Privacy Policy.
+                        </p>
+                      </>
                     )}
                   </CardContent>
                 </Card>
+
               </div>
 
 
