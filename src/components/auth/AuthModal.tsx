@@ -377,9 +377,11 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
         // v2.10.0 — best-effort role setup. Trigger handle_new_user creates
         // the profile row; we stamp role + create employer_accounts here.
         if (data.user) {
-          // v3.30.0 — record exactly what was accepted: Terms version, Privacy
-          // version, timestamp and IP. Best effort, never blocks the signup.
-          void recordLegalConsent('signup');
+          // v3.33.0 — the acceptance itself is already recorded by the account
+          // creation trigger. This only attaches the IP, which only the server
+          // can see, and it is allowed to fail without losing the record.
+          void attachConsentIp('signup');
+
           try {
             // Cast: types.ts is regenerated after migration approval — until then
             // 'role' on profiles and the employer_accounts table are unknown to TS.
