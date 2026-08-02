@@ -47,9 +47,10 @@ export default function LegalPage({ slug }: Props) {
   const parsed = useMemo(() => {
     if (!raw) return null;
     const meta = parseDocMeta(raw);
-    const body = linkCrossReferences(meta.body, slug);
-    return { ...meta, body, toc: buildToc(meta.body) };
+    const body = linkCrossReferences(stripDocHeader(meta.body), slug);
+    return { ...meta, body, toc: buildToc(body) };
   }, [raw, slug]);
+
 
   // Deep link to a clause: scroll to the anchor once the document is painted.
   useEffect(() => {
