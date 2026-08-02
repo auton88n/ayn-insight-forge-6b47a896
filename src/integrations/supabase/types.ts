@@ -4509,7 +4509,7 @@ export type Database = {
           privacy_version: string | null
           source: string
           terms_accepted: boolean
-          terms_version: string
+          terms_version: string | null
           user_agent: string | null
           user_id: string
         }
@@ -4522,7 +4522,7 @@ export type Database = {
           privacy_version?: string | null
           source?: string
           terms_accepted?: boolean
-          terms_version?: string
+          terms_version?: string | null
           user_agent?: string | null
           user_id: string
         }
@@ -4535,7 +4535,7 @@ export type Database = {
           privacy_version?: string | null
           source?: string
           terms_accepted?: boolean
-          terms_version?: string
+          terms_version?: string | null
           user_agent?: string | null
           user_id?: string
         }
@@ -5664,6 +5664,10 @@ export type Database = {
       get_admin_ai_cost_stats: { Args: never; Returns: Json }
       get_admin_ai_usage: { Args: never; Returns: Json }
       get_admin_candidates: { Args: never; Returns: Json }
+      get_admin_consent_gap: {
+        Args: { p_privacy_version: string; p_terms_version: string }
+        Returns: Json
+      }
       get_admin_email_audience: { Args: never; Returns: Json }
       get_admin_employers: { Args: never; Returns: Json }
       get_admin_error_monitoring: { Args: { p_limit?: number }; Returns: Json }
@@ -5795,6 +5799,7 @@ export type Database = {
         Returns: boolean
       }
       is_ip_blocked: { Args: { _ip_address: unknown }; Returns: boolean }
+      legal_version_num: { Args: { p_version: string }; Returns: number }
       log_admin_action:
         | {
             Args: {
