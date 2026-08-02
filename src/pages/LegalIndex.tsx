@@ -36,9 +36,14 @@ export default function LegalIndex() {
                       {meta?.version && (
                         <p className="text-xs text-muted-foreground mt-2">
                           Version {meta.version}
-                          {meta.effective ? `, effective ${meta.effective}` : ''}
+                          {meta.effective
+                            ? `, effective ${meta.effective}`
+                            : meta.updated
+                              ? `, updated ${meta.updated}`
+                              : ''}
                         </p>
                       )}
+
                     </div>
                     <ChevronRight className="w-4 h-4 mt-0.5 text-muted-foreground group-hover:text-foreground shrink-0" />
                   </Link>
