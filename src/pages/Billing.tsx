@@ -34,6 +34,13 @@ export default function Billing() {
   const [seeker, setSeeker] = useState<SeekerBilling | null>(null);
   const [employer, setEmployer] = useState<EmployerBilling | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [subState, setSubState] = useState<StripeSubscriptionState | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  const loadStripeSide = async () => {
+    try { setSubState((await billingApi.state()).subscription); } catch { /* no billing account yet */ }
+    try { setInvoices(await billingApi.invoices()); } catch { /* no billing account yet */ }
+  };
 
   useEffect(() => {
     (async () => {
@@ -56,6 +63,7 @@ export default function Billing() {
           setSeeker(await billingApi.seeker());
         }
       } catch (e) { toast.error((e as Error).message); }
+      await loadStripeSide();
       setLoading(false);
     })();
   }, [navigate]);
@@ -78,20 +86,59 @@ export default function Billing() {
   // emailing support. It takes effect at the end of the paid period.
   const cancelSubscription = async () => {
     const ok = window.confirm(
-      "Cancel your subscription? You keep access until the end of the period you have already paid for, it does not renew after that, and fees already paid are not refunded."
+      `Cancel your subscription? You keep access until the end of the period you have already paid for, it does not renew after that, and fees already paid are not refunded. ${CREDITS_NOTE}`
     );
     if (!ok) return;
     setBusy("cancel");
     try {
       await billingApi.cancel();
       toast.success("Cancelled. You keep access until the end of this period.");
+      await loadStripeSide();
     } catch (e) { toast.error((e as Error).message); }
     setBusy(null);
   };
 
+  // v3.34.0 — undo a cancellation while the paid period is still running.
+  const resumeSubscription = async () => {
+    setBusy("resume");
+    try {
+      await billingApi.resume();
+      toast.success("Your subscription will renew as normal again.");
+      await loadStripeSide();
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(null);
+  };
+
+  // v3.34.0 — moving in either direction. Down to Free is a stop, not a
+  // switch, so it is worded that way and it says what happens to credits.
+  const changePlan = async (p: Plan) => {
+    const toFree = p.price_cents === 0;
+    const ok = window.confirm(
+      toFree
+        ? `Move down to ${p.name}? Your paid plan keeps running until the end of the period you have already paid for and then stops. Fees already paid are not refunded. ${CREDITS_NOTE}`
+        : `Move to ${p.name} at ${priceLabel(p.price_cents, p.interval)}? The change applies now and Stripe adjusts the difference on your next invoice. ${CREDITS_NOTE}`
+    );
+    if (!ok) return;
+    setBusy(p.key);
+    try {
+      const out = await billingApi.changePlan(p.key);
+      if (out?.needs_checkout) {
+        const url = await billingApi.checkout(p.key);
+        window.location.href = url;
+        return;
+      }
+      toast.success(toFree ? "You will move to Free at the end of this period." : `You are on ${p.name}.`);
+      await loadStripeSide();
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(null);
+  };
 
   const tiers = plans.filter(p => p.audience === audience);
   const currentKey = audience === "employer" ? employer?.plan?.key : seeker?.plan?.key;
+  const currentPrice = tiers.find(p => p.key === currentKey)?.price_cents ?? 0;
+  const hasSubscription = Boolean(subState);
+  const endingSoon = Boolean(subState?.cancel_at_period_end);
+
 
   if (loading) {
     return (
