@@ -5654,6 +5654,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      erase_account_core: {
+        Args: { p_actor: string; p_reason: string; p_user_id: string }
+        Returns: Json
+      }
       generate_monthly_summaries: { Args: never; Returns: number }
       get_admin_account_detail: { Args: { p_user_id: string }; Returns: Json }
       get_admin_account_governance: {
@@ -5904,6 +5908,9 @@ export type Database = {
         Args: { p_date?: string }
         Returns: undefined
       }
+      self_delete_account: { Args: { p_confirm_email: string }; Returns: Json }
+      self_export_account: { Args: never; Returns: Json }
+      self_pause_account: { Args: never; Returns: Json }
       trigger_emergency_alert: {
         Args: {
           _alert_level: string
