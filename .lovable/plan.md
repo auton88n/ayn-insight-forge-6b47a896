@@ -1,45 +1,47 @@
-## What arrived
+## What gets delivered
 
-Ten .docx files plus the earlier .md archive. Compared them all:
+Three things, all built from the existing AYN mark and brand palette (ink #0B0B0C, ember #F97015, paper white, Outfit for headings, Inter for body).
 
-- Seven documents are identical in both formats (terms, privacy, cookies, security, subprocessors, dpa, sla). Word counts match exactly; the only differences are smart quotes and pandoc formatting, so the markdown originals are the cleaner source.
-- `ayn-security-overview-2.docx` is byte for byte identical to `ayn-security-overview.docx`. Duplicate, ignore.
-- `ayn-copyright-policy.docx` is **newer**: Version 1.1, retitled "AYN Copyright Policy", the United States DMCA section 512 machinery replaced with a plainer Canadian notice and counter notice process. This supersedes the 1.0 in the archive.
-- `ayn-legal-gap-analysis.docx` is an internal working note for a lawyer, not a public document. It does not get a page. It does flag things worth acting on later (NYC Local Law 144 bias audit, Illinois and Colorado AI hiring rules, the checkout immediate performance acknowledgement). Out of scope here, raised separately.
+### 1. Investor deck, PowerPoint (.pptx)
 
-All eight publishable documents are clean of em dashes and en dashes.
+Roughly 12 slides, dark ink base with ember accents, one visual element per slide, no bullet-only slides.
 
-## Plan
+1. Title. AYN AI, the line "A resume tailored to every job you apply to", founder name and site.
+2. The problem. Generic resumes into automated screening, both sides waste time.
+3. What AYN is. Two sides of one product, seeker and employer.
+4. Seeker side. Chrome extension reads the real job posting, scores the fit, tailors resume and cover letter. Resume Hub holds one profile, one resume, saved jobs, proposals.
+5. Employer side. Described role becomes a structured spec, candidate search over people who opted in, three best fits with the evidence, assessments and proposals.
+6. Why it is defensible. Job description grounding: the six tier resolver and quality score, so the model never judges a job from a nav bar.
+7. Matching, how it works. Deterministic prefilter, vector recall, grounded rerank, skills tagged extracted or inferred, candidates never invented.
+8. Consent and contact release. Nothing is revealed until the candidate accepts. This is a real trust asset for an investor.
+9. Market and focus. US and Canada, English, job seekers plus small to mid employers.
+10. Business model. The four plan tiers and credits, exactly as the product prices them today.
+11. Traction. Numbers I will not invent. Every figure is a visibly marked placeholder such as [SIGNUPS TO DATE, replace] until you give me real ones, or I pull live counts from the database if you want me to.
+12. Ask and use of funds. Placeholder amount and allocation for you to fill in.
 
-1. Fill the eight placeholder files under `src/content/legal/`, exact text, no rewording, no reordering:
+### 2. Business card
 
-| Source | Destination | Version | Sections |
-|---|---|---|---|
-| ayn-terms-of-service-FINAL.md | terms.md | 1.0, effective 1 August 2026 | 21 |
-| ayn-privacy-policy-FINAL.md | privacy.md | 1.0, effective 1 August 2026 | 14 |
-| ayn-cookie-policy.md | cookies.md | 1.0, updated 1 August 2026 | 8 |
-| ayn-security-overview.md | security.md | 1.0, updated 1 August 2026 | 11 |
-| ayn-subprocessors.md | subprocessors.md | 1.0, updated 1 August 2026 | 5 |
-| ayn-copyright-policy.docx | copyright.md | 1.1, updated 1 August 2026 | 8 |
-| ayn-data-processing-agreement.md | dpa.md | 1.0, effective 1 August 2026 | 16 |
-| ayn-sla.md | sla.md | 1.0, effective 1 August 2026 | 10 |
+Print ready PDF at 3.5 in by 2 in with 0.125 in bleed and crop marks, plus a PNG preview to look at in chat.
 
-The copyright document is converted from the .docx with smart quotes normalised to straight quotes so it matches the other seven, and its own header lines kept verbatim.
+- Front: AYN mark on ink, the wordmark, and the tagline line.
+- Back: FOUNDER, GHAZI ALDHYAEI, ghazi@aynn.io, +1 416 660 9926, aynn.io, and a QR code to aynn.io.
 
-2. Each document already states its own version and date at the top, so the placeholder YAML frontmatter is removed rather than kept beside it. Two version statements on one legal page is a liability.
+### 3. Brand assets in Supabase, private bucket
 
-3. One parser change in `src/lib/legalDocs.ts`: four documents state "Last updated" and no "Effective" date, so today they would render a version with no date. Add a fallback that reads "Last updated" when no effective date is stated, and label it "Updated" rather than "Effective" in the page header and on /legal. Nothing invented: a document stating neither still shows neither.
-
-4. Also update the copyright entry in the registry: title becomes "Copyright Policy" and the alias list keeps "DMCA Policy" so any cross reference in the other documents still links.
-
-5. Verify all eight routes in a real browser: header version and date line, table of contents on Terms, DPA, Privacy, Security and SLA and not on the three short ones, the Subprocessors tables rendering through remark-gfm, heading anchors, cross references turned into working links and none double wrapped or landing inside a heading, print stylesheet intact. Screenshot each.
-
-6. Confirm `src/lib/legal.ts` still matches what the pages now say: Terms 1.0, Privacy 1.0, effective 1 August 2026. Checked, not assumed.
-
-7. Same commit: `CLAUDE.md` and `docs/map/platform.md` updated to record that the eight documents hold real text, that copyright is at 1.1, and the "Last updated" parser fallback.
+- Create a private storage bucket `brand`.
+- Upload: `ayn-mark.svg`, plus PNG renders at 64, 128, 256, 512 and 1024 px with transparent backgrounds, plus a wordmark lockup and a one page brand sheet recording the palette and fonts.
+- RLS on `storage.objects`: read restricted to admins via `has_role(auth.uid(),'admin')`, writes service role only. Nothing public, as you chose.
+- Because the bucket is private, the deck and card embed the images directly rather than linking to them, so they render for anyone you send them to.
 
 ## Technical notes
 
-- No route, footer or sitemap change needed; that wiring shipped in v3.32.0 and the glob picks the files up automatically.
-- No backend, database or edge function change.
-- The gap analysis stays out of the repo. If you want its findings turned into work, that is a separate pass.
+- Deck built with pptxgenjs, images embedded as base64 so PDF conversion and visual QA work.
+- Card built as a vector PDF so it prints sharp at any size.
+- QA: every slide and both card faces get converted to images and inspected before delivery, and I will tell you what I found and fixed.
+- Files land in /mnt/documents so you can download them: `ayn-investor-deck.pptx`, `ayn-business-card.pdf`, `ayn-business-card-preview.png`.
+- Writing rules respected throughout: no em dashes, no en dashes, ranges written with "to".
+- No app code changes. The only project change is the storage migration for the `brand` bucket and its policies.
+
+## What I need from you
+
+Nothing to start. Two things will stay as marked placeholders until you fill them in: traction numbers and the funding ask. Tell me if you would rather I pull real counts (accounts, employers, proposals, assessments) from the live database for the traction slide instead.
