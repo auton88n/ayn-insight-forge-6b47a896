@@ -9,6 +9,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { openCookiePreferences } from '@/components/shared/CookieConsent';
+import { COPYRIGHT_LINE, LEGAL_LINKS } from '@/components/shared/siteLinks';
 import {
   ArrowRight, FileText, Target, ShieldCheck, MessagesSquare, Radar,
   Search, ClipboardCheck, MailCheck, Building2, Eye,
