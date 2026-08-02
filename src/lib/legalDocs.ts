@@ -65,11 +65,12 @@ export const LEGAL_DOCS: LegalDoc[] = [
   {
     slug: 'dpa',
     path: '/dpa',
-    title: 'Data Processing Addendum',
+    title: 'Data Processing Agreement',
     description: 'For employers who need a processor agreement on file.',
     inFooter: false,
-    aliases: ['DPA'],
+    aliases: ['DPA', 'Data Processing Addendum'],
   },
+
   {
     slug: 'sla',
     path: '/sla',
