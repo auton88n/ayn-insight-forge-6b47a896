@@ -214,16 +214,62 @@ export default function Billing() {
             <Button variant="outline" onClick={openPortal} disabled={busy === "portal"}>
               {busy === "portal" ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Manage payment method <ExternalLink className="w-3.5 h-3.5 ml-2" /></>}
             </Button>
-            <Button variant="ghost" onClick={cancelSubscription} disabled={busy === "cancel"}>
-              {busy === "cancel" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel subscription"}
-            </Button>
+            {endingSoon ? (
+              <Button variant="outline" onClick={resumeSubscription} disabled={busy === "resume"}>
+                {busy === "resume" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Keep my subscription"}
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={cancelSubscription} disabled={busy === "cancel" || !hasSubscription}>
+                {busy === "cancel" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancel subscription"}
+              </Button>
+            )}
           </div>
+          {endingSoon && (
+            <p className="mt-3 text-xs text-primary">
+              This subscription is set to end and will not renew. You can keep it with one click above.
+            </p>
+          )}
           <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
             Your plan renews automatically. You can cancel at any time. Cancellation takes
             effect at the end of the period you have already paid for, and fees already paid
-            are not refunded.
+            are not refunded. {CREDITS_NOTE}
           </p>
         </div>
+
+        {/* Billing history */}
+        <div className="rounded-2xl border bg-card p-6">
+          <h2 className="font-semibold">Billing history</h2>
+          {invoices.length ? (
+            <ul className="mt-4 divide-y">
+              {invoices.map(inv => (
+                <li key={inv.id} className="py-2.5 flex items-center justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground">
+                    {new Date(inv.created * 1000).toLocaleDateString()} {inv.number ? `· ${inv.number}` : ""}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="font-medium">
+                      {(inv.amount_paid / 100).toFixed(2)} {inv.currency.toUpperCase()}
+                    </span>
+                    <Badge variant="secondary">{inv.status || "unknown"}</Badge>
+                    {inv.invoice_pdf && (
+                      <a
+                        href={inv.invoice_pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Receipt
+                      </a>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">No invoices yet.</p>
+          )}
+        </div>
+
 
         {/* Usage this period */}
         {audience === "seeker" && (
