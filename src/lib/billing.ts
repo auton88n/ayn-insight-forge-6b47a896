@@ -85,6 +85,44 @@ export type AdminEmployerRow = {
   } | null;
 };
 
+export type Invoice = {
+  id: string;
+  number: string | null;
+  status: string | null;
+  amount_paid: number;
+  amount_due: number;
+  currency: string;
+  created: number;
+  hosted_invoice_url: string | null;
+  invoice_pdf: string | null;
+};
+
+export type StripeSubscriptionState = {
+  id: string;
+  status: string;
+  cancel_at_period_end: boolean;
+  current_period_end: number | null;
+  price_id: string | null;
+};
+
+async function stripeCall<T>(body: unknown): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Not signed in");
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const out = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(out?.error || `Request failed (${r.status})`);
+  return out as T;
+}
+
 export const billingApi = {
   plans: () => call<{ plans: Plan[] }>({ action: "plans_list" }).then(r => r.plans),
   seeker: () => call<SeekerBilling>({ action: "billing_get" }),
@@ -92,39 +130,16 @@ export const billingApi = {
   upgradeIntent: (plan_key: string, note?: string) =>
     call<{ ok: boolean; plan: string; message: string }>({ action: "billing_upgrade_intent", plan_key, note }),
   checkout: async (plan_key: string) => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("Not signed in");
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action: "checkout", plan_key }),
-    });
-    const out = await r.json().catch(() => ({}));
-    if (!r.ok || !out?.url) throw new Error(out?.error || "Could not start checkout");
-    return out.url as string;
+    const out = await stripeCall<{ url?: string }>({ action: "checkout", plan_key });
+    if (!out?.url) throw new Error("Could not start checkout");
+    return out.url;
   },
   portal: async () => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("Not signed in");
-    const r = await fetch(`${SUPABASE_URL}/functions/v1/stripe-billing`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action: "portal" }),
-    });
-    const out = await r.json().catch(() => ({}));
-    if (!r.ok || !out?.url) throw new Error(out?.error || "Could not open billing");
-    return out.url as string;
+    const out = await stripeCall<{ url?: string }>({ action: "portal" });
+    if (!out?.url) throw new Error("Could not open billing");
+    return out.url;
   },
+
   // v3.30.0 — cancel from inside the product. Takes effect at the end of the
   // period already paid for. Nothing is refunded.
   cancel: () => stripeCall<{ ok: true; cancel_at_period_end: boolean; current_period_end: number | null }>({ action: "cancel" }),
