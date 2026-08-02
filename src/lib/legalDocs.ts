@@ -107,11 +107,14 @@ export function rawMarkdown(slug: string): string | null {
 export interface DocMeta {
   version: string | null;
   effective: string | null;
+  /** Some documents state only a last updated date and no effective date. */
+  updated: string | null;
   /** The document title as written in its own first heading. */
   heading: string | null;
   /** The markdown body with the metadata header removed. */
   body: string;
 }
+
 
 /**
  * Reads the version and the effective date from the top of a document.
