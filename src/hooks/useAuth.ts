@@ -114,11 +114,15 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
     }
   }, [user.id, session.access_token]);
 
-  // Accept terms and conditions
-  const acceptTerms = useCallback(async (consent: { privacy: boolean; terms: boolean; aiDisclaimer: boolean }) => {
+  // v3.33.0 — the old consent writer lived here, behind a TermsModal in the
+  // legacy dashboard shell. That shell was deleted, so this had had no caller
+  // and no row had been written since 7 May 2026, while it still claimed a
+  // hard coded terms_version of 2026-03-14. Consent is now recorded server
+  // side by handle_new_user as part of account creation. This only records
+  // that the person dismissed the in product notice.
+  const acceptTerms = useCallback(async (_consent: { privacy: boolean; terms: boolean; aiDisclaimer: boolean }) => {
     try {
       const now = new Date().toISOString();
-
       const updated = await supabaseApi.fetch<any[]>(
         `user_settings?user_id=eq.${user.id}`,
         session.access_token,
@@ -137,26 +141,8 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
         );
       }
 
-      await supabaseApi.post(
-        'terms_consent_log',
-        session.access_token,
-        {
-          user_id: user.id,
-          terms_version: '2026-03-14',
-          privacy_accepted: consent.privacy,
-          terms_accepted: consent.terms,
-          ai_disclaimer_accepted: consent.aiDisclaimer,
-          user_agent: navigator.userAgent
-        }
-      );
-
       setHasAcceptedTerms(true);
       localStorage.setItem(`terms_accepted_${user.id}`, 'true');
-      
-      toast({
-        title: 'Welcome to AYN',
-        description: 'Your AI companion is ready to assist you.'
-      });
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Failed to save terms acceptance:', error);
@@ -168,6 +154,7 @@ export const useAuth = (user: User, session: Session): UseAuthReturn => {
       });
     }
   }, [user.id, session.access_token, toast]);
+
 
   // Load all auth data on mount
   useEffect(() => {
