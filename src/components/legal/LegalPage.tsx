@@ -124,7 +124,10 @@ export default function LegalPage({ slug }: Props) {
             <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">{title}</h1>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {parsed.version && <span>Version {parsed.version}</span>}
-              {parsed.effective && <span>Effective {parsed.effective}</span>}
+              {parsed.effective
+                ? <span>Effective {parsed.effective}</span>
+                : parsed.updated && <span>Updated {parsed.updated}</span>}
+
               <button
                 type="button"
                 onClick={() => window.print()}
