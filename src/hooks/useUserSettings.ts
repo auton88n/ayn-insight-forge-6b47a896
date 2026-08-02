@@ -16,14 +16,18 @@ export interface UserSettings {
   store_chat_history: boolean;
 }
 
+// v3.35.0 — this used to read device_fingerprints, a table nothing ever
+// wrote a row to, so the list was always empty and "sign out all" only
+// signed out the current tab. self_list_sessions reads the real
+// auth.sessions row for this account instead.
 export interface DeviceSession {
   id: string;
-  fingerprint_hash: string;
-  device_info: Record<string, unknown> | null;
-  first_seen: string;
-  last_seen: string;
-  login_count: number;
-  is_trusted: boolean;
+  created_at: string;
+  refreshed_at: string | null;
+  not_after: string | null;
+  user_agent: string | null;
+  ip: string | null;
+  is_current: boolean;
 }
 
 // Accept userId and accessToken as parameters to use REST API
@@ -47,10 +51,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
           `user_settings?user_id=eq.${userId}`,
           accessToken
         ),
-        supabaseApi.get<DeviceSession[]>(
-          `device_fingerprints?user_id=eq.${userId}&order=last_seen.desc`,
-          accessToken
-        )
+        supabaseApi.rpc<DeviceSession[]>('self_list_sessions', accessToken),
       ]);
 
       // Process settings
@@ -92,17 +93,7 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
         });
       }
 
-      // Process sessions
-      const normalizedSessions: DeviceSession[] = (sessionsData || []).map((session: DeviceSession) => ({
-        id: session.id,
-        fingerprint_hash: session.fingerprint_hash,
-        device_info: session.device_info as Record<string, unknown> | null,
-        first_seen: session.first_seen,
-        last_seen: session.last_seen,
-        login_count: session.login_count ?? 0,
-        is_trusted: session.is_trusted ?? false,
-      }));
-      setSessions(normalizedSessions);
+      setSessions(sessionsData || []);
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Error fetching settings:', error);
@@ -122,21 +113,8 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
-      const data = await supabaseApi.get<DeviceSession[]>(
-        `device_fingerprints?user_id=eq.${userId}&order=last_seen.desc`,
-        accessToken
-      );
-      
-      const normalizedSessions: DeviceSession[] = (data || []).map((session: DeviceSession) => ({
-        id: session.id,
-        fingerprint_hash: session.fingerprint_hash,
-        device_info: session.device_info as Record<string, unknown> | null,
-        first_seen: session.first_seen,
-        last_seen: session.last_seen,
-        login_count: session.login_count ?? 0,
-        is_trusted: session.is_trusted ?? false,
-      }));
-      setSessions(normalizedSessions);
+      const data = await supabaseApi.rpc<DeviceSession[]>('self_list_sessions', accessToken);
+      setSessions(data || []);
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error('Error fetching sessions:', error);
@@ -177,12 +155,12 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
 
   const revokeSession = async (sessionId: string) => {
     if (!accessToken) return;
-    
+
     try {
-      await supabaseApi.delete(
-        `device_fingerprints?id=eq.${sessionId}`,
-        accessToken
-      );
+      // v3.35.0 — deletes the real auth.sessions row and revokes its refresh
+      // tokens, so a signed-out device is actually refused on its next
+      // refresh, not just removed from a display-only list.
+      await supabaseApi.rpc('self_revoke_session', accessToken, { p_session_id: sessionId });
 
       setSessions(sessions.filter(s => s.id !== sessionId));
       toast({
@@ -206,15 +184,13 @@ export const useUserSettings = (userId: string, accessToken?: string) => {
     if (!userId || !accessToken) return;
 
     try {
-      await supabaseApi.delete(
-        `device_fingerprints?user_id=eq.${userId}`,
-        accessToken
-      );
-
-      // Import supabase client only for signOut
+      // v3.35.0 — scope: 'global' calls GoTrue's own /logout?scope=global,
+      // which revokes every session for this account, not only the current
+      // tab. Verified live: a second, separate session's refresh token was
+      // rejected immediately after this call ran from the first session.
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.auth.signOut();
-      
+      await supabase.auth.signOut({ scope: 'global' });
+
       toast({
         title: 'Success',
         description: 'All devices signed out successfully',

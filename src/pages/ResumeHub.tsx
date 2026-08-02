@@ -17,6 +17,7 @@ import ProposalsTab from "@/components/resume-hub/ProposalsTab";
 import AssessmentsTab from "@/components/resume-hub/AssessmentsTab";
 import { employerApi } from "@/lib/employer";
 import { assessmentApi } from "@/lib/assessments";
+import { billingApi } from "@/lib/billing";
 import manifest from "../../extension/manifest.json";
 import "@/styles/resume-hub.css";
 import aynLogo from "@/assets/ayn-logo.png";
@@ -48,6 +49,11 @@ export default function ResumeHub() {
   const [loading, setLoading] = useState(true);
   const [pendingIntros, setPendingIntros] = useState(0);
   const [pendingAssessments, setPendingAssessments] = useState(0);
+  // v3.35.0 — billing_get already returns this; only /billing rendered it.
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const refreshCredits = useCallback(() => {
+    billingApi.seeker().then(r => setCreditBalance(r.balance)).catch(() => { /* silent */ });
+  }, []);
   // v3.25.0 — a platform wide stop shows one message instead of a broken hub.
   const platform = useFeature("platform");
 
@@ -79,6 +85,7 @@ export default function ResumeHub() {
         .then(r => setPendingAssessments((r.assessments || [])
           .filter(a => a.status === "sent" || a.status === "started").length))
         .catch(() => { /* silent */ });
+      refreshCredits();
 
 
 
@@ -133,6 +140,18 @@ export default function ResumeHub() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* v3.35.0 — billing_get already returns this; it just never showed
+                up anywhere before /billing itself. */}
+            {creditBalance !== null && (
+              <button
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium"
+                style={{ borderColor: "var(--rh-line)", color: "var(--rh-muted)" }}
+                onClick={() => navigate("/billing")}
+                title="Credit balance"
+              >
+                {creditBalance} credit{creditBalance === 1 ? "" : "s"}
+              </button>
+            )}
             <button className="rh-btn rh-btn-primary" onClick={() => setTab("profile")}>
               Your resume
             </button>

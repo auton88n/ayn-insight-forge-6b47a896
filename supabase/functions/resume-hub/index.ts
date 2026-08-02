@@ -1388,6 +1388,11 @@ Deno.serve(async (req) => {
         const id = await loadIdentity(admin, userId);
         const { data: resume } = await admin.from("resumes")
           .select("id, title, content").eq("user_id", userId).eq("is_primary", true).maybeSingle();
+        // v3.35.0 — the sidepanel could not show a credit balance because
+        // bootstrap never carried one; the same numbers smart_tailor and
+        // ext_cover_letter_text already return on every generation.
+        await billingEnsure(admin, userId, "seeker");
+        const balance = await creditBalance(admin, userId);
         return json({
           user: { id: userId, email: id.email.value || null, device: tok.device_label },
           profile: id.profile,
@@ -1397,6 +1402,7 @@ Deno.serve(async (req) => {
             missing: id.missing(),
             sources: id.sourceMap(),
           },
+          credits: { balance, costs: { tailored_resume: COST_TAILOR, cover_letter: COST_COVER } },
         });
       }
 

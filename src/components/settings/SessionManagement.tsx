@@ -33,14 +33,17 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
 
 
 
-  const getDeviceIcon = (deviceInfo: Record<string, unknown> | null) => {
-    const type = String(deviceInfo?.type || '').toLowerCase();
-    if (type.includes('mobile') || type.includes('phone')) return <Smartphone className="h-5 w-5" />;
-    if (type.includes('tablet')) return <Tablet className="h-5 w-5" />;
+  // v3.35.0 — real auth.sessions rows carry a user_agent string, not the
+  // structured device_info the old device_fingerprints table never got.
+  const getDeviceIcon = (ua: string | null) => {
+    const s = (ua || '').toLowerCase();
+    if (/mobile|iphone|android(?!.*tablet)/.test(s)) return <Smartphone className="h-5 w-5" />;
+    if (/ipad|tablet/.test(s)) return <Tablet className="h-5 w-5" />;
     return <Monitor className="h-5 w-5" />;
   };
 
-  const parseUserAgentForDisplay = (ua: string): string => {
+  const getDeviceName = (ua: string | null): string => {
+    if (!ua) return t('settings.unknownDevice');
     let browser = 'Browser';
     let os = '';
 
@@ -57,25 +60,6 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
     else if (ua.includes('iPad')) os = 'iPadOS';
 
     return os ? `${browser} on ${os}` : browser;
-  };
-
-  const getDeviceName = (deviceInfo: Record<string, unknown> | null) => {
-    if (!deviceInfo) return t('settings.unknownDevice');
-
-    const browser = String(deviceInfo.browser || '');
-    const os = String(deviceInfo.os || '');
-
-    // If we have parsed values (not raw user agent), show "Browser on OS"
-    if (browser && os && !browser.includes('Mozilla')) {
-      return `${browser} on ${os}`;
-    }
-
-    // Fallback: parse raw user agent if old format
-    if (browser.includes('Mozilla')) {
-      return parseUserAgentForDisplay(browser);
-    }
-
-    return browser || os || t('settings.unknownDevice');
   };
 
   if (loading) {
@@ -128,33 +112,37 @@ export const SessionManagement = ({ userId, userEmail, accessToken }: SessionMan
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1 text-muted-foreground">
-                    {getDeviceIcon(session.device_info)}
+                    {getDeviceIcon(session.user_agent)}
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{getDeviceName(session.device_info)}</p>
-                      {session.is_trusted && (
+                      <p className="font-medium">{getDeviceName(session.user_agent)}</p>
+                      {session.is_current && (
                         <Badge variant="secondary" className="text-xs">
-                          {t('settings.trusted')}
+                          {t('settings.thisDevice')}
                         </Badge>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {t('settings.lastActive')}: {formatDistanceToNow(new Date(session.last_seen), { addSuffix: true })}
+                      {t('settings.lastActive')}: {formatDistanceToNow(
+                        new Date(session.refreshed_at || session.created_at), { addSuffix: true }
+                      )}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t('settings.loginCount')}: {session.login_count}
-                    </p>
+                    {session.ip && (
+                      <p className="text-xs text-muted-foreground">{session.ip.replace(/\/\d+$/, '')}</p>
+                    )}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => revokeSession(session.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  {t('settings.revoke')}
-                </Button>
+                {!session.is_current && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => revokeSession(session.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    {t('settings.revoke')}
+                  </Button>
+                )}
               </div>
             ))
           )}

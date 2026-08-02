@@ -151,9 +151,25 @@ function displayUser(resp) {
   const el = $('user-email');
   el.textContent = name || 'Signed in';
   el.title = email ? `${email}${device ? `\nDevice: ${device}` : ''}` : (device || '');
+  updateCreditPill(resp?.credits);
 }
 // Alias kept for any callers referencing the old name.
 const displayEmail = displayUser;
+
+// v3.35.0 — bootstrap carries the balance on load; smart_tailor and
+// ext_cover_letter_text carry the updated balance after each spend, so the
+// pill never goes stale without an extra round trip.
+S.costs = { tailored_resume: 2, cover_letter: 1 };
+function updateCreditPill(credits) {
+  if (!credits || typeof credits.balance !== 'number') return;
+  if (credits.costs) S.costs = credits.costs;
+  const el = $('credit-pill');
+  el.textContent = `${credits.balance} credit${credits.balance === 1 ? '' : 's'}`;
+  el.title = `Tailored resume: ${S.costs.tailored_resume} credits · Cover letter: ${S.costs.cover_letter} credit\nClick to manage your plan.`;
+  el.classList.toggle('low', credits.balance < S.costs.tailored_resume);
+  el.classList.remove('hidden');
+}
+$('credit-pill').addEventListener('click', () => chrome.tabs.create({ url: 'https://aynn.io/billing' }));
 
 // Strip raw URLs from any string before showing as a label.
 function cleanLabel(s) {
@@ -894,6 +910,7 @@ async function generateCoverLetter() {
       resumeText: CL.resumeText, jdText: CL.jobText, tone, company: CL.company, url: CL.jobUrl, length, guidance,
     });
     if (data.error) throw new Error(data.error);
+    updateCreditPill(data.credits);
     { const out = $('cover-out'); out.dataset.raw = data.body || ''; out.innerHTML = aynFormatAiText(data.body || ''); }
     $('cover-result').classList.remove('hidden');
   } catch (e) {
@@ -1022,6 +1039,7 @@ $('analyze-btn').addEventListener('click', async () => {
   try {
     const d = await bgFunc('smart_tailor', { resumeText: resume, jdText: job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
+    updateCreditPill(d.credits);
     S.keywords = d.keywords||[]; S.tailoredText = d.tailoredText||''; S.changes = d.changes||[];
     S.gap = d.gapAnalysis || null;
     S.atsScore = typeof d.atsScore === 'number' ? d.atsScore : null;
@@ -1064,6 +1082,7 @@ $('tailor-btn').addEventListener('click', async () => {
   try {
     const d = await bgFunc('smart_tailor', { resumeText: S.resume, jdText: S.job, jobTitle: S.jobTitle, company: S.company, url: S.jobUrl, matched_skills: SJ.matchedSkills || [], missing_skills: SJ.missingSkills || [] });
     if (d.error) throw new Error(d.error);
+    updateCreditPill(d.credits);
     S.tailoredText = d.tailoredText||''; S.changes = d.changes||[]; S.gap = d.gapAnalysis || null;
     renderResult(S.tailoredText, S.changes); show('v-t3');
   } catch(e) { $('err-t2').textContent = e.message; $('err-t2').classList.remove('hidden'); }

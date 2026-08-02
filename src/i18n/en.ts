@@ -401,6 +401,7 @@ export const en: Record<string, string> = {
   'settings.lastActive': 'Last active',
   'settings.loginCount': 'Logins',
   'settings.trusted': 'Trusted',
+  'settings.thisDevice': 'This device',
   'settings.revoke': 'Revoke',
   'settings.security': 'Security',
   'settings.changePassword': 'Change Password',

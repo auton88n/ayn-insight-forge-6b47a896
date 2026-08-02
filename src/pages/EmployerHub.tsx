@@ -43,6 +43,7 @@ import {
   employerApi, isOrgComplete, missingOrgFields,
   type CandidateCard, type JobSpec, type Org, type SentProposal,
 } from "@/lib/employer";
+import { billingApi, type EmployerBilling } from "@/lib/billing";
 
 
 /** v3.12.0 — the employer gets a left rail in the Resume Hub language. */
@@ -79,6 +80,9 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   const [orgBusy, setOrgBusy] = useState(false);
 
   const [spec, setSpec] = useState<JobSpec | null>(null);
+  // v3.35.0 — resume-hub already computes this on every metered action;
+  // it was just never rendered inside the hub itself, only on /billing.
+  const [usage, setUsage] = useState<EmployerBilling | null>(null);
 
   // v3.15.0 — left nav state, and the staged search flow.
   const [tab, setTab] = useState<EmployerTab>("search");
@@ -136,9 +140,16 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
   }, [toast]);
 
 
+  const refreshUsage = useCallback((orgId: string) => {
+    billingApi.employer(orgId).then(setUsage).catch(() => { /* silent */ });
+  }, []);
+
   useEffect(() => {
     employerApi.orgGet()
-      .then(r => setOrg(r.org))
+      .then(r => {
+        setOrg(r.org);
+        if (r.org?.id) refreshUsage(r.org.id);
+      })
       .catch(() => setOrg(null))
       .finally(() => setOrgLoading(false));
     loadSent();
@@ -182,6 +193,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       setSearchId(r.search_id);
       setResults(r.results || []);
       setPoolNote(r.pool_note || "");
+      refreshUsage(org.id);
     } catch (e) {
       setStage("spec");
       toast(isFeatureDisabled(e)
@@ -240,6 +252,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
       toast({ title: "Proposal sent", description: "You will see a reply here." });
       setFormOpen(false);
       await loadSent();
+      if (org) refreshUsage(org.id);
     } catch (e) {
       toast({ title: "Could not send", description: (e as Error).message, variant: "destructive" });
     } finally { setSending(false); }
@@ -284,6 +297,23 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
               <h1 className="text-sm font-semibold truncate leading-tight">{org.name}</h1>
             </div>
           </div>
+
+          {/* v3.35.0 — the same usage numbers Billing already shows, right
+              where searches, proposals and assessments actually get spent. */}
+          {profileComplete && usage && (
+            <button
+              type="button"
+              onClick={() => navigate("/billing")}
+              className="hidden sm:flex items-center gap-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              title="Usage this period"
+            >
+              <span>{usage.searches_used}{usage.plan?.searches_limit ? `/${usage.plan.searches_limit}` : ""} searches</span>
+              <span className="w-1 h-1 rounded-full bg-border" aria-hidden />
+              <span>{usage.proposals_used}{usage.plan?.proposals_limit ? `/${usage.plan.proposals_limit}` : ""} proposals</span>
+              <span className="w-1 h-1 rounded-full bg-border" aria-hidden />
+              <span>{usage.assessments_used}{usage.plan?.assessments_limit ? `/${usage.plan.assessments_limit}` : ""} assessments</span>
+            </button>
+          )}
 
           {org.logo_url && (
             <img src={org.logo_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
@@ -715,7 +745,7 @@ export default function EmployerHub({ companyName }: { companyName?: string | nu
           orgId={org.id}
           searchId={searchId}
           candidateRef={assessFor.ref}
-          onSent={() => { setAssessKey(k => k + 1); setTab("assessments"); }}
+          onSent={() => { setAssessKey(k => k + 1); setTab("assessments"); if (org) refreshUsage(org.id); }}
         />
       )}
     </div>

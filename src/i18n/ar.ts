@@ -281,6 +281,7 @@ export const ar: Record<string, string> = {
   'settings.lastActive': 'آخر نشاط',
   'settings.loginCount': 'عدد تسجيلات الدخول',
   'settings.trusted': 'موثوق',
+  'settings.thisDevice': 'هذا الجهاز',
   'settings.revoke': 'إلغاء',
   'settings.security': 'الأمان',
   'settings.changePassword': 'تغيير كلمة المرور',

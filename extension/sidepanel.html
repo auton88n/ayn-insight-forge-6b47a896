@@ -82,6 +82,16 @@
     }
     .logo-eye img { width: 100%; height: 100%; object-fit: contain; display: block; }
     .hdr-right { display: flex; align-items: center; gap: 6px; position: relative; flex-shrink: 0; }
+    /* v3.35.0 — credit balance, visible at all times instead of only on
+       an insufficient-credits failure. Turns amber near zero. */
+    .credit-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 10px; border-radius: 999px; cursor: pointer;
+      background: var(--ayn-orange-soft); border: 1px solid var(--ayn-orange-border);
+      font-size: 11.5px; color: var(--ayn-orange-2); font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .credit-pill.low { background: var(--ayn-red-soft); border-color: var(--ayn-red); color: var(--ayn-red); }
     .user-email {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 5px 10px 5px 10px; border-radius: 999px;
@@ -704,6 +714,7 @@
     AYN Resume Tailor
   </div>
   <div class="hdr-right">
+    <span class="credit-pill hidden" id="credit-pill" title="Credit balance"></span>
     <span class="user-email hidden" id="user-email" title=""></span>
     <button class="sign-out hidden" id="sign-out-btn" title="Sign out">Sign out</button>
   </div>

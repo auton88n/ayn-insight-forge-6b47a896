@@ -444,7 +444,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         const data = await callFunction(message.action, payload);
         sendResponse({ ok: true, data });
-      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+      } catch (e) { sendResponse({ ok: false, error: e.message, code: e.code || null }); }
     })();
     return true;
   }
