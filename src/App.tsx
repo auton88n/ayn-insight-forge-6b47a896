@@ -103,8 +103,6 @@ const queryClient = new QueryClient({
 const AnimatedRoutes = () => {
   const location = useLocation();
   
-  // Track page visits for analytics
-  useVisitorTracking();
 
   // Fast routes skip animation for instant navigation
   const fastRoutes = ['/settings', '/pricing'];
