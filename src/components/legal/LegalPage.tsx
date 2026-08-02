@@ -19,7 +19,9 @@ import {
   buildToc,
   linkCrossReferences,
   slugifyHeading,
+  stripDocHeader,
 } from '@/lib/legalDocs';
+
 
 interface Props {
   slug: string;
