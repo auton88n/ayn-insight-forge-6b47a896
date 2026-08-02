@@ -330,6 +330,19 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
       return;
     }
 
+    // v3.33.0 — the consent record is written server side by the account
+    // creation trigger, from this metadata, in the same transaction as the
+    // account. If we have no version to record, we do not create the account.
+    const consent = consentSignupMetadata();
+    if (!consent) {
+      toast({
+        title: t('auth.termsRequired'),
+        description: 'We could not read the current document versions. Please reload and try again.',
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -341,11 +354,13 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
             full_name: fullName,
             company_name: companyName,
             role: signupRole,
+            ...consent,
           }
         }
       });
 
       if (error) {
+
         toast({
           title: t('auth.registrationError'),
           description: error.message,
