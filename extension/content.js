@@ -12,7 +12,7 @@
   }
   window.__AYN_CONTENT_LOADED_V2__ = true;
   // AYN_BUILD is sourced from the manifest so the version lives in one place.
-  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '3.3.0'; } })();
+  const AYN_BUILD = (() => { try { return chrome.runtime.getManifest().version; } catch (_) { return '3.4.0'; } })();
   // v2.11.2 — hard cap the JD payload we ship out to backend/scoring. Bigger
   // payloads were mostly boilerplate (nav/footer/cookie banners) and pushed
   // real role signal out of the model's window.
@@ -226,7 +226,11 @@
     const map = [
       ['ca.indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[data-testid="inlineHeader-companyName"], [class*="jobsearch-CompanyInfoContainer"]' }],
       ['indeed.com/viewjob', { desc: '#jobDescriptionText, [class*="jobsearch-JobComponent-description"]', title: '[class*="jobsearch-JobInfoHeader-title"], h1', company: '[class*="jobsearch-CompanyInfoContainer"], [data-testid="inlineHeader-companyName"]' }],
-      ['linkedin.com/jobs', { desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, [class*="jobs-description"]', title: '.job-details-jobs-unified-top-card__job-title, h1', company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]' }],
+      // v3.37.0 — signed-out LinkedIn (the public /jobs/search view) renders
+      // a completely different DOM (description__text, top-card-layout__title,
+      // topcard__org-name-link) from the signed-in unified pane. Both sets
+      // are listed so whichever one is actually on the page gets picked up.
+      ['linkedin.com/jobs', { desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, [class*="jobs-description"], .description__text', title: '.job-details-jobs-unified-top-card__job-title, .top-card-layout__title, h1', company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"], .topcard__org-name-link' }],
       ['greenhouse.io', { desc: '.job__description, .app-body [class*="description"], .content-intro, #content .prose', title: 'h1', company: '.company-name, [class*="company"]' }],
       ['jobs.lever.co', { desc: '.section-wrapper, [class*="description"], .posting-requirements', title: 'h2, h1', company: '.main-header-text .large-category-label' }],
       ['jobs.ashbyhq.com', { desc: '[class*="description"], [class*="job-post"], .ashby-job-posting-right-pane', title: 'h1', company: '[class*="company"]' }],
@@ -315,10 +319,13 @@
     // /jobs/collections/*, etc. Use unified selectors for ANY linkedin.com/jobs URL
     // that has a detectable job detail pane. SPA hooks already re-fire on URL change.
     if (/linkedin\.com\/jobs/i.test(url)) {
+      // v3.37.0 — signed-in unified pane selectors first, signed-out public
+      // /jobs/search selectors (description__text, top-card-layout__title,
+      // topcard__org-name-link) appended so either DOM shape is caught.
       const liSel = {
-        desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, .jobs-details__main-content, [class*="jobs-description"]',
-        title: '.job-details-jobs-unified-top-card__job-title, h1',
-        company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"]',
+        desc: '#job-details, .jobs-description-content__text, .jobs-description__content, .jobs-box__html-content, .jobs-details__main-content, [class*="jobs-description"], .description__text',
+        title: '.job-details-jobs-unified-top-card__job-title, .top-card-layout__title, h1',
+        company: '.job-details-jobs-unified-top-card__company-name, [class*="company-name"], .topcard__org-name-link',
       };
       let liDesc = combinedText(liSel.desc);
       if (!liDesc || liDesc.length < 50) {
@@ -899,13 +906,26 @@
   const JOB_PAGE_RE = /linkedin\.com\/jobs|indeed\.com|ca\.indeed\.com|greenhouse\.io|boards\.greenhouse\.io|jobs\.lever\.co|ashbyhq\.com|glassdoor\.com\/job|myworkdayjobs\.com|smartrecruiters\.com|jobright\.ai\/jobs|csod\.com|icims\.com|bamboohr\.com|taleo\.net|workable\.com|dover\.com|recruitee\.com|jazz\.co|pinpointhq\.com|loxo\.co/;
 
   let _lastDetectedUrl = '';
+  let _lastDetectedText = '';
   function detectAndReport(attempt = 0) {
     if (!JOB_PAGE_RE.test(location.href)) return;
     expandSeeMore();
     const result = extractJobText();
     if (result.text && result.text.length > 100) {
       if (location.href === _lastDetectedUrl) return; // already reported
+      // v3.37.0 — on a master/detail SPA (LinkedIn's job list, Indeed's
+      // split view) the URL updates the instant a new job is clicked, but
+      // the right-hand pane keeps showing the PREVIOUS job's DOM until its
+      // own fetch + re-render finishes, which can take longer than this
+      // debounce. Reading byte-identical text to what we last reported for
+      // a different URL means the pane hasn't caught up yet — retry with
+      // backoff instead of reporting the wrong job.
+      if (result.text === _lastDetectedText && attempt < 8) {
+        setTimeout(() => detectAndReport(attempt + 1), 250 * (attempt + 1));
+        return;
+      }
       _lastDetectedUrl = location.href;
+      _lastDetectedText = result.text;
       let __kind = 'other'; try { __kind = (classifyPage() || {}).kind || 'other'; } catch {}
       if (AYN_IS_TOP) sendQuiet({
         type: 'JOB_DETECTED',

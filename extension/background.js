@@ -76,8 +76,28 @@ const TAB_OVERRIDE = new Map();
 const JD_TTL_MS = 45 * 60 * 1000; // 45 minutes
 
 
+// v3.37.0 — sites like LinkedIn's /jobs/search and /jobs/collections/* keep
+// every job under the SAME pathname and only vary a query param
+// (currentJobId). Dropping the query string here collapsed every job in a
+// browsing session onto one registry slot, so jdRegistrySet's "only replace
+// if the new one scores higher" guard could keep an earlier, unrelated job
+// pinned in place of whatever is actually open. Keep the params that
+// actually distinguish one posting from another — same KEEP-list as
+// normalizeUrlForHash in supabase/functions/resume-hub/index.ts, so a job's
+// identity agrees client and server side.
+const JD_KEY_PARAMS = new Set([
+  'jk', 'vjk', 'currentJobId', 'jobId', 'job_id', 'id',
+  'gh_jid', 'lever-source', 'postingId', 'requisitionId',
+]);
 function jdKey(url) {
-  try { const u = new URL(url); return `${u.origin}${u.pathname.replace(/\/+$/, '')}`; }
+  try {
+    const u = new URL(url);
+    const kept = [];
+    for (const [k, v] of u.searchParams) { if (JD_KEY_PARAMS.has(k)) kept.push(`${k}=${v}`); }
+    kept.sort();
+    const qs = kept.length ? `?${kept.join('&')}` : '';
+    return `${u.origin}${u.pathname.replace(/\/+$/, '')}${qs}`;
+  }
   catch { return String(url || ''); }
 }
 function jdKeyHostPath(url) {
@@ -239,6 +259,19 @@ async function resolveJdForTab(tabId, pageUrl, hint) {
     const live = await safeSendMessage(tabId, { type: 'EXTRACT_JOB_TEXT' });
     if (live && live.text) push(live, 'current_page');
   }
+  // v3.37.0 — a good live read of the CURRENT page is authoritative: stop
+  // here, before step 4 (registry fuzzy) ever runs. This is what "ladder"
+  // is supposed to mean — try steps in order, climb only while the answer
+  // so far is weak — but the old code collected steps 2-4 unconditionally
+  // and picked whichever scored highest quality, so on a site like
+  // LinkedIn's /jobs/search (every job shares one pathname, only
+  // currentJobId differs) a stale, unrelated, higher-scoring job sitting in
+  // the registry could silently outrank the job actually on screen right
+  // now. Only fall through to the registry/listing/backend steps when the
+  // live read is missing or too thin to trust on its own.
+  let best = results[0] || null;
+  if (best && best.quality >= threshold) return best;
+
   // 3. opener tab
   try {
     const opener = TAB_OPENER.get(tabId);
@@ -250,12 +283,15 @@ async function resolveJdForTab(tabId, pageUrl, hint) {
       }
     }
   } catch {}
+  best = results.sort((a,b) => b.quality - a.quality)[0] || null;
+  if (best && best.quality >= threshold) return best;
+
   // 4. registry fuzzy
   const fuzzy = jdRegistryFuzzy(pageUrl);
   if (fuzzy) push(fuzzy, 'registry');
 
   // Short-circuit if we already have a strong one.
-  let best = results.sort((a,b) => b.quality - a.quality)[0] || null;
+  best = results.sort((a,b) => b.quality - a.quality)[0] || null;
   if (best && best.quality >= threshold) return best;
 
   // 5. fetch listing URL

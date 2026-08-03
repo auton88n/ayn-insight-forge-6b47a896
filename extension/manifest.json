@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AYN Resume Tailor",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "Read the real job posting, see your match score, tailor your resume, write a cover letter, ask AYN about the job.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2+nbca2st6hqvaGZ/ozoQMYrNQ2sBmLFaEHidi59M+Mb4YX3ffEH35vgrcx4NEcjKHC4faturMksyHZuIY68/A5ItGwmcjXY5zus912adaR3Tp3z1aQzNg4n9FjulollWthQnjboBYfBw9WI50499mMncIgvxJpR4xePV1/61EC/b5blIkXPPAtFR+S7lb6SAqp5MHZ9pwPuEkjgchByD++ryybaijRLigkvwClsFxZKtbUlX9UacdqqH8URNkkB7hD9axOTF0uPUKOqGn/kM/cY9R5HHEQvYUJSP0i627FOPUrPWNfoMhlupBenCklP0CsZgKR/PhlMP/IxJVj3jQIDAQAB",
   "permissions": [

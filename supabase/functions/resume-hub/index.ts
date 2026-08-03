@@ -3070,43 +3070,35 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       const specText = [job_spec.title, job_spec.notes, mustHaves.join(", "), niceToHaves.join(", ")].filter(Boolean).join("\n");
       const { vector: specEmbedding, model: specModel } = await embedText(String(specText || ""));
 
-      const { data: rawIndexRows } = await adminForNew.from("candidate_index")
-        .select("user_id, headline, seniority, years_experience, location, profile_text, embedding, embedding_model")
+      // v3.38.0 — reindex-check still needs each candidate's embedding_model,
+      // but no longer needs the embedding vector itself: recall now happens
+      // in Postgres (match_candidates_by_embedding), which can use the real
+      // HNSW index on candidate_index.embedding instead of every eligible
+      // candidate's full 768-dim vector being pulled over the wire and
+      // cosine-compared by hand in JavaScript.
+      const { data: modelRows } = await adminForNew.from("candidate_index")
+        .select("user_id, embedding_model")
         .in("user_id", eligibleIds);
-      let indexRows = rawIndexRows || [];
 
       if (specModel !== FALLBACK_EMBED_MODEL) {
-        const stale = indexRows.filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) !== specModel).slice(0, 25);
+        const stale = (modelRows || []).filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) !== specModel).slice(0, 25);
         for (const r of stale) {
           try { await indexCandidate(adminForNew, r.user_id); }
           catch (e) { console.error("inline reindex failed", r.user_id, (e as Error).message); }
         }
-        if (stale.length) {
-          const { data: refreshed } = await adminForNew.from("candidate_index")
-            .select("user_id, headline, seniority, years_experience, location, profile_text, embedding, embedding_model")
-            .in("user_id", eligibleIds);
-          if (refreshed) indexRows = refreshed;
-        }
       }
 
-      const cosine = (a: number[], b: number[]): number => {
-        let dot = 0, na = 0, nb = 0;
-        const n = Math.min(a.length, b.length);
-        for (let i = 0; i < n; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
-        const d = Math.sqrt(na) * Math.sqrt(nb);
-        return d === 0 ? 0 : dot / d;
-      };
-      const parseEmbedding = (v: unknown): number[] => {
-        if (Array.isArray(v)) return v as number[];
-        if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
-        return [];
-      };
-      // Same-model filter — never compare vectors across different embedding models.
-      const comparable = indexRows.filter(r => (r.embedding_model || FALLBACK_EMBED_MODEL) === specModel);
-      const ranked = comparable.map(r => ({
-        ...r,
-        sim: cosine(parseEmbedding(r.embedding), specEmbedding),
-      })).sort((a, b) => b.sim - a.sim).slice(0, 12);
+      const { data: rankedRows, error: rankErr } = await adminForNew.rpc("match_candidates_by_embedding", {
+        p_ids: eligibleIds,
+        p_embedding: specEmbedding,
+        p_model: specModel,
+        p_limit: 12,
+      });
+      if (rankErr) return json({ error: rankErr.message }, 500);
+      const ranked = (rankedRows || []) as Array<{
+        user_id: string; headline: string | null; seniority: string | null;
+        years_experience: number | null; location: string | null; profile_text: string | null; similarity: number;
+      }>;
 
 
       // Build anonymized rerank input.
