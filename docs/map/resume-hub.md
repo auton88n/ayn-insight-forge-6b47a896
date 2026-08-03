@@ -213,7 +213,7 @@ Web-lane actions:
 
 Reveal ladder, what each side can see at each step: employer sees anonymous card → anonymous full reasoning → proposal sent (still anonymous) → on accept, name + email + phone. Seeker sees the org name, the full job details and the employer's message from the first moment.
 
-NO TRANSACTIONAL EMAIL PATH EXISTS in this repo (supabase/functions holds only resume-hub, resume-match, stripe-billing, stripe-webhook, sign-document, ayn-agent-society). New-proposal notification is in-app only: nav badge plus the top Home next-action.
+v3.44.0 — no longer true. Sending a proposal (`employer_reveal_request`) now also emails the candidate (`notifyCandidate`, `_shared/emailTemplate.ts`), and `reveal_decide` emails every member of the org (`notifyOrgMembers`) on both accept and decline, no candidate identity or PII in the email body either way. Same pair of helpers, and the same "assessment sent"/"assessment submitted" wiring, are used by `employer_assessment_send` and `finaliseAssessment` below. In-app badge/Home-next-action notification is unchanged and still there too — email is additive, not a replacement.
 
 
 
@@ -335,6 +335,9 @@ Verified after the migration with `has_table_privilege`: `assessment_rubrics` an
 ### Backend actions (supabase/functions/resume-hub/index.ts)
 Employer lane: `employer_assessment_generate` (draft questions from the candidate's canonical profile plus the JobSpec, returns questions and lets the employer cut or edit them; the rubric is generated alongside and never returned), `employer_assessment_send`, `employer_assessment_list` (results, service role, org scoped).
 Candidate lane: `assessment_list`, `assessment_start` (stamps `started_at`, which is what the timer is measured against server side), `assessment_answer` (autosave per question, records `ms` spent), `assessment_submit` (calls `finaliseAssessment`, which grades against the private rubric and writes `assessment_results`), `assessment_growth_notes` (what the candidate gets back instead of a score: where their answers were thin, phrased as something to work on).
+
+### Notifications (v3.44.0)
+`employer_assessment_send` emails the candidate (`notifyCandidate`) with the company name, job title if known, and roughly how many minutes it takes. `finaliseAssessment` — the single function all three submission paths (`assessment_submit`, and the two server-side timeout paths inside `assessment_start`/`assessment_answer`) funnel through — emails every org member (`notifyOrgMembers`) once grading is written to `assessment_results`, deliberately with no score, verdict, or candidate identity in the email body, matching the same anonymity rule the product's own UI already follows; it just says an assessment was completed and links back into the app.
 
 ### Anti gaming
 The timer is enforced from `started_at` on the server, not from a client clock. Per question `ms` is recorded and surfaced to the employer next to the answer, because a flawless four paragraph answer written in eleven seconds is the signal. The rubric is never sent to the client at any point in the flow, and results are readable only through a service role action that checks org membership first.

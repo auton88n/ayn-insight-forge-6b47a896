@@ -12,6 +12,9 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 // loadIdentity() so a new source (canonical.identity, auth.users) is
 // picked up everywhere at once, not re-derived per action.
 import { loadIdentity, identityContactBlock, type Identity } from "../_shared/identity.ts";
+// v3.44.0 — proposal/assessment notification emails. Best effort only:
+// see notifyCandidate/notifyOrg below, neither ever throws into a caller.
+import { wrapEmail, ctaButton, heading, para, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
 // v3.1.0 — structured sections (no truncation), deterministic gap analysis,
 // figure preservation, result cache, company context, AI telemetry.
 import {
@@ -1267,6 +1270,52 @@ function reindexIfOptedIn(admin: SupabaseClient<any, any, any>, userId: string):
       if (data?.opted_in) return indexCandidate(admin, userId);
     })
     .then(undefined, (e: unknown) => console.error("reindexIfOptedIn failed", (e as Error)?.message));
+}
+
+// v3.44.0 — proposal/assessment notification emails. Best effort only,
+// same rule as sendReceiptEmail in stripe-webhook: a Resend failure must
+// never fail the action (proposal sent, assessment sent, decision
+// recorded, assessment submitted) that triggered it.
+async function notifyCandidate(
+  admin: SupabaseClient<any, any, any>,
+  candidateUserId: string,
+  subject: string,
+  bodyHtml: string,
+): Promise<void> {
+  try {
+    const { data: authUser } = await admin.auth.admin.getUserById(candidateUserId);
+    const email = authUser?.user?.email;
+    if (!email) return;
+    const r = await sendBrandedEmail(email, subject, wrapEmail(bodyHtml));
+    if (!r.ok) console.error("[notifyCandidate] send failed", r.error);
+  } catch (e) {
+    console.error("[notifyCandidate] threw", e);
+  }
+}
+
+// Notifies every member of an org, not just whoever is signed in right
+// now — the schema supports multi-seat orgs even though production today
+// is solo employers (see v3.29.0 note in docs/map/platform.md).
+async function notifyOrgMembers(
+  admin: SupabaseClient<any, any, any>,
+  orgId: string,
+  subject: string,
+  bodyHtml: string,
+): Promise<void> {
+  try {
+    const { data: members } = await admin.from("org_members").select("user_id").eq("org_id", orgId);
+    const ids = [...new Set((members || []).map(m => m.user_id).filter(Boolean))];
+    const html = wrapEmail(bodyHtml);
+    await Promise.all(ids.map(async (uid) => {
+      const { data: authUser } = await admin.auth.admin.getUserById(uid);
+      const email = authUser?.user?.email;
+      if (!email) return;
+      const r = await sendBrandedEmail(email, subject, html);
+      if (!r.ok) console.error("[notifyOrgMembers] send failed", r.error);
+    }));
+  } catch (e) {
+    console.error("[notifyOrgMembers] threw", e);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -3225,6 +3274,8 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         .select("id, org_id, ref_map").eq("id", search_id).maybeSingle();
       if (!search) return json({ error: "search not found" }, 404);
       if (!(await assertOrgMember(search.org_id))) return json({ error: "not an org member" }, 403);
+      const { data: proposalOrg } = await adminForNew.from("orgs").select("name").eq("id", search.org_id).maybeSingle();
+      const proposalOrgName = proposalOrg?.name || "A company";
       const orgGate = await assertOrgProfileComplete(search.org_id);
       if (orgGate) return orgGate;
       const candidateUserId = (search.ref_map as Record<string, string> | null)?.[ref];
@@ -3267,6 +3318,16 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         sent_at: new Date().toISOString(),
       });
       if (iErr) return json({ error: iErr.message }, 500);
+      // Awaited: a Deno edge function isolate can be torn down right after
+      // the response is sent, so an un-awaited notify can silently never run.
+      await notifyCandidate(
+        adminForNew,
+        candidateUserId,
+        `New job proposal from ${proposalOrgName} | AYN`,
+        `${heading("You have a new proposal")}
+        ${para(`${escapeHtml(proposalOrgName)} sent you a proposal for ${escapeHtml(title)}.`)}
+        ${ctaButton("https://aynn.io/", "View proposal")}`,
+      );
       return json({ ok: true, status: "pending" });
     }
 
@@ -3317,10 +3378,26 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
       if (!id || typeof approve !== "boolean") return json({ error: "id and approve required" }, 400);
       const status = approve ? "approved" : "declined";
       const now = new Date().toISOString();
-      const { error } = await adminForNew.from("reveal_requests")
+      const { data: decided, error } = await adminForNew.from("reveal_requests")
         .update({ status, decided_at: now, responded_at: now })
-        .eq("id", id).eq("candidate_user_id", userId);
+        .eq("id", id).eq("candidate_user_id", userId)
+        .select("org_id, job_title").maybeSingle();
       if (error) return json({ error: error.message }, 500);
+      if (decided?.org_id) {
+        const roleTitle = decided.job_title ? escapeHtml(decided.job_title) : "your role";
+        await notifyOrgMembers(
+          adminForNew,
+          decided.org_id,
+          approve ? "A candidate accepted your proposal | AYN" : "A candidate declined your proposal | AYN",
+          approve
+            ? `${heading("Your proposal was accepted")}
+              ${para(`The candidate for ${roleTitle} accepted your proposal. Their contact details are now available.`)}
+              ${ctaButton("https://aynn.io/", "View candidate")}`
+            : `${heading("Your proposal was declined")}
+              ${para(`The candidate for ${roleTitle} declined your proposal.`)}
+              ${ctaButton("https://aynn.io/", "View in EmployerHub")}`,
+        );
+      }
       return json({ ok: true, status });
     }
 
@@ -3547,7 +3624,7 @@ Write the assessment now.`,
       };
       if (!assessment_id) return json({ error: "assessment_id required" }, 400);
       const { data: a } = await adminForNew.from("assessments")
-        .select("id, org_id, status, questions").eq("id", assessment_id).maybeSingle();
+        .select("id, org_id, status, questions, candidate_user_id, job_title").eq("id", assessment_id).maybeSingle();
       if (!a) return json({ error: "assessment not found" }, 404);
       if (!(await assertOrgMember(a.org_id))) return json({ error: "not an org member" }, 403);
       if (a.status !== "draft") return json({ error: "This assessment was already sent." }, 409);
@@ -3574,6 +3651,19 @@ Write the assessment now.`,
         expires_at: new Date(Date.now() + days * 86400000).toISOString(),
       }).eq("id", assessment_id);
       if (error) return json({ error: error.message }, 500);
+      if (a.candidate_user_id) {
+        const { data: sendOrg } = await adminForNew.from("orgs").select("name").eq("id", a.org_id).maybeSingle();
+        const sendOrgName = sendOrg?.name || "A company";
+        const minutes = Math.round(limit / 60);
+        await notifyCandidate(
+          adminForNew,
+          a.candidate_user_id,
+          `New assessment from ${sendOrgName} | AYN`,
+          `${heading("A company wants to verify your background")}
+          ${para(`${escapeHtml(sendOrgName)} sent you a short assessment${a.job_title ? ` for ${escapeHtml(a.job_title)}` : ""}. It takes about ${minutes} minutes once you start.`)}
+          ${ctaButton("https://aynn.io/", "View assessment")}`,
+        );
+      }
       return json({ ok: true, status: "sent" });
     }
 
@@ -3874,6 +3964,20 @@ Grade it now.`,
         employer_summary: cleanEmployerText(String(out.employer_summary || "")).slice(0, 1200),
         seeker_growth_note: cleanEmployerText(String(out.seeker_growth_note || "")).slice(0, 300),
       }, { onConflict: "assessment_id" });
+
+      // No score, no candidate identity in the email body — same rule the
+      // product's own UI already follows (v3.13.0), just a heads up to go look.
+      if (a.org_id) {
+        const roleTitle = a.job_title ? escapeHtml(String(a.job_title)) : "your role";
+        await notifyOrgMembers(
+          adminForNew,
+          a.org_id,
+          "An assessment was completed | AYN",
+          `${heading("An assessment was completed")}
+          ${para(`A candidate for ${roleTitle} finished the assessment you sent. Results and observations are ready to review.`)}
+          ${ctaButton("https://aynn.io/", "View results")}`,
+        );
+      }
     }
 
 

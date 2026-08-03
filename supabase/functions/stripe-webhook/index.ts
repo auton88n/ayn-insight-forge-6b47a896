@@ -3,6 +3,7 @@
 // Public endpoint: no JWT, the Stripe signature is the auth.
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { wrapEmail, ctaButton, heading, para, receiptRow, escapeHtml, sendBrandedEmail } from "../_shared/emailTemplate.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
   apiVersion: "2025-08-27.basil",
@@ -16,10 +17,35 @@ const admin = createClient(
 async function planFromPriceId(priceId: string) {
   const { data } = await admin
     .from("plans")
-    .select("key, audience, credits")
+    .select("key, name, audience, credits")
     .eq("stripe_price_id", priceId)
     .maybeSingle();
   return data;
+}
+
+// v3.44.0 — a paid renewal used to grant credits with zero notification.
+// Best effort only: a failed email must never undo a real charge or a
+// real credit grant that already succeeded above.
+async function sendReceiptEmail(userId: string, planName: string, creditsGranted: number, amountPaidCents: number, currency: string) {
+  const { data: authUser } = await admin.auth.admin.getUserById(userId);
+  const email = authUser?.user?.email;
+  if (!email) return;
+  const amount = (amountPaidCents / 100).toLocaleString(undefined, {
+    style: "currency", currency: (currency || "usd").toUpperCase(),
+  });
+  const html = wrapEmail(`
+    ${heading("Payment received")}
+    ${para(`Thanks for your payment. Here's what changed on your account.`)}
+    <div style="margin:24px 0;">
+      ${receiptRow("Plan", escapeHtml(planName))}
+      ${receiptRow("Amount charged", amount)}
+      ${receiptRow("Credits added", String(creditsGranted))}
+    </div>
+    ${ctaButton("https://aynn.io/billing", "View billing")}
+    ${para("This is an automated receipt. If anything looks wrong, contact support from your account.", { muted: true, marginTop: 32 })}
+  `);
+  const r = await sendBrandedEmail(email, "Your AYN payment receipt", html);
+  if (!r.ok) console.error("[stripe-webhook] receipt email failed", r.error);
 }
 
 async function userIdForCustomer(customerId: string, fallback?: string | null) {
@@ -114,6 +140,12 @@ Deno.serve(async (req) => {
             : `${plan.key} period`,
           _ref: invoice.id,
         });
+
+        try {
+          await sendReceiptEmail(userId, plan.name || plan.key, amount, invoice.amount_paid ?? 0, invoice.currency || "usd");
+        } catch (e) {
+          console.error("[stripe-webhook] receipt email threw", e);
+        }
         break;
       }
       default:
