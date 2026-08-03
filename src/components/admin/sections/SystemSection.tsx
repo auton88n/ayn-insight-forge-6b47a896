@@ -7,9 +7,9 @@ import {
   AccountsPane, SupportPane, ErrorsPane, LimitsPane,
   AiPane, EmailPane, ConsentPane, SettingsPane,
 } from './system/SystemPanes';
-import { ModerationPane, FlagsPane, CreditsPane } from './system/ControlPanes';
+import { ModerationPane, FlagsPane, CreditsPane, AdminsPane } from './system/ControlPanes';
 
-type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'settings';
+type Pane = 'accounts' | 'credits' | 'moderation' | 'flags' | 'support' | 'errors' | 'limits' | 'ai' | 'email' | 'consent' | 'settings' | 'admins';
 
 const PANES: { id: Pane; label: string }[] = [
   { id: 'accounts', label: 'Accounts' },
@@ -22,6 +22,7 @@ const PANES: { id: Pane; label: string }[] = [
   { id: 'ai', label: 'AI cost' },
   { id: 'email', label: 'Email' },
   { id: 'consent', label: 'Terms consent' },
+  { id: 'admins', label: 'Admins' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -61,6 +62,7 @@ export default function SystemSection() {
       {pane === 'ai' && <AiPane />}
       {pane === 'email' && <EmailPane />}
       {pane === 'consent' && <ConsentPane />}
+      {pane === 'admins' && <AdminsPane />}
       {pane === 'settings' && <SettingsPane onGoToFlags={() => setPane('flags')} />}
     </div>
   );

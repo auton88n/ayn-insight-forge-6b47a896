@@ -13,6 +13,7 @@ import {
   useAdminModeration, useModerateItem,
   useAdminFeatureFlags, useSetFeatureFlag, useSetFeatureMessage,
   useAdjustCredits, useUserSnapshot, useAdminAccounts,
+  useAdminAdmins, useSetAdminRole,
 } from '@/admin-app/hooks/useAdminQuery';
 
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
@@ -173,7 +174,17 @@ export function FlagsPane() {
                       <Switch
                         checked={on}
                         disabled={set.isPending}
-                        onCheckedChange={c => set.mutate({ key: f.key, enabled: c })}
+                        onCheckedChange={c => {
+                          // v3.46.0 — turning OFF takes real effect for every
+                          // signed in user immediately, with no undo button
+                          // beyond flipping it back on. Only gate the
+                          // dangerous direction; turning something back on
+                          // restores service and needs no confirmation.
+                          if (!c && !window.confirm(
+                            `Turn off "${f.label}"?\n\n${f.hint}.\n\nThis takes effect right now for every user, not just new ones.`
+                          )) return;
+                          set.mutate({ key: f.key, enabled: c });
+                        }}
                       />
                     </div>
                   </div>
@@ -322,6 +333,126 @@ function Line({ k, v }: { k: string; v: string }) {
     <div className="flex items-center justify-between gap-3">
       <span className="text-xs text-muted-foreground">{k}</span>
       <span className="text-sm font-medium truncate">{v}</span>
+    </div>
+  );
+}
+
+/* ────────────────────────────── ADMINS ───────────────────────────────── */
+// v3.46.0 — there was no screen to see who has admin access, or to give it
+// to someone new, without editing the database directly. This is that
+// screen: a list of current admins plus a small search-and-grant form.
+export function AdminsPane() {
+  const admins = useAdminAdmins();
+  const setRole = useSetAdminRole();
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState<{ id: string; email: string } | null>(null);
+  const [reason, setReason] = useState('');
+
+  const accounts = useAdminAccounts(q);
+
+  if (admins.isLoading) return <LoadingBlock />;
+  if (admins.error) return <ErrorBlock error={admins.error} onRetry={() => admins.refetch()} />;
+
+  const list: any[] = (admins.data as any) || [];
+  const rows: any[] = (accounts.data as any)?.rows || [];
+  const alreadyAdminIds = new Set(list.map(a => a.user_id));
+
+  const grant = () => {
+    if (!selected) return;
+    if (!reason.trim()) { alert('A reason is required.'); return; }
+    if (!window.confirm(`Give admin access to ${selected.email}?\n\nThey will be able to see and change everything in this panel, including other people's accounts, payments, and these same settings.`)) return;
+    setRole.mutate(
+      { userId: selected.id, grant: true, reason: reason.trim() },
+      { onSuccess: () => { setSelected(null); setReason(''); setSearch(''); setQ(''); } },
+    );
+  };
+
+  const revoke = (a: any) => {
+    const why = window.prompt(`Why are you removing admin access from ${a.email}?`);
+    if (!why || !why.trim()) return;
+    setRole.mutate({ userId: a.user_id, grant: false, reason: why.trim() });
+  };
+
+  return (
+    <div className="space-y-5">
+      <Card className="border border-border/60 bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Who has admin access</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Anyone on this list can see and change everything in this panel. Keep it short.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {list.length === 0 ? <EmptyRow>Nobody has admin access. That shouldn't be possible.</EmptyRow> : (
+            <div className="divide-y divide-border/60">
+              {list.map(a => (
+                <div key={a.user_id} className="px-5 py-3 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate flex items-center gap-2">
+                      {a.email}
+                      {a.is_you && <Badge variant="secondary" className="text-[10px]">You</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Given admin {when(a.granted_at)} · last signed in {when(a.last_sign_in_at)}
+                    </p>
+                  </div>
+                  {!a.is_you && (
+                    <Button size="sm" variant="outline" disabled={setRole.isPending} onClick={() => revoke(a)}>
+                      Remove access
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border/60 bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Give someone admin access</CardTitle>
+          <p className="text-xs text-muted-foreground">Search for their account first, then confirm.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form className="flex gap-2" onSubmit={e => { e.preventDefault(); setQ(search.trim()); }}>
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Find a person by email or name" />
+            <Button type="submit" variant="outline">Search</Button>
+          </form>
+
+          {q && (
+            <div className="rounded-lg border border-border/60 max-h-56 overflow-y-auto divide-y divide-border/60">
+              {rows.length === 0 ? <EmptyRow>No accounts match.</EmptyRow> : rows.slice(0, 20).map(r => {
+                const isAdmin = alreadyAdminIds.has(r.user_id);
+                return (
+                  <button
+                    key={r.user_id}
+                    disabled={isAdmin}
+                    onClick={() => setSelected({ id: r.user_id, email: r.email })}
+                    className={`w-full text-left px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-muted/40 disabled:opacity-40 disabled:cursor-not-allowed ${selected?.id === r.user_id ? 'bg-muted/60' : ''}`}
+                  >
+                    <span className="text-sm truncate">{r.email}</span>
+                    {isAdmin && <span className="text-xs text-muted-foreground shrink-0">Already admin</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selected && (
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-3">
+              <p className="text-sm">Give admin access to <span className="font-medium">{selected.email}</span>?</p>
+              <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Why is this person getting admin access?" rows={2} />
+              <div className="flex gap-2">
+                <Button size="sm" disabled={setRole.isPending || !reason.trim()} onClick={grant}>
+                  {setRole.isPending ? 'Saving' : 'Grant admin access'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setSelected(null); setReason(''); }}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -222,6 +222,7 @@ export const adminControlKeys = {
   moderation: ['admin', 'v2', 'moderation'] as const,
   flags: ['admin', 'v2', 'flags'] as const,
   snapshot: (id: string) => ['admin', 'v2', 'snapshot', id] as const,
+  admins: ['admin', 'v2', 'admins'] as const,
 };
 
 export function useAdminModeration() {
@@ -287,6 +288,29 @@ export function useAdjustCredits() {
       toast.success(`New balance: ${res?.balance ?? '—'}`);
     },
     onError: (e: Error) => toast.error(e.message || 'Adjustment failed'),
+  });
+}
+
+// v3.46.0 — who has admin access, and a way to grant/revoke it without
+// touching the database by hand.
+export function useAdminAdmins() {
+  return useQuery({
+    queryKey: adminControlKeys.admins,
+    queryFn: () => adminRpc<any>('get_admin_admins'),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useSetAdminRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { userId: string; grant: boolean; reason: string }) =>
+      adminRpc('admin_set_admin_role', { p_user_id: v.userId, p_grant: v.grant, p_reason: v.reason }),
+    onSuccess: (_res, v) => {
+      qc.invalidateQueries({ queryKey: adminControlKeys.admins });
+      toast.success(v.grant ? 'Admin access granted' : 'Admin access removed');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not change admin access'),
   });
 }
 
