@@ -14,9 +14,9 @@ import {
   useAdminFeatureFlags, useSetFeatureFlag, useSetFeatureMessage,
   useAdjustCredits, useUserSnapshot, useAdminAccounts,
   useAdminAdmins, useSetAdminRole,
+  useAdminPlans, useUpdatePlan,
 } from '@/admin-app/hooks/useAdminQuery';
-
-import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
+import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when, money } from '../ui';
 
 /* ───────────────────────────── MODERATION ───────────────────────────── */
 export function ModerationPane() {
@@ -454,5 +454,127 @@ export function AdminsPane() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/* ────────────────────────────── PLANS ────────────────────────────────── */
+// v3.47.0 — plans could not be edited from the panel at all. Price stays
+// read-only here on purpose: Stripe prices are immutable once created and
+// this project has never created or mutated a Stripe Price/Product object
+// anywhere, so editing price_cents here without a matching Stripe change
+// would silently desync what the app shows from what people are actually
+// charged. Everything else about a plan is safe to change directly.
+export function PlanEditor() {
+  const plans = useAdminPlans();
+  const update = useUpdatePlan();
+  const [editing, setEditing] = useState<any | null>(null);
+  const [form, setForm] = useState<{ name: string; credits: string; proposals: string; assessments: string; searches: string; active: boolean }>({
+    name: '', credits: '', proposals: '', assessments: '', searches: '', active: true,
+  });
+
+  if (plans.isLoading) return <LoadingBlock />;
+  if (plans.error) return <ErrorBlock error={plans.error} onRetry={() => plans.refetch()} />;
+
+  const rows: any[] = (plans.data as any) || [];
+
+  const startEdit = (p: any) => {
+    setEditing(p);
+    setForm({
+      name: p.name || '',
+      credits: p.credits ?? '' as any,
+      proposals: p.proposals_limit ?? '' as any,
+      assessments: p.assessments_limit ?? '' as any,
+      searches: p.searches_limit ?? '' as any,
+      active: p.active !== false,
+    });
+  };
+
+  const toNum = (s: string) => (s.trim() === '' ? null : Math.max(0, Math.round(Number(s) || 0)));
+
+  const save = () => {
+    if (!editing) return;
+    if (!form.name.trim()) { toast.error('A plan name is required'); return; }
+    update.mutate(
+      {
+        key: editing.key,
+        name: form.name.trim(),
+        credits: toNum(form.credits),
+        proposalsLimit: toNum(form.proposals),
+        assessmentsLimit: toNum(form.assessments),
+        searchesLimit: toNum(form.searches),
+        active: form.active,
+      },
+      { onSuccess: () => setEditing(null) },
+    );
+  };
+
+  return (
+    <Card className="border border-border/60 bg-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Edit plans</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Name, credits, and limits can be changed here. The price cannot — that's set in Stripe, so it has to change there
+          too or the app and what people are actually charged would disagree. Tell me directly if a price needs to change.
+        </p>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-border/60">
+          {rows.map(p => (
+            <div key={p.key}>
+              <div className="px-5 py-3 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    {p.name}
+                    {!p.active && <Badge variant="secondary" className="text-[10px]">Hidden</Badge>}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {p.audience} · {money(p.price_cents)} / {p.interval}
+                    {p.audience === 'seeker' ? ` · ${p.credits ?? 0} credits` : ` · ${p.proposals_limit ?? '∞'} proposals, ${p.assessments_limit ?? '∞'} assessments`}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => startEdit(p)}>Edit</Button>
+              </div>
+
+              {editing?.key === p.key && (
+                <div className="px-5 pb-4 space-y-3 bg-muted/20">
+                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Plan name" />
+                  {p.audience === 'seeker' ? (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Credits per period</Label>
+                      <Input value={form.credits} onChange={e => setForm(f => ({ ...f, credits: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="e.g. 6" inputMode="numeric" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Proposals</Label>
+                        <Input value={form.proposals} onChange={e => setForm(f => ({ ...f, proposals: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="∞" inputMode="numeric" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Assessments</Label>
+                        <Input value={form.assessments} onChange={e => setForm(f => ({ ...f, assessments: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="∞" inputMode="numeric" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Searches</Label>
+                        <Input value={form.searches} onChange={e => setForm(f => ({ ...f, searches: e.target.value.replace(/[^0-9]/g, '') }))} placeholder="∞" inputMode="numeric" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={form.active} onCheckedChange={c => setForm(f => ({ ...f, active: c }))} />
+                      <Label className="text-sm">Visible to people signing up</Label>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                      <Button size="sm" disabled={update.isPending} onClick={save}>{update.isPending ? 'Saving' : 'Save'}</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

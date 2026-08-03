@@ -1281,6 +1281,7 @@ async function notifyCandidate(
   candidateUserId: string,
   subject: string,
   bodyHtml: string,
+  emailType: string,
 ): Promise<void> {
   try {
     const { data: authUser } = await admin.auth.admin.getUserById(candidateUserId);
@@ -1288,6 +1289,11 @@ async function notifyCandidate(
     if (!email) return;
     const r = await sendBrandedEmail(email, subject, wrapEmail(bodyHtml));
     if (!r.ok) console.error("[notifyCandidate] send failed", r.error);
+    // v3.47.0 — so the admin panel's email log shows whether this actually sent.
+    await admin.from("email_logs").insert({
+      user_id: candidateUserId, email_type: emailType, recipient_email: email,
+      status: r.ok ? "sent" : "failed", error_message: r.ok ? null : r.error,
+    }).then(({ error }: { error: unknown }) => { if (error) console.error("[notifyCandidate] email_logs insert failed", error); });
   } catch (e) {
     console.error("[notifyCandidate] threw", e);
   }
@@ -1301,6 +1307,7 @@ async function notifyOrgMembers(
   orgId: string,
   subject: string,
   bodyHtml: string,
+  emailType: string,
 ): Promise<void> {
   try {
     const { data: members } = await admin.from("org_members").select("user_id").eq("org_id", orgId);
@@ -1312,6 +1319,10 @@ async function notifyOrgMembers(
       if (!email) return;
       const r = await sendBrandedEmail(email, subject, html);
       if (!r.ok) console.error("[notifyOrgMembers] send failed", r.error);
+      await admin.from("email_logs").insert({
+        user_id: uid, email_type: emailType, recipient_email: email,
+        status: r.ok ? "sent" : "failed", error_message: r.ok ? null : r.error,
+      }).then(({ error }: { error: unknown }) => { if (error) console.error("[notifyOrgMembers] email_logs insert failed", error); });
     }));
   } catch (e) {
     console.error("[notifyOrgMembers] threw", e);
@@ -3327,6 +3338,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
         `${heading("You have a new proposal")}
         ${para(`${escapeHtml(proposalOrgName)} sent you a proposal for ${escapeHtml(title)}.`)}
         ${ctaButton("https://aynn.io/", "View proposal")}`,
+        "proposal_received",
       );
       return json({ ok: true, status: "pending" });
     }
@@ -3396,6 +3408,7 @@ TWO THINGS YOU MAY MENTION ABOUT THEM, pick at most two and phrase them naturall
             : `${heading("Your proposal was declined")}
               ${para(`The candidate for ${roleTitle} declined your proposal.`)}
               ${ctaButton("https://aynn.io/", "View in EmployerHub")}`,
+          approve ? "proposal_accepted" : "proposal_declined",
         );
       }
       return json({ ok: true, status });
@@ -3662,6 +3675,7 @@ Write the assessment now.`,
           `${heading("A company wants to verify your background")}
           ${para(`${escapeHtml(sendOrgName)} sent you a short assessment${a.job_title ? ` for ${escapeHtml(a.job_title)}` : ""}. It takes about ${minutes} minutes once you start.`)}
           ${ctaButton("https://aynn.io/", "View assessment")}`,
+          "assessment_received",
         );
       }
       return json({ ok: true, status: "sent" });
@@ -3976,6 +3990,7 @@ Grade it now.`,
           `${heading("An assessment was completed")}
           ${para(`A candidate for ${roleTitle} finished the assessment you sent. Results and observations are ready to review.`)}
           ${ctaButton("https://aynn.io/", "View results")}`,
+          "assessment_completed",
         );
       }
     }

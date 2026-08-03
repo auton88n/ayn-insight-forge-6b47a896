@@ -17,6 +17,8 @@ import {
   useAdminAIUsage,
   useAdminEmailAudience,
   useAdminTermsConsent,
+  useAdminActivityLog,
+  useAdminEmailLog,
 } from '@/admin-app/hooks/useAdminQuery';
 import { Stat, LoadingBlock, ErrorBlock, EmptyRow, when } from '../ui';
 
@@ -253,6 +255,80 @@ export function ErrorsPane() {
   );
 }
 
+/* ──────────────────────────── ACTIVITY LOG ───────────────────────────── */
+// v3.47.0 — every admin action has been recorded in security_audit_logs
+// since early in this project; this is the first screen that reads it back.
+const ACTIVITY_LABELS: Record<string, string> = {
+  admin_suspend_account: 'Suspended an account',
+  admin_restore_account: 'Restored an account',
+  admin_set_restriction: 'Changed a restriction',
+  admin_adjust_credits: 'Adjusted credits',
+  admin_erase_account: 'Erased an account',
+  admin_purge_account: 'Purged an account',
+  admin_set_feature_flag: 'Changed a kill switch',
+  admin_set_feature_message: 'Changed a maintenance note',
+  admin_moderate_proposal: 'Cancelled a proposal',
+  admin_moderate_assessment: 'Expired an assessment',
+  admin_set_admin_role: 'Changed admin access',
+  admin_update_plan: 'Edited a plan',
+  admin_set_limit_override: 'Set an account override',
+  admin_clear_limit_override: 'Cleared an account override',
+  admin_employer_approve: 'Approved an employer',
+  admin_employer_decline: 'Declined an employer',
+  admin_employer_override: 'Changed an employer plan',
+  admin_mark_candidates_stale: 'Queued candidates for reindex',
+  admin_set_pin: 'Changed the admin PIN',
+  admin_unblock_user: 'Unblocked a rate-limited user',
+  admin_user_snapshot: 'Looked up an account snapshot',
+};
+
+function summarizeActivityDetails(d: any): string {
+  if (!d || typeof d !== 'object') return '';
+  const bits: string[] = [];
+  if (d.target_email) bits.push(String(d.target_email));
+  else if (d.email) bits.push(String(d.email));
+  if (d.plan_key) bits.push(`plan ${d.plan_key}`);
+  if (d.key && typeof d.enabled === 'boolean') bits.push(`${d.key} → ${d.enabled ? 'on' : 'off'}`);
+  if (d.capability) bits.push(String(d.capability));
+  if (typeof d.grant === 'boolean') bits.push(d.grant ? 'granted' : 'removed');
+  if (d.reason) bits.push(`"${d.reason}"`);
+  if (bits.length) return bits.join(' · ');
+  try { return JSON.stringify(d).slice(0, 160); } catch { return ''; }
+}
+
+export function ActivityPane() {
+  const query = useAdminActivityLog();
+  if (query.isLoading) return <LoadingBlock />;
+  if (query.error) return <ErrorBlock error={query.error} onRetry={() => query.refetch()} />;
+
+  const rows: any[] = (query.data as any) || [];
+  const last24 = rows.filter(r => Date.now() - new Date(r.created_at).getTime() < 86400000).length;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <Stat label="Actions logged" value={rows.length} hint="Most recent 150" />
+        <Stat label="Last 24 hours" value={last24} accent />
+        <Stat label="High severity" value={rows.filter(r => r.severity === 'high').length} />
+      </div>
+      <Table head={['Who', 'What', 'Details', 'When']}>
+        {rows.length === 0 && <tr><td colSpan={4}><EmptyRow>Nothing recorded yet.</EmptyRow></td></tr>}
+        {rows.map(r => (
+          <Row key={r.id}>
+            <Cell>{r.actor_email || <span className="text-muted-foreground">System</span>}</Cell>
+            <Cell>
+              <span>{ACTIVITY_LABELS[r.action] || r.action}</span>
+              {r.severity === 'high' && <Badge variant="destructive" className="text-[10px] ml-2">high</Badge>}
+            </Cell>
+            <Cell><span className="text-xs text-muted-foreground">{summarizeActivityDetails(r.details)}</span></Cell>
+            <Cell>{when(r.created_at)}</Cell>
+          </Row>
+        ))}
+      </Table>
+    </div>
+  );
+}
+
 /* ──────────────────────────── RATE LIMITS ──────────────────────────── */
 export function LimitsPane() {
   const query = useAdminRateLimits();
@@ -453,6 +529,72 @@ function SystemEmailsReference() {
   );
 }
 
+// v3.47.0 — every automatic system email (and admin broadcast) now writes
+// to email_logs; this is the first screen that reads it back, so a silent
+// send failure is finally visible instead of invisible.
+const EMAIL_TYPE_LABELS: Record<string, string> = {
+  signup: 'Account confirmation',
+  recovery: 'Password reset',
+  email_change: 'Email change confirmation',
+  magiclink: 'Login link',
+  payment_receipt: 'Payment receipt',
+  proposal_received: 'New proposal (to job seeker)',
+  assessment_received: 'New assessment (to job seeker)',
+  proposal_accepted: 'Proposal accepted (to employer)',
+  proposal_declined: 'Proposal declined (to employer)',
+  assessment_completed: 'Assessment completed (to employer)',
+  admin_broadcast_all: 'Broadcast — everyone',
+  admin_broadcast_seekers: 'Broadcast — job seekers',
+  admin_broadcast_employers: 'Broadcast — employers',
+  admin_broadcast_discoverable: 'Broadcast — discoverable',
+  admin_broadcast_test: 'Broadcast — test',
+};
+
+function EmailLogSection() {
+  const query = useAdminEmailLog();
+  const [open, setOpen] = useState(false);
+  if (query.isLoading || query.error) return null;
+  const rows: any[] = (query.data as any) || [];
+  const failed = rows.filter(r => r.status === 'failed').length;
+
+  return (
+    <Card className="border border-border/60 bg-card">
+      <CardContent className="p-5 space-y-3">
+        <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between text-left">
+          <div>
+            <p className="text-base font-medium">Did these emails actually go out?</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              The last {rows.length} attempts, both automatic and the messages written above.
+              {failed > 0 && <span className="text-destructive"> {failed} failed.</span>}
+            </p>
+          </div>
+          <span className="text-sm text-muted-foreground shrink-0 ml-3">{open ? 'Hide' : 'Show'}</span>
+        </button>
+        {open && (
+          rows.length === 0 ? <EmptyRow>Nothing sent yet.</EmptyRow> : (
+            <div className="divide-y divide-border/60 max-h-[420px] overflow-y-auto">
+              {rows.map(r => (
+                <div key={r.id} className="py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{EMAIL_TYPE_LABELS[r.email_type] || r.email_type}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {r.recipient_email || 'unknown recipient'} · {when(r.sent_at)}
+                      {r.status === 'failed' && r.error_message && <span className="text-destructive"> · {r.error_message}</span>}
+                    </p>
+                  </div>
+                  <Badge variant={r.status === 'failed' ? 'destructive' : 'secondary'} className="text-[10px] uppercase shrink-0">
+                    {r.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function EmailPane() {
   const query = useAdminEmailAudience();
   const [audience, setAudience] = useState<'all' | 'seekers' | 'employers' | 'discoverable'>('all');
@@ -550,6 +692,8 @@ export function EmailPane() {
           )}
         </CardContent>
       </Card>
+
+      <EmailLogSection />
     </div>
   );
 }

@@ -46,6 +46,16 @@ async function sendReceiptEmail(userId: string, planName: string, creditsGranted
   `);
   const r = await sendBrandedEmail(email, "Your AYN payment receipt", html);
   if (!r.ok) console.error("[stripe-webhook] receipt email failed", r.error);
+
+  // v3.47.0 — record every attempt so the admin panel's email log shows
+  // whether this actually sent, not just that the code ran.
+  await admin.from("email_logs").insert({
+    user_id: userId,
+    email_type: "payment_receipt",
+    recipient_email: email,
+    status: r.ok ? "sent" : "failed",
+    error_message: r.ok ? null : r.error,
+  }).then(({ error }) => { if (error) console.error("[stripe-webhook] email_logs insert failed", error.message); });
 }
 
 async function userIdForCustomer(customerId: string, fallback?: string | null) {

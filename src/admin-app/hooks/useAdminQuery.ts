@@ -223,6 +223,9 @@ export const adminControlKeys = {
   flags: ['admin', 'v2', 'flags'] as const,
   snapshot: (id: string) => ['admin', 'v2', 'snapshot', id] as const,
   admins: ['admin', 'v2', 'admins'] as const,
+  activityLog: ['admin', 'v2', 'activityLog'] as const,
+  emailLog: ['admin', 'v2', 'emailLog'] as const,
+  plans: ['admin', 'v2', 'plans'] as const,
 };
 
 export function useAdminModeration() {
@@ -311,6 +314,56 @@ export function useSetAdminRole() {
       toast.success(v.grant ? 'Admin access granted' : 'Admin access removed');
     },
     onError: (e: Error) => toast.error(e.message || 'Could not change admin access'),
+  });
+}
+
+// v3.47.0 — who did what, and when. security_audit_logs has been written
+// to by nearly every admin action since early on; this is the first reader.
+export function useAdminActivityLog() {
+  return useQuery({
+    queryKey: adminControlKeys.activityLog,
+    queryFn: () => adminRpc<any>('get_admin_activity_log', { p_limit: 150 }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// v3.47.0 — whether the automatic system emails (and admin broadcasts)
+// actually sent, not just that the code ran.
+export function useAdminEmailLog() {
+  return useQuery({
+    queryKey: adminControlKeys.emailLog,
+    queryFn: () => adminRpc<any>('get_admin_email_log', { p_limit: 150 }),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+// v3.47.0 — editable plan fields, deliberately excluding price_cents and
+// the Stripe price/product ids (see admin_update_plan's own comment for why).
+export function useAdminPlans() {
+  return useQuery({
+    queryKey: adminControlKeys.plans,
+    queryFn: () => adminRpc<any>('get_admin_plans'),
+    staleTime: FAST_STALE_TIME,
+  });
+}
+
+export function useUpdatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: {
+      key: string; name: string; credits: number | null; proposalsLimit: number | null;
+      assessmentsLimit: number | null; searchesLimit: number | null; active: boolean;
+    }) => adminRpc('admin_update_plan', {
+      p_key: v.key, p_name: v.name, p_credits: v.credits, p_proposals_limit: v.proposalsLimit,
+      p_assessments_limit: v.assessmentsLimit, p_searches_limit: v.searchesLimit, p_active: v.active,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminControlKeys.plans });
+      qc.invalidateQueries({ queryKey: adminV2Keys.money });
+      qc.invalidateQueries({ queryKey: adminControlKeys.activityLog });
+      toast.success('Plan updated');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Could not update plan'),
   });
 }
 

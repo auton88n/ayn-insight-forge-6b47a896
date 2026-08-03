@@ -3,6 +3,7 @@ import { useAdminMoney } from '@/admin-app/hooks/useAdminQuery';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader, Stat, LoadingBlock, ErrorBlock, EmptyRow, money, when } from './ui';
+import { PlanEditor } from './system/ControlPanes';
 
 export default function MoneySection() {
   const q = useAdminMoney();
@@ -96,6 +97,10 @@ export default function MoneySection() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-4">
+        <PlanEditor />
       </div>
     </div>
   );

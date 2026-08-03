@@ -8,8 +8,16 @@
 // no local copy anywhere in the repo; it is now tracked here.
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+// v3.47.0 — only used to write email_logs so the admin panel can see
+// whether these sends actually succeeded. Never used to read/gate anything.
+const admin = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false } },
+);
 
 // The secret comes as "v1,whsec_BASE64SECRET" - extract just the base64 part
 const rawSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET") || "";
@@ -230,14 +238,37 @@ Deno.serve(async (req) => {
     const { subject, html } = getTemplate(email_data.email_action_type, user, confirmationUrl);
 
     // Send via Resend
-    const emailResult = await resend.emails.send({
-      from: 'AYN <noreply@mail.aynn.io>',
-      to: [user.email],
-      subject,
-      html
-    });
+    let emailResult;
+    try {
+      emailResult = await resend.emails.send({
+        from: 'AYN <noreply@mail.aynn.io>',
+        to: [user.email],
+        subject,
+        html
+      });
+    } catch (sendError) {
+      // v3.47.0 — record the failed attempt before it propagates to the
+      // outer catch (which returns 500 so Supabase retries the hook).
+      // user_id is deliberately omitted: for a fresh 'signup' event the
+      // GoTrue Send Email hook fires before the new auth.users row is
+      // visible to this connection, so email_logs.user_id's FK to
+      // auth.users would fail every single signup silently (confirmed
+      // live: 23503 foreign key violation on every attempt). recipient_email
+      // already identifies who this was for.
+      await admin.from('email_logs').insert({
+        email_type: email_data.email_action_type, recipient_email: user.email,
+        status: 'failed', error_message: sendError instanceof Error ? sendError.message : String(sendError),
+      }).then(({ error }) => { if (error) console.error('[auth-send-email] email_logs insert failed', error.message); });
+      throw sendError;
+    }
 
     console.log(`[auth-send-email] Email sent successfully:`, emailResult);
+
+    // v3.47.0 — best effort, never blocks the response Supabase is waiting on.
+    await admin.from('email_logs').insert({
+      email_type: email_data.email_action_type, recipient_email: user.email,
+      status: 'sent',
+    }).then(({ error }) => { if (error) console.error('[auth-send-email] email_logs insert failed', error.message); });
 
     // Return success - Supabase expects empty object on success
     return new Response(JSON.stringify({}), {
