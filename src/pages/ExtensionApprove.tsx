@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SUPABASE_URL } from "@/config";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AuthModal } from "@/components/auth/AuthModal";
 import { Check, ShieldCheck, X, Chrome } from "lucide-react";
 
 type State = "loading" | "needs_auth" | "ready" | "approving" | "done" | "error";
@@ -16,6 +17,14 @@ export default function ExtensionApprove() {
   const [state, setState] = useState<State>("loading");
   const [email, setEmail] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  // v3.41.0 — signing in used to write sessionStorage + redirect to "/?signin=1",
+  // but nothing anywhere ever read either of those, so the pending approval
+  // (and its code param) was simply lost the moment the user left this page.
+  // Opening the same auth modal used elsewhere, in place, means there is
+  // nothing to hand off: the code stays in this page's own state the whole
+  // time, and the auth listener below flips state to "ready" the moment a
+  // session appears.
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
     if (!code) { setState("error"); setErrorMsg("Missing approval code."); return; }
@@ -25,13 +34,15 @@ export default function ExtensionApprove() {
       setEmail(data.session.user.email || null);
       setState("ready");
     })();
-  }, [code]);
 
-  async function signInAndReturn() {
-    const here = window.location.href;
-    sessionStorage.setItem("post_login_redirect", here);
-    window.location.href = "/?signin=1";
-  }
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setEmail(session.user.email || null);
+        setState(prev => (prev === "needs_auth" || prev === "loading") ? "ready" : prev);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [code]);
 
   async function approve() {
     setState("approving");
@@ -81,7 +92,7 @@ export default function ExtensionApprove() {
         {state === "needs_auth" && (
           <div className="space-y-4">
             <p className="text-sm">Sign in to AYN to connect this browser to your account.</p>
-            <Button onClick={signInAndReturn} className="w-full">Sign in to continue</Button>
+            <Button onClick={() => setAuthModalOpen(true)} className="w-full">Sign in to continue</Button>
           </div>
         )}
 
@@ -136,6 +147,7 @@ export default function ExtensionApprove() {
           </div>
         )}
       </Card>
+      <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
     </div>
   );
 }

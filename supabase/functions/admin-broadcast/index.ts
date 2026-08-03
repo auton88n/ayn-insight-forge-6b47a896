@@ -8,15 +8,30 @@ type Audience = 'all' | 'seekers' | 'employers' | 'discoverable' | 'test';
 
 const FROM = 'AYN <hello@aynn.io>';
 
+// v3.40.0 — subject and message are admin-authored free text, inserted
+// straight into the outgoing HTML email with no escaping. An admin typing
+// `<a href="...">` into either field would ship as real, clickable markup
+// in an email to every recipient in the audience, not visible page text.
+// The envelope Subject header and email_logs stay on the raw string
+// (neither renders HTML), only the HTML body is escaped.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function wrap(subject: string, body: string) {
   const html = body
     .split(/\n{2,}/)
-    .map(p => `<p style="margin:0 0 16px;line-height:1.6;color:#1a1a1a;font-size:15px">${p.replace(/\n/g, '<br/>')}</p>`)
+    .map(p => `<p style="margin:0 0 16px;line-height:1.6;color:#1a1a1a;font-size:15px">${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`)
     .join('');
   return `<!doctype html><html><body style="margin:0;background:#faf7f2;padding:32px 16px;font-family:-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif">
   <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;padding:32px;border:1px solid #ece5da">
     <div style="font-weight:800;font-size:20px;letter-spacing:-0.02em;color:#0b0b0c;margin-bottom:24px">AYN</div>
-    <h1 style="font-size:19px;margin:0 0 18px;color:#0b0b0c">${subject}</h1>
+    <h1 style="font-size:19px;margin:0 0 18px;color:#0b0b0c">${escapeHtml(subject)}</h1>
     ${html}
     <hr style="border:none;border-top:1px solid #ece5da;margin:28px 0 16px"/>
     <p style="font-size:12px;color:#8a8178;margin:0">You are receiving this because you have an AYN account. aynn.io</p>

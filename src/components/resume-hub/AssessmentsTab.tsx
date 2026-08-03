@@ -48,7 +48,12 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
   useEffect(() => { void load(); }, [load]);
 
   const submit = useCallback(async (auto: boolean) => {
-    if (!active) return;
+    // v3.41.0 — the 1-second countdown tick calls submit(true) again on every
+    // tick once the deadline passes, and busy wasn't checked here, only
+    // active (which stays set until the request resolves). On a slow
+    // connection this fired a second concurrent assessment_submit call
+    // before the first had cleared active.
+    if (!active || busy) return;
     setBusy(true);
     try {
       const r = await assessmentApi.submit(active.id);
@@ -61,7 +66,7 @@ export default function AssessmentsTab({ onChanged }: { onChanged?: (pending: nu
       setActive(null);
       await load();
     } finally { setBusy(false); }
-  }, [active, load, toast]);
+  }, [active, busy, load, toast]);
 
   // Server enforced deadline. This countdown is only the visible half of it:
   // the edge function rejects and auto submits any answer past the deadline.

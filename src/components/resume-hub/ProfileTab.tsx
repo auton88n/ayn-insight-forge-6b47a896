@@ -160,19 +160,41 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
     () => sessionStorage.getItem("ayn_skill_level_prompt") === "done"
   );
 
+  // ── Resumes list only: used on initial load AND after an upload, where a
+  // full load() would re-fetch career from the DB before the freshly parsed
+  // resume's skills/experience/education (merged into local state, not yet
+  // persisted) ever reached the server, silently reverting them. ───────────
+  type ResumeRow = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean };
+  const loadResumes = useCallback(async () => {
+    const { data: resumeRows } = await supabase.from("resumes").select("id, title, content, created_at, is_primary")
+      .eq("user_id", userId).order("created_at", { ascending: false });
+    const rows = ((resumeRows ?? []) as ResumeRow[]);
+    const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
+    if (active) {
+      setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at });
+      setResumeContent((active.content as ResumeContent) ?? null);
+    } else {
+      setPrimaryResume(null);
+      setResumeContent(null);
+    }
+    setOlderResumes(
+      rows.filter(r => r.id !== active?.id)
+        .map(r => ({ id: r.id, title: r.title, created_at: r.created_at, content: (r.content ?? {}) as ResumeContent }))
+    );
+  }, [userId]);
+
   // ── Load everything the single profile reads from ───────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: canon }, { data: prof }, { data: resumeRows }, { data: auth }] = await Promise.all([
+      const [{ data: canon }, { data: prof }, , { data: auth }] = await Promise.all([
         supabase.from("user_profile_canonical")
           .select("skills, experiences, education, certifications, work_auth, preferences, derived")
           .eq("user_id", userId).maybeSingle(),
         supabase.from("user_profile_data")
           .select("legal_first_name, legal_last_name, email, phone, address, links")
           .eq("user_id", userId).maybeSingle(),
-        supabase.from("resumes").select("id, title, content, created_at, is_primary")
-          .eq("user_id", userId).order("created_at", { ascending: false }),
+        loadResumes(),
         supabase.auth.getUser(),
       ]);
 
@@ -200,27 +222,13 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
         setPersonalTouched(touched);
       }
 
-      type Row = { id: string; title: string; content: unknown; created_at: string; is_primary: boolean };
-      const rows = ((resumeRows ?? []) as Row[]);
-      const active = rows.find(r => r.is_primary) ?? rows[0] ?? null;
-      if (active) {
-        setPrimaryResume({ id: active.id, title: active.title, created_at: active.created_at });
-        setResumeContent((active.content as ResumeContent) ?? null);
-      } else {
-        setPrimaryResume(null);
-        setResumeContent(null);
-      }
-      setOlderResumes(
-        rows.filter(r => r.id !== active?.id)
-          .map(r => ({ id: r.id, title: r.title, created_at: r.created_at, content: (r.content ?? {}) as ResumeContent }))
-      );
       setAccountEmail(auth?.user?.email ?? "");
     } catch (e) {
       toast({ title: "Couldn't load profile", description: (e as Error).message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [toast, userId]);
+  }, [toast, userId, loadResumes]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -333,7 +341,10 @@ export default function ProfileTab({ userId, onOpenDiscovery }: { userId: string
       setCareer(prev => mapResumeToCareer(resume, prev));
       reindexTalentPool("resume_upload");
       setReplaceOpen(false);
-      await load();
+      // v3.41.0 — refresh only the resumes list (title/id for the new row),
+      // not the full load(), which would re-fetch career from the DB before
+      // the merge above is ever persisted and silently revert it.
+      await loadResumes();
       queueSave();
       toast({ title: "Resume saved", description: "AYN filled in what it could read. Check your skills and achievements below." });
     } catch (e) {
