@@ -20,10 +20,19 @@ function Loader() {
   );
 }
 
+// v3.36.0 — the backend (admin-auth-pin) has always accepted 4 to 6 digit
+// PINs (/^\d{4,6}$/), but this screen only ever rendered 4 boxes and
+// auto-submitted the moment all 4 filled, so a longer PIN had no way to be
+// entered. MAX_PIN_DIGITS boxes are rendered; a shorter PIN still works by
+// pressing Enter or Unlock once 4+ digits are in, so nothing changes for
+// whoever is already on a 4-digit PIN.
+const MAX_PIN_DIGITS = 6;
+const MIN_PIN_DIGITS = 4;
+
 // PIN screen — shown AFTER login since admin-auth-pin requires a JWT.
 // Attempts and lockout are decided by the server, the browser only displays them.
 function PinScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [pin, setPin] = useState(['', '', '', '']);
+  const [pin, setPin] = useState<string[]>(Array(MAX_PIN_DIGITS).fill(''));
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
@@ -54,7 +63,7 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   }, [lockedUntil]);
 
   const resetEntry = () => {
-    setPin(['', '', '', '']);
+    setPin(Array(MAX_PIN_DIGITS).fill(''));
     setTimeout(() => inputs.current[0]?.focus(), 100);
   };
 
@@ -95,15 +104,24 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   };
 
 
+  // The PIN entered so far is always the contiguous run from index 0 — typing
+  // fills left to right, backspace empties right to left, so the first empty
+  // slot (or the end, once every box is full) marks where it ends.
+  const enteredCount = (() => { const i = pin.findIndex(d => d === ''); return i === -1 ? MAX_PIN_DIGITS : i; })();
+  const canSubmit = !lockedUntil && !checking && enteredCount >= MIN_PIN_DIGITS;
+
   const handleChange = (i: number, val: string) => {
     if (lockedUntil || !/^\d*$/.test(val) || checking) return;
     const newPin = [...pin]; newPin[i] = val.slice(-1); setPin(newPin); setError('');
-    if (val && i < 3) inputs.current[i + 1]?.focus();
+    if (val && i < MAX_PIN_DIGITS - 1) inputs.current[i + 1]?.focus();
     if (newPin.every(d => d !== '')) checkPin(newPin.join(''));
   };
 
   const handleKey = (i: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !pin[i] && i > 0) inputs.current[i - 1]?.focus();
+    // A PIN shorter than MAX_PIN_DIGITS has no box count to auto-detect
+    // completion from, so Enter (or the Unlock button below) submits it.
+    if (e.key === 'Enter' && canSubmit) checkPin(pin.slice(0, enteredCount).join(''));
   };
 
   const mins = Math.floor(countdown / 60);
@@ -122,16 +140,24 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
         ) : (
           <>
             <div className="text-muted-foreground text-sm mb-8">Enter admin PIN</div>
-            <div className="flex gap-3 justify-center mb-4">
+            <div className="flex gap-2 justify-center mb-4">
               {pin.map((digit, i) => (
                 <input key={i} ref={el => inputs.current[i] = el} type="password" inputMode="numeric"
                   maxLength={1} value={digit} onChange={e => handleChange(i, e.target.value)}
                   onKeyDown={e => handleKey(i, e)}
                   disabled={checking}
-                  className={`w-12 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
+                  className={`w-10 h-14 text-center text-xl font-bold bg-white border rounded-xl text-foreground shadow-sm focus:outline-none transition-all disabled:opacity-50 ${
                     error ? 'border-destructive/60 bg-destructive/5' : digit ? 'border-[#f97316]' : 'border-black/10 focus:border-[#f97316]'}`} />
               ))}
             </div>
+            {/* A PIN shorter than MAX_PIN_DIGITS needs an explicit submit —
+                there's no box count to auto-detect "done" from. */}
+            {enteredCount < MAX_PIN_DIGITS && (
+              <button onClick={() => canSubmit && checkPin(pin.slice(0, enteredCount).join(''))} disabled={!canSubmit}
+                className="text-xs font-medium text-[#f97316] disabled:text-muted-foreground disabled:opacity-50 mb-2">
+                Unlock
+              </button>
+            )}
             {checking && <p className="text-muted-foreground text-xs">Verifying...</p>}
             {error && !checking && <p className="text-destructive text-xs">{error}</p>}
             <button onClick={() => { adminSupabase.auth.signOut(); }} className="text-muted-foreground text-xs mt-6 underline">

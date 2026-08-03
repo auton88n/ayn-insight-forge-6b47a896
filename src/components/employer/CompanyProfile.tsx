@@ -57,8 +57,22 @@ export default function CompanyProfile({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Tracks the org snapshot form was last reconciled against, so an
+  // incoming save (which only ever changes the field(s) that were actually
+  // saved) can be merged in without stomping edits sitting in other,
+  // not-yet-blurred fields.
+  const lastOrgRef = useRef<Org>(org);
 
-  useEffect(() => { setForm(org); }, [org]);
+  useEffect(() => {
+    setForm(prev => {
+      const merged = { ...prev };
+      (Object.keys(org) as (keyof Org)[]).forEach(key => {
+        if (prev[key] === lastOrgRef.current[key]) merged[key] = org[key];
+      });
+      return merged;
+    });
+    lastOrgRef.current = org;
+  }, [org]);
 
   const save = useCallback(async (patch: OrgPatch) => {
     setSaving(true);

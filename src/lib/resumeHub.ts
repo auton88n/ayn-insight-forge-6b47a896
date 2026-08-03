@@ -31,7 +31,7 @@ async function call<T>(fn: string, body: unknown): Promise<T> {
     // v3.28.0 — suspension and per account restrictions answer with a code and
     // a written message. Show the message, not the code.
     const coded = data as { code?: string; message?: string; error?: string };
-    if (coded?.code === "account_suspended" || coded?.code === "account_restricted") {
+    if (coded?.code === "account_suspended" || coded?.code === "account_restricted" || coded?.code === "insufficient_credits") {
       throw new Error(coded.message || "This account cannot do that right now.");
     }
     throw new Error(coded?.error || `Request failed (${r.status})`);

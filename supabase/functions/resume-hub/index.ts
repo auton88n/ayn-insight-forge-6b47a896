@@ -2184,7 +2184,13 @@ CANDIDATE BACKGROUND: ${candidateBackground}`,
 
     // ---------------- tailor ----------------
     if (action === "tailor") {
-      { const off = await featureGate(createClient(supabaseUrl, serviceKey), "tailoring"); if (off) return off; }
+      const adminTailor = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminTailor, "tailoring"); if (off) return off; }
+      // v3.36.0 — this hub-lane action generated real AI output for free while
+      // the extension's handleSmartTailor charged COST_TAILOR for the same
+      // thing. Gate before spending AI cost, charge only after it succeeds.
+      const creditGate = await assertCredits(adminTailor, user.id, COST_TAILOR, "tailored resume");
+      if (creditGate) return creditGate;
       const { resume, jdText } = payload as { resume: unknown; jdText: string };
       if (!jdText) return json({ error: "jdText required" }, 400);
       const r = await callAI({
@@ -2204,7 +2210,9 @@ RULES — YOU MUST FOLLOW EVERY ONE:
         toolName: "emit_resume",
         toolSchema: RESUME_SCHEMA,
       });
-      return json({ resume: r.structured });
+      const chargeTailor = await creditSpend(adminTailor, user.id, COST_TAILOR, "tailored_resume");
+      if (!chargeTailor.ok) return insufficientCredits(chargeTailor.balance, COST_TAILOR, "tailored resume");
+      return json({ resume: r.structured, credits: { spent: COST_TAILOR, balance: chargeTailor.balance } });
     }
 
 
@@ -2212,13 +2220,19 @@ RULES — YOU MUST FOLLOW EVERY ONE:
 
     // ---------------- cover_letter ----------------
     if (action === "cover_letter") {
-      { const off = await featureGate(createClient(supabaseUrl, serviceKey), "tailoring"); if (off) return off; }
+      const adminCover = createClient(supabaseUrl, serviceKey);
+      { const off = await featureGate(adminCover, "tailoring"); if (off) return off; }
+      // v3.36.0 — same credit-bypass fix as tailor, above.
+      const creditGate = await assertCredits(adminCover, user.id, COST_COVER, "cover letter");
+      if (creditGate) return creditGate;
       const { resume, jdText, tone, company } = payload as { resume: unknown; jdText: string; tone?: string; company?: string };
       const r = await callAI({
         system: `Write a concise, specific cover letter (under 280 words). Tone: ${tone || "professional, warm"}. Address ${company || "the hiring team"}. No clichés ("I am excited to", "leverage", "passionate"). Pull concrete achievements from the resume. Voice: write the way a thoughtful person writes. Vary sentence length, plain natural language, no em dashes, no en dashes, never use ' - ' as a connector. Write ranges with the word 'to'.`,
         user: JSON.stringify({ resume, jdText }).slice(0, 30000),
       });
-      return json({ body: r.text });
+      const chargeCover = await creditSpend(adminCover, user.id, COST_COVER, "cover_letter");
+      if (!chargeCover.ok) return insufficientCredits(chargeCover.balance, COST_COVER, "cover letter");
+      return json({ body: r.text, credits: { spent: COST_COVER, balance: chargeCover.balance } });
     }
 
     // ── NEW ACTIONS (JWT auth) ──

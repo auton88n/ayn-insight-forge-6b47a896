@@ -374,33 +374,18 @@ export const AuthModal = ({ open, onOpenChange, initialRole }: AuthModalProps) =
           variant: "destructive"
         });
       } else {
-        // v2.10.0 — best-effort role setup. Trigger handle_new_user creates
-        // the profile row; we stamp role + create employer_accounts here.
+        // v3.36.0 — role and employer_accounts used to be stamped here, right
+        // after signUp() returns. With email confirmation on there is no
+        // session at that moment, so this ran unauthenticated, RLS silently
+        // filtered it to zero rows, and every employer signup became a job
+        // seeker with no company account. handle_new_user_profile now reads
+        // role and company_name out of the same signup metadata directly,
+        // in the same transaction as the account, so it can never miss.
         if (data.user) {
           // v3.33.0 — the acceptance itself is already recorded by the account
           // creation trigger. This only attaches the IP, which only the server
           // can see, and it is allowed to fail without losing the record.
           void attachConsentIp('signup');
-
-          try {
-            // Cast: types.ts is regenerated after migration approval — until then
-            // 'role' on profiles and the employer_accounts table are unknown to TS.
-            await (supabase.from('profiles') as unknown as { update: (v: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<unknown> } })
-              .update({ role: signupRole }).eq('user_id', data.user.id);
-            if (signupRole === 'employer') {
-              await (supabase.from('employer_accounts' as never) as unknown as { insert: (v: Record<string, unknown>) => Promise<unknown> })
-                .insert({
-                  user_id: data.user.id,
-                  company_name: companyName || 'Unnamed company',
-                  website: companyWebsite || null,
-                  contact_name: fullName || null,
-                  contact_email: email,
-                  status: 'pending_approval',
-                });
-            }
-          } catch (roleErr) {
-            console.warn('[AuthModal] role setup failed:', roleErr);
-          }
         }
 
         // Send welcome email (async, don't block signup)
